@@ -17,7 +17,7 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2 } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   Popover,
@@ -45,6 +45,10 @@ import { useSessionsData } from '@/hooks/stations/useSessionsData';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
+// Add types for sorting
+type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
+type SortDirection = 'asc' | 'desc' | null;
+
 const ReportsPage: React.FC = () => {
   const { expenses, businessSummary } = useExpenses();
   const { customers, bills, products, exportBills, exportCustomers, stations } = usePOS();
@@ -60,6 +64,10 @@ const ReportsPage: React.FC = () => {
   const [dateRangeKey, setDateRangeKey] = useState<string>('thisMonth');
   const [activeTab, setActiveTab] = useState<'bills' | 'customers' | 'sessions' | 'summary'>('bills');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Add sorting state
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
   // Initialize with "thisMonth" as the default date range
   useEffect(() => {
@@ -131,6 +139,86 @@ const ReportsPage: React.FC = () => {
       filteredSessions 
     };
   }, [bills, customers, sessions, date, searchQuery]);
+  
+  // Sort bills based on current sort field and direction
+  const sortedBills = useMemo(() => {
+    if (!sortField || !sortDirection) return filteredData.filteredBills;
+    
+    return [...filteredData.filteredBills].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+      
+      switch (sortField) {
+        case 'date':
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+        case 'total':
+          aValue = a.total;
+          bValue = b.total;
+          break;
+        case 'subtotal':
+          aValue = a.subtotal;
+          bValue = b.subtotal;
+          break;
+        case 'discount':
+          aValue = a.discountValue || 0;
+          bValue = b.discountValue || 0;
+          break;
+        case 'customer':
+          aValue = getCustomerName(a.customerId).toLowerCase();
+          bValue = getCustomerName(b.customerId).toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+      
+      if (sortDirection === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+  }, [filteredData.filteredBills, sortField, sortDirection]);
+  
+  // Calculate total sales for the widget
+  const totalSales = useMemo(() => {
+    return filteredData.filteredBills.reduce((sum, bill) => sum + bill.total, 0);
+  }, [filteredData.filteredBills]);
+  
+  // Handle sorting
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // If clicking the same field, cycle through: asc -> desc -> null
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortDirection(null);
+        setSortField('date'); // Reset to default
+      } else {
+        setSortDirection('asc');
+      }
+    } else {
+      // If clicking a different field, start with asc
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+  
+  // Get sort icon for a field
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4 text-gray-500" />;
+    }
+    
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="h-4 w-4 text-blue-400" />;
+    } else if (sortDirection === 'desc') {
+      return <ArrowDown className="h-4 w-4 text-blue-400" />;
+    } else {
+      return <ArrowUpDown className="h-4 w-4 text-gray-500" />;
+    }
+  };
   
   // Handle date range selection from dropdown with improved options
   const handleDateRangeChange = useCallback((value: string) => {
@@ -256,7 +344,7 @@ const ReportsPage: React.FC = () => {
     switch (activeTab) {
       case 'bills':
         // Prepare bills data for Excel export
-        const billsData = filteredData.filteredBills.map(bill => ({
+        const billsData = sortedBills.map(bill => ({
           Date: format(new Date(bill.createdAt), 'yyyy-MM-dd'),
           Time: format(new Date(bill.createdAt), 'HH:mm:ss'),
           BillID: bill.id,
@@ -323,7 +411,7 @@ const ReportsPage: React.FC = () => {
       default:
         console.log(`Exporting ${activeTab} report`);
     }
-  }, [activeTab, date, filteredData]);
+  }, [activeTab, date, sortedBills]);
 
   // Pre-calculate summary metrics once when filtered data changes
   const summaryMetrics = useMemo(() => calculateSummaryMetrics(), [filteredData]);
@@ -635,16 +723,16 @@ const ReportsPage: React.FC = () => {
     const endIdx = startIdx + itemsPerPage;
     
     return {
-      bills: filteredData.filteredBills.slice(startIdx, endIdx),
+      bills: sortedBills.slice(startIdx, endIdx),
       customers: filteredData.filteredCustomers.slice(startIdx, endIdx),
       sessions: filteredData.filteredSessions.slice(startIdx, endIdx)
     };
-  }, [currentPage, filteredData, itemsPerPage]);
+  }, [currentPage, sortedBills, filteredData, itemsPerPage]);
   
   // Reset pagination when tab or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, date, searchQuery]);
+  }, [activeTab, date, searchQuery, sortField, sortDirection]);
   
   // Only render what's needed based on active tab
   const renderContent = () => {
@@ -664,142 +752,215 @@ const ReportsPage: React.FC = () => {
   
   // Split rendering into separate functions for clarity and code organization
   const renderBillsTab = () => (
-    <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
-      <div className="p-6">
-        <h2 className="text-2xl font-bold mb-1">Transaction History</h2>
-        <p className="text-gray-400">
-          View all transactions 
-          {date?.from && date?.to ? 
-            ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : 
-            ''
-          }
-        </p>
-        
-        {filteredData.filteredBills.length > itemsPerPage && (
-          <div className="mt-4 flex justify-between items-center">
-            <span className="text-sm text-gray-400">
-              Showing {Math.min(paginatedData.bills.length, itemsPerPage)} of {filteredData.filteredBills.length} transactions
-            </span>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}
-              >
-                Previous
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                disabled={currentPage * itemsPerPage >= filteredData.filteredBills.length}
-                onClick={() => setCurrentPage(curr => curr + 1)}
-              >
-                Next
-              </Button>
-            </div>
+    <div className="space-y-4">
+      {/* Total Sales Widget */}
+      <Card className="border-gray-800 bg-[#1A1F2C] shadow-xl">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg text-white flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+              <line x1="12" x2="12" y1="2" y2="22"/>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            Total Sales
+          </CardTitle>
+          <CardDescription className="text-gray-400">
+            Revenue for selected period ({filteredData.filteredBills.length} transactions)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-bold text-green-400">
+            <CurrencyDisplay amount={totalSales} />
           </div>
-        )}
-      </div>
-      <div className="rounded-md overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date & Time</TableHead>
-              <TableHead>Bill ID</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Subtotal</TableHead>
-              <TableHead>Discount</TableHead>
-              <TableHead>Points Used</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead>Split</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedData.bills.map(bill => {
-              const billDate = new Date(bill.createdAt);
-              const firstItemName = bill.items.length > 0 ? bill.items[0].name : '';
-              const itemCount = bill.items.length;
+          {date?.from && date?.to && (
+            <p className="text-sm text-gray-400 mt-2">
+              {format(date.from, 'MMM dd')} - {format(date.to, 'MMM dd, yyyy')}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-1">Transaction History</h2>
+          <p className="text-gray-400">
+            View all transactions 
+            {date?.from && date?.to ? 
+              ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : 
+              ''
+            }
+          </p>
+          
+          {sortedBills.length > itemsPerPage && (
+            <div className="mt-4 flex justify-between items-center">
+              <span className="text-sm text-gray-400">
+                Showing {Math.min(paginatedData.bills.length, itemsPerPage)} of {sortedBills.length} transactions
+              </span>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}
+                >
+                  Previous
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled={currentPage * itemsPerPage >= sortedBills.length}
+                  onClick={() => setCurrentPage(curr => curr + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('date')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
+                    Date & Time
+                    {getSortIcon('date')}
+                  </Button>
+                </TableHead>
+                <TableHead>Bill ID</TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('customer')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
+                    Customer
+                    {getSortIcon('customer')}
+                  </Button>
+                </TableHead>
+                <TableHead>Items</TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('subtotal')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
+                    Subtotal
+                    {getSortIcon('subtotal')}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('discount')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
+                    Discount
+                    {getSortIcon('discount')}
+                  </Button>
+                </TableHead>
+                <TableHead>Points Used</TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('total')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
+                    Total
+                    {getSortIcon('total')}
+                  </Button>
+                </TableHead>
+                <TableHead>Payment</TableHead>
+                <TableHead>Split</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedData.bills.map(bill => {
+                const billDate = new Date(bill.createdAt);
+                const firstItemName = bill.items.length > 0 ? bill.items[0].name : '';
+                const itemCount = bill.items.length;
+                
+                return (
+                  <TableRow key={bill.id}>
+                    <TableCell className="text-white">
+                      <div>{format(billDate, 'd MMM yyyy')}</div>
+                      <div className="text-gray-400">{format(billDate, 'HH:mm')} pm</div>
+                    </TableCell>
+                    <TableCell className="text-white font-mono text-xs">{bill.id.substring(0, 30)}</TableCell>
+                    <TableCell className="text-white">{getCustomerName(bill.customerId)}</TableCell>
+                    <TableCell className="text-white">
+                      <div>{itemCount} item{itemCount !== 1 ? 's' : ''}</div>
+                      {bill.items.length > 0 && (
+                        <div className="text-gray-400 text-xs">{firstItemName}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-white">
+                      <CurrencyDisplay amount={bill.subtotal} />
+                    </TableCell>
+                    <TableCell className="text-white">
+                      <CurrencyDisplay amount={bill.discountValue || 0} />
+                    </TableCell>
+                    <TableCell className="text-white">{bill.loyaltyPointsUsed || 0}</TableCell>
+                    <TableCell className="text-white font-semibold">
+                      <CurrencyDisplay amount={bill.total} />
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={
+                        bill.paymentMethod === 'upi'
+                          ? "bg-blue-900/30 text-blue-400 border-blue-800"
+                          : bill.paymentMethod === 'split'
+                          ? "bg-purple-900/30 text-purple-400 border-purple-800"
+                          : "bg-green-900/30 text-green-400 border-green-800"
+                      }>
+                        {bill.paymentMethod === 'upi' 
+                          ? 'UPI' 
+                          : bill.paymentMethod === 'split'
+                          ? 'Split'
+                          : 'Cash'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {bill.isSplitPayment && (
+                        <div className="text-xs">
+                          <div className="text-green-400">
+                            Cash: <CurrencyDisplay amount={bill.cashAmount || 0} />
+                          </div>
+                          <div className="text-blue-400 mt-1">
+                            UPI: <CurrencyDisplay amount={bill.upiAmount || 0} />
+                          </div>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               
-              return (
-                <TableRow key={bill.id}>
-                  <TableCell className="text-white">
-                    <div>{format(billDate, 'd MMM yyyy')}</div>
-                    <div className="text-gray-400">{format(billDate, 'HH:mm')} pm</div>
-                  </TableCell>
-                  <TableCell className="text-white font-mono text-xs">{bill.id.substring(0, 30)}</TableCell>
-                  <TableCell className="text-white">{getCustomerName(bill.customerId)}</TableCell>
-                  <TableCell className="text-white">
-                    <div>{itemCount} item{itemCount !== 1 ? 's' : ''}</div>
-                    {bill.items.length > 0 && (
-                      <div className="text-gray-400 text-xs">{firstItemName}</div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-white">
-                    <CurrencyDisplay amount={bill.subtotal} />
-                  </TableCell>
-                  <TableCell className="text-white">
-                    <CurrencyDisplay amount={bill.discountValue || 0} />
-                  </TableCell>
-                  <TableCell className="text-white">{bill.loyaltyPointsUsed || 0}</TableCell>
-                  <TableCell className="text-white font-semibold">
-                    <CurrencyDisplay amount={bill.total} />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={
-                      bill.paymentMethod === 'upi'
-                        ? "bg-blue-900/30 text-blue-400 border-blue-800"
-                        : bill.paymentMethod === 'split'
-                        ? "bg-purple-900/30 text-purple-400 border-purple-800"
-                        : "bg-green-900/30 text-green-400 border-green-800"
-                    }>
-                      {bill.paymentMethod === 'upi' 
-                        ? 'UPI' 
-                        : bill.paymentMethod === 'split'
-                        ? 'Split'
-                        : 'Cash'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {bill.isSplitPayment && (
-                      <div className="text-xs">
-                        <div className="text-green-400">
-                          Cash: <CurrencyDisplay amount={bill.cashAmount || 0} />
-                        </div>
-                        <div className="text-blue-400 mt-1">
-                          UPI: <CurrencyDisplay amount={bill.upiAmount || 0} />
-                        </div>
-                      </div>
-                    )}
+              {paginatedData.bills.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center py-16 text-gray-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 mb-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                      <p className="text-lg font-medium">No bills available</p>
+                      <p className="text-sm">No transactions found in the selected date range</p>
+                      {date?.from || date?.to ? (
+                        <Button 
+                          variant="outline" 
+                          className="mt-2 text-purple-400 border-purple-800 hover:bg-purple-900/20"
+                          onClick={() => setDate(undefined)}
+                        >
+                          Reset date filter
+                        </Button>
+                      ) : null}
+                    </div>
                   </TableCell>
                 </TableRow>
-              );
-            })}
-            
-            {paginatedData.bills.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center py-16 text-gray-400">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 mb-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                    <p className="text-lg font-medium">No bills available</p>
-                    <p className="text-sm">No transactions found in the selected date range</p>
-                    {date?.from || date?.to ? (
-                      <Button 
-                        variant="outline" 
-                        className="mt-2 text-purple-400 border-purple-800 hover:bg-purple-900/20"
-                        onClick={() => setDate(undefined)}
-                      >
-                        Reset date filter
-                      </Button>
-                    ) : null}
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );
