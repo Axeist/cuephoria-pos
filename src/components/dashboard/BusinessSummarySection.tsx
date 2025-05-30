@@ -1,14 +1,36 @@
 
 import React from 'react';
-import { useExpenses } from '@/context/ExpenseContext';
+import { usePOS } from '@/context/POSContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { ArrowUpRight, ArrowDownRight, DollarSign, Wallet, TrendingUp } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 const BusinessSummarySection = () => {
-  const { businessSummary } = useExpenses();
-  const { grossIncome, totalExpenses, netProfit, profitMargin } = businessSummary;
+  const { bills, products } = usePOS();
+  
+  // Calculate gross income from all bills
+  const grossIncome = bills.reduce((sum, bill) => sum + bill.total, 0);
+  
+  // Calculate total expenses - this would need to come from the expense context
+  // For now, we'll calculate based on cost of goods sold
+  const totalExpenses = bills.reduce((sum, bill) => {
+    // Get bill items and calculate cost based on buying prices
+    const billCost = bill.items?.reduce((itemSum, item) => {
+      const product = products.find(p => p.id === item.id || p.name === item.name);
+      if (product && product.buyingPrice) {
+        return itemSum + (product.buyingPrice * item.quantity);
+      }
+      return itemSum;
+    }, 0) || 0;
+    return sum + billCost;
+  }, 0);
+  
+  // Calculate net profit
+  const netProfit = grossIncome - totalExpenses;
+  
+  // Calculate profit margin percentage
+  const profitMargin = grossIncome > 0 ? (netProfit / grossIncome) * 100 : 0;
   
   // Calculate progress percentage for visualizing profit margin
   const profitPercentage = Math.max(0, Math.min(100, profitMargin));
@@ -43,7 +65,7 @@ const BusinessSummarySection = () => {
             <CurrencyDisplay amount={totalExpenses} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Combined monthly expenses
+            Cost of goods sold
           </p>
         </CardContent>
       </Card>
