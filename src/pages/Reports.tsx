@@ -140,6 +140,58 @@ const ReportsPage: React.FC = () => {
     };
   }, [bills, customers, sessions, date, searchQuery]);
   
+  // Memoize customer lookup functions to prevent expensive recalculations
+  const customerLookup = useMemo(() => {
+    const lookup: Record<string, { 
+      name: string, 
+      email: string | undefined, 
+      phone: string | undefined,
+      playTime: string,
+      totalSpent: number
+    }> = {};
+    
+    // Pre-calculate play times and total spent for each customer
+    customers.forEach(customer => {
+      const customerSessions = filteredData.filteredSessions.filter(
+        session => session.customerId === customer.id
+      );
+      
+      const totalMinutes = customerSessions.reduce((total, session) => {
+        if (session.endTime) {
+          const start = new Date(session.startTime).getTime();
+          const end = new Date(session.endTime).getTime();
+          return total + (end - start) / (1000 * 60);
+        }
+        return total;
+      }, 0);
+      
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = Math.floor(totalMinutes % 60);
+      const playTime = `${hours}h ${minutes}m`;
+      
+      const totalSpent = filteredData.filteredBills
+        .filter(bill => bill.customerId === customer.id)
+        .reduce((total, bill) => total + bill.total, 0);
+      
+      lookup[customer.id] = {
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        playTime,
+        totalSpent
+      };
+    });
+    
+    return lookup;
+  }, [customers, filteredData.filteredSessions, filteredData.filteredBills]);
+
+  // Use customer lookup for performance - define these functions before they are used
+  const getCustomerName = (customerId: string) => customerLookup[customerId]?.name || 'Unknown';
+  const getCustomerEmail = (customerId: string) => customerLookup[customerId]?.email || '';
+  const getCustomerPhone = (customerId: string) => customerLookup[customerId]?.phone || '';
+  const getCustomerPlayTime = (customerId: string) => customerLookup[customerId]?.playTime || '0h 0m';
+  const getCustomerTotalSpent = (customerId: string) => customerLookup[customerId]?.totalSpent || 0;
+  
   // Sort bills based on current sort field and direction
   const sortedBills = useMemo(() => {
     if (!sortField || !sortDirection) return filteredData.filteredBills;
@@ -179,7 +231,7 @@ const ReportsPage: React.FC = () => {
         return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
       }
     });
-  }, [filteredData.filteredBills, sortField, sortDirection]);
+  }, [filteredData.filteredBills, sortField, sortDirection, getCustomerName]);
   
   // Calculate total sales for the widget
   const totalSales = useMemo(() => {
@@ -293,51 +345,6 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  // Memoize customer lookup functions to prevent expensive recalculations
-  const customerLookup = useMemo(() => {
-    const lookup: Record<string, { 
-      name: string, 
-      email: string | undefined, 
-      phone: string | undefined,
-      playTime: string,
-      totalSpent: number
-    }> = {};
-    
-    // Pre-calculate play times and total spent for each customer
-    customers.forEach(customer => {
-      const customerSessions = filteredData.filteredSessions.filter(
-        session => session.customerId === customer.id
-      );
-      
-      const totalMinutes = customerSessions.reduce((total, session) => {
-        if (session.endTime) {
-          const start = new Date(session.startTime).getTime();
-          const end = new Date(session.endTime).getTime();
-          return total + (end - start) / (1000 * 60);
-        }
-        return total;
-      }, 0);
-      
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = Math.floor(totalMinutes % 60);
-      const playTime = `${hours}h ${minutes}m`;
-      
-      const totalSpent = filteredData.filteredBills
-        .filter(bill => bill.customerId === customer.id)
-        .reduce((total, bill) => total + bill.total, 0);
-      
-      lookup[customer.id] = {
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone,
-        playTime,
-        totalSpent
-      };
-    });
-    
-    return lookup;
-  }, [customers, filteredData.filteredSessions, filteredData.filteredBills]);
-
   // Function to handle downloading reports as Excel
   const handleDownloadReport = useCallback(() => {
     console.log('Downloading report with date range:', date);
@@ -423,13 +430,6 @@ const ReportsPage: React.FC = () => {
       console.log(`Session ${sessionId} deleted successfully`);
     }
   }, [deleteSession]);
-  
-  // Use customer lookup for performance
-  const getCustomerName = (customerId: string) => customerLookup[customerId]?.name || 'Unknown';
-  const getCustomerEmail = (customerId: string) => customerLookup[customerId]?.email || '';
-  const getCustomerPhone = (customerId: string) => customerLookup[customerId]?.phone || '';
-  const getCustomerPlayTime = (customerId: string) => customerLookup[customerId]?.playTime || '0h 0m';
-  const getCustomerTotalSpent = (customerId: string) => customerLookup[customerId]?.totalSpent || 0;
   
   // Calculate business summary metrics function with enhanced metrics
   function calculateSummaryMetrics() {
