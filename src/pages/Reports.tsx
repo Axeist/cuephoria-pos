@@ -42,7 +42,6 @@ import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import BusinessSummaryReport from '@/components/dashboard/BusinessSummaryReport';
 import { useSessionsData } from '@/hooks/stations/useSessionsData';
-import ExpandableBillRow from '@/components/reports/ExpandableBillRow';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -65,7 +64,6 @@ const ReportsPage: React.FC = () => {
   const [dateRangeKey, setDateRangeKey] = useState<string>('thisMonth');
   const [activeTab, setActiveTab] = useState<'bills' | 'customers' | 'sessions' | 'summary'>('bills');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [billSearchQuery, setBillSearchQuery] = useState<string>('');
   
   // Add sorting state
   const [sortField, setSortField] = useState<SortField>('date');
@@ -75,34 +73,6 @@ const ReportsPage: React.FC = () => {
   useEffect(() => {
     handleDateRangeChange('thisMonth');
   }, []);
-  
-  // Memoize customer lookup functions to prevent expensive recalculations
-  const customerLookup = useMemo(() => {
-    const lookup: Record<string, { 
-      name: string, 
-      email: string | undefined, 
-      phone: string | undefined,
-      playTime: string,
-      totalSpent: number
-    }> = {};
-    
-    customers.forEach(customer => {
-      lookup[customer.id] = {
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone,
-        playTime: '0h 0m', // Will be calculated separately
-        totalSpent: 0 // Will be calculated separately
-      };
-    });
-    
-    return lookup;
-  }, [customers]);
-
-  // Use customer lookup for performance - define these functions before they are used
-  const getCustomerName = (customerId: string) => customerLookup[customerId]?.name || 'Unknown';
-  const getCustomerEmail = (customerId: string) => customerLookup[customerId]?.email || '';
-  const getCustomerPhone = (customerId: string) => customerLookup[customerId]?.phone || '';
   
   // Memoize filtered data to prevent recalculation on every render
   const filteredData = useMemo(() => {
@@ -129,22 +99,7 @@ const ReportsPage: React.FC = () => {
 
     // Apply filters to all datasets at once
     const filteredCustomers = filterByDateRange(customers);
-    let filteredBills = filterByDateRange(bills);
-    
-    // Apply bill search filtering if search query exists
-    if (billSearchQuery.trim()) {
-      const query = billSearchQuery.toLowerCase().trim();
-      filteredBills = filteredBills.filter(bill => {
-        const customer = customers.find(c => c.id === bill.customerId);
-        return (
-          bill.id.toLowerCase().includes(query) ||
-          (customer && (
-            customer.name.toLowerCase().includes(query) ||
-            (customer.email && customer.email.toLowerCase().includes(query))
-          ))
-        );
-      });
-    }
+    const filteredBills = filterByDateRange(bills);
     
     // Filter sessions (special case since sessions use startTime instead of createdAt)
     let filteredSessions = sessions.filter(session => {
@@ -183,33 +138,7 @@ const ReportsPage: React.FC = () => {
       filteredBills, 
       filteredSessions 
     };
-  }, [bills, customers, sessions, date, searchQuery, billSearchQuery]);
-  
-  // Calculate customer play time and total spent
-  const getCustomerPlayTime = useCallback((customerId: string) => {
-    const customerSessions = filteredData.filteredSessions.filter(
-      session => session.customerId === customerId
-    );
-    
-    const totalMinutes = customerSessions.reduce((total, session) => {
-      if (session.endTime) {
-        const start = new Date(session.startTime).getTime();
-        const end = new Date(session.endTime).getTime();
-        return total + (end - start) / (1000 * 60);
-      }
-      return total;
-    }, 0);
-    
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = Math.floor(totalMinutes % 60);
-    return `${hours}h ${minutes}m`;
-  }, [filteredData.filteredSessions]);
-  
-  const getCustomerTotalSpent = useCallback((customerId: string) => {
-    return filteredData.filteredBills
-      .filter(bill => bill.customerId === customerId)
-      .reduce((total, bill) => total + bill.total, 0);
-  }, [filteredData.filteredBills]);
+  }, [bills, customers, sessions, date, searchQuery]);
   
   // Sort bills based on current sort field and direction
   const sortedBills = useMemo(() => {
@@ -250,7 +179,7 @@ const ReportsPage: React.FC = () => {
         return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
       }
     });
-  }, [filteredData.filteredBills, sortField, sortDirection, getCustomerName]);
+  }, [filteredData.filteredBills, sortField, sortDirection]);
   
   // Calculate total sales for the widget
   const totalSales = useMemo(() => {
@@ -364,6 +293,51 @@ const ReportsPage: React.FC = () => {
     }
   };
 
+  // Memoize customer lookup functions to prevent expensive recalculations
+  const customerLookup = useMemo(() => {
+    const lookup: Record<string, { 
+      name: string, 
+      email: string | undefined, 
+      phone: string | undefined,
+      playTime: string,
+      totalSpent: number
+    }> = {};
+    
+    // Pre-calculate play times and total spent for each customer
+    customers.forEach(customer => {
+      const customerSessions = filteredData.filteredSessions.filter(
+        session => session.customerId === customer.id
+      );
+      
+      const totalMinutes = customerSessions.reduce((total, session) => {
+        if (session.endTime) {
+          const start = new Date(session.startTime).getTime();
+          const end = new Date(session.endTime).getTime();
+          return total + (end - start) / (1000 * 60);
+        }
+        return total;
+      }, 0);
+      
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = Math.floor(totalMinutes % 60);
+      const playTime = `${hours}h ${minutes}m`;
+      
+      const totalSpent = filteredData.filteredBills
+        .filter(bill => bill.customerId === customer.id)
+        .reduce((total, bill) => total + bill.total, 0);
+      
+      lookup[customer.id] = {
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        playTime,
+        totalSpent
+      };
+    });
+    
+    return lookup;
+  }, [customers, filteredData.filteredSessions, filteredData.filteredBills]);
+
   // Function to handle downloading reports as Excel
   const handleDownloadReport = useCallback(() => {
     console.log('Downloading report with date range:', date);
@@ -449,6 +423,13 @@ const ReportsPage: React.FC = () => {
       console.log(`Session ${sessionId} deleted successfully`);
     }
   }, [deleteSession]);
+  
+  // Use customer lookup for performance
+  const getCustomerName = (customerId: string) => customerLookup[customerId]?.name || 'Unknown';
+  const getCustomerEmail = (customerId: string) => customerLookup[customerId]?.email || '';
+  const getCustomerPhone = (customerId: string) => customerLookup[customerId]?.phone || '';
+  const getCustomerPlayTime = (customerId: string) => customerLookup[customerId]?.playTime || '0h 0m';
+  const getCustomerTotalSpent = (customerId: string) => customerLookup[customerId]?.totalSpent || 0;
   
   // Calculate business summary metrics function with enhanced metrics
   function calculateSummaryMetrics() {
@@ -751,7 +732,7 @@ const ReportsPage: React.FC = () => {
   // Reset pagination when tab or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, date, searchQuery, billSearchQuery, sortField, sortDirection]);
+  }, [activeTab, date, searchQuery, sortField, sortDirection]);
   
   // Only render what's needed based on active tab
   const renderContent = () => {
@@ -808,24 +789,6 @@ const ReportsPage: React.FC = () => {
               ''
             }
           </p>
-          
-          {/* Search bar for bills */}
-          <div className="mt-4 relative">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
-              <Input 
-                placeholder="Search by customer name, email, or bill ID" 
-                value={billSearchQuery}
-                onChange={(e) => setBillSearchQuery(e.target.value)}
-                className="pl-10 bg-gray-800 border-gray-700 text-white w-full md:w-96"
-              />
-            </div>
-            {billSearchQuery && (
-              <p className="text-sm text-gray-400 mt-2">
-                Found {filteredData.filteredBills.length} matching transactions
-              </p>
-            )}
-          </div>
           
           {sortedBills.length > itemsPerPage && (
             <div className="mt-4 flex justify-between items-center">
@@ -915,13 +878,65 @@ const ReportsPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.bills.map(bill => (
-                <ExpandableBillRow
-                  key={bill.id}
-                  bill={bill}
-                  getCustomerName={getCustomerName}
-                />
-              ))}
+              {paginatedData.bills.map(bill => {
+                const billDate = new Date(bill.createdAt);
+                const firstItemName = bill.items.length > 0 ? bill.items[0].name : '';
+                const itemCount = bill.items.length;
+                
+                return (
+                  <TableRow key={bill.id}>
+                    <TableCell className="text-white">
+                      <div>{format(billDate, 'd MMM yyyy')}</div>
+                      <div className="text-gray-400">{format(billDate, 'HH:mm')} pm</div>
+                    </TableCell>
+                    <TableCell className="text-white font-mono text-xs">{bill.id.substring(0, 30)}</TableCell>
+                    <TableCell className="text-white">{getCustomerName(bill.customerId)}</TableCell>
+                    <TableCell className="text-white">
+                      <div>{itemCount} item{itemCount !== 1 ? 's' : ''}</div>
+                      {bill.items.length > 0 && (
+                        <div className="text-gray-400 text-xs">{firstItemName}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-white">
+                      <CurrencyDisplay amount={bill.subtotal} />
+                    </TableCell>
+                    <TableCell className="text-white">
+                      <CurrencyDisplay amount={bill.discountValue || 0} />
+                    </TableCell>
+                    <TableCell className="text-white">{bill.loyaltyPointsUsed || 0}</TableCell>
+                    <TableCell className="text-white font-semibold">
+                      <CurrencyDisplay amount={bill.total} />
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={
+                        bill.paymentMethod === 'upi'
+                          ? "bg-blue-900/30 text-blue-400 border-blue-800"
+                          : bill.paymentMethod === 'split'
+                          ? "bg-purple-900/30 text-purple-400 border-purple-800"
+                          : "bg-green-900/30 text-green-400 border-green-800"
+                      }>
+                        {bill.paymentMethod === 'upi' 
+                          ? 'UPI' 
+                          : bill.paymentMethod === 'split'
+                          ? 'Split'
+                          : 'Cash'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {bill.isSplitPayment && (
+                        <div className="text-xs">
+                          <div className="text-green-400">
+                            Cash: <CurrencyDisplay amount={bill.cashAmount || 0} />
+                          </div>
+                          <div className="text-blue-400 mt-1">
+                            UPI: <CurrencyDisplay amount={bill.upiAmount || 0} />
+                          </div>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               
               {paginatedData.bills.length === 0 && (
                 <TableRow>
@@ -929,33 +944,15 @@ const ReportsPage: React.FC = () => {
                     <div className="flex flex-col items-center justify-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 mb-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
                       <p className="text-lg font-medium">No bills available</p>
-                      <p className="text-sm">
-                        {billSearchQuery ? 
-                          `No transactions found matching "${billSearchQuery}"` :
-                          "No transactions found in the selected date range"
-                        }
-                      </p>
-                      {(date?.from || date?.to || billSearchQuery) ? (
-                        <div className="flex gap-2 mt-2">
-                          {billSearchQuery && (
-                            <Button 
-                              variant="outline" 
-                              className="text-purple-400 border-purple-800 hover:bg-purple-900/20"
-                              onClick={() => setBillSearchQuery('')}
-                            >
-                              Clear search
-                            </Button>
-                          )}
-                          {(date?.from || date?.to) && (
-                            <Button 
-                              variant="outline" 
-                              className="text-purple-400 border-purple-800 hover:bg-purple-900/20"
-                              onClick={() => setDate(undefined)}
-                            >
-                              Reset date filter
-                            </Button>
-                          )}
-                        </div>
+                      <p className="text-sm">No transactions found in the selected date range</p>
+                      {date?.from || date?.to ? (
+                        <Button 
+                          variant="outline" 
+                          className="mt-2 text-purple-400 border-purple-800 hover:bg-purple-900/20"
+                          onClick={() => setDate(undefined)}
+                        >
+                          Reset date filter
+                        </Button>
                       ) : null}
                     </div>
                   </TableCell>
