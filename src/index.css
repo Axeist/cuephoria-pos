@@ -250,13 +250,13 @@
     display: none;
   }
 
-  /* Mobile safe zones */
+  /* Mobile safe zones - using standard padding instead of non-existent safe-area classes */
   .mobile-safe-top {
-    @apply pt-safe-top;
+    @apply pt-4;
   }
   
   .mobile-safe-bottom {
-    @apply pb-safe-bottom;
+    @apply pb-4;
   }
 }
 
