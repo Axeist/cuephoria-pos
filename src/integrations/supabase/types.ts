@@ -136,95 +136,42 @@ export type Database = {
           },
         ]
       }
-      booking_views: {
-        Row: {
-          access_code: string
-          booking_id: string
-          created_at: string
-          id: string
-          last_accessed_at: string | null
-        }
-        Insert: {
-          access_code: string
-          booking_id: string
-          created_at?: string
-          id?: string
-          last_accessed_at?: string | null
-        }
-        Update: {
-          access_code?: string
-          booking_id?: string
-          created_at?: string
-          id?: string
-          last_accessed_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "booking_views_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       bookings: {
         Row: {
           booking_date: string
-          booking_group_id: string | null
-          coupon_code: string | null
           created_at: string
           customer_id: string
-          discount_percentage: number | null
           duration: number
           end_time: string
-          final_price: number | null
           id: string
           notes: string | null
-          original_price: number | null
           start_time: string
           station_id: string
           status: string
-          status_updated_at: string | null
-          status_updated_by: string | null
         }
         Insert: {
           booking_date: string
-          booking_group_id?: string | null
-          coupon_code?: string | null
           created_at?: string
           customer_id: string
-          discount_percentage?: number | null
           duration: number
           end_time: string
-          final_price?: number | null
           id?: string
           notes?: string | null
-          original_price?: number | null
           start_time: string
           station_id: string
           status?: string
-          status_updated_at?: string | null
-          status_updated_by?: string | null
         }
         Update: {
           booking_date?: string
-          booking_group_id?: string | null
-          coupon_code?: string | null
           created_at?: string
           customer_id?: string
-          discount_percentage?: number | null
           duration?: number
           end_time?: string
-          final_price?: number | null
           id?: string
           notes?: string | null
-          original_price?: number | null
           start_time?: string
           station_id?: string
           status?: string
-          status_updated_at?: string | null
-          status_updated_by?: string | null
         }
         Relationships: [
           {
@@ -752,114 +699,6 @@ export type Database = {
           },
         ]
       }
-      tournament_public_registrations: {
-        Row: {
-          created_at: string
-          customer_email: string | null
-          customer_name: string
-          customer_phone: string
-          entry_fee: number | null
-          id: string
-          registration_date: string
-          registration_source: string | null
-          status: string
-          tournament_id: string
-        }
-        Insert: {
-          created_at?: string
-          customer_email?: string | null
-          customer_name: string
-          customer_phone: string
-          entry_fee?: number | null
-          id?: string
-          registration_date?: string
-          registration_source?: string | null
-          status?: string
-          tournament_id: string
-        }
-        Update: {
-          created_at?: string
-          customer_email?: string | null
-          customer_name?: string
-          customer_phone?: string
-          entry_fee?: number | null
-          id?: string
-          registration_date?: string
-          registration_source?: string | null
-          status?: string
-          tournament_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tournament_public_registrations_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournament_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tournament_public_registrations_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournaments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tournament_registrations: {
-        Row: {
-          created_at: string | null
-          customer_email: string | null
-          customer_name: string
-          customer_phone: string
-          entry_fee: number | null
-          id: string
-          registration_date: string | null
-          registration_source: string | null
-          status: string | null
-          tournament_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          customer_email?: string | null
-          customer_name: string
-          customer_phone: string
-          entry_fee?: number | null
-          id?: string
-          registration_date?: string | null
-          registration_source?: string | null
-          status?: string | null
-          tournament_id: string
-        }
-        Update: {
-          created_at?: string | null
-          customer_email?: string | null
-          customer_name?: string
-          customer_phone?: string
-          entry_fee?: number | null
-          id?: string
-          registration_date?: string | null
-          registration_source?: string | null
-          status?: string | null
-          tournament_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tournament_registrations_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournament_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tournament_registrations_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournaments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       tournaments: {
         Row: {
           budget: number | null
@@ -916,44 +755,9 @@ export type Database = {
       }
     }
     Views: {
-      tournament_stats: {
-        Row: {
-          budget: number | null
-          date: string | null
-          game_title: string | null
-          game_type: string | null
-          game_variant: string | null
-          id: string | null
-          matches: Json | null
-          max_players: number | null
-          name: string | null
-          players: Json | null
-          runner_up_prize: number | null
-          status: string | null
-          total_registrations: number | null
-          winner: Json | null
-          winner_prize: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      check_stations_availability: {
-        Args: {
-          p_date: string
-          p_start_time: string
-          p_end_time: string
-          p_station_ids: string[]
-        }
-        Returns: {
-          station_id: string
-          is_available: boolean
-        }[]
-      }
-      generate_booking_access_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
       get_available_slots: {
         Args: { p_date: string; p_station_id: string; p_slot_duration?: number }
         Returns: {
@@ -964,10 +768,6 @@ export type Database = {
       }
       save_bill_edit_audit: {
         Args: { p_bill_id: string; p_editor_name: string; p_changes: string }
-        Returns: undefined
-      }
-      update_missed_bookings: {
-        Args: Record<PropertyKey, never>
         Returns: undefined
       }
     }
