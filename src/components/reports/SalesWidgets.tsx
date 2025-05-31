@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { DollarSign, CreditCard, Split, Gamepad2 } from 'lucide-react';
+import { DollarSign, CreditCard, Split, Gamepad2, Package } from 'lucide-react';
 
 interface BillItem {
   id: string;
@@ -48,17 +48,28 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
   const splitUpiAmount = splitPaymentBills.reduce((sum, bill) => sum + (bill.upiAmount || 0), 0);
   const totalSplitSales = splitCashAmount + splitUpiAmount;
 
-  // Calculate PS5 session sales
+  // Calculate PS5 session sales (proportional to bill total)
   const ps5SessionSales = filteredBills.reduce((sum, bill) => {
     const ps5Items = bill.items.filter(item => 
       item.type === 'session' && 
       (item.name.toLowerCase().includes('ps5') || 
        item.name.toLowerCase().includes('playstation 5'))
     );
-    return sum + ps5Items.reduce((itemSum, item) => itemSum + item.total, 0);
+    
+    if (ps5Items.length === 0) return sum;
+    
+    const ps5ItemsTotal = ps5Items.reduce((itemSum, item) => itemSum + item.total, 0);
+    
+    // Calculate proportional amount based on bill's discount/total ratio
+    if (bill.subtotal > 0) {
+      const proportionalAmount = (ps5ItemsTotal / bill.subtotal) * bill.total;
+      return sum + proportionalAmount;
+    }
+    
+    return sum + ps5ItemsTotal;
   }, 0);
 
-  // Calculate 8-ball session sales
+  // Calculate 8-ball session sales (proportional to bill total)
   const eightBallSales = filteredBills.reduce((sum, bill) => {
     const eightBallItems = bill.items.filter(item => 
       item.type === 'session' && 
@@ -66,11 +77,42 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
        item.name.toLowerCase().includes('8-ball') ||
        item.name.toLowerCase().includes('pool'))
     );
-    return sum + eightBallItems.reduce((itemSum, item) => itemSum + item.total, 0);
+    
+    if (eightBallItems.length === 0) return sum;
+    
+    const eightBallItemsTotal = eightBallItems.reduce((itemSum, item) => itemSum + item.total, 0);
+    
+    // Calculate proportional amount based on bill's discount/total ratio
+    if (bill.subtotal > 0) {
+      const proportionalAmount = (eightBallItemsTotal / bill.subtotal) * bill.total;
+      return sum + proportionalAmount;
+    }
+    
+    return sum + eightBallItemsTotal;
   }, 0);
 
+  // Calculate product sales (proportional to bill total)
+  const productSales = filteredBills.reduce((sum, bill) => {
+    const productItems = bill.items.filter(item => item.type === 'product');
+    
+    if (productItems.length === 0) return sum;
+    
+    const productItemsTotal = productItems.reduce((itemSum, item) => itemSum + item.total, 0);
+    
+    // Calculate proportional amount based on bill's discount/total ratio
+    if (bill.subtotal > 0) {
+      const proportionalAmount = (productItemsTotal / bill.subtotal) * bill.total;
+      return sum + proportionalAmount;
+    }
+    
+    return sum + productItemsTotal;
+  }, 0);
+
+  // Calculate total sales
+  const totalSales = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 mb-6">
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-white">Cash Sales</CardTitle>
@@ -137,12 +179,27 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-white">Product Sales</CardTitle>
+          <Package className="h-4 w-4 text-pink-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-xl font-bold text-white">
+            <CurrencyDisplay amount={productSales} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gray-800/50 border-gray-700">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-white">Total Sales</CardTitle>
           <DollarSign className="h-4 w-4 text-emerald-500" />
         </CardHeader>
         <CardContent>
           <div className="text-xl font-bold text-white">
-            <CurrencyDisplay amount={filteredBills.reduce((sum, bill) => sum + bill.total, 0)} />
+            <CurrencyDisplay amount={totalSales} />
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Verification: <CurrencyDisplay amount={ps5SessionSales + eightBallSales + productSales} />
           </div>
         </CardContent>
       </Card>
