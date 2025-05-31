@@ -30,17 +30,44 @@ interface Bill {
   createdAt: Date | string;
 }
 
+interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+}
+
 interface ExpandableBillRowProps {
   bill: Bill;
   getCustomerName: (customerId: string) => string;
+  getCustomerPhone?: (customerId: string) => string;
+  searchTerm?: string;
 }
 
-const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({ bill, getCustomerName }) => {
+const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({ 
+  bill, 
+  getCustomerName, 
+  getCustomerPhone,
+  searchTerm = ''
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const billDate = new Date(bill.createdAt);
   const firstItemName = bill.items.length > 0 ? bill.items[0].name : '';
   const itemCount = bill.items.length;
+  const customerName = getCustomerName(bill.customerId);
+  const customerPhone = getCustomerPhone ? getCustomerPhone(bill.customerId) : '';
+
+  // Check if this bill matches the search term
+  const matchesSearch = !searchTerm || 
+    customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customerPhone.includes(searchTerm) ||
+    bill.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    bill.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  if (!matchesSearch) {
+    return null;
+  }
 
   return (
     <>
@@ -50,7 +77,12 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({ bill, getCustomer
           <div className="text-gray-400">{format(billDate, 'HH:mm')}</div>
         </TableCell>
         <TableCell className="text-white font-mono text-xs">{bill.id.substring(0, 30)}</TableCell>
-        <TableCell className="text-white">{getCustomerName(bill.customerId)}</TableCell>
+        <TableCell className="text-white">
+          <div>{customerName}</div>
+          {customerPhone && (
+            <div className="text-gray-400 text-xs">{customerPhone}</div>
+          )}
+        </TableCell>
         <TableCell className="text-white">
           <div className="flex items-center gap-2">
             <Button
