@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -64,8 +65,6 @@ const Reports = () => {
     });
   }, [bills, dateRange, searchTerm, customers]);
 
-  const totalRevenue = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
-
   const exportData = () => {
     // Export functionality can be implemented here
     console.log('Exporting data...');
@@ -131,20 +130,6 @@ const Reports = () => {
           <SalesWidgets filteredBills={filteredBills} />
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">Total Sales</CardTitle>
-                <p className="text-muted-foreground">
-                  Revenue for selected period ({filteredBills.length} transactions)
-                </p>
-              </div>
-              <div className="text-3xl font-bold text-primary">
-                <CurrencyDisplay amount={totalRevenue} />
-              </div>
-            </CardHeader>
-          </Card>
-
-          <Card>
             <CardHeader>
               <CardTitle>Transaction History</CardTitle>
               <p className="text-muted-foreground">
@@ -155,7 +140,7 @@ const Reports = () => {
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Search by customer name, email, or bill ID"
+                    placeholder="Search by customer name, phone, or bill ID"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -208,7 +193,6 @@ const Reports = () => {
           </Card>
         </TabsContent>
 
-        
         <TabsContent value="customers">
           <Card>
             <CardHeader>
