@@ -43,6 +43,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import BusinessSummaryReport from '@/components/dashboard/BusinessSummaryReport';
 import { useSessionsData } from '@/hooks/stations/useSessionsData';
 import ExpandableBillRow from '@/components/reports/ExpandableBillRow';
+import SalesWidgets from '@/components/reports/SalesWidgets';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -772,31 +773,8 @@ const ReportsPage: React.FC = () => {
   // Split rendering into separate functions for clarity and code organization
   const renderBillsTab = () => (
     <div className="space-y-4">
-      {/* Total Sales Widget */}
-      <Card className="border-gray-800 bg-[#1A1F2C] shadow-xl">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg text-white flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
-              <line x1="12" x2="12" y1="2" y2="22"/>
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </svg>
-            Total Sales
-          </CardTitle>
-          <CardDescription className="text-gray-400">
-            Revenue for selected period ({filteredData.filteredBills.length} transactions)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold text-green-400">
-            <CurrencyDisplay amount={totalSales} />
-          </div>
-          {date?.from && date?.to && (
-            <p className="text-sm text-gray-400 mt-2">
-              {format(date.from, 'MMM dd')} - {format(date.to, 'MMM dd, yyyy')}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Sales Widgets */}
+      <SalesWidgets filteredBills={filteredData.filteredBills} />
 
       <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
         <div className="p-6">
