@@ -317,10 +317,12 @@ const Dashboard = () => {
   
   return (
     <div className="flex-1 space-y-6 p-6 bg-[#1A1F2C] text-white">
-      <h2 className="text-3xl font-bold tracking-tight font-heading">Dashboard</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold tracking-tight font-heading">Dashboard</h2>
+      </div>
       
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mb-4 w-full max-w-md">
+        <TabsList className="mb-6 w-full max-w-md">
           <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
           <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
           <TabsTrigger value="finances" className="flex-1">Finances</TabsTrigger>
@@ -367,10 +369,13 @@ const Dashboard = () => {
         </TabsContent>
         
         <TabsContent value="finances" className="space-y-6">
-          <ExpenseDateFilter 
-            onDateRangeChange={handleDateRangeChange}
-            onExport={handleExport}
-          />
+          <div className="flex items-center justify-between mb-6">
+            <div></div>
+            <ExpenseDateFilter 
+              onDateRangeChange={handleDateRangeChange}
+              onExport={handleExport}
+            />
+          </div>
           
           <BusinessSummarySection 
             filteredExpenses={filteredExpenses}

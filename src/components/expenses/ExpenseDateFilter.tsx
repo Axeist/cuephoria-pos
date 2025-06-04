@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
-import { Calendar, ChevronDown, Download } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears } from 'date-fns';
+import { Calendar, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import {
@@ -55,6 +55,19 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
           end: endOfMonth(now),
           label: 'Last 3 months'
         };
+      case 'this-year':
+        return {
+          start: startOfYear(now),
+          end: endOfYear(now),
+          label: 'This year'
+        };
+      case 'last-year':
+        const lastYear = subYears(now, 1);
+        return {
+          start: startOfYear(lastYear),
+          end: endOfYear(lastYear),
+          label: 'Last year'
+        };
       case 'custom':
         return {
           start: customStartDate || startOfMonth(now),
@@ -105,11 +118,10 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-4 mb-6">
+    <div className="flex items-center gap-3">
       <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
         <SelectTrigger className="w-48 bg-gray-800 border-gray-700 text-white">
           <SelectValue />
-          <ChevronDown className="h-4 w-4" />
         </SelectTrigger>
         <SelectContent className="bg-gray-800 border-gray-700">
           <SelectItem value="this-month" className="text-white hover:bg-gray-700">
@@ -120,6 +132,12 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
           </SelectItem>
           <SelectItem value="last-3-months" className="text-white hover:bg-gray-700">
             Last 3 months
+          </SelectItem>
+          <SelectItem value="this-year" className="text-white hover:bg-gray-700">
+            This year
+          </SelectItem>
+          <SelectItem value="last-year" className="text-white hover:bg-gray-700">
+            Last year
           </SelectItem>
           <SelectItem value="custom" className="text-white hover:bg-gray-700">
             Custom range

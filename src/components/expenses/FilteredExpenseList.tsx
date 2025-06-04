@@ -82,29 +82,29 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
       {/* Summary cards by category */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {Object.entries(categoryTotals).map(([category, amount]) => (
-          <Card key={category}>
+          <Card key={category} className="bg-gray-800 border-gray-700">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-200">
                 <div className={`w-3 h-3 rounded-full ${getCategoryColor(category)}`} />
                 {category.charAt(0).toUpperCase() + category.slice(1)}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-xl font-bold">
+              <div className="text-xl font-bold text-white">
                 <CurrencyDisplay amount={amount} />
               </div>
             </CardContent>
           </Card>
         ))}
         
-        <Card className="border-2 border-primary">
+        <Card className="bg-gray-800 border-2 border-purple-600">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-primary">
+            <CardTitle className="text-sm font-medium text-purple-400">
               Total Expenses
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-primary">
+            <div className="text-xl font-bold text-purple-400">
               <CurrencyDisplay amount={totalAmount} />
             </div>
           </CardContent>
@@ -112,13 +112,13 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
       </div>
 
       {/* Detailed expense list */}
-      <Card>
+      <Card className="bg-gray-800 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>
+          <CardTitle className="text-gray-200">
             Expenses for Selected Period ({filteredExpenses.length} items)
           </CardTitle>
           <ExpenseDialog>
-            <Button variant="default" className="flex items-center gap-2">
+            <Button variant="default" className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700">
               <PlusCircle className="h-4 w-4" />
               Add Expense
             </Button>
@@ -126,35 +126,35 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
         </CardHeader>
         <CardContent>
           {filteredExpenses.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-gray-400">
               No expenses found for the selected period.
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border border-gray-700">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Recurring</TableHead>
-                    <TableHead className="w-[100px] text-right">Actions</TableHead>
+                  <TableRow className="border-gray-700">
+                    <TableHead className="text-gray-300">Name</TableHead>
+                    <TableHead className="text-gray-300">Category</TableHead>
+                    <TableHead className="text-gray-300">Amount</TableHead>
+                    <TableHead className="text-gray-300">Date</TableHead>
+                    <TableHead className="text-gray-300">Recurring</TableHead>
+                    <TableHead className="w-[100px] text-right text-gray-300">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredExpenses.map((expense) => (
-                    <TableRow key={expense.id}>
-                      <TableCell>{expense.name}</TableCell>
+                    <TableRow key={expense.id} className="border-gray-700 hover:bg-gray-700/50">
+                      <TableCell className="text-gray-200">{expense.name}</TableCell>
                       <TableCell>
                         <Badge className={`${getCategoryColor(expense.category)}`}>
                           {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-gray-200">
                         <CurrencyDisplay amount={expense.amount} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-gray-200">
                         {format(new Date(expense.date), 'MMM dd, yyyy')}
                       </TableCell>
                       <TableCell>
@@ -171,29 +171,29 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <ExpenseDialog expense={expense}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-600">
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </ExpenseDialog>
                           
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-900/20">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent>
+                            <AlertDialogContent className="bg-gray-800 border-gray-700">
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Expense</AlertDialogTitle>
-                                <AlertDialogDescription>
+                                <AlertDialogTitle className="text-gray-200">Delete Expense</AlertDialogTitle>
+                                <AlertDialogDescription className="text-gray-400">
                                   Are you sure you want to delete this expense? This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel className="bg-gray-700 text-gray-200 hover:bg-gray-600">Cancel</AlertDialogCancel>
                                 <AlertDialogAction 
                                   onClick={() => handleDeleteExpense(expense.id)}
-                                  className="bg-red-500 hover:bg-red-600"
+                                  className="bg-red-500 hover:bg-red-600 text-white"
                                 >
                                   Delete
                                 </AlertDialogAction>
