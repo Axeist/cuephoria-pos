@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
+import { isWithinInterval } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
 import SalesChart from '@/components/dashboard/SalesChart';
@@ -13,6 +14,8 @@ import CustomerSpendingCorrelation from '@/components/dashboard/CustomerSpending
 import HourlyRevenueDistribution from '@/components/dashboard/HourlyRevenueDistribution';
 import ProductPerformance from '@/components/dashboard/ProductPerformance';
 import ExpenseList from '@/components/expenses/ExpenseList';
+import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
+import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Dashboard = () => {
@@ -21,6 +24,8 @@ const Dashboard = () => {
   
   const [activeTab, setActiveTab] = useState('daily');
   const [chartData, setChartData] = useState([]);
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  
   const [dashboardStats, setDashboardStats] = useState({
     totalSales: 0,
     salesChange: '',
@@ -44,6 +49,25 @@ const Dashboard = () => {
     today.setHours(0, 0, 0, 0);
     return customers.filter(c => new Date(c.createdAt) >= today).length;
   }, [customers]);
+
+  // Filter expenses by date range
+  const filteredExpenses = useMemo(() => {
+    if (!dateRange) return expenses;
+    
+    return expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
+    });
+  }, [expenses, dateRange]);
+
+  const handleDateRangeChange = (startDate: Date, endDate: Date) => {
+    setDateRange({ start: startDate, end: endDate });
+  };
+
+  const handleExport = () => {
+    // TODO: Implement expense export functionality
+    console.log('Exporting expenses for date range:', dateRange);
+  };
 
   // Optimize data generation and calculations
   useEffect(() => {
@@ -343,9 +367,24 @@ const Dashboard = () => {
         </TabsContent>
         
         <TabsContent value="finances" className="space-y-6">
-          <BusinessSummarySection />
+          <ExpenseDateFilter 
+            onDateRangeChange={handleDateRangeChange}
+            onExport={handleExport}
+          />
           
-          <ExpenseList />
+          <BusinessSummarySection 
+            filteredExpenses={filteredExpenses}
+            dateRange={dateRange}
+          />
+          
+          {dateRange ? (
+            <FilteredExpenseList 
+              startDate={dateRange.start}
+              endDate={dateRange.end}
+            />
+          ) : (
+            <ExpenseList />
+          )}
         </TabsContent>
       </Tabs>
     </div>

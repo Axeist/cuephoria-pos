@@ -7,15 +7,37 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import { ArrowUpRight, ArrowDownRight, DollarSign, Wallet, TrendingUp } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
-const BusinessSummarySection = () => {
+interface BusinessSummarySectionProps {
+  filteredExpenses?: any[];
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+}
+
+const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({ 
+  filteredExpenses,
+  dateRange 
+}) => {
   const { bills, products } = usePOS();
   const { expenses } = useExpenses();
   
-  // Calculate gross income from all bills
-  const grossIncome = bills.reduce((sum, bill) => sum + bill.total, 0);
+  // Use filtered expenses if provided, otherwise use all expenses
+  const expensesToUse = filteredExpenses || expenses;
   
-  // Calculate total expenses from expense context
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  // Filter bills by date range if provided
+  const filteredBills = dateRange 
+    ? bills.filter(bill => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= dateRange.start && billDate <= dateRange.end;
+      })
+    : bills;
+  
+  // Calculate gross income from filtered bills
+  const grossIncome = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
+  
+  // Calculate total expenses from filtered expenses
+  const totalExpenses = expensesToUse.reduce((sum, expense) => sum + expense.amount, 0);
   
   // Calculate net profit
   const netProfit = grossIncome - totalExpenses;
@@ -41,7 +63,7 @@ const BusinessSummarySection = () => {
             <CurrencyDisplay amount={grossIncome} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Total revenue from all sales
+            {dateRange ? 'Revenue for selected period' : 'Total revenue from all sales'}
           </p>
         </CardContent>
       </Card>
@@ -56,7 +78,7 @@ const BusinessSummarySection = () => {
             <CurrencyDisplay amount={totalExpenses} />
           </div>
           <p className="text-xs text-muted-foreground">
-            All business expenses
+            {filteredExpenses ? 'Expenses for selected period' : 'All business expenses'}
           </p>
         </CardContent>
       </Card>
