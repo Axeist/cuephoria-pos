@@ -25,6 +25,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('daily');
   const [chartData, setChartData] = useState([]);
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
   
   const [dashboardStats, setDashboardStats] = useState({
     totalSales: 0,
@@ -321,12 +322,21 @@ const Dashboard = () => {
         <h2 className="text-3xl font-bold tracking-tight font-heading">Dashboard</h2>
       </div>
       
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mb-6 w-full max-w-md">
-          <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-          <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-          <TabsTrigger value="finances" className="flex-1">Finances</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
+        <div className="flex items-center justify-between mb-6">
+          <TabsList className="w-auto">
+            <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
+            <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
+            <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
+          </TabsList>
+          
+          {currentDashboardTab === 'expenses' && (
+            <ExpenseDateFilter 
+              onDateRangeChange={handleDateRangeChange}
+              onExport={handleExport}
+            />
+          )}
+        </div>
         
         <TabsContent value="overview" className="space-y-6">
           <StatCardSection 
@@ -368,15 +378,7 @@ const Dashboard = () => {
           </div>
         </TabsContent>
         
-        <TabsContent value="finances" className="space-y-6">
-          <div className="flex items-center justify-between mb-6">
-            <div></div>
-            <ExpenseDateFilter 
-              onDateRangeChange={handleDateRangeChange}
-              onExport={handleExport}
-            />
-          </div>
-          
+        <TabsContent value="expenses" className="space-y-6">
           <BusinessSummarySection 
             filteredExpenses={filteredExpenses}
             dateRange={dateRange}
