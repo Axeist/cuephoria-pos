@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import toast from 'react-hot-toast';
 
 interface CashTransaction {
   id: string;
@@ -53,7 +53,6 @@ export const CashProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [cashDeposits, setCashDeposits] = useState<CashDeposit[]>([]);
   const [cashSummaries, setCashSummaries] = useState<CashSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
 
   const refreshCashData = async () => {
     try {
@@ -83,16 +82,23 @@ export const CashProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (summariesError) throw summariesError;
 
-      setCashTransactions(transactions || []);
+      // Type the transactions correctly
+      const typedTransactions: CashTransaction[] = (transactions || []).map(t => ({
+        id: t.id,
+        amount: t.amount,
+        transaction_type: t.transaction_type as 'sale' | 'deposit' | 'withdrawal' | 'adjustment',
+        description: t.description,
+        bill_id: t.bill_id,
+        created_at: t.created_at,
+        created_by: t.created_by
+      }));
+
+      setCashTransactions(typedTransactions);
       setCashDeposits(deposits || []);
       setCashSummaries(summaries || []);
     } catch (error) {
       console.error('Error fetching cash data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch cash data',
-        variant: 'destructive',
-      });
+      toast.error('Failed to fetch cash data');
     } finally {
       setLoading(false);
     }
@@ -109,19 +115,11 @@ export const CashProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: 'Bank deposit recorded successfully',
-      });
-
+      toast.success('Bank deposit recorded successfully');
       await refreshCashData();
     } catch (error) {
       console.error('Error adding deposit:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to record bank deposit',
-        variant: 'destructive',
-      });
+      toast.error('Failed to record bank deposit');
     }
   };
 
@@ -139,11 +137,7 @@ export const CashProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await refreshCashData();
     } catch (error) {
       console.error('Error adding transaction:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to record cash transaction',
-        variant: 'destructive',
-      });
+      toast.error('Failed to record cash transaction');
     }
   };
 

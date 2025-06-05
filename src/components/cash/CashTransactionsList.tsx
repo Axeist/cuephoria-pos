@@ -45,6 +45,13 @@ const CashTransactionsList = () => {
     }
   };
 
+  const getTransactionDescription = (transaction: any) => {
+    if (transaction.type === 'transaction') {
+      return transaction.description || 'Cash transaction';
+    }
+    return transaction.bank_name ? `Bank: ${transaction.bank_name}` : 'Bank deposit';
+  };
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold text-white">All Cash Transactions</h3>
@@ -70,10 +77,7 @@ const CashTransactionsList = () => {
                        'Cash Transaction'}
                     </p>
                     <p className="text-sm text-gray-400">
-                      {transaction.description || 
-                       (transaction.type === 'deposit' && 'bank_name' in transaction ? 
-                        `Bank: ${transaction.bank_name || 'N/A'}` : 
-                        'Cash transaction')}
+                      {getTransactionDescription(transaction)}
                     </p>
                     <p className="text-xs text-gray-500">
                       {format(new Date(transaction.created_at), 'MMM d, yyyy h:mm a')}
