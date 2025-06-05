@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
-import { isWithinInterval } from 'date-fns';
+import { isWithinInterval, format } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
 import SalesChart from '@/components/dashboard/SalesChart';
@@ -17,10 +17,14 @@ import ExpenseList from '@/components/expenses/ExpenseList';
 import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import { useToast } from '@/hooks/use-toast';
 
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
   const { expenses, businessSummary } = useExpenses();
+  const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState('daily');
   const [chartData, setChartData] = useState([]);
@@ -66,8 +70,73 @@ const Dashboard = () => {
   };
 
   const handleExport = () => {
-    // TODO: Implement expense export functionality
-    console.log('Exporting expenses for date range:', dateRange);
+    try {
+      if (filteredExpenses.length === 0) {
+        toast({
+          title: 'No Data to Export',
+          description: 'There are no expenses in the selected date range to export.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Prepare data for export
+      const exportData = filteredExpenses.map(expense => ({
+        'Date': format(new Date(expense.date), 'yyyy-MM-dd'),
+        'Name': expense.name,
+        'Category': expense.category.charAt(0).toUpperCase() + expense.category.slice(1),
+        'Amount': expense.amount,
+        'Recurring': expense.isRecurring ? 'Yes' : 'No',
+        'Frequency': expense.isRecurring ? expense.frequency : 'N/A',
+        'Notes': expense.notes || ''
+      }));
+
+      // Create workbook and worksheet
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      
+      // Add title row with date range info
+      const titleRow = dateRange 
+        ? `Expenses Report: ${format(dateRange.start, 'dd MMM yyyy')} - ${format(dateRange.end, 'dd MMM yyyy')}`
+        : `All Expenses Report - ${format(new Date(), 'dd MMM yyyy')}`;
+      
+      // Set column widths for better readability
+      const columnWidths = [
+        { wch: 12 }, // Date
+        { wch: 25 }, // Name
+        { wch: 15 }, // Category
+        { wch: 12 }, // Amount
+        { wch: 10 }, // Recurring
+        { wch: 12 }, // Frequency
+        { wch: 30 }  // Notes
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
+
+      // Generate filename with date range
+      const filename = dateRange 
+        ? `expenses_${format(dateRange.start, 'yyyy-MM-dd')}_to_${format(dateRange.end, 'yyyy-MM-dd')}.xlsx`
+        : `expenses_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+
+      // Export file
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, filename);
+
+      toast({
+        title: 'Export Successful',
+        description: `Exported ${filteredExpenses.length} expenses to ${filename}`,
+      });
+
+    } catch (error) {
+      console.error('Error exporting expenses:', error);
+      toast({
+        title: 'Export Failed',
+        description: 'There was an error exporting the expenses. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
 
   // Optimize data generation and calculations
