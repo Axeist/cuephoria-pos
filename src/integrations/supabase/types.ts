@@ -243,6 +243,110 @@ export type Database = {
           },
         ]
       }
+      cash_deposits: {
+        Row: {
+          amount: number
+          bank_name: string | null
+          created_at: string
+          created_by: string
+          deposit_date: string
+          id: string
+          notes: string | null
+          reference_number: string | null
+        }
+        Insert: {
+          amount: number
+          bank_name?: string | null
+          created_at?: string
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          reference_number?: string | null
+        }
+        Update: {
+          amount?: number
+          bank_name?: string | null
+          created_at?: string
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          reference_number?: string | null
+        }
+        Relationships: []
+      }
+      cash_summary: {
+        Row: {
+          closing_balance: number
+          date: string
+          id: string
+          opening_balance: number
+          total_deposits: number
+          total_sales: number
+          total_withdrawals: number
+          updated_at: string
+        }
+        Insert: {
+          closing_balance?: number
+          date?: string
+          id?: string
+          opening_balance?: number
+          total_deposits?: number
+          total_sales?: number
+          total_withdrawals?: number
+          updated_at?: string
+        }
+        Update: {
+          closing_balance?: number
+          date?: string
+          id?: string
+          opening_balance?: number
+          total_deposits?: number
+          total_sales?: number
+          total_withdrawals?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cash_transactions: {
+        Row: {
+          amount: number
+          bill_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_transactions_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string | null

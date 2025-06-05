@@ -1,154 +1,73 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { QueryClient, QueryClientProvider } from 'react-query';
+import { AuthProvider } from '@/context/AuthContext';
+import { SidebarProvider } from '@/context/SidebarContext';
+import { ExpenseProvider } from '@/context/ExpenseContext';
+import AppSidebar from '@/components/layout/AppSidebar';
+import SidebarTrigger from '@/components/layout/SidebarTrigger';
+import Dashboard from '@/pages/Dashboard';
+import Products from '@/pages/Products';
+import Customers from '@/pages/Customers';
+import Stations from '@/pages/Stations';
+import Expenses from '@/pages/Expenses';
+import Settings from '@/pages/Settings';
+import Login from '@/pages/Login';
+import Register from '@/pages/Register';
+import Bookings from '@/pages/Bookings';
+import Tournaments from '@/pages/Tournaments';
+import Rewards from '@/pages/Rewards';
+import Promotions from '@/pages/Promotions';
+import { CashDeposits } from '@/pages/CashDeposits';
+import { CashTransactions } from '@/pages/CashTransactions';
+import { RequireAuth } from '@/components/auth/RequireAuth';
+import { NoAuth } from '@/components/auth/NoAuth';
+import { POSProvider } from '@/context/POSContext';
+import { CashProvider } from '@/context/CashContext';
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { POSProvider } from "@/context/POSContext";
-import { ExpenseProvider } from "@/context/ExpenseContext";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import AppSidebar from "@/components/AppSidebar";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+const queryClient = new QueryClient();
 
-// Pages
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Stations from "./pages/Stations";
-import Products from "./pages/Products";
-import POS from "./pages/POS";
-import Customers from "./pages/Customers";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
-import Index from "./pages/Index";
-import PublicStations from "./pages/PublicStations";
-
-// Create a new QueryClient instance outside of the component
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
-    },
-  },
-});
-
-// App auto-refresh wrapper component
-const AutoRefreshApp = ({ children }: { children: React.ReactNode }) => {
-  useAutoRefresh(); // Apply auto-refresh to the entire app
-  return <>{children}</>;
-};
-
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requireAdmin?: boolean;
-}
-
-// Enhanced Protected route component that checks for authentication
-const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
-  
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
-      <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
-    </div>;
-  }
-  
-  if (!user) {
-    // Redirect to login page while preserving the intended destination
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  }
-  
-  // If route requires admin access and user is not admin, redirect to dashboard
-  if (requireAdmin && !user.isAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  
+function App() {
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full overflow-x-hidden">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col overflow-x-hidden">
-          <div className="hidden md:block">
-            <SidebarTrigger />
-          </div>
-          {children}
-        </div>
-      </div>
-    </SidebarProvider>
-  );
-};
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <POSProvider>
-        <ExpenseProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <AutoRefreshApp>
+    <QueryClientProvider client={queryClient}>
+      <ExpenseProvider>
+        <POSProvider>
+          <CashProvider>
+            <AuthProvider>
               <BrowserRouter>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  
-                  {/* Public routes */}
-                  <Route path="/public/stations" element={<PublicStations />} />
-                  
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/pos" element={
-                    <ProtectedRoute>
-                      <POS />
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/stations" element={
-                    <ProtectedRoute>
-                      <Stations />
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/products" element={
-                    <ProtectedRoute>
-                      <Products />
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/customers" element={
-                    <ProtectedRoute>
-                      <Customers />
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/reports" element={
-                    <ProtectedRoute>
-                      <Reports />
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/settings" element={
-                    <ProtectedRoute requireAdmin={true}>
-                      <Settings />
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
+                <div className="min-h-screen bg-[#1A1F2C]">
+                  <Toaster />
+                  <SidebarProvider>
+                    <AppSidebar />
+                    <main className="flex-1 w-full">
+                      <SidebarTrigger />
+                      <Routes>
+                        <Route path="/login" element={<NoAuth><Login /></NoAuth>} />
+                        <Route path="/register" element={<NoAuth><Register /></NoAuth>} />
+                        <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+                        <Route path="/products" element={<RequireAuth><Products /></RequireAuth>} />
+                        <Route path="/customers" element={<RequireAuth><Customers /></RequireAuth>} />
+                        <Route path="/stations" element={<RequireAuth><Stations /></RequireAuth>} />
+                        <Route path="/expenses" element={<RequireAuth><Expenses /></RequireAuth>} />
+                        <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+                        <Route path="/bookings" element={<RequireAuth><Bookings /></RequireAuth>} />
+                        <Route path="/tournaments" element={<RequireAuth><Tournaments /></RequireAuth>} />
+                        <Route path="/rewards" element={<RequireAuth><Rewards /></RequireAuth>} />
+                        <Route path="/promotions" element={<RequireAuth><Promotions /></RequireAuth>} />
+                        <Route path="/cash-deposits" element={<RequireAuth><CashDeposits /></RequireAuth>} />
+                        <Route path="/cash-transactions" element={<RequireAuth><CashTransactions /></RequireAuth>} />
+                      </Routes>
+                    </main>
+                  </SidebarProvider>
+                </div>
               </BrowserRouter>
-            </AutoRefreshApp>
-          </TooltipProvider>
-        </ExpenseProvider>
-      </POSProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+            </AuthProvider>
+          </CashProvider>
+        </POSProvider>
+      </ExpenseProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
