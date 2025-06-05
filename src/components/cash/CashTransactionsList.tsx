@@ -3,10 +3,18 @@ import React from 'react';
 import { useCash } from '@/context/CashContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { format } from 'date-fns';
-import { ArrowUp, ArrowDown, Banknote, CreditCard } from 'lucide-react';
+import { format, isWithinInterval } from 'date-fns';
+import { ArrowUp, ArrowDown, Banknote } from 'lucide-react';
 
-const CashTransactionsList = () => {
+interface CashTransactionsListProps {
+  startDate?: Date;
+  endDate?: Date;
+}
+
+const CashTransactionsList: React.FC<CashTransactionsListProps> = ({
+  startDate,
+  endDate,
+}) => {
   const { cashTransactions, cashDeposits } = useCash();
 
   // Combine and sort transactions and deposits
@@ -20,12 +28,29 @@ const CashTransactionsList = () => {
     }))
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+  // Filter transactions by date range if provided
+  const filteredTransactions = allTransactions.filter(transaction => {
+    if (!startDate && !endDate) return true;
+    
+    const transactionDate = new Date(transaction.created_at);
+    
+    if (startDate && endDate) {
+      return isWithinInterval(transactionDate, { start: startDate, end: endDate });
+    } else if (startDate) {
+      return transactionDate >= startDate;
+    } else if (endDate) {
+      return transactionDate <= endDate;
+    }
+    
+    return true;
+  });
+
   const getTransactionIcon = (transactionType: string) => {
     switch (transactionType) {
       case 'sale':
+      case 'adjustment':
         return <ArrowUp className="h-4 w-4 text-green-500" />;
       case 'deposit':
-        return <ArrowDown className="h-4 w-4 text-orange-500" />;
       case 'withdrawal':
         return <ArrowDown className="h-4 w-4 text-red-500" />;
       default:
@@ -36,6 +61,7 @@ const CashTransactionsList = () => {
   const getTransactionColor = (transactionType: string) => {
     switch (transactionType) {
       case 'sale':
+      case 'adjustment':
         return 'text-green-400';
       case 'deposit':
       case 'withdrawal':
@@ -52,9 +78,31 @@ const CashTransactionsList = () => {
     return transaction.bank_name ? `Bank: ${transaction.bank_name}` : 'Bank deposit';
   };
 
+  const getTransactionTitle = (transactionType: string) => {
+    switch (transactionType) {
+      case 'sale':
+        return 'Cash Sale';
+      case 'deposit':
+        return 'Bank Deposit';
+      case 'withdrawal':
+        return 'Cash Withdrawal';
+      case 'adjustment':
+        return 'Manual Adjustment';
+      default:
+        return 'Cash Transaction';
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-white">All Cash Transactions</h3>
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold text-white">
+          {startDate || endDate ? 'Filtered Transactions' : 'All Cash Transactions'}
+        </h3>
+        <span className="text-sm text-gray-400">
+          {filteredTransactions.length} transaction(s)
+        </span>
+      </div>
       
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
@@ -62,7 +110,7 @@ const CashTransactionsList = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {allTransactions.slice(0, 50).map((transaction) => (
+            {filteredTransactions.slice(0, 50).map((transaction) => (
               <div 
                 key={`${transaction.type}-${transaction.id}`}
                 className="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
@@ -71,10 +119,7 @@ const CashTransactionsList = () => {
                   {getTransactionIcon(transaction.transaction_type)}
                   <div>
                     <p className="text-white font-medium">
-                      {transaction.transaction_type === 'sale' ? 'Cash Sale' :
-                       transaction.transaction_type === 'deposit' ? 'Bank Deposit' :
-                       transaction.transaction_type === 'withdrawal' ? 'Cash Withdrawal' :
-                       'Cash Transaction'}
+                      {getTransactionTitle(transaction.transaction_type)}
                     </p>
                     <p className="text-sm text-gray-400">
                       {getTransactionDescription(transaction)}
@@ -87,16 +132,18 @@ const CashTransactionsList = () => {
                 
                 <div className="text-right">
                   <p className={`font-semibold ${getTransactionColor(transaction.transaction_type)}`}>
-                    {transaction.transaction_type === 'sale' ? '+' : '-'}
+                    {(transaction.transaction_type === 'sale' || transaction.transaction_type === 'adjustment') ? '+' : '-'}
                     <CurrencyDisplay amount={transaction.amount} />
                   </p>
                 </div>
               </div>
             ))}
             
-            {allTransactions.length === 0 && (
+            {filteredTransactions.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-gray-400">No transactions found</p>
+                <p className="text-gray-400">
+                  {startDate || endDate ? 'No transactions found for the selected date range' : 'No transactions found'}
+                </p>
               </div>
             )}
           </div>

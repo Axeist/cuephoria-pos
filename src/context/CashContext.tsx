@@ -134,6 +134,9 @@ export const CashProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
 
+      if (transaction.transaction_type === 'adjustment') {
+        toast.success('Cash adjustment recorded successfully');
+      }
       await refreshCashData();
     } catch (error) {
       console.error('Error adding transaction:', error);
