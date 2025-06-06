@@ -28,7 +28,7 @@ const Dashboard = () => {
   
   const [activeTab, setActiveTab] = useState('daily');
   const [chartData, setChartData] = useState([]);
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null } | null>(null);
   const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
   
   const [dashboardStats, setDashboardStats] = useState({
@@ -55,17 +55,38 @@ const Dashboard = () => {
     return customers.filter(c => new Date(c.createdAt) >= today).length;
   }, [customers]);
 
-  // Filter expenses by date range
+  // Filter expenses by date range - handle null values for "all time"
   const filteredExpenses = useMemo(() => {
-    if (!dateRange) return expenses;
+    if (!dateRange || (!dateRange.start && !dateRange.end)) return expenses;
     
     return expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
-      return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
+      
+      // If both start and end are null, show all expenses
+      if (!dateRange.start && !dateRange.end) {
+        return true;
+      }
+      
+      // If only start date is set
+      if (dateRange.start && !dateRange.end) {
+        return expenseDate >= dateRange.start;
+      }
+      
+      // If only end date is set
+      if (!dateRange.start && dateRange.end) {
+        return expenseDate <= dateRange.end;
+      }
+      
+      // If both dates are set
+      if (dateRange.start && dateRange.end) {
+        return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
+      }
+      
+      return true;
     });
   }, [expenses, dateRange]);
 
-  const handleDateRangeChange = (startDate: Date, endDate: Date) => {
+  const handleDateRangeChange = (startDate: Date | null, endDate: Date | null) => {
     setDateRange({ start: startDate, end: endDate });
   };
 
@@ -96,7 +117,7 @@ const Dashboard = () => {
       const workbook = XLSX.utils.book_new();
       
       // Add title row with date range info
-      const titleRow = dateRange 
+      const titleRow = dateRange && dateRange.start && dateRange.end
         ? `Expenses Report: ${format(dateRange.start, 'dd MMM yyyy')} - ${format(dateRange.end, 'dd MMM yyyy')}`
         : `All Expenses Report - ${format(new Date(), 'dd MMM yyyy')}`;
       
@@ -115,7 +136,7 @@ const Dashboard = () => {
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
 
       // Generate filename with date range
-      const filename = dateRange 
+      const filename = dateRange && dateRange.start && dateRange.end
         ? `expenses_${format(dateRange.start, 'yyyy-MM-dd')}_to_${format(dateRange.end, 'yyyy-MM-dd')}.xlsx`
         : `expenses_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
 
@@ -453,7 +474,7 @@ const Dashboard = () => {
             dateRange={dateRange}
           />
           
-          {dateRange ? (
+          {dateRange && (dateRange.start || dateRange.end) ? (
             <FilteredExpenseList 
               startDate={dateRange.start}
               endDate={dateRange.end}

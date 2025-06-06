@@ -20,8 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 
 interface BusinessSummaryReportProps {
-  startDate?: Date;
-  endDate?: Date;
+  startDate?: Date | null;
+  endDate?: Date | null;
   onDownload: () => void;
 }
 
@@ -38,8 +38,9 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
   
   // Memoize all calculations to improve performance
   const reportData = useMemo(() => {
-    // Filter expenses based on date range
+    // Filter expenses based on date range - handle null values for "all time"
     const filteredExpenses = expenses.filter(expense => {
+      // If both dates are null, show all expenses (all time)
       if (!startDate && !endDate) return true;
       
       const expenseDate = new Date(expense.date);
@@ -55,8 +56,9 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
       return true;
     });
     
-    // Filter bills based on date range
+    // Filter bills based on date range - handle null values for "all time"
     const filteredBills = bills.filter(bill => {
+      // If both dates are null, show all bills (all time)
       if (!startDate && !endDate) return true;
       
       const billDate = new Date(bill.createdAt);
@@ -225,7 +227,9 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
                 ? `From ${format(startDate, 'PP')}`
                 : endDate
                   ? `Until ${format(endDate, 'PP')}`
-                  : `${format(currentDate, 'MMMM yyyy')}`
+                  : !startDate && !endDate
+                    ? 'All time'
+                    : `${format(currentDate, 'MMMM yyyy')}`
             }
           </CardDescription>
         </div>
