@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Search, ArrowUpCircle, ArrowDownCircle, Trash2 } from 'lucide-react';
