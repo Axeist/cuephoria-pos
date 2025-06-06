@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Transaction {
   id: string;
   amount: number;
-  transaction_type: 'addition' | 'deposit';
+  transaction_type: string;
   transaction_number: string | null;
   person_name: string;
   notes: string | null;
