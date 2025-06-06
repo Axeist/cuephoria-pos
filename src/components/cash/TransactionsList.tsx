@@ -1,11 +1,21 @@
-
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Search, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Search, ArrowUpCircle, ArrowDownCircle, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -30,6 +40,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({ refreshTrigger }) =
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchTransactions = async () => {
@@ -84,6 +95,36 @@ const TransactionsList: React.FC<TransactionsListProps> = ({ refreshTrigger }) =
 
   const getTransactionTypeColor = (type: string) => {
     return type === 'addition' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
+  };
+
+  const handleDeleteTransaction = async (transactionId: string) => {
+    setDeletingId(transactionId);
+    
+    try {
+      const { error } = await supabase
+        .from('cash_vault_transactions')
+        .delete()
+        .eq('id', transactionId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Transaction deleted successfully',
+      });
+
+      // Refresh the transactions list
+      fetchTransactions();
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete transaction',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (isLoading) {
@@ -162,14 +203,59 @@ const TransactionsList: React.FC<TransactionsListProps> = ({ refreshTrigger }) =
                     )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className={`font-medium ${
-                    transaction.transaction_type === 'addition' 
-                      ? 'text-green-400' 
-                      : 'text-blue-400'
-                  }`}>
-                    {transaction.transaction_type === 'addition' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                <div className="flex items-center space-x-3">
+                  <div className="text-right">
+                    <div className={`font-medium ${
+                      transaction.transaction_type === 'addition' 
+                        ? 'text-green-400' 
+                        : 'text-blue-400'
+                    }`}>
+                      {transaction.transaction_type === 'addition' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                    </div>
                   </div>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                        disabled={deletingId === transaction.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="bg-gray-800 border-gray-700">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="text-white">Delete Transaction</AlertDialogTitle>
+                        <AlertDialogDescription className="text-gray-300">
+                          Are you sure you want to delete this transaction? This action cannot be undone.
+                          <br /><br />
+                          <strong>Transaction Details:</strong>
+                          <br />
+                          • Amount: ₹{transaction.amount.toFixed(2)}
+                          <br />
+                          • Person: {transaction.person_name}
+                          <br />
+                          • Type: {getTransactionTypeLabel(transaction.transaction_type)}
+                          <br />
+                          • Date: {format(new Date(transaction.created_at), 'dd MMM yyyy, HH:mm')}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-gray-700 text-white border-gray-600 hover:bg-gray-600">
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeleteTransaction(transaction.id)}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          disabled={deletingId === transaction.id}
+                        >
+                          {deletingId === transaction.id ? 'Deleting...' : 'Delete Transaction'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             ))}

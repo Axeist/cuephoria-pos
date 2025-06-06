@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -398,7 +399,7 @@ const Dashboard = () => {
             <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
             <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
             <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
-            <TabsTrigger value="cash" className="flex-1">Cash Management</TabsTrigger>
+            <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
           </TabsList>
           
           {currentDashboardTab === 'expenses' && (
