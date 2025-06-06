@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 
 interface ExpenseDateFilterProps {
-  onDateRangeChange: (startDate: Date | null, endDate: Date | null) => void;
+  onDateRangeChange: (startDate: Date, endDate: Date) => void;
   onExport?: () => void;
 }
 
@@ -36,12 +36,6 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
     const now = new Date();
     
     switch (period) {
-      case 'all-time':
-        return {
-          start: null,
-          end: null,
-          label: 'All time'
-        };
       case 'this-month':
         return {
           start: startOfMonth(now),
@@ -116,19 +110,11 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
   const getDateRangeLabel = () => {
     const { start, end } = getPeriodDates(selectedPeriod);
     
-    if (selectedPeriod === 'all-time') {
-      return 'All time';
-    }
-    
     if (selectedPeriod === 'custom' && customStartDate && customEndDate) {
       return `${format(customStartDate, 'dd MMM yyyy')} - ${format(customEndDate, 'dd MMM yyyy')}`;
     }
     
-    if (start && end) {
-      return `${format(start, 'dd MMM yyyy')} - ${format(end, 'dd MMM yyyy')}`;
-    }
-    
-    return 'Select date range';
+    return `${format(start, 'dd MMM yyyy')} - ${format(end, 'dd MMM yyyy')}`;
   };
 
   return (
@@ -138,9 +124,6 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
           <SelectValue />
         </SelectTrigger>
         <SelectContent className="bg-gray-800 border-gray-700">
-          <SelectItem value="all-time" className="text-white hover:bg-gray-700">
-            All time
-          </SelectItem>
           <SelectItem value="this-month" className="text-white hover:bg-gray-700">
             This month
           </SelectItem>
