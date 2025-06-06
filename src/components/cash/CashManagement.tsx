@@ -46,6 +46,11 @@ const CashManagement: React.FC = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
+  const handleTransactionDeleted = () => {
+    // Refresh the vault amount when a transaction is deleted
+    fetchVaultAmount();
+  };
+
   return (
     <div className="space-y-6">
       {/* Vault Balance and Actions */}
@@ -62,7 +67,10 @@ const CashManagement: React.FC = () => {
       </div>
 
       {/* Transaction History */}
-      <TransactionsList refreshTrigger={refreshTrigger} />
+      <TransactionsList 
+        refreshTrigger={refreshTrigger} 
+        onTransactionDeleted={handleTransactionDeleted}
+      />
     </div>
   );
 };

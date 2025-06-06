@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Search, ArrowUpCircle, ArrowDownCircle, Trash2 } from 'lucide-react';
@@ -33,9 +34,13 @@ interface Transaction {
 
 interface TransactionsListProps {
   refreshTrigger: number;
+  onTransactionDeleted?: () => void;
 }
 
-const TransactionsList: React.FC<TransactionsListProps> = ({ refreshTrigger }) => {
+const TransactionsList: React.FC<TransactionsListProps> = ({ 
+  refreshTrigger, 
+  onTransactionDeleted 
+}) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,24 +102,32 @@ const TransactionsList: React.FC<TransactionsListProps> = ({ refreshTrigger }) =
     return type === 'addition' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
   };
 
-  const handleDeleteTransaction = async (transactionId: string) => {
-    setDeletingId(transactionId);
+  const handleDeleteTransaction = async (transaction: Transaction) => {
+    setDeletingId(transaction.id);
     
     try {
       const { error } = await supabase
         .from('cash_vault_transactions')
         .delete()
-        .eq('id', transactionId);
+        .eq('id', transaction.id);
 
       if (error) throw error;
 
+      // Show appropriate message based on transaction type
+      const actionType = transaction.transaction_type === 'addition' ? 'removed from' : 'added back to';
+      
       toast({
         title: 'Success',
-        description: 'Transaction deleted successfully',
+        description: `Transaction deleted and ₹${transaction.amount} ${actionType} vault balance`,
       });
 
       // Refresh the transactions list
       fetchTransactions();
+      
+      // Notify parent component to refresh the vault amount
+      if (onTransactionDeleted) {
+        onTransactionDeleted();
+      }
     } catch (error) {
       console.error('Error deleting transaction:', error);
       toast({
@@ -240,6 +253,11 @@ const TransactionsList: React.FC<TransactionsListProps> = ({ refreshTrigger }) =
                           • Type: {getTransactionTypeLabel(transaction.transaction_type)}
                           <br />
                           • Date: {format(new Date(transaction.created_at), 'dd MMM yyyy, HH:mm')}
+                          <br /><br />
+                          {transaction.transaction_type === 'addition' 
+                            ? `Deleting this transaction will decrease the vault balance by ₹${transaction.amount.toFixed(2)}.`
+                            : `Deleting this transaction will increase the vault balance by ₹${transaction.amount.toFixed(2)}.`
+                          }
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -247,7 +265,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({ refreshTrigger }) =
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => handleDeleteTransaction(transaction.id)}
+                          onClick={() => handleDeleteTransaction(transaction)}
                           className="bg-red-600 hover:bg-red-700 text-white"
                           disabled={deletingId === transaction.id}
                         >
