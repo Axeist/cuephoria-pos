@@ -243,6 +243,39 @@ export type Database = {
           },
         ]
       }
+      cash_bank_deposits: {
+        Row: {
+          amount: number
+          created_by: string
+          deposit_date: string
+          id: string
+          notes: string | null
+          person_name: string
+          remarks: string | null
+          transaction_number: string
+        }
+        Insert: {
+          amount: number
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          person_name: string
+          remarks?: string | null
+          transaction_number: string
+        }
+        Update: {
+          amount?: number
+          created_by?: string
+          deposit_date?: string
+          id?: string
+          notes?: string | null
+          person_name?: string
+          remarks?: string | null
+          transaction_number?: string
+        }
+        Relationships: []
+      }
       cash_deposits: {
         Row: {
           amount: number
@@ -346,6 +379,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cash_vault: {
+        Row: {
+          current_amount: number
+          id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          current_amount?: number
+          id?: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          current_amount?: number
+          id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
+      cash_vault_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          person_name: string
+          remarks: string | null
+          transaction_number: string | null
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          person_name: string
+          remarks?: string | null
+          transaction_number?: string | null
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          person_name?: string
+          remarks?: string | null
+          transaction_number?: string | null
+          transaction_type?: string
+        }
+        Relationships: []
       }
       categories: {
         Row: {

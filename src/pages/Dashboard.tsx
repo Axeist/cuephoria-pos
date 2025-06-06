@@ -16,6 +16,7 @@ import ProductPerformance from '@/components/dashboard/ProductPerformance';
 import ExpenseList from '@/components/expenses/ExpenseList';
 import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
+import CashManagement from '@/components/cash/CashManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -397,6 +398,7 @@ const Dashboard = () => {
             <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
             <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
             <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
+            <TabsTrigger value="cash" className="flex-1">Cash Management</TabsTrigger>
           </TabsList>
           
           {currentDashboardTab === 'expenses' && (
@@ -461,6 +463,10 @@ const Dashboard = () => {
           ) : (
             <ExpenseList />
           )}
+        </TabsContent>
+        
+        <TabsContent value="cash" className="space-y-6">
+          <CashManagement />
         </TabsContent>
       </Tabs>
     </div>
