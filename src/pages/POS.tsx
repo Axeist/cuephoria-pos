@@ -58,13 +58,12 @@ const POS = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const categoryCounts = products.reduce((acc, product) => {
-    const category = product.category;
-    acc[category] = (acc[category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  
-  categoryCounts.all = products.length;
+  // Filter out products with zero stock (except membership products)
+  const productsWithStock = products.filter(product => 
+    product.category === 'membership' || product.stock > 0
+  );
+
+  categoryCounts.all = productsWithStock.length;
 
   // Define category order for sorting
   const categoryOrder = ['food', 'drinks', 'tobacco', 'challenges', 'membership'];
@@ -89,8 +88,8 @@ const POS = () => {
   };
 
   const filteredProducts = activeTab === 'all'
-    ? getSortedProducts(products)
-    : products.filter(product => product.category === activeTab);
+    ? getSortedProducts(productsWithStock)
+    : productsWithStock.filter(product => product.category === activeTab);
 
   const searchedProducts = productSearchQuery.trim() === ''
     ? filteredProducts
