@@ -2,11 +2,9 @@
 import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { usePOS, Product } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { ShoppingCart, Edit, Trash, Tag, Clock, GraduationCap } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ShoppingCart, Edit, Trash, Clock, GraduationCap } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -31,14 +29,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const getCategoryColor = (category: string) => {
     const categoryColorMap: Record<string, string> = {
-      'food': 'bg-cuephoria-orange',
-      'drinks': 'bg-cuephoria-blue',
-      'tobacco': 'bg-red-500',
-      'challenges': 'bg-green-500',
-      'membership': 'bg-gradient-to-r from-violet-600 to-indigo-600',
+      'food': 'border-l-cuephoria-orange',
+      'drinks': 'border-l-cuephoria-blue',
+      'tobacco': 'border-l-red-500',
+      'challenges': 'border-l-green-500',
+      'membership': 'border-l-violet-600',
     };
     
-    return categoryColorMap[category] || 'bg-gray-500';
+    return categoryColorMap[category] || 'border-l-gray-500';
   };
 
   const handleAddToCart = () => {
@@ -108,20 +106,13 @@ const ProductCard: React.FC<ProductCardProps> = ({
     (product.price - product.buyingPrice).toFixed(2) : null;
 
   return (
-    <Card className={`flex flex-col h-full card-hover transition-all ${className} shadow-md`}>
-      <CardHeader className="pb-2 space-y-1">
-        <div className="flex justify-between items-start gap-2">
-          <div className="flex-1 min-w-0">
-            {/* Fixed height container for product name to maintain alignment */}
-            <div className="h-14 flex items-start">
-              <h3 className="text-lg font-semibold leading-tight break-words">
-                {product.name}
-              </h3>
-            </div>
-          </div>
-          <Badge className={`${getCategoryColor(product.category)} flex-shrink-0 text-xs mt-1`}>
-            {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
-          </Badge>
+    <Card className={`flex flex-col h-full card-hover transition-all ${className} ${getCategoryColor(product.category)} border-l-4 shadow-md`}>
+      <CardHeader className="pb-3 space-y-2">
+        {/* Product name with proper spacing */}
+        <div className="min-h-[3.5rem] flex items-start">
+          <h3 className="text-base font-semibold leading-snug break-words hyphens-auto">
+            {product.name}
+          </h3>
         </div>
       </CardHeader>
       <CardContent className="flex-grow py-3">
