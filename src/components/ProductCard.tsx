@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,16 +26,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const hidePricingFieldsCategories = ['membership', 'challenges'];
   const shouldShowPricingFields = !hidePricingFieldsCategories.includes(product.category);
 
-  const getCategoryColor = (category: string) => {
-    const categoryColorMap: Record<string, string> = {
-      'food': 'border-l-cuephoria-orange',
-      'drinks': 'border-l-cuephoria-blue',
-      'tobacco': 'border-l-red-500',
-      'challenges': 'border-l-green-500',
-      'membership': 'border-l-violet-600',
+  const getCategoryStyles = (category: string) => {
+    const categoryStyleMap: Record<string, string> = {
+      'food': 'border-l-4 border-l-cuephoria-orange shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] bg-gradient-to-r from-cuephoria-orange/5 via-transparent to-transparent',
+      'drinks': 'border-l-4 border-l-cuephoria-blue shadow-[0_0_15px_rgba(14,165,233,0.3)] hover:shadow-[0_0_25px_rgba(14,165,233,0.5)] bg-gradient-to-r from-cuephoria-blue/5 via-transparent to-transparent',
+      'tobacco': 'border-l-4 border-l-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] bg-gradient-to-r from-red-500/5 via-transparent to-transparent',
+      'challenges': 'border-l-4 border-l-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:shadow-[0_0_25px_rgba(34,197,94,0.5)] bg-gradient-to-r from-green-500/5 via-transparent to-transparent',
+      'membership': 'border-l-4 border-l-violet-600 shadow-[0_0_15px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] bg-gradient-to-r from-violet-600/8 via-indigo-600/5 to-transparent',
     };
     
-    return categoryColorMap[category] || 'border-l-gray-500';
+    return categoryStyleMap[category] || 'border-l-4 border-l-gray-500 shadow-[0_0_10px_rgba(107,114,128,0.2)] bg-gradient-to-r from-gray-500/5 via-transparent to-transparent';
   };
 
   const handleAddToCart = () => {
@@ -106,11 +105,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
     (product.price - product.buyingPrice).toFixed(2) : null;
 
   return (
-    <Card className={`flex flex-col h-full card-hover transition-all ${className} ${getCategoryColor(product.category)} border-l-4 shadow-md`}>
-      <CardHeader className="pb-3 space-y-2">
+    <Card className={`flex flex-col h-full transition-all duration-300 ease-out transform hover:-translate-y-1 ${className} ${getCategoryStyles(product.category)} backdrop-blur-sm`}>
+      <CardHeader className="pb-3 space-y-2 relative overflow-hidden">
+        {/* Subtle animated background glow */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent animate-pulse-soft"></div>
+        
         {/* Product name with proper spacing */}
-        <div className="min-h-[3.5rem] flex items-start">
-          <h3 className="text-base font-semibold leading-snug break-words hyphens-auto">
+        <div className="min-h-[3.5rem] flex items-start relative z-10">
+          <h3 className="text-base font-semibold leading-snug break-words hyphens-auto text-foreground">
             {product.name}
           </h3>
         </div>
@@ -200,7 +202,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         ) : (
           <Button 
             variant="default" 
-            className={`w-full ${product.category === 'membership' ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700' : ''}`}
+            className={`w-full transition-all duration-300 ${product.category === 'membership' ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]' : 'hover:shadow-lg'}`}
             disabled={isOutOfStock}
             onClick={handleAddToCart}
           >
