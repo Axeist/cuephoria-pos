@@ -11,16 +11,14 @@ const ProductInventoryChart: React.FC = () => {
   
   // Categorize products by stock status
   const categorizeProductsByStock = () => {
-    const criticalStock = products.filter(p => p.stock < 5 && p.stock > 0 && p.category !== 'challenges' && p.category !== 'membership').length;
-    const lowStock = products.filter(p => p.stock >= 5 && p.stock < 15 && p.category !== 'challenges' && p.category !== 'membership').length;
+    const criticalStock = products.filter(p => (p.stock === 1 || p.stock === 0) && p.category !== 'challenges' && p.category !== 'membership').length;
+    const lowStock = products.filter(p => p.stock >= 2 && p.stock < 15 && p.category !== 'challenges' && p.category !== 'membership').length;
     const healthyStock = products.filter(p => p.stock >= 15 && p.category !== 'challenges' && p.category !== 'membership').length;
-    const outOfStock = products.filter(p => p.stock === 0 && p.category !== 'challenges' && p.category !== 'membership').length;
     
     return [
-      { name: 'Critical', value: criticalStock, color: '#F97316' },
-      { name: 'Low', value: lowStock, color: '#FBBF24' },
-      { name: 'Healthy', value: healthyStock, color: '#10B981' },
-      { name: 'Out of Stock', value: outOfStock, color: '#EF4444' }
+      { name: 'Critical (0-1)', value: criticalStock, color: '#EF4444' },
+      { name: 'Low (2-14)', value: lowStock, color: '#FBBF24' },
+      { name: 'Healthy (15+)', value: healthyStock, color: '#10B981' }
     ].filter(category => category.value > 0); // Only show categories with products
   };
   

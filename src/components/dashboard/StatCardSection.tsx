@@ -64,14 +64,20 @@ const StatCardSection: React.FC<StatCardSectionProps> = ({
   
   // Format low stock items for display - memoize this calculation
   const formattedLowStockItems = useMemo(() => {
-    if (lowStockItems.length === 0) return "All inventory levels are good";
+    // Filter to only show items with stock of 1 or 0
+    const criticalStockItems = lowStockItems.filter(item => item.stock === 1 || item.stock === 0);
     
-    if (lowStockItems.length <= 2) {
-      return lowStockItems.map(item => `${item.name}: ${item.stock} left`).join(", ");
+    if (criticalStockItems.length === 0) return "All inventory levels are good";
+    
+    if (criticalStockItems.length <= 2) {
+      return criticalStockItems.map(item => `${item.name}: ${item.stock} left`).join(", ");
     }
     
-    return `${lowStockItems[0].name}: ${lowStockItems[0].stock} left, ${lowStockItems[1].name}: ${lowStockItems[1].stock} left, +${lowStockItems.length - 2} more`;
+    return `${criticalStockItems[0].name}: ${criticalStockItems[0].stock} left, ${criticalStockItems[1].name}: ${criticalStockItems[1].stock} left, +${criticalStockItems.length - 2} more`;
   }, [lowStockItems]);
+  
+  // Calculate critical stock count (only items with stock 0 or 1)
+  const criticalStockCount = lowStockItems.filter(item => item.stock === 1 || item.stock === 0).length;
   
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -111,8 +117,8 @@ const StatCardSection: React.FC<StatCardSectionProps> = ({
       />
 
       <StatsCard
-        title="Inventory Alert"
-        value={`${lowStockCount} item${lowStockCount !== 1 ? 's' : ''}`}
+        title="Critical Inventory"
+        value={`${criticalStockCount} item${criticalStockCount !== 1 ? 's' : ''}`}
         icon={AlertTriangle}
         subValue={formattedLowStockItems}
         iconColor="text-[#F97316]"

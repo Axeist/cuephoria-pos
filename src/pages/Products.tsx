@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import ProductDialog from '@/components/product/ProductDialog';
 import LowStockAlert from '@/components/product/LowStockAlert';
 import ProductTabs from '@/components/product/ProductTabs';
+import ProductSearch from '@/components/product/ProductSearch';
 import CategoryManagement from '@/components/product/CategoryManagement';
 import { ProductFormState } from '@/components/product/ProductForm';
 import {
@@ -32,6 +33,13 @@ const ProductsPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Filter products based on search term
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleOpenDialog = () => {
     setIsEditMode(false);
@@ -189,8 +197,8 @@ const ProductsPage: React.FC = () => {
   };
 
   const getCategoryCounts = () => {
-    const counts: Record<string, number> = { all: products.length };
-    products.forEach(product => {
+    const counts: Record<string, number> = { all: filteredProducts.length };
+    filteredProducts.forEach(product => {
       counts[product.category] = (counts[product.category] || 0) + 1;
     });
     return counts;
@@ -253,10 +261,19 @@ const ProductsPage: React.FC = () => {
       <div className="mb-6">
         <LowStockAlert products={products} />
       </div>
+
+      {/* Search Bar */}
+      <div className="mb-6 flex justify-center">
+        <ProductSearch
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          placeholder="Search products by name or category..."
+        />
+      </div>
       
       <div className="bg-card rounded-lg shadow-sm p-4">
         <ProductTabs
-          products={products}
+          products={filteredProducts}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           categoryCounts={categoryCounts}
