@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -104,6 +105,17 @@ const Reports = () => {
     };
     
     return categoryMap[category] || category;
+  };
+
+  // Helper functions for ExpandableBillRow
+  const getCustomerName = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.name : 'Walk-in Customer';
+  };
+
+  const getCustomerPhone = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.phone : '';
   };
 
   const exportToExcel = async () => {
@@ -465,17 +477,9 @@ const Reports = () => {
                       <ExpandableBillRow
                         key={bill.id}
                         bill={bill}
-                        customer={customers.find(c => c.id === bill.customerId)}
-                        isCollapsed={collapsedBills.has(bill.id)}
-                        onToggleCollapse={(billId) => {
-                          const newCollapsed = new Set(collapsedBills);
-                          if (newCollapsed.has(billId)) {
-                            newCollapsed.delete(billId);
-                          } else {
-                            newCollapsed.add(billId);
-                          }
-                          setCollapsedBills(newCollapsed);
-                        }}
+                        getCustomerName={getCustomerName}
+                        getCustomerPhone={getCustomerPhone}
+                        searchTerm={billSearchQuery}
                       />
                     ))}
                   </div>

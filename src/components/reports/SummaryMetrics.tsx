@@ -146,7 +146,8 @@ const SummaryMetrics: React.FC<SummaryMetricsProps> = ({
   const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   const loyaltyPointsUsed = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsUsed || 0), 0);
-  const loyaltyPointsEarned = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsEarned || 0), 0);
+  // Calculate loyalty points earned based on total spent (assuming 1 point per rupee)
+  const loyaltyPointsEarned = filteredBills.reduce((sum, bill) => sum + Math.floor(bill.total), 0);
 
   // Most popular items
   const itemPopularity = filteredBills.reduce((acc, bill) => {
