@@ -9,6 +9,7 @@ import ProductDialog from '@/components/product/ProductDialog';
 import LowStockAlert from '@/components/product/LowStockAlert';
 import ProductTabs from '@/components/product/ProductTabs';
 import ProductSearch from '@/components/product/ProductSearch';
+import ZeroStockFilter from '@/components/product/ZeroStockFilter';
 import CategoryManagement from '@/components/product/CategoryManagement';
 import { ProductFormState } from '@/components/product/ProductForm';
 import {
@@ -34,13 +35,19 @@ const ProductsPage: React.FC = () => {
   const [isResetting, setIsResetting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [showZeroStockOnly, setShowZeroStockOnly] = useState<boolean>(false);
 
-  // Filter and sort products based on search term and active tab
+  // Filter and sort products based on search term, active tab, and zero stock filter
   const getFilteredAndSortedProducts = () => {
-    let filtered = products.filter(product =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let filtered = products.filter(product => {
+      const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.category.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesZeroStock = !showZeroStockOnly || 
+        (product.category !== 'membership' && product.stock === 0);
+      
+      return matchesSearch && matchesZeroStock;
+    });
 
     // Sort by category when "All" tab is selected
     if (activeTab === 'all') {
@@ -56,6 +63,11 @@ const ProductsPage: React.FC = () => {
   };
 
   const filteredProducts = getFilteredAndSortedProducts();
+
+  // Count zero stock items (excluding membership products)
+  const zeroStockCount = products.filter(product => 
+    product.category !== 'membership' && product.stock === 0
+  ).length;
 
   const handleOpenDialog = () => {
     setIsEditMode(false);
@@ -279,13 +291,21 @@ const ProductsPage: React.FC = () => {
       </div>
       
       <div className="bg-card rounded-lg shadow-sm p-4">
-        {/* Search Bar - positioned above tabs with full width to match tabs */}
-        <div className="mb-6">
+        {/* Search Bar and Zero Stock Filter */}
+        <div className="mb-6 space-y-4">
           <ProductSearch
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
             placeholder="Search products by name or category..."
           />
+          
+          {zeroStockCount > 0 && (
+            <ZeroStockFilter
+              showZeroStockOnly={showZeroStockOnly}
+              onToggle={setShowZeroStockOnly}
+              zeroStockCount={zeroStockCount}
+            />
+          )}
         </div>
 
         <ProductTabs

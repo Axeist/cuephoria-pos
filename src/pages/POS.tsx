@@ -245,6 +245,7 @@ const POS = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Cart Section */}
         <Card className="lg:col-span-1 h-[calc(100vh-12rem)] flex flex-col animate-slide-up">
           <CardHeader className="pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent">
             <div className="flex justify-between items-center">
@@ -384,13 +385,9 @@ const POS = () => {
           </CardFooter>
         </Card>
 
-        <Card
-          className="lg:col-span-2 h-full flex flex-col animate-slide-up delay-200 overflow-visible"
-          style={{
-            minHeight: 0,
-          }}
-        >
-          <CardHeader className="pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10">
+        {/* Products Section - Improved Layout */}
+        <Card className="lg:col-span-2 h-[calc(100vh-12rem)] flex flex-col animate-slide-up delay-200">
+          <CardHeader className="pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0">
             <CardTitle className="text-xl font-heading">Products</CardTitle>
             <div className="flex space-x-2">
               <div className="relative flex-1">
@@ -405,71 +402,50 @@ const POS = () => {
             </div>
           </CardHeader>
 
-          <div
-            className="flex flex-col flex-grow px-0"
-            style={{
-              minHeight: 0,
-            }}
-          >
+          <div className="flex flex-col flex-grow min-h-0">
             <Tabs
               defaultValue="all"
               value={activeTab}
               onValueChange={setActiveTab}
-              className="flex flex-col flex-grow animate-scale-in"
+              className="flex flex-col flex-grow min-h-0 animate-scale-in"
             >
-              <div className="px-1 sm:px-6 bg-gradient-to-r from-cuephoria-purple/30 to-cuephoria-blue/20">
-                <TabsList
-                  className={`
-                    cuephoria-scrollbar-hide
-                    flex items-center
-                    gap-x-2
-                    py-2
-                    sm:justify-center
-                    justify-start
-                    w-full
-                    whitespace-nowrap
-                    rounded-xl
-                  `}
-                  style={{
-                    WebkitOverflowScrolling: "touch",
-                    paddingBottom: 0,
-                  }}
-                >
+              <div className="px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
+                <TabsList className="grid w-full grid-cols-6 gap-1 mb-4 h-auto p-1">
                   <TabsTrigger
                     value="all"
-                    className="cuephoria-filter-tag"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white"
                   >
                     All ({categoryCounts.all || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="food"
-                    className="cuephoria-filter-tag"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white"
                   >
                     Food ({categoryCounts.food || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="drinks"
-                    className="cuephoria-filter-tag"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white"
                   >
                     Drinks ({categoryCounts.drinks || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="tobacco"
-                    className="cuephoria-filter-tag"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-red-500 data-[state=active]:text-white"
                   >
                     Tobacco ({categoryCounts.tobacco || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="challenges"
-                    className="cuephoria-filter-tag"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-green-500 data-[state=active]:text-white"
                   >
                     Challenges ({categoryCounts.challenges || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="membership"
-                    className="cuephoria-filter-tag flex items-center gap-1"
+                    className="text-xs px-1 py-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white flex items-center gap-1"
                   >
-                    <Award className="h-4 w-4" />
+                    <Award className="h-3 w-3" />
                     Membership ({categoryCounts.membership || 0})
                   </TabsTrigger>
                 </TabsList>
@@ -477,52 +453,31 @@ const POS = () => {
 
               <TabsContent
                 value={activeTab}
-                className="flex-grow"
-                style={{
-                  minHeight: 0,
-                  padding: 0,
-                  marginTop: 0,
-                }}
+                className="flex-grow min-h-0 m-0 p-6 overflow-auto"
               >
-                <div
-                  style={{
-                    maxHeight: 'calc(100vh - 14rem)',
-                    overflowY: 'auto',
-                    padding: '1rem 1.5rem 1.5rem 1.5rem',
-                    borderRadius: 'inherit',
-                    background: 'inherit',
-                    boxShadow: 'inherit',
-                    scrollbarGutter: 'stable',
-                  }}
-                  className="w-full"
-                >
-                  {searchedProducts.length > 0 ? (
-                    <div
-                      className="grid gap-3"
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                      }}
-                    >
-                      {searchedProducts.map((product, index) => (
-                        <div
-                          key={product.id}
-                          className="animate-scale-in h-full"
-                          style={{ animationDelay: `${(index % 5) * 100}ms` }}
-                        >
-                          <ProductCard product={product} className="h-full" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-                      <h3 className="text-xl font-medium font-heading">No Products Found</h3>
-                      <p className="text-muted-foreground mt-2">
-                        Try a different search or category
-                      </p>
-                    </div>
-                  )}
-                </div>
+                {searchedProducts.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
+                    {searchedProducts.map((product, index) => (
+                      <div
+                        key={product.id}
+                        className="animate-scale-in"
+                        style={{ animationDelay: `${(index % 8) * 50}ms` }}
+                      >
+                        <ProductCard 
+                          product={product} 
+                          className="h-full flex flex-col"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                    <h3 className="text-xl font-medium font-heading">No Products Found</h3>
+                    <p className="text-muted-foreground mt-2">
+                      Try a different search or category
+                    </p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>
