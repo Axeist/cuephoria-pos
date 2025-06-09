@@ -127,7 +127,7 @@ const POS = () => {
     toast({
       title: 'Customer Selected',
       description: `${customer.name} has been selected for this transaction.`,
-      className: 'bg-cuephoria-purple/90',
+      variant: 'default',
     });
   };
 
@@ -212,7 +212,7 @@ const POS = () => {
         toast({
           title: 'Sale Completed',
           description: `Total: ${formatCurrency(bill.total)}`,
-          className: 'bg-green-600',
+          variant: 'success',
         });
       }
     } catch (error) {
