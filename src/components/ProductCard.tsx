@@ -103,8 +103,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const remainingStock = getRemainingStock();
   const isOutOfStock = product.category !== 'membership' && remainingStock <= 0;
 
-  // Check if name needs truncation (more than 15 characters for better visibility)
-  const nameTooLong = product.name.length > 15;
+  // Check if name needs truncation (more than 12 characters for better visibility)
+  const nameTooLong = product.name.length > 12;
 
   // Calculate profit for display (only for applicable categories)
   const profit = shouldShowPricingFields && product.buyingPrice ? 
@@ -114,28 +114,28 @@ const ProductCard: React.FC<ProductCardProps> = ({
     <Card className={`flex flex-col h-full card-hover transition-all ${className} shadow-md`}>
       <CardHeader className="pb-2 space-y-1">
         <div className="flex justify-between items-start gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex-1 min-w-0">
-                <h3 className={`text-lg font-semibold leading-tight ${
-                  nameTooLong 
-                    ? 'truncate cursor-help' 
-                    : ''
-                }`}>
+          <div className="flex-1 min-w-0">
+            {nameTooLong ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <h3 className="text-lg font-semibold leading-tight truncate cursor-help">
+                    {product.name}
+                  </h3>
+                </TooltipTrigger>
+                <TooltipContent 
+                  side="top" 
+                  className="max-w-xs break-words text-center font-medium bg-background border shadow-lg z-50"
+                  sideOffset={8}
+                >
                   {product.name}
-                </h3>
-              </div>
-            </TooltipTrigger>
-            {nameTooLong && (
-              <TooltipContent 
-                side="top" 
-                className="max-w-xs break-words text-center font-medium bg-background border shadow-lg z-50"
-                sideOffset={5}
-              >
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <h3 className="text-lg font-semibold leading-tight">
                 {product.name}
-              </TooltipContent>
+              </h3>
             )}
-          </Tooltip>
+          </div>
           <Badge className={`${getCategoryColor(product.category)} flex-shrink-0 text-xs`}>
             {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
           </Badge>
