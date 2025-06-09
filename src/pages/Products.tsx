@@ -35,11 +35,27 @@ const ProductsPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Filter products based on search term
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter and sort products based on search term and active tab
+  const getFilteredAndSortedProducts = () => {
+    let filtered = products.filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Sort by category when "All" tab is selected
+    if (activeTab === 'all') {
+      filtered = filtered.sort((a, b) => {
+        if (a.category.toLowerCase() === b.category.toLowerCase()) {
+          return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        }
+        return a.category.toLowerCase().localeCompare(b.category.toLowerCase());
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredProducts = getFilteredAndSortedProducts();
 
   const handleOpenDialog = () => {
     setIsEditMode(false);
@@ -261,17 +277,17 @@ const ProductsPage: React.FC = () => {
       <div className="mb-6">
         <LowStockAlert products={products} />
       </div>
-
-      {/* Search Bar */}
-      <div className="mb-6 flex justify-center">
-        <ProductSearch
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          placeholder="Search products by name or category..."
-        />
-      </div>
       
       <div className="bg-card rounded-lg shadow-sm p-4">
+        {/* Search Bar - positioned above tabs with full width to match tabs */}
+        <div className="mb-6">
+          <ProductSearch
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            placeholder="Search products by name or category..."
+          />
+        </div>
+
         <ProductTabs
           products={filteredProducts}
           activeTab={activeTab}
