@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -62,6 +63,13 @@ const POS = () => {
   const productsWithStock = products.filter(product => 
     product.category === 'membership' || product.stock > 0
   );
+
+  // Calculate category counts based on filtered products
+  const categoryCounts = productsWithStock.reduce((acc, product) => {
+    const category = product.category;
+    acc[category] = (acc[category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   categoryCounts.all = productsWithStock.length;
 
@@ -215,6 +223,45 @@ const POS = () => {
       });
     }
   };
+
+  // Define category order for sorting
+  const categoryOrder = ['food', 'drinks', 'tobacco', 'challenges', 'membership'];
+
+  // Sort products by category when "all" tab is selected
+  const getSortedProducts = (productList: Product[]) => {
+    if (activeTab === 'all') {
+      return productList.sort((a, b) => {
+        const aIndex = categoryOrder.indexOf(a.category);
+        const bIndex = categoryOrder.indexOf(b.category);
+        
+        // If categories are the same, sort by name
+        if (aIndex === bIndex) {
+          return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        }
+        
+        // Sort by category order
+        return aIndex - bIndex;
+      });
+    }
+    return productList;
+  };
+
+  const filteredProducts = activeTab === 'all'
+    ? getSortedProducts(productsWithStock)
+    : productsWithStock.filter(product => product.category === activeTab);
+
+  const searchedProducts = productSearchQuery.trim() === ''
+    ? filteredProducts
+    : filteredProducts.filter(product =>
+        product.name.toLowerCase().includes(productSearchQuery.toLowerCase())
+      );
+
+  const filteredCustomers = customerSearchQuery.trim() === ''
+    ? customers
+    : customers.filter(customer =>
+        customer.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+        customer.phone.includes(customerSearchQuery)
+      );
 
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
   let discountValue = 0;
