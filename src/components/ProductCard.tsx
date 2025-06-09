@@ -103,8 +103,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const remainingStock = getRemainingStock();
   const isOutOfStock = product.category !== 'membership' && remainingStock <= 0;
 
-  // Helper for fade/overflow styling for name
-  const nameTooLong = product.name.length > 18;
+  // Check if name needs truncation (more than 15 characters for better visibility)
+  const nameTooLong = product.name.length > 15;
 
   // Calculate profit for display (only for applicable categories)
   const profit = shouldShowPricingFields && product.buyingPrice ? 
@@ -113,41 +113,30 @@ const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <Card className={`flex flex-col h-full card-hover transition-all ${className} shadow-md`}>
       <CardHeader className="pb-2 space-y-1">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div
-                className={`relative text-lg font-semibold max-w-[170px] pl-0 transition-all flex-1 overflow-hidden whitespace-nowrap group`}
-                tabIndex={0}
-                aria-label={product.name}
-                style={{
-                  cursor: nameTooLong ? "pointer" : "default",
-                }}
-              >
-                <span
-                  className={`block transition-all ${
-                    nameTooLong
-                      ? "overflow-hidden text-ellipsis group-hover:overflow-visible group-hover:whitespace-normal group-hover:bg-background after:content-[''] after:absolute after:right-0 after:top-0 after:w-8 after:h-full after:bg-gradient-to-l after:from-background after:to-transparent"
-                      : ""
-                  }`}
-                  style={{
-                    transition: "all 180ms cubic-bezier(.4,0,.2,1)",
-                  }}
-                >
+              <div className="flex-1 min-w-0">
+                <h3 className={`text-lg font-semibold leading-tight ${
+                  nameTooLong 
+                    ? 'truncate cursor-help' 
+                    : ''
+                }`}>
                   {product.name}
-                </span>
-                {nameTooLong && (
-                  <span className="absolute bottom-0 right-0 w-8 h-full pointer-events-none bg-gradient-to-l from-background to-transparent"></span>
-                )}
+                </h3>
               </div>
             </TooltipTrigger>
             {nameTooLong && (
-              <TooltipContent side="top" className="max-w-xs break-words text-center font-medium">
+              <TooltipContent 
+                side="top" 
+                className="max-w-xs break-words text-center font-medium bg-background border shadow-lg z-50"
+                sideOffset={5}
+              >
                 {product.name}
               </TooltipContent>
             )}
           </Tooltip>
-          <Badge className={getCategoryColor(product.category)}>
+          <Badge className={`${getCategoryColor(product.category)} flex-shrink-0 text-xs`}>
             {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
           </Badge>
         </div>
