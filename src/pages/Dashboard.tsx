@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -22,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
+import { Activity, Zap, Database, Vault } from 'lucide-react';
 
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
@@ -388,88 +388,146 @@ const Dashboard = () => {
   };
   
   return (
-    <div className="flex-1 space-y-6 p-6 bg-[#1A1F2C] text-white">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight font-heading">Dashboard</h2>
+    <div className="flex-1 space-y-6 p-6 bg-gradient-to-br from-cuephoria-darker via-cuephoria-dark to-cuephoria-darker min-h-screen relative">
+      {/* Animated background elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-cuephoria-neon-cyan/5 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute top-3/4 right-1/4 w-96 h-96 bg-cuephoria-neon-purple/5 rounded-full blur-3xl animate-pulse-soft"></div>
+        <div className="absolute top-1/2 left-1/2 w-80 h-80 bg-cuephoria-neon-pink/5 rounded-full blur-3xl animate-breathe"></div>
       </div>
-      
-      <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
-        <div className="flex items-center justify-between mb-6">
-          <TabsList className="w-auto">
-            <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-            <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-            <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
-            <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
-          </TabsList>
-          
-          {currentDashboardTab === 'expenses' && (
-            <ExpenseDateFilter 
-              onDateRangeChange={handleDateRangeChange}
-              onExport={handleExport}
-            />
-          )}
+
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-8 animate-slide-up">
+          <div className="relative">
+            <h2 className="text-4xl font-bold tracking-tight font-heading hologram-text animate-cyber-glow">
+              Mission Control
+            </h2>
+            <div className="h-1 w-32 bg-gradient-to-r from-cuephoria-neon-cyan via-cuephoria-neon-purple to-cuephoria-neon-pink mt-2 rounded-full animate-shimmer"></div>
+          </div>
+          <div className="flex items-center space-x-2 opacity-60">
+            <div className="w-2 h-2 bg-cuephoria-neon-green rounded-full animate-ping-slow"></div>
+            <span className="text-sm font-mono text-cuephoria-neon-green">SYSTEM ONLINE</span>
+          </div>
         </div>
         
-        <TabsContent value="overview" className="space-y-6">
-          <StatCardSection 
-            totalSales={dashboardStats.totalSales}
-            salesChange={dashboardStats.salesChange}
-            activeSessionsCount={dashboardStats.activeSessionsCount}
-            totalStations={stations.length}
-            customersCount={customers.length}
-            newMembersCount={dashboardStats.newMembersCount}
-            lowStockCount={dashboardStats.lowStockCount}
-            lowStockItems={dashboardStats.lowStockItems}
-          />
-          
-          <ActionButtonSection />
-          
-          <SalesChart 
-            data={chartData}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-          />
-          
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-            <ActiveSessions />
-            <RecentTransactions bills={bills} customers={customers} />
+        <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
+          <div className="flex items-center justify-between mb-8">
+            <TabsList className="cyber-card p-1 bg-black/30 border-cuephoria-neon-purple/30">
+              <TabsTrigger 
+                value="overview" 
+                className="data-[state=active]:bg-cuephoria-neon-purple/20 data-[state=active]:text-cuephoria-neon-cyan data-[state=active]:shadow-lg transition-all duration-300 flex items-center gap-2"
+              >
+                <Activity className="w-4 h-4" />
+                Neural Net
+              </TabsTrigger>
+              <TabsTrigger 
+                value="analytics" 
+                className="data-[state=active]:bg-cuephoria-neon-cyan/20 data-[state=active]:text-cuephoria-neon-purple data-[state=active]:shadow-lg transition-all duration-300 flex items-center gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                Analytics
+              </TabsTrigger>
+              <TabsTrigger 
+                value="expenses" 
+                className="data-[state=active]:bg-cuephoria-neon-orange/20 data-[state=active]:text-cuephoria-neon-orange data-[state=active]:shadow-lg transition-all duration-300 flex items-center gap-2"
+              >
+                <Database className="w-4 h-4" />
+                Expenses
+              </TabsTrigger>
+              <TabsTrigger 
+                value="cash" 
+                className="data-[state=active]:bg-cuephoria-neon-green/20 data-[state=active]:text-cuephoria-neon-green data-[state=active]:shadow-lg transition-all duration-300 flex items-center gap-2"
+              >
+                <Vault className="w-4 h-4" />
+                Vault
+              </TabsTrigger>
+            </TabsList>
+            
+            {currentDashboardTab === 'expenses' && (
+              <div className="animate-slide-in-cyber">
+                <ExpenseDateFilter 
+                  onDateRangeChange={handleDateRangeChange}
+                  onExport={handleExport}
+                />
+              </div>
+            )}
           </div>
-        </TabsContent>
-        
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-            <CustomerSpendingCorrelation />
-            <HourlyRevenueDistribution />
-          </div>
           
-          <ProductPerformance />
+          <TabsContent value="overview" className="space-y-8 animate-fade-in">
+            <div className="animate-slide-up">
+              <StatCardSection 
+                totalSales={dashboardStats.totalSales}
+                salesChange={dashboardStats.salesChange}
+                activeSessionsCount={dashboardStats.activeSessionsCount}
+                totalStations={stations.length}
+                customersCount={customers.length}
+                newMembersCount={dashboardStats.newMembersCount}
+                lowStockCount={dashboardStats.lowStockCount}
+                lowStockItems={dashboardStats.lowStockItems}
+              />
+            </div>
+            
+            <div className="animate-slide-up" style={{animationDelay: '0.1s'}}>
+              <ActionButtonSection />
+            </div>
+            
+            <div className="animate-slide-up" style={{animationDelay: '0.2s'}}>
+              <SalesChart 
+                data={chartData}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+              />
+            </div>
+            
+            <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-2 animate-slide-up" style={{animationDelay: '0.3s'}}>
+              <ActiveSessions />
+              <RecentTransactions bills={bills} customers={customers} />
+            </div>
+          </TabsContent>
           
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-            <CustomerActivityChart />
-            <ProductInventoryChart />
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="expenses" className="space-y-6">
-          <BusinessSummarySection 
-            filteredExpenses={filteredExpenses}
-            dateRange={dateRange}
-          />
+          <TabsContent value="analytics" className="space-y-8 animate-fade-in">
+            <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-2 animate-slide-up">
+              <CustomerSpendingCorrelation />
+              <HourlyRevenueDistribution />
+            </div>
+            
+            <div className="animate-slide-up" style={{animationDelay: '0.1s'}}>
+              <ProductPerformance />
+            </div>
+            
+            <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-2 animate-slide-up" style={{animationDelay: '0.2s'}}>
+              <CustomerActivityChart />
+              <ProductInventoryChart />
+            </div>
+          </TabsContent>
           
-          {dateRange ? (
-            <FilteredExpenseList 
-              startDate={dateRange.start}
-              endDate={dateRange.end}
-            />
-          ) : (
-            <ExpenseList />
-          )}
-        </TabsContent>
-        
-        <TabsContent value="cash" className="space-y-6">
-          <CashManagement />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="expenses" className="space-y-8 animate-fade-in">
+            <div className="animate-slide-up">
+              <BusinessSummarySection 
+                filteredExpenses={filteredExpenses}
+                dateRange={dateRange}
+              />
+            </div>
+            
+            <div className="animate-slide-up" style={{animationDelay: '0.1s'}}>
+              {dateRange ? (
+                <FilteredExpenseList 
+                  startDate={dateRange.start}
+                  endDate={dateRange.end}
+                />
+              ) : (
+                <ExpenseList />
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="cash" className="space-y-8 animate-fade-in">
+            <div className="animate-slide-up">
+              <CashManagement />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };

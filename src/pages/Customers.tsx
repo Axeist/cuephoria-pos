@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Plus, User, Search, Download } from 'lucide-react';
+import { Plus, User, Search, Download, Users, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -253,138 +252,232 @@ const Customers = () => {
   };
 
   // Filter customers based on search query
-  const filteredCustomers = searchQuery.trim() === '' ? customersData : customersData.filter(customer => customer.name.toLowerCase().includes(searchQuery.toLowerCase()) || customer.phone.includes(searchQuery) || customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredCustomers = searchQuery.trim() === '' ? customersData : customersData.filter(customer => 
+    customer.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    customer.phone.includes(searchQuery) || 
+    customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // If we have an error, display it
   if (error) {
-    return <div className="flex-1 space-y-4 p-8 pt-6">
+    return (
+      <div className="flex-1 space-y-4 p-8 pt-6 bg-gradient-to-br from-cuephoria-darker via-cuephoria-dark to-cuephoria-darker min-h-screen">
         <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
+          <h2 className="text-3xl font-bold tracking-tight hologram-text">Neural Customers</h2>
         </div>
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error: </strong>
+        <div className="cyber-card border-red-500/30 text-red-400 px-6 py-4 bg-red-500/10" role="alert">
+          <strong className="font-bold">System Error: </strong>
           <span className="block sm:inline">{error}</span>
-          <p className="mt-2">Please try refreshing the page or contact support if the issue persists.</p>
+          <p className="mt-2 font-mono text-sm">Please reinitialize the system or contact technical support.</p>
         </div>
-      </div>;
+      </div>
+    );
   }
 
-  return <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={exportCustomers}>
-            <Download className="h-4 w-4 mr-2" /> Export
-          </Button>
-          <Button onClick={handleOpenDialog}>
-            <Plus className="h-4 w-4 mr-2" /> Add Customer
-          </Button>
-        </div>
+  return (
+    <div className="flex-1 space-y-6 p-8 pt-6 bg-gradient-to-br from-cuephoria-darker via-cuephoria-dark to-cuephoria-darker min-h-screen relative">
+      {/* Futuristic background effects */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full bg-cyber-grid bg-cyber-grid opacity-20"></div>
+        <div className="absolute top-1/3 left-1/4 w-80 h-80 bg-cuephoria-neon-cyan/3 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cuephoria-neon-purple/3 rounded-full blur-3xl animate-breathe"></div>
       </div>
 
-      {/* Customer Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? 'Edit Customer' : 'Add New Customer'}</DialogTitle>
-            <DialogDescription>
-              Enter customer details and membership information if applicable.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              {/* Basic Information */}
-              <div className="grid gap-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" name="name" value={formState.name} onChange={handleChange} placeholder="Enter customer name" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input 
-                  id="phone" 
-                  name="phone" 
-                  value={formState.phone} 
-                  onChange={handleChange} 
-                  placeholder="10-digit mobile number" 
-                  className={phoneError ? "border-red-500" : ""}
-                />
-                {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email (Optional)</Label>
-                <Input 
-                  id="email" 
-                  name="email" 
-                  type="email" 
-                  value={formState.email} 
-                  onChange={handleChange} 
-                  placeholder="Enter email address" 
-                  className={emailError ? "border-red-500" : ""}
-                />
-                {emailError && <p className="text-sm text-red-500">{emailError}</p>}
-              </div>
-              
-              {/* Membership Section */}
-              <div className="flex items-center space-x-2 pt-2">
-                <Switch id="member" checked={formState.isMember} onCheckedChange={handleSwitchChange} />
-                <Label htmlFor="member">Is Member</Label>
-              </div>
-              
-              {/* Conditional Membership Fields */}
-              {formState.isMember && <div className="space-y-4 border rounded-md p-4 bg-background">
-                  {isEditMode && selectedCustomer && selectedCustomer.membershipPlan && <div className="grid gap-2">
-                      <Label htmlFor="membershipPlan">Current Membership</Label>
-                      <Input id="membershipPlan" value={selectedCustomer.membershipPlan} readOnly className="bg-muted" />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Membership can only be changed through purchase at checkout.
-                      </p>
-                    </div>}
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="membershipExpiryDate">Expiry Date</Label>
-                    <Input id="membershipExpiryDate" name="membershipExpiryDate" type="date" value={formState.membershipExpiryDate} onChange={handleChange} />
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="membershipHoursLeft">Hours Left</Label>
-                    <Input id="membershipHoursLeft" name="membershipHoursLeft" type="number" min="0" value={formState.membershipHoursLeft} onChange={handleChange} placeholder="Available hours" />
-                  </div>
-                </div>}
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {isEditMode ? 'Update Customer' : 'Add Customer'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Search and filter */}
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search customers by name, phone or email..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-8 animate-slide-up">
+          <div className="relative">
+            <h2 className="text-4xl font-bold tracking-tight hologram-text animate-cyber-glow">
+              <Users className="inline-block w-10 h-10 mr-3 text-cuephoria-neon-cyan animate-pulse" />
+              Neural Customer Database
+            </h2>
+            <div className="h-1 w-56 bg-gradient-to-r from-cuephoria-neon-cyan via-cuephoria-neon-purple to-cuephoria-neon-pink mt-3 rounded-full animate-shimmer"></div>
+          </div>
+          <div className="flex space-x-3">
+            <Button variant="outline" onClick={exportCustomers} className="cyber-button border-cuephoria-neon-green/30">
+              <Download className="h-4 w-4 mr-2" /> 
+              <span className="font-mono">EXPORT</span>
+            </Button>
+            <Button onClick={handleOpenDialog} className="bg-gradient-to-r from-cuephoria-neon-purple/20 to-cuephoria-neon-cyan/20 border border-cuephoria-neon-purple/40 hover:from-cuephoria-neon-purple/30 hover:to-cuephoria-neon-cyan/30 transition-all duration-300 animate-pulse-cyber">
+              <Plus className="h-4 w-4 mr-2" /> 
+              <span className="font-mono">ADD CUSTOMER</span>
+            </Button>
+          </div>
         </div>
+
+        {/* Enhanced Customer Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="cyber-card border-cuephoria-neon-purple/40 animate-scale-in">
+            <DialogHeader>
+              <DialogTitle className="hologram-text text-xl">
+                {isEditMode ? 'Modify Customer Profile' : 'Initialize New Customer'}
+              </DialogTitle>
+              <DialogDescription className="text-cuephoria-neon-purple/70 font-mono">
+                Enter customer data and membership protocols.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-6 py-4 data-grid">
+                <div className="grid gap-3">
+                  <Label htmlFor="name" className="text-cuephoria-neon-cyan">Neural ID Name</Label>
+                  <Input 
+                    id="name" 
+                    name="name" 
+                    value={formState.name} 
+                    onChange={handleChange} 
+                    placeholder="Enter customer designation" 
+                    className="cyber-input"
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="phone" className="text-cuephoria-neon-cyan">Communication Channel</Label>
+                  <Input 
+                    id="phone" 
+                    name="phone" 
+                    value={formState.phone} 
+                    onChange={handleChange} 
+                    placeholder="10-digit access code" 
+                    className={`cyber-input ${phoneError ? "border-red-500" : ""}`}
+                  />
+                  {phoneError && <p className="text-sm text-red-400 font-mono">{phoneError}</p>}
+                </div>
+                <div className="grid gap-3">
+                  <Label htmlFor="email" className="text-cuephoria-neon-cyan">Secondary Channel (Optional)</Label>
+                  <Input 
+                    id="email" 
+                    name="email" 
+                    type="email" 
+                    value={formState.email} 
+                    onChange={handleChange} 
+                    placeholder="Enter quantum mail address" 
+                    className={`cyber-input ${emailError ? "border-red-500" : ""}`}
+                  />
+                  {emailError && <p className="text-sm text-red-400 font-mono">{emailError}</p>}
+                </div>
+                
+                <div className="flex items-center space-x-3 pt-3 cyber-card p-4">
+                  <Switch 
+                    id="member" 
+                    checked={formState.isMember} 
+                    onCheckedChange={handleSwitchChange}
+                    className="data-[state=checked]:bg-cuephoria-neon-purple"
+                  />
+                  <Label htmlFor="member" className="text-cuephoria-neon-purple font-mono">
+                    <Zap className="inline w-4 h-4 mr-2" />
+                    Premium Member Status
+                  </Label>
+                </div>
+                
+                {formState.isMember && (
+                  <div className="space-y-6 cyber-card p-6 bg-cuephoria-neon-purple/5 scanner-line">
+                    {isEditMode && selectedCustomer && selectedCustomer.membershipPlan && (
+                      <div className="grid gap-3">
+                        <Label htmlFor="membershipPlan" className="text-cuephoria-neon-cyan">Current Protocol</Label>
+                        <Input 
+                          id="membershipPlan" 
+                          value={selectedCustomer.membershipPlan} 
+                          readOnly 
+                          className="cyber-input bg-black/50" 
+                        />
+                        <p className="text-xs text-cuephoria-neon-purple/70 mt-1 font-mono">
+                          Protocol modification requires checkout procedure.
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="grid gap-3">
+                      <Label htmlFor="membershipExpiryDate" className="text-cuephoria-neon-cyan">Protocol Expiry</Label>
+                      <Input 
+                        id="membershipExpiryDate" 
+                        name="membershipExpiryDate" 
+                        type="date" 
+                        value={formState.membershipExpiryDate} 
+                        onChange={handleChange}
+                        className="cyber-input"
+                      />
+                    </div>
+                    
+                    <div className="grid gap-3">
+                      <Label htmlFor="membershipHoursLeft" className="text-cuephoria-neon-cyan">Quantum Hours</Label>
+                      <Input 
+                        id="membershipHoursLeft" 
+                        name="membershipHoursLeft" 
+                        type="number" 
+                        min="0" 
+                        value={formState.membershipHoursLeft} 
+                        onChange={handleChange} 
+                        placeholder="Available temporal units"
+                        className="cyber-input"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <DialogFooter className="gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsDialogOpen(false)}
+                  className="cyber-button border-gray-500/30"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  className="bg-gradient-to-r from-cuephoria-neon-purple/30 to-cuephoria-neon-cyan/30 border border-cuephoria-neon-purple/50"
+                >
+                  {isEditMode ? 'Update Profile' : 'Initialize Customer'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Enhanced Search */}
+        <div className="flex items-center space-x-2 mb-8 animate-slide-up" style={{animationDelay: '0.1s'}}>
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-cuephoria-neon-purple/60" />
+            <Input 
+              placeholder="Search neural database by name, communication channel, or quantum mail..." 
+              className="pl-8 cyber-input" 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+            />
+          </div>
+        </div>
+        
+        {/* Enhanced Customer List */}
+        {filteredCustomers.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-slide-up" style={{animationDelay: '0.2s'}}>
+            {filteredCustomers.map((customer, index) => (
+              <div 
+                key={customer.id} 
+                className="animate-scale-in hover-lift"
+                style={{animationDelay: `${index * 50}ms`}}
+              >
+                <CustomerCard 
+                  customer={customer} 
+                  onEdit={handleEditCustomer} 
+                  onDelete={handleDeleteCustomer} 
+                  className="cyber-card circuit-border"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-64 cyber-card animate-fade-in">
+            <User className="h-16 w-16 text-cuephoria-neon-purple/50 mb-6 animate-hologram-flicker" />
+            <h3 className="text-xl font-medium hologram-text">No Neural Profiles Found</h3>
+            <p className="text-cuephoria-neon-purple/70 mt-3 font-mono text-center">
+              {searchQuery ? "Search parameters yielded no matches." : "Customer database is empty."}
+            </p>
+            <Button className="mt-6 cyber-button" onClick={handleOpenDialog}>
+              <Plus className="h-4 w-4 mr-2" /> Initialize Customer
+            </Button>
+          </div>
+        )}
       </div>
-      
-      {/* Customer list */}
-      {filteredCustomers.length > 0 ? <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredCustomers.map(customer => <CustomerCard key={customer.id} customer={customer} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />)}
-        </div> : <div className="flex flex-col items-center justify-center h-64">
-          <User className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-xl font-medium">No Customers Found</h3>
-          <p className="text-muted-foreground mt-2">
-            {searchQuery ? "No customers match your search criteria." : "You haven't added any customers yet."}
-          </p>
-          <Button className="mt-4" onClick={handleOpenDialog}>
-            <Plus className="h-4 w-4 mr-2" /> Add Customer
-          </Button>
-        </div>}
-    </div>;
+    </div>
+  );
 };
 
 export default Customers;

@@ -3,7 +3,7 @@ import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
 import { useProducts } from '@/hooks/useProducts';
 import { Product } from '@/types/pos.types';
-import { Plus, RefreshCw, RotateCcw, Settings } from 'lucide-react';
+import { Plus, RefreshCw, RotateCcw, Settings, Package, Zap, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductDialog from '@/components/product/ProductDialog';
 import LowStockAlert from '@/components/product/LowStockAlert';
@@ -239,84 +239,105 @@ const ProductsPage: React.FC = () => {
   }, [products]);
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-        <h2 className="text-3xl font-bold tracking-tight">Products</h2>
-        <div className="flex flex-wrap gap-2">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="h-10">
-                <Settings className="h-4 w-4 mr-2" /> 
-                Categories
-              </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetHeader>
-                <SheetTitle>Category Management</SheetTitle>
-                <SheetDescription>
-                  Add, edit, or remove product categories.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="mt-6">
-                <CategoryManagement />
-              </div>
-            </SheetContent>
-          </Sheet>
-          
-          <Button onClick={handleRefreshProducts} variant="outline" disabled={isRefreshing} className="h-10">
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} /> 
-            Refresh DB
-          </Button>
-          <Button onClick={handleResetProducts} variant="outline" disabled={isResetting} className="h-10">
-            <RotateCcw className={`h-4 w-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} /> 
-            Reset
-          </Button>
-          <Button onClick={handleOpenDialog} className="h-10">
-            <Plus className="h-4 w-4 mr-2" /> Add Product
-          </Button>
-        </div>
+    <div className="container mx-auto px-4 py-6 bg-gradient-to-br from-cuephoria-darker via-cuephoria-dark to-cuephoria-darker min-h-screen relative">
+      {/* Futuristic background effects */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full bg-cyber-grid bg-cyber-grid opacity-20"></div>
+        <div className="absolute top-1/4 right-1/3 w-80 h-80 bg-cuephoria-neon-purple/3 rounded-full blur-3xl animate-breathe"></div>
+        <div className="absolute bottom-1/3 left-1/4 w-72 h-72 bg-cuephoria-neon-cyan/3 rounded-full blur-3xl animate-pulse-soft"></div>
       </div>
 
-      <ProductDialog
-        isOpen={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        isEditMode={isEditMode}
-        selectedProduct={selectedProduct}
-        onSubmit={handleSubmit}
-        isSubmitting={isSubmitting}
-      />
-
-      <div className="mb-6">
-        <LowStockAlert products={products} />
-      </div>
-      
-      <div className="bg-card rounded-lg shadow-sm p-4">
-        {/* Search Bar and Zero Stock Filter */}
-        <div className="mb-6 space-y-4">
-          <ProductSearch
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            placeholder="Search products by name or category..."
-          />
-          
-          {zeroStockCount > 0 && (
-            <ZeroStockFilter
-              showZeroStockOnly={showZeroStockOnly}
-              onToggle={setShowZeroStockOnly}
-              zeroStockCount={zeroStockCount}
-            />
-          )}
+      <div className="relative z-10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4 animate-slide-up">
+          <div className="relative">
+            <h2 className="text-4xl font-bold tracking-tight hologram-text animate-cyber-glow">
+              <Package className="inline-block w-10 h-10 mr-3 text-cuephoria-neon-cyan animate-float" />
+              Quantum Inventory
+            </h2>
+            <div className="h-1 w-48 bg-gradient-to-r from-cuephoria-neon-cyan via-cuephoria-neon-purple to-cuephoria-neon-pink mt-3 rounded-full animate-shimmer"></div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="h-12 cyber-button border-cuephoria-neon-purple/30">
+                  <Settings className="h-4 w-4 mr-2 animate-spin-slow" /> 
+                  Neural Categories
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="cyber-card border-cuephoria-neon-purple/30">
+                <SheetHeader>
+                  <SheetTitle className="hologram-text">Category Matrix</SheetTitle>
+                  <SheetDescription className="text-cuephoria-neon-purple/70">
+                    Configure product classification protocols.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6">
+                  <CategoryManagement />
+                </div>
+              </SheetContent>
+            </Sheet>
+            
+            <Button onClick={handleRefreshProducts} variant="outline" disabled={isRefreshing} className="h-12 cyber-button border-cuephoria-neon-cyan/30">
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : 'animate-pulse'}`} /> 
+              <span className="font-mono">SYNC DB</span>
+            </Button>
+            <Button onClick={handleResetProducts} variant="outline" disabled={isResetting} className="h-12 cyber-button border-cuephoria-neon-orange/30">
+              <RotateCcw className={`h-4 w-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} /> 
+              <span className="font-mono">RESET</span>
+            </Button>
+            <Button onClick={handleOpenDialog} className="h-12 bg-gradient-to-r from-cuephoria-neon-purple/20 to-cuephoria-neon-cyan/20 border border-cuephoria-neon-purple/40 hover:from-cuephoria-neon-purple/30 hover:to-cuephoria-neon-cyan/30 transition-all duration-300 animate-pulse-cyber">
+              <Plus className="h-4 w-4 mr-2" /> 
+              <span className="font-mono">ADD PRODUCT</span>
+            </Button>
+          </div>
         </div>
 
-        <ProductTabs
-          products={filteredProducts}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          categoryCounts={categoryCounts}
-          onEdit={handleEditProduct}
-          onDelete={handleDeleteProduct}
-          onAddProduct={handleOpenDialog}
+        <ProductDialog
+          isOpen={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          isEditMode={isEditMode}
+          selectedProduct={selectedProduct}
+          onSubmit={handleSubmit}
+          isSubmitting={isSubmitting}
         />
+
+        <div className="mb-8 animate-slide-up" style={{animationDelay: '0.1s'}}>
+          <LowStockAlert products={products} />
+        </div>
+        
+        <div className="cyber-card circuit-border p-6 animate-slide-up" style={{animationDelay: '0.2s'}}>
+          <div className="mb-8 space-y-6">
+            <div className="scanner-line">
+              <ProductSearch
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                placeholder="Search quantum database..."
+              />
+            </div>
+            
+            {zeroStockCount > 0 && (
+              <div className="animate-fade-in">
+                <ZeroStockFilter
+                  showZeroStockOnly={showZeroStockOnly}
+                  onToggle={setShowZeroStockOnly}
+                  zeroStockCount={zeroStockCount}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="data-grid">
+            <ProductTabs
+              products={filteredProducts}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              categoryCounts={getCategoryCounts()}
+              onEdit={handleEditProduct}
+              onDelete={handleDeleteProduct}
+              onAddProduct={handleOpenDialog}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
