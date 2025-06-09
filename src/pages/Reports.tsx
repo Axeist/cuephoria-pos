@@ -141,7 +141,8 @@ const ReportsPage: React.FC = () => {
           bill.id.toLowerCase().includes(query) ||
           (customer && (
             customer.name.toLowerCase().includes(query) ||
-            (customer.email && customer.email.toLowerCase().includes(query))
+            (customer.email && customer.email.toLowerCase().includes(query)) ||
+            customer.phone.includes(query)
           ))
         );
       });
@@ -792,7 +793,7 @@ const ReportsPage: React.FC = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
               <Input 
-                placeholder="Search by customer name, email, or bill ID" 
+                placeholder="Search by customer name, email, phone, or bill ID" 
                 value={billSearchQuery}
                 onChange={(e) => setBillSearchQuery(e.target.value)}
                 className="pl-10 bg-gray-800 border-gray-700 text-white w-full md:w-96"
