@@ -202,7 +202,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         ) : (
           <Button 
             variant="default" 
-            className={`w-full transition-all duration-300 ${product.category === 'membership' ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)]' : 'hover:shadow-lg'}`}
+            className="w-full transition-all duration-300 bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
             disabled={isOutOfStock}
             onClick={handleAddToCart}
           >
