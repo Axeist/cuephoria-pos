@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
 import { useProducts } from '@/hooks/useProducts';
 import { Product } from '@/types/pos.types';
-import { Plus, RefreshCw, RotateCcw, Settings, Package, Zap } from 'lucide-react';
+import { Plus, RefreshCw, RotateCcw, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductDialog from '@/components/product/ProductDialog';
 import LowStockAlert from '@/components/product/LowStockAlert';
@@ -50,6 +49,7 @@ const ProductsPage: React.FC = () => {
       return matchesSearch && matchesZeroStock;
     });
 
+    // Sort by category when "All" tab is selected
     if (activeTab === 'all') {
       filtered = filtered.sort((a, b) => {
         if (a.category.toLowerCase() === b.category.toLowerCase()) {
@@ -63,6 +63,8 @@ const ProductsPage: React.FC = () => {
   };
 
   const filteredProducts = getFilteredAndSortedProducts();
+
+  // Count zero stock items (excluding membership products)
   const zeroStockCount = products.filter(product => 
     product.category !== 'membership' && product.stock === 0
   ).length;
@@ -87,7 +89,6 @@ const ProductsPage: React.FC = () => {
       toast({
         title: 'Product Deleted',
         description: 'The product has been removed successfully.',
-        variant: 'success',
       });
     } catch (error) {
       console.error('Delete product error:', error);
@@ -99,6 +100,7 @@ const ProductsPage: React.FC = () => {
     }
   };
 
+  // Define categories that shouldn't show buying/selling price fields
   const hidePricingFieldsCategories = ['membership', 'challenges'];
 
   const handleSubmit = async (e: React.FormEvent, formData: ProductFormState) => {
@@ -130,6 +132,7 @@ const ProductsPage: React.FC = () => {
         stock: Number(stock),
       };
       
+      // Add the new fields for buying price and profit only for applicable categories
       const shouldIncludePriceFields = !hidePricingFieldsCategories.includes(category);
       if (shouldIncludePriceFields) {
         if (buyingPrice) productData.buyingPrice = Number(buyingPrice);
@@ -152,7 +155,6 @@ const ProductsPage: React.FC = () => {
         toast({
           title: 'Product Updated',
           description: 'The product has been updated successfully.',
-          variant: 'success',
         });
         setIsDialogOpen(false);
       } else {
@@ -160,13 +162,13 @@ const ProductsPage: React.FC = () => {
         toast({
           title: 'Product Added',
           description: 'The product has been added successfully.',
-          variant: 'success',
         });
         setIsDialogOpen(false);
       }
     } catch (error) {
       console.error('Form submission error:', error);
       
+      // Check if it's a duplicate product error
       if (error instanceof Error && error.message.includes('already exists')) {
         setFormError(error.message);
       } else {
@@ -189,7 +191,6 @@ const ProductsPage: React.FC = () => {
       toast({
         title: 'Products Reset',
         description: 'Products have been reset to default values.',
-        variant: 'success',
       });
     } catch (error) {
       console.error('Error resetting products:', error);
@@ -210,7 +211,6 @@ const ProductsPage: React.FC = () => {
       toast({
         title: 'Products Refreshed',
         description: 'Products have been refreshed from the database.',
-        variant: 'success',
       });
     } catch (error) {
       console.error('Error refreshing products:', error);
@@ -239,107 +239,84 @@ const ProductsPage: React.FC = () => {
   }, [products]);
 
   return (
-    <div className="min-h-screen circuit-pattern">
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4 animate-slide-in-top">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-cyber-purple to-neon-blue flex items-center justify-center animate-cyber-pulse">
-              <Package className="h-6 w-6 text-white" />
-            </div>
-            <h2 className="text-4xl font-bold holographic-text font-orbitron">Products</h2>
-            <Zap className="h-6 w-6 text-neon-orange animate-pulse" />
-          </div>
+    <div className="container mx-auto px-4 py-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+        <h2 className="text-3xl font-bold tracking-tight">Products</h2>
+        <div className="flex flex-wrap gap-2">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="h-10">
+                <Settings className="h-4 w-4 mr-2" /> 
+                Categories
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Category Management</SheetTitle>
+                <SheetDescription>
+                  Add, edit, or remove product categories.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6">
+                <CategoryManagement />
+              </div>
+            </SheetContent>
+          </Sheet>
           
-          <div className="flex flex-wrap gap-3 animate-slide-in-right">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" className="gaming-button h-10 font-rajdhani">
-                  <Settings className="h-4 w-4 mr-2" /> 
-                  Categories
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="gaming-sidebar">
-                <SheetHeader>
-                  <SheetTitle className="font-orbitron text-white">Category Management</SheetTitle>
-                  <SheetDescription className="font-rajdhani text-gray-300">
-                    Add, edit, or remove product categories.
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="mt-6">
-                  <CategoryManagement />
-                </div>
-              </SheetContent>
-            </Sheet>
-            
-            <Button 
-              onClick={handleRefreshProducts} 
-              variant="outline" 
-              disabled={isRefreshing} 
-              className="gaming-button h-10 font-rajdhani"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} /> 
-              Refresh DB
-            </Button>
-            
-            <Button 
-              onClick={handleResetProducts} 
-              variant="outline" 
-              disabled={isResetting} 
-              className="gaming-button h-10 font-rajdhani"
-            >
-              <RotateCcw className={`h-4 w-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} /> 
-              Reset
-            </Button>
-            
-            <Button 
-              onClick={handleOpenDialog} 
-              className="gaming-button h-10 font-rajdhani bg-gradient-to-r from-cyber-purple to-neon-blue hover:opacity-90"
-            >
-              <Plus className="h-4 w-4 mr-2" /> Add Product
-            </Button>
-          </div>
+          <Button onClick={handleRefreshProducts} variant="outline" disabled={isRefreshing} className="h-10">
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} /> 
+            Refresh DB
+          </Button>
+          <Button onClick={handleResetProducts} variant="outline" disabled={isResetting} className="h-10">
+            <RotateCcw className={`h-4 w-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} /> 
+            Reset
+          </Button>
+          <Button onClick={handleOpenDialog} className="h-10">
+            <Plus className="h-4 w-4 mr-2" /> Add Product
+          </Button>
         </div>
+      </div>
 
-        <ProductDialog
-          isOpen={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          isEditMode={isEditMode}
-          selectedProduct={selectedProduct}
-          onSubmit={handleSubmit}
-          isSubmitting={isSubmitting}
-        />
+      <ProductDialog
+        isOpen={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        isEditMode={isEditMode}
+        selectedProduct={selectedProduct}
+        onSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+      />
 
-        <div className="mb-6 animate-slide-in-left">
-          <LowStockAlert products={products} />
-        </div>
-        
-        <div className="cyber-card rounded-xl shadow-2xl p-6 animate-fade-in-scale">
-          <div className="mb-6 space-y-4">
-            <ProductSearch
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              placeholder="Search products by name or category..."
-            />
-            
-            {zeroStockCount > 0 && (
-              <ZeroStockFilter
-                showZeroStockOnly={showZeroStockOnly}
-                onToggle={setShowZeroStockOnly}
-                zeroStockCount={zeroStockCount}
-              />
-            )}
-          </div>
-
-          <ProductTabs
-            products={filteredProducts}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            categoryCounts={categoryCounts}
-            onEdit={handleEditProduct}
-            onDelete={handleDeleteProduct}
-            onAddProduct={handleOpenDialog}
+      <div className="mb-6">
+        <LowStockAlert products={products} />
+      </div>
+      
+      <div className="bg-card rounded-lg shadow-sm p-4">
+        {/* Search Bar and Zero Stock Filter */}
+        <div className="mb-6 space-y-4">
+          <ProductSearch
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            placeholder="Search products by name or category..."
           />
+          
+          {zeroStockCount > 0 && (
+            <ZeroStockFilter
+              showZeroStockOnly={showZeroStockOnly}
+              onToggle={setShowZeroStockOnly}
+              zeroStockCount={zeroStockCount}
+            />
+          )}
         </div>
+
+        <ProductTabs
+          products={filteredProducts}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          categoryCounts={categoryCounts}
+          onEdit={handleEditProduct}
+          onDelete={handleDeleteProduct}
+          onAddProduct={handleOpenDialog}
+        />
       </div>
     </div>
   );
