@@ -28,14 +28,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const getCategoryStyles = (category: string) => {
     const categoryStyleMap: Record<string, string> = {
-      'food': 'border-l-4 border-l-cuephoria-orange shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] bg-gradient-to-r from-cuephoria-orange/5 via-transparent to-transparent',
-      'drinks': 'border-l-4 border-l-cuephoria-blue shadow-[0_0_15px_rgba(14,165,233,0.3)] hover:shadow-[0_0_25px_rgba(14,165,233,0.5)] bg-gradient-to-r from-cuephoria-blue/5 via-transparent to-transparent',
-      'tobacco': 'border-l-4 border-l-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] bg-gradient-to-r from-red-500/5 via-transparent to-transparent',
-      'challenges': 'border-l-4 border-l-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:shadow-[0_0_25px_rgba(34,197,94,0.5)] bg-gradient-to-r from-green-500/5 via-transparent to-transparent',
-      'membership': 'border-l-4 border-l-violet-600 shadow-[0_0_15px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] bg-gradient-to-r from-violet-600/8 via-indigo-600/5 to-transparent',
+      'food': 'border-l-4 border-l-cuephoria-orange hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] bg-gradient-to-r from-cuephoria-orange/5 via-transparent to-transparent',
+      'drinks': 'border-l-4 border-l-cuephoria-blue hover:shadow-[0_0_15px_rgba(14,165,233,0.3)] hover:shadow-[0_0_25px_rgba(14,165,233,0.5)] bg-gradient-to-r from-cuephoria-blue/5 via-transparent to-transparent',
+      'tobacco': 'border-l-4 border-l-red-500 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] bg-gradient-to-r from-red-500/5 via-transparent to-transparent',
+      'challenges': 'border-l-4 border-l-green-500 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:shadow-[0_0_25px_rgba(34,197,94,0.5)] bg-gradient-to-r from-green-500/5 via-transparent to-transparent',
+      'membership': 'border-l-4 border-l-violet-600 hover:shadow-[0_0_15px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] bg-gradient-to-r from-violet-600/8 via-indigo-600/5 to-transparent',
     };
     
-    return categoryStyleMap[category] || 'border-l-4 border-l-gray-500 shadow-[0_0_10px_rgba(107,114,128,0.2)] bg-gradient-to-r from-gray-500/5 via-transparent to-transparent';
+    return categoryStyleMap[category] || 'border-l-4 border-l-gray-500 hover:shadow-[0_0_10px_rgba(107,114,128,0.2)] bg-gradient-to-r from-gray-500/5 via-transparent to-transparent';
   };
 
   const handleAddToCart = () => {
@@ -107,8 +107,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <Card className={`flex flex-col h-full transition-all duration-300 ease-out transform hover:-translate-y-1 ${className} ${getCategoryStyles(product.category)} backdrop-blur-sm`}>
       <CardHeader className="pb-3 space-y-2 relative overflow-hidden">
-        {/* Subtle animated background glow */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent animate-pulse-soft"></div>
+        {/* Subtle animated background glow - only on hover */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
         
         {/* Product name with proper spacing */}
         <div className="min-h-[3.5rem] flex items-start relative z-10">
