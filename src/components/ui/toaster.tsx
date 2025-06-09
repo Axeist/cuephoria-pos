@@ -21,7 +21,8 @@ export function Toaster() {
             {...props}
             style={{
               animationDelay: `${index * 100}ms`,
-              transform: `translateY(${index * 4}px) scale(${1 - index * 0.02})`,
+              transform: `translateY(${index * 2}px) scale(${1 - index * 0.01})`,
+              zIndex: 100 - index,
             }}
             className="animate-slide-up"
           >
