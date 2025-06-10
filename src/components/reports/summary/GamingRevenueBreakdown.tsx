@@ -3,14 +3,13 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Gamepad2, Trophy, Target } from 'lucide-react';
+import { Gamepad2, Trophy } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
 interface Bill {
   id: string;
   total: number;
   subtotal: number;
-  discountValue?: number;
   items: Array<{
     id: string;
     name: string;
@@ -34,8 +33,6 @@ const GamingRevenueBreakdown: React.FC<GamingRevenueBreakdownProps> = ({ bills, 
   const gamingRevenue = React.useMemo(() => {
     let ps5Sales = 0;
     let poolSales = 0;
-    let metashotSales = 0;
-    let otherGamingSales = 0;
 
     bills.forEach(bill => {
       // Calculate the effective discount ratio for this bill
@@ -52,25 +49,20 @@ const GamingRevenueBreakdown: React.FC<GamingRevenueBreakdownProps> = ({ bills, 
             ps5Sales += discountedItemTotal;
           } else if (itemName.includes('pool') || itemName.includes('8-ball') || itemName.includes('8 ball')) {
             poolSales += discountedItemTotal;
-          } else {
-            otherGamingSales += discountedItemTotal;
           }
         } else if (item.type === 'product') {
-          // Check if it's a Metashot/challenge product
-          const product = products.find(p => p.id === item.id);
-          if (product) {
-            const category = product.category.toLowerCase();
-            const name = product.name.toLowerCase();
-            if (name.includes('metashot') || name.includes('meta shot') || 
-                category === 'challenges' || category === 'challenge') {
-              metashotSales += discountedItemTotal;
-            }
+          // Check for manual gaming products (like "PS5 Joystick", "8 Ball Pool - 1hr")
+          const itemName = item.name.toLowerCase();
+          if (itemName.includes('ps5') || itemName.includes('joystick') || itemName.includes('playstation')) {
+            ps5Sales += discountedItemTotal;
+          } else if (itemName.includes('pool') || itemName.includes('8-ball') || itemName.includes('8 ball')) {
+            poolSales += discountedItemTotal;
           }
         }
       });
     });
 
-    const totalGaming = ps5Sales + poolSales + metashotSales;
+    const totalGaming = ps5Sales + poolSales;
     const overallTotal = bills.reduce((sum, bill) => sum + bill.total, 0);
 
     return {
@@ -83,11 +75,6 @@ const GamingRevenueBreakdown: React.FC<GamingRevenueBreakdownProps> = ({ bills, 
         amount: poolSales,
         percentage: totalGaming > 0 ? (poolSales / totalGaming) * 100 : 0,
         revenueShare: overallTotal > 0 ? (poolSales / overallTotal) * 100 : 0
-      },
-      metashot: {
-        amount: metashotSales,
-        percentage: totalGaming > 0 ? (metashotSales / totalGaming) * 100 : 0,
-        revenueShare: overallTotal > 0 ? (metashotSales / overallTotal) * 100 : 0
       },
       totalGaming,
       overallTotal,
@@ -109,13 +96,6 @@ const GamingRevenueBreakdown: React.FC<GamingRevenueBreakdownProps> = ({ bills, 
       data: gamingRevenue.pool,
       color: 'bg-green-500',
       bgColor: 'bg-green-900/20 border-green-800'
-    },
-    {
-      name: 'Metashot',
-      icon: <Target className="h-5 w-5 text-orange-500" />,
-      data: gamingRevenue.metashot,
-      color: 'bg-orange-500',
-      bgColor: 'bg-orange-900/20 border-orange-800'
     }
   ];
 
@@ -182,15 +162,15 @@ const GamingRevenueBreakdown: React.FC<GamingRevenueBreakdownProps> = ({ bills, 
           <div className="grid grid-cols-2 gap-4 mt-6">
             <div className="text-center p-3 rounded-lg bg-gray-800/50">
               <div className="text-lg font-bold text-white">
-                {((gamingRevenue.ps5.amount + gamingRevenue.pool.amount) / gamingRevenue.totalGaming * 100).toFixed(1)}%
+                {categories.length}
               </div>
-              <div className="text-sm text-gray-400">Traditional Gaming</div>
+              <div className="text-sm text-gray-400">Gaming Categories</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-gray-800/50">
               <div className="text-lg font-bold text-white">
-                {(gamingRevenue.metashot.amount / gamingRevenue.totalGaming * 100).toFixed(1)}%
+                {gamingRevenue.ps5.amount > gamingRevenue.pool.amount ? 'PS5' : 'Pool'}
               </div>
-              <div className="text-sm text-gray-400">Challenge Gaming</div>
+              <div className="text-sm text-gray-400">Top Category</div>
             </div>
           </div>
         </div>

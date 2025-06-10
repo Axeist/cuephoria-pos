@@ -26,8 +26,10 @@ import CustomerLeaderboard from '@/components/reports/summary/CustomerLeaderboar
 import InteractiveSalesChart from '@/components/reports/summary/InteractiveSalesChart';
 import PaymentMethodAnalytics from '@/components/reports/summary/PaymentMethodAnalytics';
 import GamingRevenueBreakdown from '@/components/reports/summary/GamingRevenueBreakdown';
-import BusinessIntelligenceWidgets from '@/components/reports/summary/BusinessIntelligenceWidgets';
-import SalesPredictionWidget from '@/components/reports/summary/SalesPredictionWidget';
+import EnhancedBusinessMetrics from '@/components/reports/summary/EnhancedBusinessMetrics';
+import SimplifiedSalesPrediction from '@/components/reports/summary/SimplifiedSalesPrediction';
+import ProductPerformanceWidget from '@/components/reports/summary/ProductPerformanceWidget';
+import CanteenRevenueWidget from '@/components/reports/summary/CanteenRevenueWidget';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -1007,14 +1009,14 @@ const ReportsPage: React.FC = () => {
 
     return (
       <div className="space-y-6">
-        {/* Business Intelligence Widgets */}
-        <BusinessIntelligenceWidgets 
+        {/* Enhanced Business Metrics Row */}
+        <EnhancedBusinessMetrics 
           bills={filteredData.filteredBills}
           customers={filteredData.filteredCustomers}
           sessions={filteredData.filteredSessions}
         />
 
-        {/* Top Row - Sales Chart and Customer Leaderboard */}
+        {/* Sales Chart and Customer Leaderboard Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <InteractiveSalesChart bills={filteredData.filteredBills} />
@@ -1024,7 +1026,19 @@ const ReportsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Middle Row - Gaming Revenue and Payment Analytics */}
+        {/* Product Performance and Canteen Revenue Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ProductPerformanceWidget 
+            bills={filteredData.filteredBills}
+            products={products}
+          />
+          <CanteenRevenueWidget 
+            bills={filteredData.filteredBills}
+            products={products}
+          />
+        </div>
+
+        {/* Gaming Revenue and Payment Analytics Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <GamingRevenueBreakdown 
             bills={filteredData.filteredBills}
@@ -1033,8 +1047,8 @@ const ReportsPage: React.FC = () => {
           <PaymentMethodAnalytics bills={filteredData.filteredBills} />
         </div>
 
-        {/* Bottom Row - Sales Prediction */}
-        <SalesPredictionWidget bills={filteredData.filteredBills} />
+        {/* Simplified Sales Prediction */}
+        <SimplifiedSalesPrediction bills={filteredData.filteredBills} />
 
         {/* Legacy Business Summary Report */}
         <BusinessSummaryReport 
