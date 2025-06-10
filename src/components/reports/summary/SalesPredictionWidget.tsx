@@ -44,7 +44,8 @@ const SalesPredictionWidget: React.FC<SalesPredictionWidgetProps> = ({ bills }) 
         nextMonthPrediction: 0,
         trend: 'insufficient_data',
         confidence: 0,
-        chartData: []
+        historicalData: [],
+        predictedData: []
       };
     }
 
@@ -76,20 +77,19 @@ const SalesPredictionWidget: React.FC<SalesPredictionWidgetProps> = ({ bills }) 
       predictions.push({
         date: format(predictedDate, 'yyyy-MM-dd'),
         displayDate: format(predictedDate, 'MMM dd'),
-        amount: predictedAmount,
-        isPrediction: true
+        amount: predictedAmount
       });
     }
 
-    // Combine historical and predicted data for chart
-    const chartData = [
-      ...salesData.slice(-14).map(day => ({
-        ...day,
-        displayDate: format(new Date(day.date), 'MMM dd'),
-        isPrediction: false
-      })),
-      ...predictions
-    ];
+    // Prepare historical data for chart (last 14 days)
+    const historicalData = salesData.slice(-14).map(day => ({
+      ...day,
+      displayDate: format(new Date(day.date), 'MMM dd')
+    }));
+
+    // Add the last historical point to predictions for continuity
+    const lastHistoricalPoint = historicalData[historicalData.length - 1];
+    const predictedData = lastHistoricalPoint ? [lastHistoricalPoint, ...predictions] : predictions;
 
     const nextWeekPrediction = predictions.reduce((sum, day) => sum + day.amount, 0);
     const nextMonthPrediction = nextWeekPrediction * 4.3; // Approximate month
@@ -105,7 +105,8 @@ const SalesPredictionWidget: React.FC<SalesPredictionWidgetProps> = ({ bills }) 
       nextMonthPrediction,
       trend: trendDirection,
       confidence,
-      chartData,
+      historicalData,
+      predictedData,
       avgDailySales
     };
   }, [bills]);
@@ -188,13 +189,13 @@ const SalesPredictionWidget: React.FC<SalesPredictionWidgetProps> = ({ bills }) 
 
         <div className="h-48 mb-4">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={predictions.chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <XAxis dataKey="displayDate" stroke="#9CA3AF" />
               <YAxis stroke="#9CA3AF" />
               <Tooltip 
-                formatter={(value: number, name: string, props: any) => [
+                formatter={(value: number, name: string) => [
                   `₹${value.toFixed(0)}`,
-                  props.payload.isPrediction ? 'Predicted Sales' : 'Actual Sales'
+                  name === 'amount' ? 'Sales' : name
                 ]}
                 contentStyle={{ 
                   backgroundColor: '#1F2937', 
@@ -203,12 +204,23 @@ const SalesPredictionWidget: React.FC<SalesPredictionWidgetProps> = ({ bills }) 
                   color: '#F9FAFB'
                 }}
               />
+              {/* Historical data line */}
               <Line 
+                data={predictions.historicalData}
                 type="monotone" 
                 dataKey="amount" 
                 stroke="#8B5CF6"
                 strokeWidth={2}
-                strokeDasharray={(entry: any) => entry?.isPrediction ? "5 5" : "0 0"}
+                dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 3 }}
+              />
+              {/* Predicted data line */}
+              <Line 
+                data={predictions.predictedData}
+                type="monotone" 
+                dataKey="amount" 
+                stroke="#8B5CF6"
+                strokeWidth={2}
+                strokeDasharray="5 5"
                 dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 3 }}
               />
             </LineChart>
@@ -216,7 +228,7 @@ const SalesPredictionWidget: React.FC<SalesPredictionWidgetProps> = ({ bills }) 
         </div>
 
         <div className="text-center text-sm text-gray-400">
-          <p>Predictions based on {predictions.chartData.filter(d => !d.isPrediction).length} days of historical data</p>
+          <p>Predictions based on {predictions.historicalData.length} days of historical data</p>
           <p>Daily average: <CurrencyDisplay amount={predictions.avgDailySales} /></p>
         </div>
       </CardContent>
