@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -30,7 +29,7 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
   endDate,
   onDownload 
 }) => {
-  const { expenses, businessSummary } = useExpenses();
+  const { expenses } = useExpenses();
   const { bills, products, customers } = usePOS();
   
   // Current date for display
@@ -38,6 +37,8 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
   
   // Memoize all calculations to improve performance
   const reportData = useMemo(() => {
+    console.log('BusinessSummaryReport: Calculating report data with date range:', { startDate, endDate });
+    
     // Filter expenses based on date range
     const filteredExpenses = expenses.filter(expense => {
       if (!startDate && !endDate) return true;
@@ -54,6 +55,8 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
       
       return true;
     });
+    
+    console.log('BusinessSummaryReport: Filtered expenses count:', filteredExpenses.length);
     
     // Filter bills based on date range
     const filteredBills = bills.filter(bill => {
@@ -72,6 +75,8 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
       return true;
     });
 
+    console.log('BusinessSummaryReport: Filtered bills count:', filteredBills.length);
+
     // Group expenses by category
     const expensesByCategory = filteredExpenses.reduce((acc, expense) => {
       const { category } = expense;
@@ -88,8 +93,10 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
       return { category, total };
     }).sort((a, b) => b.total - a.total);
     
-    // Calculate total expenses
+    // Calculate total expenses from filtered data
     const totalExpenses = categoryTotals.reduce((sum, category) => sum + category.total, 0);
+    
+    console.log('BusinessSummaryReport: Total filtered expenses:', totalExpenses);
     
     // Initialize revenue variables with zero values
     let ps5Sales = 0;
@@ -99,7 +106,7 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
     let beverageSales = 0;
     let tobaccoSales = 0;
     
-    // Process all bills at once to improve performance
+    // Process all filtered bills to improve performance
     filteredBills.forEach(bill => {
       // Calculate effective discount rate for proportional application
       const discountRatio = bill.subtotal > 0 ? bill.total / bill.subtotal : 1;
@@ -147,10 +154,14 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
     // Calculate total revenue as the sum of all sales
     const totalRevenue = totalGameSales + totalCanteenSales;
     
-    // Calculate net profit and profit margin
+    console.log('BusinessSummaryReport: Total revenue:', totalRevenue);
+    
+    // Calculate net profit using filtered expenses and profit margin
     const netProfit = totalRevenue - totalExpenses;
     // Prevent division by zero
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+    
+    console.log('BusinessSummaryReport: Net profit calculation - Revenue:', totalRevenue, 'Expenses:', totalExpenses, 'Net Profit:', netProfit);
     
     // Calculate customer metrics for deeper insights
     const activeCustomers = customers.filter(c => {
