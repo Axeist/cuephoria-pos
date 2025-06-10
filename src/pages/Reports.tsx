@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
 import { usePOS } from '@/context/POSContext';
@@ -31,9 +32,13 @@ import SimplifiedSalesPrediction from '@/components/reports/summary/SimplifiedSa
 import ProductPerformanceWidget from '@/components/reports/summary/ProductPerformanceWidget';
 import CanteenRevenueWidget from '@/components/reports/summary/CanteenRevenueWidget';
 
+// Import the Session type from the hook to ensure compatibility
+import type { Session as DBSession } from '@/hooks/stations/useSessionsData';
+
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
 type SortDirection = 'asc' | 'desc' | null;
+
 const ReportsPage: React.FC = () => {
   const {
     expenses,
@@ -135,8 +140,10 @@ const ReportsPage: React.FC = () => {
     }
 
     // Filter sessions (special case since sessions use startTime instead of createdAt)
-    let filteredSessions = sessions.filter(session => {
+    // Convert sessions to have compatible format for filtering
+    let filteredSessions: DBSession[] = sessions.filter(session => {
       if (!date?.from && !date?.to) return true;
+      // Handle startTime as string from database
       const startTime = new Date(session.startTime);
       if (date?.from && date?.to) {
         return startTime >= date.from && startTime <= date.to;
@@ -179,6 +186,7 @@ const ReportsPage: React.FC = () => {
     const minutes = Math.floor(totalMinutes % 60);
     return `${hours}h ${minutes}m`;
   }, [filteredData.filteredSessions]);
+  
   const getCustomerTotalSpent = useCallback((customerId: string) => {
     return filteredData.filteredBills.filter(bill => bill.customerId === customerId).reduce((total, bill) => total + bill.total, 0);
   }, [filteredData.filteredBills]);
