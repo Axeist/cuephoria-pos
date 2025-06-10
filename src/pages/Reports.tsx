@@ -21,23 +21,9 @@ import SalesWidgets from '@/components/reports/SalesWidgets';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
-// New Summary Components
-import CustomerLeaderboard from '@/components/reports/summary/CustomerLeaderboard';
-import InteractiveSalesChart from '@/components/reports/summary/InteractiveSalesChart';
-import PaymentMethodAnalytics from '@/components/reports/summary/PaymentMethodAnalytics';
-import GamingRevenueBreakdown from '@/components/reports/summary/GamingRevenueBreakdown';
-import EnhancedBusinessMetrics from '@/components/reports/summary/EnhancedBusinessMetrics';
-import SimplifiedSalesPrediction from '@/components/reports/summary/SimplifiedSalesPrediction';
-import ProductPerformanceWidget from '@/components/reports/summary/ProductPerformanceWidget';
-import CanteenRevenueWidget from '@/components/reports/summary/CanteenRevenueWidget';
-
-// Import the Session type from the correct location
-import type { Session } from '@/types/pos.types';
-
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
 type SortDirection = 'asc' | 'desc' | null;
-
 const ReportsPage: React.FC = () => {
   const {
     expenses,
@@ -139,10 +125,8 @@ const ReportsPage: React.FC = () => {
     }
 
     // Filter sessions (special case since sessions use startTime instead of createdAt)
-    // Convert sessions to have compatible format for filtering
-    let filteredSessions: Session[] = sessions.filter(session => {
+    let filteredSessions = sessions.filter(session => {
       if (!date?.from && !date?.to) return true;
-      // Handle startTime as string from database
       const startTime = new Date(session.startTime);
       if (date?.from && date?.to) {
         return startTime >= date.from && startTime <= date.to;
@@ -185,7 +169,6 @@ const ReportsPage: React.FC = () => {
     const minutes = Math.floor(totalMinutes % 60);
     return `${hours}h ${minutes}m`;
   }, [filteredData.filteredSessions]);
-  
   const getCustomerTotalSpent = useCallback((customerId: string) => {
     return filteredData.filteredBills.filter(bill => bill.customerId === customerId).reduce((total, bill) => total + bill.total, 0);
   }, [filteredData.filteredBills]);
@@ -1003,69 +986,258 @@ const ReportsPage: React.FC = () => {
         </Table>
       </div>
     </div>;
-  const renderSummaryTab = () => {
-    // Prepare data for new components
-    const customerLeaderboardData = filteredData.filteredCustomers.map(customer => ({
-      id: customer.id,
-      name: customer.name,
-      totalSpent: getCustomerTotalSpent(customer.id),
-      visitCount: filteredData.filteredBills.filter(bill => bill.customerId === customer.id).length,
-      loyaltyPoints: customer.loyaltyPoints || 0,
-      isMember: customer.isMember
-    }));
-
-    return (
-      <div className="space-y-6">
-        {/* Enhanced Business Metrics Row */}
-        <EnhancedBusinessMetrics 
-          bills={filteredData.filteredBills}
-          customers={filteredData.filteredCustomers}
-          sessions={filteredData.filteredSessions}
-        />
-
-        {/* Sales Chart and Customer Leaderboard Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <InteractiveSalesChart bills={filteredData.filteredBills} />
+  const renderSummaryTab = () => <div className="space-y-8">
+      <BusinessSummaryReport startDate={date?.from} endDate={date?.to} onDownload={handleDownloadReport} />
+      
+      <Card className="border-gray-800 bg-[#1A1F2C] shadow-xl">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xl text-white">Detailed Business Metrics</CardTitle>
+          <CardDescription className="text-gray-400">
+            Overview of key metrics 
+            {date?.from && date?.to ? ` from ${format(date.from, 'MMM do, yyyy')} to ${format(date.to, 'MMM do, yyyy')}` : ''}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Financial Metrics - Enhanced */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Financial Metrics</h3>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Revenue</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.financial.totalRevenue} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Average Bill Value</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.financial.averageBillValue} showDecimals />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Discounts Given</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.financial.totalDiscounts} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Cash Sales</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.financial.cashSales} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">UPI Sales</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.financial.upiSales} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Cash Payment %</span>
+                  <span className="font-semibold text-white">
+                    {summaryMetrics.financial.cashPercentage.toFixed(1)}%
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">UPI Payment %</span>
+                  <span className="font-semibold text-white">
+                    {summaryMetrics.financial.upiPercentage.toFixed(1)}%
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Gross Profit</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.financial.grossProfit} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Profit Margin</span>
+                  <span className="font-semibold text-white">
+                    {summaryMetrics.financial.profitMargin.toFixed(1)}%
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Best Revenue Day</span>
+                  <span className="font-semibold text-white">
+                    {summaryMetrics.financial.highestRevenueDay}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Operational Metrics - Enhanced */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Operational Metrics</h3>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Transactions</span>
+                  <span className="font-semibold text-white">{summaryMetrics.operational.totalTransactions}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Active Sessions</span>
+                  <span className="font-semibold text-white">{summaryMetrics.operational.activeSessions}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Completed Sessions</span>
+                  <span className="font-semibold text-white">{summaryMetrics.operational.completedSessions}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Avg. Session Duration</span>
+                  <span className="font-semibold text-white">
+                    {Math.floor(summaryMetrics.operational.avgSessionDuration / 60)}h {summaryMetrics.operational.avgSessionDuration % 60}m
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Peak Business Hour</span>
+                  <span className="font-semibold text-white">{summaryMetrics.operational.peakHour}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Most Popular Product</span>
+                  <span className="font-semibold text-white">{summaryMetrics.operational.mostPopularProduct}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Units Sold</span>
+                  <span className="font-semibold text-white">{summaryMetrics.operational.totalUnitsSold}</span>
+                </div>
+                
+                {summaryMetrics.operational.daysSinceRestock !== null && <div className="flex justify-between">
+                    <span className="text-gray-400">Days Since Restock</span>
+                    <span className="font-semibold text-white">{summaryMetrics.operational.daysSinceRestock}</span>
+                  </div>}
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">PS5 Usage Rate</span>
+                  <span className="font-semibold text-white">{summaryMetrics.operational.ps5UsageRate}%</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">PS5 Revenue</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.gaming.ps5Sales} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">8-Ball Revenue</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.gaming.poolSales} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Metashot Revenue</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.gaming.metashotSales} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Gaming Revenue</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.gaming.totalGamingSales} />
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Customer Metrics - Enhanced */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Customer Metrics</h3>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total Customers</span>
+                  <span className="font-semibold text-white">{summaryMetrics.customer.totalCustomers}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Members</span>
+                  <span className="font-semibold text-white">{summaryMetrics.customer.memberCount}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Non-Members</span>
+                  <span className="font-semibold text-white">{summaryMetrics.customer.nonMemberCount}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Membership Rate</span>
+                  <span className="font-semibold text-white">
+                    {summaryMetrics.customer.membershipRate.toFixed(1)}%
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Avg. Spend per Customer</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.customer.avgSpendPerCustomer} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Top Customer</span>
+                  <span className="font-semibold text-white">{summaryMetrics.customer.topCustomer}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Top Customer Spend</span>
+                  <span className="font-semibold text-white">
+                    <CurrencyDisplay amount={summaryMetrics.customer.topCustomerSpend} />
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Returning Customers</span>
+                  <span className="font-semibold text-white">{summaryMetrics.customer.returningCustomers}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Customer Retention</span>
+                  <span className="font-semibold text-white">
+                    {summaryMetrics.customer.retentionRate.toFixed(1)}%
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Loyalty Points Used</span>
+                  <span className="font-semibold text-white">{summaryMetrics.customer.loyaltyPointsUsed}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Loyalty Points Earned</span>
+                  <span className="font-semibold text-white">{summaryMetrics.customer.loyaltyPointsEarned}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Loyalty Usage Rate</span>
+                  <span className="font-semibold text-white">
+                    {summaryMetrics.customer.loyaltyUsageRate.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="lg:col-span-1">
-            <CustomerLeaderboard customers={customerLeaderboardData} />
-          </div>
-        </div>
-
-        {/* Product Performance and Canteen Revenue Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ProductPerformanceWidget 
-            bills={filteredData.filteredBills}
-            products={products}
-          />
-          <CanteenRevenueWidget 
-            bills={filteredData.filteredBills}
-            products={products}
-          />
-        </div>
-
-        {/* Gaming Revenue and Payment Analytics Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <GamingRevenueBreakdown 
-            bills={filteredData.filteredBills}
-            products={products}
-          />
-          <PaymentMethodAnalytics bills={filteredData.filteredBills} />
-        </div>
-
-        {/* Simplified Sales Prediction */}
-        <SimplifiedSalesPrediction bills={filteredData.filteredBills} />
-
-        {/* Legacy Business Summary Report */}
-        <BusinessSummaryReport 
-          startDate={date?.from} 
-          endDate={date?.to} 
-          onDownload={handleDownloadReport} 
-        />
-      </div>
-    );
-  };
+        </CardContent>
+      </Card>
+    </div>;
 
   // Handle calendar date changes while ensuring proper types
   const handleCalendarSelect = (newDate: DateRange | undefined) => {
