@@ -26,7 +26,7 @@ const StatCard: React.FC<StatCardProps> = ({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-base font-medium">{title}</CardTitle>
         <Icon className={`h-4 w-4 ${color}`} />
       </CardHeader>
       <CardContent>

@@ -115,7 +115,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 mb-6">
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white">Cash Sales</CardTitle>
+          <CardTitle className="text-base font-medium text-white">Cash Sales</CardTitle>
           <DollarSign className="h-4 w-4 text-green-500" />
         </CardHeader>
         <CardContent>
@@ -127,7 +127,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white">UPI Sales</CardTitle>
+          <CardTitle className="text-base font-medium text-white">UPI Sales</CardTitle>
           <CreditCard className="h-4 w-4 text-blue-500" />
         </CardHeader>
         <CardContent>
@@ -139,7 +139,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white">Split Payments</CardTitle>
+          <CardTitle className="text-base font-medium text-white">Split Payments</CardTitle>
           <Split className="h-4 w-4 text-purple-500" />
         </CardHeader>
         <CardContent>
@@ -155,7 +155,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white">PS5 Sessions</CardTitle>
+          <CardTitle className="text-base font-medium text-white">PS5 Sessions</CardTitle>
           <Gamepad2 className="h-4 w-4 text-indigo-500" />
         </CardHeader>
         <CardContent>
@@ -167,7 +167,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white">8-Ball Sessions</CardTitle>
+          <CardTitle className="text-base font-medium text-white">8-Ball Sessions</CardTitle>
           <Gamepad2 className="h-4 w-4 text-amber-500" />
         </CardHeader>
         <CardContent>
@@ -179,7 +179,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white">Product Sales</CardTitle>
+          <CardTitle className="text-base font-medium text-white">Product Sales</CardTitle>
           <Package className="h-4 w-4 text-pink-500" />
         </CardHeader>
         <CardContent>
@@ -191,7 +191,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white">Total Sales</CardTitle>
+          <CardTitle className="text-base font-medium text-white">Total Sales</CardTitle>
           <DollarSign className="h-4 w-4 text-emerald-500" />
         </CardHeader>
         <CardContent>

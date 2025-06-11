@@ -25,7 +25,7 @@ const StatsCard: React.FC<StatsCardProps> = ({
   return (
     <Card className={`bg-[#1A1F2C] border-gray-700 shadow-xl hover:shadow-${iconColor.split('-')[1]}-900/10 transition-all ${className}`}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-md font-medium text-gray-200">{title}</CardTitle>
+        <CardTitle className="text-base font-medium text-gray-200">{title}</CardTitle>
         <div className={`h-10 w-10 rounded-full ${iconBgColor} flex items-center justify-center`}>
           <Icon className={`h-5 w-5 ${iconColor}`} />
         </div>

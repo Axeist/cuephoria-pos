@@ -30,7 +30,7 @@ const ActiveSessions = () => {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-xl font-bold text-white font-heading">Active Sessions</CardTitle>
+            <CardTitle className="text-base font-bold text-white font-heading">Active Sessions</CardTitle>
             <CardDescription className="text-gray-400">{activeStations.length} active session{activeStations.length !== 1 ? 's' : ''}</CardDescription>
           </div>
           <div className="h-10 w-10 rounded-full bg-[#0EA5E9]/20 flex items-center justify-center">
