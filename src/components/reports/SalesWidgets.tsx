@@ -3,7 +3,6 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { DollarSign, CreditCard, Split, Gamepad2, Package } from 'lucide-react';
-import { usePOS } from '@/context/POSContext';
 
 interface BillItem {
   id: string;
@@ -11,7 +10,6 @@ interface BillItem {
   quantity: number;
   total: number;
   type: 'product' | 'session';
-  category?: string;
 }
 
 interface Bill {
@@ -34,8 +32,6 @@ interface SalesWidgetsProps {
 }
 
 const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
-  const { products } = usePOS();
-
   // Calculate cash sales
   const cashSales = filteredBills
     .filter(bill => bill.paymentMethod === 'cash')
@@ -95,29 +91,21 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
     return sum + eightBallItemsTotal;
   }, 0);
 
-  // Calculate product sales (only food and drinks, excluding challenges)
+  // Calculate product sales (proportional to bill total)
   const productSales = filteredBills.reduce((sum, bill) => {
-    const foodAndDrinksItems = bill.items.filter(item => {
-      if (item.type !== 'product') return false;
-      
-      // Find the product to get its category
-      const product = products.find(p => p.id === item.id || p.name === item.name);
-      const productCategory = product?.category?.toLowerCase() || item.category?.toLowerCase() || '';
-      
-      // Only include food and drinks, exclude challenges
-      const isFoodOrDrinks = productCategory === 'food' || productCategory === 'drinks' || 
-                           productCategory === 'snacks' || productCategory === 'beverage' || 
-                           productCategory === 'tobacco';
-      const isChallenges = productCategory === 'challenges' || productCategory === 'challenge';
-      
-      return isFoodOrDrinks && !isChallenges;
-    });
+    const productItems = bill.items.filter(item => item.type === 'product');
     
-    if (foodAndDrinksItems.length === 0) return sum;
+    if (productItems.length === 0) return sum;
     
-    const foodAndDrinksTotal = foodAndDrinksItems.reduce((itemSum, item) => itemSum + item.total, 0);
+    const productItemsTotal = productItems.reduce((itemSum, item) => itemSum + item.total, 0);
     
-    return sum + foodAndDrinksTotal;
+    // Calculate proportional amount based on bill's discount/total ratio
+    if (bill.subtotal > 0) {
+      const proportionalAmount = (productItemsTotal / bill.subtotal) * bill.total;
+      return sum + proportionalAmount;
+    }
+    
+    return sum + productItemsTotal;
   }, 0);
 
   // Calculate total sales
@@ -191,15 +179,12 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
 
       <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base font-medium text-white">Canteen Sales</CardTitle>
+          <CardTitle className="text-base font-medium text-white">Product Sales</CardTitle>
           <Package className="h-4 w-4 text-pink-500" />
         </CardHeader>
         <CardContent>
           <div className="text-xl font-bold text-white">
             <CurrencyDisplay amount={productSales} />
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            Food & drinks only
           </div>
         </CardContent>
       </Card>

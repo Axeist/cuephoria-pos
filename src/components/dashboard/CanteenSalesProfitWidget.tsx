@@ -1,9 +1,8 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePOS } from '@/context/POSContext';
-import { ChartContainer } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShoppingCart } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
@@ -15,182 +14,179 @@ interface CanteenSalesProfitWidgetProps {
 const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ startDate, endDate }) => {
   const { bills, products } = usePOS();
 
-  // Filter bills by date range if provided
-  const filteredBills = bills.filter(bill => {
-    if (!startDate && !endDate) return true;
-    const billDate = new Date(bill.createdAt);
-    if (startDate && billDate < startDate) return false;
-    if (endDate && billDate > endDate) return false;
-    return true;
-  });
+  const canteenData = useMemo(() => {
+    // Filter bills by date range if provided
+    const filteredBills = bills.filter(bill => {
+      if (!startDate && !endDate) return true;
+      const billDate = new Date(bill.createdAt);
+      if (startDate && billDate < startDate) return false;
+      if (endDate && billDate > endDate) return false;
+      return true;
+    });
 
-  console.log('CanteenSalesProfitWidget - Filtered bills:', filteredBills.length);
-  console.log('CanteenSalesProfitWidget - Total products:', products.length);
+    let totalSales = 0;
+    let totalProfit = 0;
+    let totalStockValue = 0;
+    const productSales: Record<string, { name: string; sales: number; quantity: number; profit: number }> = {};
 
-  // Calculate canteen sales (only food and drinks, excluding challenges)
-  const canteenData = filteredBills.reduce((acc, bill) => {
-    console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
-    
-    bill.items.forEach(item => {
-      if (item.type === 'product') {
-        // Find the product to get its category
-        const product = products.find(p => p.id === item.id || p.name === item.name);
-        const productCategory = product?.category?.toLowerCase() || item.category?.toLowerCase() || '';
-        
-        // Only include food and drinks, exclude challenges
-        const isFoodOrDrinks = productCategory === 'food' || productCategory === 'drinks' || 
-                             productCategory === 'snacks' || productCategory === 'beverage' || 
-                             productCategory === 'tobacco';
-        const isChallenges = productCategory === 'challenges' || productCategory === 'challenge';
-        
-        console.log(`CanteenSalesProfitWidget - Item ${item.name}: category=${productCategory}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
-        
-        if (isFoodOrDrinks && !isChallenges) {
-          // Use item total directly (already includes discounts proportionally)
-          const itemSales = item.total;
-          
-          // Calculate profit
-          let profit = 0;
-          if (product) {
-            let profitPerUnit = 0;
-            
-            if (product.profit) {
-              profitPerUnit = product.profit;
-            } else if (product.buyingPrice && product.sellingPrice) {
-              profitPerUnit = product.sellingPrice - product.buyingPrice;
-            } else if (product.buyingPrice && product.price) {
-              profitPerUnit = product.price - product.buyingPrice;
-            }
-            
-            profit = profitPerUnit * item.quantity;
-          }
-          
-          console.log(`CanteenSalesProfitWidget - Adding ${item.name}: sales=${itemSales}, profit=${profit}`);
-          
-          acc.totalSales += itemSales;
-          acc.totalProfit += profit;
-          acc.itemCount += item.quantity;
-        }
+    console.log('CanteenSalesProfitWidget - Processing', filteredBills.length, 'bills');
+
+    // Calculate stock value for canteen products
+    products.forEach(product => {
+      const category = product.category.toLowerCase();
+      const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
+      const isChallenges = category === 'challenges' || category === 'challenge';
+      
+      if (isFoodOrDrinks && !isChallenges) {
+        const stockValue = product.stock * (product.buyingPrice || product.price || 0);
+        totalStockValue += stockValue;
       }
     });
-    
-    return acc;
-  }, { totalSales: 0, totalProfit: 0, itemCount: 0 });
 
-  console.log('CanteenSalesProfitWidget - Final totals:', canteenData);
+    filteredBills.forEach(bill => {
+      console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
+      
+      bill.items.forEach(item => {
+        if (item.type === 'product') {
+          const product = products.find(p => p.id === item.id || p.name === item.name);
+          if (product) {
+            const category = product.category.toLowerCase();
+            const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
+            const isChallenges = category === 'challenges' || category === 'challenge';
+            
+            console.log(`CanteenSalesProfitWidget - Item ${item.name}: category=${category}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
+            
+            if (isFoodOrDrinks && !isChallenges) {
+              // Take the item total directly without applying any discount
+              totalSales += item.total;
+              console.log(`CanteenSalesProfitWidget - Adding sales: ${item.total} for ${item.name}`);
 
-  // Calculate profit margin
-  const profitMargin = canteenData.totalSales > 0 ? (canteenData.totalProfit / canteenData.totalSales) * 100 : 0;
+              // Calculate profit
+              let profitPerUnit = 0;
+              if (product.profit) {
+                profitPerUnit = product.profit;
+              } else if (product.buyingPrice && product.sellingPrice) {
+                profitPerUnit = product.sellingPrice - product.buyingPrice;
+              } else if (product.buyingPrice && product.price) {
+                profitPerUnit = product.price - product.buyingPrice;
+              }
+              
+              const itemProfit = profitPerUnit * item.quantity;
+              totalProfit += itemProfit;
+              console.log(`CanteenSalesProfitWidget - Adding profit: ${itemProfit} for ${item.name}`);
 
-  // Prepare chart data
-  const chartData = [
-    {
-      name: 'Sales',
-      amount: canteenData.totalSales,
-      fill: '#22c55e'
-    },
-    {
-      name: 'Profit',
-      amount: canteenData.totalProfit,
-      fill: '#3b82f6'
-    }
-  ];
+              // Track individual product performance
+              if (!productSales[item.name]) {
+                productSales[item.name] = {
+                  name: item.name,
+                  sales: 0,
+                  quantity: 0,
+                  profit: 0
+                };
+              }
+              
+              productSales[item.name].sales += item.total;
+              productSales[item.name].quantity += item.quantity;
+              productSales[item.name].profit += itemProfit;
+            }
+          }
+        }
+      });
+    });
+
+    // Get all products sorted by sales (remove the slice to show all products)
+    const allProducts = Object.values(productSales)
+      .sort((a, b) => b.sales - a.sales);
+
+    const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0;
+
+    console.log('CanteenSalesProfitWidget - Final totals - Sales:', totalSales, 'Profit:', totalProfit, 'Stock Value:', totalStockValue);
+
+    return {
+      totalSales,
+      totalProfit,
+      totalStockValue,
+      profitMargin,
+      allProducts
+    };
+  }, [bills, products, startDate, endDate]);
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base font-medium">Canteen Sales & Profit</CardTitle>
+        <CardTitle className="text-sm font-medium">Canteen Performance</CardTitle>
         <ShoppingCart className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent className="pb-4">
+      <CardContent>
         <div className="space-y-4">
           {/* Summary Stats */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Total Sales</p>
-              <p className="text-lg font-bold text-green-400">
+              <p className="text-lg font-bold">
                 <CurrencyDisplay amount={canteenData.totalSales} />
               </p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Total Profit</p>
-              <p className="text-lg font-bold text-blue-400">
+              <p className="text-lg font-bold text-green-400">
                 <CurrencyDisplay amount={canteenData.totalProfit} />
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Stock Value</p>
+              <p className="text-lg font-bold text-blue-400">
+                <CurrencyDisplay amount={canteenData.totalStockValue} />
               </p>
             </div>
           </div>
 
-          {/* Additional Metrics */}
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-700">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Items Sold</p>
-              <p className="text-sm font-medium">{canteenData.itemCount}</p>
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Profit Margin</span>
+              <span className="text-sm font-medium">
+                {canteenData.profitMargin.toFixed(1)}%
+              </span>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Profit Margin</p>
-              <p className="text-sm font-medium text-yellow-400">{profitMargin.toFixed(1)}%</p>
+            <div className="w-full bg-gray-700 rounded-full h-1.5">
+              <div 
+                className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(canteenData.profitMargin, 100)}%` }}
+              />
             </div>
           </div>
 
-          {/* Chart */}
-          {canteenData.totalSales > 0 && (
-            <div className="h-[200px] mt-4">
-              <ChartContainer
-                config={{
-                  amount: {
-                    label: "Amount",
-                  },
-                }}
-                className="h-full w-full"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 25 }}>
-                    <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#777" 
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis 
-                      stroke="#777"
-                      axisLine={false}
-                      tickLine={false}
-                      width={60}
-                      tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
-                    />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="rounded-lg border bg-gray-800 border-gray-700 p-2 shadow-md">
-                              <div className="flex flex-col gap-1">
-                                <span className="text-xs text-gray-400">
-                                  {payload[0].payload.name}
-                                </span>
-                                <span className="font-bold text-white">
-                                  <CurrencyDisplay amount={payload[0].value as number} />
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar 
-                      dataKey="amount" 
-                      fill="#22c55e"
-                      radius={[4, 4, 0, 0]} 
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </div>
-          )}
-
-          <div className="text-xs text-muted-foreground pt-2 border-t border-gray-700">
-            <p>Food & drinks only (excluding challenges)</p>
+          {/* All Products with Scroll */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-medium text-muted-foreground">Product Sales</h4>
+            {canteenData.allProducts.length > 0 ? (
+              <ScrollArea className="h-[300px] w-full">
+                <div className="space-y-2 pr-4">
+                  {canteenData.allProducts.map((product, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {product.quantity} sold
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-medium">
+                          <CurrencyDisplay amount={product.sales} />
+                        </p>
+                        <p className="text-xs text-green-400">
+                          +<CurrencyDisplay amount={product.profit} />
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No product sales data for the selected period
+              </p>
+            )}
           </div>
         </div>
       </CardContent>
