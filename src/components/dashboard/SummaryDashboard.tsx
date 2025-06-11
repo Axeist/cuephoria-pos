@@ -14,7 +14,7 @@ interface SummaryDashboardProps {
 const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ startDate, endDate }) => {
   return (
     <div className="space-y-6">
-      {/* Top Row - 2 columns (removed BusinessInsightsWidget) */}
+      {/* Top Row - 2 columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TopCustomersWidget startDate={startDate} endDate={endDate} />
         <PaymentAnalyticsWidget startDate={startDate} endDate={endDate} />
