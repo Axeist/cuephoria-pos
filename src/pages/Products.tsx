@@ -16,6 +16,7 @@ import CategoryManagement from '@/components/product/CategoryManagement';
 import StockValueWidget from '@/components/product/StockValueWidget';
 import ProductSalesWidget from '@/components/product/ProductSalesWidget';
 import ProductProfitWidget from '@/components/product/ProductProfitWidget';
+import ProductSalesExport from '@/components/product/ProductSalesExport';
 import {
   Sheet,
   SheetContent,
@@ -247,6 +248,8 @@ const ProductsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <h2 className="text-3xl font-bold tracking-tight">Products</h2>
         <div className="flex flex-wrap gap-2">
+          <ProductSalesExport />
+          
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="h-10">
