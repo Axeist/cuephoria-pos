@@ -41,19 +41,19 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
   .slice(0, 15);
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base font-medium">Top Customers</CardTitle>
-        <Trophy className="h-5 w-5 text-muted-foreground" />
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">Top Customers</CardTitle>
+        <Trophy className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent className="flex-1 p-0 px-6 pb-6">
+      <CardContent>
         {customerStats.length > 0 ? (
-          <ScrollArea className="h-[320px] w-full">
-            <div className="space-y-3">
+          <ScrollArea className="h-[300px] w-full">
+            <div className="space-y-3 pr-4">
               {customerStats.map((customer, index) => (
                 <div key={customer.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
+                  <div className="flex items-center space-x-2">
+                    <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
                       index === 0 ? 'bg-yellow-500 text-black' :
                       index === 1 ? 'bg-gray-400 text-white' :
                       index === 2 ? 'bg-amber-600 text-white' :
@@ -62,17 +62,17 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
                       {index + 1}
                     </div>
                     <div>
-                      <p className="text-base font-medium">{customer.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm font-medium">{customer.name}</p>
+                      <p className="text-xs text-muted-foreground">
                         {customer.billCount} orders
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-base font-bold">
+                    <p className="text-sm font-bold">
                       <CurrencyDisplay amount={customer.totalSpent} />
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Avg: <CurrencyDisplay amount={customer.avgBill} />
                     </p>
                   </div>
@@ -81,11 +81,9 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
             </div>
           </ScrollArea>
         ) : (
-          <div className="flex items-center justify-center h-[320px]">
-            <p className="text-center text-base text-muted-foreground">
-              No customer data available for the selected period
-            </p>
-          </div>
+          <p className="text-center text-sm text-muted-foreground py-4">
+            No customer data available for the selected period
+          </p>
         )}
       </CardContent>
     </Card>

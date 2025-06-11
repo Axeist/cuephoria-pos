@@ -85,61 +85,61 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
   }, [bills, startDate, endDate]);
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base font-medium">Business Insights</CardTitle>
-        <BarChart3 className="h-5 w-5 text-muted-foreground" />
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">Business Insights</CardTitle>
+        <BarChart3 className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent className="flex-1 p-0 px-6 pb-6">
-        <div className="space-y-5">
-          <div className="space-y-3">
+      <CardContent>
+        <div className="space-y-4">
+          <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-base text-muted-foreground">Total Sales</span>
-              <span className="font-bold text-lg text-blue-400">
+              <span className="text-sm text-muted-foreground">Total Sales</span>
+              <span className="font-bold text-blue-400">
                 <CurrencyDisplay amount={insights.totalSales} />
               </span>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-base text-muted-foreground">Avg Bill Value</span>
-              <span className="font-medium text-base">
+              <span className="text-sm text-muted-foreground">Avg Bill Value</span>
+              <span className="font-medium">
                 <CurrencyDisplay amount={insights.avgBillValue} />
               </span>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-base text-muted-foreground">Daily Prediction</span>
-              <span className="font-medium text-base text-green-400">
+              <span className="text-sm text-muted-foreground">Daily Prediction</span>
+              <span className="font-medium text-green-400">
                 <CurrencyDisplay amount={insights.dailyPrediction} />
               </span>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-base text-muted-foreground">Monthly Target</span>
-              <span className="font-medium text-base">
+              <span className="text-sm text-muted-foreground">Monthly Target</span>
+              <span className="font-medium">
                 <CurrencyDisplay amount={insights.monthlyTarget} />
               </span>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-base text-muted-foreground">Current Month</span>
-              <span className="font-medium text-base text-yellow-400">
+              <span className="text-sm text-muted-foreground">Current Month</span>
+              <span className="font-medium text-yellow-400">
                 <CurrencyDisplay amount={insights.currentMonthSales} />
               </span>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Progress</span>
-                <span className="text-sm font-medium">
+                <span className="text-xs text-muted-foreground">Progress</span>
+                <span className="text-xs font-medium">
                   {insights.monthlyProgress.toFixed(1)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-700 rounded-full h-3">
+              <div className="w-full bg-gray-700 rounded-full h-2">
                 <div 
-                  className={`h-3 rounded-full transition-all duration-300 ${
+                  className={`h-2 rounded-full transition-all duration-300 ${
                     insights.monthlyProgress >= 100 
                       ? 'bg-green-500' 
                       : insights.monthlyProgress >= 75 
@@ -152,8 +152,8 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
             </div>
           </div>
 
-          <div className="pt-3 border-t border-gray-700">
-            <div className="text-sm text-muted-foreground">
+          <div className="pt-2 border-t border-gray-700">
+            <div className="text-xs text-muted-foreground">
               <p>Target: {format(new Date(), 'MMM yyyy')}</p>
             </div>
           </div>

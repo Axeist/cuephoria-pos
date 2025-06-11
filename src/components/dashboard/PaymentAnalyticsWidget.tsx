@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
@@ -124,16 +123,16 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
   }, [bills, startDate, endDate]);
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base font-medium">Payment Analytics</CardTitle>
-        <CreditCard className="h-5 w-5 text-muted-foreground" />
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">Payment Analytics</CardTitle>
+        <CreditCard className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent className="flex-1 p-0 px-6 pb-6">
-        <div className="space-y-5">
+      <CardContent>
+        <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <span className="text-base font-medium text-muted-foreground">Total Sales</span>
-            <span className="font-bold text-xl">
+            <span className="text-sm font-medium text-muted-foreground">Total Sales</span>
+            <span className="font-bold text-lg">
               <CurrencyDisplay amount={paymentData.totalRevenue} />
             </span>
           </div>
@@ -145,11 +144,11 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                 <XAxis 
                   dataKey="method" 
                   stroke="#9CA3AF"
-                  fontSize={13}
+                  fontSize={12}
                 />
                 <YAxis 
                   stroke="#9CA3AF"
-                  fontSize={13}
+                  fontSize={12}
                   tickFormatter={(value) => `₹${value}`}
                 />
                 <Tooltip 
@@ -157,8 +156,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                     backgroundColor: '#1F2937',
                     border: '1px solid #374151',
                     borderRadius: '6px',
-                    color: '#F9FAFB',
-                    fontSize: '14px'
+                    color: '#F9FAFB'
                   }}
                   formatter={(value: number, name: string) => [
                     name === 'amount' ? `₹${Math.round(value)}` : value,
@@ -174,21 +172,21 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             </ResponsiveContainer>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {paymentData.chartData.map((item, index) => (
               <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <div 
-                    className="w-4 h-4 rounded-full" 
+                    className="w-3 h-3 rounded-full" 
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-base">{item.method}</span>
+                  <span className="text-sm">{item.method}</span>
                 </div>
                 <div className="text-right">
-                  <p className="text-base font-medium">
+                  <p className="text-sm font-medium">
                     <CurrencyDisplay amount={item.amount} />
                   </p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {item.count} transactions
                     {paymentData.totalRevenue > 0 && 
                       ` (${((item.amount / paymentData.totalRevenue) * 100).toFixed(1)}%)`
@@ -200,22 +198,22 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
           </div>
 
           {paymentData.splitBreakdown.count > 0 && (
-            <div className="pt-3 border-t border-gray-700">
-              <h4 className="text-sm font-medium text-muted-foreground mb-3">Split Payment Details</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+            <div className="pt-2 border-t border-gray-700">
+              <h4 className="text-xs font-medium text-muted-foreground mb-2">Split Payment Details</h4>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Split transactions:</span>
                   <span>{paymentData.splitBreakdown.count}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Cash portion:</span>
                   <span><CurrencyDisplay amount={paymentData.splitBreakdown.cash} /></span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">UPI portion:</span>
                   <span><CurrencyDisplay amount={paymentData.splitBreakdown.upi} /></span>
                 </div>
-                <div className="flex justify-between text-sm font-medium">
+                <div className="flex justify-between text-xs font-medium">
                   <span className="text-muted-foreground">Split total:</span>
                   <span><CurrencyDisplay amount={paymentData.splitBreakdown.total} /></span>
                 </div>
