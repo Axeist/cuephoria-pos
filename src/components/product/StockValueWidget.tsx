@@ -8,18 +8,18 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 const StockValueWidget: React.FC = () => {
   const { products } = usePOS();
 
-  // Calculate total stock value based on buying prices
+  // Calculate total stock value based on buying prices for food and drinks only
   const totalStockValue = products.reduce((total, product) => {
-    // Only include products that have buying price and exclude membership products
-    if (product.buyingPrice && product.category !== 'membership') {
+    // Only include food and drinks products that have buying price
+    if (product.buyingPrice && (product.category === 'food' || product.category === 'drinks')) {
       return total + (product.buyingPrice * product.stock);
     }
     return total;
   }, 0);
 
-  // Count products with buying price (excluding membership)
+  // Count food and drinks products with buying price
   const productsWithBuyingPrice = products.filter(
-    product => product.buyingPrice && product.category !== 'membership'
+    product => product.buyingPrice && (product.category === 'food' || product.category === 'drinks')
   ).length;
 
   return (
@@ -33,7 +33,7 @@ const StockValueWidget: React.FC = () => {
           <CurrencyDisplay amount={totalStockValue} />
         </div>
         <p className="text-xs text-muted-foreground">
-          Based on buying prices for {productsWithBuyingPrice} products
+          Food & drinks inventory ({productsWithBuyingPrice} products)
         </p>
       </CardContent>
     </Card>

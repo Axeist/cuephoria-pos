@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
@@ -13,7 +12,8 @@ import ProductSearch from '@/components/product/ProductSearch';
 import ZeroStockFilter from '@/components/product/ZeroStockFilter';
 import CategoryManagement from '@/components/product/CategoryManagement';
 import StockValueWidget from '@/components/product/StockValueWidget';
-import { ProductFormState } from '@/components/product/ProductForm';
+import ProductSalesWidget from '@/components/product/ProductSalesWidget';
+import ProductProfitWidget from '@/components/product/ProductProfitWidget';
 import {
   Sheet,
   SheetContent,
@@ -288,8 +288,12 @@ const ProductsPage: React.FC = () => {
         isSubmitting={isSubmitting}
       />
 
-      {/* Stock Value Widget */}
-      <StockValueWidget />
+      {/* Product Widgets Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <StockValueWidget />
+        <ProductSalesWidget />
+        <ProductProfitWidget />
+      </div>
 
       <div className="mb-6">
         <LowStockAlert products={products} />
