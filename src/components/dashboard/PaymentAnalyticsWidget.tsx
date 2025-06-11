@@ -18,13 +18,13 @@ const PaymentAnalyticsWidget: React.FC = () => {
     let splitCount = 0;
 
     bills.forEach(bill => {
-      if (bill.is_split_payment) {
+      if (bill.isSplitPayment) {
         splitTotal += bill.total;
         splitCount++;
-      } else if (bill.payment_method === 'cash') {
+      } else if (bill.paymentMethod === 'cash') {
         cashTotal += bill.total;
         cashCount++;
-      } else if (bill.payment_method === 'upi') {
+      } else if (bill.paymentMethod === 'upi') {
         upiTotal += bill.total;
         upiCount++;
       }
