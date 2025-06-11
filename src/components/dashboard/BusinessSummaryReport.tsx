@@ -56,7 +56,7 @@ const BusinessSummaryReport: React.FC<BusinessSummaryReportProps> = ({
       </div>
 
       {/* Interactive Dashboard */}
-      <SummaryDashboard />
+      <SummaryDashboard startDate={startDate} endDate={endDate} />
     </div>
   );
 };
