@@ -8,25 +8,65 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 const ProductProfitWidget: React.FC = () => {
   const { bills, products } = usePOS();
 
+  console.log('ProductProfitWidget - Total bills:', bills.length);
+  console.log('ProductProfitWidget - Total products:', products.length);
+
   // Calculate total profit from food and drinks products
   const totalProfit = bills.reduce((total, bill) => {
+    console.log('Processing bill for profit:', bill.id, 'with items:', bill.items);
+    
     const productProfit = bill.items
-      .filter(item => item.type === 'product' && (item.category === 'food' || item.category === 'drinks'))
+      .filter(item => {
+        const isProduct = item.type === 'product';
+        const isFoodOrDrinks = item.category === 'food' || item.category === 'drinks';
+        console.log(`Profit item ${item.name}: type=${item.type}, category=${item.category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
+        return isProduct && isFoodOrDrinks;
+      })
       .reduce((itemTotal, item) => {
         // Find the product to get its profit margin
         const product = products.find(p => p.name === item.name);
-        if (product && product.profit) {
-          return itemTotal + (product.profit * item.quantity);
+        console.log(`Found product for ${item.name}:`, product);
+        
+        if (product) {
+          // Calculate profit per unit
+          let profitPerUnit = 0;
+          
+          if (product.profit) {
+            // Use existing profit field if available
+            profitPerUnit = product.profit;
+            console.log(`Using existing profit: ${profitPerUnit} for ${item.name}`);
+          } else if (product.buyingPrice && product.sellingPrice) {
+            // Calculate profit from buying and selling price
+            profitPerUnit = product.sellingPrice - product.buyingPrice;
+            console.log(`Calculated profit from prices: ${profitPerUnit} = ${product.sellingPrice} - ${product.buyingPrice} for ${item.name}`);
+          } else if (product.buyingPrice && product.price) {
+            // Use product price as selling price if sellingPrice not available
+            profitPerUnit = product.price - product.buyingPrice;
+            console.log(`Calculated profit using price: ${profitPerUnit} = ${product.price} - ${product.buyingPrice} for ${item.name}`);
+          }
+          
+          const totalProfitForItem = profitPerUnit * item.quantity;
+          console.log(`Total profit for ${item.name}: ${totalProfitForItem} = ${profitPerUnit} * ${item.quantity}`);
+          return itemTotal + totalProfitForItem;
+        } else {
+          console.log(`No product found for ${item.name}`);
         }
         return itemTotal;
       }, 0);
+    
+    console.log('Bill product profit:', productProfit);
     return total + productProfit;
   }, 0);
 
   // Count products with profit data
-  const productsWithProfit = products.filter(
-    product => product.profit && (product.category === 'food' || product.category === 'drinks')
-  ).length;
+  const productsWithProfit = products.filter(product => {
+    const isFoodOrDrinks = product.category === 'food' || product.category === 'drinks';
+    const hasProfit = product.profit || (product.buyingPrice && (product.sellingPrice || product.price));
+    return isFoodOrDrinks && hasProfit;
+  }).length;
+
+  console.log('Total product profit:', totalProfit);
+  console.log('Products with profit data:', productsWithProfit);
 
   return (
     <Card className="mb-6">

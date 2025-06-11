@@ -8,11 +8,25 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 const ProductSalesWidget: React.FC = () => {
   const { bills } = usePOS();
 
+  console.log('ProductSalesWidget - Total bills:', bills.length);
+
   // Calculate total sales from food and drinks products
   const totalProductSales = bills.reduce((total, bill) => {
+    console.log('Processing bill:', bill.id, 'with items:', bill.items);
+    
     const productSales = bill.items
-      .filter(item => item.type === 'product' && (item.category === 'food' || item.category === 'drinks'))
-      .reduce((itemTotal, item) => itemTotal + item.total, 0);
+      .filter(item => {
+        const isProduct = item.type === 'product';
+        const isFoodOrDrinks = item.category === 'food' || item.category === 'drinks';
+        console.log(`Item ${item.name}: type=${item.type}, category=${item.category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
+        return isProduct && isFoodOrDrinks;
+      })
+      .reduce((itemTotal, item) => {
+        console.log(`Adding item total: ${item.total} for ${item.name}`);
+        return itemTotal + item.total;
+      }, 0);
+    
+    console.log('Bill product sales:', productSales);
     return total + productSales;
   }, 0);
 
@@ -23,6 +37,9 @@ const ProductSalesWidget: React.FC = () => {
       .reduce((count, item) => count + item.quantity, 0);
     return total + itemCount;
   }, 0);
+
+  console.log('Total product sales:', totalProductSales);
+  console.log('Total items sold:', totalItemsSold);
 
   return (
     <Card className="mb-6">
