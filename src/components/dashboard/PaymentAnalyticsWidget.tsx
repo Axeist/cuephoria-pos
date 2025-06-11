@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
@@ -82,6 +83,19 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     // Total revenue is the sum of all cash and UPI amounts
     const totalRevenue = totalCashAmount + totalUpiAmount;
     
+    // Calculate additional insights
+    const totalTransactions = filteredBills.length;
+    const averageTransactionValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+    
+    // Calculate payment method preferences
+    const cashPreference = totalRevenue > 0 ? (totalCashAmount / totalRevenue) * 100 : 0;
+    const upiPreference = totalRevenue > 0 ? (totalUpiAmount / totalRevenue) * 100 : 0;
+    
+    // Calculate average amounts per payment method
+    const avgCashTransaction = cashOnlyCount > 0 ? (totalCashAmount - splitCashTotal) / cashOnlyCount : 0;
+    const avgUpiTransaction = upiOnlyCount > 0 ? (totalUpiAmount - splitUpiTotal) / upiOnlyCount : 0;
+    const avgSplitTransaction = splitCount > 0 ? (splitCashTotal + splitUpiTotal) / splitCount : 0;
+    
     console.log('Final calculation breakdown:', {
       cashOnlyBills: { count: cashOnlyCount, amount: totalCashAmount - splitCashTotal },
       upiOnlyBills: { count: upiOnlyCount, amount: totalUpiAmount - splitUpiTotal },
@@ -92,6 +106,14 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
         calculatedRevenue: totalRevenue,
         directSumOfAllBills: debugTotalSum,
         difference: Math.abs(totalRevenue - debugTotalSum)
+      },
+      insights: {
+        averageTransactionValue,
+        cashPreference,
+        upiPreference,
+        avgCashTransaction,
+        avgUpiTransaction,
+        avgSplitTransaction
       }
     });
     
@@ -113,11 +135,23 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
         { method: 'UPI', amount: totalUpiAmount, count: upiOnlyCount + splitCount, color: '#8B5CF6' }
       ],
       totalRevenue,
+      totalTransactions,
+      averageTransactionValue,
+      cashPreference,
+      upiPreference,
+      avgCashTransaction,
+      avgUpiTransaction,
+      avgSplitTransaction,
       splitBreakdown: {
         cash: splitCashTotal,
         upi: splitUpiTotal,
         total: splitCashTotal + splitUpiTotal,
         count: splitCount
+      },
+      paymentMethodCounts: {
+        cashOnly: cashOnlyCount,
+        upiOnly: upiOnlyCount,
+        split: splitCount
       }
     };
   }, [bills, startDate, endDate]);
@@ -195,6 +229,65 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Additional Insights Section */}
+          <div className="pt-2 border-t border-gray-700 space-y-2">
+            <h4 className="text-xs font-medium text-muted-foreground mb-2">Transaction Insights</h4>
+            
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Total Transactions:</span>
+              <span className="font-medium">{paymentData.totalTransactions}</span>
+            </div>
+            
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Avg Transaction Value:</span>
+              <span className="font-medium">
+                <CurrencyDisplay amount={paymentData.averageTransactionValue} />
+              </span>
+            </div>
+            
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Cash Preference:</span>
+              <span className="font-medium text-green-400">{paymentData.cashPreference.toFixed(1)}%</span>
+            </div>
+            
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">UPI Preference:</span>
+              <span className="font-medium text-purple-400">{paymentData.upiPreference.toFixed(1)}%</span>
+            </div>
+          </div>
+
+          {/* Average Transaction Values */}
+          <div className="pt-2 border-t border-gray-700 space-y-2">
+            <h4 className="text-xs font-medium text-muted-foreground mb-2">Avg by Payment Method</h4>
+            
+            {paymentData.paymentMethodCounts.cashOnly > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Avg Cash Only:</span>
+                <span className="font-medium">
+                  <CurrencyDisplay amount={paymentData.avgCashTransaction} />
+                </span>
+              </div>
+            )}
+            
+            {paymentData.paymentMethodCounts.upiOnly > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Avg UPI Only:</span>
+                <span className="font-medium">
+                  <CurrencyDisplay amount={paymentData.avgUpiTransaction} />
+                </span>
+              </div>
+            )}
+            
+            {paymentData.paymentMethodCounts.split > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Avg Split Payment:</span>
+                <span className="font-medium">
+                  <CurrencyDisplay amount={paymentData.avgSplitTransaction} />
+                </span>
+              </div>
+            )}
           </div>
 
           {paymentData.splitBreakdown.count > 0 && (

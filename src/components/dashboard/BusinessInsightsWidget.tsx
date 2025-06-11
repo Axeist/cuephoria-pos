@@ -5,7 +5,7 @@ import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
 import { BarChart3 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { format, subDays, startOfDay, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subDays, startOfDay, startOfMonth, endOfMonth, isToday, isYesterday } from 'date-fns';
 
 interface BusinessInsightsWidgetProps {
   startDate?: Date;
@@ -35,6 +35,19 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       return true;
     });
 
+    // Calculate today's sales
+    const todaysBills = bills.filter(bill => isToday(new Date(bill.createdAt)));
+    const todaysSales = todaysBills.reduce((sum, bill) => sum + bill.total, 0);
+
+    // Calculate yesterday's sales
+    const yesterdaysBills = bills.filter(bill => isYesterday(new Date(bill.createdAt)));
+    const yesterdaysSales = yesterdaysBills.reduce((sum, bill) => sum + bill.total, 0);
+
+    // Calculate growth percentage
+    const growthPercentage = yesterdaysSales > 0 ? 
+      ((todaysSales - yesterdaysSales) / yesterdaysSales) * 100 : 
+      (todaysSales > 0 ? 100 : 0);
+
     if (filteredBills.length === 0) {
       return {
         totalSales: 0,
@@ -47,7 +60,10 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
         monthlyProgress: 0,
         currentMonthSales: 0,
         expenseToRevenueRatio: 0,
-        breakEvenPoint: 0
+        breakEvenPoint: 0,
+        todaysSales,
+        yesterdaysSales,
+        growthPercentage
       };
     }
 
@@ -117,7 +133,10 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       monthlyProgress: Math.min(monthlyProgress, 100),
       currentMonthSales,
       expenseToRevenueRatio,
-      breakEvenPoint
+      breakEvenPoint,
+      todaysSales,
+      yesterdaysSales,
+      growthPercentage
     };
   }, [bills, expenses, startDate, endDate]);
 
@@ -129,8 +148,32 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       </CardHeader>
       <CardContent className="pb-4">
         <div className="space-y-4">
-          {/* Revenue & Expenses Section */}
+          {/* Daily Sales Section */}
           <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Today's Sales</span>
+              <span className="font-bold text-green-400">
+                <CurrencyDisplay amount={insights.todaysSales} />
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Yesterday's Sales</span>
+              <span className="font-bold text-gray-400">
+                <CurrencyDisplay amount={insights.yesterdaysSales} />
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Growth (vs Yesterday)</span>
+              <span className={`font-medium text-xs ${insights.growthPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {insights.growthPercentage >= 0 ? '+' : ''}{insights.growthPercentage.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+
+          {/* Revenue & Expenses Section */}
+          <div className="space-y-2 pt-2 border-t border-gray-700">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Total Sales</span>
               <span className="font-bold text-blue-400">
