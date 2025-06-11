@@ -56,11 +56,11 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
     // Count customers
     const customersCount = customers.length;
 
-    // Count new members today
+    // Count new members today - FIXED: using createdAt instead of created_at
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const newMembersCount = customers.filter(customer => {
-      const memberSince = new Date(customer.created_at);
+      const memberSince = new Date(customer.createdAt);
       memberSince.setHours(0, 0, 0, 0);
       return memberSince.getTime() === today.getTime() && customer.isMember;
     }).length;
