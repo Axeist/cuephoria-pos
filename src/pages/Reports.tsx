@@ -991,7 +991,7 @@ const ReportsPage: React.FC = () => {
       
       <Card className="border-gray-800 bg-[#1A1F2C] shadow-xl">
         <CardHeader className="pb-2">
-          <CardTitle className="text-xl text-white">Detailed Business Metrics</CardTitle>
+          <CardTitle className="text-xl text-white">Business Summary Report</CardTitle>
           <CardDescription className="text-gray-400">
             Overview of key metrics 
             {date?.from && date?.to ? ` from ${format(date.from, 'MMM do, yyyy')} to ${format(date.to, 'MMM do, yyyy')}` : ''}
