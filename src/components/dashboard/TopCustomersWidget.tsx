@@ -5,28 +5,12 @@ import { usePOS } from '@/context/POSContext';
 import { Trophy } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
-interface TopCustomersWidgetProps {
-  startDate?: Date;
-  endDate?: Date;
-}
-
-const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ 
-  startDate, 
-  endDate 
-}) => {
+const TopCustomersWidget: React.FC = () => {
   const { customers, bills } = usePOS();
-
-  // Filter bills by date range if provided
-  const filteredBills = bills.filter(bill => {
-    const billDate = new Date(bill.createdAt);
-    if (startDate && billDate < startDate) return false;
-    if (endDate && billDate > endDate) return false;
-    return true;
-  });
 
   // Calculate customer spending and rank them
   const customerStats = customers.map(customer => {
-    const customerBills = filteredBills.filter(bill => bill.customerId === customer.id);
+    const customerBills = bills.filter(bill => bill.customerId === customer.id);
     const totalSpent = customerBills.reduce((sum, bill) => sum + bill.total, 0);
     const billCount = customerBills.length;
     

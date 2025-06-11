@@ -6,15 +6,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { Gamepad2 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
-interface GamingRevenueWidgetProps {
-  startDate?: Date;
-  endDate?: Date;
-}
-
-const GamingRevenueWidget: React.FC<GamingRevenueWidgetProps> = ({ 
-  startDate, 
-  endDate 
-}) => {
+const GamingRevenueWidget: React.FC = () => {
   const { bills, products } = usePOS();
 
   const gamingData = useMemo(() => {
@@ -22,15 +14,7 @@ const GamingRevenueWidget: React.FC<GamingRevenueWidgetProps> = ({
     let poolSales = 0;
     let metashotSales = 0;
 
-    // Filter bills by date range if provided
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
-    });
-
-    filteredBills.forEach(bill => {
+    bills.forEach(bill => {
       const discountRatio = bill.subtotal > 0 ? bill.total / bill.subtotal : 1;
       
       bill.items.forEach(item => {
@@ -63,7 +47,7 @@ const GamingRevenueWidget: React.FC<GamingRevenueWidgetProps> = ({
       { name: '8-Ball Pool', value: poolSales, color: '#06B6D4' },
       { name: 'Metashot', value: metashotSales, color: '#10B981' }
     ].filter(item => item.value > 0);
-  }, [bills, products, startDate, endDate]);
+  }, [bills, products]);
 
   const totalGamingRevenue = gamingData.reduce((sum, item) => sum + item.value, 0);
 

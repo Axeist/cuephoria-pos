@@ -6,15 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { TrendingUp } from 'lucide-react';
 import { format, subDays, startOfDay } from 'date-fns';
 
-interface DailySalesTrendWidgetProps {
-  startDate?: Date;
-  endDate?: Date;
-}
-
-const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ 
-  startDate, 
-  endDate 
-}) => {
+const DailySalesTrendWidget: React.FC = () => {
   const { bills } = usePOS();
 
   const chartData = useMemo(() => {
@@ -27,16 +19,8 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({
       };
     });
 
-    // Filter bills by date range if provided
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
-    });
-
     // Group bills by date and calculate daily sales
-    filteredBills.forEach(bill => {
+    bills.forEach(bill => {
       const billDate = startOfDay(new Date(bill.createdAt));
       const dayData = last7Days.find(day => 
         day.date.getTime() === billDate.getTime()
@@ -48,7 +32,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({
     });
 
     return last7Days.map(({ dateStr, sales }) => ({ date: dateStr, sales }));
-  }, [bills, startDate, endDate]);
+  }, [bills]);
 
   const totalSales = chartData.reduce((sum, day) => sum + day.sales, 0);
   const avgDailySales = totalSales / 7;

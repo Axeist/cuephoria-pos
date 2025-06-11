@@ -6,68 +6,36 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { CreditCard } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
-interface PaymentAnalyticsWidgetProps {
-  startDate?: Date;
-  endDate?: Date;
-}
-
-const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ 
-  startDate, 
-  endDate 
-}) => {
+const PaymentAnalyticsWidget: React.FC = () => {
   const { bills } = usePOS();
 
   const paymentData = useMemo(() => {
     let cashTotal = 0;
     let upiTotal = 0;
+    let splitTotal = 0;
     let cashCount = 0;
     let upiCount = 0;
     let splitCount = 0;
 
-    // Filter bills by date range if provided
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
-    });
-
-    console.log('PaymentAnalyticsWidget - Processing', filteredBills.length, 'filtered bills');
-
-    filteredBills.forEach(bill => {
+    bills.forEach(bill => {
       if (bill.isSplitPayment) {
-        // For split payments, add cash and UPI amounts to respective totals
-        const cashAmount = bill.cashAmount || 0;
-        const upiAmount = bill.upiAmount || 0;
-        
-        cashTotal += cashAmount;
-        upiTotal += upiAmount;
+        splitTotal += bill.total;
         splitCount++;
-        
-        // Count as both cash and UPI transactions if both amounts exist
-        if (cashAmount > 0) cashCount++;
-        if (upiAmount > 0) upiCount++;
-        
-        console.log(`PaymentAnalyticsWidget - Split payment: cash=${cashAmount}, upi=${upiAmount}`);
       } else if (bill.paymentMethod === 'cash') {
         cashTotal += bill.total;
         cashCount++;
-        console.log(`PaymentAnalyticsWidget - Cash payment: ${bill.total}`);
       } else if (bill.paymentMethod === 'upi') {
         upiTotal += bill.total;
         upiCount++;
-        console.log(`PaymentAnalyticsWidget - UPI payment: ${bill.total}`);
       }
     });
-
-    console.log('PaymentAnalyticsWidget - Final totals - Cash:', cashTotal, 'UPI:', upiTotal);
 
     return [
       { method: 'Cash', amount: cashTotal, count: cashCount, color: '#10B981' },
       { method: 'UPI', amount: upiTotal, count: upiCount, color: '#8B5CF6' },
-      { method: 'Split', amount: 0, count: splitCount, color: '#F59E0B' } // Split shows count only, amounts distributed above
+      { method: 'Split', amount: splitTotal, count: splitCount, color: '#F59E0B' }
     ];
-  }, [bills, startDate, endDate]);
+  }, [bills]);
 
   const totalRevenue = paymentData.reduce((sum, item) => sum + item.amount, 0);
   const totalTransactions = paymentData.reduce((sum, item) => sum + item.count, 0);
@@ -81,7 +49,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({
       <CardContent>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={paymentData.filter(item => item.method !== 'Split' || item.count > 0)}>
+            <BarChart data={paymentData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis 
                 dataKey="method" 
@@ -124,42 +92,18 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({
                 <span className="text-sm">{item.method}</span>
               </div>
               <div className="text-right">
-                {item.method === 'Split' ? (
-                  <>
-                    <p className="text-sm font-medium">-</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.count} transactions
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-medium">
-                      <CurrencyDisplay amount={item.amount} />
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.count} transactions
-                      {totalRevenue > 0 && 
-                        ` (${((item.amount / totalRevenue) * 100).toFixed(1)}%)`
-                      }
-                    </p>
-                  </>
-                )}
+                <p className="text-sm font-medium">
+                  <CurrencyDisplay amount={item.amount} />
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {item.count} transactions
+                  {totalRevenue > 0 && 
+                    ` (${((item.amount / totalRevenue) * 100).toFixed(1)}%)`
+                  }
+                </p>
               </div>
             </div>
           ))}
-          <div className="border-t pt-2 mt-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Total</span>
-              <div className="text-right">
-                <p className="text-sm font-bold">
-                  <CurrencyDisplay amount={totalRevenue} />
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {totalTransactions} transactions
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </CardContent>
     </Card>

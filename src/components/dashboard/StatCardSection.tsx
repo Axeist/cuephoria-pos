@@ -15,8 +15,6 @@ interface StatCardSectionProps {
   newMembersCount: number;
   lowStockCount: number;
   lowStockItems: Product[];
-  startDate?: Date;
-  endDate?: Date;
 }
 
 const StatCardSection: React.FC<StatCardSectionProps> = ({
@@ -27,9 +25,7 @@ const StatCardSection: React.FC<StatCardSectionProps> = ({
   customersCount,
   newMembersCount,
   lowStockCount,
-  lowStockItems,
-  startDate,
-  endDate
+  lowStockItems
 }) => {
   const { sessions } = useSessionsData();
   const [realActiveSessionsCount, setRealActiveSessionsCount] = useState(activeSessionsCount);
@@ -82,10 +78,6 @@ const StatCardSection: React.FC<StatCardSectionProps> = ({
   
   // Calculate critical stock count (only items with stock 0 or 1)
   const criticalStockCount = lowStockItems.filter(item => item.stock === 1 || item.stock === 0).length;
-  
-  // Log the sales value to debug
-  console.log('StatCardSection - Total sales received:', totalSales);
-  console.log('StatCardSection - Date range:', { startDate, endDate });
   
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

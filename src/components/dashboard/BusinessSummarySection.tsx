@@ -1,92 +1,131 @@
 
-import React, { useMemo } from 'react';
-import StatCardSection from './StatCardSection';
+import React from 'react';
 import { usePOS } from '@/context/POSContext';
+import { useExpenses } from '@/context/ExpenseContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CurrencyDisplay } from '@/components/ui/currency';
+import { ArrowUpRight, ArrowDownRight, DollarSign, Wallet, TrendingUp } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 interface BusinessSummarySectionProps {
-  startDate?: Date;
-  endDate?: Date;
+  filteredExpenses?: any[];
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
 }
 
 const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({ 
-  startDate, 
-  endDate 
+  filteredExpenses,
+  dateRange 
 }) => {
-  const { bills, customers, stations, products } = usePOS();
-
-  // Calculate metrics with date filtering - using the same logic as PaymentAnalyticsWidget
-  const metrics = useMemo(() => {
-    console.log('BusinessSummarySection - Calculating with date range:', { startDate, endDate });
-    
-    // Filter bills by date range if provided - SAME AS PaymentAnalyticsWidget
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
-    });
-
-    console.log('BusinessSummarySection - Filtered bills count:', filteredBills.length);
-    console.log('BusinessSummarySection - Total bills count:', bills.length);
-
-    // Calculate total sales using the EXACT same logic as PaymentAnalyticsWidget
-    const totalSales = filteredBills.reduce((sum, bill) => {
-      console.log(`BusinessSummarySection - Adding bill total: ${bill.total} for bill ${bill.id}`);
-      return sum + bill.total;
-    }, 0);
-
-    console.log('BusinessSummarySection - Final total sales:', totalSales);
-
-    // Previous period calculation for trend
-    const previousPeriodStart = startDate ? new Date(startDate.getTime() - (endDate ? endDate.getTime() - startDate.getTime() : 30 * 24 * 60 * 60 * 1000)) : new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-    const previousPeriodEnd = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
-    const previousPeriodBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      return billDate >= previousPeriodStart && billDate < previousPeriodEnd;
-    });
-    
-    const previousPeriodSales = previousPeriodBills.reduce((sum, bill) => sum + bill.total, 0);
-    const salesGrowth = previousPeriodSales > 0 ? ((totalSales - previousPeriodSales) / previousPeriodSales) * 100 : 0;
-    const salesChange = salesGrowth >= 0 ? `+${salesGrowth.toFixed(1)}%` : `${salesGrowth.toFixed(1)}%`;
-
-    // Count active sessions
-    const activeSessionsCount = stations.filter(station => station.isOccupied).length;
-
-    // Count customers
-    const customersCount = customers.length;
-
-    // Count new members today - FIXED: using createdAt instead of created_at
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const newMembersCount = customers.filter(customer => {
-      const memberSince = new Date(customer.createdAt);
-      memberSince.setHours(0, 0, 0, 0);
-      return memberSince.getTime() === today.getTime() && customer.isMember;
-    }).length;
-
-    // Low stock items (stock <= 5)
-    const lowStockItems = products.filter(product => product.stock <= 5);
-    const lowStockCount = lowStockItems.length;
-
-    return {
-      totalSales,
-      salesChange,
-      activeSessionsCount,
-      totalStations: stations.length,
-      customersCount,
-      newMembersCount,
-      lowStockCount,
-      lowStockItems
-    };
-  }, [bills, customers, stations, products, startDate, endDate]);
-
+  const { bills, products } = usePOS();
+  const { expenses } = useExpenses();
+  
+  // Use filtered expenses if provided, otherwise use all expenses
+  const expensesToUse = filteredExpenses || expenses;
+  
+  // Filter bills by date range if provided
+  const filteredBills = dateRange 
+    ? bills.filter(bill => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= dateRange.start && billDate <= dateRange.end;
+      })
+    : bills;
+  
+  // Calculate gross income from filtered bills
+  const grossIncome = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
+  
+  // Calculate total expenses from filtered expenses
+  const totalExpenses = expensesToUse.reduce((sum, expense) => sum + expense.amount, 0);
+  
+  // Calculate net profit
+  const netProfit = grossIncome - totalExpenses;
+  
+  // Calculate profit margin percentage
+  const profitMargin = grossIncome > 0 ? (netProfit / grossIncome) * 100 : 0;
+  
+  // Calculate progress percentage for visualizing profit margin
+  const profitPercentage = Math.max(0, Math.min(100, profitMargin));
+  
+  // Format profitMargin to 2 decimal places
+  const formattedProfitMargin = profitMargin.toFixed(2);
+  
   return (
-    <StatCardSection 
-      {...metrics}
-      startDate={startDate}
-      endDate={endDate}
-    />
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-gray-200">Gross Income</CardTitle>
+          <DollarSign className="h-4 w-4 text-emerald-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-white">
+            <CurrencyDisplay amount={grossIncome} />
+          </div>
+          <p className="text-xs text-gray-400">
+            {dateRange ? 'Revenue for selected period' : 'Total revenue from all sales'}
+          </p>
+        </CardContent>
+      </Card>
+      
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-gray-200">Total Expenses</CardTitle>
+          <Wallet className="h-4 w-4 text-orange-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-white">
+            <CurrencyDisplay amount={totalExpenses} />
+          </div>
+          <p className="text-xs text-gray-400">
+            {filteredExpenses ? 'Expenses for selected period' : 'All business expenses'}
+          </p>
+        </CardContent>
+      </Card>
+      
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-gray-200">Net Profit</CardTitle>
+          {netProfit >= 0 ? (
+            <ArrowUpRight className="h-4 w-4 text-green-500" />
+          ) : (
+            <ArrowDownRight className="h-4 w-4 text-red-500" />
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-white">
+            <CurrencyDisplay amount={netProfit} />
+          </div>
+          <p className="text-xs text-gray-400">
+            {netProfit >= 0 
+              ? "Income after all expenses" 
+              : "Operating at a loss"}
+          </p>
+        </CardContent>
+      </Card>
+      
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-gray-200">Profit Margin</CardTitle>
+          <TrendingUp className="h-4 w-4 text-blue-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-white">
+            {formattedProfitMargin}%
+          </div>
+          <div className="mt-2">
+            <Progress value={profitPercentage} className="h-2" />
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            {profitMargin >= 20 
+              ? "Healthy profit margin" 
+              : profitMargin >= 10 
+                ? "Average profit margin" 
+                : "Low profit margin"}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

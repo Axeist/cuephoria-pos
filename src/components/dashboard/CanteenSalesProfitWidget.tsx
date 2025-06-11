@@ -6,15 +6,7 @@ import { usePOS } from '@/context/POSContext';
 import { ShoppingCart } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
-interface CanteenSalesProfitWidgetProps {
-  startDate?: Date;
-  endDate?: Date;
-}
-
-const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ 
-  startDate, 
-  endDate 
-}) => {
+const CanteenSalesProfitWidget: React.FC = () => {
   const { bills, products } = usePOS();
 
   const canteenData = useMemo(() => {
@@ -22,17 +14,9 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({
     let totalProfit = 0;
     const productSales: Record<string, { name: string; sales: number; quantity: number; profit: number }> = {};
 
-    // Filter bills by date range if provided
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
-    });
+    console.log('CanteenSalesProfitWidget - Processing', bills.length, 'bills');
 
-    console.log('CanteenSalesProfitWidget - Processing', filteredBills.length, 'filtered bills');
-
-    filteredBills.forEach(bill => {
+    bills.forEach(bill => {
       console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
       
       bill.items.forEach(item => {
@@ -97,7 +81,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({
       profitMargin,
       allProducts
     };
-  }, [bills, products, startDate, endDate]);
+  }, [bills, products]);
 
   return (
     <Card>

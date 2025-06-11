@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -451,8 +452,8 @@ const Dashboard = () => {
         
         <TabsContent value="expenses" className="space-y-6">
           <BusinessSummarySection 
-            startDate={dateRange?.start}
-            endDate={dateRange?.end}
+            filteredExpenses={filteredExpenses}
+            dateRange={dateRange}
           />
           
           {dateRange ? (

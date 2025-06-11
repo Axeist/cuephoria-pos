@@ -6,27 +6,11 @@ import { BarChart3 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { format, subDays, startOfDay } from 'date-fns';
 
-interface BusinessInsightsWidgetProps {
-  startDate?: Date;
-  endDate?: Date;
-}
-
-const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ 
-  startDate, 
-  endDate 
-}) => {
+const BusinessInsightsWidget: React.FC = () => {
   const { bills } = usePOS();
 
   const insights = useMemo(() => {
-    // Filter bills by date range if provided
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
-    });
-
-    if (filteredBills.length === 0) {
+    if (bills.length === 0) {
       return {
         avgBillValue: 0,
         dailyPrediction: 0,
@@ -36,15 +20,15 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({
     }
 
     // Calculate average bill value
-    const totalRevenue = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
-    const avgBillValue = totalRevenue / filteredBills.length;
+    const totalRevenue = bills.reduce((sum, bill) => sum + bill.total, 0);
+    const avgBillValue = totalRevenue / bills.length;
 
     // Calculate last 7 days revenue for prediction
     const last7Days = Array.from({ length: 7 }, (_, i) => 
       startOfDay(subDays(new Date(), 6 - i))
     );
 
-    const last7DaysRevenue = filteredBills
+    const last7DaysRevenue = bills
       .filter(bill => {
         const billDate = startOfDay(new Date(bill.createdAt));
         return last7Days.some(day => day.getTime() === billDate.getTime());
@@ -65,7 +49,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({
       weeklyTarget,
       weeklyProgress: Math.min(weeklyProgress, 100)
     };
-  }, [bills, startDate, endDate]);
+  }, [bills]);
 
   return (
     <Card>
