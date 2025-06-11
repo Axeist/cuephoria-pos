@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
@@ -32,7 +31,25 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     let splitCashTotal = 0;
     let splitUpiTotal = 0;
 
-    filteredBills.forEach(bill => {
+    // Debug: Log all bill totals to check if any are being missed
+    console.log('=== Payment Analytics Debug ===');
+    console.log('Total bills:', bills.length);
+    console.log('Filtered bills:', filteredBills.length);
+    
+    let debugTotalSum = 0;
+    
+    filteredBills.forEach((bill, index) => {
+      debugTotalSum += bill.total;
+      console.log(`Bill ${index + 1}:`, {
+        id: bill.id,
+        total: bill.total,
+        paymentMethod: bill.paymentMethod,
+        isSplitPayment: bill.isSplitPayment,
+        cashAmount: bill.cashAmount,
+        upiAmount: bill.upiAmount,
+        createdAt: bill.createdAt
+      });
+      
       if (bill.isSplitPayment) {
         // For split payments, track the cash and UPI portions separately
         const billCashAmount = bill.cashAmount || 0;
@@ -54,6 +71,15 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
 
     // Total revenue is the sum of all cash and UPI amounts
     const totalRevenue = totalCashAmount + totalUpiAmount;
+    
+    console.log('Debug totals:', {
+      totalCashAmount,
+      totalUpiAmount,
+      calculatedRevenue: totalRevenue,
+      directSumOfAllBills: debugTotalSum,
+      difference: Math.abs(totalRevenue - debugTotalSum)
+    });
+    console.log('=== End Debug ===');
 
     return {
       chartData: [
