@@ -98,7 +98,11 @@ const Reports = () => {
   };
 
   const handleCustomerSelect = (customerId: string) => {
-    setSelectedCustomer(customerId);
+    if (customerId === "all") {
+      setSelectedCustomer(null);
+    } else {
+      setSelectedCustomer(customerId);
+    }
   };
 
   const clearCustomerFilter = () => {
@@ -246,12 +250,12 @@ const Reports = () => {
             </Popover>
 
             {/* Customer Filter */}
-            <Select onValueChange={handleCustomerSelect} defaultValue={selectedCustomer || ''}>
+            <Select onValueChange={handleCustomerSelect} value={selectedCustomer || "all"}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by Customer" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="" onClick={clearCustomerFilter}>
+                <SelectItem value="all">
                   All Customers
                 </SelectItem>
                 {customers.map((customer) => (
