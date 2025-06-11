@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
@@ -34,10 +35,18 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
 
     filteredBills.forEach(bill => {
       if (bill.isSplitPayment) {
+        // For split payments, add the individual cash and UPI amounts
+        const billCashAmount = bill.cashAmount || 0;
+        const billUpiAmount = bill.upiAmount || 0;
+        
+        splitCashTotal += billCashAmount;
+        splitUpiTotal += billUpiAmount;
         splitTotal += bill.total;
-        splitCashTotal += bill.cashAmount || 0;
-        splitUpiTotal += bill.upiAmount || 0;
         splitCount++;
+        
+        // Also add to the respective payment method totals
+        cashTotal += billCashAmount;
+        upiTotal += billUpiAmount;
       } else if (bill.paymentMethod === 'cash') {
         cashTotal += bill.total;
         cashCount++;
@@ -47,12 +56,13 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       }
     });
 
-    const totalRevenue = cashTotal + upiTotal + splitTotal;
+    // Calculate total revenue correctly - don't double count split payments
+    const totalRevenue = cashTotal + upiTotal;
 
     return {
       chartData: [
-        { method: 'Cash', amount: cashTotal, count: cashCount, color: '#10B981' },
-        { method: 'UPI', amount: upiTotal, count: upiCount, color: '#8B5CF6' },
+        { method: 'Cash', amount: cashTotal, count: cashCount + splitCount, color: '#10B981' },
+        { method: 'UPI', amount: upiTotal, count: upiCount + splitCount, color: '#8B5CF6' },
         { method: 'Split', amount: splitTotal, count: splitCount, color: '#F59E0B' }
       ],
       totalRevenue,
