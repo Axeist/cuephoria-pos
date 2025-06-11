@@ -46,9 +46,9 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
         <CardTitle className="text-sm font-medium">Top Customers</CardTitle>
         <Trophy className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-4">
         {customerStats.length > 0 ? (
-          <ScrollArea className="h-[300px] w-full">
+          <ScrollArea className="h-[280px] w-full">
             <div className="space-y-3 pr-4">
               {customerStats.map((customer, index) => (
                 <div key={customer.id} className="flex items-center justify-between">

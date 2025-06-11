@@ -90,7 +90,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
         <CardTitle className="text-sm font-medium">Business Insights</CardTitle>
         <BarChart3 className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-4">
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex justify-between items-center">
