@@ -18,13 +18,18 @@ const ProductProfitWidget: React.FC = () => {
     const productProfit = bill.items
       .filter(item => {
         const isProduct = item.type === 'product';
-        const isFoodOrDrinks = item.category === 'food' || item.category === 'drinks';
-        console.log(`Profit item ${item.name}: type=${item.type}, category=${item.category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
+        
+        // Look up the product to get its category
+        const product = products.find(p => p.id === item.id || p.name === item.name);
+        const category = product?.category;
+        const isFoodOrDrinks = category === 'food' || category === 'drinks';
+        
+        console.log(`Profit item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
         return isProduct && isFoodOrDrinks;
       })
       .reduce((itemTotal, item) => {
         // Find the product to get its profit margin
-        const product = products.find(p => p.name === item.name);
+        const product = products.find(p => p.id === item.id || p.name === item.name);
         console.log(`Found product for ${item.name}:`, product);
         
         if (product) {

@@ -6,9 +6,10 @@ import { TrendingUp } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
 const ProductSalesWidget: React.FC = () => {
-  const { bills } = usePOS();
+  const { bills, products } = usePOS();
 
   console.log('ProductSalesWidget - Total bills:', bills.length);
+  console.log('ProductSalesWidget - Total products:', products.length);
 
   // Calculate total sales from food and drinks products
   const totalProductSales = bills.reduce((total, bill) => {
@@ -17,8 +18,13 @@ const ProductSalesWidget: React.FC = () => {
     const productSales = bill.items
       .filter(item => {
         const isProduct = item.type === 'product';
-        const isFoodOrDrinks = item.category === 'food' || item.category === 'drinks';
-        console.log(`Item ${item.name}: type=${item.type}, category=${item.category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
+        
+        // Look up the product to get its category
+        const product = products.find(p => p.id === item.id || p.name === item.name);
+        const category = product?.category;
+        const isFoodOrDrinks = category === 'food' || category === 'drinks';
+        
+        console.log(`Item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
         return isProduct && isFoodOrDrinks;
       })
       .reduce((itemTotal, item) => {
@@ -33,7 +39,12 @@ const ProductSalesWidget: React.FC = () => {
   // Count total food and drinks items sold
   const totalItemsSold = bills.reduce((total, bill) => {
     const itemCount = bill.items
-      .filter(item => item.type === 'product' && (item.category === 'food' || item.category === 'drinks'))
+      .filter(item => {
+        const isProduct = item.type === 'product';
+        const product = products.find(p => p.id === item.id || p.name === item.name);
+        const category = product?.category;
+        return isProduct && (category === 'food' || category === 'drinks');
+      })
       .reduce((count, item) => count + item.quantity, 0);
     return total + itemCount;
   }, 0);
