@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import ProductTabs from '@/components/product/ProductTabs';
 import ProductSearch from '@/components/product/ProductSearch';
 import ZeroStockFilter from '@/components/product/ZeroStockFilter';
 import CategoryManagement from '@/components/product/CategoryManagement';
+import StockValueWidget from '@/components/product/StockValueWidget';
 import { ProductFormState } from '@/components/product/ProductForm';
 import {
   Sheet,
@@ -285,6 +287,9 @@ const ProductsPage: React.FC = () => {
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
       />
+
+      {/* Stock Value Widget */}
+      <StockValueWidget />
 
       <div className="mb-6">
         <LowStockAlert products={products} />
