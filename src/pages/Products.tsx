@@ -187,46 +187,6 @@ const ProductsPage: React.FC = () => {
     }
   };
 
-  const handleResetProducts = async () => {
-    try {
-      setIsResetting(true);
-      await resetToInitialProducts();
-      toast({
-        title: 'Products Reset',
-        description: 'Products have been reset to default values.',
-      });
-    } catch (error) {
-      console.error('Error resetting products:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to reset products. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
-  const handleRefreshProducts = async () => {
-    try {
-      setIsRefreshing(true);
-      await refreshFromDB();
-      toast({
-        title: 'Products Refreshed',
-        description: 'Products have been refreshed from the database.',
-      });
-    } catch (error) {
-      console.error('Error refreshing products:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to refresh products from database. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
   const getCategoryCounts = () => {
     const counts: Record<string, number> = { all: filteredProducts.length };
     filteredProducts.forEach(product => {
