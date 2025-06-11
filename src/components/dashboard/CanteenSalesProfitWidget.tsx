@@ -1,0 +1,153 @@
+
+import React, { useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { usePOS } from '@/context/POSContext';
+import { ShoppingCart } from 'lucide-react';
+import { CurrencyDisplay } from '@/components/ui/currency';
+
+const CanteenSalesProfitWidget: React.FC = () => {
+  const { bills, products } = usePOS();
+
+  const canteenData = useMemo(() => {
+    let totalSales = 0;
+    let totalProfit = 0;
+    const productSales: Record<string, { name: string; sales: number; quantity: number; profit: number }> = {};
+
+    bills.forEach(bill => {
+      const discountRatio = bill.subtotal > 0 ? bill.total / bill.subtotal : 1;
+      
+      bill.items.forEach(item => {
+        if (item.type === 'product') {
+          const product = products.find(p => p.id === item.id || p.name === item.name);
+          if (product) {
+            const category = product.category.toLowerCase();
+            const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
+            const isChallenges = category === 'challenges' || category === 'challenge';
+            
+            if (isFoodOrDrinks && !isChallenges) {
+              const discountedItemTotal = item.total * discountRatio;
+              totalSales += discountedItemTotal;
+
+              // Calculate profit
+              let profitPerUnit = 0;
+              if (product.profit) {
+                profitPerUnit = product.profit;
+              } else if (product.buyingPrice && product.sellingPrice) {
+                profitPerUnit = product.sellingPrice - product.buyingPrice;
+              } else if (product.buyingPrice && product.price) {
+                profitPerUnit = product.price - product.buyingPrice;
+              }
+              
+              const itemProfit = profitPerUnit * item.quantity;
+              totalProfit += itemProfit;
+
+              // Track individual product performance
+              if (!productSales[item.name]) {
+                productSales[item.name] = {
+                  name: item.name,
+                  sales: 0,
+                  quantity: 0,
+                  profit: 0
+                };
+              }
+              
+              productSales[item.name].sales += discountedItemTotal;
+              productSales[item.name].quantity += item.quantity;
+              productSales[item.name].profit += itemProfit;
+            }
+          }
+        }
+      });
+    });
+
+    // Get top 5 products by sales
+    const topProducts = Object.values(productSales)
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 5);
+
+    const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0;
+
+    return {
+      totalSales,
+      totalProfit,
+      profitMargin,
+      topProducts
+    };
+  }, [bills, products]);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">Canteen Performance</CardTitle>
+        <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Total Sales</p>
+              <p className="text-lg font-bold">
+                <CurrencyDisplay amount={canteenData.totalSales} />
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Total Profit</p>
+              <p className="text-lg font-bold text-green-400">
+                <CurrencyDisplay amount={canteenData.totalProfit} />
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Profit Margin</span>
+              <span className="text-sm font-medium">
+                {canteenData.profitMargin.toFixed(1)}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-1.5">
+              <div 
+                className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(canteenData.profitMargin, 100)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Top Products */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-medium text-muted-foreground">Top Products</h4>
+            {canteenData.topProducts.length > 0 ? (
+              <div className="space-y-2">
+                {canteenData.topProducts.map((product, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{product.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {product.quantity} sold
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-medium">
+                        <CurrencyDisplay amount={product.sales} />
+                      </p>
+                      <p className="text-xs text-green-400">
+                        +<CurrencyDisplay amount={product.profit} />
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No product sales data
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default CanteenSalesProfitWidget;
