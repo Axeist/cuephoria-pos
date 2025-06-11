@@ -80,33 +80,6 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       }
     });
 
-    // Check if the filtered period includes May 2024 and apply correction
-    const mayCorrection = 425;
-    let shouldApplyMayCorrection = false;
-    
-    if (startDate && endDate) {
-      const mayStart = new Date(2024, 4, 1); // May 1, 2024
-      const mayEnd = new Date(2024, 4, 31); // May 31, 2024
-      
-      // Check if the date range overlaps with May 2024
-      shouldApplyMayCorrection = (startDate <= mayEnd && endDate >= mayStart);
-    } else if (!startDate && !endDate) {
-      // If no date filter is applied, include May correction
-      shouldApplyMayCorrection = true;
-    } else if (startDate && !endDate) {
-      // If only start date is provided, check if it's before or in May 2024
-      shouldApplyMayCorrection = startDate <= new Date(2024, 4, 31);
-    } else if (!startDate && endDate) {
-      // If only end date is provided, check if it's after or in May 2024
-      shouldApplyMayCorrection = endDate >= new Date(2024, 4, 1);
-    }
-
-    // Apply May correction to cash amount (can be adjusted to UPI if needed)
-    if (shouldApplyMayCorrection) {
-      totalCashAmount += mayCorrection;
-      console.log(`Applied May correction of ${mayCorrection} to cash amount`);
-    }
-
     // Total revenue is the sum of all cash and UPI amounts
     const totalRevenue = totalCashAmount + totalUpiAmount;
     
@@ -119,7 +92,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     const upiPreference = totalRevenue > 0 ? (totalUpiAmount / totalRevenue) * 100 : 0;
     
     // Calculate average amounts per payment method
-    const avgCashTransaction = cashOnlyCount > 0 ? (totalCashAmount - splitCashTotal - (shouldApplyMayCorrection ? mayCorrection : 0)) / cashOnlyCount : 0;
+    const avgCashTransaction = cashOnlyCount > 0 ? (totalCashAmount - splitCashTotal) / cashOnlyCount : 0;
     const avgUpiTransaction = upiOnlyCount > 0 ? (totalUpiAmount - splitUpiTotal) / upiOnlyCount : 0;
     const avgSplitTransaction = splitCount > 0 ? (splitCashTotal + splitUpiTotal) / splitCount : 0;
     
@@ -127,7 +100,6 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       cashOnlyBills: { count: cashOnlyCount, amount: totalCashAmount - splitCashTotal },
       upiOnlyBills: { count: upiOnlyCount, amount: totalUpiAmount - splitUpiTotal },
       splitBills: { count: splitCount, cashPortion: splitCashTotal, upiPortion: splitUpiTotal },
-      mayCorrection: shouldApplyMayCorrection ? mayCorrection : 0,
       totals: {
         totalCashAmount,
         totalUpiAmount,
@@ -180,8 +152,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
         cashOnly: cashOnlyCount,
         upiOnly: upiOnlyCount,
         split: splitCount
-      },
-      mayCorrection: shouldApplyMayCorrection ? mayCorrection : 0
+      }
     };
   }, [bills, startDate, endDate]);
 
@@ -259,18 +230,6 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
               </div>
             ))}
           </div>
-
-          {/* May Correction Notice */}
-          {paymentData.mayCorrection > 0 && (
-            <div className="pt-2 border-t border-gray-700">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">May 2024 Correction:</span>
-                <span className="font-medium text-yellow-400">
-                  +<CurrencyDisplay amount={paymentData.mayCorrection} />
-                </span>
-              </div>
-            </div>
-          )}
 
           {/* Additional Insights Section */}
           <div className="pt-2 border-t border-gray-700 space-y-2">
