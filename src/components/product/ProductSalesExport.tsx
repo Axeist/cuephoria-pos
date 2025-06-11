@@ -23,12 +23,18 @@ const ProductSalesExport: React.FC = () => {
         // Process each item in the bill (only products, not sessions)
         bill.items.forEach(item => {
           if (item.type === 'product') {
-            // Find the product to get its category
+            // Find the product to get its category and pricing details
             const product = products.find(p => p.name === item.name);
             const productCategory = product?.category?.toLowerCase() || item.category?.toLowerCase() || '';
             
             // Only include food and drinks
             if (productCategory === 'food' || productCategory === 'drinks') {
+              // Calculate profit per unit and total profit
+              const buyingPrice = product?.buyingPrice || 0;
+              const sellingPrice = product?.sellingPrice || item.price;
+              const profitPerUnit = sellingPrice - buyingPrice;
+              const totalProfit = profitPerUnit * item.quantity;
+
               productSales.push({
                 'Customer Name': customerName,
                 'Date': billDate,
@@ -37,6 +43,9 @@ const ProductSalesExport: React.FC = () => {
                 'Quantity': item.quantity,
                 'Unit Price': item.price,
                 'Total Value': item.total,
+                'Buying Price': buyingPrice,
+                'Profit Per Unit': profitPerUnit,
+                'Total Profit': totalProfit,
                 'Bill ID': bill.id
               });
             }
