@@ -7,29 +7,25 @@ import PaymentAnalyticsWidget from './PaymentAnalyticsWidget';
 import BusinessInsightsWidget from './BusinessInsightsWidget';
 import CanteenSalesProfitWidget from './CanteenSalesProfitWidget';
 
-interface SummaryDashboardProps {
-  dateRange?: { start: Date; end: Date } | null;
-}
-
-const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ dateRange }) => {
+const SummaryDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Row - 3 columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <TopCustomersWidget dateRange={dateRange} />
-        <BusinessInsightsWidget dateRange={dateRange} />
-        <PaymentAnalyticsWidget dateRange={dateRange} />
+        <TopCustomersWidget />
+        <BusinessInsightsWidget />
+        <PaymentAnalyticsWidget />
       </div>
 
       {/* Middle Row - 2 columns */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DailySalesTrendWidget dateRange={dateRange} />
-        <GamingRevenueWidget dateRange={dateRange} />
+        <DailySalesTrendWidget />
+        <GamingRevenueWidget />
       </div>
 
       {/* Bottom Row - Full width */}
       <div className="grid grid-cols-1">
-        <CanteenSalesProfitWidget dateRange={dateRange} />
+        <CanteenSalesProfitWidget />
       </div>
     </div>
   );

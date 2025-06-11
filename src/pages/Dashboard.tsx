@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -13,8 +14,6 @@ import ProductInventoryChart from '@/components/dashboard/ProductInventoryChart'
 import CustomerSpendingCorrelation from '@/components/dashboard/CustomerSpendingCorrelation';
 import HourlyRevenueDistribution from '@/components/dashboard/HourlyRevenueDistribution';
 import ProductPerformance from '@/components/dashboard/ProductPerformance';
-import SummaryDashboard from '@/components/dashboard/SummaryDashboard';
-import DateFilterWidget from '@/components/dashboard/DateFilterWidget';
 import ExpenseList from '@/components/expenses/ExpenseList';
 import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
@@ -32,7 +31,6 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('daily');
   const [chartData, setChartData] = useState([]);
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [summaryDateRange, setSummaryDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
   
   const [dashboardStats, setDashboardStats] = useState({
@@ -71,10 +69,6 @@ const Dashboard = () => {
 
   const handleDateRangeChange = (startDate: Date, endDate: Date) => {
     setDateRange({ start: startDate, end: endDate });
-  };
-
-  const handleSummaryDateRangeChange = (dateRange: { start: Date; end: Date } | null) => {
-    setSummaryDateRange(dateRange);
   };
 
   const handleExport = () => {
@@ -404,7 +398,6 @@ const Dashboard = () => {
           <TabsList className="w-auto">
             <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
             <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-            <TabsTrigger value="summary" className="flex-1">Summary</TabsTrigger>
             <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
             <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
           </TabsList>
@@ -455,15 +448,6 @@ const Dashboard = () => {
             <CustomerActivityChart />
             <ProductInventoryChart />
           </div>
-        </TabsContent>
-        
-        <TabsContent value="summary" className="space-y-6">
-          <DateFilterWidget 
-            dateRange={summaryDateRange}
-            onDateRangeChange={handleSummaryDateRangeChange}
-          />
-          
-          <SummaryDashboard dateRange={summaryDateRange} />
         </TabsContent>
         
         <TabsContent value="expenses" className="space-y-6">

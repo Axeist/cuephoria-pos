@@ -6,29 +6,17 @@ import { usePOS } from '@/context/POSContext';
 import { ShoppingCart } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
-interface CanteenSalesProfitWidgetProps {
-  dateRange?: { start: Date; end: Date } | null;
-}
-
-const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ dateRange }) => {
+const CanteenSalesProfitWidget: React.FC = () => {
   const { bills, products } = usePOS();
 
   const canteenData = useMemo(() => {
-    // Filter bills by date range if provided
-    const filteredBills = dateRange 
-      ? bills.filter(bill => {
-          const billDate = new Date(bill.createdAt);
-          return billDate >= dateRange.start && billDate <= dateRange.end;
-        })
-      : bills;
-
     let totalSales = 0;
     let totalProfit = 0;
     const productSales: Record<string, { name: string; sales: number; quantity: number; profit: number }> = {};
 
-    console.log('CanteenSalesProfitWidget - Processing', filteredBills.length, 'bills');
+    console.log('CanteenSalesProfitWidget - Processing', bills.length, 'bills');
 
-    filteredBills.forEach(bill => {
+    bills.forEach(bill => {
       console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
       
       bill.items.forEach(item => {
@@ -93,15 +81,12 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ dat
       profitMargin,
       allProducts
     };
-  }, [bills, products, dateRange]);
+  }, [bills, products]);
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">
-          Canteen Performance
-          {dateRange && ' (Filtered Period)'}
-        </CardTitle>
+        <CardTitle className="text-sm font-medium">Canteen Performance</CardTitle>
         <ShoppingCart className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -166,7 +151,6 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ dat
             ) : (
               <p className="text-xs text-muted-foreground text-center py-2">
                 No product sales data
-                {dateRange && ' for selected period'}
               </p>
             )}
           </div>
