@@ -7,12 +7,12 @@ import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 
 const ProductSalesExport: React.FC = () => {
-  const { bills, customers } = usePOS();
+  const { bills, customers, products } = usePOS();
   const { toast } = useToast();
 
   const exportProductSales = () => {
     try {
-      // Extract all product sales from bills
+      // Extract only food and drinks sales from bills
       const productSales: any[] = [];
 
       bills.forEach(bill => {
@@ -23,15 +23,23 @@ const ProductSalesExport: React.FC = () => {
         // Process each item in the bill (only products, not sessions)
         bill.items.forEach(item => {
           if (item.type === 'product') {
-            productSales.push({
-              'Customer Name': customerName,
-              'Date': billDate,
-              'Product Name': item.name,
-              'Quantity': item.quantity,
-              'Unit Price': item.price,
-              'Total Value': item.total,
-              'Bill ID': bill.id
-            });
+            // Find the product to get its category
+            const product = products.find(p => p.name === item.name);
+            const productCategory = product?.category?.toLowerCase() || item.category?.toLowerCase() || '';
+            
+            // Only include food and drinks
+            if (productCategory === 'food' || productCategory === 'drinks') {
+              productSales.push({
+                'Customer Name': customerName,
+                'Date': billDate,
+                'Product Name': item.name,
+                'Category': product?.category || item.category || 'Unknown',
+                'Quantity': item.quantity,
+                'Unit Price': item.price,
+                'Total Value': item.total,
+                'Bill ID': bill.id
+              });
+            }
           }
         });
       });
@@ -39,7 +47,7 @@ const ProductSalesExport: React.FC = () => {
       if (productSales.length === 0) {
         toast({
           title: 'No Data',
-          description: 'No product sales found to export.',
+          description: 'No food and drinks sales found to export.',
           variant: 'destructive'
         });
         return;
@@ -50,25 +58,25 @@ const ProductSalesExport: React.FC = () => {
       
       // Create workbook
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Product Sales');
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Food & Drinks Sales');
 
       // Generate filename with current date
       const currentDate = new Date().toISOString().split('T')[0];
-      const filename = `product_sales_${currentDate}.xlsx`;
+      const filename = `food_drinks_sales_${currentDate}.xlsx`;
 
       // Export the file
       XLSX.writeFile(workbook, filename);
 
       toast({
         title: 'Export Successful',
-        description: `Product sales exported successfully to ${filename}`,
+        description: `Food and drinks sales exported successfully to ${filename}`,
       });
 
     } catch (error) {
       console.error('Error exporting product sales:', error);
       toast({
         title: 'Export Failed',
-        description: 'Failed to export product sales. Please try again.',
+        description: 'Failed to export food and drinks sales. Please try again.',
         variant: 'destructive'
       });
     }
@@ -77,7 +85,7 @@ const ProductSalesExport: React.FC = () => {
   return (
     <Button onClick={exportProductSales} variant="outline" className="h-10">
       <Download className="h-4 w-4 mr-2" />
-      Export Product Sales
+      Export Food & Drinks Sales
     </Button>
   );
 };
