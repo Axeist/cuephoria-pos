@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import { Product } from '@/types/pos.types';
 import { Plus, RefreshCw, RotateCcw, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductDialog from '@/components/product/ProductDialog';
+import { ProductFormState } from '@/components/product/ProductForm';
 import LowStockAlert from '@/components/product/LowStockAlert';
 import ProductTabs from '@/components/product/ProductTabs';
 import ProductSearch from '@/components/product/ProductSearch';
