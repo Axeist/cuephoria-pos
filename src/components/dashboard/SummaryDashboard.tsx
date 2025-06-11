@@ -4,7 +4,6 @@ import TopCustomersWidget from './TopCustomersWidget';
 import DailySalesTrendWidget from './DailySalesTrendWidget';
 import GamingRevenueWidget from './GamingRevenueWidget';
 import PaymentAnalyticsWidget from './PaymentAnalyticsWidget';
-import BusinessInsightsWidget from './BusinessInsightsWidget';
 import CanteenSalesProfitWidget from './CanteenSalesProfitWidget';
 
 interface SummaryDashboardProps {
@@ -15,10 +14,9 @@ interface SummaryDashboardProps {
 const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ startDate, endDate }) => {
   return (
     <div className="space-y-6">
-      {/* Top Row - 3 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Top Row - 2 columns (removed BusinessInsightsWidget) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TopCustomersWidget startDate={startDate} endDate={endDate} />
-        <BusinessInsightsWidget startDate={startDate} endDate={endDate} />
         <PaymentAnalyticsWidget startDate={startDate} endDate={endDate} />
       </div>
 
