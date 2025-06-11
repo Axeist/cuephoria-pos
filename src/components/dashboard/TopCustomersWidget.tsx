@@ -22,7 +22,7 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
     return true;
   });
 
-  // Calculate customer spending and rank them - show top 10 instead of 15
+  // Calculate customer spending and rank them - show top 12 instead of 10
   const customerStats = customers.map(customer => {
     const customerBills = filteredBills.filter(bill => bill.customerId === customer.id);
     const totalSpent = customerBills.reduce((sum, bill) => sum + bill.total, 0);
@@ -37,7 +37,7 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
   })
   .filter(customer => customer.totalSpent > 0)
   .sort((a, b) => b.totalSpent - a.totalSpent)
-  .slice(0, 10);
+  .slice(0, 12);
 
   return (
     <Card className="h-full">
