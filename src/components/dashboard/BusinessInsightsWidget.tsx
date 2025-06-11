@@ -4,24 +4,42 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
 import { BarChart3 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { format, subDays, startOfDay } from 'date-fns';
+import { format, subDays, startOfDay, startOfMonth, endOfMonth } from 'date-fns';
 
-const BusinessInsightsWidget: React.FC = () => {
+interface BusinessInsightsWidgetProps {
+  startDate?: Date;
+  endDate?: Date;
+}
+
+const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDate, endDate }) => {
   const { bills } = usePOS();
 
   const insights = useMemo(() => {
-    if (bills.length === 0) {
+    // Filter bills by date range if provided
+    const filteredBills = bills.filter(bill => {
+      if (!startDate && !endDate) return true;
+      const billDate = new Date(bill.createdAt);
+      if (startDate && billDate < startDate) return false;
+      if (endDate && billDate > endDate) return false;
+      return true;
+    });
+
+    if (filteredBills.length === 0) {
       return {
+        totalSales: 0,
         avgBillValue: 0,
         dailyPrediction: 0,
-        weeklyTarget: 50000,
-        weeklyProgress: 0
+        monthlyTarget: 0,
+        monthlyProgress: 0,
+        currentMonthSales: 0
       };
     }
 
+    // Calculate total sales for the filtered period
+    const totalSales = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
+    
     // Calculate average bill value
-    const totalRevenue = bills.reduce((sum, bill) => sum + bill.total, 0);
-    const avgBillValue = totalRevenue / bills.length;
+    const avgBillValue = totalSales / filteredBills.length;
 
     // Calculate last 7 days revenue for prediction
     const last7Days = Array.from({ length: 7 }, (_, i) => 
@@ -38,18 +56,33 @@ const BusinessInsightsWidget: React.FC = () => {
     const avgDailyRevenue = last7DaysRevenue / 7;
     const dailyPrediction = avgDailyRevenue * 1.1; // 10% growth prediction
 
-    // Weekly target and progress
-    const weeklyTarget = 50000; // Fixed target for now
-    const currentWeekRevenue = last7DaysRevenue;
-    const weeklyProgress = (currentWeekRevenue / weeklyTarget) * 100;
+    // Calculate monthly target based on daily average
+    const daysInMonth = new Date().getDate();
+    const totalDaysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const monthlyTarget = avgDailyRevenue * totalDaysInMonth;
+
+    // Calculate current month sales
+    const currentMonthStart = startOfMonth(new Date());
+    const currentMonthEnd = endOfMonth(new Date());
+    
+    const currentMonthSales = bills
+      .filter(bill => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= currentMonthStart && billDate <= currentMonthEnd;
+      })
+      .reduce((sum, bill) => sum + bill.total, 0);
+
+    const monthlyProgress = monthlyTarget > 0 ? (currentMonthSales / monthlyTarget) * 100 : 0;
 
     return {
+      totalSales,
       avgBillValue,
       dailyPrediction,
-      weeklyTarget,
-      weeklyProgress: Math.min(weeklyProgress, 100)
+      monthlyTarget,
+      monthlyProgress: Math.min(monthlyProgress, 100),
+      currentMonthSales
     };
-  }, [bills]);
+  }, [bills, startDate, endDate]);
 
   return (
     <Card>
@@ -60,6 +93,13 @@ const BusinessInsightsWidget: React.FC = () => {
       <CardContent>
         <div className="space-y-4">
           <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Total Sales</span>
+              <span className="font-bold text-blue-400">
+                <CurrencyDisplay amount={insights.totalSales} />
+              </span>
+            </div>
+            
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Avg Bill Value</span>
               <span className="font-medium">
@@ -77,9 +117,16 @@ const BusinessInsightsWidget: React.FC = () => {
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Weekly Target</span>
+              <span className="text-sm text-muted-foreground">Monthly Target</span>
               <span className="font-medium">
-                <CurrencyDisplay amount={insights.weeklyTarget} />
+                <CurrencyDisplay amount={insights.monthlyTarget} />
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Current Month</span>
+              <span className="font-medium text-yellow-400">
+                <CurrencyDisplay amount={insights.currentMonthSales} />
               </span>
             </div>
             
@@ -87,19 +134,19 @@ const BusinessInsightsWidget: React.FC = () => {
               <div className="flex justify-between items-center">
                 <span className="text-xs text-muted-foreground">Progress</span>
                 <span className="text-xs font-medium">
-                  {insights.weeklyProgress.toFixed(1)}%
+                  {insights.monthlyProgress.toFixed(1)}%
                 </span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-2">
                 <div 
                   className={`h-2 rounded-full transition-all duration-300 ${
-                    insights.weeklyProgress >= 100 
+                    insights.monthlyProgress >= 100 
                       ? 'bg-green-500' 
-                      : insights.weeklyProgress >= 75 
+                      : insights.monthlyProgress >= 75 
                         ? 'bg-yellow-500' 
                         : 'bg-blue-500'
                   }`}
-                  style={{ width: `${insights.weeklyProgress}%` }}
+                  style={{ width: `${insights.monthlyProgress}%` }}
                 />
               </div>
             </div>
@@ -107,7 +154,7 @@ const BusinessInsightsWidget: React.FC = () => {
 
           <div className="pt-2 border-t border-gray-700">
             <div className="text-xs text-muted-foreground">
-              <p>Target: {format(new Date(), 'MMM dd')} - {format(subDays(new Date(), -7), 'MMM dd')}</p>
+              <p>Target: {format(new Date(), 'MMM yyyy')}</p>
             </div>
           </div>
         </div>
