@@ -31,10 +31,10 @@ const ActiveSessions = () => {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-xl font-bold text-white font-heading">Active Sessions</CardTitle>
-            <CardDescription className="text-gray-400">{activeStations.length} active session{activeStations.length !== 1 ? 's' : ''}</CardDescription>
+            <CardDescription className="text-base text-gray-400">{activeStations.length} active session{activeStations.length !== 1 ? 's' : ''}</CardDescription>
           </div>
-          <div className="h-10 w-10 rounded-full bg-[#0EA5E9]/20 flex items-center justify-center">
-            <Clock className="h-5 w-5 text-[#0EA5E9]" />
+          <div className="h-12 w-12 rounded-full bg-[#0EA5E9]/20 flex items-center justify-center">
+            <Clock className="h-6 w-6 text-[#0EA5E9]" />
           </div>
         </div>
       </CardHeader>
@@ -53,15 +53,15 @@ const ActiveSessions = () => {
             return (
               <div key={station.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-800 border border-gray-700">
                 <div className="flex items-center space-x-4">
-                  <div className="h-10 w-10 rounded-full bg-[#0EA5E9]/30 flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-blue-400" />
+                  <div className="h-12 w-12 rounded-full bg-[#0EA5E9]/30 flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-blue-400" />
                   </div>
                   <div>
-                    <p className="font-medium">{station.name}</p>
-                    <p className="text-xs text-gray-400">{customer?.name || 'Unknown Customer'}</p>
+                    <p className="font-medium text-base">{station.name}</p>
+                    <p className="text-sm text-gray-400">{customer?.name || 'Unknown Customer'}</p>
                   </div>
                 </div>
-                <div className="text-white font-semibold">
+                <div className="text-white font-semibold text-lg">
                   {durationText}
                 </div>
               </div>
@@ -69,7 +69,7 @@ const ActiveSessions = () => {
           })
         ) : (
           <div className="flex items-center justify-center p-6 text-gray-400">
-            <p>No active sessions</p>
+            <p className="text-base">No active sessions</p>
           </div>
         )}
       </CardContent>
