@@ -18,10 +18,6 @@ const CanteenSalesProfitWidget: React.FC = () => {
     bills.forEach(bill => {
       console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
       
-      // Calculate discount ratio to apply proportional discounts to items
-      const discountRatio = bill.subtotal > 0 ? bill.total / bill.subtotal : 1;
-      console.log('CanteenSalesProfitWidget - Discount ratio for bill:', discountRatio);
-      
       bill.items.forEach(item => {
         if (item.type === 'product') {
           const product = products.find(p => p.id === item.id || p.name === item.name);
@@ -33,10 +29,9 @@ const CanteenSalesProfitWidget: React.FC = () => {
             console.log(`CanteenSalesProfitWidget - Item ${item.name}: category=${category}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
             
             if (isFoodOrDrinks && !isChallenges) {
-              // Apply the same discount logic as ProductSalesWidget
-              const discountedItemTotal = item.total * discountRatio;
-              totalSales += discountedItemTotal;
-              console.log(`CanteenSalesProfitWidget - Adding sales: ${discountedItemTotal} (original: ${item.total}) for ${item.name}`);
+              // Take the item total directly without applying any discount
+              totalSales += item.total;
+              console.log(`CanteenSalesProfitWidget - Adding sales: ${item.total} for ${item.name}`);
 
               // Calculate profit
               let profitPerUnit = 0;
@@ -62,7 +57,7 @@ const CanteenSalesProfitWidget: React.FC = () => {
                 };
               }
               
-              productSales[item.name].sales += discountedItemTotal;
+              productSales[item.name].sales += item.total;
               productSales[item.name].quantity += item.quantity;
               productSales[item.name].profit += itemProfit;
             }

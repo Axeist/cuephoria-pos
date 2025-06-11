@@ -15,10 +15,6 @@ const ProductSalesWidget: React.FC = () => {
   const totalProductSales = bills.reduce((total, bill) => {
     console.log('ProductSalesWidget - Processing bill:', bill.id, 'with items:', bill.items);
     
-    // Calculate discount ratio to apply proportional discounts to items
-    const discountRatio = bill.subtotal > 0 ? bill.total / bill.subtotal : 1;
-    console.log('ProductSalesWidget - Discount ratio for bill:', discountRatio);
-    
     const productSales = bill.items
       .filter(item => {
         const isProduct = item.type === 'product';
@@ -33,10 +29,9 @@ const ProductSalesWidget: React.FC = () => {
         return isProduct && isFoodOrDrinks && !isChallenges;
       })
       .reduce((itemTotal, item) => {
-        // Apply the same discount logic as CanteenSalesProfitWidget
-        const discountedItemTotal = item.total * discountRatio;
-        console.log(`ProductSalesWidget - Adding item total: ${discountedItemTotal} (original: ${item.total}) for ${item.name}`);
-        return itemTotal + discountedItemTotal;
+        // Take the item total directly without applying any discount
+        console.log(`ProductSalesWidget - Adding item total: ${item.total} for ${item.name}`);
+        return itemTotal + item.total;
       }, 0);
     
     console.log('ProductSalesWidget - Bill product sales:', productSales);
