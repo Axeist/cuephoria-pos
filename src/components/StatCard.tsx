@@ -25,19 +25,19 @@ const StatCard: React.FC<StatCardProps> = ({
 }) => {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base font-medium">{title}</CardTitle>
-        <Icon className={`h-5 w-5 ${color}`} />
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className={`h-4 w-4 ${color}`} />
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold">
+        <div className="text-2xl font-bold">
           {isCurrency ? <CurrencyDisplay amount={value as number} /> : value}
         </div>
         {description && (
-          <p className="text-sm text-muted-foreground mt-1">{description}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
         )}
         {typeof change !== 'undefined' && (
-          <div className={`text-sm ${change >= 0 ? 'text-green-500' : 'text-red-500'} mt-2`}>
+          <div className={`text-xs ${change >= 0 ? 'text-green-500' : 'text-red-500'} mt-1`}>
             {change >= 0 ? '↑' : '↓'} {Math.abs(change)}% from last period
           </div>
         )}
