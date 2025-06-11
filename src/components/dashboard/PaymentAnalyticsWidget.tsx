@@ -14,15 +14,28 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
   const { bills } = usePOS();
 
   const paymentData = useMemo(() => {
+    // Enhanced debug logging for date filtering
+    console.log('=== Payment Analytics Debug ===');
+    console.log('Date filter range:', { startDate, endDate });
+    console.log('Total bills in system:', bills.length);
+
     // Filter bills by date range if provided
     const filteredBills = bills.filter(bill => {
       if (!startDate && !endDate) return true;
       const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
+      
+      // Debug each bill's date filtering
+      const includesBill = (!startDate || billDate >= startDate) && (!endDate || billDate <= endDate);
+      
+      if (!includesBill) {
+        console.log(`Excluding bill ${bill.id}: billDate=${billDate.toISOString()}, startDate=${startDate?.toISOString()}, endDate=${endDate?.toISOString()}`);
+      }
+      
+      return includesBill;
     });
 
+    console.log('Filtered bills count:', filteredBills.length);
+    
     let totalCashAmount = 0;
     let totalUpiAmount = 0;
     let cashOnlyCount = 0;
@@ -31,11 +44,6 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     let splitCashTotal = 0;
     let splitUpiTotal = 0;
 
-    // Debug: Log all bill totals to check if any are being missed
-    console.log('=== Payment Analytics Debug ===');
-    console.log('Total bills:', bills.length);
-    console.log('Filtered bills:', filteredBills.length);
-    
     let debugTotalSum = 0;
     
     filteredBills.forEach((bill, index) => {
@@ -60,6 +68,8 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
         splitCashTotal += billCashAmount;
         splitUpiTotal += billUpiAmount;
         splitCount++;
+        
+        console.log(`Split payment processing: cash=${billCashAmount}, upi=${billUpiAmount}, total=${billCashAmount + billUpiAmount}, billTotal=${bill.total}`);
       } else if (bill.paymentMethod === 'cash') {
         totalCashAmount += bill.total;
         cashOnlyCount++;
@@ -72,13 +82,29 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     // Total revenue is the sum of all cash and UPI amounts
     const totalRevenue = totalCashAmount + totalUpiAmount;
     
-    console.log('Debug totals:', {
-      totalCashAmount,
-      totalUpiAmount,
-      calculatedRevenue: totalRevenue,
-      directSumOfAllBills: debugTotalSum,
-      difference: Math.abs(totalRevenue - debugTotalSum)
+    console.log('Final calculation breakdown:', {
+      cashOnlyBills: { count: cashOnlyCount, amount: totalCashAmount - splitCashTotal },
+      upiOnlyBills: { count: upiOnlyCount, amount: totalUpiAmount - splitUpiTotal },
+      splitBills: { count: splitCount, cashPortion: splitCashTotal, upiPortion: splitUpiTotal },
+      totals: {
+        totalCashAmount,
+        totalUpiAmount,
+        calculatedRevenue: totalRevenue,
+        directSumOfAllBills: debugTotalSum,
+        difference: Math.abs(totalRevenue - debugTotalSum)
+      }
     });
+    
+    // Verify split payment calculations
+    const manualSplitVerification = filteredBills.filter(bill => bill.isSplitPayment);
+    if (manualSplitVerification.length > 0) {
+      console.log('Manual split payment verification:');
+      manualSplitVerification.forEach(bill => {
+        const calculatedSplit = (bill.cashAmount || 0) + (bill.upiAmount || 0);
+        console.log(`Bill ${bill.id}: cashAmount=${bill.cashAmount}, upiAmount=${bill.upiAmount}, sum=${calculatedSplit}, billTotal=${bill.total}, matches=${calculatedSplit === bill.total}`);
+      });
+    }
+    
     console.log('=== End Debug ===');
 
     return {
