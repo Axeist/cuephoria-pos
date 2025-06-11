@@ -35,6 +35,18 @@ const ProductSalesExport: React.FC = () => {
               const profitPerUnit = sellingPrice - buyingPrice;
               const totalProfit = profitPerUnit * item.quantity;
 
+              // Debug logging
+              console.log(`Product: ${item.name}`);
+              console.log(`Quantity: ${item.quantity}`);
+              console.log(`Item Price: ${item.price}`);
+              console.log(`Product Buying Price: ${product?.buyingPrice}`);
+              console.log(`Product Selling Price: ${product?.sellingPrice}`);
+              console.log(`Calculated Buying Price: ${buyingPrice}`);
+              console.log(`Calculated Selling Price: ${sellingPrice}`);
+              console.log(`Profit Per Unit: ${profitPerUnit}`);
+              console.log(`Total Profit: ${totalProfit}`);
+              console.log('---');
+
               productSales.push({
                 'Customer Name': customerName,
                 'Date': billDate,
