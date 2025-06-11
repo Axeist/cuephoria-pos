@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -110,7 +109,11 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               variant={selectedPeriod === '7days' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedPeriod('7days')}
-              className="text-xs"
+              className={`text-xs ${
+                selectedPeriod === '7days' 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'hover:bg-accent'
+              }`}
             >
               7 Days
             </Button>
@@ -118,7 +121,11 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               variant={selectedPeriod === '30days' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedPeriod('30days')}
-              className="text-xs"
+              className={`text-xs ${
+                selectedPeriod === '30days' 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'hover:bg-accent'
+              }`}
             >
               30 Days
             </Button>
@@ -126,7 +133,11 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               variant={selectedPeriod === 'year' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedPeriod('year')}
-              className="text-xs"
+              className={`text-xs ${
+                selectedPeriod === 'year' 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'hover:bg-accent'
+              }`}
             >
               This Year
             </Button>
