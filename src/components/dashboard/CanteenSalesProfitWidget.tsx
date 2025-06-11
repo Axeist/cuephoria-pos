@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePOS } from '@/context/POSContext';
 import { ShoppingCart } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -66,10 +67,9 @@ const CanteenSalesProfitWidget: React.FC = () => {
       });
     });
 
-    // Get top 5 products by sales
-    const topProducts = Object.values(productSales)
-      .sort((a, b) => b.sales - a.sales)
-      .slice(0, 5);
+    // Get all products sorted by sales (remove the slice to show all products)
+    const allProducts = Object.values(productSales)
+      .sort((a, b) => b.sales - a.sales);
 
     const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0;
 
@@ -79,7 +79,7 @@ const CanteenSalesProfitWidget: React.FC = () => {
       totalSales,
       totalProfit,
       profitMargin,
-      topProducts
+      allProducts
     };
   }, [bills, products]);
 
@@ -122,30 +122,32 @@ const CanteenSalesProfitWidget: React.FC = () => {
             </div>
           </div>
 
-          {/* Top Products */}
+          {/* All Products with Scroll */}
           <div className="space-y-2">
-            <h4 className="text-xs font-medium text-muted-foreground">Top Products</h4>
-            {canteenData.topProducts.length > 0 ? (
-              <div className="space-y-2">
-                {canteenData.topProducts.map((product, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {product.quantity} sold
-                      </p>
+            <h4 className="text-xs font-medium text-muted-foreground">Product Sales</h4>
+            {canteenData.allProducts.length > 0 ? (
+              <ScrollArea className="h-[300px] w-full">
+                <div className="space-y-2 pr-4">
+                  {canteenData.allProducts.map((product, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {product.quantity} sold
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-medium">
+                          <CurrencyDisplay amount={product.sales} />
+                        </p>
+                        <p className="text-xs text-green-400">
+                          +<CurrencyDisplay amount={product.profit} />
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-medium">
-                        <CurrencyDisplay amount={product.sales} />
-                      </p>
-                      <p className="text-xs text-green-400">
-                        +<CurrencyDisplay amount={product.profit} />
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </ScrollArea>
             ) : (
               <p className="text-xs text-muted-foreground text-center py-2">
                 No product sales data
