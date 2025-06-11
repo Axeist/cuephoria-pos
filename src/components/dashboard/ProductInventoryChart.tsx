@@ -31,16 +31,16 @@ const ProductInventoryChart: React.FC = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-bold text-white font-heading">Inventory Status</CardTitle>
-              <CardDescription className="text-base text-gray-400">Product stock levels</CardDescription>
+              <CardTitle className="text-xl font-bold text-white font-heading">Inventory Status</CardTitle>
+              <CardDescription className="text-gray-400">Product stock levels</CardDescription>
             </div>
-            <div className="h-12 w-12 rounded-full bg-[#F97316]/20 flex items-center justify-center">
-              <AlertTriangle className="h-6 w-6 text-[#F97316]" />
+            <div className="h-10 w-10 rounded-full bg-[#F97316]/20 flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-[#F97316]" />
             </div>
           </div>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
-          <p className="text-base text-gray-400">No physical inventory items to display</p>
+          <p className="text-gray-400">No physical inventory items to display</p>
         </CardContent>
       </Card>
     );
@@ -51,11 +51,11 @@ const ProductInventoryChart: React.FC = () => {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-2xl font-bold text-white font-heading">Inventory Status</CardTitle>
-            <CardDescription className="text-base text-gray-400">Product stock levels</CardDescription>
+            <CardTitle className="text-xl font-bold text-white font-heading">Inventory Status</CardTitle>
+            <CardDescription className="text-gray-400">Product stock levels</CardDescription>
           </div>
-          <div className="h-12 w-12 rounded-full bg-[#F97316]/20 flex items-center justify-center">
-            <AlertTriangle className="h-6 w-6 text-[#F97316]" />
+          <div className="h-10 w-10 rounded-full bg-[#F97316]/20 flex items-center justify-center">
+            <AlertTriangle className="h-5 w-5 text-[#F97316]" />
           </div>
         </div>
       </CardHeader>
@@ -86,21 +86,21 @@ const ProductInventoryChart: React.FC = () => {
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div className="rounded-lg border bg-gray-800 border-gray-700 p-3 shadow-md">
+                      <div className="rounded-lg border bg-gray-800 border-gray-700 p-2 shadow-md">
                         <div className="grid grid-cols-2 gap-2">
                           <div className="flex flex-col">
-                            <span className="text-sm uppercase text-gray-400">
+                            <span className="text-[0.70rem] uppercase text-gray-400">
                               Status
                             </span>
-                            <span className="font-bold text-base text-gray-300">
+                            <span className="font-bold text-gray-300">
                               {payload[0].name}
                             </span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-sm uppercase text-gray-400">
+                            <span className="text-[0.70rem] uppercase text-gray-400">
                               Count
                             </span>
-                            <span className="font-bold text-base text-white">
+                            <span className="font-bold text-white">
                               {payload[0].value}
                             </span>
                           </div>
@@ -116,7 +116,7 @@ const ProductInventoryChart: React.FC = () => {
                 align="center"
                 layout="horizontal"
                 formatter={(value, entry, index) => (
-                  <span style={{ color: '#999', fontSize: '14px' }}>{value}</span>
+                  <span style={{ color: '#999' }}>{value}</span>
                 )}
               />
             </PieChart>

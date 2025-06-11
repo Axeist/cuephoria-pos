@@ -20,13 +20,13 @@ const SalesChart: React.FC<SalesChartProps> = ({ data, activeTab, setActiveTab }
     <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-2xl font-bold text-white font-heading">Sales Overview</CardTitle>
+          <CardTitle className="text-xl font-bold text-white font-heading">Sales Overview</CardTitle>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
             <TabsList className="bg-gray-800 text-gray-400">
-              <TabsTrigger value="hourly" className="text-base">Hourly</TabsTrigger>
-              <TabsTrigger value="daily" className="text-base">Daily</TabsTrigger>
-              <TabsTrigger value="weekly" className="text-base">Weekly</TabsTrigger>
-              <TabsTrigger value="monthly" className="text-base">Monthly</TabsTrigger>
+              <TabsTrigger value="hourly">Hourly</TabsTrigger>
+              <TabsTrigger value="daily">Daily</TabsTrigger>
+              <TabsTrigger value="weekly">Weekly</TabsTrigger>
+              <TabsTrigger value="monthly">Monthly</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -62,34 +62,32 @@ const SalesChart: React.FC<SalesChartProps> = ({ data, activeTab, setActiveTab }
                 axisLine={false}
                 tickLine={false}
                 padding={{ left: 10, right: 10 }}
-                tick={{ fontSize: 12 }}
               />
               <YAxis 
                 stroke="#777"
                 axisLine={false}
                 tickLine={false}
                 width={30}
-                tick={{ fontSize: 12 }}
               />
               <Tooltip 
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div className="rounded-lg border bg-card p-3 shadow-md">
+                      <div className="rounded-lg border bg-card p-2 shadow-md">
                         <div className="grid grid-cols-2 gap-2">
                           <div className="flex flex-col">
-                            <span className="text-sm uppercase text-muted-foreground">
+                            <span className="text-[0.70rem] uppercase text-muted-foreground">
                               {activeTab === 'hourly' ? 'Hour' : activeTab === 'daily' ? 'Day' : activeTab === 'weekly' ? 'Week' : 'Month'}
                             </span>
-                            <span className="font-bold text-base text-muted-foreground">
+                            <span className="font-bold text-muted-foreground">
                               {payload[0].payload.name}
                             </span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-sm uppercase text-muted-foreground">
+                            <span className="text-[0.70rem] uppercase text-muted-foreground">
                               Sales
                             </span>
-                            <span className="font-bold text-base">
+                            <span className="font-bold">
                               <CurrencyDisplay amount={payload[0].value as number} />
                             </span>
                           </div>
