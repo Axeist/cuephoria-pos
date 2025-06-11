@@ -50,14 +50,19 @@ const ProductSalesExport: React.FC = () => {
                   profitPerUnit = product.price - product.buyingPrice;
                 }
                 
-                // Calculate total profit for this item (no proportional calculation)
+                // Calculate total profit for this item based on quantity (regardless of item price)
+                // This ensures profit is calculated even when unit price is 0
                 totalProfit = profitPerUnit * item.quantity;
               }
 
               console.log(`Export - Product: ${item.name}`);
               console.log(`Export - Quantity: ${item.quantity}`);
               console.log(`Export - Item Total: ${itemTotal}`);
-              console.log(`Export - Profit Per Unit: ${profitPerUnit}`);
+              console.log(`Export - Product Profit Field: ${product?.profit || 'N/A'}`);
+              console.log(`Export - Product Buying Price: ${product?.buyingPrice || 'N/A'}`);
+              console.log(`Export - Product Selling Price: ${product?.sellingPrice || 'N/A'}`);
+              console.log(`Export - Product Price: ${product?.price || 'N/A'}`);
+              console.log(`Export - Calculated Profit Per Unit: ${profitPerUnit}`);
               console.log(`Export - Total Profit: ${totalProfit}`);
               console.log('---');
 
