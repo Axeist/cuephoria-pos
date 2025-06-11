@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
@@ -36,8 +35,8 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     filteredBills.forEach(bill => {
       if (bill.isSplitPayment) {
         splitTotal += bill.total;
-        splitCashTotal += bill.cash_amount || 0;
-        splitUpiTotal += bill.upi_amount || 0;
+        splitCashTotal += bill.cashAmount || 0;
+        splitUpiTotal += bill.upiAmount || 0;
         splitCount++;
       } else if (bill.paymentMethod === 'cash') {
         cashTotal += bill.total;
