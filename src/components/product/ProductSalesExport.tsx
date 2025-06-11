@@ -12,7 +12,7 @@ const ProductSalesExport: React.FC = () => {
 
   const exportProductSales = () => {
     try {
-      // Extract only food and drinks sales from bills
+      // Extract only food and drinks sales from bills using the same logic as widgets
       const productSales: any[] = [];
 
       bills.forEach(bill => {
@@ -24,27 +24,52 @@ const ProductSalesExport: React.FC = () => {
         bill.items.forEach(item => {
           if (item.type === 'product') {
             // Find the product to get its category and pricing details
-            const product = products.find(p => p.name === item.name);
+            const product = products.find(p => p.id === item.id || p.name === item.name);
             const productCategory = product?.category?.toLowerCase() || item.category?.toLowerCase() || '';
             
-            // Only include food and drinks
-            if (productCategory === 'food' || productCategory === 'drinks') {
-              // Calculate profit per unit and total profit
-              const buyingPrice = product?.buyingPrice || 0;
-              const sellingPrice = product?.sellingPrice || item.price;
-              const profitPerUnit = sellingPrice - buyingPrice;
-              const totalProfit = profitPerUnit * item.quantity;
+            // Include food, drinks, snacks, beverage, and tobacco (same as widgets) but exclude challenges
+            const isFoodOrDrinks = productCategory === 'food' || productCategory === 'drinks' || 
+                                 productCategory === 'snacks' || productCategory === 'beverage' || 
+                                 productCategory === 'tobacco';
+            const isChallenges = productCategory === 'challenges' || productCategory === 'challenge';
+            
+            if (isFoodOrDrinks && !isChallenges) {
+              // Calculate proportional amounts based on bill's discount/total ratio (same as widgets)
+              let proportionalItemTotal = item.total;
+              let proportionalProfit = 0;
+              
+              if (bill.subtotal > 0) {
+                proportionalItemTotal = (item.total / bill.subtotal) * bill.total;
+              }
 
-              // Debug logging
-              console.log(`Product: ${item.name}`);
-              console.log(`Quantity: ${item.quantity}`);
-              console.log(`Item Price: ${item.price}`);
-              console.log(`Product Buying Price: ${product?.buyingPrice}`);
-              console.log(`Product Selling Price: ${product?.sellingPrice}`);
-              console.log(`Calculated Buying Price: ${buyingPrice}`);
-              console.log(`Calculated Selling Price: ${sellingPrice}`);
-              console.log(`Profit Per Unit: ${profitPerUnit}`);
-              console.log(`Total Profit: ${totalProfit}`);
+              // Calculate profit using the same logic as ProductProfitWidget
+              if (product) {
+                let profitPerUnit = 0;
+                
+                if (product.profit) {
+                  profitPerUnit = product.profit;
+                } else if (product.buyingPrice && product.sellingPrice) {
+                  profitPerUnit = product.sellingPrice - product.buyingPrice;
+                } else if (product.buyingPrice && product.price) {
+                  profitPerUnit = product.price - product.buyingPrice;
+                }
+                
+                // Calculate proportional profit
+                const totalItemProfit = profitPerUnit * item.quantity;
+                if (bill.subtotal > 0) {
+                  proportionalProfit = (totalItemProfit / bill.subtotal) * bill.total;
+                } else {
+                  proportionalProfit = totalItemProfit;
+                }
+              }
+
+              // Debug logging to match widget calculations
+              console.log(`Export - Product: ${item.name}`);
+              console.log(`Export - Quantity: ${item.quantity}`);
+              console.log(`Export - Original Item Total: ${item.total}`);
+              console.log(`Export - Proportional Item Total: ${proportionalItemTotal}`);
+              console.log(`Export - Proportional Profit: ${proportionalProfit}`);
+              console.log(`Export - Bill Subtotal: ${bill.subtotal}, Bill Total: ${bill.total}`);
               console.log('---');
 
               productSales.push({
@@ -54,11 +79,14 @@ const ProductSalesExport: React.FC = () => {
                 'Category': product?.category || item.category || 'Unknown',
                 'Quantity': item.quantity,
                 'Unit Price': item.price,
-                'Total Value': item.total,
-                'Buying Price': buyingPrice,
-                'Profit Per Unit': profitPerUnit,
-                'Total Profit': totalProfit,
-                'Bill ID': bill.id
+                'Original Item Total': item.total,
+                'Proportional Total Value': proportionalItemTotal.toFixed(2),
+                'Buying Price': product?.buyingPrice || 0,
+                'Profit Per Unit': product?.profit || ((product?.sellingPrice || product?.price || 0) - (product?.buyingPrice || 0)),
+                'Proportional Total Profit': proportionalProfit.toFixed(2),
+                'Bill ID': bill.id,
+                'Bill Subtotal': bill.subtotal,
+                'Bill Total': bill.total
               });
             }
           }
@@ -73,6 +101,14 @@ const ProductSalesExport: React.FC = () => {
         });
         return;
       }
+
+      // Calculate totals for verification
+      const totalProportionalSales = productSales.reduce((sum, item) => sum + parseFloat(item['Proportional Total Value']), 0);
+      const totalProportionalProfit = productSales.reduce((sum, item) => sum + parseFloat(item['Proportional Total Profit']), 0);
+      
+      console.log('Export Totals:');
+      console.log('Total Proportional Sales:', totalProportionalSales.toFixed(2));
+      console.log('Total Proportional Profit:', totalProportionalProfit.toFixed(2));
 
       // Create worksheet
       const worksheet = XLSX.utils.json_to_sheet(productSales);
@@ -90,7 +126,7 @@ const ProductSalesExport: React.FC = () => {
 
       toast({
         title: 'Export Successful',
-        description: `Food and drinks sales exported successfully to ${filename}`,
+        description: `Food and drinks sales exported successfully to ${filename}. Totals: Sales ₹${totalProportionalSales.toFixed(2)}, Profit ₹${totalProportionalProfit.toFixed(2)}`,
       });
 
     } catch (error) {
