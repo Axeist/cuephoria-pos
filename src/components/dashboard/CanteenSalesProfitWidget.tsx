@@ -13,8 +13,14 @@ const CanteenSalesProfitWidget: React.FC = () => {
     let totalProfit = 0;
     const productSales: Record<string, { name: string; sales: number; quantity: number; profit: number }> = {};
 
+    console.log('CanteenSalesProfitWidget - Processing', bills.length, 'bills');
+
     bills.forEach(bill => {
+      console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
+      
+      // Calculate discount ratio to apply proportional discounts to items
       const discountRatio = bill.subtotal > 0 ? bill.total / bill.subtotal : 1;
+      console.log('CanteenSalesProfitWidget - Discount ratio for bill:', discountRatio);
       
       bill.items.forEach(item => {
         if (item.type === 'product') {
@@ -24,9 +30,13 @@ const CanteenSalesProfitWidget: React.FC = () => {
             const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
             const isChallenges = category === 'challenges' || category === 'challenge';
             
+            console.log(`CanteenSalesProfitWidget - Item ${item.name}: category=${category}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
+            
             if (isFoodOrDrinks && !isChallenges) {
+              // Apply the same discount logic as ProductSalesWidget
               const discountedItemTotal = item.total * discountRatio;
               totalSales += discountedItemTotal;
+              console.log(`CanteenSalesProfitWidget - Adding sales: ${discountedItemTotal} (original: ${item.total}) for ${item.name}`);
 
               // Calculate profit
               let profitPerUnit = 0;
@@ -40,6 +50,7 @@ const CanteenSalesProfitWidget: React.FC = () => {
               
               const itemProfit = profitPerUnit * item.quantity;
               totalProfit += itemProfit;
+              console.log(`CanteenSalesProfitWidget - Adding profit: ${itemProfit} for ${item.name}`);
 
               // Track individual product performance
               if (!productSales[item.name]) {
@@ -66,6 +77,8 @@ const CanteenSalesProfitWidget: React.FC = () => {
       .slice(0, 5);
 
     const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0;
+
+    console.log('CanteenSalesProfitWidget - Final totals - Sales:', totalSales, 'Profit:', totalProfit);
 
     return {
       totalSales,

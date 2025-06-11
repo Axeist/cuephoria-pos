@@ -13,7 +13,11 @@ const ProductSalesWidget: React.FC = () => {
 
   // Calculate total sales from food and drinks products (excluding challenges)
   const totalProductSales = bills.reduce((total, bill) => {
-    console.log('Processing bill:', bill.id, 'with items:', bill.items);
+    console.log('ProductSalesWidget - Processing bill:', bill.id, 'with items:', bill.items);
+    
+    // Calculate discount ratio to apply proportional discounts to items
+    const discountRatio = bill.subtotal > 0 ? bill.total / bill.subtotal : 1;
+    console.log('ProductSalesWidget - Discount ratio for bill:', discountRatio);
     
     const productSales = bill.items
       .filter(item => {
@@ -21,19 +25,21 @@ const ProductSalesWidget: React.FC = () => {
         
         // Look up the product to get its category
         const product = products.find(p => p.id === item.id || p.name === item.name);
-        const category = product?.category;
-        const isFoodOrDrinks = category === 'food' || category === 'drinks';
-        const isChallenges = category === 'challenges';
+        const category = product?.category?.toLowerCase();
+        const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
+        const isChallenges = category === 'challenges' || category === 'challenge';
         
-        console.log(`Item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
+        console.log(`ProductSalesWidget - Item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
         return isProduct && isFoodOrDrinks && !isChallenges;
       })
       .reduce((itemTotal, item) => {
-        console.log(`Adding item total: ${item.total} for ${item.name}`);
-        return itemTotal + item.total;
+        // Apply the same discount logic as CanteenSalesProfitWidget
+        const discountedItemTotal = item.total * discountRatio;
+        console.log(`ProductSalesWidget - Adding item total: ${discountedItemTotal} (original: ${item.total}) for ${item.name}`);
+        return itemTotal + discountedItemTotal;
       }, 0);
     
-    console.log('Bill product sales:', productSales);
+    console.log('ProductSalesWidget - Bill product sales:', productSales);
     return total + productSales;
   }, 0);
 
@@ -43,17 +49,17 @@ const ProductSalesWidget: React.FC = () => {
       .filter(item => {
         const isProduct = item.type === 'product';
         const product = products.find(p => p.id === item.id || p.name === item.name);
-        const category = product?.category;
-        const isFoodOrDrinks = category === 'food' || category === 'drinks';
-        const isChallenges = category === 'challenges';
+        const category = product?.category?.toLowerCase();
+        const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
+        const isChallenges = category === 'challenges' || category === 'challenge';
         return isProduct && isFoodOrDrinks && !isChallenges;
       })
       .reduce((count, item) => count + item.quantity, 0);
     return total + itemCount;
   }, 0);
 
-  console.log('Total product sales:', totalProductSales);
-  console.log('Total items sold:', totalItemsSold);
+  console.log('ProductSalesWidget - Total product sales:', totalProductSales);
+  console.log('ProductSalesWidget - Total items sold:', totalItemsSold);
 
   return (
     <Card className="mb-6">
