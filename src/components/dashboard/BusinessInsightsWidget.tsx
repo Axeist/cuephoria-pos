@@ -5,7 +5,7 @@ import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
 import { BarChart3 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { format, subDays, startOfDay, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns';
 
 interface BusinessInsightsWidgetProps {
   startDate?: Date;
@@ -35,6 +35,33 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       return true;
     });
 
+    // Calculate current day sales (today)
+    const today = new Date();
+    const todayStart = startOfDay(today);
+    const todayEnd = endOfDay(today);
+    
+    const currentDaySales = bills
+      .filter(bill => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= todayStart && billDate <= todayEnd;
+      })
+      .reduce((sum, bill) => sum + bill.total, 0);
+
+    // Calculate yesterday's sales
+    const yesterday = subDays(today, 1);
+    const yesterdayStart = startOfDay(yesterday);
+    const yesterdayEnd = endOfDay(yesterday);
+    
+    const yesterdaySales = bills
+      .filter(bill => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= yesterdayStart && billDate <= yesterdayEnd;
+      })
+      .reduce((sum, bill) => sum + bill.total, 0);
+
+    // Calculate sales growth from yesterday to today
+    const salesGrowth = yesterdaySales > 0 ? ((currentDaySales - yesterdaySales) / yesterdaySales) * 100 : 0;
+
     if (filteredBills.length === 0) {
       return {
         totalSales: 0,
@@ -47,7 +74,10 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
         monthlyProgress: 0,
         currentMonthSales: 0,
         expenseToRevenueRatio: 0,
-        breakEvenPoint: 0
+        breakEvenPoint: 0,
+        currentDaySales,
+        yesterdaySales,
+        salesGrowth
       };
     }
 
@@ -117,43 +147,73 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       monthlyProgress: Math.min(monthlyProgress, 100),
       currentMonthSales,
       expenseToRevenueRatio,
-      breakEvenPoint
+      breakEvenPoint,
+      currentDaySales,
+      yesterdaySales,
+      salesGrowth
     };
   }, [bills, expenses, startDate, endDate]);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base font-medium">Business Insights</CardTitle>
-        <BarChart3 className="h-4 w-4 text-muted-foreground" />
+    <Card className="h-full">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-lg font-semibold">Business Insights</CardTitle>
+        <BarChart3 className="h-5 w-5 text-muted-foreground" />
       </CardHeader>
-      <CardContent className="pb-4">
-        <div className="space-y-4">
-          {/* Revenue & Expenses Section */}
+      <CardContent className="pb-4 h-full">
+        <div className="space-y-4 h-full">
+          {/* Daily Sales Comparison */}
           <div className="space-y-2">
+            <h4 className="text-sm font-medium text-muted-foreground">Daily Sales Comparison</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Today's Sales</span>
+                <div className="font-bold text-lg text-blue-400">
+                  <CurrencyDisplay amount={insights.currentDaySales} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Yesterday's Sales</span>
+                <div className="font-bold text-lg text-gray-400">
+                  <CurrencyDisplay amount={insights.yesterdaySales} />
+                </div>
+              </div>
+            </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total Sales</span>
-              <span className="font-bold text-blue-400">
-                <CurrencyDisplay amount={insights.totalSales} />
+              <span className="text-xs text-muted-foreground">Growth</span>
+              <span className={`font-medium text-sm ${insights.salesGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {insights.salesGrowth >= 0 ? '+' : ''}{insights.salesGrowth.toFixed(1)}%
               </span>
+            </div>
+          </div>
+
+          {/* Revenue & Expenses Section */}
+          <div className="space-y-2 pt-2 border-t border-gray-700">
+            <h4 className="text-sm font-medium text-muted-foreground">Financial Overview</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Total Sales</span>
+                <div className="font-bold text-blue-400">
+                  <CurrencyDisplay amount={insights.totalSales} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Total Expenses</span>
+                <div className="font-bold text-red-400">
+                  <CurrencyDisplay amount={insights.totalExpenses} />
+                </div>
+              </div>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total Expenses</span>
-              <span className="font-bold text-red-400">
-                <CurrencyDisplay amount={insights.totalExpenses} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Net Profit</span>
+              <span className="text-xs text-muted-foreground">Net Profit</span>
               <span className={`font-bold ${insights.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 <CurrencyDisplay amount={insights.netProfit} />
               </span>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Profit Margin</span>
+              <span className="text-xs text-muted-foreground">Profit Margin</span>
               <span className={`font-medium ${insights.profitMargin >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {insights.profitMargin.toFixed(1)}%
               </span>
@@ -162,29 +222,31 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
 
           {/* Operational Metrics Section */}
           <div className="space-y-2 pt-2 border-t border-gray-700">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Avg Bill Value</span>
-              <span className="font-medium">
-                <CurrencyDisplay amount={insights.avgBillValue} />
-              </span>
+            <h4 className="text-sm font-medium text-muted-foreground">Operational Metrics</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Avg Bill Value</span>
+                <div className="font-medium">
+                  <CurrencyDisplay amount={insights.avgBillValue} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Expense Ratio</span>
+                <div className={`font-medium ${insights.expenseToRevenueRatio > 70 ? 'text-red-400' : insights.expenseToRevenueRatio > 50 ? 'text-yellow-400' : 'text-green-400'}`}>
+                  {insights.expenseToRevenueRatio.toFixed(1)}%
+                </div>
+              </div>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Expense Ratio</span>
-              <span className={`font-medium ${insights.expenseToRevenueRatio > 70 ? 'text-red-400' : insights.expenseToRevenueRatio > 50 ? 'text-yellow-400' : 'text-green-400'}`}>
-                {insights.expenseToRevenueRatio.toFixed(1)}%
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Break-even Daily</span>
+              <span className="text-xs text-muted-foreground">Break-even Daily</span>
               <span className="font-medium text-orange-400">
                 <CurrencyDisplay amount={insights.breakEvenPoint} />
               </span>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Daily Prediction</span>
+              <span className="text-xs text-muted-foreground">Daily Prediction</span>
               <span className="font-medium text-purple-400">
                 <CurrencyDisplay amount={insights.dailyPrediction} />
               </span>
@@ -193,18 +255,20 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
 
           {/* Monthly Progress Section */}
           <div className="space-y-2 pt-2 border-t border-gray-700">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Monthly Target</span>
-              <span className="font-medium">
-                <CurrencyDisplay amount={insights.monthlyTarget} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Current Month</span>
-              <span className="font-medium text-yellow-400">
-                <CurrencyDisplay amount={insights.currentMonthSales} />
-              </span>
+            <h4 className="text-sm font-medium text-muted-foreground">Monthly Progress</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Monthly Target</span>
+                <div className="font-medium">
+                  <CurrencyDisplay amount={insights.monthlyTarget} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Current Month</span>
+                <div className="font-medium text-yellow-400">
+                  <CurrencyDisplay amount={insights.currentMonthSales} />
+                </div>
+              </div>
             </div>
             
             <div className="space-y-1">
