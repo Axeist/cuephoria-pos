@@ -11,7 +11,7 @@ const ProductProfitWidget: React.FC = () => {
   console.log('ProductProfitWidget - Total bills:', bills.length);
   console.log('ProductProfitWidget - Total products:', products.length);
 
-  // Calculate total profit from food and drinks products
+  // Calculate total profit from food and drinks products (excluding challenges)
   const totalProfit = bills.reduce((total, bill) => {
     console.log('Processing bill for profit:', bill.id, 'with items:', bill.items);
     
@@ -23,9 +23,10 @@ const ProductProfitWidget: React.FC = () => {
         const product = products.find(p => p.id === item.id || p.name === item.name);
         const category = product?.category;
         const isFoodOrDrinks = category === 'food' || category === 'drinks';
+        const isChallenges = category === 'challenges';
         
-        console.log(`Profit item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
-        return isProduct && isFoodOrDrinks;
+        console.log(`Profit item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
+        return isProduct && isFoodOrDrinks && !isChallenges;
       })
       .reduce((itemTotal, item) => {
         // Find the product to get its profit margin
@@ -63,11 +64,12 @@ const ProductProfitWidget: React.FC = () => {
     return total + productProfit;
   }, 0);
 
-  // Count products with profit data
+  // Count products with profit data (excluding challenges)
   const productsWithProfit = products.filter(product => {
     const isFoodOrDrinks = product.category === 'food' || product.category === 'drinks';
+    const isChallenges = product.category === 'challenges';
     const hasProfit = product.profit || (product.buyingPrice && (product.sellingPrice || product.price));
-    return isFoodOrDrinks && hasProfit;
+    return isFoodOrDrinks && !isChallenges && hasProfit;
   }).length;
 
   console.log('Total product profit:', totalProfit);

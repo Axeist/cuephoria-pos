@@ -11,7 +11,7 @@ const ProductSalesWidget: React.FC = () => {
   console.log('ProductSalesWidget - Total bills:', bills.length);
   console.log('ProductSalesWidget - Total products:', products.length);
 
-  // Calculate total sales from food and drinks products
+  // Calculate total sales from food and drinks products (excluding challenges)
   const totalProductSales = bills.reduce((total, bill) => {
     console.log('Processing bill:', bill.id, 'with items:', bill.items);
     
@@ -23,9 +23,10 @@ const ProductSalesWidget: React.FC = () => {
         const product = products.find(p => p.id === item.id || p.name === item.name);
         const category = product?.category;
         const isFoodOrDrinks = category === 'food' || category === 'drinks';
+        const isChallenges = category === 'challenges';
         
-        console.log(`Item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}`);
-        return isProduct && isFoodOrDrinks;
+        console.log(`Item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
+        return isProduct && isFoodOrDrinks && !isChallenges;
       })
       .reduce((itemTotal, item) => {
         console.log(`Adding item total: ${item.total} for ${item.name}`);
@@ -36,14 +37,16 @@ const ProductSalesWidget: React.FC = () => {
     return total + productSales;
   }, 0);
 
-  // Count total food and drinks items sold
+  // Count total food and drinks items sold (excluding challenges)
   const totalItemsSold = bills.reduce((total, bill) => {
     const itemCount = bill.items
       .filter(item => {
         const isProduct = item.type === 'product';
         const product = products.find(p => p.id === item.id || p.name === item.name);
         const category = product?.category;
-        return isProduct && (category === 'food' || category === 'drinks');
+        const isFoodOrDrinks = category === 'food' || category === 'drinks';
+        const isChallenges = category === 'challenges';
+        return isProduct && isFoodOrDrinks && !isChallenges;
       })
       .reduce((count, item) => count + item.quantity, 0);
     return total + itemCount;
