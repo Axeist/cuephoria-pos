@@ -12,7 +12,7 @@ const ProductSalesExport: React.FC = () => {
 
   const exportProductSales = () => {
     try {
-      // Extract only food and drinks sales from bills using the same logic as widgets
+      // Extract only food and drinks sales from bills using the EXACT same logic as widgets
       const productSales: any[] = [];
 
       bills.forEach(bill => {
@@ -27,25 +27,21 @@ const ProductSalesExport: React.FC = () => {
             const product = products.find(p => p.id === item.id || p.name === item.name);
             const productCategory = product?.category?.toLowerCase() || item.category?.toLowerCase() || '';
             
-            // Include food, drinks, snacks, beverage, and tobacco (same as widgets) but exclude challenges
+            // Use EXACT same filtering as ProductSalesWidget
             const isFoodOrDrinks = productCategory === 'food' || productCategory === 'drinks' || 
                                  productCategory === 'snacks' || productCategory === 'beverage' || 
                                  productCategory === 'tobacco';
             const isChallenges = productCategory === 'challenges' || productCategory === 'challenge';
             
             if (isFoodOrDrinks && !isChallenges) {
-              // Calculate proportional amounts based on bill's discount/total ratio (same as widgets)
-              let proportionalItemTotal = item.total;
-              let proportionalProfit = 0;
+              // Use EXACT same calculation as ProductSalesWidget (direct item total, no proportional)
+              const itemTotal = item.total;
               
-              if (bill.subtotal > 0) {
-                proportionalItemTotal = (item.total / bill.subtotal) * bill.total;
-              }
-
-              // Calculate profit using the same logic as ProductProfitWidget
+              // Calculate profit using EXACT same logic as ProductProfitWidget
+              let profitPerUnit = 0;
+              let totalProfit = 0;
+              
               if (product) {
-                let profitPerUnit = 0;
-                
                 if (product.profit) {
                   profitPerUnit = product.profit;
                 } else if (product.buyingPrice && product.sellingPrice) {
@@ -54,22 +50,15 @@ const ProductSalesExport: React.FC = () => {
                   profitPerUnit = product.price - product.buyingPrice;
                 }
                 
-                // Calculate proportional profit
-                const totalItemProfit = profitPerUnit * item.quantity;
-                if (bill.subtotal > 0) {
-                  proportionalProfit = (totalItemProfit / bill.subtotal) * bill.total;
-                } else {
-                  proportionalProfit = totalItemProfit;
-                }
+                // Calculate total profit for this item (no proportional calculation)
+                totalProfit = profitPerUnit * item.quantity;
               }
 
-              // Debug logging to match widget calculations
               console.log(`Export - Product: ${item.name}`);
               console.log(`Export - Quantity: ${item.quantity}`);
-              console.log(`Export - Original Item Total: ${item.total}`);
-              console.log(`Export - Proportional Item Total: ${proportionalItemTotal}`);
-              console.log(`Export - Proportional Profit: ${proportionalProfit}`);
-              console.log(`Export - Bill Subtotal: ${bill.subtotal}, Bill Total: ${bill.total}`);
+              console.log(`Export - Item Total: ${itemTotal}`);
+              console.log(`Export - Profit Per Unit: ${profitPerUnit}`);
+              console.log(`Export - Total Profit: ${totalProfit}`);
               console.log('---');
 
               productSales.push({
@@ -79,14 +68,11 @@ const ProductSalesExport: React.FC = () => {
                 'Category': product?.category || item.category || 'Unknown',
                 'Quantity': item.quantity,
                 'Unit Price': item.price,
-                'Original Item Total': item.total,
-                'Proportional Total Value': proportionalItemTotal.toFixed(2),
+                'Total Sales': itemTotal.toFixed(2),
                 'Buying Price': product?.buyingPrice || 0,
-                'Profit Per Unit': product?.profit || ((product?.sellingPrice || product?.price || 0) - (product?.buyingPrice || 0)),
-                'Proportional Total Profit': proportionalProfit.toFixed(2),
-                'Bill ID': bill.id,
-                'Bill Subtotal': bill.subtotal,
-                'Bill Total': bill.total
+                'Profit Per Unit': profitPerUnit.toFixed(2),
+                'Total Profit': totalProfit.toFixed(2),
+                'Bill ID': bill.id
               });
             }
           }
@@ -102,13 +88,13 @@ const ProductSalesExport: React.FC = () => {
         return;
       }
 
-      // Calculate totals for verification
-      const totalProportionalSales = productSales.reduce((sum, item) => sum + parseFloat(item['Proportional Total Value']), 0);
-      const totalProportionalProfit = productSales.reduce((sum, item) => sum + parseFloat(item['Proportional Total Profit']), 0);
+      // Calculate totals for verification (matching widget calculations)
+      const totalSales = productSales.reduce((sum, item) => sum + parseFloat(item['Total Sales']), 0);
+      const totalProfit = productSales.reduce((sum, item) => sum + parseFloat(item['Total Profit']), 0);
       
-      console.log('Export Totals:');
-      console.log('Total Proportional Sales:', totalProportionalSales.toFixed(2));
-      console.log('Total Proportional Profit:', totalProportionalProfit.toFixed(2));
+      console.log('Export Totals (matching widgets):');
+      console.log('Total Sales:', totalSales.toFixed(2));
+      console.log('Total Profit:', totalProfit.toFixed(2));
 
       // Create worksheet
       const worksheet = XLSX.utils.json_to_sheet(productSales);
@@ -126,7 +112,7 @@ const ProductSalesExport: React.FC = () => {
 
       toast({
         title: 'Export Successful',
-        description: `Food and drinks sales exported successfully to ${filename}. Totals: Sales ₹${totalProportionalSales.toFixed(2)}, Profit ₹${totalProportionalProfit.toFixed(2)}`,
+        description: `Food and drinks sales exported successfully to ${filename}. Totals: Sales ₹${totalSales.toFixed(2)}, Profit ₹${totalProfit.toFixed(2)}`,
       });
 
     } catch (error) {
