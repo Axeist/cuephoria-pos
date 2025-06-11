@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
 import { usePOS } from '@/context/POSContext';
@@ -9,6 +10,7 @@ import { CalendarIcon, Download, Search, X, Trash2, Edit, Receipt, Eye } from 'l
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Bill, Customer } from '@/types/pos.types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,7 +54,7 @@ const Reports = () => {
       const endDate = endOfDay(dateFilter.to);
 
       filtered = filtered.filter((bill) => {
-        const billDate = parseISO(bill.createdAt);
+        const billDate = typeof bill.createdAt === 'string' ? parseISO(bill.createdAt) : bill.createdAt;
         return isWithinInterval(billDate, { start: startDate, end: endDate });
       });
     }
@@ -81,16 +83,13 @@ const Reports = () => {
     return filteredBills.reduce((acc, bill) => acc + bill.total, 0);
   }, [filteredBills]);
 
-  const handleDateSelect = (date: Date | undefined) => {
-    if (!date) return;
-
-    if (!dateFilter.from) {
-      setDateFilter({ from: date, to: null });
-    } else if (!dateFilter.to && date >= dateFilter.from) {
-      setDateFilter({ from: dateFilter.from, to: date });
-    } else {
-      setDateFilter({ from: date, to: null });
-    }
+  const handleDateSelect = (range: { from?: Date; to?: Date } | undefined) => {
+    if (!range) return;
+    
+    setDateFilter({
+      from: range.from || null,
+      to: range.to || null
+    });
   };
 
   const clearDateFilter = () => {
@@ -164,6 +163,16 @@ const Reports = () => {
     console.log('Exporting to Excel...');
   };
 
+  const getCustomerName = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer?.name || 'Unknown Customer';
+  };
+
+  const getCustomerPhone = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer?.phone || '';
+  };
+
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
@@ -187,9 +196,6 @@ const Reports = () => {
         <TabsContent value="overview" className="space-y-6">
           <SalesWidgets 
             filteredBills={filteredBills}
-            expenses={expenses}
-            sessions={sessions}
-            dateFilter={dateFilter}
           />
         </TabsContent>
 
@@ -224,7 +230,6 @@ const Reports = () => {
                   defaultMonth={dateFilter.from ? dateFilter.from : new Date()}
                   selected={dateFilter.from && dateFilter.to ? { from: dateFilter.from, to: dateFilter.to } : undefined}
                   onSelect={handleDateSelect}
-                  onClear={clearDateFilter}
                   className="rounded-md border"
                 />
                 {dateFilter.from && dateFilter.to && (
@@ -314,7 +319,13 @@ const Reports = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredBills.map((bill) => (
-                  <ExpandableBillRow key={bill.id} bill={bill} customers={customers} viewBillDetails={viewBillDetails} confirmDeleteBill={confirmDeleteBill} />
+                  <ExpandableBillRow 
+                    key={bill.id} 
+                    bill={bill} 
+                    getCustomerName={getCustomerName}
+                    getCustomerPhone={getCustomerPhone}
+                    searchTerm={searchTerm}
+                  />
                 ))}
               </tbody>
             </table>
@@ -341,7 +352,7 @@ const Reports = () => {
             {expenses.map((expense) => (
               <Card key={expense.id} className="mb-4">
                 <CardHeader>
-                  <CardTitle>{expense.description}</CardTitle>
+                  <CardTitle>{expense.name}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p>Amount: ${expense.amount.toFixed(2)}</p>
@@ -367,7 +378,7 @@ const Reports = () => {
                 {customers.find((c) => c.id === selectedBill.customerId)?.name ||
                   'N/A'}
               </p>
-              <p>Date: {format(parseISO(selectedBill.createdAt), 'MMM dd, yyyy')}</p>
+              <p>Date: {format(typeof selectedBill.createdAt === 'string' ? parseISO(selectedBill.createdAt) : selectedBill.createdAt, 'MMM dd, yyyy')}</p>
               <p>Total: ${selectedBill.total.toFixed(2)}</p>
               {/* Display line items here */}
             </div>
