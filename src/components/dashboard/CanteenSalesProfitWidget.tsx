@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -25,21 +26,9 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
 
     let totalSales = 0;
     let totalProfit = 0;
-    let currentStockValue = 0;
     const productSales: Record<string, { name: string; sales: number; quantity: number; profit: number }> = {};
 
     console.log('CanteenSalesProfitWidget - Processing', filteredBills.length, 'bills');
-
-    // Calculate current stock value for food and drinks products
-    products.forEach(product => {
-      const category = product.category.toLowerCase();
-      const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
-      const isChallenges = category === 'challenges' || category === 'challenge';
-      
-      if (isFoodOrDrinks && !isChallenges && product.buyingPrice) {
-        currentStockValue += product.buyingPrice * product.stock;
-      }
-    });
 
     filteredBills.forEach(bill => {
       console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
@@ -98,13 +87,12 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
 
     const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0;
 
-    console.log('CanteenSalesProfitWidget - Final totals - Sales:', totalSales, 'Profit:', totalProfit, 'Stock Value:', currentStockValue);
+    console.log('CanteenSalesProfitWidget - Final totals - Sales:', totalSales, 'Profit:', totalProfit);
 
     return {
       totalSales,
       totalProfit,
       profitMargin,
-      currentStockValue,
       allProducts
     };
   }, [bills, products, startDate, endDate]);
@@ -118,7 +106,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
       <CardContent>
         <div className="space-y-4">
           {/* Summary Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Total Sales</p>
               <p className="text-lg font-bold">
@@ -129,12 +117,6 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
               <p className="text-xs text-muted-foreground">Total Profit</p>
               <p className="text-lg font-bold text-green-400">
                 <CurrencyDisplay amount={canteenData.totalProfit} />
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Stock Value</p>
-              <p className="text-lg font-bold text-blue-400">
-                <CurrencyDisplay amount={canteenData.currentStockValue} />
               </p>
             </div>
           </div>

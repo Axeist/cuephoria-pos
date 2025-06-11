@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -109,11 +110,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               variant={selectedPeriod === '7days' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedPeriod('7days')}
-              className={`text-xs ${
-                selectedPeriod === '7days' 
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
-                  : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
-              }`}
+              className="text-xs"
             >
               7 Days
             </Button>
@@ -121,11 +118,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               variant={selectedPeriod === '30days' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedPeriod('30days')}
-              className={`text-xs ${
-                selectedPeriod === '30days' 
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
-                  : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
-              }`}
+              className="text-xs"
             >
               30 Days
             </Button>
@@ -133,11 +126,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               variant={selectedPeriod === 'year' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setSelectedPeriod('year')}
-              className={`text-xs ${
-                selectedPeriod === 'year' 
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
-                  : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
-              }`}
+              className="text-xs"
             >
               This Year
             </Button>
