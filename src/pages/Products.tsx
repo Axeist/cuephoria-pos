@@ -39,6 +39,8 @@ const ProductsPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showZeroStockOnly, setShowZeroStockOnly] = useState<boolean>(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filter and sort products based on search term, active tab, and zero stock filter
   const getFilteredAndSortedProducts = () => {
