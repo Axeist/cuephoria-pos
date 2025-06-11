@@ -24,52 +24,48 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       return true;
     });
 
-    let cashTotal = 0;
-    let upiTotal = 0;
-    let splitTotal = 0;
+    let totalCashAmount = 0;
+    let totalUpiAmount = 0;
+    let cashOnlyCount = 0;
+    let upiOnlyCount = 0;
+    let splitCount = 0;
     let splitCashTotal = 0;
     let splitUpiTotal = 0;
-    let cashCount = 0;
-    let upiCount = 0;
-    let splitCount = 0;
 
     filteredBills.forEach(bill => {
       if (bill.isSplitPayment) {
-        // For split payments, add the individual cash and UPI amounts
+        // For split payments, track the cash and UPI portions separately
         const billCashAmount = bill.cashAmount || 0;
         const billUpiAmount = bill.upiAmount || 0;
         
+        totalCashAmount += billCashAmount;
+        totalUpiAmount += billUpiAmount;
         splitCashTotal += billCashAmount;
         splitUpiTotal += billUpiAmount;
-        splitTotal += bill.total;
         splitCount++;
-        
-        // Also add to the respective payment method totals
-        cashTotal += billCashAmount;
-        upiTotal += billUpiAmount;
       } else if (bill.paymentMethod === 'cash') {
-        cashTotal += bill.total;
-        cashCount++;
+        totalCashAmount += bill.total;
+        cashOnlyCount++;
       } else if (bill.paymentMethod === 'upi') {
-        upiTotal += bill.total;
-        upiCount++;
+        totalUpiAmount += bill.total;
+        upiOnlyCount++;
       }
     });
 
-    // Calculate total revenue correctly - don't double count split payments
-    const totalRevenue = cashTotal + upiTotal;
+    // Total revenue is the sum of all cash and UPI amounts
+    const totalRevenue = totalCashAmount + totalUpiAmount;
 
     return {
       chartData: [
-        { method: 'Cash', amount: cashTotal, count: cashCount + splitCount, color: '#10B981' },
-        { method: 'UPI', amount: upiTotal, count: upiCount + splitCount, color: '#8B5CF6' },
-        { method: 'Split', amount: splitTotal, count: splitCount, color: '#F59E0B' }
+        { method: 'Cash', amount: totalCashAmount, count: cashOnlyCount + splitCount, color: '#10B981' },
+        { method: 'UPI', amount: totalUpiAmount, count: upiOnlyCount + splitCount, color: '#8B5CF6' }
       ],
       totalRevenue,
       splitBreakdown: {
         cash: splitCashTotal,
         upi: splitUpiTotal,
-        total: splitTotal
+        total: splitCashTotal + splitUpiTotal,
+        count: splitCount
       }
     };
   }, [bills, startDate, endDate]);
@@ -149,10 +145,14 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             ))}
           </div>
 
-          {paymentData.splitBreakdown.total > 0 && (
+          {paymentData.splitBreakdown.count > 0 && (
             <div className="pt-2 border-t border-gray-700">
-              <h4 className="text-xs font-medium text-muted-foreground mb-2">Split Payment Breakdown</h4>
+              <h4 className="text-xs font-medium text-muted-foreground mb-2">Split Payment Details</h4>
               <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Split transactions:</span>
+                  <span>{paymentData.splitBreakdown.count}</span>
+                </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Cash portion:</span>
                   <span><CurrencyDisplay amount={paymentData.splitBreakdown.cash} /></span>
@@ -160,6 +160,10 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">UPI portion:</span>
                   <span><CurrencyDisplay amount={paymentData.splitBreakdown.upi} /></span>
+                </div>
+                <div className="flex justify-between text-xs font-medium">
+                  <span className="text-muted-foreground">Split total:</span>
+                  <span><CurrencyDisplay amount={paymentData.splitBreakdown.total} /></span>
                 </div>
               </div>
             </div>
