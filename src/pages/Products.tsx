@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
 import { useProducts } from '@/hooks/useProducts';
 import { Product } from '@/types/pos.types';
-import { Plus, RefreshCw, RotateCcw, Settings } from 'lucide-react';
+import { Plus, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductDialog from '@/components/product/ProductDialog';
 import { ProductFormState } from '@/components/product/ProductForm';
@@ -17,6 +16,7 @@ import StockValueWidget from '@/components/product/StockValueWidget';
 import ProductSalesWidget from '@/components/product/ProductSalesWidget';
 import ProductProfitWidget from '@/components/product/ProductProfitWidget';
 import ProductSalesExport from '@/components/product/ProductSalesExport';
+import StockExport from '@/components/product/StockExport';
 import {
   Sheet,
   SheetContent,
@@ -36,8 +36,6 @@ const ProductsPage: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showZeroStockOnly, setShowZeroStockOnly] = useState<boolean>(false);
@@ -249,6 +247,7 @@ const ProductsPage: React.FC = () => {
         <h2 className="text-3xl font-bold tracking-tight">Products</h2>
         <div className="flex flex-wrap gap-2">
           <ProductSalesExport />
+          <StockExport />
           
           <Sheet>
             <SheetTrigger asChild>
@@ -270,14 +269,6 @@ const ProductsPage: React.FC = () => {
             </SheetContent>
           </Sheet>
           
-          <Button onClick={handleRefreshProducts} variant="outline" disabled={isRefreshing} className="h-10">
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} /> 
-            Refresh DB
-          </Button>
-          <Button onClick={handleResetProducts} variant="outline" disabled={isResetting} className="h-10">
-            <RotateCcw className={`h-4 w-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} /> 
-            Reset
-          </Button>
           <Button onClick={handleOpenDialog} className="h-10">
             <Plus className="h-4 w-4 mr-2" /> Add Product
           </Button>
