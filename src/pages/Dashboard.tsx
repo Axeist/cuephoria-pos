@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -396,7 +395,7 @@ const Dashboard = () => {
     >
       <div className="flex-1 space-y-6 p-6">
         <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
-          <div className="flex items-center justify-between mb-6">
+          <div className="space-y-4">
             <TabsList className="w-auto">
               <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
               <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
@@ -404,11 +403,14 @@ const Dashboard = () => {
               <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
             </TabsList>
             
+            {/* Date Filter - Only visible when Expenses tab is selected */}
             {currentDashboardTab === 'expenses' && (
-              <ExpenseDateFilter 
-                onDateRangeChange={handleDateRangeChange}
-                onExport={handleExport}
-              />
+              <div className="w-full">
+                <ExpenseDateFilter 
+                  onDateRangeChange={handleDateRangeChange}
+                  onExport={handleExport}
+                />
+              </div>
             )}
           </div>
           
