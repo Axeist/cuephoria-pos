@@ -29,12 +29,6 @@ export function MobileHeader({ title, actions, showUser = true }: MobileHeaderPr
         </div>
         
         <div className="flex items-center gap-2">
-          {actions && (
-            <div className="flex items-center gap-1">
-              {actions}
-            </div>
-          )}
-          
           {showUser && user && (
             <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-1.5">
               {user.isAdmin ? (
@@ -47,6 +41,15 @@ export function MobileHeader({ title, actions, showUser = true }: MobileHeaderPr
           )}
         </div>
       </div>
+      
+      {/* Action buttons section - only show on mobile */}
+      {actions && (
+        <div className="px-4 pb-3">
+          <div className="flex flex-wrap gap-2">
+            {actions}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
