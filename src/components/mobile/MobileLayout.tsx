@@ -51,7 +51,7 @@ export function MobileLayout({
         showUser={showUser}
       />
       
-      {/* Mobile Actions Section - Better organized layout */}
+      {/* Mobile Actions Section - Only show on mobile */}
       {headerActions && (
         <div className="px-4 py-3 bg-background border-b">
           <div className="flex flex-col gap-3">
