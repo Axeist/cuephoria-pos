@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -18,7 +19,6 @@ import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import CashManagement from '@/components/cash/CashManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MobileLayout } from '@/components/mobile/MobileLayout';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -104,7 +104,13 @@ const Dashboard = () => {
       
       // Set column widths for better readability
       const columnWidths = [
-        { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 30 }
+        { wch: 12 }, // Date
+        { wch: 25 }, // Name
+        { wch: 15 }, // Category
+        { wch: 12 }, // Amount
+        { wch: 10 }, // Recurring
+        { wch: 12 }, // Frequency
+        { wch: 30 }  // Notes
       ];
       worksheet['!cols'] = columnWidths;
 
@@ -382,27 +388,29 @@ const Dashboard = () => {
   };
   
   return (
-    <MobileLayout title="Dashboard" className="space-y-6">
+    <div className="flex-1 space-y-6 p-6 bg-[#1A1F2C] text-white">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold tracking-tight font-heading">Dashboard</h2>
+      </div>
+      
       <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
-        <div className="flex flex-col gap-4 mb-6">
-          <TabsList className="w-full grid grid-cols-4">
-            <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
-            <TabsTrigger value="analytics" className="text-xs">Analytics</TabsTrigger>
-            <TabsTrigger value="expenses" className="text-xs">Expenses</TabsTrigger>
-            <TabsTrigger value="cash" className="text-xs">Vault</TabsTrigger>
+        <div className="flex items-center justify-between mb-6">
+          <TabsList className="w-auto">
+            <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
+            <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
+            <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
+            <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
           </TabsList>
           
           {currentDashboardTab === 'expenses' && (
-            <div className="w-full">
-              <ExpenseDateFilter 
-                onDateRangeChange={handleDateRangeChange}
-                onExport={handleExport}
-              />
-            </div>
+            <ExpenseDateFilter 
+              onDateRangeChange={handleDateRangeChange}
+              onExport={handleExport}
+            />
           )}
         </div>
         
-        <TabsContent value="overview" className="space-y-6 mt-0">
+        <TabsContent value="overview" className="space-y-6">
           <StatCardSection 
             totalSales={dashboardStats.totalSales}
             salesChange={dashboardStats.salesChange}
@@ -422,27 +430,27 @@ const Dashboard = () => {
             setActiveTab={setActiveTab}
           />
           
-          <div className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>
         </TabsContent>
         
-        <TabsContent value="analytics" className="space-y-6 mt-0">
-          <div className="space-y-6">
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerSpendingCorrelation />
             <HourlyRevenueDistribution />
           </div>
           
           <ProductPerformance />
           
-          <div className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerActivityChart />
             <ProductInventoryChart />
           </div>
         </TabsContent>
         
-        <TabsContent value="expenses" className="space-y-6 mt-0">
+        <TabsContent value="expenses" className="space-y-6">
           <BusinessSummarySection 
             filteredExpenses={filteredExpenses}
             dateRange={dateRange}
@@ -458,11 +466,11 @@ const Dashboard = () => {
           )}
         </TabsContent>
         
-        <TabsContent value="cash" className="space-y-6 mt-0">
+        <TabsContent value="cash" className="space-y-6">
           <CashManagement />
         </TabsContent>
       </Tabs>
-    </MobileLayout>
+    </div>
   );
 };
 
