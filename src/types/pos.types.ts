@@ -28,7 +28,6 @@ export interface Customer {
   membershipPlan?: string;
   membershipHoursLeft?: number;
   membershipDuration?: 'weekly' | 'monthly';
-  membershipType?: string; // Added for compatibility
   loyaltyPoints: number;
   totalSpent: number;
   totalPlayTime: number;
@@ -61,7 +60,6 @@ export interface CartItem {
   quantity: number;
   total: number;
   category?: string; // Changed from enum to string for custom categories
-  productId?: string; // Added for product reference
 }
 
 export interface Bill {
@@ -79,8 +77,6 @@ export interface Bill {
   isSplitPayment?: boolean;
   cashAmount?: number;
   upiAmount?: number;
-  tax?: number; // Added for compatibility
-  status?: string; // Added for compatibility
   createdAt: Date;
 }
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -17,7 +18,6 @@ import ExpenseList from '@/components/expenses/ExpenseList';
 import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import CashManagement from '@/components/cash/CashManagement';
-import { MobileLayout } from '@/components/mobile/MobileLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -388,87 +388,89 @@ const Dashboard = () => {
   };
   
   return (
-    <MobileLayout title="Dashboard" className="bg-[#1A1F2C] text-white">
-      <div className="flex-1 space-y-6">
-        <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
-          <div className="flex items-center justify-between mb-6">
-            <TabsList className="w-auto">
-              <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-              <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-              <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
-              <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
-            </TabsList>
-            
-            {currentDashboardTab === 'expenses' && (
-              <ExpenseDateFilter 
-                onDateRangeChange={handleDateRangeChange}
-                onExport={handleExport}
-              />
-            )}
+    <div className="flex-1 space-y-6 p-6 bg-[#1A1F2C] text-white">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold tracking-tight font-heading">Dashboard</h2>
+      </div>
+      
+      <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
+        <div className="flex items-center justify-between mb-6">
+          <TabsList className="w-auto">
+            <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
+            <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
+            <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
+            <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
+          </TabsList>
+          
+          {currentDashboardTab === 'expenses' && (
+            <ExpenseDateFilter 
+              onDateRangeChange={handleDateRangeChange}
+              onExport={handleExport}
+            />
+          )}
+        </div>
+        
+        <TabsContent value="overview" className="space-y-6">
+          <StatCardSection 
+            totalSales={dashboardStats.totalSales}
+            salesChange={dashboardStats.salesChange}
+            activeSessionsCount={dashboardStats.activeSessionsCount}
+            totalStations={stations.length}
+            customersCount={customers.length}
+            newMembersCount={dashboardStats.newMembersCount}
+            lowStockCount={dashboardStats.lowStockCount}
+            lowStockItems={dashboardStats.lowStockItems}
+          />
+          
+          <ActionButtonSection />
+          
+          <SalesChart 
+            data={chartData}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+          />
+          
+          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+            <ActiveSessions />
+            <RecentTransactions bills={bills} customers={customers} />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+            <CustomerSpendingCorrelation />
+            <HourlyRevenueDistribution />
           </div>
           
-          <TabsContent value="overview" className="space-y-6">
-            <StatCardSection 
-              totalSales={dashboardStats.totalSales}
-              salesChange={dashboardStats.salesChange}
-              activeSessionsCount={dashboardStats.activeSessionsCount}
-              totalStations={stations.length}
-              customersCount={customers.length}
-              newMembersCount={dashboardStats.newMembersCount}
-              lowStockCount={dashboardStats.lowStockCount}
-              lowStockItems={dashboardStats.lowStockItems}
-            />
-            
-            <ActionButtonSection />
-            
-            <SalesChart 
-              data={chartData}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-            />
-            
-            <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-              <ActiveSessions />
-              <RecentTransactions bills={bills} customers={customers} />
-            </div>
-          </TabsContent>
+          <ProductPerformance />
           
-          <TabsContent value="analytics" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-              <CustomerSpendingCorrelation />
-              <HourlyRevenueDistribution />
-            </div>
-            
-            <ProductPerformance />
-            
-            <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-              <CustomerActivityChart />
-              <ProductInventoryChart />
-            </div>
-          </TabsContent>
+          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+            <CustomerActivityChart />
+            <ProductInventoryChart />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="expenses" className="space-y-6">
+          <BusinessSummarySection 
+            filteredExpenses={filteredExpenses}
+            dateRange={dateRange}
+          />
           
-          <TabsContent value="expenses" className="space-y-6">
-            <BusinessSummarySection 
-              filteredExpenses={filteredExpenses}
-              dateRange={dateRange}
+          {dateRange ? (
+            <FilteredExpenseList 
+              startDate={dateRange.start}
+              endDate={dateRange.end}
             />
-            
-            {dateRange ? (
-              <FilteredExpenseList 
-                startDate={dateRange.start}
-                endDate={dateRange.end}
-              />
-            ) : (
-              <ExpenseList />
-            )}
-          </TabsContent>
-          
-          <TabsContent value="cash" className="space-y-6">
-            <CashManagement />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </MobileLayout>
+          ) : (
+            <ExpenseList />
+          )}
+        </TabsContent>
+        
+        <TabsContent value="cash" className="space-y-6">
+          <CashManagement />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
 

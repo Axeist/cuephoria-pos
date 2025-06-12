@@ -17,7 +17,6 @@ import ProductSalesWidget from '@/components/product/ProductSalesWidget';
 import ProductProfitWidget from '@/components/product/ProductProfitWidget';
 import ProductSalesExport from '@/components/product/ProductSalesExport';
 import StockExport from '@/components/product/StockExport';
-import { MobileLayout } from '@/components/mobile/MobileLayout';
 import {
   Sheet,
   SheetContent,
@@ -202,39 +201,40 @@ const ProductsPage: React.FC = () => {
     console.log('Products component rendered with', products.length, 'products');
   }, [products]);
 
-  const headerActions = (
-    <div className="flex flex-wrap gap-2">
-      <ProductSalesExport />
-      <StockExport />
-      
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" /> 
-            Categories
-          </Button>
-        </SheetTrigger>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Category Management</SheetTitle>
-            <SheetDescription>
-              Add, edit, or remove product categories.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6">
-            <CategoryManagement />
-          </div>
-        </SheetContent>
-      </Sheet>
-      
-      <Button onClick={handleOpenDialog} size="sm">
-        <Plus className="h-4 w-4 mr-2" /> Add Product
-      </Button>
-    </div>
-  );
-
   return (
-    <MobileLayout title="Products" headerActions={headerActions}>
+    <div className="container mx-auto px-4 py-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+        <h2 className="text-3xl font-bold tracking-tight">Products</h2>
+        <div className="flex flex-wrap gap-2">
+          <ProductSalesExport />
+          <StockExport />
+          
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="h-10">
+                <Settings className="h-4 w-4 mr-2" /> 
+                Categories
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Category Management</SheetTitle>
+                <SheetDescription>
+                  Add, edit, or remove product categories.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6">
+                <CategoryManagement />
+              </div>
+            </SheetContent>
+          </Sheet>
+          
+          <Button onClick={handleOpenDialog} className="h-10">
+            <Plus className="h-4 w-4 mr-2" /> Add Product
+          </Button>
+        </div>
+      </div>
+
       <ProductDialog
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
@@ -283,7 +283,7 @@ const ProductsPage: React.FC = () => {
           onAddProduct={handleOpenDialog}
         />
       </div>
-    </MobileLayout>
+    </div>
   );
 };
 
