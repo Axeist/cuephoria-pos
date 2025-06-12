@@ -10,6 +10,7 @@ import { ExpenseProvider } from "@/context/ExpenseContext";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Pages
 import Login from "./pages/Login";
@@ -49,6 +50,7 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
+  const isMobile = useIsMobile();
   
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
@@ -66,15 +68,27 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
     return <Navigate to="/dashboard" replace />;
   }
   
+  // Mobile layout - no sidebar, use mobile-specific layout
+  if (isMobile) {
+    return (
+      <div className="min-h-screen w-full overflow-x-hidden bg-background">
+        {children}
+      </div>
+    );
+  }
+  
+  // Desktop layout - with sidebar
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full overflow-x-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-x-hidden">
-          <div className="hidden md:block">
+          <div className="hidden md:block p-2">
             <SidebarTrigger />
           </div>
-          {children}
+          <div className="flex-1">
+            {children}
+          </div>
         </div>
       </div>
     </SidebarProvider>
