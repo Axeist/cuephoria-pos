@@ -392,10 +392,9 @@ const Dashboard = () => {
   return (
     <MobileLayout 
       title="Dashboard"
-      className="bg-[#1A1F2C] text-white"
       noPadding={true}
     >
-      <div className="flex-1 space-y-6 p-6">
+      <div className="min-h-screen bg-[#1A1F2C] text-white p-6">
         <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
           <div className="flex flex-col gap-4">
             {/* Tabs Navigation */}
