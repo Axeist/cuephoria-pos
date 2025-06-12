@@ -27,6 +27,17 @@ export function MobileLayout({
   if (!isMobile) {
     return (
       <div className={cn("container mx-auto", !noPadding && "px-4 py-6", className)}>
+        {/* Desktop Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold gradient-text font-heading">
+            {title}
+          </h1>
+          {headerActions && (
+            <div className="flex items-center gap-2">
+              {headerActions}
+            </div>
+          )}
+        </div>
         {children}
       </div>
     )
