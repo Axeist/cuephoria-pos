@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
@@ -20,6 +19,7 @@ import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import CashManagement from '@/components/cash/CashManagement';
 import { MobileLayout } from '@/components/mobile/MobileLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIsMobile } from '@/hooks/use-mobile';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +28,7 @@ const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
   const { expenses, businessSummary } = useExpenses();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   const [activeTab, setActiveTab] = useState('daily');
   const [chartData, setChartData] = useState([]);
@@ -396,23 +397,39 @@ const Dashboard = () => {
     >
       <div className="flex-1 space-y-6 p-6">
         <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
-          <div className="flex items-center justify-between mb-6">
-            <TabsList className="w-auto">
-              <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-              <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-              <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
-              <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
-            </TabsList>
-            
-            {currentDashboardTab === 'expenses' && (
-              <ExpenseDateFilter 
-                onDateRangeChange={handleDateRangeChange}
-                onExport={handleExport}
-              />
+          <div className="flex flex-col gap-4">
+            {/* Tabs Navigation */}
+            <div className={`flex items-center ${!isMobile ? 'justify-between' : 'justify-center'}`}>
+              <TabsList className={`${isMobile ? 'w-full grid grid-cols-4' : 'w-auto'}`}>
+                <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
+                <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
+                <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
+                <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
+              </TabsList>
+              
+              {/* Desktop Date Filter */}
+              {currentDashboardTab === 'expenses' && !isMobile && (
+                <ExpenseDateFilter 
+                  onDateRangeChange={handleDateRangeChange}
+                  onExport={handleExport}
+                />
+              )}
+            </div>
+
+            {/* Mobile Date Filter - Below tabs */}
+            {currentDashboardTab === 'expenses' && isMobile && (
+              <div className="w-full overflow-x-auto">
+                <div className="min-w-fit px-2">
+                  <ExpenseDateFilter 
+                    onDateRangeChange={handleDateRangeChange}
+                    onExport={handleExport}
+                  />
+                </div>
+              </div>
             )}
           </div>
           
-          <TabsContent value="overview" className="space-y-6">
+          <TabsContent value="overview" className="space-y-6 mt-6">
             <StatCardSection 
               totalSales={dashboardStats.totalSales}
               salesChange={dashboardStats.salesChange}
@@ -438,7 +455,7 @@ const Dashboard = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="analytics" className="space-y-6">
+          <TabsContent value="analytics" className="space-y-6 mt-6">
             <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
               <CustomerSpendingCorrelation />
               <HourlyRevenueDistribution />
@@ -452,7 +469,7 @@ const Dashboard = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="expenses" className="space-y-6">
+          <TabsContent value="expenses" className="space-y-6 mt-6">
             <BusinessSummarySection 
               filteredExpenses={filteredExpenses}
               dateRange={dateRange}
@@ -468,7 +485,7 @@ const Dashboard = () => {
             )}
           </TabsContent>
           
-          <TabsContent value="cash" className="space-y-6">
+          <TabsContent value="cash" className="space-y-6 mt-6">
             <CashManagement />
           </TabsContent>
         </Tabs>
