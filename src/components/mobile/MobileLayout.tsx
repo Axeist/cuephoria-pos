@@ -1,3 +1,4 @@
+
 import React from 'react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { MobileHeader } from './MobileHeader'
@@ -46,11 +47,10 @@ export function MobileLayout({
     <div className="flex flex-col min-h-screen bg-background">
       <MobileHeader 
         title={title} 
-        actions={headerActions}
         showUser={showUser}
       />
       
-      <main className={cn(
+      main className={cn(
         "flex-1 pb-20", // Space for bottom nav
         !noPadding && "px-4 py-4",
         className
