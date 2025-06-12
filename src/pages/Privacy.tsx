@@ -1,94 +1,12 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Logo from '@/components/Logo';
-import { MobileLayout } from '@/components/mobile/MobileLayout';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 const Privacy: React.FC = () => {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  
-  if (isMobile) {
-    return (
-      <MobileLayout 
-        title="Privacy Policy"
-        showUser={false}
-        headerActions={
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => navigate('/')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        }
-      >
-        <div className="space-y-8 text-sm">
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">1. Information We Collect</h2>
-            <p className="text-muted-foreground">
-              Cuephoria may collect personal information including but not limited to name, contact details, 
-              and payment information when you register or book our services.
-            </p>
-            <p className="text-muted-foreground">
-              We also collect usage data such as gaming preferences, session duration, and purchase history 
-              to improve our services and customize your experience.
-            </p>
-          </section>
-          
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">2. How We Use Your Information</h2>
-            <p className="text-muted-foreground">
-              We use collected information to:
-            </p>
-            <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-              <li>Process bookings and payments</li>
-              <li>Personalize your gaming experience</li>
-              <li>Communicate regarding services and promotions</li>
-              <li>Improve our facilities and offerings</li>
-              <li>Maintain security and prevent fraud</li>
-            </ul>
-          </section>
-          
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">3. Information Sharing</h2>
-            <p className="text-muted-foreground">
-              We do not sell or rent your personal information to third parties. We may share information with:
-            </p>
-            <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-              <li>Service providers who assist in our operations</li>
-              <li>Legal authorities when required by law</li>
-              <li>Business partners with your explicit consent</li>
-            </ul>
-          </section>
-          
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">4. Your Rights</h2>
-            <p className="text-muted-foreground">
-              You have the right to:
-            </p>
-            <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-              <li>Access your personal information</li>
-              <li>Request correction of inaccurate information</li>
-              <li>Request deletion of your information</li>
-              <li>Opt-out of marketing communications</li>
-              <li>Lodge a complaint with relevant authorities</li>
-            </ul>
-          </section>
-          
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">5. Changes to Privacy Policy</h2>
-            <p className="text-muted-foreground">
-              Cuephoria reserves the right to update this privacy policy at any time. Changes will be posted on our website, 
-              and your continued use of our services after such modifications constitutes acceptance of the updated policy.
-            </p>
-          </section>
-        </div>
-      </MobileLayout>
-    );
-  }
   
   return (
     <div className="min-h-screen bg-cuephoria-dark text-white flex flex-col">

@@ -1,9 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { ResponsiveTabs, ResponsiveTabsList, ResponsiveTabsTrigger, ResponsiveTabsContent } from '@/components/ui/responsive-tabs';
-import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
-import { ResponsiveCard } from '@/components/ui/responsive-card';
-import { ResponsiveGrid } from '@/components/ui/responsive-grid';
-import { MobileLayout } from '@/components/mobile/MobileLayout';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -237,87 +234,101 @@ const POS = () => {
   const total = calculateTotal();
 
   return (
-    <MobileLayout 
-      title="Point of Sale"
-      noPadding={true}
-      className="min-h-screen"
-    >
-      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6 h-full">
+    <div className="flex-1 p-8 pt-6">
+      <div className="flex items-center justify-between mb-6 animate-slide-down">
+        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Cart Section */}
-        <ResponsiveCard 
-          className="lg:col-span-1 flex flex-col order-2 lg:order-1"
-          title="Cart"
-          description={`${cart.length} ${cart.length === 1 ? 'item' : 'items'} in cart`}
-          headerClassName="bg-gradient-to-r from-cuephoria-purple/20 to-transparent"
-        >
-          <div className="flex-grow overflow-auto space-y-3">
+        <Card className="lg:col-span-1 h-[calc(100vh-12rem)] flex flex-col animate-slide-up">
+          <CardHeader className="pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl font-heading">
+                <ShoppingCart className="h-5 w-5 inline-block mr-2 text-cuephoria-lightpurple" />
+                Cart
+              </CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={clearCart}
+                className="hover:text-red-500 transition-colors"
+              >
+                Clear
+              </Button>
+            </div>
+            <CardDescription>
+              {cart.length} {cart.length === 1 ? 'item' : 'items'} in cart
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow overflow-auto px-6">
             {cart.length > 0 ? (
-              cart.map((item, index) => (
-                <div 
-                  key={item.id} 
-                  className="flex items-center justify-between border-b pb-3 animate-fade-in" 
-                  style={{animationDelay: `${index * 50}ms`}}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium font-quicksand truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground indian-rupee">
-                      {item.price.toLocaleString('en-IN')} each
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2 mx-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                    >
-                      -
-                    </Button>
-                    <span className="w-8 text-center text-sm">{item.quantity}</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                    >
-                      +
-                    </Button>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-destructive hover:bg-red-500/10"
-                      onClick={() => handleRemoveItem(item.id)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                    <div className="indian-rupee font-mono text-sm">
-                      {item.total.toLocaleString('en-IN')}
+              <div className="space-y-4">
+                {cart.map((item, index) => (
+                  <div 
+                    key={item.id} 
+                    className={`flex items-center justify-between border-b pb-3 animate-fade-in grid grid-cols-[2fr_1fr_1fr] gap-2`} 
+                    style={{animationDelay: `${index * 50}ms`}}
+                  >
+                    <div className="flex flex-col justify-center">
+                      <p className="font-medium font-quicksand truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground indian-rupee">
+                        {item.price.toLocaleString('en-IN')} each
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                      >
+                        -
+                      </Button>
+                      <span className="w-8 text-center">{item.quantity}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:bg-red-500/10 self-end"
+                        onClick={() => handleRemoveItem(item.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                      <div className="indian-rupee font-mono text-right">
+                        {item.total.toLocaleString('en-IN')}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-32 animate-fade-in">
-                <ShoppingCart className="h-8 w-8 text-muted-foreground mb-2 animate-pulse-soft" />
-                <h3 className="text-lg font-medium font-heading">Cart Empty</h3>
-                <p className="text-muted-foreground text-sm text-center">
-                  Add products to begin
+              <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                <ShoppingCart className="h-12 w-12 text-muted-foreground mb-4 animate-pulse-soft" />
+                <h3 className="text-xl font-medium font-heading">Cart Empty</h3>
+                <p className="text-muted-foreground mt-2 text-center">
+                  Add products to the cart to begin
                 </p>
               </div>
             )}
-          </div>
-
-          {/* Cart Footer */}
-          <div className="border-t pt-4 mt-4 space-y-3">
-            <div className="space-y-1">
-              <div className="flex justify-between text-sm">
+          </CardContent>
+          <CardFooter className="border-t pt-4 flex flex-col bg-gradient-to-r from-transparent to-cuephoria-purple/10">
+            <div className="w-full">
+              <div className="flex justify-between py-1">
                 <span>Subtotal</span>
                 <CurrencyDisplay amount={subtotal} />
               </div>
               {discount > 0 && (
-                <div className="flex justify-between text-sm text-cuephoria-purple">
+                <div className="flex justify-between py-1 text-cuephoria-purple">
                   <span>
                     Discount {discountType === 'percentage' ? `(${discount}%)` : ''}
                   </span>
@@ -325,139 +336,155 @@ const POS = () => {
                 </div>
               )}
               {loyaltyPointsUsed > 0 && (
-                <div className="flex justify-between text-sm text-cuephoria-orange">
+                <div className="flex justify-between py-1 text-cuephoria-orange">
                   <span>Loyalty Points Used</span>
                   <CurrencyDisplay amount={loyaltyPointsUsed} className="text-cuephoria-orange" />
                 </div>
               )}
-              <div className="flex justify-between font-bold border-t pt-2">
+              <div className="flex justify-between py-1 text-lg font-bold border-t mt-2 pt-2">
                 <span>Total</span>
                 <CurrencyDisplay amount={total} className="text-cuephoria-lightpurple" />
               </div>
             </div>
             
-            <div className="space-y-2">
-              <Button
-                variant={selectedCustomer ? "outline" : "default"}
-                className="w-full"
-                onClick={() => setIsCustomerDialogOpen(true)}
-              >
-                <User className="h-4 w-4 mr-2" />
-                {selectedCustomer ? selectedCustomer.name : 'Select Customer'}
-              </Button>
+            <div className="flex flex-col space-y-3 w-full mt-4">
+              <div className="flex space-x-2">
+                <Button
+                  variant={selectedCustomer ? "outline" : "default"}
+                  className={`flex-1 btn-hover-effect ${selectedCustomer ? "" : "bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"}`}
+                  onClick={() => setIsCustomerDialogOpen(true)}
+                >
+                  {selectedCustomer ? (
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 mr-2" />
+                      {selectedCustomer.name}
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 mr-2" />
+                      Select Customer
+                    </div>
+                  )}
+                </Button>
+              </div>
               <Button 
                 variant="default" 
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 animate-pulse-soft"
                 disabled={cart.length === 0 || !selectedCustomer}
                 onClick={() => setIsCheckoutDialogOpen(true)}
               >
                 <ReceiptIcon className="mr-2 h-4 w-4" />
                 Checkout
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={clearCart}
-                className="w-full text-muted-foreground hover:text-red-500"
-              >
-                Clear Cart
-              </Button>
             </div>
-          </div>
-        </ResponsiveCard>
+          </CardFooter>
+        </Card>
 
-        {/* Products Section */}
-        <ResponsiveCard 
-          className="lg:col-span-2 flex flex-col order-1 lg:order-2"
-          title="Products"
-          headerClassName="bg-gradient-to-r from-transparent to-cuephoria-blue/10"
-        >
-          {/* Search Bar */}
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search products..."
-                className="pl-8 font-quicksand"
-                value={productSearchQuery}
-                onChange={(e) => setProductSearchQuery(e.target.value)}
-              />
+        {/* Products Section - Improved Layout */}
+        <Card className="lg:col-span-2 h-[calc(100vh-12rem)] flex flex-col animate-slide-up delay-200">
+          <CardHeader className="pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0">
+            <CardTitle className="text-xl font-heading">Products</CardTitle>
+            <div className="flex space-x-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search products..."
+                  className="pl-8 font-quicksand"
+                  value={productSearchQuery}
+                  onChange={(e) => setProductSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
+          </CardHeader>
 
-          {/* Responsive Tabs */}
-          <ResponsiveTabs
-            defaultValue="all"
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="flex flex-col flex-grow min-h-0"
-          >
-            <ResponsiveTabsList className="mb-4">
-              <ResponsiveTabsTrigger value="all">
-                All ({categoryCounts.all || 0})
-              </ResponsiveTabsTrigger>
-              <ResponsiveTabsTrigger value="food">
-                Food ({categoryCounts.food || 0})
-              </ResponsiveTabsTrigger>
-              <ResponsiveTabsTrigger value="drinks">
-                Drinks ({categoryCounts.drinks || 0})
-              </ResponsiveTabsTrigger>
-              <ResponsiveTabsTrigger value="tobacco">
-                Tobacco ({categoryCounts.tobacco || 0})
-              </ResponsiveTabsTrigger>
-              <ResponsiveTabsTrigger value="challenges">
-                Challenges ({categoryCounts.challenges || 0})
-              </ResponsiveTabsTrigger>
-              <ResponsiveTabsTrigger value="membership">
-                <Award className="h-3 w-3 mr-1" />
-                Membership ({categoryCounts.membership || 0})
-              </ResponsiveTabsTrigger>
-            </ResponsiveTabsList>
-
-            <ResponsiveTabsContent
+          <div className="flex flex-col flex-grow min-h-0">
+            <Tabs
+              defaultValue="all"
               value={activeTab}
-              className="flex-grow min-h-0 overflow-auto"
+              onValueChange={setActiveTab}
+              className="flex flex-col flex-grow min-h-0 animate-scale-in"
             >
-              {searchedProducts.length > 0 ? (
-                <ResponsiveGrid 
-                  cols={{ mobile: 1, tablet: 2, desktop: 3 }}
-                  gap={{ mobile: 3, tablet: 4, desktop: 4 }}
-                >
-                  {searchedProducts.map((product, index) => (
-                    <div
-                      key={product.id}
-                      className="animate-scale-in"
-                      style={{ animationDelay: `${(index % 8) * 50}ms` }}
-                    >
-                      <ProductCard 
-                        product={product} 
-                        className="h-full"
-                      />
-                    </div>
-                  ))}
-                </ResponsiveGrid>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-                  <h3 className="text-lg font-medium font-heading">No Products Found</h3>
-                  <p className="text-muted-foreground text-sm text-center">
-                    Try a different search or category
-                  </p>
-                </div>
-              )}
-            </ResponsiveTabsContent>
-          </ResponsiveTabs>
-        </ResponsiveCard>
+              <div className="px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
+                <TabsList className="grid w-full grid-cols-6 gap-1 mb-4 h-auto p-1">
+                  <TabsTrigger
+                    value="all"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white"
+                  >
+                    All ({categoryCounts.all || 0})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="food"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white"
+                  >
+                    Food ({categoryCounts.food || 0})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="drinks"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white"
+                  >
+                    Drinks ({categoryCounts.drinks || 0})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="tobacco"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-red-500 data-[state=active]:text-white"
+                  >
+                    Tobacco ({categoryCounts.tobacco || 0})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="challenges"
+                    className="text-xs px-2 py-2 data-[state=active]:bg-green-500 data-[state=active]:text-white"
+                  >
+                    Challenges ({categoryCounts.challenges || 0})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="membership"
+                    className="text-xs px-1 py-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white flex items-center gap-1"
+                  >
+                    <Award className="h-3 w-3" />
+                    Membership ({categoryCounts.membership || 0})
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <TabsContent
+                value={activeTab}
+                className="flex-grow min-h-0 m-0 p-6 overflow-auto"
+              >
+                {searchedProducts.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
+                    {searchedProducts.map((product, index) => (
+                      <div
+                        key={product.id}
+                        className="animate-scale-in"
+                        style={{ animationDelay: `${(index % 8) * 50}ms` }}
+                      >
+                        <ProductCard 
+                          product={product} 
+                          className="h-full flex flex-col"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                    <h3 className="text-xl font-medium font-heading">No Products Found</h3>
+                    <p className="text-muted-foreground mt-2">
+                      Try a different search or category
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        </Card>
       </div>
 
-      {/* Customer Selection Dialog */}
-      <ResponsiveDialog 
-        isOpen={isCustomerDialogOpen} 
-        onOpenChange={setIsCustomerDialogOpen}
-        title="Select Customer"
-        className="max-w-3xl"
-      >
-        <div className="space-y-4">
-          <div className="relative">
+      <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
+        <DialogContent className="max-w-3xl animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Select Customer</DialogTitle>
+          </DialogHeader>
+          <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search customers..."
@@ -469,14 +496,11 @@ const POS = () => {
           
           <div className="max-h-[60vh] overflow-auto">
             {filteredCustomers.length > 0 ? (
-              <ResponsiveGrid 
-                cols={{ mobile: 1, tablet: 2, desktop: 2 }}
-                gap={{ mobile: 3, tablet: 4, desktop: 4 }}
-              >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredCustomers.map((customer, index) => (
                   <div 
                     key={customer.id} 
-                    className="animate-scale-in" 
+                    className={`animate-scale-in delay-${index % 6}`} 
                     style={{animationDelay: `${(index % 6) * 100}ms`}}
                   >
                     <CustomerCard
@@ -486,173 +510,171 @@ const POS = () => {
                     />
                   </div>
                 ))}
-              </ResponsiveGrid>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8">
                 <User className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium font-heading">No Customers Found</h3>
-                <p className="text-muted-foreground text-sm text-center">
+                <h3 className="text-xl font-medium font-heading">No Customers Found</h3>
+                <p className="text-muted-foreground mt-2">
                   Try a different search or add a new customer
                 </p>
               </div>
             )}
           </div>
-        </div>
-      </ResponsiveDialog>
+        </DialogContent>
+      </Dialog>
 
-      {/* Checkout Dialog */}
-      <ResponsiveDialog 
-        isOpen={isCheckoutDialogOpen} 
-        onOpenChange={setIsCheckoutDialogOpen}
-        title="Complete Transaction"
-        className="max-w-md"
-      >
-        <div className="space-y-4">
-          {/* ... keep existing code for checkout dialog content */}
-          {selectedCustomer && (
-            <div className="border rounded-md p-3 bg-gradient-to-r from-cuephoria-purple/10 to-transparent animate-fade-in">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="font-medium flex items-center">
-                    <User className="h-4 w-4 mr-2 text-cuephoria-lightpurple" /> {selectedCustomer.name}
+      <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
+        <DialogContent className="max-w-md animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Complete Transaction</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            {selectedCustomer && (
+              <div className="border rounded-md p-3 bg-gradient-to-r from-cuephoria-purple/10 to-transparent animate-fade-in">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="font-medium flex items-center">
+                      <User className="h-4 w-4 mr-2 text-cuephoria-lightpurple" /> {selectedCustomer.name}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{selectedCustomer.phone}</div>
                   </div>
-                  <div className="text-sm text-muted-foreground">{selectedCustomer.phone}</div>
+                  {selectedCustomer.isMember && (
+                    <div className="bg-cuephoria-purple text-white text-xs px-2 py-1 rounded">
+                      Member
+                    </div>
+                  )}
                 </div>
-                {selectedCustomer.isMember && (
-                  <div className="bg-cuephoria-purple text-white text-xs px-2 py-1 rounded">
-                    Member
-                  </div>
-                )}
+                <div className="mt-2 text-sm">
+                  Available Points: <span className="font-semibold">{selectedCustomer.loyaltyPoints}</span>
+                </div>
               </div>
-              <div className="mt-2 text-sm">
-                Available Points: <span className="font-semibold">{selectedCustomer.loyaltyPoints}</span>
-              </div>
-            </div>
-          )}
-          
-          <div className="space-y-3 animate-slide-up delay-100">
-            <h4 className="font-medium font-heading">Apply Discount</h4>
-            <div className="flex space-x-2">
-              <div className="flex-1">
-                <Input
-                  type="number"
-                  value={customDiscountAmount}
-                  onChange={(e) => setCustomDiscountAmount(e.target.value)}
-                  placeholder="Discount amount"
-                  className="font-quicksand"
-                />
-              </div>
-              <select
-                className="px-3 py-2 rounded-md border border-input bg-background font-quicksand"
-                value={customDiscountType}
-                onChange={(e) => setCustomDiscountType(e.target.value as 'percentage' | 'fixed')}
-              >
-                <option value="percentage">%</option>
-                <option value="fixed">₹</option>
-              </select>
-              <Button 
-                onClick={handleApplyDiscount}
-                className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
-              >
-                Apply
-              </Button>
-            </div>
-          </div>
-          
-          {selectedCustomer && selectedCustomer.loyaltyPoints > 0 && (
-            <div className="space-y-3 animate-slide-up delay-200">
-              <h4 className="font-medium font-heading">Use Loyalty Points</h4>
+            )}
+            
+            <div className="space-y-3 animate-slide-up delay-100">
+              <h4 className="font-medium font-heading">Apply Discount</h4>
               <div className="flex space-x-2">
-                <Input
-                  type="number"
-                  value={customLoyaltyPoints}
-                  onChange={(e) => setCustomLoyaltyPoints(e.target.value)}
-                  placeholder="Points to use"
-                  className="font-quicksand"
-                />
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    value={customDiscountAmount}
+                    onChange={(e) => setCustomDiscountAmount(e.target.value)}
+                    placeholder="Discount amount"
+                    className="font-quicksand"
+                  />
+                </div>
+                <select
+                  className="px-3 py-2 rounded-md border border-input bg-background font-quicksand"
+                  value={customDiscountType}
+                  onChange={(e) => setCustomDiscountType(e.target.value as 'percentage' | 'fixed')}
+                >
+                  <option value="percentage">%</option>
+                  <option value="fixed">₹</option>
+                </select>
                 <Button 
-                  onClick={handleApplyLoyaltyPoints}
-                  className="bg-cuephoria-orange hover:bg-cuephoria-orange/80"
+                  onClick={handleApplyDiscount}
+                  className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
                 >
                   Apply
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Customer has {selectedCustomer.loyaltyPoints} points (₹1 per point)
-              </p>
             </div>
-          )}
-          
-          <div className="border-t pt-4 mt-2 animate-slide-up delay-300">
-            <div className="flex justify-between py-1">
-              <span>Subtotal</span>
-              <CurrencyDisplay amount={subtotal} />
-            </div>
-            {discount > 0 && (
-              <div className="flex justify-between py-1 text-cuephoria-purple">
-                <span>
-                  Discount {discountType === 'percentage' ? `(${discount}%)` : ''}
-                </span>
-                <CurrencyDisplay amount={discountValue} className="text-cuephoria-purple" />
+            
+            {selectedCustomer && selectedCustomer.loyaltyPoints > 0 && (
+              <div className="space-y-3 animate-slide-up delay-200">
+                <h4 className="font-medium font-heading">Use Loyalty Points</h4>
+                <div className="flex space-x-2">
+                  <Input
+                    type="number"
+                    value={customLoyaltyPoints}
+                    onChange={(e) => setCustomLoyaltyPoints(e.target.value)}
+                    placeholder="Points to use"
+                    className="font-quicksand"
+                  />
+                  <Button 
+                    onClick={handleApplyLoyaltyPoints}
+                    className="bg-cuephoria-orange hover:bg-cuephoria-orange/80"
+                  >
+                    Apply
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Customer has {selectedCustomer.loyaltyPoints} points (₹1 per point)
+                </p>
               </div>
             )}
-            {loyaltyPointsUsed > 0 && (
-              <div className="flex justify-between py-1 text-cuephoria-orange">
-                <span>Loyalty Points Used</span>
-                <CurrencyDisplay amount={loyaltyPointsUsed} className="text-cuephoria-orange" />
+            
+            <div className="border-t pt-4 mt-2 animate-slide-up delay-300">
+              <div className="flex justify-between py-1">
+                <span>Subtotal</span>
+                <CurrencyDisplay amount={subtotal} />
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between py-1 text-cuephoria-purple">
+                  <span>
+                    Discount {discountType === 'percentage' ? `(${discount}%)` : ''}
+                  </span>
+                  <CurrencyDisplay amount={discountValue} className="text-cuephoria-purple" />
+                </div>
+              )}
+              {loyaltyPointsUsed > 0 && (
+                <div className="flex justify-between py-1 text-cuephoria-orange">
+                  <span>Loyalty Points Used</span>
+                  <CurrencyDisplay amount={loyaltyPointsUsed} className="text-cuephoria-orange" />
+                </div>
+              )}
+              <div className="flex justify-between py-1 text-lg font-bold border-t mt-2 pt-2">
+                <span>Total</span>
+                <CurrencyDisplay amount={total} className="text-cuephoria-lightpurple" />
+              </div>
+            </div>
+            
+            <div className="space-y-3 animate-slide-up delay-400">
+              <h4 className="font-medium font-heading">Payment Method</h4>
+              <RadioGroup
+                value={paymentMethod}
+                onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split')}
+                className="flex space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="cash" id="cash" />
+                  <Label htmlFor="cash" className="font-quicksand">Cash</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="upi" id="upi" />
+                  <Label htmlFor="upi" className="font-quicksand">UPI</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="split" id="split" />
+                  <Label htmlFor="split" className="font-quicksand">Split</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Split payment form */}
+            {paymentMethod === 'split' && (
+              <div className="mt-4 animate-slide-up delay-500">
+                <SplitPaymentForm 
+                  total={total} 
+                  onSplitChange={setIsSplitPayment}
+                  onAmountChange={(cash, upi) => updateSplitAmounts(cash, upi)}
+                />
               </div>
             )}
-            <div className="flex justify-between py-1 text-lg font-bold border-t mt-2 pt-2">
-              <span>Total</span>
-              <CurrencyDisplay amount={total} className="text-cuephoria-lightpurple" />
-            </div>
           </div>
           
-          <div className="space-y-3 animate-slide-up delay-400">
-            <h4 className="font-medium font-heading">Payment Method</h4>
-            <RadioGroup
-              value={paymentMethod}
-              onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split')}
-              className="flex space-x-4"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="cash" id="cash" />
-                <Label htmlFor="cash" className="font-quicksand">Cash</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="upi" id="upi" />
-                <Label htmlFor="upi" className="font-quicksand">UPI</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="split" id="split" />
-                <Label htmlFor="split" className="font-quicksand">Split</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Split payment form */}
-          {paymentMethod === 'split' && (
-            <div className="mt-4 animate-slide-up delay-500">
-              <SplitPaymentForm 
-                total={total} 
-                onSplitChange={setIsSplitPayment}
-                onAmountChange={(cash, upi) => updateSplitAmounts(cash, upi)}
-              />
-            </div>
-          )}
-
-          <div className="flex gap-2 pt-4">
-            <Button variant="outline" onClick={() => setIsCheckoutDialogOpen(false)} className="flex-1">
+          <DialogFooter className="animate-slide-up delay-500">
+            <Button variant="outline" onClick={() => setIsCheckoutDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCompleteSale} className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90">
-              Complete (<CurrencyDisplay amount={total} />)
+            <Button onClick={handleCompleteSale} className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90">
+              Complete Sale (<CurrencyDisplay amount={total} />)
             </Button>
-          </div>
-        </div>
-      </ResponsiveDialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Success Dialog */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent className="max-w-md animate-scale-in text-center">
           <div className="flex flex-col items-center justify-center py-6">
@@ -683,7 +705,6 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Receipt */}
       {showReceipt && lastCompletedBill && selectedCustomer && (
         <Receipt 
           bill={lastCompletedBill} 
@@ -691,7 +712,7 @@ const POS = () => {
           onClose={() => setShowReceipt(false)} 
         />
       )}
-    </MobileLayout>
+    </div>
   );
 };
 

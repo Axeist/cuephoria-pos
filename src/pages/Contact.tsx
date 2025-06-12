@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,93 +8,9 @@ import {
   Card, 
   CardContent,
 } from '@/components/ui/card';
-import { MobileLayout } from '@/components/mobile/MobileLayout';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 const Contact: React.FC = () => {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  
-  if (isMobile) {
-    return (
-      <MobileLayout 
-        title="Contact Us"
-        showUser={false}
-        headerActions={
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => navigate('/')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        }
-      >
-        <div className="space-y-4">
-          <Card className="bg-card border">
-            <CardContent className="p-4 flex items-center space-x-4">
-              <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
-                <Phone className="h-5 w-5 text-cuephoria-purple" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold">Phone</h3>
-                <a href="tel:+918637625155" className="text-sm text-muted-foreground">
-                  +91 86376 25155
-                </a>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-card border">
-            <CardContent className="p-4 flex items-center space-x-4">
-              <div className="h-10 w-10 rounded-full bg-cuephoria-blue/20 flex items-center justify-center">
-                <Mail className="h-5 w-5 text-cuephoria-blue" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold">Email</h3>
-                <a href="mailto:contact@cuephoria.in" className="text-sm text-muted-foreground">
-                  contact@cuephoria.in
-                </a>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-card border">
-            <CardContent className="p-4 flex items-center space-x-4">
-              <div className="h-10 w-10 rounded-full bg-cuephoria-orange/20 flex items-center justify-center">
-                <Clock className="h-5 w-5 text-cuephoria-orange" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold">Business Hours</h3>
-                <p className="text-sm text-muted-foreground">11:00 AM - 11:00 PM</p>
-                <p className="text-xs text-muted-foreground">Every day</p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-card border">
-            <CardContent className="p-4 flex items-center space-x-4">
-              <div className="h-10 w-10 rounded-full bg-cuephoria-green/20 flex items-center justify-center">
-                <MapPin className="h-5 w-5 text-cuephoria-green" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold">Visit Us</h3>
-                <p className="text-sm text-muted-foreground">Cuephoria Gaming Lounge</p>
-                <a 
-                  href="https://maps.app.goo.gl/cuephoria" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-xs text-cuephoria-purple hover:underline"
-                >
-                  View on Google Maps
-                </a>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </MobileLayout>
-    );
-  }
   
   return (
     <div className="min-h-screen bg-cuephoria-dark text-white flex flex-col">
