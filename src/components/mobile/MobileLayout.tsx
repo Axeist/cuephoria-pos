@@ -47,6 +47,7 @@ export function MobileLayout({
     <div className="flex flex-col min-h-screen bg-background">
       <MobileHeader 
         title={title} 
+        actions={headerActions}
         showUser={showUser}
       />
       
