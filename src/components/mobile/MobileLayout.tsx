@@ -44,7 +44,7 @@ export function MobileLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background">
       <MobileHeader 
         title={title} 
         actions={headerActions}
@@ -52,7 +52,7 @@ export function MobileLayout({
       />
       
       <main className={cn(
-        "pb-20", // Space for bottom nav
+        "flex-1 pb-20", // Space for bottom nav
         !noPadding && "px-4 py-4",
         className
       )}>
