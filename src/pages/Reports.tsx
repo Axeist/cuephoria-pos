@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { format, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 import { usePOS } from '@/context/POSContext';
@@ -43,11 +44,11 @@ const Reports = () => {
       const customerMatch = selectedCustomer === 'all' || bill.customerId === selectedCustomer;
       
       const productMatch = selectedProduct === 'all' || 
-        bill.items.some(item => item.productId === selectedProduct);
+        bill.items.some(item => item.id === selectedProduct || item.productId === selectedProduct);
       
       const categoryMatch = selectedCategory === 'all' || 
         bill.items.some(item => {
-          const product = products.find(p => p.id === item.productId);
+          const product = products.find(p => p.id === (item.productId || item.id));
           return product?.category === selectedCategory;
         });
       
@@ -70,7 +71,7 @@ const Reports = () => {
     
     filteredBills.forEach(bill => {
       bill.items.forEach(item => {
-        const product = products.find(p => p.id === item.productId);
+        const product = products.find(p => p.id === (item.productId || item.id));
         if (product) {
           revenueByCategory[product.category] += item.price * item.quantity;
         }
@@ -130,15 +131,15 @@ const Reports = () => {
         'Date': format(new Date(bill.createdAt), 'yyyy-MM-dd HH:mm'),
         'Customer': customer ? customer.name : 'Unknown',
         'Items': bill.items.map(item => {
-          const product = products.find(p => p.id === item.productId);
-          return `${product?.name || 'Unknown'} (${item.quantity})`;
+          const product = products.find(p => p.id === (item.productId || item.id));
+          return `${product?.name || item.name || 'Unknown'} (${item.quantity})`;
         }).join(', '),
         'Subtotal': bill.subtotal,
-        'Tax': bill.tax,
+        'Tax': bill.tax || 0,
         'Discount': bill.discount || 0,
         'Total': bill.total,
         'Payment Method': bill.paymentMethod,
-        'Status': bill.status
+        'Status': bill.status || 'completed'
       };
     });
 
@@ -179,7 +180,7 @@ const Reports = () => {
         'Name': customer.name,
         'Email': customer.email || '',
         'Phone': customer.phone || '',
-        'Membership Type': customer.membershipType || 'None',
+        'Membership Type': customer.membershipType || customer.membershipPlan || 'None',
         'Created Date': format(new Date(customer.createdAt), 'yyyy-MM-dd'),
         'Total Spent': totalSpent,
         'Total Bills': customerBills.length,
@@ -247,6 +248,17 @@ const Reports = () => {
     setSelectedCategory('all');
   };
 
+  // Helper functions for ExpandableBillRow
+  const getCustomerName = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.name : 'Unknown';
+  };
+
+  const getCustomerPhone = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.phone : '';
+  };
+
   const headerActions = (
     <div className="flex flex-wrap gap-2">
       <Button 
@@ -276,7 +288,7 @@ const Reports = () => {
     <MobileLayout title="Reports" headerActions={headerActions}>
       <div className="space-y-6">
         {/* Sales Summary Widgets */}
-        <SalesWidgets />
+        <SalesWidgets filteredBills={filteredBills} />
 
         {/* Filters Section */}
         <Card>
@@ -325,7 +337,12 @@ const Reports = () => {
                       mode="range"
                       defaultMonth={dateRange.from}
                       selected={dateRange}
-                      onSelect={setDateRange}
+                      onSelect={(range) => {
+                        setDateRange({
+                          from: range?.from,
+                          to: range?.to
+                        });
+                      }}
                       numberOfMonths={2}
                     />
                   </PopoverContent>
@@ -514,7 +531,12 @@ const Reports = () => {
                     </div>
                   ) : (
                     filteredBills.map((bill) => (
-                      <ExpandableBillRow key={bill.id} bill={bill} customers={customers} products={products} />
+                      <ExpandableBillRow 
+                        key={bill.id} 
+                        bill={bill} 
+                        getCustomerName={getCustomerName}
+                        getCustomerPhone={getCustomerPhone}
+                      />
                     ))
                   )}
                 </div>
@@ -555,7 +577,7 @@ const Reports = () => {
                             <td className="p-2">{customer.phone || '-'}</td>
                             <td className="p-2">
                               <Badge variant="outline">
-                                {customer.membershipType || 'None'}
+                                {customer.membershipType || customer.membershipPlan || 'None'}
                               </Badge>
                             </td>
                             <td className="p-2">${totalSpent.toFixed(2)}</td>
