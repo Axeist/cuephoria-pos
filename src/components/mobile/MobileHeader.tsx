@@ -9,11 +9,10 @@ import { cn } from '@/lib/utils'
 
 interface MobileHeaderProps {
   title: string
-  actions?: React.ReactNode
   showUser?: boolean
 }
 
-export function MobileHeader({ title, actions, showUser = true }: MobileHeaderProps) {
+export function MobileHeader({ title, showUser = true }: MobileHeaderProps) {
   const { user } = useAuth()
   const isMobile = useIsMobile()
 
@@ -41,15 +40,6 @@ export function MobileHeader({ title, actions, showUser = true }: MobileHeaderPr
           )}
         </div>
       </div>
-      
-      {/* Action buttons section - only show on mobile */}
-      {actions && (
-        <div className="px-4 pb-3">
-          <div className="flex flex-wrap gap-2">
-            {actions}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
