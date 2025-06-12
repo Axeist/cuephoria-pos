@@ -50,7 +50,7 @@ export function MobileLayout({
         showUser={showUser}
       />
       
-      main className={cn(
+      <main className={cn(
         "flex-1 pb-20", // Space for bottom nav
         !noPadding && "px-4 py-4",
         className
