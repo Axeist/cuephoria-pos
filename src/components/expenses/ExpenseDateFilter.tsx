@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears } from 'date-fns';
 import { Calendar, Download } from 'lucide-react';
@@ -118,119 +117,119 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-3">
-      <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
-        <SelectTrigger className="w-48 bg-gray-800 border-gray-700 text-white">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="bg-gray-800 border-gray-700">
-          <SelectItem value="this-month" className="text-white hover:bg-gray-700">
-            This month
-          </SelectItem>
-          <SelectItem value="last-month" className="text-white hover:bg-gray-700">
-            Last month
-          </SelectItem>
-          <SelectItem value="last-3-months" className="text-white hover:bg-gray-700">
-            Last 3 months
-          </SelectItem>
-          <SelectItem value="this-year" className="text-white hover:bg-gray-700">
-            This year
-          </SelectItem>
-          <SelectItem value="last-year" className="text-white hover:bg-gray-700">
-            Last year
-          </SelectItem>
-          <SelectItem value="custom" className="text-white hover:bg-gray-700">
-            Custom range
-          </SelectItem>
-        </SelectContent>
-      </Select>
+    <div className="flex items-center justify-between w-full gap-3">
+      <div className="flex items-center gap-3 flex-1">
+        <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
+          <SelectTrigger className="w-48 bg-gray-800 border-gray-700 text-white">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-gray-800 border-gray-700">
+            <SelectItem value="this-month" className="text-white hover:bg-gray-700">
+              This month
+            </SelectItem>
+            <SelectItem value="last-month" className="text-white hover:bg-gray-700">
+              Last month
+            </SelectItem>
+            <SelectItem value="last-3-months" className="text-white hover:bg-gray-700">
+              Last 3 months
+            </SelectItem>
+            <SelectItem value="this-year" className="text-white hover:bg-gray-700">
+              This year
+            </SelectItem>
+            <SelectItem value="last-year" className="text-white hover:bg-gray-700">
+              Last year
+            </SelectItem>
+            <SelectItem value="custom" className="text-white hover:bg-gray-700">
+              Custom range
+            </SelectItem>
+          </SelectContent>
+        </Select>
 
-      {showCustomRange && (
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
-              >
-                <Calendar className="h-4 w-4 mr-2" />
-                {customStartDate ? format(customStartDate, 'dd MMM yyyy') : 'Start date'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
-              <CalendarComponent
-                mode="single"
-                selected={customStartDate}
-                onSelect={setCustomStartDate}
-                className="p-3 pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
-
-          <span className="text-gray-400">to</span>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
-              >
-                <Calendar className="h-4 w-4 mr-2" />
-                {customEndDate ? format(customEndDate, 'dd MMM yyyy') : 'End date'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
-              <CalendarComponent
-                mode="single"
-                selected={customEndDate}
-                onSelect={setCustomEndDate}
-                className="p-3 pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-      )}
-
-      {!showCustomRange && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
-            >
-              <Calendar className="h-4 w-4 mr-2" />
-              {getDateRangeLabel()}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
-            <div className="grid grid-cols-2 gap-2 p-4">
-              <div>
-                <label className="text-sm text-gray-400 mb-2 block">From</label>
+        {showCustomRange ? (
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  {customStartDate ? format(customStartDate, 'dd MMM yyyy') : 'Start date'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
                 <CalendarComponent
                   mode="single"
                   selected={customStartDate}
                   onSelect={setCustomStartDate}
                   className="p-3 pointer-events-auto"
                 />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-2 block">To</label>
+              </PopoverContent>
+            </Popover>
+
+            <span className="text-gray-400">to</span>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  {customEndDate ? format(customEndDate, 'dd MMM yyyy') : 'End date'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
                 <CalendarComponent
                   mode="single"
                   selected={customEndDate}
                   onSelect={setCustomEndDate}
                   className="p-3 pointer-events-auto"
                 />
+              </PopoverContent>
+            </Popover>
+          </div>
+        ) : (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700 flex-1 max-w-xs"
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                {getDateRangeLabel()}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
+              <div className="grid grid-cols-2 gap-2 p-4">
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">From</label>
+                  <CalendarComponent
+                    mode="single"
+                    selected={customStartDate}
+                    onSelect={setCustomStartDate}
+                    className="p-3 pointer-events-auto"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">To</label>
+                  <CalendarComponent
+                    mode="single"
+                    selected={customEndDate}
+                    onSelect={setCustomEndDate}
+                    className="p-3 pointer-events-auto"
+                  />
+                </div>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      )}
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
 
       {onExport && (
         <Button
           onClick={onExport}
-          className="bg-purple-600 hover:bg-purple-700 text-white"
+          className="bg-purple-600 hover:bg-purple-700 text-white flex-shrink-0"
         >
           <Download className="h-4 w-4 mr-2" />
           Export
