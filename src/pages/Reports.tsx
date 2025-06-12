@@ -11,13 +11,14 @@ import { MobileLayout } from '@/components/mobile/MobileLayout';
 import SalesWidgets from '@/components/reports/SalesWidgets';
 import ExpandableBillRow from '@/components/reports/ExpandableBillRow';
 import { useToast } from '@/hooks/use-toast';
+import { DateRange } from 'react-day-picker';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 const Reports = () => {
   const { bills, customers, products, sessions } = usePOS();
   const { toast } = useToast();
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date } | undefined>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [activeTab, setActiveTab] = useState('sales');
 
   // Filter bills based on date range
@@ -60,7 +61,6 @@ const Reports = () => {
         'Customer': bill.customerId ? customers.find(c => c.id === bill.customerId)?.name || 'Unknown' : 'Walk-in',
         'Items': bill.items.length,
         'Subtotal': bill.subtotal,
-        'Tax': bill.tax,
         'Total': bill.total,
         'Payment Method': bill.paymentMethod || 'Cash'
       }));
@@ -70,13 +70,13 @@ const Reports = () => {
       
       const columnWidths = [
         { wch: 16 }, { wch: 12 }, { wch: 15 }, { wch: 8 }, 
-        { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 15 }
+        { wch: 12 }, { wch: 12 }, { wch: 15 }
       ];
       worksheet['!cols'] = columnWidths;
 
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
 
-      const filename = dateRange 
+      const filename = dateRange?.from && dateRange?.to
         ? `sales_report_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`
         : `sales_report_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
 
@@ -133,7 +133,7 @@ const Reports = () => {
 
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Product Report');
 
-      const filename = dateRange 
+      const filename = dateRange?.from && dateRange?.to
         ? `product_report_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`
         : `product_report_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
 
@@ -153,6 +153,18 @@ const Reports = () => {
         variant: 'destructive'
       });
     }
+  };
+
+  // Helper function to get customer name
+  const getCustomerName = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.name : 'Walk-in Customer';
+  };
+
+  // Helper function to get customer phone
+  const getCustomerPhone = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.phone : '';
   };
 
   const headerActions = (
@@ -207,7 +219,7 @@ const Reports = () => {
         </Card>
 
         {/* Sales Widgets */}
-        <SalesWidgets bills={filteredBills} />
+        <SalesWidgets filteredBills={filteredBills} />
 
         {/* Reports Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -239,7 +251,8 @@ const Reports = () => {
                         <ExpandableBillRow 
                           key={bill.id} 
                           bill={bill} 
-                          customers={customers}
+                          getCustomerName={getCustomerName}
+                          getCustomerPhone={getCustomerPhone}
                         />
                       ))
                     }
