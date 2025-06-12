@@ -19,16 +19,14 @@ import { useToast } from '@/hooks/use-toast';
 import SalesWidgets from '@/components/reports/SalesWidgets';
 import ExpandableBillRow from '@/components/reports/ExpandableBillRow';
 import { MobileLayout } from '@/components/mobile/MobileLayout';
+import type { DateRange } from 'react-day-picker';
 
 const Reports = () => {
   const { bills, customers, products, sessions } = usePOS();
   const { expenses } = useExpenses();
   const { toast } = useToast();
   
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'customer'>('date');
@@ -37,7 +35,7 @@ const Reports = () => {
   const filteredBills = useMemo(() => {
     let filtered = bills;
 
-    if (dateRange.from && dateRange.to) {
+    if (dateRange?.from && dateRange?.to) {
       const fromDate = startOfDay(dateRange.from);
       const toDate = endOfDay(dateRange.to);
       filtered = filtered.filter(bill => 
@@ -152,7 +150,7 @@ const Reports = () => {
 
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
 
-      const filename = dateRange.from && dateRange.to 
+      const filename = dateRange?.from && dateRange?.to 
         ? `sales_report_${format(dateRange.from, 'yyyy-MM-dd')}_to_${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`
         : `sales_report_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
 
@@ -185,7 +183,7 @@ const Reports = () => {
           </TabsList>
 
           <TabsContent value="sales" className="space-y-6">
-            <SalesWidgets />
+            <SalesWidgets filteredBills={filteredBills} />
             
             <Card className="bg-card border">
               <CardHeader className="pb-4">
@@ -196,7 +194,7 @@ const Reports = () => {
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="justify-start text-left font-normal">
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange.from && dateRange.to
+                          {dateRange?.from && dateRange?.to
                             ? `${format(dateRange.from, "MMM d")} - ${format(dateRange.to, "MMM d")}`
                             : "Select dates"
                           }
@@ -206,7 +204,7 @@ const Reports = () => {
                         <Calendar
                           mode="range"
                           selected={dateRange}
-                          onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
+                          onSelect={setDateRange}
                           numberOfMonths={1}
                         />
                       </PopoverContent>
