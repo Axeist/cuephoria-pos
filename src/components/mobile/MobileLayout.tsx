@@ -51,6 +51,15 @@ export function MobileLayout({
         showUser={showUser}
       />
       
+      {/* Mobile Actions Section - Better organized layout */}
+      {headerActions && (
+        <div className="px-4 py-3 bg-background border-b">
+          <div className="flex flex-col gap-3">
+            {headerActions}
+          </div>
+        </div>
+      )}
+      
       <main className={cn(
         "pb-20", // Space for bottom nav
         !noPadding && "px-4 py-4",

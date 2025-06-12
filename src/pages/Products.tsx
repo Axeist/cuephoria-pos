@@ -204,32 +204,40 @@ const ProductsPage: React.FC = () => {
   }, [products]);
 
   const headerActions = (
-    <div className="flex flex-wrap gap-2">
-      <ProductSalesExport />
-      <StockExport />
+    <div className="w-full">
+      {/* Export Buttons Row */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
+        <ProductSalesExport />
+        <StockExport />
+      </div>
       
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Category Management</SheetTitle>
-            <SheetDescription>
-              Add, edit, or remove product categories.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-6">
-            <CategoryManagement />
-          </div>
-        </SheetContent>
-      </Sheet>
-      
-      <Button onClick={handleOpenDialog} size="sm">
-        <Plus className="h-4 w-4" />
-      </Button>
+      {/* Action Buttons Row */}
+      <div className="flex items-center justify-between gap-2">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" className="flex-1 sm:flex-none">
+              <Settings className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Categories</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Category Management</SheetTitle>
+              <SheetDescription>
+                Add, edit, or remove product categories.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-6">
+              <CategoryManagement />
+            </div>
+          </SheetContent>
+        </Sheet>
+        
+        <Button onClick={handleOpenDialog} className="flex-1 sm:flex-none">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Add Product</span>
+        </Button>
+      </div>
     </div>
   );
 
