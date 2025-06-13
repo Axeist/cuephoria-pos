@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +19,21 @@ interface ScheduledMatch {
   scheduled_date?: string;
   scheduled_time?: string;
   status: 'scheduled' | 'completed' | 'cancelled';
+}
+
+interface TournamentPlayer {
+  id: string;
+  name: string;
+}
+
+interface TournamentMatch {
+  id: string;
+  player1Id: string;
+  player2Id: string;
+  stage: string;
+  status: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
 }
 
 const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
@@ -45,15 +59,22 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
           .single();
 
         if (!error && tournamentData) {
-          const tournamentMatches = tournamentData.matches || [];
-          const players = tournamentData.players || [];
+          // Type guard and cast for matches
+          const tournamentMatches = Array.isArray(tournamentData.matches) 
+            ? tournamentData.matches as TournamentMatch[]
+            : [];
+          
+          // Type guard and cast for players
+          const players = Array.isArray(tournamentData.players) 
+            ? tournamentData.players as TournamentPlayer[]
+            : [];
           
           // Convert tournament matches to scheduled format
           const scheduled = tournamentMatches
-            .filter((match: any) => match.status === 'scheduled' || match.status === 'cancelled')
-            .map((match: any) => {
-              const player1 = players.find((p: any) => p.id === match.player1Id);
-              const player2 = players.find((p: any) => p.id === match.player2Id);
+            .filter((match: TournamentMatch) => match.status === 'scheduled' || match.status === 'cancelled')
+            .map((match: TournamentMatch) => {
+              const player1 = players.find((p: TournamentPlayer) => p.id === match.player1Id);
+              const player2 = players.find((p: TournamentPlayer) => p.id === match.player2Id);
               
               return {
                 id: match.id,
@@ -62,7 +83,7 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                 match_stage: match.stage as MatchStage,
                 scheduled_date: match.scheduledDate,
                 scheduled_time: match.scheduledTime,
-                status: match.status
+                status: match.status as 'scheduled' | 'completed' | 'cancelled'
               };
             });
           
