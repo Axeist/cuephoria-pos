@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Plus, User, Search, Download } from 'lucide-react';
+import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -9,6 +8,9 @@ import { Switch } from '@/components/ui/switch';
 import { usePOS, Customer } from '@/context/POSContext';
 import CustomerCard from '@/components/CustomerCard';
 import { useToast } from '@/hooks/use-toast';
+
+type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
+type SortDirection = 'asc' | 'desc';
 
 const Customers = () => {
   console.log('Customers component rendering');
@@ -25,6 +27,10 @@ const Customers = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
+
+  // Sort state
+  const [sortField, setSortField] = useState<SortField>('joinDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Form state
   const [formState, setFormState] = useState({
@@ -252,8 +258,62 @@ const Customers = () => {
     }));
   };
 
-  // Filter customers based on search query
-  const filteredCustomers = searchQuery.trim() === '' ? customersData : customersData.filter(customer => customer.name.toLowerCase().includes(searchQuery.toLowerCase()) || customer.phone.includes(searchQuery) || customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Sort function
+  const sortCustomers = (customers: Customer[]) => {
+    return [...customers].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'joinDate':
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+        case 'totalSpent':
+          comparison = a.totalSpent - b.totalSpent;
+          break;
+        case 'loyaltyPoints':
+          comparison = a.loyaltyPoints - b.loyaltyPoints;
+          break;
+        case 'playTime':
+          comparison = a.totalPlayTime - b.totalPlayTime;
+          break;
+        default:
+          return 0;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  // Handle sort button click
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Toggle direction if same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with descending as default
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  // Get sort icon for a field
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4" />;
+    }
+    return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
+  };
+
+  // Filter and sort customers
+  const filteredAndSortedCustomers = sortCustomers(
+    searchQuery.trim() === '' 
+      ? customersData 
+      : customersData.filter(customer => 
+          customer.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          customer.phone.includes(searchQuery) || 
+          customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+  );
 
   // If we have an error, display it
   if (error) {
@@ -370,10 +430,50 @@ const Customers = () => {
           <Input placeholder="Search customers by name, phone or email..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
         </div>
       </div>
+
+      {/* Sort buttons */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Button
+          variant={sortField === 'joinDate' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSort('joinDate')}
+          className="flex items-center gap-2"
+        >
+          Join Date
+          {getSortIcon('joinDate')}
+        </Button>
+        <Button
+          variant={sortField === 'totalSpent' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSort('totalSpent')}
+          className="flex items-center gap-2"
+        >
+          Total Spent
+          {getSortIcon('totalSpent')}
+        </Button>
+        <Button
+          variant={sortField === 'loyaltyPoints' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSort('loyaltyPoints')}
+          className="flex items-center gap-2"
+        >
+          Loyalty Points
+          {getSortIcon('loyaltyPoints')}
+        </Button>
+        <Button
+          variant={sortField === 'playTime' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSort('playTime')}
+          className="flex items-center gap-2"
+        >
+          Play Time
+          {getSortIcon('playTime')}
+        </Button>
+      </div>
       
       {/* Customer list */}
-      {filteredCustomers.length > 0 ? <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredCustomers.map(customer => <CustomerCard key={customer.id} customer={customer} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />)}
+      {filteredAndSortedCustomers.length > 0 ? <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredAndSortedCustomers.map(customer => <CustomerCard key={customer.id} customer={customer} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />)}
         </div> : <div className="flex flex-col items-center justify-center h-64">
           <User className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-xl font-medium">No Customers Found</h3>
