@@ -1,9 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { Bill, CartItem, Customer, Product } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { notificationService } from '@/services/notificationService';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -187,7 +185,7 @@ export const useBills = (
         console.log('Customer updated successfully');
       }
 
-      // Update product stock for non-session items and check for low stock
+      // Update product stock for non-session items
       for (const item of cart) {
         if (item.type === 'product') {
           const product = products.find(p => p.id === item.id);
@@ -206,13 +204,6 @@ export const useBills = (
               // Update local state
               updateProduct({ ...product, stock: newStock });
               console.log(`Updated stock for ${product.name}: ${newStock}`);
-
-              // Check for low stock and send notifications
-              if (newStock <= 5 && newStock > 0) {
-                await notificationService.notifyLowStock(product.name, newStock);
-              } else if (newStock === 0) {
-                await notificationService.notifyProductSoldOut(product.name);
-              }
             }
           }
         }

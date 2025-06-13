@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,16 +19,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Settings, Bell, Clock, Moon } from 'lucide-react';
-import { useUserPreferences } from '@/hooks/useUserPreferences';
 
 const formSchema = z.object({
-  default_timeout: z.string().min(1, {
+  defaultTimeout: z.string().min(1, {
     message: "Default timeout is required",
   }),
-  theme: z.enum(['light', 'dark']),
-  notifications_enabled: z.boolean().default(true),
-  email_notifications: z.boolean().default(false),
-  receipt_template: z.enum(['standard', 'detailed', 'minimal']),
+  darkMode: z.boolean().default(false),
+  enableNotifications: z.boolean().default(true),
+  emailNotifications: z.boolean().default(false),
+  receiptTemplate: z.string().min(1, {
+    message: "Receipt template is required",
+  }),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -36,67 +37,38 @@ type FormData = z.infer<typeof formSchema>;
 const GeneralSettings = () => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const { preferences, loading, updatePreferences } = useUserPreferences();
+
+  // Default values - in a real app, these would come from user preferences in the database
+  const defaultValues: FormData = {
+    defaultTimeout: '60',
+    darkMode: true,
+    enableNotifications: true,
+    emailNotifications: false,
+    receiptTemplate: 'standard',
+  };
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      default_timeout: '60',
-      theme: 'dark',
-      notifications_enabled: true,
-      email_notifications: false,
-      receipt_template: 'standard',
-    },
+    defaultValues,
   });
-
-  // Update form when preferences are loaded
-  useEffect(() => {
-    if (preferences) {
-      form.reset({
-        default_timeout: preferences.default_timeout.toString(),
-        theme: preferences.theme,
-        notifications_enabled: preferences.notifications_enabled,
-        email_notifications: preferences.email_notifications,
-        receipt_template: preferences.receipt_template,
-      });
-    }
-  }, [preferences, form]);
 
   const onSubmit = async (data: FormData) => {
     setIsSaving(true);
     
-    const success = await updatePreferences({
-      default_timeout: parseInt(data.default_timeout),
-      theme: data.theme,
-      notifications_enabled: data.notifications_enabled,
-      email_notifications: data.email_notifications,
-      receipt_template: data.receipt_template,
+    // Simulate API call to save settings
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    
+    console.log('Saving settings:', data);
+    
+    // In a real app, you would save these settings to your database
+    
+    toast({
+      title: "Settings saved",
+      description: "Your preferences have been updated successfully.",
     });
-
-    if (success) {
-      // Apply theme change immediately
-      const root = document.documentElement;
-      if (data.theme === 'dark') {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
-    }
     
     setIsSaving(false);
   };
-
-  if (loading) {
-    return (
-      <Card className="w-full animate-fade-in">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cuephoria-lightpurple"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card className="w-full animate-fade-in">
@@ -120,25 +92,21 @@ const GeneralSettings = () => {
               </h3>
               <FormField
                 control={form.control}
-                name="theme"
+                name="darkMode"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Theme</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select theme" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="light">Light Mode</SelectItem>
-                        <SelectItem value="dark">Dark Mode</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Choose your preferred color theme for the application.
-                    </FormDescription>
-                    <FormMessage />
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Dark Mode</FormLabel>
+                      <FormDescription>
+                        Enable dark mode for the application interface.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
@@ -152,7 +120,7 @@ const GeneralSettings = () => {
               </h3>
               <FormField
                 control={form.control}
-                name="notifications_enabled"
+                name="enableNotifications"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
@@ -173,7 +141,7 @@ const GeneralSettings = () => {
 
               <FormField
                 control={form.control}
-                name="email_notifications"
+                name="emailNotifications"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
@@ -201,7 +169,7 @@ const GeneralSettings = () => {
               </h3>
               <FormField
                 control={form.control}
-                name="default_timeout"
+                name="defaultTimeout"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Default Station Timeout (minutes)</FormLabel>
@@ -222,11 +190,11 @@ const GeneralSettings = () => {
               <h3 className="text-lg font-medium">Receipt Settings</h3>
               <FormField
                 control={form.control}
-                name="receipt_template"
+                name="receiptTemplate"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Receipt Template</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a receipt template" />
