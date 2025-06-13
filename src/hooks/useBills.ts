@@ -367,7 +367,22 @@ export const useBills = (
 
   const deleteBill = async (billId: string, customerId: string): Promise<boolean> => {
     try {
-      // First delete bill items
+      console.log('Starting bill deletion for bill ID:', billId);
+
+      // First delete related cash transactions
+      const { error: cashTransactionsError } = await supabase
+        .from('cash_transactions')
+        .delete()
+        .eq('bill_id', billId);
+
+      if (cashTransactionsError) {
+        console.error('Error deleting cash transactions:', cashTransactionsError);
+        throw new Error('Failed to delete related cash transactions');
+      }
+
+      console.log('Cash transactions deleted successfully');
+
+      // Then delete bill items
       const { error: itemsError } = await supabase
         .from('bill_items')
         .delete()
@@ -378,7 +393,9 @@ export const useBills = (
         throw new Error('Failed to delete bill items');
       }
 
-      // Then delete the bill
+      console.log('Bill items deleted successfully');
+
+      // Finally delete the bill itself
       const { error: billError } = await supabase
         .from('bills')
         .delete()
@@ -388,6 +405,8 @@ export const useBills = (
         console.error('Error deleting bill:', billError);
         throw new Error('Failed to delete bill');
       }
+
+      console.log('Bill deleted successfully');
 
       // Update local state
       setBills(prevBills => prevBills.filter(bill => bill.id !== billId));
