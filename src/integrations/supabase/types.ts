@@ -1081,13 +1081,6 @@ export type Database = {
             foreignKeyName: "tournament_public_registrations_tournament_id_fkey"
             columns: ["tournament_id"]
             isOneToOne: false
-            referencedRelation: "tournament_public_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tournament_public_registrations_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
             referencedRelation: "tournament_stats"
             referencedColumns: ["id"]
           },
@@ -1138,13 +1131,6 @@ export type Database = {
           tournament_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "tournament_registrations_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournament_public_view"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "tournament_registrations_tournament_id_fkey"
             columns: ["tournament_id"]
@@ -1253,26 +1239,6 @@ export type Database = {
       }
     }
     Views: {
-      tournament_public_view: {
-        Row: {
-          budget: number | null
-          date: string | null
-          game_title: string | null
-          game_type: string | null
-          game_variant: string | null
-          id: string | null
-          matches: Json | null
-          max_players: number | null
-          name: string | null
-          players: Json | null
-          runner_up_prize: number | null
-          status: string | null
-          total_registrations: number | null
-          winner: Json | null
-          winner_prize: number | null
-        }
-        Relationships: []
-      }
       tournament_stats: {
         Row: {
           budget: number | null
