@@ -69,13 +69,11 @@ const AppSidebar: React.FC = () => {
               <SheetContent side="left" className="p-0 w-[80%] max-w-[280px] bg-[#1A1F2C] border-r-0">
                 <div className="h-full flex flex-col">
                   <div className="p-4 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple shadow-lg animate-pulse-glow relative">
-                      <img
-                        src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
-                        alt="Cuephoria Logo"
-                        className="h-6 w-6 object-contain absolute animate-bounce"
-                      />
-                    </div>
+                    <img
+                      src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
+                      alt="Cuephoria Logo"
+                      className="h-12 w-12 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
+                    />
                     <span className="text-xl font-bold gradient-text font-heading">Cuephoria</span>
                   </div>
                   <div className="mx-4 h-px bg-cuephoria-purple/30" />
@@ -128,13 +126,11 @@ const AppSidebar: React.FC = () => {
   return (
     <Sidebar className="border-r-0 bg-[#1A1F2C] text-white w-[250px]">
       <SidebarHeader className="p-4 flex items-center gap-3">
-        <div className="h-12 w-12 rounded-full flex items-center justify-center bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple shadow-lg animate-pulse-glow relative">
-          <img
-            src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
-            alt="Cuephoria Logo"
-            className="h-7 w-7 object-contain absolute animate-bounce"
-          />
-        </div>
+        <img
+          src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
+          alt="Cuephoria Logo"
+          className="h-14 w-14 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
+        />
         <span className="text-2xl font-bold gradient-text font-heading">Cuephoria</span>
       </SidebarHeader>
       <SidebarSeparator className="mx-4 bg-cuephoria-purple/30" />
