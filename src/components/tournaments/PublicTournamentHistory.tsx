@@ -236,31 +236,35 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                 </Badge>
               </div>
               
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {/* Completed Matches */}
                 {stageMatches.map((match, index) => (
                   <div
                     key={`completed-${match.id}-${index}`}
                     className={`p-4 rounded-lg border ${getStageColor(stage)} transition-all duration-200`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="text-sm text-white text-center flex-1 min-w-0">
-                          <div className="flex items-center justify-center gap-2">
-                            <span className="truncate max-w-[100px]">
-                              {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
-                            </span>
-                            <span className="text-cuephoria-lightpurple font-bold text-xs">vs</span>
-                            <span className="truncate max-w-[100px]">
-                              {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
-                            </span>
+                    <div className="flex flex-col space-y-3">
+                      {/* Player names section with proper wrapping */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                          <div className="text-sm text-white">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                              <span className="font-medium break-words">
+                                {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
+                              </span>
+                              <span className="text-cuephoria-lightpurple font-bold text-xs self-start sm:self-center">vs</span>
+                              <span className="font-medium break-words">
+                                {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 text-green-400 ml-3 flex-shrink-0">
-                        <Crown className="h-3 w-3" />
-                        <span className="font-medium text-xs truncate max-w-[80px]">{match.winner_name}</span>
+                        
+                        {/* Winner section */}
+                        <div className="flex items-center gap-2 text-green-400 flex-shrink-0">
+                          <Crown className="h-3 w-3" />
+                          <span className="font-medium text-xs break-words">{match.winner_name}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -274,34 +278,38 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                       match.status === 'cancelled' ? 'opacity-50' : ''
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="text-sm text-white text-center flex-1 min-w-0">
-                          <div className="flex items-center justify-center gap-2">
-                            <span className="truncate max-w-[100px]">{match.player1_name}</span>
-                            <ArrowRight className="h-3 w-3 text-cuephoria-lightpurple flex-shrink-0" />
-                            <span className="truncate max-w-[100px]">{match.player2_name}</span>
+                    <div className="flex flex-col space-y-3">
+                      {/* Player names section with proper wrapping */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                          <div className="text-sm text-white">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                              <span className="font-medium break-words">{match.player1_name}</span>
+                              <ArrowRight className="h-3 w-3 text-cuephoria-lightpurple self-start sm:self-center" />
+                              <span className="font-medium break-words">{match.player2_name}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                        {match.status === 'cancelled' ? (
-                          <Badge variant="outline" className="text-xs border-red-400/30 text-red-400">
-                            Cancelled
-                          </Badge>
-                        ) : match.scheduled_date && match.scheduled_time ? (
-                          <div className="flex items-center gap-1 text-amber-400">
-                            <Clock className="h-3 w-3" />
-                            <span className="text-xs font-medium whitespace-nowrap">
-                              {formatDateTime(match.scheduled_date, match.scheduled_time)}
-                            </span>
-                          </div>
-                        ) : (
-                          <Badge variant="outline" className="text-xs border-amber-400/30 text-amber-400">
-                            Scheduled
-                          </Badge>
-                        )}
+                        
+                        {/* Status/Time section */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {match.status === 'cancelled' ? (
+                            <Badge variant="outline" className="text-xs border-red-400/30 text-red-400">
+                              Cancelled
+                            </Badge>
+                          ) : match.scheduled_date && match.scheduled_time ? (
+                            <div className="flex items-center gap-1 text-amber-400">
+                              <Clock className="h-3 w-3" />
+                              <span className="text-xs font-medium whitespace-nowrap">
+                                {formatDateTime(match.scheduled_date, match.scheduled_time)}
+                              </span>
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="text-xs border-amber-400/30 text-amber-400">
+                              Scheduled
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
