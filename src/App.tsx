@@ -3,151 +3,113 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { Suspense, lazy } from "react";
+import { AuthProvider } from "@/context/AuthContext";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import AppSidebar from "@/components/AppSidebar";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-
-// Pages
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Stations from "./pages/Stations";
-import Products from "./pages/Products";
-import POS from "./pages/POS";
-import Customers from "./pages/Customers";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
-import PublicStations from "./pages/PublicStations";
+import Login from "./pages/Login";
+import NotFound from "./pages/NotFound";
 
-// Create a new QueryClient instance outside of the component
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
-    },
-  },
-});
+// Lazy load components for better performance
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const POS = lazy(() => import("./pages/POS"));
+const Products = lazy(() => import("./pages/Products"));
+const Customers = lazy(() => import("./pages/Customers"));
+const Stations = lazy(() => import("./pages/Stations"));
+const PublicStations = lazy(() => import("./pages/PublicStations"));
+const PublicTournaments = lazy(() => import("./pages/PublicTournaments"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const Contact = lazy(() => import("./pages/Contact"));
 
-// App auto-refresh wrapper component
-const AutoRefreshApp = ({ children }: { children: React.ReactNode }) => {
-  useAutoRefresh(); // Apply auto-refresh to the entire app
-  return <>{children}</>;
-};
-
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requireAdmin?: boolean;
-}
-
-// Enhanced Protected route component that checks for authentication
-const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
-  
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
-      <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
-    </div>;
-  }
-  
-  if (!user) {
-    // Redirect to login page while preserving the intended destination
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  }
-  
-  // If route requires admin access and user is not admin, redirect to dashboard
-  if (requireAdmin && !user.isAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full overflow-x-hidden">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col overflow-x-hidden">
-          <div className="hidden md:block">
-            <SidebarTrigger />
-          </div>
-          {children}
-        </div>
-      </div>
-    </SidebarProvider>
-  );
-};
+const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <POSProvider>
-        <ExpenseProvider>
-          <TooltipProvider>
+    <TooltipProvider>
+      <AuthProvider>
+        <POSProvider>
+          <ExpenseProvider>
             <Toaster />
             <Sonner />
-            <AutoRefreshApp>
-              <BrowserRouter>
+            <BrowserRouter>
+              <SidebarProvider>
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/login" element={<Login />} />
-                  
-                  {/* Public routes */}
-                  <Route path="/public/stations" element={<PublicStations />} />
-                  
+                  <Route path="/public-stations" element={
+                    <Suspense fallback={<div>Loading...</div>}>
+                      <PublicStations />
+                    </Suspense>
+                  } />
+                  <Route path="/tournaments" element={
+                    <Suspense fallback={<div>Loading...</div>}>
+                      <PublicTournaments />
+                    </Suspense>
+                  } />
                   <Route path="/dashboard" element={
-                    <ProtectedRoute>
+                    <Suspense fallback={<div>Loading...</div>}>
                       <Dashboard />
-                    </ProtectedRoute>
+                    </Suspense>
                   } />
-                  
                   <Route path="/pos" element={
-                    <ProtectedRoute>
+                    <Suspense fallback={<div>Loading...</div>}>
                       <POS />
-                    </ProtectedRoute>
+                    </Suspense>
                   } />
-                  
-                  <Route path="/stations" element={
-                    <ProtectedRoute>
-                      <Stations />
-                    </ProtectedRoute>
-                  } />
-                  
                   <Route path="/products" element={
-                    <ProtectedRoute>
+                    <Suspense fallback={<div>Loading...</div>}>
                       <Products />
-                    </ProtectedRoute>
+                    </Suspense>
                   } />
-                  
                   <Route path="/customers" element={
-                    <ProtectedRoute>
+                    <Suspense fallback={<div>Loading...</div>}>
                       <Customers />
-                    </ProtectedRoute>
+                    </Suspense>
                   } />
-                  
+                  <Route path="/stations" element={
+                    <Suspense fallback={<div>Loading...</div>}>
+                      <Stations />
+                    </Suspense>
+                  } />
                   <Route path="/reports" element={
-                    <ProtectedRoute>
+                    <Suspense fallback={<div>Loading...</div>}>
                       <Reports />
-                    </ProtectedRoute>
+                    </Suspense>
                   } />
-                  
                   <Route path="/settings" element={
-                    <ProtectedRoute requireAdmin={true}>
+                    <Suspense fallback={<div>Loading...</div>}>
                       <Settings />
-                    </ProtectedRoute>
+                    </Suspense>
                   } />
-                  
+                  <Route path="/terms" element={
+                    <Suspense fallback={<div>Loading...</div>}>
+                      <Terms />
+                    </Suspense>
+                  } />
+                  <Route path="/privacy" element={
+                    <Suspense fallback={<div>Loading...</div>}>
+                      <Privacy />
+                    </Suspense>
+                  } />
+                  <Route path="/contact" element={
+                    <Suspense fallback={<div>Loading...</div>}>
+                      <Contact />
+                    </Suspense>
+                  } />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
-              </BrowserRouter>
-            </AutoRefreshApp>
-          </TooltipProvider>
-        </ExpenseProvider>
-      </POSProvider>
-    </AuthProvider>
+              </SidebarProvider>
+            </BrowserRouter>
+          </ExpenseProvider>
+        </POSProvider>
+      </AuthProvider>
+    </TooltipProvider>
   </QueryClientProvider>
 );
 
