@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +21,7 @@ interface TournamentPlayerSectionProps {
   setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   matchesExist: boolean;
   updatePlayerName?: (playerId: string, newName: string) => void;
-  tournamentId?: string; // Add tournament ID to clean up registrations
+  tournamentId?: string;
 }
 
 interface Customer {
@@ -34,6 +35,11 @@ interface EditingPlayer {
   name: string;
 }
 
+interface RegistrationForm {
+  customer_phone: string;
+  is_existing_customer: boolean;
+}
+
 const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({ 
   players, 
   setPlayers,
@@ -45,6 +51,10 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [editingPlayer, setEditingPlayer] = useState<EditingPlayer | null>(null);
+  const [registrationForm, setRegistrationForm] = useState<RegistrationForm>({
+    customer_phone: '',
+    is_existing_customer: false
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -87,7 +97,7 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       const customer = customers.find(c => c.id === selectedCustomerId);
       if (!customer) return;
       
-      console.log('Adding existing customer:', customer);
+      console.log('Adding existing customer via dropdown:', customer);
       
       // Check if this customer is already added as a player
       const existingPlayer = players.find(p => p.customerId === selectedCustomerId);
@@ -103,40 +113,93 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       newPlayer = {
         id: generateId(),
         name: customer.name,
-        customerId: selectedCustomerId // This is crucial - set the customerId
+        customerId: selectedCustomerId
       };
       
-      console.log('Created player object for existing customer:', newPlayer);
+      console.log('Created player object for existing customer via dropdown:', newPlayer);
       setSelectedCustomerId('');
     } else {
-      // Check if a player with this name already exists
-      const existingPlayer = players.find(p => p.name.toLowerCase() === playerName.trim().toLowerCase());
-      if (existingPlayer) {
-        toast({
-          title: 'Duplicate Player',
-          description: `A player named "${playerName}" is already added to this tournament.`,
-          variant: 'destructive'
-        });
-        return;
+      // Check if this is an existing customer identified by phone number
+      const existingCustomer = customers.find(c => c.phone === registrationForm.customer_phone.trim());
+      
+      if (existingCustomer) {
+        console.log('Adding existing customer identified by phone:', existingCustomer);
+        
+        // Check if this customer is already added as a player
+        const existingPlayer = players.find(p => p.customerId === existingCustomer.id);
+        if (existingPlayer) {
+          toast({
+            title: 'Duplicate Player',
+            description: `${existingCustomer.name} is already added to this tournament.`,
+            variant: 'destructive'
+          });
+          return;
+        }
+        
+        newPlayer = {
+          id: generateId(),
+          name: existingCustomer.name,
+          customerId: existingCustomer.id
+        };
+        
+        console.log('Created player object for existing customer by phone:', newPlayer);
+      } else {
+        // Check if a player with this name already exists
+        const existingPlayer = players.find(p => p.name.toLowerCase() === playerName.trim().toLowerCase());
+        if (existingPlayer) {
+          toast({
+            title: 'Duplicate Player',
+            description: `A player named "${playerName}" is already added to this tournament.`,
+            variant: 'destructive'
+          });
+          return;
+        }
+        
+        newPlayer = {
+          id: generateId(),
+          name: playerName.trim()
+          // No customerId for new players
+        };
+        
+        console.log('Created player object for new player:', newPlayer);
       }
       
-      newPlayer = {
-        id: generateId(),
-        name: playerName.trim()
-        // No customerId for new players
-      };
-      
-      console.log('Created player object for new player:', newPlayer);
       setPlayerName('');
+      setRegistrationForm({ customer_phone: '', is_existing_customer: false });
     }
     
     console.log('Adding player to tournament:', newPlayer);
-    setPlayers([...players, newPlayer]);
+    const updatedPlayers = [...players, newPlayer];
+    setPlayers(updatedPlayers);
+    
+    // Update the tournament's players array in the database
+    if (tournamentId) {
+      updateTournamentPlayers(updatedPlayers);
+    }
     
     toast({
       title: 'Player Added',
       description: `${newPlayer.name} has been added to the tournament as ${newPlayer.customerId ? 'an existing customer' : 'a guest'}.`,
     });
+  };
+
+  const updateTournamentPlayers = async (updatedPlayers: Player[]) => {
+    if (!tournamentId) return;
+    
+    try {
+      const { error } = await supabase
+        .from('tournaments')
+        .update({ players: updatedPlayers })
+        .eq('id', tournamentId);
+
+      if (error) {
+        console.error('Error updating tournament players:', error);
+      } else {
+        console.log('Successfully updated tournament players in database');
+      }
+    } catch (error) {
+      console.error('Unexpected error updating tournament players:', error);
+    }
   };
 
   const removePlayer = async (id: string) => {
@@ -148,6 +211,11 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     // Remove player from local state
     const updatedPlayers = players.filter(player => player.id !== id);
     setPlayers(updatedPlayers);
+
+    // Update the tournament's players array in the database
+    if (tournamentId) {
+      updateTournamentPlayers(updatedPlayers);
+    }
 
     // If we have a tournament ID and the player has a customerId, 
     // get the customer's phone number and clean up any registration records
@@ -256,9 +324,18 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
           <div className="flex-1">
             <label className="text-sm font-medium">Or Add New Player</label>
             <Input
-              placeholder="Enter player name"
+              placeholder="Enter player name or phone number"
               value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              onChange={(e) => {
+                setPlayerName(e.target.value);
+                // Check if input looks like a phone number and update registration form
+                const value = e.target.value.trim();
+                if (value.match(/^\d{10,}$/)) {
+                  setRegistrationForm(prev => ({ ...prev, customer_phone: value }));
+                } else {
+                  setRegistrationForm(prev => ({ ...prev, customer_phone: '' }));
+                }
+              }}
               onKeyPress={(e) => e.key === 'Enter' && addPlayer()}
               className="mt-1"
               disabled={matchesExist}
