@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity } from 'lucide-react';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
@@ -988,41 +988,44 @@ const PublicTournaments = () => {
       <footer className="py-12 px-4 sm:px-6 md:px-8 border-t border-cuephoria-lightpurple/20 mt-12 backdrop-blur-md bg-cuephoria-dark/50 relative z-10">
         <div className="max-w-7xl mx-auto">
           {/* Action Buttons Section */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Button
               onClick={() => window.open('https://cuephoria.in/book', '_blank')}
-              className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 group"
+              className="bg-cuephoria-dark/80 hover:bg-cuephoria-dark border border-cuephoria-purple/20 hover:border-cuephoria-purple/40 text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-purple/10 group min-h-[80px]"
             >
-              <CalendarDays className="mr-3 h-5 w-5 group-hover:animate-bounce" />
-              <div className="text-left">
-                <div className="text-lg font-bold">Book A Slot</div>
-                <div className="text-sm opacity-90">Reserve your gaming time</div>
+              <div className="flex items-center w-full">
+                <CalendarDays className="mr-4 h-5 w-5 text-cuephoria-lightpurple group-hover:text-white transition-colors flex-shrink-0" />
+                <div className="text-left flex-1">
+                  <div className="font-semibold text-white">Book A Slot</div>
+                  <div className="text-sm text-cuephoria-grey mt-1">Reserve your gaming time</div>
+                </div>
               </div>
-              <ExternalLink className="ml-auto h-4 w-4" />
             </Button>
 
             <Button
               onClick={() => window.open('https://cuephoria.in', '_blank')}
-              className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-darkpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-darkpurple/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-purple/30 group"
+              className="bg-cuephoria-dark/80 hover:bg-cuephoria-dark border border-cuephoria-blue/20 hover:border-cuephoria-blue/40 text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-blue/10 group min-h-[80px]"
             >
-              <Globe className="mr-3 h-5 w-5 group-hover:animate-spin" />
-              <div className="text-left">
-                <div className="text-lg font-bold">Official Website</div>
-                <div className="text-sm opacity-90">Visit our main site</div>
+              <div className="flex items-center w-full">
+                <Globe className="mr-4 h-5 w-5 text-cuephoria-blue group-hover:text-white transition-colors flex-shrink-0" />
+                <div className="text-left flex-1">
+                  <div className="font-semibold text-white">Official Website</div>
+                  <div className="text-sm text-cuephoria-grey mt-1">Visit our main site</div>
+                </div>
               </div>
-              <ExternalLink className="ml-auto h-4 w-4" />
             </Button>
 
             <Button
               onClick={() => window.open('https://admin.cuephoria.in/public/stations', '_blank')}
-              className="bg-gradient-to-r from-cuephoria-blue to-cuephoria-lightpurple hover:from-cuephoria-blue/90 hover:to-cuephoria-lightpurple/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-blue/30 group"
+              className="bg-cuephoria-dark/80 hover:bg-cuephoria-dark border border-cuephoria-lightpurple/20 hover:border-cuephoria-lightpurple/40 text-white font-medium py-6 px-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-lightpurple/10 group min-h-[80px]"
             >
-              <Activity className="mr-3 h-5 w-5 group-hover:animate-pulse" />
-              <div className="text-left">
-                <div className="text-lg font-bold">Live Session Status</div>
-                <div className="text-sm opacity-90">Check station availability</div>
+              <div className="flex items-center w-full">
+                <Zap className="mr-4 h-5 w-5 text-cuephoria-lightpurple group-hover:text-white transition-colors flex-shrink-0" />
+                <div className="text-left flex-1">
+                  <div className="font-semibold text-white">Live Session Status</div>
+                  <div className="text-sm text-cuephoria-grey mt-1">Check station availability</div>
+                </div>
               </div>
-              <ExternalLink className="ml-auto h-4 w-4" />
             </Button>
           </div>
 
