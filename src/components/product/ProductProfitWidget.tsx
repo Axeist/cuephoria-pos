@@ -76,36 +76,18 @@ const ProductProfitWidget: React.FC = () => {
   console.log('Products with profit data:', productsWithProfit);
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-green-500/20 hover:border-green-500/30 transition-all duration-300 backdrop-blur-sm">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
-        <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-green-400" />
-          Total Product Profit
-        </CardTitle>
-        <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">
-          <DollarSign className="h-4 w-4 text-green-400" />
-        </div>
+    <Card className="mb-6 shadow-lg hover:shadow-green-500/20 hover:border-green-500/30 transition-all duration-300">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">Total Product Profit</CardTitle>
+        <DollarSign className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent className="p-6">
-        <div className="space-y-3">
-          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-green-500/30 transition-colors">
-            <div className="text-3xl font-bold text-green-400 mb-2">
-              <CurrencyDisplay amount={totalProfit} />
-            </div>
-            <p className="text-sm text-gray-300">
-              Food & drinks profit ({productsWithProfit} products tracked)
-            </p>
-          </div>
-          
-          <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/30">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Average per product:</span>
-              <span className="text-sm font-medium text-green-300">
-                <CurrencyDisplay amount={productsWithProfit > 0 ? totalProfit / productsWithProfit : 0} />
-              </span>
-            </div>
-          </div>
+      <CardContent>
+        <div className="text-2xl font-bold">
+          <CurrencyDisplay amount={totalProfit} />
         </div>
+        <p className="text-xs text-muted-foreground">
+          Food & drinks profit ({productsWithProfit} products tracked)
+        </p>
       </CardContent>
     </Card>
   );
