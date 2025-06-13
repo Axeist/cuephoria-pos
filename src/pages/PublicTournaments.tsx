@@ -1149,6 +1149,9 @@ const PublicTournaments = () => {
                 placeholder="Enter your phone number"
                 autoComplete="tel"
               />
+              <p className="text-xs text-cuephoria-grey/80 italic">
+                Already visited? Use your number used during billing
+              </p>
               {isCheckingCustomer && (
                 <p className="text-xs text-cuephoria-grey">Checking for existing customer...</p>
               )}
