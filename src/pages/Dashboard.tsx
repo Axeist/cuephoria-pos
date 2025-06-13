@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
-import { isWithinInterval, format } from 'date-fns';
+import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
 import SalesChart from '@/components/dashboard/SalesChart';
@@ -321,10 +320,11 @@ const Dashboard = () => {
       startDate.setDate(startDate.getDate() - dayOfWeek);
       startDate.setHours(0, 0, 0, 0);
     } else if (activeTab === 'weekly') {
-      startDate.setDate(startDate.getDate() - 28);
-      startDate.setHours(0, 0, 0, 0);
+      // For weekly tab, show total sales of the current month
+      startDate = startOfMonth(now);
     } else if (activeTab === 'monthly') {
-      startDate = new Date(startDate.getFullYear(), 0, 1);
+      // For monthly tab, show total sales of the current year
+      startDate = startOfYear(now);
     }
     
     // Optimize filtering by using a cached result if possible
@@ -358,16 +358,17 @@ const Dashboard = () => {
       previousPeriodStart = new Date(previousPeriodEnd);
       previousPeriodStart.setDate(previousPeriodStart.getDate() - 7);
     } else if (activeTab === 'weekly') {
-      currentPeriodStart.setDate(currentPeriodStart.getDate() - 28);
-      currentPeriodStart.setHours(0, 0, 0, 0);
+      // For weekly tab, compare with previous month
+      const now = new Date();
+      currentPeriodStart = startOfMonth(now);
       previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = new Date(previousPeriodEnd);
-      previousPeriodStart.setDate(previousPeriodStart.getDate() - 28);
+      previousPeriodStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     } else if (activeTab === 'monthly') {
-      currentPeriodStart = new Date(currentPeriodStart.getFullYear(), 0, 1);
+      // For monthly tab, compare with previous year
+      const now = new Date();
+      currentPeriodStart = startOfYear(now);
       previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = new Date(previousPeriodEnd);
-      previousPeriodStart.setFullYear(previousPeriodStart.getFullYear() - 1);
+      previousPeriodStart = startOfYear(new Date(now.getFullYear() - 1, 0, 1));
     }
     
     const previousPeriodBills = bills.filter(bill => {
