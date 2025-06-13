@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -92,23 +92,31 @@ const AppSidebar: React.FC = () => {
                     </div>
                   </div>
                   <div className="p-4">
-                    <div className="flex items-center justify-between bg-cuephoria-dark rounded-lg p-3 shadow-md">
-                      <div className="flex items-center">
-                        {isAdmin ? (
-                          <Shield className="h-5 w-5 text-cuephoria-lightpurple" />
-                        ) : (
-                          <User className="h-5 w-5 text-cuephoria-blue" />
-                        )}
-                        <span className="ml-2 text-sm font-medium font-quicksand text-white">
-                          {user.username} {isAdmin ? '(Admin)' : '(Staff)'}
-                        </span>
+                    <div className="group bg-cuephoria-dark rounded-lg p-4 shadow-lg border border-cuephoria-purple/20 hover:border-cuephoria-purple/60 hover:shadow-[0_0_20px_rgba(155,135,245,0.3)] transition-all duration-300 ease-in-out">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {isAdmin ? (
+                            <Shield className="h-6 w-6 text-cuephoria-lightpurple" />
+                          ) : (
+                            <User className="h-6 w-6 text-cuephoria-blue" />
+                          )}
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium font-quicksand text-white">
+                              {user.username}
+                            </span>
+                            <span className="text-xs text-cuephoria-lightpurple font-quicksand">
+                              {isAdmin ? '(Administrator)' : '(Staff)'}
+                            </span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={logout}
+                          className="p-2 rounded-md bg-cuephoria-darker hover:bg-red-500 transition-all duration-300 group-hover:shadow-lg"
+                          title="Logout"
+                        >
+                          <PowerOff className="h-4 w-4 text-white" />
+                        </button>
                       </div>
-                      <button 
-                        onClick={logout}
-                        className="text-xs bg-cuephoria-darker px-3 py-1 rounded-md hover:bg-cuephoria-purple transition-all duration-300 font-heading text-white"
-                      >
-                        Logout
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -153,23 +161,31 @@ const AppSidebar: React.FC = () => {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
-        <div className="flex items-center justify-between bg-cuephoria-dark rounded-lg p-3 animate-scale-in shadow-md">
-          <div className="flex items-center">
-            {isAdmin ? (
-              <Shield className="h-6 w-6 text-cuephoria-lightpurple" />
-            ) : (
-              <User className="h-6 w-6 text-cuephoria-blue" />
-            )}
-            <span className="ml-2 text-sm font-medium font-quicksand">
-              {user.username} {isAdmin ? '(Admin)' : '(Staff)'}
-            </span>
+        <div className="group bg-cuephoria-dark rounded-lg p-4 shadow-lg border border-cuephoria-purple/20 hover:border-cuephoria-purple/60 hover:shadow-[0_0_20px_rgba(155,135,245,0.3)] transition-all duration-300 ease-in-out">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              {isAdmin ? (
+                <Shield className="h-6 w-6 text-cuephoria-lightpurple" />
+              ) : (
+                <User className="h-6 w-6 text-cuephoria-blue" />
+              )}
+              <div className="flex flex-col">
+                <span className="text-sm font-medium font-quicksand text-white">
+                  {user.username}
+                </span>
+                <span className="text-xs text-cuephoria-lightpurple font-quicksand">
+                  {isAdmin ? '(Administrator)' : '(Staff)'}
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={logout}
+              className="p-2 rounded-md bg-cuephoria-darker hover:bg-red-500 transition-all duration-300 group-hover:shadow-lg"
+              title="Logout"
+            >
+              <PowerOff className="h-4 w-4 text-white" />
+            </button>
           </div>
-          <button 
-            onClick={logout}
-            className="text-xs bg-cuephoria-darker px-3 py-1 rounded-md hover:bg-cuephoria-purple transition-all duration-300 font-heading"
-          >
-            Logout
-          </button>
         </div>
       </SidebarFooter>
     </Sidebar>
