@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +28,7 @@ interface Tournament {
   players: any[];
   matches: any[];
   winner?: any;
-  runnerUp?: any; // Add runnerUp property
+  runnerUp?: any;
   total_registrations: number;
   max_players: number;
 }
@@ -99,8 +98,9 @@ const PublicTournaments = () => {
         players: Array.isArray(item.players) ? item.players : [],
         matches: Array.isArray(item.matches) ? item.matches : [],
         winner: item.winner,
+        runnerUp: item.runner_up, // Make sure to map runner_up to runnerUp
         total_registrations: Number(item.total_registrations) || 0,
-        max_players: Number(item.max_players) || 16 // Ensure we parse as number with fallback
+        max_players: Number(item.max_players) || 16
       }));
 
       console.log('Fetched tournaments with max_players:', transformedData.map(t => ({ name: t.name, max_players: t.max_players })));
@@ -761,7 +761,11 @@ const PublicTournaments = () => {
                 <Crown className="h-6 w-6 text-yellow-400" />
               </div>
               <div className="text-3xl font-bold text-white">
-                ₹{tournaments.reduce((total, t) => total + (t.winner_prize || 0), 0).toLocaleString()}
+                ₹{tournaments.reduce((total, t) => {
+                  const winnerPrize = t.winner_prize || 0;
+                  const runnerUpPrize = t.runner_up_prize || 0;
+                  return total + winnerPrize + runnerUpPrize;
+                }, 0).toLocaleString()}
               </div>
               <div className="text-xs text-yellow-400 mt-1">Win big rewards!</div>
             </div>
