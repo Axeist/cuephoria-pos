@@ -149,20 +149,24 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     const updatedPlayers = players.filter(player => player.id !== id);
     setPlayers(updatedPlayers);
 
-    // If we have a tournament ID and the player has a phone number, 
-    // also clean up any registration records
-    if (tournamentId && playerToRemove.phone) {
+    // If we have a tournament ID and the player has a customerId, 
+    // get the customer's phone number and clean up any registration records
+    if (tournamentId && playerToRemove.customerId) {
       try {
-        const { error } = await supabase
-          .from('tournament_public_registrations')
-          .delete()
-          .eq('tournament_id', tournamentId)
-          .eq('customer_phone', playerToRemove.phone);
+        // Get the customer's phone number
+        const customer = customers.find(c => c.id === playerToRemove.customerId);
+        if (customer && customer.phone) {
+          const { error } = await supabase
+            .from('tournament_public_registrations')
+            .delete()
+            .eq('tournament_id', tournamentId)
+            .eq('customer_phone', customer.phone);
 
-        if (error) {
-          console.error('Error cleaning up registration record:', error);
-        } else {
-          console.log('Successfully cleaned up registration record for phone:', playerToRemove.phone);
+          if (error) {
+            console.error('Error cleaning up registration record:', error);
+          } else {
+            console.log('Successfully cleaned up registration record for phone:', customer.phone);
+          }
         }
       } catch (error) {
         console.error('Unexpected error cleaning up registration:', error);
