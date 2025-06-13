@@ -33,7 +33,7 @@ export const useNotifications = () => {
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .or('user_id.is.null,user_id.eq.default-user')
+        .is('user_id', null)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -43,7 +43,6 @@ export const useNotifications = () => {
       }
 
       if (data) {
-        // Transform the data to match our Notification interface
         const transformedNotifications: Notification[] = data.map(item => ({
           id: item.id,
           user_id: item.user_id,
@@ -94,7 +93,7 @@ export const useNotifications = () => {
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .or('user_id.is.null,user_id.eq.default-user')
+        .is('user_id', null)
         .eq('is_read', false);
 
       if (error) {
@@ -117,10 +116,11 @@ export const useNotifications = () => {
         .from('notifications')
         .insert([{
           ...notification,
+          user_id: null, // Set to null for global notifications
           is_read: false
         }])
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error creating notification:', error);
@@ -162,7 +162,7 @@ export const useNotifications = () => {
   useEffect(() => {
     loadNotifications();
 
-    // Set up real-time subscription
+    // Set up real-time subscription for global notifications
     const channel = supabase
       .channel('notifications')
       .on(
@@ -170,7 +170,8 @@ export const useNotifications = () => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'notifications'
+          table: 'notifications',
+          filter: 'user_id=is.null'
         },
         (payload) => {
           const data = payload.new;

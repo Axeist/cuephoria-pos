@@ -43,7 +43,6 @@ export class NotificationService {
       }
 
       if (data) {
-        // Transform the data to match our NotificationTemplate interface
         this.templates = data.map(item => ({
           id: item.id,
           name: item.name,
@@ -78,7 +77,7 @@ export class NotificationService {
       const { error } = await supabase
         .from('notifications')
         .insert([{
-          user_id: userId || null,
+          user_id: null, // Use null for global notifications
           title,
           message,
           type: template.type,

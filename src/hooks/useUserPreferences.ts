@@ -33,22 +33,21 @@ export const useUserPreferences = () => {
     try {
       setLoading(true);
       
-      // For now, we'll use a default user ID since auth isn't implemented
-      const defaultUserId = 'default-user';
+      // Generate a valid UUID for default user
+      const defaultUserId = '00000000-0000-0000-0000-000000000001';
       
       const { data, error } = await supabase
         .from('user_preferences')
         .select('*')
         .eq('user_id', defaultUserId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error loading preferences:', error);
         return;
       }
 
       if (data) {
-        // Transform the data to match our UserPreferences interface
         const transformedPreferences: UserPreferences = {
           id: data.id,
           user_id: data.user_id,
@@ -64,20 +63,20 @@ export const useUserPreferences = () => {
         setPreferences(transformedPreferences);
       } else {
         // Create default preferences
-        const defaultPrefs: Omit<UserPreferences, 'id' | 'created_at' | 'updated_at'> = {
+        const defaultPrefs = {
           user_id: defaultUserId,
-          theme: 'dark',
+          theme: 'dark' as const,
           notifications_enabled: true,
           email_notifications: false,
           default_timeout: 60,
-          receipt_template: 'standard'
+          receipt_template: 'standard' as const
         };
 
         const { data: newPrefs, error: createError } = await supabase
           .from('user_preferences')
           .insert([defaultPrefs])
           .select()
-          .single();
+          .maybeSingle();
 
         if (createError) {
           console.error('Error creating default preferences:', createError);
@@ -116,7 +115,7 @@ export const useUserPreferences = () => {
         })
         .eq('id', preferences.id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error updating preferences:', error);
