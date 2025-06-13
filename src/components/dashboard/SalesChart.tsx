@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -18,6 +19,8 @@ interface SalesChartProps {
 
 const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const { bills } = usePOS();
+  const [chartData, setChartData] = useState<{ name: string; amount: number; }[]>([]);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const generateChartData = () => {
     const now = new Date();
@@ -129,105 +132,157 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     }
   };
 
-  const data = generateChartData();
+  // Handle smooth transitions when activeTab changes
+  useEffect(() => {
+    setIsTransitioning(true);
+    
+    // Short delay to trigger fade-out effect
+    const timer = setTimeout(() => {
+      const newData = generateChartData();
+      setChartData(newData);
+      setIsTransitioning(false);
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [activeTab, bills]);
+
+  // Initialize chart data on first render
+  useEffect(() => {
+    setChartData(generateChartData());
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
 
   return (
     <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold text-white font-heading">Sales Overview</CardTitle>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-auto">
             <TabsList className="bg-gray-800 text-gray-400">
-              <TabsTrigger value="hourly">Hourly</TabsTrigger>
-              <TabsTrigger value="daily">Daily</TabsTrigger>
-              <TabsTrigger value="weekly">Weekly</TabsTrigger>
-              <TabsTrigger value="monthly">Monthly</TabsTrigger>
+              <TabsTrigger 
+                value="hourly"
+                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+              >
+                Hourly
+              </TabsTrigger>
+              <TabsTrigger 
+                value="daily"
+                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+              >
+                Daily
+              </TabsTrigger>
+              <TabsTrigger 
+                value="weekly"
+                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+              >
+                Weekly
+              </TabsTrigger>
+              <TabsTrigger 
+                value="monthly"
+                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+              >
+                Monthly
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
       </CardHeader>
       <CardContent className="h-[350px] pt-4">
-        <ChartContainer
-          config={{
-            amount: {
-              label: "Amount",
-              theme: {
-                light: "#9b87f5",
-                dark: "#9b87f5",
+        <div className={`transition-all duration-300 ease-in-out ${isTransitioning ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}>
+          <ChartContainer
+            config={{
+              amount: {
+                label: "Amount",
+                theme: {
+                  light: "#9b87f5",
+                  dark: "#9b87f5",
+                },
               },
-            },
-          }}
-          className="h-full w-full"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart 
-              data={data}
-              margin={{ top: 5, right: 10, left: 10, bottom: 25 }}
-            >
-              <defs>
-                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#9b87f5" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#9b87f5" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="name" 
-                stroke="#777" 
-                axisLine={false}
-                tickLine={false}
-                padding={{ left: 10, right: 10 }}
-              />
-              <YAxis 
-                stroke="#777"
-                axisLine={false}
-                tickLine={false}
-                width={30}
-              />
-              <Tooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className="rounded-lg border bg-card p-2 shadow-md">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">
-                              {activeTab === 'hourly' ? 'Hour' : activeTab === 'daily' ? 'Day' : activeTab === 'weekly' ? 'Week' : 'Month'}
-                            </span>
-                            <span className="font-bold text-muted-foreground">
-                              {payload[0].payload.name}
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">
-                              Sales
-                            </span>
-                            <span className="font-bold">
-                              <CurrencyDisplay amount={payload[0].value as number} />
-                            </span>
+            }}
+            className="h-full w-full"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart 
+                data={chartData}
+                margin={{ top: 5, right: 10, left: 10, bottom: 25 }}
+              >
+                <defs>
+                  <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#9b87f5" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#9b87f5" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="#777" 
+                  axisLine={false}
+                  tickLine={false}
+                  padding={{ left: 10, right: 10 }}
+                />
+                <YAxis 
+                  stroke="#777"
+                  axisLine={false}
+                  tickLine={false}
+                  width={30}
+                />
+                <Tooltip 
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="rounded-lg border bg-card p-2 shadow-md transition-all duration-200 animate-fade-in">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex flex-col">
+                              <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                {activeTab === 'hourly' ? 'Hour' : activeTab === 'daily' ? 'Day' : activeTab === 'weekly' ? 'Week' : 'Month'}
+                              </span>
+                              <span className="font-bold text-muted-foreground">
+                                {payload[0].payload.name}
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                Sales
+                              </span>
+                              <span className="font-bold">
+                                <CurrencyDisplay amount={payload[0].value as number} />
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  }
-                  
-                  return null;
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="amount"
-                name="amount"
-                stroke="#9b87f5"
-                strokeWidth={2}
-                dot={{ r: 4, fill: "#9b87f5", strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: "#9b87f5", stroke: "#1A1F2C", strokeWidth: 2 }}
-                fillOpacity={1}
-                fill="url(#colorAmount)"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+                      );
+                    }
+                    
+                    return null;
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="amount"
+                  name="amount"
+                  stroke="#9b87f5"
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: "#9b87f5", strokeWidth: 0 }}
+                  activeDot={{ 
+                    r: 6, 
+                    fill: "#9b87f5", 
+                    stroke: "#1A1F2C", 
+                    strokeWidth: 2,
+                    className: "transition-all duration-200 hover:r-8"
+                  }}
+                  fillOpacity={1}
+                  fill="url(#colorAmount)"
+                  animationBegin={0}
+                  animationDuration={800}
+                  animationEasing="ease-in-out"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </div>
       </CardContent>
     </Card>
   );
