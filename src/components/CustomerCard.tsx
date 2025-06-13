@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { usePOS, Customer } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { User, Edit, Trash, Clock, CreditCard, Star, Award, CalendarCheck, Calendar, Phone, Mail, Trophy } from 'lucide-react';
+import { User, Edit, Trash, Clock, CreditCard, Star, Award, CalendarCheck, Calendar, Phone, Mail } from 'lucide-react';
 import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.utils';
 
 interface CustomerCardProps {
@@ -102,17 +101,9 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
           </Avatar>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-lg font-semibold text-white truncate">
-                {customer.name}
-              </CardTitle>
-              {customer.createdViaTournament && (
-                <div className="flex items-center gap-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-full px-2 py-1">
-                  <Trophy className="h-3 w-3 text-amber-400" />
-                  <span className="text-xs text-amber-300 font-medium">Tournament Player</span>
-                </div>
-              )}
-            </div>
+            <CardTitle className="text-lg font-semibold text-white truncate">
+              {customer.name}
+            </CardTitle>
             <div className="flex items-center gap-2 mt-1">
               <Phone className="h-3 w-3 text-gray-400 flex-shrink-0" />
               <span className="text-sm text-gray-400">{customer.phone}</span>

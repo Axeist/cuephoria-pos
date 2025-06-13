@@ -502,7 +502,6 @@ export type Database = {
       customers: {
         Row: {
           created_at: string
-          created_via_tournament: boolean | null
           email: string | null
           id: string
           is_member: boolean
@@ -520,7 +519,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_via_tournament?: boolean | null
           email?: string | null
           id?: string
           is_member?: boolean
@@ -538,7 +536,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_via_tournament?: boolean | null
           email?: string | null
           id?: string
           is_member?: boolean
