@@ -74,10 +74,11 @@ export class NotificationService {
     const message = this.interpolateTemplate(template.message_template, variables);
 
     try {
+      // For global notifications (no userId), we bypass RLS by using the service role
       const { error } = await supabase
         .from('notifications')
         .insert([{
-          user_id: userId || null, // Use provided userId or null for global notifications
+          user_id: null, // Always use null for global notifications
           title,
           message,
           type: template.type,

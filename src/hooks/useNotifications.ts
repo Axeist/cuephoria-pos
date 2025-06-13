@@ -30,6 +30,7 @@ export const useNotifications = () => {
     try {
       setLoading(true);
       
+      // Load global notifications (user_id is null)
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
