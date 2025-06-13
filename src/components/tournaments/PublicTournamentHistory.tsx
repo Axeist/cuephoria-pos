@@ -325,4 +325,49 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
   );
 };
 
+const getStageIcon = (stage: MatchStage) => {
+  switch (stage) {
+    case 'final': return <Crown className="h-4 w-4 text-yellow-400 flex-shrink-0" />;
+    case 'semi_final': return <Medal className="h-4 w-4 text-gray-400 flex-shrink-0" />;
+    case 'quarter_final': return <Trophy className="h-4 w-4 text-orange-400 flex-shrink-0" />;
+    default: return <Sword className="h-4 w-4 text-blue-400 flex-shrink-0" />;
+  }
+};
+
+const getStageColor = (stage: MatchStage, isScheduled: boolean = false) => {
+  const opacity = isScheduled ? '/20' : '/40';
+  switch (stage) {
+    case 'final': return `bg-gradient-to-r from-yellow-900${opacity} to-yellow-800/10 border-yellow-400/40`;
+    case 'semi_final': return `bg-gradient-to-r from-gray-900${opacity} to-gray-800/10 border-gray-400/40`;
+    case 'quarter_final': return `bg-gradient-to-r from-orange-900${opacity} to-orange-800/10 border-orange-400/40`;
+    default: return `bg-gradient-to-r from-blue-900${opacity} to-blue-800/10 border-blue-400/40`;
+  }
+};
+
+const formatStage = (stage: MatchStage) => {
+  return stage.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
+const formatDateTime = (date?: string, time?: string) => {
+  if (!date) return null;
+  try {
+    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+    return time ? `${formattedDate} at ${time}` : formattedDate;
+  } catch {
+    return date;
+  }
+};
+
+// Helper function to get display name with runner-up notation
+const getDisplayName = (playerName: string, winnerName: string, stage: MatchStage) => {
+  // Only show runner-up notation for final match
+  if (stage === 'final' && playerName !== winnerName) {
+    return `${playerName} (Runner-up)`;
+  }
+  return playerName;
+};
+
 export default PublicTournamentHistory;
