@@ -155,6 +155,16 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     setActiveTab(value);
   };
 
+  // Format Y-axis values to be more compact
+  const formatYAxisValue = (value: number) => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}K`;
+    }
+    return value.toString();
+  };
+
   return (
     <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
       <CardHeader>
@@ -190,7 +200,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           </Tabs>
         </div>
       </CardHeader>
-      <CardContent className="h-[300px] pt-4">
+      <CardContent className="h-[320px] pt-4">
         <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}>
           <ChartContainer
             config={{
@@ -207,7 +217,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart 
                 data={chartData}
-                margin={{ top: 5, right: 10, left: 10, bottom: 25 }}
+                margin={{ top: 20, right: 20, left: 60, bottom: 40 }}
               >
                 <defs>
                   <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
@@ -215,26 +225,39 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                     <stop offset="95%" stopColor="#9b87f5" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
+                <CartesianGrid 
+                  stroke="#333" 
+                  strokeDasharray="3 3" 
+                  vertical={false}
+                  horizontal={true}
+                />
                 <XAxis 
                   dataKey="name" 
                   stroke="#777" 
                   axisLine={false}
                   tickLine={false}
+                  fontSize={12}
                   padding={{ left: 10, right: 10 }}
+                  interval={0}
+                  angle={activeTab === 'weekly' ? -45 : 0}
+                  textAnchor={activeTab === 'weekly' ? 'end' : 'middle'}
+                  height={activeTab === 'weekly' ? 60 : 40}
                 />
                 <YAxis 
                   stroke="#777"
                   axisLine={false}
                   tickLine={false}
-                  width={30}
+                  fontSize={12}
+                  width={50}
+                  tickFormatter={formatYAxisValue}
+                  domain={['dataMin - 100', 'dataMax + 100']}
                 />
                 <Tooltip 
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="rounded-lg border bg-card p-2 shadow-md transition-all duration-200 animate-fade-in">
-                          <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border bg-card p-3 shadow-md transition-all duration-200 animate-fade-in">
+                          <div className="grid grid-cols-2 gap-3">
                             <div className="flex flex-col">
                               <span className="text-[0.70rem] uppercase text-muted-foreground">
                                 {activeTab === 'hourly' ? 'Hour' : activeTab === 'daily' ? 'Day' : activeTab === 'weekly' ? 'Week' : 'Month'}
@@ -264,13 +287,13 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                   dataKey="amount"
                   name="amount"
                   stroke="#9b87f5"
-                  strokeWidth={2}
-                  dot={{ r: 4, fill: "#9b87f5", strokeWidth: 0 }}
+                  strokeWidth={3}
+                  dot={{ r: 5, fill: "#9b87f5", strokeWidth: 2, stroke: "#1A1F2C" }}
                   activeDot={{ 
-                    r: 6, 
+                    r: 7, 
                     fill: "#9b87f5", 
                     stroke: "#1A1F2C", 
-                    strokeWidth: 2,
+                    strokeWidth: 3,
                     className: "transition-all duration-200 hover:r-8"
                   }}
                   fillOpacity={1}
