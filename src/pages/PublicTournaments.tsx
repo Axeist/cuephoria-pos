@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Trophy, Calendar, Users, DollarSign, MapPin, Phone, Mail, UserPlus, Loader2, GamepadIcon } from 'lucide-react';
 import PublicTournamentActions from '@/components/tournaments/PublicTournamentActions';
 
-interface Tournament {
+interface PublicTournament {
   id: string;
   name: string;
   game_type: string;
@@ -35,8 +35,29 @@ interface RegistrationForm {
   email: string;
 }
 
+// Function to transform Supabase data to our expected format
+const transformSupabaseData = (data: any[]): PublicTournament[] => {
+  return data.map(item => ({
+    id: item.id,
+    name: item.name,
+    game_type: item.game_type,
+    game_variant: item.game_variant,
+    game_title: item.game_title,
+    date: item.date,
+    status: item.status,
+    budget: item.budget,
+    winner_prize: item.winner_prize,
+    runner_up_prize: item.runner_up_prize,
+    players: Array.isArray(item.players) ? item.players : (item.players ? JSON.parse(item.players as string) : []),
+    matches: Array.isArray(item.matches) ? item.matches : (item.matches ? JSON.parse(item.matches as string) : []),
+    winner: item.winner && typeof item.winner === 'string' ? JSON.parse(item.winner) : item.winner,
+    total_registrations: item.total_registrations,
+    max_players: item.max_players
+  }));
+};
+
 const PublicTournaments: React.FC = () => {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournaments, setTournaments] = useState<PublicTournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [registrationForm, setRegistrationForm] = useState<RegistrationForm>({
     name: '',
@@ -44,7 +65,7 @@ const PublicTournaments: React.FC = () => {
     email: ''
   });
   const [isRegistering, setIsRegistering] = useState(false);
-  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [selectedTournament, setSelectedTournament] = useState<PublicTournament | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -69,7 +90,8 @@ const PublicTournaments: React.FC = () => {
         return;
       }
 
-      setTournaments(data || []);
+      const transformedData = transformSupabaseData(data || []);
+      setTournaments(transformedData);
     } catch (error) {
       console.error('Error in fetchTournaments:', error);
       toast({
@@ -82,7 +104,7 @@ const PublicTournaments: React.FC = () => {
     }
   };
 
-  const handleRegistration = async (tournament: Tournament) => {
+  const handleRegistration = async (tournament: PublicTournament) => {
     if (!registrationForm.name.trim() || !registrationForm.phone.trim()) {
       toast({
         title: 'Missing Information',
@@ -216,7 +238,7 @@ const PublicTournaments: React.FC = () => {
     });
   };
 
-  const isRegistrationOpen = (tournament: Tournament) => {
+  const isRegistrationOpen = (tournament: PublicTournament) => {
     return tournament.status === 'upcoming' && tournament.total_registrations < tournament.max_players;
   };
 
