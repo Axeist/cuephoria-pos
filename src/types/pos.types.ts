@@ -1,3 +1,4 @@
+
 // Types for the POS system
 export interface Product {
   id: string;
@@ -31,7 +32,6 @@ export interface Customer {
   totalSpent: number;
   totalPlayTime: number;
   createdAt: Date;
-  createdViaTournament?: boolean;
 }
 
 export interface Station {
