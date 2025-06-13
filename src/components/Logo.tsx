@@ -8,6 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  withBounceGlow?: boolean;
   /**
    * Use the colorful brand graphic from the uploaded logo
    * for all logo purposes, scaling with prop or parent container
@@ -20,28 +21,43 @@ const imgMap = {
   lg: 80,
 };
 
-const Logo: React.FC<LogoProps> = ({ size = 'md', className }) => {
+const Logo: React.FC<LogoProps> = ({ size = 'md', className, withBounceGlow = false }) => {
   const isMobile = useIsMobile();
   // Prefer smaller logo for mobile regardless of size prop (for navbar fit)
   const height = isMobile ? 36 : imgMap[size] || 52;
-  const width = height * 1.2; // slightly wider than tall for logo aspect ratio
+  const width = height; // Make it square for the circular logo
+
+  const logoClasses = `
+    select-none 
+    ${withBounceGlow ? 'animate-bounce' : ''} 
+    ${className || ""}
+  `.trim();
+
+  const containerClasses = `
+    ${withBounceGlow ? 'animate-pulse-glow' : ''}
+    ${withBounceGlow ? 'rounded-full bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple shadow-lg' : ''}
+    ${withBounceGlow ? 'p-2' : ''}
+    inline-block
+  `.trim();
 
   return (
-    <img
-      src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-      alt="Cuephoria 8-Ball Club Logo"
-      height={height}
-      width={width}
-      style={{
-        objectFit: "contain",
-        background: "transparent",
-        maxHeight: height, 
-        maxWidth: width,
-      }}
-      className={`select-none ${className || ""}`}
-      draggable={false}
-      loading="lazy"
-    />
+    <div className={containerClasses}>
+      <img
+        src="/lovable-uploads/4cbe5baa-e0fc-48eb-946c-cf808ec0b8fb.png"
+        alt="Cuephoria Logo"
+        height={height}
+        width={width}
+        style={{
+          objectFit: "contain",
+          background: "transparent",
+          maxHeight: height, 
+          maxWidth: width,
+        }}
+        className={logoClasses}
+        draggable={false}
+        loading="lazy"
+      />
+    </div>
   );
 };
 

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Joystick, Menu, Shield } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -69,9 +69,7 @@ const AppSidebar: React.FC = () => {
               <SheetContent side="left" className="p-0 w-[80%] max-w-[280px] bg-[#1A1F2C] border-r-0">
                 <div className="h-full flex flex-col">
                   <div className="p-4 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple shadow-lg animate-pulse-glow relative">
-                      <Joystick className="h-6 w-6 text-white absolute animate-bounce" />
-                    </div>
+                    <Logo size="sm" withBounceGlow={true} />
                     <span className="text-xl font-bold gradient-text font-heading">Cuephoria</span>
                   </div>
                   <div className="mx-4 h-px bg-cuephoria-purple/30" />
@@ -124,9 +122,7 @@ const AppSidebar: React.FC = () => {
   return (
     <Sidebar className="border-r-0 bg-[#1A1F2C] text-white w-[250px]">
       <SidebarHeader className="p-4 flex items-center gap-3">
-        <div className="h-12 w-12 rounded-full flex items-center justify-center bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple shadow-lg animate-pulse-glow relative">
-          <Joystick className="h-7 w-7 text-white absolute animate-bounce" />
-        </div>
+        <Logo size="md" withBounceGlow={true} />
         <span className="text-2xl font-bold gradient-text font-heading">Cuephoria</span>
       </SidebarHeader>
       <SidebarSeparator className="mx-4 bg-cuephoria-purple/30" />
