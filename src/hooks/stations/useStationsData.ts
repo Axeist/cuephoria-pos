@@ -156,12 +156,37 @@ export const useStationsData = () => {
         return false;
       }
       
-      // Handle newly added stations that might not be in Supabase yet
-      // or stations that don't have a UUID format
+      // Check if there are any sessions associated with this station
       const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stationId);
       
       if (isValidUUID) {
-        // Delete from Supabase only if it's a valid UUID
+        // Check for existing sessions in the database
+        const { data: sessionsData, error: sessionsError } = await supabase
+          .from('sessions')
+          .select('id')
+          .eq('station_id', stationId)
+          .limit(1);
+          
+        if (sessionsError) {
+          console.error('Error checking sessions:', sessionsError);
+          toast({
+            title: 'Database Error',
+            description: 'Failed to check for existing sessions',
+            variant: 'destructive'
+          });
+          return false;
+        }
+        
+        if (sessionsData && sessionsData.length > 0) {
+          toast({
+            title: 'Cannot Delete Station',
+            description: 'This station has registered sessions and cannot be deleted. Sessions must be manually removed from the database first.',
+            variant: 'destructive'
+          });
+          return false;
+        }
+        
+        // Delete from Supabase if no sessions exist
         const { error } = await supabase
           .from('stations')
           .delete()
