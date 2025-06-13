@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -145,24 +146,26 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                     key={`${match.id}-${index}`}
                     className={`p-4 rounded-lg border ${getStageColor(stage)} hover:scale-[1.02] transition-all duration-300`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="text-sm text-cuephoria-grey">
-                          <span className="font-medium text-white">
-                            {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
-                          </span>
-                          <span className="mx-2 text-cuephoria-lightpurple">vs</span>
-                          <span className="font-medium text-white">
-                            {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
-                          </span>
-                        </div>
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+                      {/* Players section - left aligned */}
+                      <div className="flex items-center justify-start">
+                        <span className="font-medium text-white text-left">
+                          {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
+                        </span>
+                        <span className="mx-3 text-cuephoria-lightpurple font-bold">vs</span>
+                        <span className="font-medium text-white text-left">
+                          {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
+                        </span>
                       </div>
                       
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 text-green-400">
-                          <Crown className="h-4 w-4" />
-                          <span className="font-semibold">{match.winner_name}</span>
-                        </div>
+                      {/* Winner section - center aligned */}
+                      <div className="flex items-center justify-center gap-2 text-green-400">
+                        <Crown className="h-4 w-4" />
+                        <span className="font-semibold">{match.winner_name}</span>
+                      </div>
+
+                      {/* Stage badge - right aligned */}
+                      <div className="flex justify-end">
                         <Badge variant="outline" className="text-xs border-cuephoria-lightpurple/50 text-cuephoria-lightpurple">
                           {formatStage(match.match_stage)}
                         </Badge>
