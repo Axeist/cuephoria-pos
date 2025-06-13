@@ -66,7 +66,9 @@ export class NotificationService {
     });
   }
 
-  private shouldSendNotification(key: string): boolean {
+  private shouldSendNotification(key: string, forceSkipCooldown: boolean = false): boolean {
+    if (forceSkipCooldown) return true;
+    
     const now = Date.now();
     const lastTime = this.lastNotificationTime.get(key) || 0;
     const cooldownPeriod = 5 * 60 * 1000; // 5 minutes
@@ -79,7 +81,7 @@ export class NotificationService {
     return true;
   }
 
-  async sendNotification(templateName: string, variables: Record<string, any>) {
+  async sendNotification(templateName: string, variables: Record<string, any>, forceSkipCooldown: boolean = false) {
     const template = this.templates.find(t => t.name === templateName);
     if (!template) {
       console.error(`Notification template '${templateName}' not found`);
@@ -89,8 +91,8 @@ export class NotificationService {
     // Create a unique key for cooldown checking
     const notificationKey = `${templateName}_${JSON.stringify(variables)}`;
     
-    // Check cooldown for duplicate notifications
-    if (!this.shouldSendNotification(notificationKey)) {
+    // Check cooldown for duplicate notifications (unless forced to skip)
+    if (!this.shouldSendNotification(notificationKey, forceSkipCooldown)) {
       console.log(`Notification '${templateName}' skipped due to cooldown`);
       return false;
     }
@@ -140,9 +142,10 @@ export class NotificationService {
   }
 
   async notifyNewCustomer(customerName: string) {
+    console.log('Sending new customer notification for:', customerName);
     return this.sendNotification('new_customer', {
       customer_name: customerName
-    });
+    }, true); // Force skip cooldown for customer notifications
   }
 
   async notifyProductSoldOut(productName: string) {
@@ -155,6 +158,16 @@ export class NotificationService {
     return this.sendNotification('daily_report', {
       date: date
     });
+  }
+
+  async notifyThemeChanged(newTheme: string) {
+    return this.sendNotification('theme_changed', {
+      theme: newTheme
+    }, true);
+  }
+
+  async notifySettingsChanged() {
+    return this.sendNotification('settings_updated', {}, true);
   }
 }
 

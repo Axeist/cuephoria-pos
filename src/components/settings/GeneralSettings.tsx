@@ -20,6 +20,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Settings, Bell, Clock, Moon } from 'lucide-react';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
+import { notificationService } from '@/services/notificationService';
 
 const formSchema = z.object({
   default_timeout: z.string().min(1, {
@@ -65,6 +66,8 @@ const GeneralSettings = () => {
   const onSubmit = async (data: FormData) => {
     setIsSaving(true);
     
+    const previousTheme = preferences?.theme;
+    
     const success = await updatePreferences({
       default_timeout: parseInt(data.default_timeout),
       theme: data.theme,
@@ -74,13 +77,13 @@ const GeneralSettings = () => {
     });
 
     if (success) {
-      // Apply theme change immediately
-      const root = document.documentElement;
-      if (data.theme === 'dark') {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
+      // Send theme change notification if theme was changed
+      if (previousTheme && previousTheme !== data.theme) {
+        await notificationService.notifyThemeChanged(data.theme);
       }
+      
+      // Send general settings updated notification
+      await notificationService.notifySettingsChanged();
     }
     
     setIsSaving(false);
@@ -106,7 +109,7 @@ const GeneralSettings = () => {
           <CardTitle>General Settings</CardTitle>
         </div>
         <CardDescription>
-          Manage your application preferences and default settings.
+          Manage your application preferences and default settings. Changes will trigger notifications and apply immediately.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -136,7 +139,7 @@ const GeneralSettings = () => {
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      Choose your preferred color theme for the application.
+                      Choose your preferred color theme. Changes apply immediately and will trigger a notification.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -158,7 +161,7 @@ const GeneralSettings = () => {
                     <div className="space-y-0.5">
                       <FormLabel className="text-base">In-App Notifications</FormLabel>
                       <FormDescription>
-                        Receive notifications about station timeouts and low stock products.
+                        Receive notifications about station timeouts, low stock products, and customer activities.
                       </FormDescription>
                     </div>
                     <FormControl>

@@ -24,6 +24,9 @@ const isValidReceiptTemplate = (template: string): template is 'standard' | 'det
   return ['standard', 'detailed', 'minimal'].includes(template);
 };
 
+// Generate a consistent admin user ID
+const ADMIN_USER_ID = '00000000-0000-0000-0000-000000000001';
+
 export const useUserPreferences = () => {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,13 +36,10 @@ export const useUserPreferences = () => {
     try {
       setLoading(true);
       
-      // Use a fixed admin user ID for single user system
-      const adminUserId = 'admin-user-id';
-      
       const { data, error } = await supabase
         .from('user_preferences')
         .select('*')
-        .eq('user_id', adminUserId)
+        .eq('user_id', ADMIN_USER_ID)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -61,10 +61,13 @@ export const useUserPreferences = () => {
         };
         
         setPreferences(transformedPreferences);
+        
+        // Apply theme immediately on load
+        applyTheme(transformedPreferences.theme);
       } else {
         // Create default preferences for admin user
         const defaultPrefs = {
-          user_id: adminUserId,
+          user_id: ADMIN_USER_ID,
           theme: 'dark' as const,
           notifications_enabled: true,
           email_notifications: false,
@@ -94,12 +97,22 @@ export const useUserPreferences = () => {
           };
           
           setPreferences(transformedNewPrefs);
+          applyTheme(transformedNewPrefs.theme);
         }
       }
     } catch (error) {
       console.error('Error in loadPreferences:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyTheme = (theme: 'light' | 'dark') => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
     }
   };
 
@@ -141,6 +154,12 @@ export const useUserPreferences = () => {
         };
         
         setPreferences(transformedData);
+        
+        // Apply theme change immediately
+        if (updates.theme) {
+          applyTheme(updates.theme);
+        }
+        
         toast({
           title: "Settings saved",
           description: "Your preferences have been updated successfully."

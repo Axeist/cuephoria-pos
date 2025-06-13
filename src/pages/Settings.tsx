@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, Bell } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, Bell, User } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import { Tournament } from '@/types/tournament.types';
@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import TournamentDialog from '@/components/tournaments/TournamentDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { notificationService } from '@/services/notificationService';
+import { useCustomerNotifications } from '@/hooks/useCustomerNotifications';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 
 const Settings = () => {
   const { user } = useAuth();
@@ -26,6 +28,10 @@ const Settings = () => {
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
+  const { preferences } = useUserPreferences();
+  
+  // Initialize customer notifications
+  useCustomerNotifications();
   
   // Load tournaments on component mount
   useEffect(() => {
@@ -67,6 +73,12 @@ const Settings = () => {
         // Close dialog if it was open
         setDialogOpen(false);
         setEditingTournament(null);
+        
+        // Send tournament created notification
+        await notificationService.sendNotification('tournament_created', {
+          tournament_name: savedTournament.name,
+          game_type: savedTournament.gameType
+        }, true);
       }
     } catch (error) {
       console.error("Error saving tournament:", error);
@@ -94,6 +106,11 @@ const Settings = () => {
           const deleted = await tournamentOps.deleteTournament(id, tournamentToDelete.name);
           if (deleted) {
             setTournaments(prev => prev.filter(t => t.id !== id));
+            
+            // Send tournament deleted notification
+            await notificationService.sendNotification('tournament_deleted', {
+              tournament_name: tournamentToDelete.name
+            }, true);
           }
         }
       } catch (error) {
@@ -158,13 +175,57 @@ const Settings = () => {
       });
     }
   };
+
+  const createTestCustomer = async () => {
+    try {
+      console.log('Creating test customer...');
+      const randomName = `Test Customer ${Math.floor(Math.random() * 1000)}`;
+      const randomPhone = `+1234567${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+      
+      const { data, error } = await require('@/integrations/supabase/client').supabase
+        .from('customers')
+        .insert([{
+          name: randomName,
+          phone: randomPhone,
+          email: `test${Math.floor(Math.random() * 1000)}@example.com`
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating test customer:', error);
+        toast({
+          title: "Error creating customer",
+          description: "Failed to create test customer.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data) {
+        console.log('Test customer created successfully:', data);
+        toast({
+          title: "Customer created!",
+          description: `Test customer "${randomName}" created successfully. You should receive a notification.`,
+          variant: "default"
+        });
+      }
+    } catch (error) {
+      console.error('Error in createTestCustomer:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while creating the test customer.",
+        variant: "destructive"
+      });
+    }
+  };
   
   return (
     <div className="container p-4 mx-auto max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
-          Manage your application settings and preferences.
+          Manage your application settings and preferences. Current theme: {preferences?.theme || 'loading...'}
         </p>
       </div>
       
@@ -177,6 +238,10 @@ const Settings = () => {
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Notifications
+          </TabsTrigger>
+          <TabsTrigger value="testing" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Testing
           </TabsTrigger>
           <TabsTrigger value="tournaments" className="flex items-center gap-2">
             <Trophy className="h-4 w-4" />
@@ -243,6 +308,53 @@ const Settings = () => {
                 >
                   <Bell className="mr-2 h-4 w-4" />
                   Test Daily Report
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="testing" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Live Integration Testing</CardTitle>
+              <CardDescription>
+                Test real application features to verify notifications and integrations are working properly.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button 
+                  variant="default" 
+                  onClick={createTestCustomer}
+                  className="justify-start"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Create Test Customer
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.href = '/customers'}
+                  className="justify-start"
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Go to Customers Page
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.href = '/pos'}
+                  className="justify-start"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  Go to POS System
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.href = '/products'}
+                  className="justify-start"
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Go to Products (Stock Management)
                 </Button>
               </div>
             </CardContent>
