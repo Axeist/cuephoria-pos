@@ -553,6 +553,33 @@ export type Database = {
         }
         Relationships: []
       }
+      email_templates: {
+        Row: {
+          body_template: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          subject_template: string
+        }
+        Insert: {
+          body_template: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          subject_template: string
+        }
+        Update: {
+          body_template?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject_template?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
@@ -623,6 +650,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          message_template: string
+          name: string
+          title_template: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template: string
+          name: string
+          title_template: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template?: string
+          name?: string
+          title_template?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_read: boolean
+          message: string
+          metadata: Json | null
+          title: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean
+          message: string
+          metadata?: Json | null
+          title: string
+          type?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string
+          metadata?: Json | null
+          title?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -1105,6 +1198,42 @@ export type Database = {
           updated_at?: string | null
           winner?: Json | null
           winner_prize?: number | null
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          created_at: string
+          default_timeout: number
+          email_notifications: boolean
+          id: string
+          notifications_enabled: boolean
+          receipt_template: string
+          theme: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          default_timeout?: number
+          email_notifications?: boolean
+          id?: string
+          notifications_enabled?: boolean
+          receipt_template?: string
+          theme?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          default_timeout?: number
+          email_notifications?: boolean
+          id?: string
+          notifications_enabled?: boolean
+          receipt_template?: string
+          theme?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Joystick, Menu, Shield } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -70,7 +70,11 @@ const AppSidebar: React.FC = () => {
                 <div className="h-full flex flex-col">
                   <div className="p-4 flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple shadow-lg animate-pulse-glow relative">
-                      <Joystick className="h-6 w-6 text-white absolute animate-bounce" />
+                      <img
+                        src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
+                        alt="Cuephoria Logo"
+                        className="h-6 w-6 object-contain absolute animate-bounce"
+                      />
                     </div>
                     <span className="text-xl font-bold gradient-text font-heading">Cuephoria</span>
                   </div>
@@ -125,7 +129,11 @@ const AppSidebar: React.FC = () => {
     <Sidebar className="border-r-0 bg-[#1A1F2C] text-white w-[250px]">
       <SidebarHeader className="p-4 flex items-center gap-3">
         <div className="h-12 w-12 rounded-full flex items-center justify-center bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple shadow-lg animate-pulse-glow relative">
-          <Joystick className="h-7 w-7 text-white absolute animate-bounce" />
+          <img
+            src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
+            alt="Cuephoria Logo"
+            className="h-7 w-7 object-contain absolute animate-bounce"
+          />
         </div>
         <span className="text-2xl font-bold gradient-text font-heading">Cuephoria</span>
       </SidebarHeader>
