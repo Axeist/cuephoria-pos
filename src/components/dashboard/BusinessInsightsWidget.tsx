@@ -1,9 +1,8 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, TrendingUp, Target, AlertCircle } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { format, subDays, startOfDay, startOfMonth, endOfMonth, isToday, isYesterday } from 'date-fns';
 
@@ -141,139 +140,185 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
   }, [bills, expenses, startDate, endDate]);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base font-medium">Business Insights</CardTitle>
-        <BarChart3 className="h-4 w-4 text-muted-foreground" />
+    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-cyan-500/20 hover:border-cyan-500/30 transition-all duration-300 backdrop-blur-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
+        <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-cyan-400" />
+          Business Insights
+        </CardTitle>
+        <div className="h-8 w-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
+          <TrendingUp className="h-4 w-4 text-cyan-400" />
+        </div>
       </CardHeader>
-      <CardContent className="pb-4">
+      <CardContent className="pb-4 p-6">
         <div className="space-y-4">
           {/* Daily Sales Section */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Today's Sales</span>
-              <span className="font-bold text-green-400">
-                <CurrencyDisplay amount={insights.todaysSales} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Yesterday's Sales</span>
-              <span className="font-bold text-gray-400">
-                <CurrencyDisplay amount={insights.yesterdaysSales} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Growth (vs Yesterday)</span>
-              <span className={`font-medium text-xs ${insights.growthPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {insights.growthPercentage >= 0 ? '+' : ''}{insights.growthPercentage.toFixed(1)}%
-              </span>
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+            <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-cyan-400" />
+              Daily Performance
+            </h4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Today's Sales</span>
+                <span className="font-bold text-green-400">
+                  <CurrencyDisplay amount={insights.todaysSales} />
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Yesterday's Sales</span>
+                <span className="font-medium text-gray-300">
+                  <CurrencyDisplay amount={insights.yesterdaysSales} />
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Growth vs Yesterday</span>
+                <span className={`font-medium text-xs px-2 py-1 rounded-full ${
+                  insights.growthPercentage >= 0 
+                    ? 'text-green-400 bg-green-500/20' 
+                    : 'text-red-400 bg-red-500/20'
+                }`}>
+                  {insights.growthPercentage >= 0 ? '+' : ''}{insights.growthPercentage.toFixed(1)}%
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Revenue & Expenses Section */}
-          <div className="space-y-2 pt-2 border-t border-gray-700">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total Sales</span>
-              <span className="font-bold text-blue-400">
-                <CurrencyDisplay amount={insights.totalSales} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total Expenses</span>
-              <span className="font-bold text-red-400">
-                <CurrencyDisplay amount={insights.totalExpenses} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Net Profit</span>
-              <span className={`font-bold ${insights.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                <CurrencyDisplay amount={insights.netProfit} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Profit Margin</span>
-              <span className={`font-medium ${insights.profitMargin >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {insights.profitMargin.toFixed(1)}%
-              </span>
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+            <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
+              <Target className="h-4 w-4 text-blue-400" />
+              Financial Overview
+            </h4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Total Sales</span>
+                <span className="font-bold text-blue-400">
+                  <CurrencyDisplay amount={insights.totalSales} />
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Total Expenses</span>
+                <span className="font-bold text-red-400">
+                  <CurrencyDisplay amount={insights.totalExpenses} />
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Net Profit</span>
+                <span className={`font-bold ${insights.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <CurrencyDisplay amount={insights.netProfit} />
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Profit Margin</span>
+                <span className={`font-medium px-2 py-1 rounded-full text-xs ${
+                  insights.profitMargin >= 20 
+                    ? 'text-green-400 bg-green-500/20' 
+                    : insights.profitMargin >= 10 
+                      ? 'text-yellow-400 bg-yellow-500/20'
+                      : 'text-red-400 bg-red-500/20'
+                }`}>
+                  {insights.profitMargin.toFixed(1)}%
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Operational Metrics Section */}
-          <div className="space-y-2 pt-2 border-t border-gray-700">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Avg Bill Value</span>
-              <span className="font-medium">
-                <CurrencyDisplay amount={insights.avgBillValue} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Expense Ratio</span>
-              <span className={`font-medium ${insights.expenseToRevenueRatio > 70 ? 'text-red-400' : insights.expenseToRevenueRatio > 50 ? 'text-yellow-400' : 'text-green-400'}`}>
-                {insights.expenseToRevenueRatio.toFixed(1)}%
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Break-even Daily</span>
-              <span className="font-medium text-orange-400">
-                <CurrencyDisplay amount={insights.breakEvenPoint} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Daily Prediction</span>
-              <span className="font-medium text-purple-400">
-                <CurrencyDisplay amount={insights.dailyPrediction} />
-              </span>
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+            <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-orange-400" />
+              Key Metrics
+            </h4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Avg Bill Value</span>
+                <span className="font-medium text-white">
+                  <CurrencyDisplay amount={insights.avgBillValue} />
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Expense Ratio</span>
+                <span className={`font-medium px-2 py-1 rounded-full text-xs ${
+                  insights.expenseToRevenueRatio > 70 
+                    ? 'text-red-400 bg-red-500/20' 
+                    : insights.expenseToRevenueRatio > 50 
+                      ? 'text-yellow-400 bg-yellow-500/20' 
+                      : 'text-green-400 bg-green-500/20'
+                }`}>
+                  {insights.expenseToRevenueRatio.toFixed(1)}%
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Break-even Daily</span>
+                <span className="font-medium text-orange-400">
+                  <CurrencyDisplay amount={insights.breakEvenPoint} />
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Daily Prediction</span>
+                <span className="font-medium text-purple-400">
+                  <CurrencyDisplay amount={insights.dailyPrediction} />
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Monthly Progress Section */}
-          <div className="space-y-2 pt-2 border-t border-gray-700">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Monthly Target</span>
-              <span className="font-medium">
-                <CurrencyDisplay amount={insights.monthlyTarget} />
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Current Month</span>
-              <span className="font-medium text-yellow-400">
-                <CurrencyDisplay amount={insights.currentMonthSales} />
-              </span>
-            </div>
-            
-            <div className="space-y-1">
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+            <h4 className="text-sm font-medium text-gray-200 mb-3">Monthly Progress</h4>
+            <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground">Progress</span>
-                <span className="text-xs font-medium">
-                  {insights.monthlyProgress.toFixed(1)}%
+                <span className="text-sm text-gray-400">Target</span>
+                <span className="font-medium text-white">
+                  <CurrencyDisplay amount={insights.monthlyTarget} />
                 </span>
               </div>
-              <div className="w-full bg-gray-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    insights.monthlyProgress >= 100 
-                      ? 'bg-green-500' 
-                      : insights.monthlyProgress >= 75 
-                        ? 'bg-yellow-500' 
-                        : 'bg-blue-500'
-                  }`}
-                  style={{ width: `${insights.monthlyProgress}%` }}
-                />
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Current Month</span>
+                <span className="font-medium text-yellow-400">
+                  <CurrencyDisplay amount={insights.currentMonthSales} />
+                </span>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400">Progress</span>
+                  <span className="text-xs font-medium text-cyan-400">
+                    {insights.monthlyProgress.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-700/50 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className={`h-2 rounded-full transition-all duration-500 ease-out shadow-lg ${
+                      insights.monthlyProgress >= 100 
+                        ? 'bg-gradient-to-r from-green-500 to-green-400 shadow-green-500/30' 
+                        : insights.monthlyProgress >= 75 
+                          ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 shadow-yellow-500/30'
+                          : 'bg-gradient-to-r from-cyan-500 to-cyan-400 shadow-cyan-500/30'
+                    }`}
+                    style={{ width: `${insights.monthlyProgress}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>0%</span>
+                  <span>100%</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-gray-700">
-            <div className="text-xs text-muted-foreground">
+          <div className="pt-2 border-t border-gray-700/30">
+            <div className="text-xs text-gray-500">
               <p>Period: {format(new Date(), 'MMM yyyy')}</p>
             </div>
           </div>
