@@ -37,6 +37,7 @@ const formSchema = z.object({
   gameVariant: z.enum(["8 Ball", "Snooker"]).optional(),
   gameTitle: z.string().optional(),
   date: z.string(),
+  maxPlayers: z.string().min(1, "Maximum players is required"),
   budget: z.string().optional(),
   winnerPrize: z.string().optional(),
   runnerUpPrize: z.string().optional(),
@@ -65,6 +66,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       gameType: 'PS5',
       gameTitle: 'FIFA',
       date: new Date().toISOString().split('T')[0],
+      maxPlayers: '16',
       budget: '',
       winnerPrize: '',
       runnerUpPrize: '',
@@ -79,6 +81,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
         gameVariant: tournament.gameVariant,
         gameTitle: tournament.gameTitle,
         date: tournament.date,
+        maxPlayers: tournament.maxPlayers?.toString() || '16',
         budget: tournament.budget?.toString() || '',
         winnerPrize: tournament.winnerPrize?.toString() || '',
         runnerUpPrize: tournament.runnerUpPrize?.toString() || '',
@@ -100,6 +103,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
         gameType: 'PS5',
         gameTitle: 'FIFA',
         date: new Date().toISOString().split('T')[0],
+        maxPlayers: '16',
         budget: '',
         winnerPrize: '',
         runnerUpPrize: '',
@@ -122,6 +126,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       gameType: values.gameType,
       ...(values.gameType === 'PS5' ? { gameTitle: values.gameTitle } : { gameVariant: values.gameVariant }),
       date: values.date,
+      maxPlayers: parseInt(values.maxPlayers),
       players: players,
       matches: matches,
       status: tournamentStatus,
@@ -638,6 +643,33 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                   )}
                 />
                 
+                <FormField
+                  control={form.control}
+                  name="maxPlayers"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Maximum Players</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select maximum players" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="4">4 Players</SelectItem>
+                          <SelectItem value="8">8 Players</SelectItem>
+                          <SelectItem value="12">12 Players</SelectItem>
+                          <SelectItem value="16">16 Players</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
                 <div className="border-t pt-4 mt-4">
                   <h3 className="text-md font-medium mb-4">Tournament Finance</h3>
                   
@@ -703,7 +735,8 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
             <TournamentPlayerSection 
               players={players} 
               setPlayers={setPlayers}
-              matchesExist={matches.length > 0} 
+              matchesExist={matches.length > 0}
+              maxPlayers={parseInt(form.watch('maxPlayers') || '16')}
             />
           </TabsContent>
           
