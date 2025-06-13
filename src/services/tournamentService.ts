@@ -4,7 +4,6 @@ import { useToast } from '@/hooks/use-toast';
 import { PostgrestError } from "@supabase/supabase-js";
 import { useAuth } from "@/context/AuthContext";
 import { generateId } from "@/utils/pos.utils";
-import { determineRunnerUp, saveTournamentHistory } from "@/services/tournamentHistoryService";
 
 // Define a more specific type for Supabase operations with tournaments
 // This helps us work around the type limitations without modifying the types.ts file
@@ -268,25 +267,8 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
     // Log the tournament being saved for debugging
     console.log('Saving tournament to Supabase:', tournament);
     
-    // If tournament is completed and has matches, determine runner-up and save history
-    if (tournament.status === 'completed' && tournament.matches.length > 0) {
-      if (!tournament.runnerUp) {
-        tournament.runnerUp = determineRunnerUp(tournament.matches, tournament.players);
-      }
-      
-      // Save tournament history asynchronously (don't block the save operation)
-      saveTournamentHistory(tournament).catch(error => {
-        console.error('Error saving tournament history:', error);
-      });
-    }
-    
     const supabaseTournament = convertToSupabaseTournament(tournament);
     console.log('Converted to Supabase format:', supabaseTournament);
-    
-    // Ensure max_players is always set with a proper value
-    if (!supabaseTournament.max_players || supabaseTournament.max_players < 2) {
-      supabaseTournament.max_players = 16; // Default fallback
-    }
     
     // Check if the tournament already exists
     const { data: existingTournament, error: checkError } = await tournamentsTable
@@ -318,8 +300,6 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
         }
       });
       
-      console.log('Update data with max_players:', updateData.max_players);
-      
       const { data, error } = await tournamentsTable
         .update(updateData)
         .eq('id', tournament.id)
@@ -335,7 +315,7 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
       console.log('Tournament updated successfully:', result);
     } else {
       // Create new tournament with created_at timestamp
-      console.log('Creating new tournament with max_players:', supabaseTournament.max_players);
+      console.log('Creating new tournament');
       
       // Clean up any undefined or malformed values before sending to Supabase
       const insertData = { ...supabaseTournament, created_at: new Date().toISOString() };
@@ -345,8 +325,6 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
           insertData[key] = null;
         }
       });
-      
-      console.log('Insert data with max_players:', insertData.max_players);
       
       const { data, error } = await tournamentsTable
         .insert(insertData)
@@ -359,13 +337,10 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
       }
       
       result = data;
-      console.log('Tournament created successfully with max_players:', result.max_players);
+      console.log('Tournament created successfully:', result);
     }
     
-    const convertedResult = convertFromSupabaseTournament(result);
-    console.log('Final converted tournament max_players:', convertedResult.maxPlayers);
-    
-    return { data: convertedResult, error: null };
+    return { data: convertFromSupabaseTournament(result), error: null };
   } catch (error) {
     console.error('Unexpected error saving tournament:', error);
     return { data: null, error: 'An unexpected error occurred while saving the tournament.' };

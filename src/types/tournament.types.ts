@@ -35,40 +35,13 @@ export interface Tournament {
   players: Player[];
   matches: Match[];
   winner?: Player;
-  runnerUp?: Player; // New field for runner-up
   status: 'upcoming' | 'in-progress' | 'completed';
   budget?: number;
   winnerPrize?: number;
   runnerUpPrize?: number;
-  maxPlayers?: number; // Add max_players field
   // Database sync fields
   created_at?: string;
   updated_at?: string;
-}
-
-// New interfaces for tournament history
-export interface TournamentHistoryMatch {
-  id: string;
-  tournament_id: string;
-  match_id: string;
-  player1_name: string;
-  player2_name: string;
-  winner_name: string;
-  match_date: string;
-  match_stage: MatchStage;
-  created_at: string;
-}
-
-export interface TournamentWinner {
-  id: string;
-  tournament_id: string;
-  tournament_name: string;
-  winner_name: string;
-  runner_up_name?: string;
-  tournament_date: string;
-  game_type: string;
-  game_variant?: string;
-  created_at: string;
 }
 
 // Database conversion helper functions
@@ -87,8 +60,6 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     winnerPrize: item.winner_prize || undefined,
     runnerUpPrize: item.runner_up_prize || undefined,
     winner: item.winner || undefined,
-    runnerUp: item.runner_up || undefined, // Add runner_up conversion
-    maxPlayers: item.max_players || 16, // Ensure we always have a value
     created_at: item.created_at,
     updated_at: item.updated_at
   };
@@ -104,7 +75,6 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
     players: tournament.players || [],
     matches: tournament.matches || [],
     status: tournament.status,
-    max_players: tournament.maxPlayers || 16, // Always include max_players with a default
   };
   
   // Only add optional fields if they have values
@@ -114,7 +84,6 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.winnerPrize !== undefined) cleanObject.winner_prize = tournament.winnerPrize;
   if (tournament.runnerUpPrize !== undefined) cleanObject.runner_up_prize = tournament.runnerUpPrize;
   if (tournament.winner) cleanObject.winner = tournament.winner;
-  if (tournament.runnerUp) cleanObject.runner_up = tournament.runnerUp; // Add runner_up conversion
   
   return cleanObject;
 };

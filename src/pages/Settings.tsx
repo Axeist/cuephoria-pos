@@ -1,13 +1,12 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
-import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
-import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
 import { Tournament } from '@/types/tournament.types';
 import { generateId } from '@/utils/pos.utils';
 import { useTournamentOperations } from '@/services/tournamentService';
@@ -24,8 +23,6 @@ const Settings = () => {
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
-  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
-  const [selectedTournamentForHistory, setSelectedTournamentForHistory] = useState<{ id: string; name: string } | null>(null);
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
   
@@ -115,11 +112,6 @@ const Settings = () => {
     window.open('/public/tournaments', '_blank');
   };
   
-  const handleViewHistory = (tournament: Tournament) => {
-    setSelectedTournamentForHistory({ id: tournament.id, name: tournament.name });
-    setHistoryDialogOpen(true);
-  };
-  
   return (
     <div className="container p-4 mx-auto max-w-7xl">
       <div className="mb-8">
@@ -138,10 +130,6 @@ const Settings = () => {
           <TabsTrigger value="tournaments" className="flex items-center gap-2">
             <Trophy className="h-4 w-4" />
             Tournaments
-          </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="flex items-center gap-2">
-            <Award className="h-4 w-4" />
-            Leaderboard
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="staff" className="flex items-center gap-2">
@@ -194,7 +182,6 @@ const Settings = () => {
             tournaments={tournaments}
             onEdit={handleEditTournament}
             onDelete={handleDeleteTournament}
-            onViewHistory={handleViewHistory}
           />
           
           <TournamentDialog 
@@ -203,17 +190,6 @@ const Settings = () => {
             onSave={handleSaveTournament}
             tournament={editingTournament}
           />
-
-          <TournamentHistoryDialog 
-            open={historyDialogOpen}
-            onOpenChange={setHistoryDialogOpen}
-            tournamentId={selectedTournamentForHistory?.id || ''}
-            tournamentName={selectedTournamentForHistory?.name || ''}
-          />
-        </TabsContent>
-
-        <TabsContent value="leaderboard" className="space-y-4">
-          <TournamentLeaderboard />
         </TabsContent>
         
         {isAdmin && (

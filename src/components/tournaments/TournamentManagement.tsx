@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { generateMatches, determineWinner } from '@/services/tournamentService';
-import { determineRunnerUp } from '@/services/tournamentHistoryService';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -27,13 +26,11 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   const [activeTab, setActiveTab] = useState('players');
   const [saving, setSaving] = useState(false);
   const [winner, setWinner] = useState<Player | undefined>(tournament.winner);
-  const [runnerUp, setRunnerUp] = useState<Player | undefined>(tournament.runnerUp);
 
   useEffect(() => {
     setPlayers(tournament.players || []);
     setMatches(tournament.matches || []);
     setWinner(tournament.winner);
-    setRunnerUp(tournament.runnerUp);
   }, [tournament]);
 
   const handleGenerateMatches = () => {
@@ -52,7 +49,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     setMatches(generatedMatches);
     setActiveTab('matches');
     
-    handleSave(players, generatedMatches, winner, runnerUp);
+    handleSave(players, generatedMatches, winner);
   };
 
   const handleUpdateMatchResult = (matchId: string, winnerId: string) => {
@@ -92,14 +89,12 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
       }
     }
     
-    // Determine if we have a tournament winner and runner-up
+    // Determine if we have a tournament winner
     const updatedWinner = determineWinner(updatedMatches, players);
-    const updatedRunnerUp = updatedWinner ? determineRunnerUp(updatedMatches, players) : undefined;
-    
     setWinner(updatedWinner);
-    setRunnerUp(updatedRunnerUp);
+    
     setMatches(updatedMatches);
-    handleSave(players, updatedMatches, updatedWinner, updatedRunnerUp);
+    handleSave(players, updatedMatches, updatedWinner);
   };
 
   const handleUpdateMatchSchedule = (matchId: string, date: string, time: string) => {
@@ -115,7 +110,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     });
     
     setMatches(updatedMatches);
-    handleSave(players, updatedMatches, winner, runnerUp);
+    handleSave(players, updatedMatches, winner);
   };
 
   const handleUpdateMatchStatus = (matchId: string, status: MatchStatus) => {
@@ -130,7 +125,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     });
     
     setMatches(updatedMatches);
-    handleSave(players, updatedMatches, winner, runnerUp);
+    handleSave(players, updatedMatches, winner);
   };
   
   // Function to update player names across all matches
@@ -142,14 +137,13 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     setPlayers(updatedPlayers);
     
     // No need to update matches since we reference players by ID
-    handleSave(updatedPlayers, matches, winner, runnerUp);
+    handleSave(updatedPlayers, matches, winner);
   };
 
   const handleSave = async (
     currentPlayers: Player[], 
     currentMatches: Match[], 
-    currentWinner?: Player,
-    currentRunnerUp?: Player
+    currentWinner?: Player
   ) => {
     setSaving(true);
     
@@ -159,7 +153,6 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
         players: currentPlayers,
         matches: currentMatches,
         winner: currentWinner,
-        runnerUp: currentRunnerUp,
         status: currentWinner ? 'completed' : currentMatches.length > 0 ? 'in-progress' : 'upcoming'
       };
       
@@ -191,8 +184,6 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               setPlayers={setPlayers} 
               matchesExist={matches.length > 0}
               updatePlayerName={updatePlayerName}
-              tournamentId={tournament.id}
-              maxPlayers={tournament.maxPlayers} // Pass maxPlayers prop
             />
             
             <div className="flex justify-end pt-4">
@@ -220,7 +211,6 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               updateMatchSchedule={handleUpdateMatchSchedule}
               updateMatchStatus={handleUpdateMatchStatus}
               winner={winner}
-              runnerUp={runnerUp}
             />
           </TabsContent>
         </Tabs>
