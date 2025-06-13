@@ -1,9 +1,7 @@
-
-import { useState, useEffect, useCallback } from 'react';
-import { Bill, Customer, CartItem, Product } from '@/types/pos.types';
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from 'react';
+import { Bill, CartItem, Customer, Product } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
-import { generateId } from '@/utils/pos.utils';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -12,163 +10,73 @@ export const useBills = (
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
 
-  // Use useCallback to memoize the fetch function
-  const fetchBills = useCallback(async () => {
-    try {
-      // Check if local storage has bills data
-      const storedBills = localStorage.getItem('cuephoriaBills');
-      if (storedBills) {
-        const parsedBills = JSON.parse(storedBills);
-        
-        const billsWithDates = parsedBills.map((bill: any) => ({
-          ...bill,
-          createdAt: new Date(bill.createdAt)
-        }));
-        
-        setBills(billsWithDates);
-        
-        // Process in batches to avoid overloading supabase
-        const processBatch = async (batch: any[]) => {
-          for (const bill of batch) {
-            await supabase
-              .from('bills')
-              .upsert({
-                id: bill.id,
-                customer_id: bill.customerId,
-                subtotal: bill.subtotal,
-                discount: bill.discount,
-                discount_value: bill.discountValue,
-                discount_type: bill.discountType,
-                loyalty_points_used: bill.loyaltyPointsUsed,
-                loyalty_points_earned: bill.loyaltyPointsEarned,
-                total: bill.total,
-                payment_method: bill.paymentMethod,
-                is_split_payment: bill.isSplitPayment || false,
-                cash_amount: bill.cashAmount || 0,
-                upi_amount: bill.upiAmount || 0,
-                created_at: bill.createdAt.toISOString()
-              }, { onConflict: 'id' });
-            
-            // Batch insert bill items
-            const billItems = bill.items.map((item: any) => ({
-              bill_id: bill.id,
-              item_id: item.id,
-              item_type: item.type,
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-              total: item.total
-            }));
-            
-            if (billItems.length > 0) {
-              await supabase.from('bill_items').insert(billItems);
-            }
-          }
-        };
-        
-        // Process in batches of 10
-        const batchSize = 10;
-        for (let i = 0; i < billsWithDates.length; i += batchSize) {
-          const batch = billsWithDates.slice(i, i + batchSize);
-          await processBatch(batch);
-        }
-        
-        localStorage.removeItem('cuephoriaBills');
-        return;
-      }
-      
-      // Fetch bills from Supabase with a limit to improve performance
-      const { data: billsData, error: billsError } = await supabase
-        .from('bills')
-        .select('*')
-        .order('created_at', { ascending: false });
-        
-      if (billsError) {
-        console.error('Error fetching bills:', billsError);
-        return;
-      }
-      
-      if (!billsData) {
-        console.log('No bills found in database');
-        return;
-      }
-      
-      // Optimize transformation and fetching of bill items
-      const transformedBills: Bill[] = [];
-      
-      // Fetch all bill items in one query instead of individual queries per bill
-      const billIds = billsData.map(bill => bill.id);
-      const { data: allItemsData, error: allItemsError } = await supabase
-        .from('bill_items')
-        .select('*')
-        .in('bill_id', billIds);
-        
-      if (allItemsError) {
-        console.error('Error fetching bill items:', allItemsError);
-        return;
-      }
-      
-      // Group items by bill_id for faster lookups
-      const itemsByBillId: Record<string, any[]> = {};
-      if (allItemsData) {
-        allItemsData.forEach(item => {
-          if (!itemsByBillId[item.bill_id]) {
-            itemsByBillId[item.bill_id] = [];
-          }
-          itemsByBillId[item.bill_id].push(item);
-        });
-      }
-      
-      // Transform bills with their respective items
-      for (const billData of billsData) {
-        const billItems = itemsByBillId[billData.id] || [];
-        
-        const items: CartItem[] = billItems.map(item => ({
-          id: item.item_id,
-          type: item.item_type as 'product' | 'session',
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          total: item.total
-        }));
-        
-        transformedBills.push({
-          id: billData.id,
-          customerId: billData.customer_id,
-          items,
-          subtotal: billData.subtotal,
-          discount: billData.discount,
-          discountValue: billData.discount_value,
-          discountType: billData.discount_type as 'percentage' | 'fixed',
-          loyaltyPointsUsed: billData.loyalty_points_used,
-          loyaltyPointsEarned: billData.loyalty_points_earned,
-          total: billData.total,
-          paymentMethod: billData.payment_method as 'cash' | 'upi' | 'split',
-          isSplitPayment: billData.is_split_payment || false,
-          cashAmount: billData.cash_amount || 0,
-          upiAmount: billData.upi_amount || 0,
-          createdAt: new Date(billData.created_at)
-        });
-      }
-      
-      setBills(transformedBills);
-    } catch (error) {
-      console.error('Error in fetchBills:', error);
-    }
-  }, []);
-  
-  // Initialize bills data immediately when the component mounts
+  // Load bills from Supabase on component mount
   useEffect(() => {
-    // Use Promise.resolve().then() to defer execution until after the component renders
-    Promise.resolve().then(() => {
-      console.log('Initial bills loading started');
-      fetchBills();
-    });
-  }, [fetchBills]);
+    const loadBills = async () => {
+      try {
+        // Fetch bills with their items
+        const { data: billsData, error: billsError } = await supabase
+          .from('bills')
+          .select(`
+            *,
+            bill_items (
+              id,
+              item_id,
+              name,
+              price,
+              quantity,
+              total,
+              item_type
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (billsError) {
+          console.error('Error loading bills:', billsError);
+          return;
+        }
+
+        if (billsData) {
+          // Transform the data to match our Bill interface
+          const transformedBills: Bill[] = billsData.map(bill => ({
+            id: bill.id,
+            customerId: bill.customer_id,
+            items: (bill.bill_items || []).map((item: any) => ({
+              id: item.item_id,
+              type: item.item_type as 'product' | 'session',
+              name: item.name,
+              price: Number(item.price),
+              quantity: item.quantity,
+              total: Number(item.total)
+            })),
+            subtotal: Number(bill.subtotal),
+            discount: Number(bill.discount),
+            discountValue: Number(bill.discount_value),
+            discountType: bill.discount_type as 'percentage' | 'fixed',
+            loyaltyPointsUsed: bill.loyalty_points_used,
+            loyaltyPointsEarned: bill.loyalty_points_earned,
+            total: Number(bill.total),
+            paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split',
+            isSplitPayment: bill.is_split_payment || false,
+            cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
+            upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
+            createdAt: new Date(bill.created_at)
+          }));
+
+          setBills(transformedBills);
+          console.log('Bills loaded from database:', transformedBills.length);
+        }
+      } catch (error) {
+        console.error('Error in loadBills:', error);
+      }
+    };
+
+    loadBills();
+  }, []);
 
   const completeSale = async (
     cart: CartItem[],
-    selectedCustomer: Customer | null,
+    customer: Customer,
     discount: number,
     discountType: 'percentage' | 'fixed',
     loyaltyPointsUsed: number,
@@ -178,36 +86,17 @@ export const useBills = (
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
     upiAmount: number = 0
-  ) => {
-    if (!selectedCustomer) return undefined;
-    
-    const membershipItems = cart.filter(item => {
-      const product = products.find(p => p.id === item.id && p.category === 'membership');
-      return product !== undefined;
-    });
-    
-    if (membershipItems.length > 0 && selectedCustomer.isMember) {
-      const currentDate = new Date();
-      const membershipExpiryDate = selectedCustomer.membershipExpiryDate 
-        ? new Date(selectedCustomer.membershipExpiryDate) 
-        : null;
-      
-      if (membershipExpiryDate && membershipExpiryDate > currentDate) {
-        console.error("Customer already has an active membership that hasn't expired yet");
-        toast({
-          title: "Active Membership",
-          description: "Customer already has an active membership that expires on " + 
-                      membershipExpiryDate.toLocaleDateString(),
-          variant: "destructive"
-        });
-        throw new Error("Customer already has an active membership that hasn't expired yet");
-      }
-    }
-    
+  ): Promise<Bill | undefined> => {
     try {
-      const total = calculateTotal();
+      console.log('Starting completeSale with cart:', cart);
+      console.log('Customer:', customer);
+      console.log('Payment method:', paymentMethod);
+
+      if (!customer || cart.length === 0) {
+        throw new Error('Invalid customer or empty cart');
+      }
+
       const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
-      
       let discountValue = 0;
       if (discountType === 'percentage') {
         discountValue = subtotal * (discount / 100);
@@ -215,199 +104,167 @@ export const useBills = (
         discountValue = discount;
       }
       
-      // Calculate loyalty points based on the new rule
-      // Members: 5 points per 100 INR spent
-      // Non-members: 2 points per 100 INR spent
-      const pointsRate = selectedCustomer.isMember ? 5 : 2;
-      const loyaltyPointsEarned = Math.floor((total / 100) * pointsRate);
-      
-      const billId = generateId();
-      console.log("Generated bill ID:", billId);
-      
-      // For split payment, validate that amounts add up to total
-      if (isSplitPayment && Math.abs((cashAmount + upiAmount) - total) > 0.01) {
-        toast({
-          title: 'Error',
-          description: `Split payment amounts (₹${cashAmount + upiAmount}) must equal total (₹${total})`,
-          variant: 'destructive'
-        });
-        return undefined;
-      }
-      
-      // If not split payment but using a specific method, set the entire amount to that method
-      if (!isSplitPayment) {
-        if (paymentMethod === 'cash') {
-          cashAmount = total;
-          upiAmount = 0;
-        } else if (paymentMethod === 'upi') {
-          cashAmount = 0;
-          upiAmount = total;
-        }
-      }
-      
+      const total = calculateTotal();
+      const loyaltyPointsEarned = Math.floor(total / 10); // 1 point per ₹10 spent
+
+      console.log('Calculated values:', { subtotal, discountValue, total, loyaltyPointsEarned });
+
+      // Start a Supabase transaction
       const { data: billData, error: billError } = await supabase
         .from('bills')
         .insert({
-          id: billId,
-          customer_id: selectedCustomer.id,
-          subtotal,
-          discount,
+          customer_id: customer.id,
+          subtotal: subtotal,
+          discount: discount,
           discount_value: discountValue,
           discount_type: discountType,
           loyalty_points_used: loyaltyPointsUsed,
           loyalty_points_earned: loyaltyPointsEarned,
-          total,
-          payment_method: isSplitPayment ? 'split' : paymentMethod,
+          total: total,
+          payment_method: paymentMethod,
           is_split_payment: isSplitPayment,
-          cash_amount: cashAmount,
-          upi_amount: upiAmount
+          cash_amount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
+          upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0)
         })
         .select()
         .single();
-        
+
       if (billError) {
         console.error('Error creating bill:', billError);
-        toast({
-          title: 'Error',
-          description: 'Failed to complete sale: ' + billError.message,
-          variant: 'destructive'
-        });
-        return undefined;
+        throw new Error(`Failed to create bill: ${billError.message}`);
       }
-      
-      for (const item of cart) {
-        const billItemId = generateId();
-        
-        const { error: itemError } = await supabase
-          .from('bill_items')
-          .insert({
-            id: billItemId,
-            bill_id: billId,
-            item_id: item.id,
-            item_type: item.type,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            total: item.total
-          });
-          
-        if (itemError) {
-          console.error('Error creating bill item:', itemError);
-          console.log('Failed item data:', {
-            id: billItemId,
-            bill_id: billId,
-            item_id: item.id,
-            item_type: item.type,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            total: item.total
-          });
-        }
+
+      console.log('Bill created successfully:', billData);
+
+      // Insert bill items
+      const billItemsToInsert = cart.map(item => ({
+        bill_id: billData.id,
+        item_id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.total,
+        item_type: item.type
+      }));
+
+      console.log('Inserting bill items:', billItemsToInsert);
+
+      const { error: itemsError } = await supabase
+        .from('bill_items')
+        .insert(billItemsToInsert);
+
+      if (itemsError) {
+        console.error('Error creating bill items:', itemsError);
+        // Try to delete the bill if items insertion failed
+        await supabase.from('bills').delete().eq('id', billData.id);
+        throw new Error(`Failed to create bill items: ${itemsError.message}`);
       }
-      
-      const bill: Bill = {
-        id: billId,
-        customerId: selectedCustomer.id,
-        items: [...cart],
-        subtotal,
-        discount,
-        discountValue,
-        discountType,
-        loyaltyPointsUsed,
-        loyaltyPointsEarned,
-        total,
-        paymentMethod: isSplitPayment ? 'split' : paymentMethod,
-        isSplitPayment,
-        cashAmount,
-        upiAmount,
-        createdAt: new Date(billData?.created_at || Date.now())
+
+      console.log('Bill items created successfully');
+
+      // Update customer
+      const updatedCustomer: Customer = {
+        ...customer,
+        loyaltyPoints: Math.max(0, customer.loyaltyPoints - loyaltyPointsUsed + loyaltyPointsEarned),
+        totalSpent: customer.totalSpent + total,
       };
-      
-      setBills(prevBills => [bill, ...prevBills]);
-      
-      const updatedCustomer = {
-        ...selectedCustomer,
-        loyaltyPoints: selectedCustomer.loyaltyPoints - loyaltyPointsUsed + loyaltyPointsEarned,
-        totalSpent: selectedCustomer.totalSpent + total
-      };
-      
-      if (membershipItems.length > 0) {
-        const membershipProduct = products.find(p => 
-          p.id === membershipItems[0].id && p.category === 'membership'
-        );
-        
-        if (membershipProduct) {
-          const currentDate = new Date();
-          let expiryDate = new Date();
-          
-          if (membershipProduct.name.toLowerCase().includes("weekly")) {
-            expiryDate.setDate(currentDate.getDate() + 7);
-          } else if (membershipProduct.name.toLowerCase().includes("monthly")) {
-            expiryDate.setDate(currentDate.getDate() + 30);
-          }
-          
-          updatedCustomer.isMember = true;
-          updatedCustomer.membershipExpiryDate = expiryDate;
-          updatedCustomer.membershipPlan = membershipProduct.name;
-          
-          if (membershipProduct.membershipHours) {
-            updatedCustomer.membershipHoursLeft = membershipProduct.membershipHours;
-          }
-          
-          if (membershipProduct.duration) {
-            updatedCustomer.membershipDuration = membershipProduct.duration;
-          } else if (membershipProduct.name.toLowerCase().includes("weekly")) {
-            updatedCustomer.membershipDuration = "weekly";
-          } else if (membershipProduct.name.toLowerCase().includes("monthly")) {
-            updatedCustomer.membershipDuration = "monthly";
-          }
-        }
+
+      // Update customer in database
+      const { error: customerError } = await supabase
+        .from('customers')
+        .update({
+          loyalty_points: updatedCustomer.loyaltyPoints,
+          total_spent: updatedCustomer.totalSpent
+        })
+        .eq('id', customer.id);
+
+      if (customerError) {
+        console.error('Error updating customer:', customerError);
+      } else {
+        updateCustomer(updatedCustomer);
+        console.log('Customer updated successfully');
       }
-      
-      updateCustomer(updatedCustomer);
-      
+
+      // Update product stock for non-session items
       for (const item of cart) {
         if (item.type === 'product') {
           const product = products.find(p => p.id === item.id);
           if (product && product.category !== 'membership') {
-            updateProduct({
-              ...product,
-              stock: product.stock - item.quantity
-            });
+            const newStock = Math.max(0, product.stock - item.quantity);
+            
+            // Update in database
+            const { error: productError } = await supabase
+              .from('products')
+              .update({ stock: newStock })
+              .eq('id', product.id);
+
+            if (productError) {
+              console.error('Error updating product stock:', productError);
+            } else {
+              // Update local state
+              updateProduct({ ...product, stock: newStock });
+              console.log(`Updated stock for ${product.name}: ${newStock}`);
+            }
           }
         }
       }
+
+      // Create the complete bill object with items
+      const completeBill: Bill = {
+        id: billData.id,
+        customerId: customer.id,
+        items: cart,
+        subtotal: subtotal,
+        discount: discount,
+        discountValue: discountValue,
+        discountType: discountType,
+        loyaltyPointsUsed: loyaltyPointsUsed,
+        loyaltyPointsEarned: loyaltyPointsEarned,
+        total: total,
+        paymentMethod: paymentMethod,
+        isSplitPayment: isSplitPayment,
+        cashAmount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
+        upiAmount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
+        createdAt: new Date(billData.created_at)
+      };
+
+      // Update local bills state
+      setBills(prevBills => [completeBill, ...prevBills]);
       
-      console.log("Sale completed successfully with bill ID:", billId);
-      return bill;
+      console.log('Sale completed successfully, bill created:', completeBill);
+      
+      toast({
+        title: 'Sale Completed',
+        description: `Bill created successfully. Total: ₹${total}`,
+        variant: 'default',
+      });
+
+      return completeBill;
+
     } catch (error) {
       console.error('Error in completeSale:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to complete sale',
-        variant: 'destructive'
+        title: 'Sale Failed',
+        description: error instanceof Error ? error.message : 'An error occurred while completing the sale',
+        variant: 'destructive',
       });
-      return undefined;
+      throw error;
     }
   };
-  
+
   const updateBill = async (
-    originalBill: Bill, 
-    updatedItems: CartItem[], 
-    customer: Customer, 
-    discount: number, 
-    discountType: 'percentage' | 'fixed', 
+    originalBill: Bill,
+    updatedItems: CartItem[],
+    customer: Customer,
+    discount: number,
+    discountType: 'percentage' | 'fixed',
     loyaltyPointsUsed: number,
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
     upiAmount: number = 0
   ): Promise<Bill | null> => {
     try {
-      // Calculate the new bill total
       const subtotal = updatedItems.reduce((sum, item) => sum + item.total, 0);
-      
-      // Calculate discount value based on type
       let discountValue = 0;
       if (discountType === 'percentage') {
         discountValue = subtotal * (discount / 100);
@@ -415,100 +272,43 @@ export const useBills = (
         discountValue = discount;
       }
       
-      // Calculate total after discount and loyalty points
-      const total = Math.max(0, subtotal - discountValue - loyaltyPointsUsed);
-      
-      // For split payment, validate that amounts add up to total
-      if (isSplitPayment && Math.abs((cashAmount + upiAmount) - total) > 0.01) {
-        toast({
-          title: 'Error',
-          description: `Split payment amounts (₹${cashAmount + upiAmount}) must equal total (₹${total})`,
-          variant: 'destructive'
-        });
-        return null;
-      }
-      
-      // If not split payment but has a specific method, set the entire amount to that method
-      let paymentMethod: 'cash' | 'upi' | 'split' = originalBill.paymentMethod;
-      
-      if (isSplitPayment) {
-        paymentMethod = 'split';
-      } else {
-        // Single payment method
-        if (paymentMethod === 'cash') {
-          cashAmount = total;
-          upiAmount = 0;
-        } else if (paymentMethod === 'upi') {
-          cashAmount = 0;
-          upiAmount = total;
-        }
-      }
-      
-      // Calculate loyalty points earned (members: 5 points per 100 INR, non-members: 2 points per 100 INR)
-      const pointsRate = customer.isMember ? 5 : 2;
-      const loyaltyPointsEarned = Math.floor((total / 100) * pointsRate);
-      
-      // Calculate the difference in loyalty points used from the original bill
-      const loyaltyPointsDifference = loyaltyPointsUsed - originalBill.loyaltyPointsUsed;
-      
-      // Calculate the difference in points earned (new points earned - original points earned)
-      const pointsEarnedDifference = loyaltyPointsEarned - originalBill.loyaltyPointsEarned;
-      
-      // Calculate the net change in loyalty points for the customer
-      const netLoyaltyPointsChange = -loyaltyPointsDifference + pointsEarnedDifference;
-      
-      // Create updated bill object
-      const updatedBill: Bill = {
-        ...originalBill,
-        items: updatedItems,
-        subtotal,
-        discount,
-        discountValue,
-        discountType,
-        loyaltyPointsUsed,
-        loyaltyPointsEarned,
-        total,
-        paymentMethod,
-        isSplitPayment,
-        cashAmount,
-        upiAmount
-      };
-      
-      // Update bill in Supabase
-      const { error: billUpdateError } = await supabase
+      const total = subtotal - discountValue - loyaltyPointsUsed;
+      const loyaltyPointsEarned = Math.floor(total / 10);
+
+      // Update bill in database
+      const { error: billError } = await supabase
         .from('bills')
         .update({
-          subtotal,
-          discount,
+          subtotal: subtotal,
+          discount: discount,
+          discount_value: discountValue,
           discount_type: discountType,
-          discount_value: discountValue, 
           loyalty_points_used: loyaltyPointsUsed,
           loyalty_points_earned: loyaltyPointsEarned,
-          total,
-          payment_method: paymentMethod,
+          total: total,
           is_split_payment: isSplitPayment,
           cash_amount: cashAmount,
           upi_amount: upiAmount
         })
         .eq('id', originalBill.id);
-      
-      if (billUpdateError) {
-        console.error('Error updating bill:', billUpdateError);
-        throw billUpdateError;
+
+      if (billError) {
+        console.error('Error updating bill:', billError);
+        throw new Error('Failed to update bill');
       }
-      
+
       // Delete existing bill items
-      const { error: deleteItemsError } = await supabase
+      const { error: deleteError } = await supabase
         .from('bill_items')
         .delete()
         .eq('bill_id', originalBill.id);
-      
-      if (deleteItemsError) {
-        console.error('Error deleting bill items:', deleteItemsError);
-        throw deleteItemsError;
+
+      if (deleteError) {
+        console.error('Error deleting bill items:', deleteError);
+        throw new Error('Failed to delete existing bill items');
       }
-      
-      // Insert updated bill items
+
+      // Insert new bill items
       const billItemsToInsert = updatedItems.map(item => ({
         bill_id: originalBill.id,
         item_id: item.id,
@@ -518,301 +318,177 @@ export const useBills = (
         total: item.total,
         item_type: item.type
       }));
-      
-      const { error: insertItemsError } = await supabase
+
+      const { error: itemsError } = await supabase
         .from('bill_items')
         .insert(billItemsToInsert);
-      
-      if (insertItemsError) {
-        console.error('Error inserting bill items:', insertItemsError);
-        throw insertItemsError;
+
+      if (itemsError) {
+        console.error('Error creating new bill items:', itemsError);
+        throw new Error('Failed to create new bill items');
       }
-      
-      // Update customer's loyalty points
-      if (netLoyaltyPointsChange !== 0) {
-        const updatedCustomer = {
-          ...customer,
-          loyaltyPoints: customer.loyaltyPoints + netLoyaltyPointsChange
-        };
-        
-        // Update customer in database
-        const { error: customerUpdateError } = await supabase
-          .from('customers')
-          .update({ loyalty_points: updatedCustomer.loyaltyPoints })
-          .eq('id', customer.id);
-        
-        if (customerUpdateError) {
-          console.error('Error updating customer loyalty points:', customerUpdateError);
-          throw customerUpdateError;
-        }
-        
-        // Update customer in state
-        updateCustomer(updatedCustomer);
-      }
-      
-      // Update local bills state
-      setBills(prevBills => prevBills.map(bill => 
-        bill.id === updatedBill.id ? updatedBill : bill
-      ));
-      
-      return updatedBill;
-      
-    } catch (error) {
-      console.error('Error in updateBill:', error);
+
+      const updatedBill: Bill = {
+        ...originalBill,
+        items: updatedItems,
+        subtotal: subtotal,
+        discount: discount,
+        discountValue: discountValue,
+        discountType: discountType,
+        loyaltyPointsUsed: loyaltyPointsUsed,
+        loyaltyPointsEarned: loyaltyPointsEarned,
+        total: total,
+        isSplitPayment: isSplitPayment,
+        cashAmount: cashAmount,
+        upiAmount: upiAmount
+      };
+
+      setBills(prevBills =>
+        prevBills.map(bill => bill.id === originalBill.id ? updatedBill : bill)
+      );
+
       toast({
-        title: 'Error',
-        description: 'Failed to update the transaction.',
-        variant: 'destructive'
+        title: 'Bill Updated',
+        description: 'The bill has been updated successfully',
+        variant: 'default',
+      });
+
+      return updatedBill;
+    } catch (error) {
+      console.error('Error updating bill:', error);
+      toast({
+        title: 'Update Failed',
+        description: error instanceof Error ? error.message : 'Failed to update bill',
+        variant: 'destructive',
       });
       return null;
     }
   };
 
-  const deleteBill = async (billId: string, customerId: string) => {
+  const deleteBill = async (billId: string, customerId: string): Promise<boolean> => {
     try {
-      const billToDelete = bills.find(bill => bill.id === billId);
-      if (!billToDelete) {
-        console.error('Bill not found:', billId);
-        toast({
-          title: 'Error',
-          description: 'Bill not found',
-          variant: 'destructive'
-        });
-        return false;
-      }
-      
-      // Step 1: Delete all bill items first (this is crucial for foreign key constraints)
-      const { error: itemsDeleteError } = await supabase
+      // First delete bill items
+      const { error: itemsError } = await supabase
         .from('bill_items')
         .delete()
         .eq('bill_id', billId);
-        
-      if (itemsDeleteError) {
-        console.error('Error deleting bill items:', itemsDeleteError);
-        toast({
-          title: 'Error',
-          description: `Failed to delete bill items: ${itemsDeleteError.message}`,
-          variant: 'destructive'
-        });
-        return false;
+
+      if (itemsError) {
+        console.error('Error deleting bill items:', itemsError);
+        throw new Error('Failed to delete bill items');
       }
-      
-      // Step 2: Delete any related cash transactions
-      const { error: cashTransactionError } = await supabase
-        .from('cash_transactions')
-        .delete()
-        .eq('bill_id', billId);
-        
-      if (cashTransactionError) {
-        console.error('Error deleting cash transactions:', cashTransactionError);
-        // Don't return false here, just log the error as this might not exist
-      }
-      
-      // Step 3: Now delete the bill itself
-      const { error: billDeleteError } = await supabase
+
+      // Then delete the bill
+      const { error: billError } = await supabase
         .from('bills')
         .delete()
         .eq('id', billId);
-        
-      if (billDeleteError) {
-        console.error('Error deleting bill:', billDeleteError);
-        toast({
-          title: 'Error',
-          description: `Failed to delete bill: ${billDeleteError.message}`,
-          variant: 'destructive'
-        });
-        return false;
+
+      if (billError) {
+        console.error('Error deleting bill:', billError);
+        throw new Error('Failed to delete bill');
       }
-      
-      // Step 4: Update local state
+
+      // Update local state
       setBills(prevBills => prevBills.filter(bill => bill.id !== billId));
-      
-      // Step 5: Update customer data if customer still exists
-      if (customerId) {
-        const { data: customerData, error: customerError } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('id', customerId)
-          .single();
-          
-        if (!customerError && customerData) {
-          const updatedCustomer = {
-            ...customerData,
-            loyalty_points: Math.max(0, customerData.loyalty_points - billToDelete.loyaltyPointsEarned + billToDelete.loyaltyPointsUsed),
-            total_spent: Math.max(0, customerData.total_spent - billToDelete.total)
-          };
-          
-          const { error: customerUpdateError } = await supabase
-            .from('customers')
-            .update({
-              loyalty_points: updatedCustomer.loyalty_points,
-              total_spent: updatedCustomer.total_spent
-            })
-            .eq('id', customerId);
-            
-          if (customerUpdateError) {
-            console.error('Error updating customer:', customerUpdateError);
-          } else {
-            // Update local customer state
-            const localCustomer: Customer = {
-              id: customerData.id,
-              name: customerData.name,
-              phone: customerData.phone,
-              email: customerData.email,
-              isMember: customerData.is_member,
-              membershipExpiryDate: customerData.membership_expiry_date ? new Date(customerData.membership_expiry_date) : undefined,
-              membershipStartDate: customerData.membership_start_date ? new Date(customerData.membership_start_date) : undefined,
-              membershipPlan: customerData.membership_plan,
-              membershipHoursLeft: customerData.membership_hours_left,
-              membershipDuration: (customerData.membership_duration as 'weekly' | 'monthly' | undefined),
-              loyaltyPoints: updatedCustomer.loyalty_points,
-              totalSpent: updatedCustomer.total_spent,
-              totalPlayTime: customerData.total_play_time,
-              createdAt: new Date(customerData.created_at)
-            };
-            
-            updateCustomer(localCustomer);
-          }
-        }
-      }
-      
-      // Step 6: Update product stock for non-membership items
-      const { data: productsData } = await supabase
-        .from('products')
-        .select('*');
-      
-      const products = productsData || [];
-      
-      for (const item of billToDelete.items) {
-        if (item.type === 'product') {
-          const product = products.find(p => p.id === item.id);
-          if (product && product.category !== 'membership') {
-            const { error: productUpdateError } = await supabase
-              .from('products')
-              .update({ stock: product.stock + item.quantity })
-              .eq('id', product.id);
-              
-            if (productUpdateError) {
-              console.error('Error updating product stock:', productUpdateError);
-            } else {
-              const productToUpdate: Product = {
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                category: product.category as 'food' | 'drinks' | 'tobacco' | 'challenges' | 'membership',
-                stock: product.stock + item.quantity,
-                image: product.image,
-                originalPrice: product.original_price,
-                offerPrice: product.offer_price,
-                studentPrice: product.student_price,
-                duration: product.duration as 'weekly' | 'monthly' | undefined,
-                membershipHours: product.membership_hours
-              };
-              updateProduct(productToUpdate);
-            }
-          }
-        }
-      }
-      
+
       toast({
-        title: 'Success',
-        description: 'Bill deleted successfully',
-        variant: 'default'
+        title: 'Bill Deleted',
+        description: 'The bill has been deleted successfully',
+        variant: 'default',
       });
-      
+
       return true;
     } catch (error) {
-      console.error('Error in deleteBill:', error);
+      console.error('Error deleting bill:', error);
       toast({
-        title: 'Error',
-        description: `Failed to delete bill: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: 'destructive'
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete bill',
+        variant: 'destructive',
       });
       return false;
     }
   };
-  
+
   const exportBills = (customers: Customer[]) => {
-    if (bills.length === 0) {
-      console.log("No bills to export.");
-      return;
-    }
-    
-    const billData = bills.map(bill => {
+    const billsWithCustomerNames = bills.map(bill => {
       const customer = customers.find(c => c.id === bill.customerId);
       const customerName = customer ? customer.name : 'Unknown Customer';
-      
-      const itemsData = bill.items.map(item => {
-        return `${item.name} (₹${item.price.toFixed(2)} x ${item.quantity})`;
-      }).join(', ');
-      
-      return `
-        Bill ID: ${bill.id}
-        Customer: ${customerName}
-        Items: ${itemsData}
-        Subtotal: ₹${bill.subtotal.toFixed(2)}
-        Discount: ${bill.discount}%
-        Total: ₹${bill.total.toFixed(2)}
-        Payment Method: ${bill.paymentMethod}
-        Date: ${bill.createdAt.toLocaleString()}
-        --------------------------------------------------
-      `;
-    }).join('\n');
-    
-    const filename = 'cuephoria_bills.txt';
-    const element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(billData));
-    element.setAttribute('download', filename);
-    
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    
-    element.click();
-    
-    document.body.removeChild(element);
+      return {
+        ...bill,
+        customerName: customerName
+      };
+    });
+
+    // Convert bills to CSV format
+    const csvData = [
+      [
+        'Bill ID', 'Customer Name', 'Subtotal', 'Discount', 'Discount Value',
+        'Loyalty Points Used', 'Total', 'Payment Method', 'Created At', 'Items'
+      ],
+      ...billsWithCustomerNames.map(bill => [
+        bill.id,
+        bill.customerName,
+        bill.subtotal,
+        bill.discount,
+        bill.discountValue,
+        bill.loyaltyPointsUsed,
+        bill.total,
+        bill.paymentMethod,
+        bill.createdAt.toLocaleString(),
+        bill.items.map(item => `${item.name} (${item.quantity})`).join(', ')
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    // Create a download link
+    const blob = new Blob([csvData], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bills.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    console.log('Export bills functionality');
   };
-  
+
   const exportCustomers = (customers: Customer[]) => {
-    if (customers.length === 0) {
-      console.log("No customers to export.");
-      return;
-    }
-    
-    const customerData = customers.map(customer => {
-      return `
-        Customer ID: ${customer.id}
-        Name: ${customer.name}
-        Phone: ${customer.phone}
-        Email: ${customer.email || 'N/A'}
-        Is Member: ${customer.isMember ? 'Yes' : 'No'}
-        Membership Expiry: ${customer.membershipExpiryDate ? customer.membershipExpiryDate.toLocaleDateString() : 'N/A'}
-        Loyalty Points: ${customer.loyaltyPoints}
-        Total Spent: ₹${customer.totalSpent.toFixed(2)}
-        Created At: ${customer.createdAt.toLocaleString()}
-        --------------------------------------------------
-      `;
-    }).join('\n');
-    
-    const filename = 'cuephoria_customers.txt';
-    const element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(customerData));
-    element.setAttribute('download', filename);
-    
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    
-    element.click();
-    
-    document.body.removeChild(element);
+    // Convert customers to CSV format
+    const csvData = [
+      ['Customer ID', 'Name', 'Phone', 'Email', 'Is Member', 'Loyalty Points', 'Total Spent', 'Created At'],
+      ...customers.map(customer => [
+        customer.id,
+        customer.name,
+        customer.phone,
+        customer.email || '',
+        customer.isMember,
+        customer.loyaltyPoints,
+        customer.totalSpent,
+        customer.createdAt.toLocaleString()
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    // Create a download link
+    const blob = new Blob([csvData], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'customers.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    console.log('Export customers functionality');
   };
 
   return {
     bills,
     setBills,
     completeSale,
-    deleteBill,
     updateBill,
+    deleteBill,
     exportBills,
-    exportCustomers
+    exportCustomers,
   };
 };
