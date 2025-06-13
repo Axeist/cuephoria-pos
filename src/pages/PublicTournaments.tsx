@@ -9,8 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
 import PublicLeaderboard from '@/components/tournaments/PublicLeaderboard';
 
@@ -64,7 +66,9 @@ const PublicTournaments = () => {
   const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
+  const [activeTab, setActiveTab] = useState('upcoming');
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const fetchTournaments = useCallback(async () => {
     try {
@@ -665,6 +669,96 @@ const PublicTournaments = () => {
     );
   });
 
+  const getTabLabel = (tab: string) => {
+    const counts = {
+      upcoming: filterTournaments('upcoming').length,
+      'in-progress': filterTournaments('in-progress').length,
+      completed: filterTournaments('completed').length,
+      leaderboard: ''
+    };
+
+    const labels = {
+      upcoming: `Upcoming (${counts.upcoming})`,
+      'in-progress': `Live (${counts['in-progress']})`,
+      completed: `Completed (${counts.completed})`,
+      leaderboard: 'Leaderboard'
+    };
+
+    return labels[tab as keyof typeof labels];
+  };
+
+  const getTabIcon = (tab: string) => {
+    const icons = {
+      upcoming: Trophy,
+      'in-progress': GamepadIcon,
+      completed: Crown,
+      leaderboard: TrendingUp
+    };
+    
+    const IconComponent = icons[tab as keyof typeof icons];
+    return IconComponent ? <IconComponent className="h-4 w-4 mr-2" /> : null;
+  };
+
+  const renderTabContent = (tabValue: string) => {
+    if (tabValue === 'leaderboard') {
+      return (
+        <div className="max-w-4xl mx-auto">
+          <PublicLeaderboard />
+        </div>
+      );
+    }
+
+    const tournamentsToShow = filterTournaments(tabValue);
+    
+    if (tournamentsToShow.length > 0) {
+      return (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {tournamentsToShow.map((tournament, index) => (
+            <div 
+              key={tournament.id}
+              className="animate-scale-in"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
+              <TournamentCard tournament={tournament} />
+            </div>
+          ))}
+        </div>
+      );
+    } else {
+      const emptyStateContent = {
+        upcoming: {
+          icon: Trophy,
+          title: "No upcoming tournaments",
+          description: "Check back soon for new competitions!"
+        },
+        'in-progress': {
+          icon: GamepadIcon,
+          title: "No live tournaments",
+          description: "Tournaments will appear here when they start!"
+        },
+        completed: {
+          icon: Crown,
+          title: "No completed tournaments",
+          description: "Previous tournament results will show here!"
+        }
+      };
+
+      const content = emptyStateContent[tabValue as keyof typeof emptyStateContent];
+      const IconComponent = content?.icon || Trophy;
+
+      return (
+        <div className="col-span-full text-center text-cuephoria-grey py-16">
+          <div className="relative inline-block mb-6">
+            <div className="absolute inset-0 rounded-full bg-cuephoria-lightpurple/20 animate-ping"></div>
+            <IconComponent className="h-20 w-20 mx-auto opacity-50 relative z-10" />
+          </div>
+          <p className="text-2xl font-semibold mb-2">{content?.title}</p>
+          <p className="text-lg">{content?.description}</p>
+        </div>
+      );
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-cuephoria-dark via-black to-cuephoria-darkpurple flex items-center justify-center overflow-hidden">
@@ -775,119 +869,115 @@ const PublicTournaments = () => {
       
       {/* Main content */}
       <main className="py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto relative z-10">
-        <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
-            <TabsTrigger 
-              value="upcoming" 
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
-            >
-              <Trophy className="h-4 w-4 mr-2" />
-              Upcoming ({filterTournaments('upcoming').length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="in-progress"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
-            >
-              <GamepadIcon className="h-4 w-4 mr-2" />
-              Live ({filterTournaments('in-progress').length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="completed"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
-            >
-              <Crown className="h-4 w-4 mr-2" />
-              Completed ({filterTournaments('completed').length})
-            </TabsTrigger>
-            <TabsTrigger 
-              value="leaderboard"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
-            >
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Leaderboard
-            </TabsTrigger>
-          </TabsList>
+        {/* Desktop Tabs */}
+        {!isMobile && (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
+              <TabsTrigger 
+                value="upcoming" 
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              >
+                {getTabIcon('upcoming')}
+                Upcoming ({filterTournaments('upcoming').length})
+              </TabsTrigger>
+              <TabsTrigger 
+                value="in-progress"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              >
+                {getTabIcon('in-progress')}
+                Live ({filterTournaments('in-progress').length})
+              </TabsTrigger>
+              <TabsTrigger 
+                value="completed"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              >
+                {getTabIcon('completed')}
+                Completed ({filterTournaments('completed').length})
+              </TabsTrigger>
+              <TabsTrigger 
+                value="leaderboard"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              >
+                {getTabIcon('leaderboard')}
+                Leaderboard
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="upcoming" className="mt-8">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filterTournaments('upcoming').length > 0 ? (
-                filterTournaments('upcoming').map((tournament, index) => (
-                  <div 
-                    key={tournament.id}
-                    className="animate-scale-in"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <TournamentCard tournament={tournament} />
-                  </div>
-                ))
-              ) : (
-                <div className="col-span-full text-center text-cuephoria-grey py-16">
-                  <div className="relative inline-block mb-6">
-                    <div className="absolute inset-0 rounded-full bg-cuephoria-lightpurple/20 animate-ping"></div>
-                    <Trophy className="h-20 w-20 mx-auto opacity-50 relative z-10" />
-                  </div>
-                  <p className="text-2xl font-semibold mb-2">No upcoming tournaments</p>
-                  <p className="text-lg">Check back soon for new competitions!</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
+            <TabsContent value="upcoming" className="mt-8">
+              {renderTabContent('upcoming')}
+            </TabsContent>
 
-          <TabsContent value="in-progress" className="mt-8">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filterTournaments('in-progress').length > 0 ? (
-                filterTournaments('in-progress').map((tournament, index) => (
-                  <div 
-                    key={tournament.id}
-                    className="animate-scale-in"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <TournamentCard tournament={tournament} />
-                  </div>
-                ))
-              ) : (
-                <div className="col-span-full text-center text-cuephoria-grey py-16">
-                  <div className="relative inline-block mb-6">
-                    <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping"></div>
-                    <GamepadIcon className="h-20 w-20 mx-auto opacity-50 relative z-10 animate-pulse" />
-                  </div>
-                  <p className="text-2xl font-semibold mb-2">No live tournaments</p>
-                  <p className="text-lg">Tournaments will appear here when they start!</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
+            <TabsContent value="in-progress" className="mt-8">
+              {renderTabContent('in-progress')}
+            </TabsContent>
 
-          <TabsContent value="completed" className="mt-8">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filterTournaments('completed').length > 0 ? (
-                filterTournaments('completed').map((tournament, index) => (
-                  <div 
-                    key={tournament.id}
-                    className="animate-scale-in"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <TournamentCard tournament={tournament} />
-                  </div>
-                ))
-              ) : (
-                <div className="col-span-full text-center text-cuephoria-grey py-16">
-                  <div className="relative inline-block mb-6">
-                    <div className="absolute inset-0 rounded-full bg-yellow-500/20 animate-ping"></div>
-                    <Crown className="h-20 w-20 mx-auto opacity-50 relative z-10" />
-                  </div>
-                  <p className="text-2xl font-semibold mb-2">No completed tournaments</p>
-                  <p className="text-lg">Previous tournament results will show here!</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
+            <TabsContent value="completed" className="mt-8">
+              {renderTabContent('completed')}
+            </TabsContent>
 
-          <TabsContent value="leaderboard" className="mt-8">
-            <div className="max-w-4xl mx-auto">
-              <PublicLeaderboard />
+            <TabsContent value="leaderboard" className="mt-8">
+              {renderTabContent('leaderboard')}
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* Mobile Dropdown */}
+        {isMobile && (
+          <div className="w-full mb-8">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-between bg-cuephoria-dark/80 backdrop-blur-md border-cuephoria-lightpurple/30 text-white hover:bg-cuephoria-lightpurple/10 hover:border-cuephoria-lightpurple/60"
+                >
+                  <div className="flex items-center">
+                    {getTabIcon(activeTab)}
+                    {getTabLabel(activeTab)}
+                  </div>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent 
+                className="w-full bg-cuephoria-dark border-cuephoria-lightpurple/30 backdrop-blur-md"
+                align="start"
+              >
+                <DropdownMenuItem 
+                  onClick={() => setActiveTab('upcoming')}
+                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'upcoming' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                >
+                  {getTabIcon('upcoming')}
+                  {getTabLabel('upcoming')}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setActiveTab('in-progress')}
+                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'in-progress' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                >
+                  {getTabIcon('in-progress')}
+                  {getTabLabel('in-progress')}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setActiveTab('completed')}
+                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'completed' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                >
+                  {getTabIcon('completed')}
+                  {getTabLabel('completed')}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setActiveTab('leaderboard')}
+                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'leaderboard' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                >
+                  {getTabIcon('leaderboard')}
+                  {getTabLabel('leaderboard')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Mobile Content */}
+            <div className="mt-8">
+              {renderTabContent(activeTab)}
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </main>
       
       {/* Enhanced Footer with contact details and legal links */}
