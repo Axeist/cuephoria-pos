@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Tournament } from '@/types/tournament.types';
 import { 
@@ -38,11 +39,11 @@ const TournamentList: React.FC<TournamentListProps> = ({
   const getStatusBadge = (status: Tournament['status']) => {
     switch (status) {
       case 'upcoming':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">Upcoming</Badge>;
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200 px-2 py-0.5 text-xs">Upcoming</Badge>;
       case 'in-progress':
-        return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200">Live</Badge>;
+        return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200 px-2 py-0.5 text-xs">Live</Badge>;
       case 'completed':
-        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">Completed</Badge>;
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 px-2 py-0.5 text-xs">Completed</Badge>;
     }
   };
 
