@@ -28,7 +28,7 @@ interface Tournament {
   players: any[];
   matches: any[];
   winner?: any;
-  runnerUp?: any;
+  runner_up?: any;  // Updated to match database field name
   total_registrations: number;
   max_players: number;
 }
@@ -98,12 +98,12 @@ const PublicTournaments = () => {
         players: Array.isArray(item.players) ? item.players : [],
         matches: Array.isArray(item.matches) ? item.matches : [],
         winner: item.winner,
-        runnerUp: item.runner_up, // Make sure to map runner_up to runnerUp
+        runner_up: item.runner_up,  // Use the correct field name from database
         total_registrations: Number(item.total_registrations) || 0,
         max_players: Number(item.max_players) || 16
       }));
 
-      console.log('Fetched tournaments with max_players:', transformedData.map(t => ({ name: t.name, max_players: t.max_players })));
+      console.log('Fetched tournaments with runner_up:', transformedData.map(t => ({ name: t.name, runner_up: t.runner_up })));
       setTournaments(transformedData);
     } catch (error) {
       console.error('Unexpected error:', error);
@@ -606,10 +606,10 @@ const PublicTournaments = () => {
                   <Crown className="h-5 w-5 animate-bounce" />
                   <span>Champion: {tournament.winner.name}</span>
                 </div>
-                {tournament.runnerUp && (
+                {tournament.runner_up && (
                   <div className="flex items-center gap-2 text-gray-300 font-medium">
                     <Medal className="h-4 w-4" />
-                    <span>Runner-up: {tournament.runnerUp.name}</span>
+                    <span>Runner-up: {tournament.runner_up.name}</span>
                   </div>
                 )}
               </div>

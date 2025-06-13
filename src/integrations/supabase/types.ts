@@ -1346,6 +1346,7 @@ export type Database = {
           max_players: number | null
           name: string | null
           players: Json | null
+          runner_up: Json | null
           runner_up_prize: number | null
           status: string | null
           total_registrations: number | null
