@@ -156,16 +156,15 @@ export const useStationsData = () => {
         return false;
       }
       
-      // Check if there are any sessions associated with this station
+      // Check if it's a valid UUID (database station)
       const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stationId);
       
       if (isValidUUID) {
-        // Check for existing sessions in the database
+        // First, check for existing sessions
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('sessions')
           .select('id')
-          .eq('station_id', stationId)
-          .limit(1);
+          .eq('station_id', stationId);
           
         if (sessionsError) {
           console.error('Error checking sessions:', sessionsError);
@@ -177,16 +176,46 @@ export const useStationsData = () => {
           return false;
         }
         
+        // If there are sessions, check if any bills reference these sessions
         if (sessionsData && sessionsData.length > 0) {
+          const sessionIds = sessionsData.map(session => session.id);
+          
+          // Check for bills that have items referencing these sessions
+          const { data: billItemsData, error: billItemsError } = await supabase
+            .from('bill_items')
+            .select('bill_id')
+            .in('item_id', sessionIds)
+            .eq('item_type', 'session');
+            
+          if (billItemsError) {
+            console.error('Error checking bill items:', billItemsError);
+            toast({
+              title: 'Database Error',
+              description: 'Failed to check for related transactions',
+              variant: 'destructive'
+            });
+            return false;
+          }
+          
+          if (billItemsData && billItemsData.length > 0) {
+            toast({
+              title: 'Cannot Delete Station',
+              description: `This station has ${sessionsData.length} session(s) with ${billItemsData.length} related transaction(s). Please delete the transactions first.`,
+              variant: 'destructive'
+            });
+            return false;
+          }
+          
+          // If no bills reference the sessions, ask user if they want to delete sessions
           toast({
-            title: 'Cannot Delete Station',
-            description: 'This station has registered sessions and cannot be deleted. Sessions must be manually removed from the database first.',
+            title: 'Sessions Found',
+            description: `This station has ${sessionsData.length} session(s) that will be deleted. Please delete sessions manually first.`,
             variant: 'destructive'
           });
           return false;
         }
         
-        // Delete from Supabase if no sessions exist
+        // No sessions found, safe to delete station
         const { error } = await supabase
           .from('stations')
           .delete()
@@ -196,7 +225,7 @@ export const useStationsData = () => {
           console.error('Error deleting station from Supabase:', error);
           toast({
             title: 'Database Error',
-            description: 'Failed to delete station from database',
+            description: `Failed to delete station: ${error.message}`,
             variant: 'destructive'
           });
           return false;
@@ -205,7 +234,7 @@ export const useStationsData = () => {
         console.log('Skipping Supabase delete for non-UUID station ID:', stationId);
       }
       
-      // Update local state (do this regardless of Supabase result)
+      // Update local state
       setStations(prev => prev.filter(station => station.id !== stationId));
       
       toast({

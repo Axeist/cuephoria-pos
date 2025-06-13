@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { Bill, Customer, CartItem, Product } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
@@ -580,22 +581,7 @@ export const useBills = (
         return false;
       }
       
-      // Modified to handle the case where the customer might have been deleted
-      let customerData = null;
-      if (customerId) {
-        const { data: customer, error: customerError } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('id', customerId)
-          .single();
-          
-        if (!customerError) {
-          customerData = customer;
-        } else {
-          console.log('Customer not found or deleted, continuing with bill deletion');
-        }
-      }
-      
+      // Step 1: Delete all bill items first (this is crucial for foreign key constraints)
       const { error: itemsDeleteError } = await supabase
         .from('bill_items')
         .delete()
@@ -605,12 +591,24 @@ export const useBills = (
         console.error('Error deleting bill items:', itemsDeleteError);
         toast({
           title: 'Error',
-          description: 'Failed to delete bill items',
+          description: `Failed to delete bill items: ${itemsDeleteError.message}`,
           variant: 'destructive'
         });
         return false;
       }
       
+      // Step 2: Delete any related cash transactions
+      const { error: cashTransactionError } = await supabase
+        .from('cash_transactions')
+        .delete()
+        .eq('bill_id', billId);
+        
+      if (cashTransactionError) {
+        console.error('Error deleting cash transactions:', cashTransactionError);
+        // Don't return false here, just log the error as this might not exist
+      }
+      
+      // Step 3: Now delete the bill itself
       const { error: billDeleteError } = await supabase
         .from('bills')
         .delete()
@@ -620,51 +618,65 @@ export const useBills = (
         console.error('Error deleting bill:', billDeleteError);
         toast({
           title: 'Error',
-          description: 'Failed to delete bill',
+          description: `Failed to delete bill: ${billDeleteError.message}`,
           variant: 'destructive'
         });
         return false;
       }
       
+      // Step 4: Update local state
       setBills(prevBills => prevBills.filter(bill => bill.id !== billId));
       
-      // Update the customer data only if the customer still exists
-      if (customerData) {
-        const updatedCustomer = {
-          ...customerData,
-          loyalty_points: Math.max(0, customerData.loyalty_points - billToDelete.loyaltyPointsEarned + billToDelete.loyaltyPointsUsed),
-          total_spent: Math.max(0, customerData.total_spent - billToDelete.total)
-        };
-        
-        const { error: customerUpdateError } = await supabase
+      // Step 5: Update customer data if customer still exists
+      if (customerId) {
+        const { data: customerData, error: customerError } = await supabase
           .from('customers')
-          .update(updatedCustomer)
-          .eq('id', customerId);
+          .select('*')
+          .eq('id', customerId)
+          .single();
           
-        if (customerUpdateError) {
-          console.error('Error updating customer:', customerUpdateError);
+        if (!customerError && customerData) {
+          const updatedCustomer = {
+            ...customerData,
+            loyalty_points: Math.max(0, customerData.loyalty_points - billToDelete.loyaltyPointsEarned + billToDelete.loyaltyPointsUsed),
+            total_spent: Math.max(0, customerData.total_spent - billToDelete.total)
+          };
+          
+          const { error: customerUpdateError } = await supabase
+            .from('customers')
+            .update({
+              loyalty_points: updatedCustomer.loyalty_points,
+              total_spent: updatedCustomer.total_spent
+            })
+            .eq('id', customerId);
+            
+          if (customerUpdateError) {
+            console.error('Error updating customer:', customerUpdateError);
+          } else {
+            // Update local customer state
+            const localCustomer: Customer = {
+              id: customerData.id,
+              name: customerData.name,
+              phone: customerData.phone,
+              email: customerData.email,
+              isMember: customerData.is_member,
+              membershipExpiryDate: customerData.membership_expiry_date ? new Date(customerData.membership_expiry_date) : undefined,
+              membershipStartDate: customerData.membership_start_date ? new Date(customerData.membership_start_date) : undefined,
+              membershipPlan: customerData.membership_plan,
+              membershipHoursLeft: customerData.membership_hours_left,
+              membershipDuration: (customerData.membership_duration as 'weekly' | 'monthly' | undefined),
+              loyaltyPoints: updatedCustomer.loyalty_points,
+              totalSpent: updatedCustomer.total_spent,
+              totalPlayTime: customerData.total_play_time,
+              createdAt: new Date(customerData.created_at)
+            };
+            
+            updateCustomer(localCustomer);
+          }
         }
-        
-        const localCustomer: Customer = {
-          id: customerData.id,
-          name: customerData.name,
-          phone: customerData.phone,
-          email: customerData.email,
-          isMember: customerData.is_member,
-          membershipExpiryDate: customerData.membership_expiry_date ? new Date(customerData.membership_expiry_date) : undefined,
-          membershipStartDate: customerData.membership_start_date ? new Date(customerData.membership_start_date) : undefined,
-          membershipPlan: customerData.membership_plan,
-          membershipHoursLeft: customerData.membership_hours_left,
-          membershipDuration: (customerData.membership_duration as 'weekly' | 'monthly' | undefined),
-          loyaltyPoints: updatedCustomer.loyalty_points,
-          totalSpent: updatedCustomer.total_spent,
-          totalPlayTime: customerData.total_play_time,
-          createdAt: new Date(customerData.created_at)
-        };
-        
-        updateCustomer(localCustomer);
       }
       
+      // Step 6: Update product stock for non-membership items
       const { data: productsData } = await supabase
         .from('products')
         .select('*');
@@ -675,20 +687,29 @@ export const useBills = (
         if (item.type === 'product') {
           const product = products.find(p => p.id === item.id);
           if (product && product.category !== 'membership') {
-            const productToUpdate: Product = {
-              id: product.id,
-              name: product.name,
-              price: product.price,
-              category: product.category as 'food' | 'drinks' | 'tobacco' | 'challenges' | 'membership',
-              stock: product.stock + item.quantity,
-              image: product.image,
-              originalPrice: product.original_price,
-              offerPrice: product.offer_price,
-              studentPrice: product.student_price,
-              duration: product.duration as 'weekly' | 'monthly' | undefined,
-              membershipHours: product.membership_hours
-            };
-            updateProduct(productToUpdate);
+            const { error: productUpdateError } = await supabase
+              .from('products')
+              .update({ stock: product.stock + item.quantity })
+              .eq('id', product.id);
+              
+            if (productUpdateError) {
+              console.error('Error updating product stock:', productUpdateError);
+            } else {
+              const productToUpdate: Product = {
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                category: product.category as 'food' | 'drinks' | 'tobacco' | 'challenges' | 'membership',
+                stock: product.stock + item.quantity,
+                image: product.image,
+                originalPrice: product.original_price,
+                offerPrice: product.offer_price,
+                studentPrice: product.student_price,
+                duration: product.duration as 'weekly' | 'monthly' | undefined,
+                membershipHours: product.membership_hours
+              };
+              updateProduct(productToUpdate);
+            }
           }
         }
       }
@@ -704,7 +725,7 @@ export const useBills = (
       console.error('Error in deleteBill:', error);
       toast({
         title: 'Error',
-        description: 'Failed to delete bill',
+        description: `Failed to delete bill: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: 'destructive'
       });
       return false;
