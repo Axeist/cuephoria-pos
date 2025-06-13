@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -77,6 +78,15 @@ const TournamentHistoryDialog: React.FC<TournamentHistoryDialogProps> = ({
     }
   };
 
+  // Helper function to get display name with runner-up notation
+  const getDisplayName = (playerName: string, winnerName: string, stage: MatchStage) => {
+    // Only show runner-up notation for final match
+    if (stage === 'final' && playerName !== winnerName) {
+      return `${playerName} (Runner-up)`;
+    }
+    return playerName;
+  };
+
   // Group matches by stage
   const groupedMatches = historyMatches.reduce((acc, match) => {
     if (!acc[match.match_stage]) {
@@ -138,11 +148,11 @@ const TournamentHistoryDialog: React.FC<TournamentHistoryDialogProps> = ({
                               <span className="text-sm text-gray-400">Match #{index + 1}</span>
                               <div className="text-sm text-gray-300">
                                 <span className={match.winner_name === match.player1_name ? 'text-green-400 font-semibold' : ''}>
-                                  {match.player1_name}
+                                  {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
                                 </span>
                                 <span className="text-gray-500 mx-2">vs</span>
                                 <span className={match.winner_name === match.player2_name ? 'text-green-400 font-semibold' : ''}>
-                                  {match.player2_name}
+                                  {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
                                 </span>
                               </div>
                             </div>

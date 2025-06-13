@@ -55,6 +55,15 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
     return stage.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  // Helper function to get display name with runner-up notation
+  const getDisplayName = (playerName: string, winnerName: string, stage: MatchStage) => {
+    // Only show runner-up notation for final match
+    if (stage === 'final' && playerName !== winnerName) {
+      return `${playerName} (Runner-up)`;
+    }
+    return playerName;
+  };
+
   if (loading) {
     return (
       <Card className="bg-cuephoria-dark/80 border-cuephoria-lightpurple/30">
@@ -138,9 +147,13 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <div className="text-sm text-cuephoria-grey">
-                          <span className="font-medium text-white">{match.player1_name}</span>
+                          <span className="font-medium text-white">
+                            {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
+                          </span>
                           <span className="mx-2 text-cuephoria-lightpurple">vs</span>
-                          <span className="font-medium text-white">{match.player2_name}</span>
+                          <span className="font-medium text-white">
+                            {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
+                          </span>
                         </div>
                       </div>
                       
