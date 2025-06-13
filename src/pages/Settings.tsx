@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import { Tournament } from '@/types/tournament.types';
@@ -107,6 +107,10 @@ const Settings = () => {
       }
     }
   };
+
+  const handleOpenPublicTournaments = () => {
+    window.open('/public/tournaments', '_blank');
+  };
   
   return (
     <div className="container p-4 mx-auto max-w-7xl">
@@ -142,26 +146,36 @@ const Settings = () => {
         <TabsContent value="tournaments" className="space-y-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Tournaments</h2>
-            <Button 
-              onClick={() => {
-                const defaultTournament: Tournament = {
-                  id: generateId(),
-                  name: "New Tournament",
-                  gameType: "Pool",
-                  gameVariant: "8 Ball",
-                  date: new Date().toISOString().split('T')[0],
-                  players: [],
-                  matches: [],
-                  status: "upcoming"
-                };
-                setEditingTournament(defaultTournament);
-                setDialogOpen(true);
-              }}
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Tournament
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={handleOpenPublicTournaments}
+                className="flex items-center gap-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View Public Page
+              </Button>
+              <Button 
+                onClick={() => {
+                  const defaultTournament: Tournament = {
+                    id: generateId(),
+                    name: "New Tournament",
+                    gameType: "Pool",
+                    gameVariant: "8 Ball",
+                    date: new Date().toISOString().split('T')[0],
+                    players: [],
+                    matches: [],
+                    status: "upcoming"
+                  };
+                  setEditingTournament(defaultTournament);
+                  setDialogOpen(true);
+                }}
+                className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Tournament
+              </Button>
+            </div>
           </div>
           
           <TournamentList 
