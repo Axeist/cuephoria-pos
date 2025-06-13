@@ -20,6 +20,7 @@ interface TournamentPlayerSectionProps {
   setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   matchesExist: boolean;
   updatePlayerName?: (playerId: string, newName: string) => void;
+  tournamentId?: string; // Add tournament ID to clean up registrations
 }
 
 interface Customer {
@@ -37,7 +38,8 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
   players, 
   setPlayers,
   matchesExist,
-  updatePlayerName 
+  updatePlayerName,
+  tournamentId 
 }) => {
   const [playerName, setPlayerName] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -137,8 +139,40 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     });
   };
 
-  const removePlayer = (id: string) => {
-    setPlayers(players.filter(player => player.id !== id));
+  const removePlayer = async (id: string) => {
+    const playerToRemove = players.find(p => p.id === id);
+    if (!playerToRemove) return;
+
+    console.log('Removing player:', playerToRemove);
+    
+    // Remove player from local state
+    const updatedPlayers = players.filter(player => player.id !== id);
+    setPlayers(updatedPlayers);
+
+    // If we have a tournament ID and the player has a phone number, 
+    // also clean up any registration records
+    if (tournamentId && playerToRemove.phone) {
+      try {
+        const { error } = await supabase
+          .from('tournament_public_registrations')
+          .delete()
+          .eq('tournament_id', tournamentId)
+          .eq('customer_phone', playerToRemove.phone);
+
+        if (error) {
+          console.error('Error cleaning up registration record:', error);
+        } else {
+          console.log('Successfully cleaned up registration record for phone:', playerToRemove.phone);
+        }
+      } catch (error) {
+        console.error('Unexpected error cleaning up registration:', error);
+      }
+    }
+
+    toast({
+      title: 'Player Removed',
+      description: `${playerToRemove.name} has been removed from the tournament.`,
+    });
   };
   
   const handleEditClick = (player: Player) => {
