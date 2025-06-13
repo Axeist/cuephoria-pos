@@ -91,42 +91,24 @@ const AppSidebar: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                  <div className="p-4 border-t border-cuephoria-purple/20">
-                    <div className="relative overflow-hidden bg-gradient-to-br from-cuephoria-dark via-cuephoria-darker to-cuephoria-dark rounded-xl p-4 shadow-xl border border-cuephoria-purple/30">
-                      {/* Background glow effect */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cuephoria-purple/10 to-transparent animate-pulse" />
-                      
-                      {/* Content container */}
-                      <div className="relative z-10 flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {/* Icon with enhanced styling */}
-                          <div className={`p-2 rounded-lg ${isAdmin ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/30' : 'bg-gradient-to-br from-cuephoria-blue/20 to-cuephoria-lightpurple/20 border border-cuephoria-blue/30'} shadow-md`}>
-                            {isAdmin ? (
-                              <Shield className="h-5 w-5 text-amber-400 filter drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-                            ) : (
-                              <User className="h-5 w-5 text-cuephoria-blue filter drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-                            )}
-                          </div>
-                          
-                          {/* User info */}
-                          <div className="flex flex-col">
-                            <span className="font-medium font-quicksand text-white text-sm leading-tight">
-                              {user.username}
-                            </span>
-                            <span className={`text-xs font-heading ${isAdmin ? 'text-amber-300 bg-gradient-to-r from-amber-400 to-amber-300 bg-clip-text text-transparent' : 'text-cuephoria-blue'} font-semibold tracking-wide`}>
-                              {isAdmin ? 'ADMIN' : 'STAFF'}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {/* Logout button */}
-                        <button 
-                          onClick={logout}
-                          className="px-3 py-1.5 bg-gradient-to-r from-cuephoria-darker to-cuephoria-purple/80 hover:from-cuephoria-purple to-cuephoria-lightpurple rounded-lg transition-all duration-300 font-heading text-white text-xs font-medium shadow-md hover:shadow-lg hover:scale-105 border border-cuephoria-purple/40 hover:border-cuephoria-lightpurple/60"
-                        >
-                          Logout
-                        </button>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between bg-cuephoria-dark rounded-lg p-3 shadow-md">
+                      <div className="flex items-center">
+                        {isAdmin ? (
+                          <Shield className="h-5 w-5 text-cuephoria-lightpurple" />
+                        ) : (
+                          <User className="h-5 w-5 text-cuephoria-blue" />
+                        )}
+                        <span className="ml-2 text-sm font-medium font-quicksand text-white">
+                          {user.username} {isAdmin ? '(Admin)' : '(Staff)'}
+                        </span>
                       </div>
+                      <button 
+                        onClick={logout}
+                        className="text-xs bg-cuephoria-darker px-3 py-1 rounded-md hover:bg-cuephoria-purple transition-all duration-300 font-heading text-white"
+                      >
+                        Logout
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -170,42 +152,24 @@ const AppSidebar: React.FC = () => {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4 border-t border-cuephoria-purple/20">
-        <div className="relative overflow-hidden bg-gradient-to-br from-cuephoria-dark via-cuephoria-darker to-cuephoria-dark rounded-xl p-4 shadow-xl border border-cuephoria-purple/30 animate-scale-in">
-          {/* Background glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cuephoria-purple/10 to-transparent animate-pulse" />
-          
-          {/* Content container */}
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {/* Icon with enhanced styling */}
-              <div className={`p-2.5 rounded-lg ${isAdmin ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/30' : 'bg-gradient-to-br from-cuephoria-blue/20 to-cuephoria-lightpurple/20 border border-cuephoria-blue/30'} shadow-md`}>
-                {isAdmin ? (
-                  <Shield className="h-6 w-6 text-amber-400 filter drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-                ) : (
-                  <User className="h-6 w-6 text-cuephoria-blue filter drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-                )}
-              </div>
-              
-              {/* User info */}
-              <div className="flex flex-col">
-                <span className="font-medium font-quicksand text-white text-sm leading-tight">
-                  {user.username}
-                </span>
-                <span className={`text-xs font-heading ${isAdmin ? 'text-amber-300 bg-gradient-to-r from-amber-400 to-amber-300 bg-clip-text text-transparent' : 'text-cuephoria-blue'} font-semibold tracking-wide`}>
-                  {isAdmin ? 'ADMIN' : 'STAFF'}
-                </span>
-              </div>
-            </div>
-            
-            {/* Logout button */}
-            <button 
-              onClick={logout}
-              className="px-3 py-1.5 bg-gradient-to-r from-cuephoria-darker to-cuephoria-purple/80 hover:from-cuephoria-purple to-cuephoria-lightpurple rounded-lg transition-all duration-300 font-heading text-white text-xs font-medium shadow-md hover:shadow-lg hover:scale-105 border border-cuephoria-purple/40 hover:border-cuephoria-lightpurple/60"
-            >
-              Logout
-            </button>
+      <SidebarFooter className="p-4">
+        <div className="flex items-center justify-between bg-cuephoria-dark rounded-lg p-3 animate-scale-in shadow-md">
+          <div className="flex items-center">
+            {isAdmin ? (
+              <Shield className="h-6 w-6 text-cuephoria-lightpurple" />
+            ) : (
+              <User className="h-6 w-6 text-cuephoria-blue" />
+            )}
+            <span className="ml-2 text-sm font-medium font-quicksand">
+              {user.username} {isAdmin ? '(Admin)' : '(Staff)'}
+            </span>
           </div>
+          <button 
+            onClick={logout}
+            className="text-xs bg-cuephoria-darker px-3 py-1 rounded-md hover:bg-cuephoria-purple transition-all duration-300 font-heading"
+          >
+            Logout
+          </button>
         </div>
       </SidebarFooter>
     </Sidebar>
