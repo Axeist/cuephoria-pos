@@ -243,22 +243,24 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                     key={`completed-${match.id}-${index}`}
                     className={`p-4 rounded-lg border ${getStageColor(stage)} transition-all duration-200`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="text-sm text-white flex items-center gap-2 flex-1">
-                          <span className="truncate max-w-[120px] text-left">
-                            {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
-                          </span>
-                          <span className="text-cuephoria-lightpurple font-bold text-xs flex-shrink-0">vs</span>
-                          <span className="truncate max-w-[120px] text-right">
-                            {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
-                          </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="text-sm text-white text-center flex-1 min-w-0">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="truncate max-w-[100px]">
+                              {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
+                            </span>
+                            <span className="text-cuephoria-lightpurple font-bold text-xs">vs</span>
+                            <span className="truncate max-w-[100px]">
+                              {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2 text-green-400 flex-shrink-0">
+                      <div className="flex items-center gap-2 text-green-400 ml-3 flex-shrink-0">
                         <Crown className="h-3 w-3" />
-                        <span className="font-medium text-xs whitespace-nowrap">{match.winner_name}</span>
+                        <span className="font-medium text-xs truncate max-w-[80px]">{match.winner_name}</span>
                       </div>
                     </div>
                   </div>
@@ -272,16 +274,18 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                       match.status === 'cancelled' ? 'opacity-50' : ''
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="text-sm text-white flex items-center gap-2 flex-1">
-                          <span className="truncate max-w-[120px] text-left">{match.player1_name}</span>
-                          <ArrowRight className="h-3 w-3 text-cuephoria-lightpurple flex-shrink-0" />
-                          <span className="truncate max-w-[120px] text-right">{match.player2_name}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="text-sm text-white text-center flex-1 min-w-0">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="truncate max-w-[100px]">{match.player1_name}</span>
+                            <ArrowRight className="h-3 w-3 text-cuephoria-lightpurple flex-shrink-0" />
+                            <span className="truncate max-w-[100px]">{match.player2_name}</span>
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 ml-3 flex-shrink-0">
                         {match.status === 'cancelled' ? (
                           <Badge variant="outline" className="text-xs border-red-400/30 text-red-400">
                             Cancelled
