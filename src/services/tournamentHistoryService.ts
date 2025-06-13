@@ -51,7 +51,7 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
       }
     });
 
-    // Insert match history
+    // Insert match history with better error handling
     if (historyRecords.length > 0) {
       const { error: historyError } = await supabase
         .from('tournament_history')
@@ -59,6 +59,9 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
       
       if (historyError) {
         console.error('Error saving tournament history:', historyError);
+        // Don't throw error, just log it so the winner record can still be saved
+      } else {
+        console.log('Tournament history saved successfully');
       }
     }
 
@@ -79,6 +82,9 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
     
     if (winnerError) {
       console.error('Error saving tournament winner:', winnerError);
+      // Don't throw error, just log it
+    } else {
+      console.log('Tournament winner saved successfully');
     }
 
     // Update tournament with runner-up if it wasn't set (convert Player to Json-compatible format)
@@ -178,9 +184,9 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
       }
     });
 
-    // If we have matches and it's a completed tournament, save to history table for future use
+    // If we have matches and it's a completed tournament, try to save to history table for future use
     if (historyRecords.length > 0 && tournament.status === 'completed') {
-      console.log('Saving tournament history retroactively for tournament:', tournamentId);
+      console.log('Attempting to save tournament history retroactively for tournament:', tournamentId);
       // Convert tournament data to proper format and save
       const tournamentConverted: Tournament = {
         id: tournament.id,
@@ -200,6 +206,7 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
         maxPlayers: tournament.max_players
       };
       
+      // Try to save history, but don't block the display if it fails
       await saveTournamentHistory(tournamentConverted);
     }
 
