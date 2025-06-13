@@ -150,8 +150,8 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
     }
 
     // Type guard and cast for matches and players from Json to proper arrays
-    const matches = Array.isArray(tournament.matches) ? tournament.matches as Match[] : [];
-    const players = Array.isArray(tournament.players) ? tournament.players as Player[] : [];
+    const matches = Array.isArray(tournament.matches) ? (tournament.matches as unknown as Match[]) : [];
+    const players = Array.isArray(tournament.players) ? (tournament.players as unknown as Player[]) : [];
 
     // Convert tournament matches to history format
     const historyRecords: TournamentHistoryMatch[] = [];
@@ -185,14 +185,14 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
       const tournamentConverted: Tournament = {
         id: tournament.id,
         name: tournament.name,
-        gameType: tournament.game_type,
-        gameVariant: tournament.game_variant,
+        gameType: tournament.game_type as any, // Cast to GameType
+        gameVariant: tournament.game_variant as any, // Cast to PoolGameVariant
         gameTitle: tournament.game_title,
         date: tournament.date,
         players: players,
         matches: matches,
-        winner: tournament.winner as Player,
-        runnerUp: tournament.runner_up as Player,
+        winner: tournament.winner ? (tournament.winner as unknown as Player) : undefined,
+        runnerUp: tournament.runner_up ? (tournament.runner_up as unknown as Player) : undefined,
         status: tournament.status as 'completed',
         budget: tournament.budget,
         winnerPrize: tournament.winner_prize,
