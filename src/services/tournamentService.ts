@@ -21,7 +21,6 @@ type SupabaseTournament = {
   winner_prize?: number;
   runner_up_prize?: number;
   winner?: any;
-  max_players?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -271,12 +270,10 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
     const supabaseTournament = convertToSupabaseTournament(tournament);
     console.log('Converted to Supabase format:', supabaseTournament);
     
-    // Ensure max_players is always set with a proper value - this is critical
+    // Ensure max_players is always set with a proper value
     if (!supabaseTournament.max_players || supabaseTournament.max_players < 2) {
-      supabaseTournament.max_players = tournament.maxPlayers || 16; // Use the original tournament value or fallback
+      supabaseTournament.max_players = 16; // Default fallback
     }
-    
-    console.log('Final max_players value being saved:', supabaseTournament.max_players);
     
     // Check if the tournament already exists
     const { data: existingTournament, error: checkError } = await tournamentsTable

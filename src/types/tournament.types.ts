@@ -47,13 +47,6 @@ export interface Tournament {
 
 // Database conversion helper functions
 export const convertFromSupabaseTournament = (item: any): Tournament => {
-  // Ensure maxPlayers is properly converted with a fallback
-  const maxPlayers = item.max_players !== undefined && item.max_players !== null 
-    ? Number(item.max_players) 
-    : 16; // Default fallback
-    
-  console.log('Converting from Supabase - max_players:', item.max_players, 'converted to maxPlayers:', maxPlayers);
-  
   return {
     id: item.id,
     name: item.name,
@@ -68,20 +61,13 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     winnerPrize: item.winner_prize || undefined,
     runnerUpPrize: item.runner_up_prize || undefined,
     winner: item.winner || undefined,
-    maxPlayers: maxPlayers, // Use the properly converted value
+    maxPlayers: item.max_players || 16, // Ensure we always have a value
     created_at: item.created_at,
     updated_at: item.updated_at
   };
 };
 
 export const convertToSupabaseTournament = (tournament: Tournament): any => {
-  // Ensure maxPlayers is properly converted to max_players
-  const maxPlayers = tournament.maxPlayers !== undefined && tournament.maxPlayers !== null 
-    ? Number(tournament.maxPlayers) 
-    : 16; // Default fallback
-    
-  console.log('Converting to Supabase - maxPlayers:', tournament.maxPlayers, 'converted to max_players:', maxPlayers);
-  
   // Create a clean object with only defined values
   const cleanObject: any = {
     id: tournament.id,
@@ -91,7 +77,7 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
     players: tournament.players || [],
     matches: tournament.matches || [],
     status: tournament.status,
-    max_players: maxPlayers, // Always include max_players with proper conversion
+    max_players: tournament.maxPlayers || 16, // Always include max_players with a default
   };
   
   // Only add optional fields if they have values
