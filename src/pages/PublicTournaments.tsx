@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Clock, RefreshCcw, Phone, Mail, MapPin, Wifi, Star } from 'lucide-react';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Tournament {
@@ -46,25 +46,14 @@ const PublicTournaments = () => {
   });
   const [isRegistering, setIsRegistering] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [timeToNextRefresh, setTimeToNextRefresh] = useState(30);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
+  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchData = async () => {
-      setRefreshing(true);
-      await fetchTournaments();
-      setTimeout(() => {
-        setRefreshing(false);
-        setLastRefresh(new Date());
-        setTimeToNextRefresh(30);
-      }, 300);
-    };
-
-    fetchData();
+    fetchTournaments();
     
-    // Set up real-time subscription
+    // Set up real-time subscription only
     const channel = supabase
       .channel('tournament-updates')
       .on('postgres_changes', {
@@ -83,21 +72,8 @@ const PublicTournaments = () => {
       })
       .subscribe();
 
-    // Set up auto-refresh interval
-    const refreshInterval = setInterval(fetchData, 30000);
-    
-    // Set up countdown timer
-    const countdownInterval = setInterval(() => {
-      setTimeToNextRefresh(prev => {
-        if (prev <= 1) return 30;
-        return prev - 1;
-      });
-    }, 1000);
-
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(refreshInterval);
-      clearInterval(countdownInterval);
     };
   }, []);
 
@@ -364,7 +340,20 @@ const PublicTournaments = () => {
 
         {/* Registration Button */}
         {canRegister(tournament) && (
-          <Dialog open={isDialogOpen && selectedTournament?.id === tournament.id} onOpenChange={setIsDialogOpen}>
+          <Dialog 
+            open={isDialogOpen && selectedTournament?.id === tournament.id} 
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setSelectedTournament(null);
+                setRegistrationForm({
+                  customer_name: '',
+                  customer_phone: '',
+                  customer_email: ''
+                });
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button 
                 className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-3 transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 hover:scale-[1.02] group"
@@ -510,24 +499,6 @@ const PublicTournaments = () => {
             <p className="text-xl md:text-2xl text-cuephoria-grey max-w-3xl text-center leading-relaxed">
               Join the ultimate gaming experience with high-stakes competitions and amazing prizes
             </p>
-            
-            {/* Data freshness indicator */}
-            <div className="mt-6 bg-black/40 backdrop-blur-md rounded-full px-6 py-3 flex items-center space-x-3 border border-cuephoria-lightpurple/30 shadow-lg shadow-cuephoria-lightpurple/20">
-              <div className={`w-3 h-3 rounded-full ${refreshing ? 'bg-orange-400 animate-pulse' : 'bg-green-400'}`}></div>
-              <div className="text-sm text-cuephoria-grey flex items-center space-x-2">
-                {refreshing ? (
-                  <span className="flex items-center">
-                    <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
-                    <span>Refreshing data...</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    <Clock className="h-4 w-4 mr-2" />
-                    <span>Auto-refresh in {timeToNextRefresh}s</span>
-                  </span>
-                )}
-              </div>
-            </div>
           </div>
           
           {/* Enhanced stats summary */}
@@ -566,12 +537,8 @@ const PublicTournaments = () => {
         </div>
       </header>
       
-      {/* Main content with enhanced transition effects */}
-      <main className="py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto transition-all duration-500 ease-in-out relative z-10" 
-        style={{ 
-          opacity: refreshing ? 0.7 : 1,
-          transform: refreshing ? 'scale(0.99)' : 'scale(1)'
-        }}>
+      {/* Main content */}
+      <main className="py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto relative z-10">
         <Tabs defaultValue="upcoming" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
             <TabsTrigger 
@@ -674,7 +641,7 @@ const PublicTournaments = () => {
         </Tabs>
       </main>
       
-      {/* Enhanced Footer with contact details */}
+      {/* Enhanced Footer with contact details and legal links */}
       <footer className="py-12 px-4 sm:px-6 md:px-8 border-t border-cuephoria-lightpurple/20 mt-12 backdrop-blur-md bg-cuephoria-dark/50 relative z-10">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
@@ -685,9 +652,29 @@ const PublicTournaments = () => {
                 alt="Cuephoria Logo" 
                 className="h-12 mb-4 mx-auto md:mx-0" 
               />
-              <p className="text-cuephoria-grey text-sm leading-relaxed">
+              <p className="text-cuephoria-grey text-sm leading-relaxed mb-4">
                 The ultimate gaming destination offering premium PlayStation 5 gaming and professional pool tables with tournament-level competition.
               </p>
+              <div className="flex justify-center md:justify-start space-x-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTermsDialogOpen(true)}
+                  className="border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Terms & Conditions
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPrivacyDialogOpen(true)}
+                  className="border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Privacy Policy
+                </Button>
+              </div>
             </div>
             
             {/* Contact Information */}
@@ -696,16 +683,26 @@ const PublicTournaments = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-white transition-colors">
                   <Phone className="h-4 w-4 text-cuephoria-lightpurple" />
-                  <span className="text-sm">+91 98765 43210</span>
+                  <span className="text-sm">+91 86376 25155</span>
                 </div>
                 <div className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-white transition-colors">
                   <Mail className="h-4 w-4 text-cuephoria-lightpurple" />
-                  <span className="text-sm">tournaments@cuephoria.com</span>
+                  <span className="text-sm">contact@cuephoria.in</span>
                 </div>
                 <div className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-white transition-colors">
-                  <MapPin className="h-4 w-4 text-cuephoria-lightpurple" />
-                  <span className="text-sm">Gaming District, Tech City</span>
+                  <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                  <span className="text-sm">11:00 AM - 11:00 PM</span>
                 </div>
+                <a
+                  href="https://maps.app.goo.gl/oBUVebkaFMWa7EPk8"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 text-cuephoria-grey hover:text-cuephoria-lightpurple transition-colors group"
+                >
+                  <MapPin className="h-4 w-4 text-cuephoria-lightpurple" />
+                  <span className="text-sm group-hover:underline">Find Us on Maps</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
               </div>
             </div>
             
@@ -714,16 +711,16 @@ const PublicTournaments = () => {
               <h3 className="text-lg font-semibold text-cuephoria-lightpurple mb-4">Features</h3>
               <div className="space-y-2 text-sm text-cuephoria-grey">
                 <div className="flex items-center justify-center md:justify-end gap-2">
-                  <Wifi className="h-4 w-4 text-green-400" />
-                  <span>High-Speed Gaming Network</span>
+                  <GamepadIcon className="h-4 w-4 text-green-400" />
+                  <span>PlayStation 5 Gaming</span>
                 </div>
                 <div className="flex items-center justify-center md:justify-end gap-2">
                   <Trophy className="h-4 w-4 text-yellow-400" />
-                  <span>Professional Equipment</span>
+                  <span>Professional Pool Tables</span>
                 </div>
                 <div className="flex items-center justify-center md:justify-end gap-2">
-                  <Clock className="h-4 w-4 text-blue-400" />
-                  <span>Real-time Updates</span>
+                  <Crown className="h-4 w-4 text-blue-400" />
+                  <span>Tournament Competition</span>
                 </div>
               </div>
             </div>
@@ -739,14 +736,90 @@ const PublicTournaments = () => {
                 <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
                 <span>Live Updates</span>
               </div>
-              <div className="flex items-center text-cuephoria-grey">
-                <Clock className="h-4 w-4 mr-1" />
-                <span>Auto-refresh: 30s</span>
-              </div>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* Terms & Conditions Dialog */}
+      <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
+        <DialogContent className="bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Terms & Conditions
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-cuephoria-grey leading-relaxed">
+            <div>
+              <h4 className="text-white font-semibold mb-2">1. Tournament Registration</h4>
+              <p>By registering for any tournament, you agree to abide by all tournament rules and regulations. Entry fees are non-refundable once paid.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">2. Payment Terms</h4>
+              <p>Entry fees must be paid at the venue before the tournament begins. We accept cash and digital payments.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">3. Code of Conduct</h4>
+              <p>All participants must maintain respectful behavior. Unsportsmanlike conduct may result in disqualification without refund.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">4. Equipment Rules</h4>
+              <p>All gaming equipment will be provided by Cuephoria. Personal equipment is not permitted during tournaments.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">5. Dispute Resolution</h4>
+              <p>Tournament organizers' decisions are final. Any disputes must be raised immediately during the event.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">6. Liability</h4>
+              <p>Cuephoria is not responsible for any personal injury or loss of personal items during events.</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Privacy Policy Dialog */}
+      <Dialog open={privacyDialogOpen} onOpenChange={setPrivacyDialogOpen}>
+        <DialogContent className="bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Privacy Policy
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-cuephoria-grey leading-relaxed">
+            <div>
+              <h4 className="text-white font-semibold mb-2">Information We Collect</h4>
+              <p>We collect personal information such as name, phone number, and email address when you register for tournaments.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">How We Use Your Information</h4>
+              <p>Your information is used solely for tournament organization, communication, and improving our services.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">Data Security</h4>
+              <p>We implement appropriate security measures to protect your personal information against unauthorized access.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">Information Sharing</h4>
+              <p>We do not sell, trade, or share your personal information with third parties without your consent.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">Data Retention</h4>
+              <p>We retain your information only as long as necessary for tournament purposes and legal requirements.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">Your Rights</h4>
+              <p>You have the right to access, update, or delete your personal information. Contact us at contact@cuephoria.in for any requests.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold mb-2">Contact Us</h4>
+              <p>If you have any questions about this Privacy Policy, please contact us at contact@cuephoria.in or +91 86376 25155.</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
