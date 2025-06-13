@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -628,6 +629,30 @@ const PublicTournaments = () => {
                   >
                     <History className="mr-2 h-4 w-4" />
                     {showHistory ? 'Hide' : 'View'} Tournament History
+                    <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3">
+                  <PublicTournamentHistory 
+                    tournamentId={tournament.id} 
+                    tournamentName={tournament.name}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
+
+          {/* Tournament History for Live/In-Progress Tournaments */}
+          {tournament.status === 'in-progress' && (
+            <div className="space-y-3">
+              <Collapsible open={showHistory} onOpenChange={setShowHistory}>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
+                  >
+                    <History className="mr-2 h-4 w-4" />
+                    {showHistory ? 'Hide' : 'View'} Match Results
                     <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${showHistory ? 'rotate-180' : ''}`} />
                   </Button>
                 </CollapsibleTrigger>
