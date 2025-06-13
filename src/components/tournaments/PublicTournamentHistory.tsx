@@ -59,14 +59,14 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
           .single();
 
         if (!error && tournamentData) {
-          // Type guard and cast for matches
+          // Type guard and cast for matches - cast through unknown first
           const tournamentMatches = Array.isArray(tournamentData.matches) 
-            ? tournamentData.matches as TournamentMatch[]
+            ? (tournamentData.matches as unknown as TournamentMatch[])
             : [];
           
-          // Type guard and cast for players
+          // Type guard and cast for players - cast through unknown first
           const players = Array.isArray(tournamentData.players) 
-            ? tournamentData.players as TournamentPlayer[]
+            ? (tournamentData.players as unknown as TournamentPlayer[])
             : [];
           
           // Convert tournament matches to scheduled format
