@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import AppSidebar from "@/components/AppSidebar";
+import { AppSidebar } from "@/components/AppSidebar";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Pages

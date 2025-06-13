@@ -15,6 +15,15 @@ export interface UserPreferences {
   updated_at?: string;
 }
 
+// Type guards for validation
+const isValidTheme = (theme: string): theme is 'light' | 'dark' => {
+  return ['light', 'dark'].includes(theme);
+};
+
+const isValidReceiptTemplate = (template: string): template is 'standard' | 'detailed' | 'minimal' => {
+  return ['standard', 'detailed', 'minimal'].includes(template);
+};
+
 export const useUserPreferences = () => {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +48,20 @@ export const useUserPreferences = () => {
       }
 
       if (data) {
-        setPreferences(data);
+        // Transform the data to match our UserPreferences interface
+        const transformedPreferences: UserPreferences = {
+          id: data.id,
+          user_id: data.user_id,
+          theme: isValidTheme(data.theme) ? data.theme : 'dark',
+          notifications_enabled: data.notifications_enabled,
+          email_notifications: data.email_notifications,
+          default_timeout: data.default_timeout,
+          receipt_template: isValidReceiptTemplate(data.receipt_template) ? data.receipt_template : 'standard',
+          created_at: data.created_at,
+          updated_at: data.updated_at
+        };
+        
+        setPreferences(transformedPreferences);
       } else {
         // Create default preferences
         const defaultPrefs: Omit<UserPreferences, 'id' | 'created_at' | 'updated_at'> = {
@@ -60,7 +82,19 @@ export const useUserPreferences = () => {
         if (createError) {
           console.error('Error creating default preferences:', createError);
         } else if (newPrefs) {
-          setPreferences(newPrefs);
+          const transformedNewPrefs: UserPreferences = {
+            id: newPrefs.id,
+            user_id: newPrefs.user_id,
+            theme: isValidTheme(newPrefs.theme) ? newPrefs.theme : 'dark',
+            notifications_enabled: newPrefs.notifications_enabled,
+            email_notifications: newPrefs.email_notifications,
+            default_timeout: newPrefs.default_timeout,
+            receipt_template: isValidReceiptTemplate(newPrefs.receipt_template) ? newPrefs.receipt_template : 'standard',
+            created_at: newPrefs.created_at,
+            updated_at: newPrefs.updated_at
+          };
+          
+          setPreferences(transformedNewPrefs);
         }
       }
     } catch (error) {
@@ -95,7 +129,19 @@ export const useUserPreferences = () => {
       }
 
       if (data) {
-        setPreferences(data);
+        const transformedData: UserPreferences = {
+          id: data.id,
+          user_id: data.user_id,
+          theme: isValidTheme(data.theme) ? data.theme : 'dark',
+          notifications_enabled: data.notifications_enabled,
+          email_notifications: data.email_notifications,
+          default_timeout: data.default_timeout,
+          receipt_template: isValidReceiptTemplate(data.receipt_template) ? data.receipt_template : 'standard',
+          created_at: data.created_at,
+          updated_at: data.updated_at
+        };
+        
+        setPreferences(transformedData);
         toast({
           title: "Settings saved",
           description: "Your preferences have been updated successfully."

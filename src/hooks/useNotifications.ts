@@ -15,6 +15,11 @@ export interface Notification {
   metadata?: Record<string, any>;
 }
 
+// Type guard to ensure notification type is valid
+const isValidNotificationType = (type: string): type is 'info' | 'success' | 'warning' | 'error' => {
+  return ['info', 'success', 'warning', 'error'].includes(type);
+};
+
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,8 +43,21 @@ export const useNotifications = () => {
       }
 
       if (data) {
-        setNotifications(data);
-        setUnreadCount(data.filter(n => !n.is_read).length);
+        // Transform the data to match our Notification interface
+        const transformedNotifications: Notification[] = data.map(item => ({
+          id: item.id,
+          user_id: item.user_id,
+          title: item.title,
+          message: item.message,
+          type: isValidNotificationType(item.type) ? item.type : 'info',
+          is_read: item.is_read,
+          expires_at: item.expires_at,
+          created_at: item.created_at,
+          metadata: item.metadata as Record<string, any>
+        }));
+        
+        setNotifications(transformedNotifications);
+        setUnreadCount(transformedNotifications.filter(n => !n.is_read).length);
       }
     } catch (error) {
       console.error('Error in loadNotifications:', error);
@@ -110,7 +128,19 @@ export const useNotifications = () => {
       }
 
       if (data) {
-        setNotifications(prev => [data, ...prev]);
+        const transformedNotification: Notification = {
+          id: data.id,
+          user_id: data.user_id,
+          title: data.title,
+          message: data.message,
+          type: isValidNotificationType(data.type) ? data.type : 'info',
+          is_read: data.is_read,
+          expires_at: data.expires_at,
+          created_at: data.created_at,
+          metadata: data.metadata as Record<string, any>
+        };
+        
+        setNotifications(prev => [transformedNotification, ...prev]);
         setUnreadCount(prev => prev + 1);
         
         // Show toast for immediate feedback
@@ -143,7 +173,19 @@ export const useNotifications = () => {
           table: 'notifications'
         },
         (payload) => {
-          const newNotification = payload.new as Notification;
+          const data = payload.new;
+          const newNotification: Notification = {
+            id: data.id,
+            user_id: data.user_id,
+            title: data.title,
+            message: data.message,
+            type: isValidNotificationType(data.type) ? data.type : 'info',
+            is_read: data.is_read,
+            expires_at: data.expires_at,
+            created_at: data.created_at,
+            metadata: data.metadata as Record<string, any>
+          };
+          
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
           

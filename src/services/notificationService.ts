@@ -10,6 +10,11 @@ export interface NotificationTemplate {
   is_active: boolean;
 }
 
+// Type guard to ensure notification type is valid
+const isValidNotificationType = (type: string): type is 'info' | 'success' | 'warning' | 'error' => {
+  return ['info', 'success', 'warning', 'error'].includes(type);
+};
+
 export class NotificationService {
   private static instance: NotificationService;
   private templates: NotificationTemplate[] = [];
@@ -38,7 +43,15 @@ export class NotificationService {
       }
 
       if (data) {
-        this.templates = data;
+        // Transform the data to match our NotificationTemplate interface
+        this.templates = data.map(item => ({
+          id: item.id,
+          name: item.name,
+          title_template: item.title_template,
+          message_template: item.message_template,
+          type: isValidNotificationType(item.type) ? item.type : 'info',
+          is_active: item.is_active
+        }));
       }
     } catch (error) {
       console.error('Error in loadTemplates:', error);
