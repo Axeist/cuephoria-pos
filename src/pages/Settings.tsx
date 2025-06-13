@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, Bell } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import { Tournament } from '@/types/tournament.types';
@@ -14,6 +13,8 @@ import { useToast } from '@/components/ui/use-toast';
 import TournamentList from '@/components/tournaments/TournamentList';
 import { Button } from '@/components/ui/button';
 import TournamentDialog from '@/components/tournaments/TournamentDialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { notificationService } from '@/services/notificationService';
 
 const Settings = () => {
   const { user } = useAuth();
@@ -108,6 +109,28 @@ const Settings = () => {
     }
   };
   
+  const testNotification = async (type: string) => {
+    switch (type) {
+      case 'low_stock':
+        await notificationService.notifyLowStock('Coca Cola', 3);
+        break;
+      case 'session_timeout':
+        await notificationService.notifySessionTimeout('Console 1', 5);
+        break;
+      case 'new_customer':
+        await notificationService.notifyNewCustomer('John Doe');
+        break;
+      case 'product_sold_out':
+        await notificationService.notifyProductSoldOut('Energy Drink');
+        break;
+      case 'daily_report':
+        await notificationService.notifyDailyReport(new Date().toLocaleDateString());
+        break;
+      default:
+        break;
+    }
+  };
+  
   return (
     <div className="container p-4 mx-auto max-w-7xl">
       <div className="mb-8">
@@ -123,6 +146,10 @@ const Settings = () => {
             <SettingsIcon className="h-4 w-4" />
             General
           </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notifications
+          </TabsTrigger>
           <TabsTrigger value="tournaments" className="flex items-center gap-2">
             <Trophy className="h-4 w-4" />
             Tournaments
@@ -137,6 +164,61 @@ const Settings = () => {
         
         <TabsContent value="general" className="space-y-4">
           <GeneralSettings />
+        </TabsContent>
+        
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Test Notifications</CardTitle>
+              <CardDescription>
+                Test different types of notifications to see how they work.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => testNotification('low_stock')}
+                  className="justify-start"
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Test Low Stock Alert
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => testNotification('session_timeout')}
+                  className="justify-start"
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Test Session Timeout
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => testNotification('new_customer')}
+                  className="justify-start"
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Test New Customer
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => testNotification('product_sold_out')}
+                  className="justify-start"
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Test Product Sold Out
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => testNotification('daily_report')}
+                  className="justify-start"
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Test Daily Report
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         
         <TabsContent value="tournaments" className="space-y-4">
