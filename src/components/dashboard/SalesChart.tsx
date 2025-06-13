@@ -190,8 +190,8 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           </Tabs>
         </div>
       </CardHeader>
-      <CardContent className="h-[350px] pt-4">
-        <div className={`transition-all duration-300 ease-in-out ${isTransitioning ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}>
+      <CardContent className="h-[300px] pt-4">
+        <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}>
           <ChartContainer
             config={{
               amount: {
