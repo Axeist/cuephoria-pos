@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +21,6 @@ interface TournamentPlayerSectionProps {
   setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
   matchesExist: boolean;
   updatePlayerName?: (playerId: string, newName: string) => void;
-  tournamentId?: string; // Add tournament ID to clean up registrations
 }
 
 interface Customer {
@@ -38,8 +38,7 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
   players, 
   setPlayers,
   matchesExist,
-  updatePlayerName,
-  tournamentId 
+  updatePlayerName 
 }) => {
   const [playerName, setPlayerName] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -87,8 +86,6 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       const customer = customers.find(c => c.id === selectedCustomerId);
       if (!customer) return;
       
-      console.log('Adding existing customer:', customer);
-      
       // Check if this customer is already added as a player
       const existingPlayer = players.find(p => p.customerId === selectedCustomerId);
       if (existingPlayer) {
@@ -103,10 +100,8 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       newPlayer = {
         id: generateId(),
         name: customer.name,
-        customerId: selectedCustomerId // This is crucial - set the customerId
+        customerId: customer.id
       };
-      
-      console.log('Created player object for existing customer:', newPlayer);
       setSelectedCustomerId('');
     } else {
       // Check if a player with this name already exists
@@ -123,60 +118,15 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       newPlayer = {
         id: generateId(),
         name: playerName.trim()
-        // No customerId for new players
       };
-      
-      console.log('Created player object for new player:', newPlayer);
       setPlayerName('');
     }
     
-    console.log('Adding player to tournament:', newPlayer);
     setPlayers([...players, newPlayer]);
-    
-    toast({
-      title: 'Player Added',
-      description: `${newPlayer.name} has been added to the tournament as ${newPlayer.customerId ? 'an existing customer' : 'a guest'}.`,
-    });
   };
 
-  const removePlayer = async (id: string) => {
-    const playerToRemove = players.find(p => p.id === id);
-    if (!playerToRemove) return;
-
-    console.log('Removing player:', playerToRemove);
-    
-    // Remove player from local state
-    const updatedPlayers = players.filter(player => player.id !== id);
-    setPlayers(updatedPlayers);
-
-    // If we have a tournament ID and the player has a customerId, 
-    // get the customer's phone number and clean up any registration records
-    if (tournamentId && playerToRemove.customerId) {
-      try {
-        // Get the customer's phone number
-        const customer = customers.find(c => c.id === playerToRemove.customerId);
-        if (customer && customer.phone) {
-          const { error } = await supabase
-            .from('tournament_public_registrations')
-            .delete()
-            .eq('tournament_id', tournamentId)
-            .eq('customer_phone', customer.phone);
-
-          if (error) {
-            console.error('Error cleaning up registration record:', error);
-          } else {
-            console.log('Successfully cleaned up registration record for phone:', customer.phone);
-          }
-        }
-      } catch (error) {
-        console.error('Unexpected error cleaning up registration:', error);
-      }
-    }
-
-    toast({
-      title: 'Player Removed',
-      description: `${playerToRemove.name} has been removed from the tournament.`,
-    });
+  const removePlayer = (id: string) => {
+    setPlayers(players.filter(player => player.id !== id));
   };
   
   const handleEditClick = (player: Player) => {
@@ -295,9 +245,7 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
                     player.name
                   )}
                 </TableCell>
-                <TableCell>
-                  {player.customerId ? 'Customer' : 'Guest'}
-                </TableCell>
+                <TableCell>{player.customerId ? 'Customer' : 'Guest'}</TableCell>
                 <TableCell>
                   {editingPlayer && editingPlayer.id === player.id ? (
                     <div className="flex items-center space-x-1">
