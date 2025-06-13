@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Tournament {
@@ -32,6 +33,15 @@ interface RegistrationForm {
   customer_name: string;
   customer_phone: string;
   customer_email: string;
+  is_existing_customer: boolean;
+  customer_id?: string;
+}
+
+interface ExistingCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
 }
 
 const PublicTournaments = () => {
@@ -41,12 +51,15 @@ const PublicTournaments = () => {
   const [registrationForm, setRegistrationForm] = useState<RegistrationForm>({
     customer_name: '',
     customer_phone: '',
-    customer_email: ''
+    customer_email: '',
+    is_existing_customer: false
   });
+  const [existingCustomer, setExistingCustomer] = useState<ExistingCustomer | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
+  const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
   const { toast } = useToast();
 
   const fetchTournaments = useCallback(async () => {
@@ -120,6 +133,52 @@ const PublicTournaments = () => {
     };
   }, [fetchTournaments]);
 
+  // Check for existing customer by phone number
+  const checkExistingCustomer = useCallback(async (phone: string) => {
+    if (!phone.trim() || phone.length < 10) {
+      setExistingCustomer(null);
+      return;
+    }
+
+    setIsCheckingCustomer(true);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, phone, email')
+        .eq('phone', phone.trim())
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking customer:', error);
+        return;
+      }
+
+      if (data) {
+        setExistingCustomer(data);
+        setRegistrationForm(prev => ({
+          ...prev,
+          customer_name: data.name,
+          customer_email: data.email || '',
+          customer_id: data.id,
+          is_existing_customer: true
+        }));
+      } else {
+        setExistingCustomer(null);
+        setRegistrationForm(prev => ({
+          ...prev,
+          customer_name: '',
+          customer_email: '',
+          customer_id: undefined,
+          is_existing_customer: false
+        }));
+      }
+    } catch (error) {
+      console.error('Error checking existing customer:', error);
+    } finally {
+      setIsCheckingCustomer(false);
+    }
+  }, []);
+
   // Memoized form input handlers to prevent re-renders
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
@@ -128,13 +187,30 @@ const PublicTournaments = () => {
 
   const handlePhoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
-    setRegistrationForm(prev => ({ ...prev, customer_phone: e.target.value }));
-  }, []);
+    const phone = e.target.value;
+    setRegistrationForm(prev => ({ ...prev, customer_phone: phone }));
+    
+    // Check for existing customer when phone number is entered
+    if (phone.length >= 10) {
+      checkExistingCustomer(phone);
+    } else {
+      setExistingCustomer(null);
+    }
+  }, [checkExistingCustomer]);
 
   const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     setRegistrationForm(prev => ({ ...prev, customer_email: e.target.value }));
   }, []);
+
+  const handleExistingCustomerToggle = useCallback((checked: boolean) => {
+    setRegistrationForm(prev => ({ 
+      ...prev, 
+      is_existing_customer: checked,
+      customer_name: checked && existingCustomer ? existingCustomer.name : '',
+      customer_email: checked && existingCustomer ? existingCustomer.email || '' : ''
+    }));
+  }, [existingCustomer]);
 
   const handleRegistration = useCallback(async (e?: React.FormEvent) => {
     if (e) {
@@ -157,7 +233,39 @@ const PublicTournaments = () => {
     setIsRegistering(true);
 
     try {
-      const { error } = await supabase
+      let customerId = registrationForm.customer_id;
+
+      // Create new customer if not existing
+      if (!registrationForm.is_existing_customer || !customerId) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            name: registrationForm.customer_name.trim(),
+            phone: registrationForm.customer_phone.trim(),
+            email: registrationForm.customer_email.trim() || null,
+            is_member: false,
+            loyalty_points: 0,
+            total_spent: 0,
+            total_play_time: 0
+          })
+          .select()
+          .single();
+
+        if (customerError) {
+          console.error('Error creating customer:', customerError);
+          toast({
+            title: "Customer Creation Failed",
+            description: "Failed to create customer record. Please try again.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        customerId = newCustomer.id;
+      }
+
+      // Register for tournament
+      const { error: registrationError } = await supabase
         .from('tournament_public_registrations')
         .insert({
           tournament_id: selectedTournament.id,
@@ -168,14 +276,38 @@ const PublicTournaments = () => {
           status: 'registered'
         });
 
-      if (error) {
-        console.error('Registration error:', error);
+      if (registrationError) {
+        console.error('Registration error:', registrationError);
         toast({
           title: "Registration Failed",
           description: "Failed to register for tournament. Please try again.",
           variant: "destructive"
         });
         return;
+      }
+
+      // Add player to tournament players array
+      const updatedPlayers = [
+        ...selectedTournament.players,
+        {
+          id: customerId,
+          name: registrationForm.customer_name.trim(),
+          phone: registrationForm.customer_phone.trim(),
+          email: registrationForm.customer_email.trim() || null,
+          registration_date: new Date().toISOString()
+        }
+      ];
+
+      const { error: tournamentUpdateError } = await supabase
+        .from('tournaments')
+        .update({
+          players: updatedPlayers
+        })
+        .eq('id', selectedTournament.id);
+
+      if (tournamentUpdateError) {
+        console.error('Tournament update error:', tournamentUpdateError);
+        // Don't fail the registration for this error, just log it
       }
 
       toast({
@@ -187,8 +319,10 @@ const PublicTournaments = () => {
       setRegistrationForm({
         customer_name: '',
         customer_phone: '',
-        customer_email: ''
+        customer_email: '',
+        is_existing_customer: false
       });
+      setExistingCustomer(null);
       setIsDialogOpen(false);
       setSelectedTournament(null);
 
@@ -210,8 +344,10 @@ const PublicTournaments = () => {
     setRegistrationForm({
       customer_name: '',
       customer_phone: '',
-      customer_email: ''
+      customer_email: '',
+      is_existing_customer: false
     });
+    setExistingCustomer(null);
   }, []);
 
   const handleDialogOpenChange = useCallback((open: boolean) => {
@@ -718,19 +854,7 @@ const PublicTournaments = () => {
           </DialogHeader>
           
           <form onSubmit={handleRegistration} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-cuephoria-grey">Name *</Label>
-              <Input
-                id="name"
-                type="text"
-                value={registrationForm.customer_name}
-                onChange={handleNameChange}
-                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
-                placeholder="Enter your full name"
-                autoComplete="name"
-              />
-            </div>
-            
+            {/* Phone Number Field (First) */}
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-cuephoria-grey">Phone Number *</Label>
               <Input
@@ -742,8 +866,40 @@ const PublicTournaments = () => {
                 placeholder="Enter your phone number"
                 autoComplete="tel"
               />
+              {isCheckingCustomer && (
+                <p className="text-xs text-cuephoria-grey">Checking for existing customer...</p>
+              )}
+            </div>
+
+            {/* Existing Customer Indicator */}
+            {existingCustomer && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-green-400 mb-2">
+                  <UserCheck className="h-4 w-4" />
+                  <span className="text-sm font-medium">Existing Customer Found!</span>
+                </div>
+                <p className="text-xs text-green-300">
+                  Welcome back, {existingCustomer.name}! Your details have been auto-filled.
+                </p>
+              </div>
+            )}
+
+            {/* Name Field */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-cuephoria-grey">Name *</Label>
+              <Input
+                id="name"
+                type="text"
+                value={registrationForm.customer_name}
+                onChange={handleNameChange}
+                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
+                placeholder="Enter your full name"
+                autoComplete="name"
+                disabled={!!existingCustomer}
+              />
             </div>
             
+            {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-cuephoria-grey">Email (Optional)</Label>
               <Input
@@ -754,6 +910,7 @@ const PublicTournaments = () => {
                 className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
                 placeholder="Enter your email address"
                 autoComplete="email"
+                disabled={!!existingCustomer}
               />
             </div>
 
@@ -765,7 +922,7 @@ const PublicTournaments = () => {
             
             <Button 
               type="submit"
-              disabled={isRegistering}
+              disabled={isRegistering || isCheckingCustomer}
               className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
             >
               {isRegistering ? 'Registering...' : 'Confirm Registration'}
