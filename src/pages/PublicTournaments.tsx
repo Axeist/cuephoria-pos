@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +29,7 @@ interface Tournament {
   players: any[];
   matches: any[];
   winner?: any;
+  runnerUp?: any; // Add runnerUp property
   total_registrations: number;
   max_players: number;
 }

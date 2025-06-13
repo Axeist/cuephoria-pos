@@ -68,11 +68,17 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
       console.error('Error saving tournament winner:', winnerError);
     }
 
-    // Update tournament with runner-up if it wasn't set
+    // Update tournament with runner-up if it wasn't set (convert Player to Json-compatible format)
     if (!tournament.runnerUp && runnerUp) {
+      const runnerUpJson = {
+        id: runnerUp.id,
+        name: runnerUp.name,
+        customerId: runnerUp.customerId
+      };
+
       const { error: updateError } = await supabase
         .from('tournaments')
-        .update({ runner_up: runnerUp })
+        .update({ runner_up: runnerUpJson })
         .eq('id', tournament.id);
         
       if (updateError) {
