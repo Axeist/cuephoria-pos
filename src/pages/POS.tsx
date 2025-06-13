@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -58,6 +57,7 @@ const POS = () => {
   const [lastCompletedBill, setLastCompletedBill] = useState<Bill | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isCompletingSale, setIsCompletingSale] = useState(false);
 
   // Filter out products with zero stock (except membership products)
   const productsWithStock = products.filter(product => 
@@ -182,7 +182,7 @@ const POS = () => {
     }
   };
 
-  const handleCompleteSale = () => {
+  const handleCompleteSale = async () => {
     if (!selectedCustomer) {
       toast({
         title: 'No Customer Selected',
@@ -201,8 +201,13 @@ const POS = () => {
       return;
     }
     
+    setIsCompletingSale(true);
+    
     try {
-      const bill = completeSale(paymentMethod);
+      console.log("Starting completeSale process...");
+      const bill = await completeSale(paymentMethod);
+      console.log("CompleteSale returned:", bill);
+      
       if (bill) {
         setIsCheckoutDialogOpen(false);
         setLastCompletedBill(bill);
@@ -212,15 +217,24 @@ const POS = () => {
         toast({
           title: 'Sale Completed',
           description: `Total: ${formatCurrency(bill.total)}`,
-          variant: 'success',
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to complete the sale. Please try again.',
+          variant: 'destructive',
         });
       }
     } catch (error) {
+      console.error('Error in handleCompleteSale:', error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'An error occurred',
+        description: error instanceof Error ? error.message : 'An error occurred while completing the sale',
         variant: 'destructive',
       });
+    } finally {
+      setIsCompletingSale(false);
     }
   };
 
@@ -668,8 +682,12 @@ const POS = () => {
             <Button variant="outline" onClick={() => setIsCheckoutDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCompleteSale} className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90">
-              Complete Sale (<CurrencyDisplay amount={total} />)
+            <Button 
+              onClick={handleCompleteSale} 
+              disabled={isCompletingSale}
+              className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
+            >
+              {isCompletingSale ? 'Processing...' : `Complete Sale (${formatCurrency(total)})`}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -524,12 +524,31 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
   
-  // Modified to handle async operations but return synchronously
-  const completeSale = (paymentMethod: 'cash' | 'upi' | 'split'): Bill | undefined => {
+  // Modified completeSale to properly handle async operations and return the actual bill
+  const completeSale = async (paymentMethod: 'cash' | 'upi' | 'split'): Promise<Bill | undefined> => {
+    if (!selectedCustomer) {
+      toast({
+        title: 'No Customer Selected',
+        description: 'Please select a customer before completing the sale',
+        variant: 'destructive',
+      });
+      return undefined;
+    }
+    
+    if (cart.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Please add items to the cart before completing the sale',
+        variant: 'destructive',
+      });
+      return undefined;
+    }
+    
     try {
       // Apply student price for membership items if student discount is enabled
+      let currentCart = cart;
       if (isStudentDiscount) {
-        const updatedCart = cart.map(item => {
+        currentCart = cart.map(item => {
           const product = products.find(p => p.id === item.id) as Product;
           if (product && product.category === 'membership' && product.studentPrice) {
             return {
@@ -542,18 +561,22 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         
         // Temporarily update cart with student prices
-        setCart(updatedCart);
+        setCart(currentCart);
       }
       
       // Look for membership products in cart
-      const membershipItems = cart.filter(item => {
+      const membershipItems = currentCart.filter(item => {
         const product = products.find(p => p.id === item.id);
         return product && product.category === 'membership';
       });
       
-      // This is async but we're handling it internally and returning a synchronous Bill
-      completeSaleBase(
-        cart, 
+      console.log("Completing sale with cart:", currentCart);
+      console.log("Selected customer:", selectedCustomer);
+      console.log("Payment method:", isSplitPayment ? 'split' : paymentMethod);
+      
+      // Call the async completeSale function and wait for it
+      const bill = await completeSaleBase(
+        currentCart, 
         selectedCustomer, 
         discount, 
         discountType, 
@@ -564,9 +587,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSplitPayment,
         cashAmount,
         upiAmount
-      ).then(bill => {
+      );
+      
+      if (bill) {
+        console.log("Bill created successfully:", bill);
+        
         // If we have a successful sale with membership items, update the customer
-        if (bill && selectedCustomer && membershipItems.length > 0) {
+        if (membershipItems.length > 0) {
           for (const item of membershipItems) {
             const product = products.find(p => p.id === item.id);
             
@@ -596,56 +623,27 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
         
-        if (bill) {
-          // Clear the cart after successful sale
-          clearCart();
-          // Reset selected customer
-          setSelectedCustomer(null);
-          // Reset student discount
-          setIsStudentDiscount(false);
-          // Reset split payment data
-          resetPaymentInfo();
-        }
-      }).catch(error => {
-        console.error("Error in completeSale async:", error);
-      });
-      
-      // Return a synchronous bill for the UI
-      if (selectedCustomer) {
-        // Calculate loyalty points earned using the new rule
-        // Members: 5 points per 100 INR spent
-        // Non-members: 2 points per 100 INR spent
-        const pointsRate = selectedCustomer.isMember ? 5 : 2;
-        const total = calculateTotal();
-        const loyaltyPointsEarned = Math.floor((total / 100) * pointsRate);
+        // Clear the cart after successful sale
+        clearCart();
+        // Reset selected customer
+        setSelectedCustomer(null);
+        // Reset student discount
+        setIsStudentDiscount(false);
+        // Reset split payment data
+        resetPaymentInfo();
         
-        const placeholderBill: Bill = {
-          id: `temp-${new Date().getTime()}`,
-          customerId: selectedCustomer.id,
-          items: [...cart],
-          subtotal: cart.reduce((sum, item) => sum + item.total, 0),
-          discount,
-          discountValue: discount > 0 ? 
-            (discountType === 'percentage' ? 
-              (cart.reduce((sum, item) => sum + item.total, 0) * discount / 100) : 
-              discount) : 0,
-          discountType,
-          loyaltyPointsUsed,
-          loyaltyPointsEarned,
-          total,
-          paymentMethod: isSplitPayment ? 'split' : paymentMethod,
-          isSplitPayment,
-          cashAmount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
-          upiAmount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
-          createdAt: new Date()
-        };
-        return placeholderBill;
+        return bill;
       }
       
       return undefined;
       
     } catch (error) {
       console.error("Error in completeSale:", error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to complete sale',
+        variant: 'destructive',
+      });
       return undefined;
     }
   };
