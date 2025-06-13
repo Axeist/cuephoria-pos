@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Tournament, Player, Match, MatchStatus } from '@/types/tournament.types';
 import TournamentPlayerSection from './TournamentPlayerSection';
@@ -184,6 +183,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               setPlayers={setPlayers} 
               matchesExist={matches.length > 0}
               updatePlayerName={updatePlayerName}
+              tournamentId={tournament.id} // Pass tournament ID for cleanup
             />
             
             <div className="flex justify-end pt-4">
