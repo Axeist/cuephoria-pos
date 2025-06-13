@@ -30,11 +30,10 @@ export const useNotifications = () => {
     try {
       setLoading(true);
       
-      // Load global notifications (user_id is null)
+      // Load all notifications (single user system)
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .is('user_id', null)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -94,7 +93,6 @@ export const useNotifications = () => {
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .is('user_id', null)
         .eq('is_read', false);
 
       if (error) {
@@ -117,11 +115,11 @@ export const useNotifications = () => {
         .from('notifications')
         .insert([{
           ...notification,
-          user_id: null, // Set to null for global notifications
+          user_id: null, // Single user system
           is_read: false
         }])
         .select()
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.error('Error creating notification:', error);
@@ -163,7 +161,7 @@ export const useNotifications = () => {
   useEffect(() => {
     loadNotifications();
 
-    // Set up real-time subscription for global notifications
+    // Set up real-time subscription for notifications
     const channel = supabase
       .channel('notifications')
       .on(
@@ -171,8 +169,7 @@ export const useNotifications = () => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'notifications',
-          filter: 'user_id=is.null'
+          table: 'notifications'
         },
         (payload) => {
           const data = payload.new;

@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, Bell } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
@@ -110,24 +110,52 @@ const Settings = () => {
   };
   
   const testNotification = async (type: string) => {
-    switch (type) {
-      case 'low_stock':
-        await notificationService.notifyLowStock('Coca Cola', 3);
-        break;
-      case 'session_timeout':
-        await notificationService.notifySessionTimeout('Console 1', 5);
-        break;
-      case 'new_customer':
-        await notificationService.notifyNewCustomer('John Doe');
-        break;
-      case 'product_sold_out':
-        await notificationService.notifyProductSoldOut('Energy Drink');
-        break;
-      case 'daily_report':
-        await notificationService.notifyDailyReport(new Date().toLocaleDateString());
-        break;
-      default:
-        break;
+    console.log(`Testing notification: ${type}`);
+    
+    try {
+      let success = false;
+      
+      switch (type) {
+        case 'low_stock':
+          success = await notificationService.notifyLowStock('Coca Cola', 3);
+          break;
+        case 'session_timeout':
+          success = await notificationService.notifySessionTimeout('Console 1', 5);
+          break;
+        case 'new_customer':
+          success = await notificationService.notifyNewCustomer('John Doe');
+          break;
+        case 'product_sold_out':
+          success = await notificationService.notifyProductSoldOut('Energy Drink');
+          break;
+        case 'daily_report':
+          success = await notificationService.notifyDailyReport(new Date().toLocaleDateString());
+          break;
+        default:
+          console.error('Unknown notification type:', type);
+          break;
+      }
+      
+      if (success) {
+        toast({
+          title: "Test notification sent!",
+          description: `Successfully sent ${type.replace('_', ' ')} notification.`,
+          variant: "default"
+        });
+      } else {
+        toast({
+          title: "Failed to send notification",
+          description: "Please check the console for more details.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error testing notification:', error);
+      toast({
+        title: "Error sending notification",
+        description: "An error occurred while testing the notification.",
+        variant: "destructive"
+      });
     }
   };
   
@@ -171,7 +199,7 @@ const Settings = () => {
             <CardHeader>
               <CardTitle>Test Notifications</CardTitle>
               <CardDescription>
-                Test different types of notifications to see how they work.
+                Test different types of notifications to see how they work. These will appear in the notification bell and as toast messages.
               </CardDescription>
             </CardHeader>
             <CardContent>

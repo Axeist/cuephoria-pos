@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/context/AuthContext';
 
 export interface UserPreferences {
   id?: string;
@@ -29,25 +28,21 @@ export const useUserPreferences = () => {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const loadPreferences = async () => {
     try {
       setLoading(true);
       
-      if (!user?.id) {
-        console.log('No user logged in, skipping preferences load');
-        setLoading(false);
-        return;
-      }
+      // Use a fixed admin user ID for single user system
+      const adminUserId = 'admin-user-id';
       
       const { data, error } = await supabase
         .from('user_preferences')
         .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .eq('user_id', adminUserId)
+        .single();
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error loading preferences:', error);
         return;
       }
@@ -67,9 +62,9 @@ export const useUserPreferences = () => {
         
         setPreferences(transformedPreferences);
       } else {
-        // Create default preferences for the current user
+        // Create default preferences for admin user
         const defaultPrefs = {
-          user_id: user.id,
+          user_id: adminUserId,
           theme: 'dark' as const,
           notifications_enabled: true,
           email_notifications: false,
@@ -81,7 +76,7 @@ export const useUserPreferences = () => {
           .from('user_preferences')
           .insert([defaultPrefs])
           .select()
-          .maybeSingle();
+          .single();
 
         if (createError) {
           console.error('Error creating default preferences:', createError);
@@ -109,7 +104,7 @@ export const useUserPreferences = () => {
   };
 
   const updatePreferences = async (updates: Partial<UserPreferences>) => {
-    if (!preferences || !user?.id) return false;
+    if (!preferences) return false;
 
     try {
       const { data, error } = await supabase
@@ -120,7 +115,7 @@ export const useUserPreferences = () => {
         })
         .eq('id', preferences.id)
         .select()
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.error('Error updating preferences:', error);
@@ -166,7 +161,7 @@ export const useUserPreferences = () => {
 
   useEffect(() => {
     loadPreferences();
-  }, [user?.id]);
+  }, []);
 
   return {
     preferences,

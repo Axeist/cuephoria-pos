@@ -63,7 +63,7 @@ export class NotificationService {
     });
   }
 
-  async sendNotification(templateName: string, variables: Record<string, any>, userId?: string) {
+  async sendNotification(templateName: string, variables: Record<string, any>) {
     const template = this.templates.find(t => t.name === templateName);
     if (!template) {
       console.error(`Notification template '${templateName}' not found`);
@@ -74,11 +74,11 @@ export class NotificationService {
     const message = this.interpolateTemplate(template.message_template, variables);
 
     try {
-      // For global notifications (no userId), we bypass RLS by using the service role
+      // Create notification for admin user (single user system)
       const { error } = await supabase
         .from('notifications')
         .insert([{
-          user_id: null, // Always use null for global notifications
+          user_id: null, // Global notification for single-user system
           title,
           message,
           type: template.type,
@@ -90,6 +90,7 @@ export class NotificationService {
         return false;
       }
 
+      console.log(`Notification sent: ${title}`);
       return true;
     } catch (error) {
       console.error('Error in sendNotification:', error);
