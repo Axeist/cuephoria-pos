@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Match, Player, Tournament, MatchStatus, MatchStage } from '@/types/tournament.types';
 import { Button } from '@/components/ui/button';
@@ -29,6 +28,7 @@ interface TournamentMatchSectionProps {
   updateMatchSchedule: (matchId: string, date: string, time: string) => void;
   updateMatchStatus: (matchId: string, status: MatchStatus) => void;
   winner?: Player;
+  runnerUp?: Player;
 }
 
 const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
@@ -37,7 +37,8 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
   updateMatchResult,
   updateMatchSchedule,
   updateMatchStatus,
-  winner
+  winner,
+  runnerUp
 }) => {
   const [selectedMatchId, setSelectedMatchId] = React.useState<string | null>(null);
   const [editDate, setEditDate] = React.useState('');
@@ -123,7 +124,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
     return displayOrder.filter(stage => groups[stage]?.length);
   }, [matches]);
 
-  // Show tournament winner announcement if there is one
+  // Show tournament winner and runner-up announcement if there is one
   const renderWinnerSection = () => {
     if (!winner) return null;
     
@@ -136,11 +137,22 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
           </div>
         </div>
         <h3 className="text-3xl font-bold bg-gradient-to-r from-yellow-500 to-amber-500 bg-clip-text text-transparent">
-          Tournament Winner
+          Tournament Champion
         </h3>
         <p className="text-2xl font-medium mt-3 animate-fade-in delay-200">{winner.name}</p>
-        <p className="text-muted-foreground mt-4 animate-fade-in delay-300">
-          Congratulations to {winner.name} for winning the tournament!
+        
+        {runnerUp && (
+          <div className="mt-6 animate-fade-in delay-300">
+            <div className="flex justify-center mb-2">
+              <Medal className="h-12 w-12 text-gray-400" />
+            </div>
+            <h4 className="text-xl font-semibold text-gray-300">Runner-up</h4>
+            <p className="text-lg text-gray-400 mt-1">{runnerUp.name}</p>
+          </div>
+        )}
+        
+        <p className="text-muted-foreground mt-4 animate-fade-in delay-400">
+          Congratulations to all participants for an amazing tournament!
         </p>
       </div>
     );

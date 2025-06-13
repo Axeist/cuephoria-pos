@@ -1042,6 +1042,42 @@ export type Database = {
           },
         ]
       }
+      tournament_history: {
+        Row: {
+          created_at: string
+          id: string
+          match_date: string
+          match_id: string
+          match_stage: string
+          player1_name: string
+          player2_name: string
+          tournament_id: string
+          winner_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_date: string
+          match_id: string
+          match_stage: string
+          player1_name: string
+          player2_name: string
+          tournament_id: string
+          winner_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_date?: string
+          match_id?: string
+          match_stage?: string
+          player1_name?: string
+          player2_name?: string
+          tournament_id?: string
+          winner_name?: string
+        }
+        Relationships: []
+      }
       tournament_public_registrations: {
         Row: {
           created_at: string
@@ -1164,6 +1200,42 @@ export type Database = {
           },
         ]
       }
+      tournament_winners: {
+        Row: {
+          created_at: string
+          game_type: string
+          game_variant: string | null
+          id: string
+          runner_up_name: string | null
+          tournament_date: string
+          tournament_id: string
+          tournament_name: string
+          winner_name: string
+        }
+        Insert: {
+          created_at?: string
+          game_type: string
+          game_variant?: string | null
+          id?: string
+          runner_up_name?: string | null
+          tournament_date: string
+          tournament_id: string
+          tournament_name: string
+          winner_name: string
+        }
+        Update: {
+          created_at?: string
+          game_type?: string
+          game_variant?: string | null
+          id?: string
+          runner_up_name?: string | null
+          tournament_date?: string
+          tournament_id?: string
+          tournament_name?: string
+          winner_name?: string
+        }
+        Relationships: []
+      }
       tournaments: {
         Row: {
           budget: number | null
@@ -1177,6 +1249,7 @@ export type Database = {
           max_players: number | null
           name: string
           players: Json
+          runner_up: Json | null
           runner_up_prize: number | null
           status: string
           updated_at: string | null
@@ -1195,6 +1268,7 @@ export type Database = {
           max_players?: number | null
           name: string
           players?: Json
+          runner_up?: Json | null
           runner_up_prize?: number | null
           status: string
           updated_at?: string | null
@@ -1213,6 +1287,7 @@ export type Database = {
           max_players?: number | null
           name?: string
           players?: Json
+          runner_up?: Json | null
           runner_up_prize?: number | null
           status?: string
           updated_at?: string | null

@@ -6,7 +6,7 @@ import {
   TableHeader, TableRow 
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash, Trophy, ChevronRight } from 'lucide-react';
+import { Edit, Trash, Trophy, ChevronRight, History } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
@@ -15,12 +15,14 @@ interface TournamentListProps {
   tournaments: Tournament[];
   onEdit: (tournament: Tournament) => void;
   onDelete: (id: string) => void;
+  onViewHistory?: (tournament: Tournament) => void;
 }
 
 const TournamentList: React.FC<TournamentListProps> = ({ 
   tournaments, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onViewHistory 
 }) => {
   if (tournaments.length === 0) {
     return (
@@ -84,6 +86,16 @@ const TournamentList: React.FC<TournamentListProps> = ({
               <TableCell>{getStatusBadge(tournament.status)}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
+                  {onViewHistory && tournament.status === 'completed' && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onViewHistory(tournament)}
+                      className="text-blue-500 hover:text-blue-600"
+                    >
+                      <History className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => onEdit(tournament)}>
                     <Edit className="h-4 w-4" />
                   </Button>

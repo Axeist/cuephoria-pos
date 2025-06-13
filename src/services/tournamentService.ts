@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PostgrestError } from "@supabase/supabase-js";
 import { useAuth } from "@/context/AuthContext";
 import { generateId } from "@/utils/pos.utils";
+import { determineRunnerUp, saveTournamentHistory } from "@/services/tournamentHistoryService";
 
 // Define a more specific type for Supabase operations with tournaments
 // This helps us work around the type limitations without modifying the types.ts file
@@ -266,6 +267,18 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
   try {
     // Log the tournament being saved for debugging
     console.log('Saving tournament to Supabase:', tournament);
+    
+    // If tournament is completed and has matches, determine runner-up and save history
+    if (tournament.status === 'completed' && tournament.matches.length > 0) {
+      if (!tournament.runnerUp) {
+        tournament.runnerUp = determineRunnerUp(tournament.matches, tournament.players);
+      }
+      
+      // Save tournament history asynchronously (don't block the save operation)
+      saveTournamentHistory(tournament).catch(error => {
+        console.error('Error saving tournament history:', error);
+      });
+    }
     
     const supabaseTournament = convertToSupabaseTournament(tournament);
     console.log('Converted to Supabase format:', supabaseTournament);

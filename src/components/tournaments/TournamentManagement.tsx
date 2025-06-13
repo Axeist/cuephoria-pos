@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Tournament, Player, Match, MatchStatus } from '@/types/tournament.types';
 import TournamentPlayerSection from './TournamentPlayerSection';
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { generateMatches, determineWinner } from '@/services/tournamentService';
+import { determineRunnerUp } from '@/services/tournamentHistoryService';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -25,11 +27,13 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   const [activeTab, setActiveTab] = useState('players');
   const [saving, setSaving] = useState(false);
   const [winner, setWinner] = useState<Player | undefined>(tournament.winner);
+  const [runnerUp, setRunnerUp] = useState<Player | undefined>(tournament.runnerUp);
 
   useEffect(() => {
     setPlayers(tournament.players || []);
     setMatches(tournament.matches || []);
     setWinner(tournament.winner);
+    setRunnerUp(tournament.runnerUp);
   }, [tournament]);
 
   const handleGenerateMatches = () => {
@@ -48,7 +52,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     setMatches(generatedMatches);
     setActiveTab('matches');
     
-    handleSave(players, generatedMatches, winner);
+    handleSave(players, generatedMatches, winner, runnerUp);
   };
 
   const handleUpdateMatchResult = (matchId: string, winnerId: string) => {
@@ -88,12 +92,14 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
       }
     }
     
-    // Determine if we have a tournament winner
+    // Determine if we have a tournament winner and runner-up
     const updatedWinner = determineWinner(updatedMatches, players);
-    setWinner(updatedWinner);
+    const updatedRunnerUp = updatedWinner ? determineRunnerUp(updatedMatches, players) : undefined;
     
+    setWinner(updatedWinner);
+    setRunnerUp(updatedRunnerUp);
     setMatches(updatedMatches);
-    handleSave(players, updatedMatches, updatedWinner);
+    handleSave(players, updatedMatches, updatedWinner, updatedRunnerUp);
   };
 
   const handleUpdateMatchSchedule = (matchId: string, date: string, time: string) => {
@@ -109,7 +115,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     });
     
     setMatches(updatedMatches);
-    handleSave(players, updatedMatches, winner);
+    handleSave(players, updatedMatches, winner, runnerUp);
   };
 
   const handleUpdateMatchStatus = (matchId: string, status: MatchStatus) => {
@@ -124,7 +130,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     });
     
     setMatches(updatedMatches);
-    handleSave(players, updatedMatches, winner);
+    handleSave(players, updatedMatches, winner, runnerUp);
   };
   
   // Function to update player names across all matches
@@ -136,13 +142,14 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     setPlayers(updatedPlayers);
     
     // No need to update matches since we reference players by ID
-    handleSave(updatedPlayers, matches, winner);
+    handleSave(updatedPlayers, matches, winner, runnerUp);
   };
 
   const handleSave = async (
     currentPlayers: Player[], 
     currentMatches: Match[], 
-    currentWinner?: Player
+    currentWinner?: Player,
+    currentRunnerUp?: Player
   ) => {
     setSaving(true);
     
@@ -152,6 +159,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
         players: currentPlayers,
         matches: currentMatches,
         winner: currentWinner,
+        runnerUp: currentRunnerUp,
         status: currentWinner ? 'completed' : currentMatches.length > 0 ? 'in-progress' : 'upcoming'
       };
       
@@ -212,6 +220,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               updateMatchSchedule={handleUpdateMatchSchedule}
               updateMatchStatus={handleUpdateMatchStatus}
               winner={winner}
+              runnerUp={runnerUp}
             />
           </TabsContent>
         </Tabs>
