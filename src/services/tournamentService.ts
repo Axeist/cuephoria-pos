@@ -1,3 +1,4 @@
+
 import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
 import { Tournament, convertFromSupabaseTournament, convertToSupabaseTournament, Player, Match, MatchStage } from "@/types/tournament.types";
 import { useToast } from '@/hooks/use-toast';
@@ -375,6 +376,31 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
 // Delete a tournament from Supabase
 export const deleteTournament = async (id: string): Promise<{ success: boolean; error: string | null }> => {
   try {
+    console.log('Starting tournament deletion for ID:', id);
+    
+    // First, delete related tournament history entries
+    const { error: historyError } = await supabase
+      .from('tournament_history')
+      .delete()
+      .eq('tournament_id', id);
+      
+    if (historyError) {
+      console.error('Error deleting tournament history:', historyError);
+      return { success: false, error: formatTournamentError(historyError) };
+    }
+    
+    // Delete related tournament winner entries
+    const { error: winnersError } = await supabase
+      .from('tournament_winners')
+      .delete()
+      .eq('tournament_id', id);
+      
+    if (winnersError) {
+      console.error('Error deleting tournament winners:', winnersError);
+      return { success: false, error: formatTournamentError(winnersError) };
+    }
+    
+    // Finally, delete the tournament itself
     const { error } = await tournamentsTable
       .delete()
       .eq('id', id);
@@ -384,6 +410,7 @@ export const deleteTournament = async (id: string): Promise<{ success: boolean; 
       return { success: false, error: formatTournamentError(error) };
     }
     
+    console.log('Tournament and all related entries deleted successfully');
     return { success: true, error: null };
   } catch (error) {
     console.error('Unexpected error deleting tournament:', error);
