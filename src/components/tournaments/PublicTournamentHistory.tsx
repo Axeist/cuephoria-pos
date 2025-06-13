@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -104,10 +105,10 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
 
   const getStageIcon = (stage: MatchStage) => {
     switch (stage) {
-      case 'final': return <Crown className="h-4 w-4 text-yellow-400" />;
-      case 'semi_final': return <Medal className="h-4 w-4 text-gray-400" />;
-      case 'quarter_final': return <Trophy className="h-4 w-4 text-orange-400" />;
-      default: return <Sword className="h-4 w-4 text-blue-400" />;
+      case 'final': return <Crown className="h-4 w-4 text-yellow-400 flex-shrink-0" />;
+      case 'semi_final': return <Medal className="h-4 w-4 text-gray-400 flex-shrink-0" />;
+      case 'quarter_final': return <Trophy className="h-4 w-4 text-orange-400 flex-shrink-0" />;
+      default: return <Sword className="h-4 w-4 text-blue-400 flex-shrink-0" />;
     }
   };
 
@@ -150,16 +151,16 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
   if (loading) {
     return (
       <Card className="bg-cuephoria-dark/60 border-cuephoria-lightpurple/20">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-sm">
-            <Trophy className="h-4 w-4" />
+        <CardHeader className="pb-4">
+          <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-base font-semibold">
+            <Trophy className="h-5 w-5" />
             Tournament Progress
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-2">
+        <CardContent className="pt-0">
+          <div className="animate-pulse space-y-3">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="h-12 bg-cuephoria-grey/10 rounded-lg" />
+              <div key={i} className="h-16 bg-cuephoria-grey/10 rounded-lg" />
             ))}
           </div>
         </CardContent>
@@ -170,14 +171,14 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
   if (matches.length === 0 && scheduledMatches.length === 0) {
     return (
       <Card className="bg-cuephoria-dark/60 border-cuephoria-lightpurple/20">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-sm">
-            <Trophy className="h-4 w-4" />
+        <CardHeader className="pb-4">
+          <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-base font-semibold">
+            <Trophy className="h-5 w-5" />
             Tournament Progress
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-6 text-cuephoria-grey">
+        <CardContent className="pt-0">
+          <div className="text-center py-8 text-cuephoria-grey">
             <Trophy className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="text-sm font-medium mb-1">No Match Data</p>
             <p className="text-xs">Match results will appear here once the tournament progresses.</p>
@@ -210,13 +211,13 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
 
   return (
     <Card className="bg-cuephoria-dark/60 border-cuephoria-lightpurple/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-sm">
-          <Trophy className="h-4 w-4" />
+      <CardHeader className="pb-4">
+        <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-base font-semibold">
+          <Trophy className="h-5 w-5" />
           Tournament Progress
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="pt-0 space-y-6">
         {stageOrder.map(stage => {
           const stageMatches = matchesByStage[stage] || [];
           const stageScheduled = scheduledByStage[stage] || [];
@@ -224,13 +225,13 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
           if (stageMatches.length === 0 && stageScheduled.length === 0) return null;
 
           return (
-            <div key={stage} className="space-y-2">
-              <div className="flex items-center gap-2 mb-2">
+            <div key={stage} className="space-y-3">
+              <div className="flex items-center gap-3">
                 {getStageIcon(stage)}
                 <h4 className="text-sm font-semibold text-white">
                   {formatStage(stage)}
                 </h4>
-                <Badge variant="outline" className="text-xs border-cuephoria-lightpurple/30 text-cuephoria-lightpurple">
+                <Badge variant="outline" className="text-xs border-cuephoria-lightpurple/30 text-cuephoria-lightpurple ml-auto">
                   {stageMatches.length + stageScheduled.length} match{stageMatches.length + stageScheduled.length !== 1 ? 'es' : ''}
                 </Badge>
               </div>
@@ -240,26 +241,26 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                 {stageMatches.map((match, index) => (
                   <div
                     key={`completed-${match.id}-${index}`}
-                    className={`p-3 rounded-lg border ${getStageColor(stage)} transition-all duration-200`}
+                    className={`p-4 rounded-lg border ${getStageColor(stage)} transition-all duration-200`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="text-sm text-white text-center min-w-0 flex-1">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="text-sm text-white text-center flex-1 min-w-0">
                           <div className="flex items-center justify-center gap-2">
-                            <span className="truncate">
+                            <span className="truncate max-w-[100px]">
                               {getDisplayName(match.player1_name, match.winner_name, match.match_stage)}
                             </span>
-                            <span className="text-cuephoria-lightpurple font-bold">vs</span>
-                            <span className="truncate">
+                            <span className="text-cuephoria-lightpurple font-bold text-xs">vs</span>
+                            <span className="truncate max-w-[100px]">
                               {getDisplayName(match.player2_name, match.winner_name, match.match_stage)}
                             </span>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2 text-green-400 ml-3">
-                        <Crown className="h-3 w-3 flex-shrink-0" />
-                        <span className="font-medium text-xs">{match.winner_name}</span>
+                      <div className="flex items-center gap-2 text-green-400 ml-3 flex-shrink-0">
+                        <Crown className="h-3 w-3" />
+                        <span className="font-medium text-xs truncate max-w-[80px]">{match.winner_name}</span>
                       </div>
                     </div>
                   </div>
@@ -269,30 +270,30 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                 {stageScheduled.map((match, index) => (
                   <div
                     key={`scheduled-${match.id}-${index}`}
-                    className={`p-3 rounded-lg border ${getStageColor(stage, true)} transition-all duration-200 ${
+                    className={`p-4 rounded-lg border ${getStageColor(stage, true)} transition-all duration-200 ${
                       match.status === 'cancelled' ? 'opacity-50' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="text-sm text-white text-center min-w-0 flex-1">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="text-sm text-white text-center flex-1 min-w-0">
                           <div className="flex items-center justify-center gap-2">
-                            <span className="truncate">{match.player1_name}</span>
+                            <span className="truncate max-w-[100px]">{match.player1_name}</span>
                             <ArrowRight className="h-3 w-3 text-cuephoria-lightpurple flex-shrink-0" />
-                            <span className="truncate">{match.player2_name}</span>
+                            <span className="truncate max-w-[100px]">{match.player2_name}</span>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2 ml-3">
+                      <div className="flex items-center gap-2 ml-3 flex-shrink-0">
                         {match.status === 'cancelled' ? (
                           <Badge variant="outline" className="text-xs border-red-400/30 text-red-400">
                             Cancelled
                           </Badge>
                         ) : match.scheduled_date && match.scheduled_time ? (
                           <div className="flex items-center gap-1 text-amber-400">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
-                            <span className="text-xs font-medium">
+                            <Clock className="h-3 w-3" />
+                            <span className="text-xs font-medium whitespace-nowrap">
                               {formatDateTime(match.scheduled_date, match.scheduled_time)}
                             </span>
                           </div>
