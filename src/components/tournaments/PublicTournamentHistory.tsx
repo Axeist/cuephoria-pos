@@ -226,12 +226,14 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
 
           return (
             <div key={stage} className="space-y-3">
-              <div className="flex items-center gap-3">
-                {getStageIcon(stage)}
-                <h4 className="text-sm font-semibold text-white">
-                  {formatStage(stage)}
-                </h4>
-                <Badge variant="outline" className="text-xs border-cuephoria-lightpurple/30 text-cuephoria-lightpurple ml-auto">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getStageIcon(stage)}
+                  <h4 className="text-sm font-semibold text-white">
+                    {formatStage(stage)}
+                  </h4>
+                </div>
+                <Badge variant="outline" className="text-xs border-cuephoria-lightpurple/30 text-cuephoria-lightpurple">
                   {stageMatches.length + stageScheduled.length} match{stageMatches.length + stageScheduled.length !== 1 ? 'es' : ''}
                 </Badge>
               </div>
@@ -291,8 +293,8 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
                           </div>
                         </div>
                         
-                        {/* Status/Time section */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Status/Time section - improved alignment */}
+                        <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
                           {match.status === 'cancelled' ? (
                             <Badge variant="outline" className="text-xs border-red-400/30 text-red-400">
                               Cancelled
