@@ -1249,7 +1249,7 @@ const ReportsPage: React.FC = () => {
   return <div className="p-6 space-y-6 min-h-screen text-white bg-transparent">
       {/* Header with title, date range, and export button */}
       <div className="flex justify-between items-center pb-2">
-        <h1 className="text-4xl font-bold">Reports</h1>
+        <h1 className="text-4xl font-bold gradient-text font-heading">Reports</h1>
         <div className="flex items-center gap-4">
           <Select value={dateRangeKey} onValueChange={handleDateRangeChange}>
             <SelectTrigger className="w-[180px] bg-gray-800 border-gray-700 text-white">
