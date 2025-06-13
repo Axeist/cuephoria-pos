@@ -122,7 +122,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3 relative z-10">
+      <CardContent className="space-y-4 relative z-10 px-6">
         {customer.email && (
           <div className="flex items-center gap-2 p-2 bg-gray-800/30 rounded-md">
             <Mail className="h-4 w-4 text-gray-400" />
@@ -175,7 +175,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         )}
         
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col items-center p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+          <div className="flex flex-col items-center justify-center p-3 bg-gray-800/30 rounded-lg border border-gray-700/50 text-center">
             <div className="flex items-center gap-2 mb-1">
               <Star className="h-4 w-4 text-yellow-400" />
               <span className="text-xs text-gray-400">Loyalty</span>
@@ -184,7 +184,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
             <span className="text-xs text-gray-500">points</span>
           </div>
           
-          <div className="flex flex-col items-center p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+          <div className="flex flex-col items-center justify-center p-3 bg-gray-800/30 rounded-lg border border-gray-700/50 text-center">
             <div className="flex items-center gap-2 mb-1">
               <CreditCard className="h-4 w-4 text-green-400" />
               <span className="text-xs text-gray-400">Spent</span>
@@ -195,7 +195,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
           </div>
         </div>
         
-        <div className="flex items-center justify-between p-2 bg-gray-800/30 rounded-md">
+        <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-md">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-blue-400" />
             <span className="text-sm text-gray-400">Play Time</span>
@@ -203,14 +203,14 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
           <span className="text-sm font-medium text-blue-400">{formatTime(customer.totalPlayTime)}</span>
         </div>
         
-        <div className="text-center pt-2 border-t border-gray-700/50">
+        <div className="text-center pt-3 border-t border-gray-700/50">
           <span className="text-xs text-gray-500">
             Member since {formatDate(customer.createdAt)}
           </span>
         </div>
       </CardContent>
 
-      <CardFooter className="pt-3 relative z-10">
+      <CardFooter className="pt-4 pb-6 px-6 relative z-10">
         {isSelectable ? (
           <Button 
             className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300"
