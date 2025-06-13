@@ -95,9 +95,10 @@ const PublicTournaments = () => {
         matches: Array.isArray(item.matches) ? item.matches : [],
         winner: item.winner,
         total_registrations: Number(item.total_registrations) || 0,
-        max_players: item.max_players || 8
+        max_players: Number(item.max_players) || 16 // Ensure we parse as number with fallback
       }));
 
+      console.log('Fetched tournaments with max_players:', transformedData.map(t => ({ name: t.name, max_players: t.max_players })));
       setTournaments(transformedData);
     } catch (error) {
       console.error('Unexpected error:', error);

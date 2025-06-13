@@ -61,7 +61,7 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     winnerPrize: item.winner_prize || undefined,
     runnerUpPrize: item.runner_up_prize || undefined,
     winner: item.winner || undefined,
-    maxPlayers: item.max_players || undefined, // Add max_players conversion
+    maxPlayers: item.max_players || 16, // Ensure we always have a value
     created_at: item.created_at,
     updated_at: item.updated_at
   };
@@ -77,6 +77,7 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
     players: tournament.players || [],
     matches: tournament.matches || [],
     status: tournament.status,
+    max_players: tournament.maxPlayers || 16, // Always include max_players with a default
   };
   
   // Only add optional fields if they have values
@@ -86,7 +87,6 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.winnerPrize !== undefined) cleanObject.winner_prize = tournament.winnerPrize;
   if (tournament.runnerUpPrize !== undefined) cleanObject.runner_up_prize = tournament.runnerUpPrize;
   if (tournament.winner) cleanObject.winner = tournament.winner;
-  if (tournament.maxPlayers !== undefined) cleanObject.max_players = tournament.maxPlayers; // Add max_players conversion
   
   return cleanObject;
 };
