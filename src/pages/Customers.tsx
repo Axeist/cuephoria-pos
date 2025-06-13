@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { usePOS, Customer } from '@/context/POSContext';
 import CustomerCard from '@/components/CustomerCard';
 import { useToast } from '@/hooks/use-toast';
@@ -284,7 +285,7 @@ const Customers = () => {
     });
   };
 
-  // Handle sort button click
+  // Handle sort selection from dropdown
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       // Toggle direction if same field
@@ -302,6 +303,18 @@ const Customers = () => {
       return <ArrowUpDown className="h-4 w-4" />;
     }
     return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
+  };
+
+  // Get current sort label
+  const getCurrentSortLabel = () => {
+    const fieldLabels = {
+      joinDate: 'Join Date',
+      totalSpent: 'Total Spent',
+      loyaltyPoints: 'Loyalty Points',
+      playTime: 'Play Time'
+    };
+    const directionLabel = sortDirection === 'asc' ? '↑' : '↓';
+    return `${fieldLabels[sortField]} ${directionLabel}`;
   };
 
   // Filter and sort customers
@@ -336,6 +349,34 @@ const Customers = () => {
           <Button variant="outline" onClick={exportCustomers}>
             <Download className="h-4 w-4 mr-2" /> Export
           </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                Sort: {getCurrentSortLabel()}
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => handleSort('joinDate')} className="flex items-center justify-between">
+                <span>Join Date</span>
+                {getSortIcon('joinDate')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSort('totalSpent')} className="flex items-center justify-between">
+                <span>Total Spent</span>
+                {getSortIcon('totalSpent')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSort('loyaltyPoints')} className="flex items-center justify-between">
+                <span>Loyalty Points</span>
+                {getSortIcon('loyaltyPoints')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSort('playTime')} className="flex items-center justify-between">
+                <span>Play Time</span>
+                {getSortIcon('playTime')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <Button onClick={handleOpenDialog}>
             <Plus className="h-4 w-4 mr-2" /> Add Customer
           </Button>
@@ -429,46 +470,6 @@ const Customers = () => {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search customers by name, phone or email..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
         </div>
-      </div>
-
-      {/* Sort buttons */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <Button
-          variant={sortField === 'joinDate' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => handleSort('joinDate')}
-          className="flex items-center gap-2"
-        >
-          Join Date
-          {getSortIcon('joinDate')}
-        </Button>
-        <Button
-          variant={sortField === 'totalSpent' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => handleSort('totalSpent')}
-          className="flex items-center gap-2"
-        >
-          Total Spent
-          {getSortIcon('totalSpent')}
-        </Button>
-        <Button
-          variant={sortField === 'loyaltyPoints' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => handleSort('loyaltyPoints')}
-          className="flex items-center gap-2"
-        >
-          Loyalty Points
-          {getSortIcon('loyaltyPoints')}
-        </Button>
-        <Button
-          variant={sortField === 'playTime' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => handleSort('playTime')}
-          className="flex items-center gap-2"
-        >
-          Play Time
-          {getSortIcon('playTime')}
-        </Button>
       </div>
       
       {/* Customer list */}
