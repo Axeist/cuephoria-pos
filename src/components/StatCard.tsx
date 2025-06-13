@@ -35,23 +35,27 @@ const StatCard: React.FC<StatCardProps> = ({
   };
 
   return (
-    <Card className={`shadow-lg transition-all duration-300 ${getGlowColor(color)}`}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base font-medium">{title}</CardTitle>
-        <Icon className={`h-4 w-4 ${color}`} />
+    <Card className={`bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl transition-all duration-300 backdrop-blur-sm ${getGlowColor(color)}`}>
+      <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-gray-700/30">
+        <CardTitle className="text-lg font-semibold text-white">{title}</CardTitle>
+        <Icon className={`h-5 w-5 ${color}`} />
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">
-          {isCurrency ? <CurrencyDisplay amount={value as number} /> : value}
-        </div>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-        {typeof change !== 'undefined' && (
-          <div className={`text-xs ${change >= 0 ? 'text-green-500' : 'text-red-500'} mt-1`}>
-            {change >= 0 ? '↑' : '↓'} {Math.abs(change)}% from last period
+      <CardContent className="p-6">
+        <div className="space-y-3">
+          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-purple-500/30 transition-colors">
+            <div className="text-3xl font-bold text-white mb-2">
+              {isCurrency ? <CurrencyDisplay amount={value as number} /> : value}
+            </div>
+            {description && (
+              <p className="text-sm text-gray-300">{description}</p>
+            )}
+            {typeof change !== 'undefined' && (
+              <div className={`text-sm ${change >= 0 ? 'text-green-400' : 'text-red-400'} mt-2`}>
+                {change >= 0 ? '↑' : '↓'} {Math.abs(change)}% from last period
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
