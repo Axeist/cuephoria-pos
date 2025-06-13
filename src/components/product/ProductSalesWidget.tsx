@@ -57,7 +57,7 @@ const ProductSalesWidget: React.FC = () => {
   console.log('ProductSalesWidget - Total items sold:', totalItemsSold);
 
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 shadow-lg hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Total Product Sales</CardTitle>
         <TrendingUp className="h-4 w-4 text-muted-foreground" />

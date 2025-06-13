@@ -112,7 +112,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
   }, [bills, products, startDate, endDate]);
 
   return (
-    <Card>
+    <Card className="shadow-lg hover:shadow-orange-500/20 hover:border-orange-500/30 transition-all duration-300">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Canteen Performance</CardTitle>
         <ShoppingCart className="h-4 w-4 text-muted-foreground" />

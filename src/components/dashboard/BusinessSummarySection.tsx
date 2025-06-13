@@ -53,7 +53,7 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
   
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-gray-800 border-gray-700 shadow-lg hover:shadow-emerald-500/20 hover:border-emerald-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Gross Income</CardTitle>
           <DollarSign className="h-4 w-4 text-emerald-500" />
@@ -68,7 +68,7 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
         </CardContent>
       </Card>
       
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-gray-800 border-gray-700 shadow-lg hover:shadow-orange-500/20 hover:border-orange-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Total Expenses</CardTitle>
           <Wallet className="h-4 w-4 text-orange-500" />
@@ -83,7 +83,11 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
         </CardContent>
       </Card>
       
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className={`bg-gray-800 border-gray-700 shadow-lg transition-all duration-300 ${
+        netProfit >= 0 
+          ? 'hover:shadow-green-500/20 hover:border-green-500/30' 
+          : 'hover:shadow-red-500/20 hover:border-red-500/30'
+      }`}>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Net Profit</CardTitle>
           {netProfit >= 0 ? (
@@ -104,7 +108,7 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
         </CardContent>
       </Card>
       
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-gray-800 border-gray-700 shadow-lg hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Profit Margin</CardTitle>
           <TrendingUp className="h-4 w-4 text-blue-500" />
