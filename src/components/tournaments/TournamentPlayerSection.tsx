@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,6 +85,8 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       const customer = customers.find(c => c.id === selectedCustomerId);
       if (!customer) return;
       
+      console.log('Adding existing customer:', customer);
+      
       // Check if this customer is already added as a player
       const existingPlayer = players.find(p => p.customerId === selectedCustomerId);
       if (existingPlayer) {
@@ -100,8 +101,10 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       newPlayer = {
         id: generateId(),
         name: customer.name,
-        customerId: customer.id
+        customerId: selectedCustomerId // This is crucial - set the customerId
       };
+      
+      console.log('Created player object for existing customer:', newPlayer);
       setSelectedCustomerId('');
     } else {
       // Check if a player with this name already exists
@@ -118,11 +121,20 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       newPlayer = {
         id: generateId(),
         name: playerName.trim()
+        // No customerId for new players
       };
+      
+      console.log('Created player object for new player:', newPlayer);
       setPlayerName('');
     }
     
+    console.log('Adding player to tournament:', newPlayer);
     setPlayers([...players, newPlayer]);
+    
+    toast({
+      title: 'Player Added',
+      description: `${newPlayer.name} has been added to the tournament as ${newPlayer.customerId ? 'an existing customer' : 'a guest'}.`,
+    });
   };
 
   const removePlayer = (id: string) => {
@@ -245,7 +257,9 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
                     player.name
                   )}
                 </TableCell>
-                <TableCell>{player.customerId ? 'Customer' : 'Guest'}</TableCell>
+                <TableCell>
+                  {player.customerId ? 'Customer' : 'Guest'}
+                </TableCell>
                 <TableCell>
                   {editingPlayer && editingPlayer.id === player.id ? (
                     <div className="flex items-center space-x-1">
