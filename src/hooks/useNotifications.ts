@@ -29,6 +29,7 @@ export const useNotifications = () => {
   const loadNotifications = async () => {
     try {
       setLoading(true);
+      console.log('Loading notifications from database...');
       
       // Load all notifications (single user system)
       const { data, error } = await supabase
@@ -41,6 +42,8 @@ export const useNotifications = () => {
         console.error('Error loading notifications:', error);
         return;
       }
+
+      console.log('Raw notifications data from database:', data);
 
       if (data) {
         const transformedNotifications: Notification[] = data.map(item => ({
@@ -55,8 +58,12 @@ export const useNotifications = () => {
           metadata: item.metadata as Record<string, any>
         }));
         
+        console.log('Transformed notifications:', transformedNotifications);
         setNotifications(transformedNotifications);
-        setUnreadCount(transformedNotifications.filter(n => !n.is_read).length);
+        
+        const unread = transformedNotifications.filter(n => !n.is_read).length;
+        console.log('Unread count:', unread);
+        setUnreadCount(unread);
       }
     } catch (error) {
       console.error('Error in loadNotifications:', error);
@@ -159,6 +166,7 @@ export const useNotifications = () => {
   };
 
   useEffect(() => {
+    console.log('useNotifications effect triggered, loading notifications...');
     loadNotifications();
 
     // Set up real-time subscription for notifications
@@ -172,6 +180,7 @@ export const useNotifications = () => {
           table: 'notifications'
         },
         (payload) => {
+          console.log('Real-time notification received:', payload);
           const data = payload.new;
           const newNotification: Notification = {
             id: data.id,

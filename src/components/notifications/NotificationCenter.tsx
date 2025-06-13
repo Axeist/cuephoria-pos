@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Bell, Check, CheckCheck, X } from 'lucide-react';
+import { Bell, Check, CheckCheck, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ interface NotificationCenterProps {
 }
 
 const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose }) => {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, loading, markAsRead, markAllAsRead, loadNotifications } = useNotifications();
 
   if (!isOpen) return null;
 
@@ -44,6 +44,11 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
     }
   };
 
+  const handleRefresh = async () => {
+    console.log('Manual refresh triggered');
+    await loadNotifications();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-end p-4">
       <Card className="w-full max-w-md max-h-[80vh] bg-background border shadow-lg">
@@ -58,6 +63,16 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
             )}
           </CardTitle>
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              className="h-8 w-8 p-0"
+              title="Refresh notifications"
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
             {unreadCount > 0 && (
               <Button
                 variant="ghost"
@@ -81,10 +96,16 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="h-[60vh]">
-            {notifications.length === 0 ? (
+            {loading ? (
+              <div className="p-6 text-center">
+                <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                <p>Loading notifications...</p>
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground">
                 <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p>No notifications yet</p>
+                <p className="text-xs mt-1">Try refreshing or send a test notification</p>
               </div>
             ) : (
               <div className="space-y-1">
