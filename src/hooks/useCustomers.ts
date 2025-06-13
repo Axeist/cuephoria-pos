@@ -20,7 +20,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             ...customer,
             createdAt: new Date(customer.createdAt),
             membershipStartDate: customer.membershipStartDate ? new Date(customer.membershipStartDate) : undefined,
-            membershipExpiryDate: customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate) : undefined
+            membershipExpiryDate: customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate) : undefined,
+            createdViaTournament: customer.createdViaTournament || false
           }));
           
           setCustomers(customersWithDates);
@@ -40,7 +41,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
                 loyalty_points: customer.loyaltyPoints,
                 total_spent: customer.totalSpent,
                 total_play_time: customer.totalPlayTime,
-                created_at: customer.createdAt.toISOString()
+                created_at: customer.createdAt.toISOString(),
+                created_via_tournament: customer.createdViaTournament || false
               }, 
               { onConflict: 'id' }
             );
@@ -79,7 +81,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             loyaltyPoints: item.loyalty_points,
             totalSpent: item.total_spent,
             totalPlayTime: item.total_play_time,
-            createdAt: new Date(item.created_at)
+            createdAt: new Date(item.created_at),
+            createdViaTournament: item.created_via_tournament || false
           }));
           
           setCustomers(transformedCustomers);
@@ -181,7 +184,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           membership_duration: customer.membershipDuration,
           loyalty_points: customer.loyaltyPoints || 0,
           total_spent: customer.totalSpent || 0,
-          total_play_time: customer.totalPlayTime || 0
+          total_play_time: customer.totalPlayTime || 0,
+          created_via_tournament: customer.createdViaTournament || false
         })
         .select()
         .single();
@@ -211,7 +215,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           loyaltyPoints: data.loyalty_points,
           totalSpent: data.total_spent,
           totalPlayTime: data.total_play_time,
-          createdAt: new Date(data.created_at)
+          createdAt: new Date(data.created_at),
+          createdViaTournament: data.created_via_tournament || false
         };
         
         setCustomers(prev => [...prev, newCustomer]);
@@ -325,7 +330,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           membership_duration: customer.membershipDuration,
           loyalty_points: customer.loyaltyPoints,
           total_spent: customer.totalSpent,
-          total_play_time: customer.totalPlayTime
+          total_play_time: customer.totalPlayTime,
+          created_via_tournament: customer.createdViaTournament || false
         })
         .eq('id', customer.id);
         
@@ -367,7 +373,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           loyaltyPoints: refreshedData.loyalty_points,
           totalSpent: refreshedData.total_spent,
           totalPlayTime: refreshedData.total_play_time,
-          createdAt: new Date(refreshedData.created_at)
+          createdAt: new Date(refreshedData.created_at),
+          createdViaTournament: refreshedData.created_via_tournament || false
         };
         
         console.log('useCustomers: Refreshed customer data from DB:', {
