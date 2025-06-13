@@ -47,9 +47,7 @@ export interface Tournament {
 
 // Database conversion helper functions
 export const convertFromSupabaseTournament = (item: any): Tournament => {
-  console.log('Converting from Supabase:', { id: item.id, name: item.name, max_players: item.max_players });
-  
-  const converted = {
+  return {
     id: item.id,
     name: item.name,
     gameType: item.game_type,
@@ -63,18 +61,13 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     winnerPrize: item.winner_prize || undefined,
     runnerUpPrize: item.runner_up_prize || undefined,
     winner: item.winner || undefined,
-    maxPlayers: Number(item.max_players) || 16, // Ensure we parse as number with fallback
+    maxPlayers: item.max_players || 16, // Ensure we always have a value
     created_at: item.created_at,
     updated_at: item.updated_at
   };
-  
-  console.log('Converted tournament:', { id: converted.id, name: converted.name, maxPlayers: converted.maxPlayers });
-  return converted;
 };
 
 export const convertToSupabaseTournament = (tournament: Tournament): any => {
-  console.log('Converting to Supabase:', { id: tournament.id, name: tournament.name, maxPlayers: tournament.maxPlayers });
-  
   // Create a clean object with only defined values
   const cleanObject: any = {
     id: tournament.id,
@@ -84,7 +77,7 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
     players: tournament.players || [],
     matches: tournament.matches || [],
     status: tournament.status,
-    max_players: Number(tournament.maxPlayers) || 16, // Always include max_players with a default and ensure it's a number
+    max_players: tournament.maxPlayers || 16, // Always include max_players with a default
   };
   
   // Only add optional fields if they have values
@@ -95,6 +88,5 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.runnerUpPrize !== undefined) cleanObject.runner_up_prize = tournament.runnerUpPrize;
   if (tournament.winner) cleanObject.winner = tournament.winner;
   
-  console.log('Converted to Supabase format:', { id: cleanObject.id, name: cleanObject.name, max_players: cleanObject.max_players });
   return cleanObject;
 };

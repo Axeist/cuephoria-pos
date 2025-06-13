@@ -243,11 +243,7 @@ export const fetchTournaments = async (): Promise<Tournament[]> => {
       return [];
     }
     
-    console.log('Raw tournament data from Supabase:', data);
-    const converted = data.map(convertFromSupabaseTournament);
-    console.log('Converted tournaments with maxPlayers:', converted.map(t => ({ name: t.name, maxPlayers: t.maxPlayers })));
-    
-    return converted;
+    return data.map(convertFromSupabaseTournament);
   } catch (error) {
     console.error('Unexpected error fetching tournaments:', error);
     return [];
