@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePOS } from '@/context/POSContext';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Package, DollarSign } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
 interface CanteenSalesProfitWidgetProps {
@@ -112,80 +112,113 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
   }, [bills, products, startDate, endDate]);
 
   return (
-    <Card className="shadow-lg hover:shadow-orange-500/20 hover:border-orange-500/30 transition-all duration-300">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Canteen Performance</CardTitle>
-        <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-orange-500/20 hover:border-orange-500/30 transition-all duration-300 backdrop-blur-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
+        <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
+          <ShoppingCart className="h-5 w-5 text-orange-400" />
+          Canteen Performance
+        </CardTitle>
+        <div className="h-8 w-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+          <TrendingUp className="h-4 w-4 text-orange-400" />
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {/* Summary Stats */}
+      <CardContent className="p-6">
+        <div className="space-y-6">
+          {/* Enhanced Summary Stats */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Total Sales</p>
-              <p className="text-lg font-bold">
+            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-orange-500/30 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="h-4 w-4 text-gray-400" />
+                <p className="text-xs text-gray-400 font-medium">Total Sales</p>
+              </div>
+              <p className="text-xl font-bold text-white">
                 <CurrencyDisplay amount={canteenData.totalSales} />
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Total Profit</p>
-              <p className="text-lg font-bold text-green-400">
+            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-green-500/30 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="h-4 w-4 text-green-400" />
+                <p className="text-xs text-gray-400 font-medium">Total Profit</p>
+              </div>
+              <p className="text-xl font-bold text-green-400">
                 <CurrencyDisplay amount={canteenData.totalProfit} />
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Stock Value</p>
-              <p className="text-lg font-bold text-blue-400">
+            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-blue-500/30 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="h-4 w-4 text-blue-400" />
+                <p className="text-xs text-gray-400 font-medium">Stock Value</p>
+              </div>
+              <p className="text-xl font-bold text-blue-400">
                 <CurrencyDisplay amount={canteenData.totalStockValue} />
               </p>
             </div>
           </div>
 
-          <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">Profit Margin</span>
-              <span className="text-sm font-medium">
+          {/* Enhanced Profit Margin */}
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm text-gray-300 font-medium">Profit Margin</span>
+              <span className="text-lg font-bold text-orange-400">
                 {canteenData.profitMargin.toFixed(1)}%
               </span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-1.5">
+            <div className="w-full bg-gray-700/50 rounded-full h-2 overflow-hidden">
               <div 
-                className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+                className="bg-gradient-to-r from-orange-500 to-orange-400 h-2 rounded-full transition-all duration-500 ease-out shadow-lg shadow-orange-500/30"
                 style={{ width: `${Math.min(canteenData.profitMargin, 100)}%` }}
               />
             </div>
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>0%</span>
+              <span>100%</span>
+            </div>
           </div>
 
-          {/* All Products with Scroll */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium text-muted-foreground">Product Sales</h4>
+          {/* Enhanced Product Sales List */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-gray-400" />
+              <h4 className="text-sm font-semibold text-gray-200">Product Sales</h4>
+            </div>
             {canteenData.allProducts.length > 0 ? (
-              <ScrollArea className="h-[300px] w-full">
-                <div className="space-y-2 pr-4">
+              <ScrollArea className="h-[320px] w-full">
+                <div className="space-y-2 pr-2">
                   {canteenData.allProducts.map((product, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {product.quantity} sold
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-medium">
-                          <CurrencyDisplay amount={product.sales} />
-                        </p>
-                        <p className="text-xs text-green-400">
-                          +<CurrencyDisplay amount={product.profit} />
-                        </p>
+                    <div 
+                      key={index} 
+                      className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/30 hover:border-gray-600/50 transition-all duration-200 group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate group-hover:text-orange-200 transition-colors">
+                            {product.name}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {product.quantity} sold
+                          </p>
+                        </div>
+                        <div className="text-right ml-3">
+                          <p className="text-sm font-bold text-white">
+                            <CurrencyDisplay amount={product.sales} />
+                          </p>
+                          <p className="text-xs text-green-400 flex items-center gap-1">
+                            <TrendingUp className="h-3 w-3" />
+                            <CurrencyDisplay amount={product.profit} />
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </ScrollArea>
             ) : (
-              <p className="text-xs text-muted-foreground text-center py-2">
-                No product sales data for the selected period
-              </p>
+              <div className="bg-gray-800/30 border border-gray-700/30 rounded-lg p-6 text-center">
+                <Package className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">
+                  No product sales data for the selected period
+                </p>
+              </div>
             )}
           </div>
         </div>
