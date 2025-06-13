@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -92,7 +91,26 @@ const PublicTournaments = () => {
         return;
       }
 
-      setTournaments(data || []);
+      // Transform the data to match our Tournament interface
+      const transformedData: Tournament[] = (data || []).map(item => ({
+        id: item.id,
+        name: item.name,
+        game_type: item.game_type as 'PS5' | 'Pool',
+        game_variant: item.game_variant,
+        game_title: item.game_title,
+        date: item.date,
+        status: item.status as 'upcoming' | 'in-progress' | 'completed',
+        budget: item.budget,
+        winner_prize: item.winner_prize,
+        runner_up_prize: item.runner_up_prize,
+        players: item.players || [],
+        matches: item.matches || [],
+        winner: item.winner,
+        total_registrations: Number(item.total_registrations) || 0,
+        max_players: item.max_players || 8
+      }));
+
+      setTournaments(transformedData);
     } catch (error) {
       console.error('Unexpected error:', error);
     } finally {
