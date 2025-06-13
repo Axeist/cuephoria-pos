@@ -23,6 +23,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import PublicTournaments from "./pages/PublicTournaments";
+import PublicStations from "./pages/PublicStations";
 
 // Create a new QueryClient instance outside of the component
 const queryClient = new QueryClient({
@@ -96,7 +97,8 @@ const App = () => (
                   <Route path="/login" element={<Login />} />
                   
                   {/* Public routes */}
-                  <Route path="/tournaments" element={<PublicTournaments />} />
+                  <Route path="/public/tournaments" element={<PublicTournaments />} />
+                  <Route path="/public/stations" element={<PublicStations />} />
                   
                   <Route path="/dashboard" element={
                     <ProtectedRoute>
