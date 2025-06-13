@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Star, Clock, ExternalLink } from 'lucide-react';
+import { Star, Clock, ExternalLink } from 'lucide-react';
 
 const PromotionalPopup = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -50,14 +50,6 @@ const PromotionalPopup = () => {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-2 border-yellow-400/50 text-white max-w-md animate-scale-in shadow-2xl shadow-yellow-400/20">
-        {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute right-4 top-4 p-1 rounded-full hover:bg-cuephoria-grey/20 transition-colors z-10"
-        >
-          <X className="h-4 w-4 text-cuephoria-grey hover:text-white" />
-        </button>
-
         <DialogHeader className="text-center space-y-4 pt-2">
           <div className="flex justify-center">
             <Badge className="bg-gradient-to-r from-yellow-400 to-orange-400 text-black font-bold text-lg px-4 py-2 animate-pulse">
@@ -66,7 +58,7 @@ const PromotionalPopup = () => {
             </Badge>
           </div>
           
-          <DialogTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 animate-text-gradient">
+          <DialogTitle className="text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 animate-text-gradient">
             🔥 Limited Time Offer! 🔥
           </DialogTitle>
         </DialogHeader>
