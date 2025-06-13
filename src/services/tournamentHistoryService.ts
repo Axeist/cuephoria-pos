@@ -9,6 +9,12 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
   }
 
   try {
+    // Determine runner-up if not already set
+    let runnerUp = tournament.runnerUp;
+    if (!runnerUp) {
+      runnerUp = determineRunnerUp(tournament.matches, tournament.players);
+    }
+
     // Save individual match results to tournament_history
     const historyRecords: Omit<TournamentHistoryMatch, 'id' | 'created_at'>[] = [];
     
@@ -48,7 +54,7 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
       tournament_id: tournament.id,
       tournament_name: tournament.name,
       winner_name: tournament.winner.name,
-      runner_up_name: tournament.runnerUp?.name,
+      runner_up_name: runnerUp?.name,
       tournament_date: tournament.date,
       game_type: tournament.gameType,
       game_variant: tournament.gameVariant
@@ -60,6 +66,18 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
     
     if (winnerError) {
       console.error('Error saving tournament winner:', winnerError);
+    }
+
+    // Update tournament with runner-up if it wasn't set
+    if (!tournament.runnerUp && runnerUp) {
+      const { error: updateError } = await supabase
+        .from('tournaments')
+        .update({ runner_up: runnerUp })
+        .eq('id', tournament.id);
+        
+      if (updateError) {
+        console.error('Error updating tournament with runner-up:', updateError);
+      }
     }
   } catch (error) {
     console.error('Unexpected error saving tournament history:', error);

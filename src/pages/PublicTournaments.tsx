@@ -8,8 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
+import PublicLeaderboard from '@/components/tournaments/PublicLeaderboard';
 
 interface Tournament {
   id: string;
@@ -495,138 +498,170 @@ const PublicTournaments = () => {
     return tournaments.filter(t => t.status === status);
   };
 
-  const TournamentCard = React.memo(({ tournament }: { tournament: Tournament }) => (
-    <Card className="w-full bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-darkpurple/20 border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/60 transition-all duration-500 hover:shadow-2xl hover:shadow-cuephoria-lightpurple/20 hover:-translate-y-2 hover:scale-[1.02] group overflow-hidden relative">
-      {/* Animated glow effect */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cuephoria-lightpurple/10 to-transparent animate-shimmer opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      
-      {/* Floating particles effect */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(5)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-1 h-1 bg-cuephoria-lightpurple/30 rounded-full animate-float opacity-0 group-hover:opacity-100"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${i * 0.5}s`,
-              animationDuration: `${3 + Math.random() * 2}s`
-            }}
-          />
-        ))}
-      </div>
+  const TournamentCard = React.memo(({ tournament }: { tournament: Tournament }) => {
+    const [showHistory, setShowHistory] = useState(false);
 
-      <CardHeader className="pb-3 relative z-10">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-bold text-cuephoria-lightpurple flex items-center gap-2 group-hover:text-white transition-colors">
-            <div className="p-2 rounded-lg bg-cuephoria-lightpurple/20 group-hover:bg-cuephoria-lightpurple/40 transition-all group-hover:scale-110">
-              {getGameIcon(tournament.game_type)}
-            </div>
-            {tournament.name}
-          </CardTitle>
-          <Badge className={`${getStatusColor(tournament.status)} text-white animate-pulse-soft shadow-lg`}>
-            {tournament.status.replace('-', ' ')}
-          </Badge>
-        </div>
-        <div className="text-sm text-cuephoria-grey flex items-center gap-2 mt-2">
-          {tournament.game_type === 'Pool' && tournament.game_variant && (
-            <span className="bg-cuephoria-purple/20 px-2 py-1 rounded-full text-xs">{tournament.game_variant}</span>
-          )}
-          {tournament.game_type === 'PS5' && tournament.game_title && (
-            <span className="bg-cuephoria-blue/20 px-2 py-1 rounded-full text-xs">{tournament.game_title}</span>
-          )}
-          <div className="flex items-center gap-1 text-cuephoria-lightpurple">
-            <Calendar className="h-4 w-4" />
-            {formatDate(tournament.date)}
-          </div>
-        </div>
-      </CardHeader>
-      
-      <CardContent className="space-y-4 relative z-10">
-        {/* Registration Progress */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-cuephoria-grey">
-              <Users className="h-4 w-4" />
-              <span className="text-sm font-medium">
-                {tournament.total_registrations}/{tournament.max_players} registered
-              </span>
-            </div>
-            <div className="text-xs text-cuephoria-lightpurple font-semibold">
-              {Math.round((tournament.total_registrations / tournament.max_players) * 100)}%
-            </div>
-          </div>
-          <div className="w-full bg-cuephoria-grey/20 rounded-full h-3 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue h-3 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
-              style={{ 
-                width: `${Math.min((tournament.total_registrations / tournament.max_players) * 100, 100)}%` 
+    return (
+      <Card className="w-full bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-darkpurple/20 border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/60 transition-all duration-500 hover:shadow-2xl hover:shadow-cuephoria-lightpurple/20 hover:-translate-y-2 hover:scale-[1.02] group overflow-hidden relative">
+        {/* Animated glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cuephoria-lightpurple/10 to-transparent animate-shimmer opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        
+        {/* Floating particles effect */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {[...Array(5)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-cuephoria-lightpurple/30 rounded-full animate-float opacity-0 group-hover:opacity-100"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${i * 0.5}s`,
+                animationDuration: `${3 + Math.random() * 2}s`
               }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-            </div>
-          </div>
+            />
+          ))}
         </div>
 
-        {/* Prize Pool */}
-        {tournament.winner_prize && (
-          <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-lg p-4 space-y-2">
-            <h4 className="text-yellow-400 font-semibold flex items-center gap-2">
-              <Star className="h-4 w-4 animate-pulse" />
-              Prize Pool
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-2 text-yellow-300">
-                <Crown className="h-4 w-4" />
-                <span className="text-sm">Winner: ₹{tournament.winner_prize}</span>
+        <CardHeader className="pb-3 relative z-10">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-bold text-cuephoria-lightpurple flex items-center gap-2 group-hover:text-white transition-colors">
+              <div className="p-2 rounded-lg bg-cuephoria-lightpurple/20 group-hover:bg-cuephoria-lightpurple/40 transition-all group-hover:scale-110">
+                {getGameIcon(tournament.game_type)}
               </div>
-              {tournament.runner_up_prize && (
-                <div className="flex items-center gap-2 text-gray-300">
-                  <Medal className="h-4 w-4" />
-                  <span className="text-sm">Runner-up: ₹{tournament.runner_up_prize}</span>
+              {tournament.name}
+            </CardTitle>
+            <Badge className={`${getStatusColor(tournament.status)} text-white animate-pulse-soft shadow-lg`}>
+              {tournament.status.replace('-', ' ')}
+            </Badge>
+          </div>
+          <div className="text-sm text-cuephoria-grey flex items-center gap-2 mt-2">
+            {tournament.game_type === 'Pool' && tournament.game_variant && (
+              <span className="bg-cuephoria-purple/20 px-2 py-1 rounded-full text-xs">{tournament.game_variant}</span>
+            )}
+            {tournament.game_type === 'PS5' && tournament.game_title && (
+              <span className="bg-cuephoria-blue/20 px-2 py-1 rounded-full text-xs">{tournament.game_title}</span>
+            )}
+            <div className="flex items-center gap-1 text-cuephoria-lightpurple">
+              <Calendar className="h-4 w-4" />
+              {formatDate(tournament.date)}
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="space-y-4 relative z-10">
+          {/* Registration Progress */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-cuephoria-grey">
+                <Users className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  {tournament.total_registrations}/{tournament.max_players} registered
+                </span>
+              </div>
+              <div className="text-xs text-cuephoria-lightpurple font-semibold">
+                {Math.round((tournament.total_registrations / tournament.max_players) * 100)}%
+              </div>
+            </div>
+            <div className="w-full bg-cuephoria-grey/20 rounded-full h-3 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue h-3 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+                style={{ 
+                  width: `${Math.min((tournament.total_registrations / tournament.max_players) * 100, 100)}%` 
+                }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Prize Pool */}
+          {tournament.winner_prize && (
+            <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-lg p-4 space-y-2">
+              <h4 className="text-yellow-400 font-semibold flex items-center gap-2">
+                <Star className="h-4 w-4 animate-pulse" />
+                Prize Pool
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2 text-yellow-300">
+                  <Crown className="h-4 w-4" />
+                  <span className="text-sm">Winner: ₹{tournament.winner_prize}</span>
                 </div>
-              )}
+                {tournament.runner_up_prize && (
+                  <div className="flex items-center gap-2 text-gray-300">
+                    <Medal className="h-4 w-4" />
+                    <span className="text-sm">Runner-up: ₹{tournament.runner_up_prize}</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Winner Display for Completed Tournaments */}
-        {tournament.status === 'completed' && tournament.winner && (
-          <div className="bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-400/40 rounded-lg p-4 animate-pulse-soft">
-            <div className="flex items-center gap-2 text-yellow-400 font-semibold">
-              <Crown className="h-5 w-5 animate-bounce" />
-              <span>Champion: {tournament.winner.name}</span>
+          {/* Enhanced Winner Display for Completed Tournaments */}
+          {tournament.status === 'completed' && tournament.winner && (
+            <div className="space-y-3">
+              <div className="bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-400/40 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-yellow-400 font-semibold mb-2">
+                  <Crown className="h-5 w-5 animate-bounce" />
+                  <span>Champion: {tournament.winner.name}</span>
+                </div>
+                {tournament.runnerUp && (
+                  <div className="flex items-center gap-2 text-gray-300 font-medium">
+                    <Medal className="h-4 w-4" />
+                    <span>Runner-up: {tournament.runnerUp.name}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Tournament History Toggle */}
+              <Collapsible open={showHistory} onOpenChange={setShowHistory}>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-cuephoria-lightpurple/30 text-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/10"
+                  >
+                    <History className="mr-2 h-4 w-4" />
+                    {showHistory ? 'Hide' : 'View'} Tournament History
+                    <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3">
+                  <PublicTournamentHistory 
+                    tournamentId={tournament.id} 
+                    tournamentName={tournament.name}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
             </div>
+          )}
+
+          {/* Entry Fee Information */}
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+            <p className="text-sm text-blue-300 flex items-center gap-2">
+              <Trophy className="h-4 w-4" />
+              Entry Fee: ₹250 (Pay at venue)
+            </p>
           </div>
-        )}
 
-        {/* Entry Fee Information */}
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-          <p className="text-sm text-blue-300 flex items-center gap-2">
-            <Trophy className="h-4 w-4" />
-            Entry Fee: ₹250 (Pay at venue)
-          </p>
-        </div>
+          {/* Registration Button */}
+          {canRegister(tournament) && (
+            <Button 
+              className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-3 transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 hover:scale-[1.02] group"
+              onClick={() => handleTournamentSelect(tournament)}
+            >
+              <Trophy className="mr-2 h-4 w-4 group-hover:animate-bounce" />
+              Register Now
+            </Button>
+          )}
 
-        {/* Registration Button */}
-        {canRegister(tournament) && (
-          <Button 
-            className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-3 transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 hover:scale-[1.02] group"
-            onClick={() => handleTournamentSelect(tournament)}
-          >
-            <Trophy className="mr-2 h-4 w-4 group-hover:animate-bounce" />
-            Register Now
-          </Button>
-        )}
-
-        {tournament.status === 'upcoming' && tournament.total_registrations >= tournament.max_players && (
-          <Button disabled className="w-full bg-gray-600 text-gray-300">
-            Tournament Full
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  ));
+          {tournament.status === 'upcoming' && tournament.total_registrations >= tournament.max_players && (
+            <Button disabled className="w-full bg-gray-600 text-gray-300">
+              Tournament Full
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    );
+  });
 
   if (loading) {
     return (
@@ -735,7 +770,7 @@ const PublicTournaments = () => {
       {/* Main content */}
       <main className="py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto relative z-10">
         <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
+          <TabsList className="grid w-full grid-cols-4 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
             <TabsTrigger 
               value="upcoming" 
               className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
@@ -756,6 +791,13 @@ const PublicTournaments = () => {
             >
               <Crown className="h-4 w-4 mr-2" />
               Completed ({filterTournaments('completed').length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="leaderboard"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+            >
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Leaderboard
             </TabsTrigger>
           </TabsList>
 
@@ -831,6 +873,12 @@ const PublicTournaments = () => {
                   <p className="text-lg">Previous tournament results will show here!</p>
                 </div>
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="leaderboard" className="mt-8">
+            <div className="max-w-4xl mx-auto">
+              <PublicLeaderboard />
             </div>
           </TabsContent>
         </Tabs>
