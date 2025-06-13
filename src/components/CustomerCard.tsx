@@ -1,8 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { usePOS, Customer } from '@/context/POSContext';
@@ -84,6 +82,8 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   };
 
   const isActive = isMembershipActive(customer);
+  const membershipStatus = customer.isMember ? (isActive ? 'Active Member' : 'Expired Member') : 'Non-Member';
+  const membershipStatusColor = customer.isMember ? (isActive ? 'text-green-400' : 'text-orange-400') : 'text-gray-400';
 
   return (
     <Card className="group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border-gray-700/50 backdrop-blur-sm">
@@ -93,8 +93,8 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
       )}
       
       <CardHeader className="pb-3 relative z-10">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-12 w-12 ring-2 ring-purple-500/20 group-hover:ring-purple-500/40 transition-all duration-300">
+        <div className="flex items-start gap-3">
+          <Avatar className="h-12 w-12 ring-2 ring-purple-500/20 group-hover:ring-purple-500/40 transition-all duration-300 flex-shrink-0">
             <AvatarFallback className="bg-gradient-to-br from-purple-600 to-pink-600 text-white font-semibold text-sm">
               {getInitials(customer.name)}
             </AvatarFallback>
@@ -105,20 +105,15 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
               {customer.name}
             </CardTitle>
             <div className="flex items-center gap-2 mt-1">
-              <Phone className="h-3 w-3 text-gray-400" />
+              <Phone className="h-3 w-3 text-gray-400 flex-shrink-0" />
               <span className="text-sm text-gray-400">{customer.phone}</span>
             </div>
+            <div className="mt-2">
+              <span className={`text-sm font-medium ${membershipStatusColor}`}>
+                {membershipStatus}
+              </span>
+            </div>
           </div>
-          
-          <Badge 
-            className={`${
-              isActive 
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 shadow-lg' 
-                : 'bg-gray-700 text-gray-300 border-gray-600'
-            } transition-all duration-300`}
-          >
-            {getMembershipBadgeText(customer)}
-          </Badge>
         </div>
       </CardHeader>
 
