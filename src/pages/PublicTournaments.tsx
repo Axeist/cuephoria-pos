@@ -10,11 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History } from 'lucide-react';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
 import PublicLeaderboard from '@/components/tournaments/PublicLeaderboard';
+import PromotionalPopup from '@/components/PromotionalPopup';
 
 interface Tournament {
   id: string;
@@ -790,6 +791,9 @@ const PublicTournaments = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cuephoria-dark via-black to-cuephoria-darkpurple text-white overflow-hidden">
+      {/* Promotional Popup */}
+      <PromotionalPopup />
+
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         {[...Array(20)].map((_, i) => (
@@ -980,9 +984,48 @@ const PublicTournaments = () => {
         )}
       </main>
       
-      {/* Enhanced Footer with contact details and legal links */}
+      {/* Enhanced Footer with contact details, legal links, and action buttons */}
       <footer className="py-12 px-4 sm:px-6 md:px-8 border-t border-cuephoria-lightpurple/20 mt-12 backdrop-blur-md bg-cuephoria-dark/50 relative z-10">
         <div className="max-w-7xl mx-auto">
+          {/* Action Buttons Section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <Button
+              onClick={() => window.open('https://cuephoria.in/book', '_blank')}
+              className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-green-500/30 group"
+            >
+              <CalendarDays className="mr-3 h-5 w-5 group-hover:animate-bounce" />
+              <div className="text-left">
+                <div className="text-lg font-bold">Book A Slot</div>
+                <div className="text-sm opacity-90">Reserve your gaming time</div>
+              </div>
+              <ExternalLink className="ml-auto h-4 w-4" />
+            </Button>
+
+            <Button
+              onClick={() => window.open('https://cuephoria.in', '_blank')}
+              className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 group"
+            >
+              <Globe className="mr-3 h-5 w-5 group-hover:animate-spin" />
+              <div className="text-left">
+                <div className="text-lg font-bold">Official Website</div>
+                <div className="text-sm opacity-90">Visit our main site</div>
+              </div>
+              <ExternalLink className="ml-auto h-4 w-4" />
+            </Button>
+
+            <Button
+              onClick={() => window.open('https://admin.cuephoria.in/public/stations', '_blank')}
+              className="bg-gradient-to-r from-orange-600 to-red-500 hover:from-orange-700 hover:to-red-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-orange-500/30 group"
+            >
+              <Activity className="mr-3 h-5 w-5 group-hover:animate-pulse" />
+              <div className="text-left">
+                <div className="text-lg font-bold">Live Session Status</div>
+                <div className="text-sm opacity-90">Check station availability</div>
+              </div>
+              <ExternalLink className="ml-auto h-4 w-4" />
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             {/* Logo and description */}
             <div className="text-center md:text-left">
