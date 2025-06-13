@@ -1,10 +1,11 @@
-
 import React from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartContainer } from '@/components/ui/chart';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { usePOS } from '@/context/POSContext';
+import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, format, addDays, addWeeks } from 'date-fns';
 
 interface SalesChartProps {
   data: {
@@ -15,7 +16,121 @@ interface SalesChartProps {
   setActiveTab: (tab: string) => void;
 }
 
-const SalesChart: React.FC<SalesChartProps> = ({ data, activeTab, setActiveTab }) => {
+const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
+  const { bills } = usePOS();
+
+  const generateChartData = () => {
+    const now = new Date();
+    
+    if (activeTab === 'hourly') {
+      // Show revenue for the current day (24 hours)
+      const todayStart = startOfDay(now);
+      const todayEnd = endOfDay(now);
+      
+      const hours = Array.from({ length: 24 }, (_, i) => i);
+      const hourlyTotals = new Map();
+      
+      bills.forEach(bill => {
+        const billDate = new Date(bill.createdAt);
+        if (billDate >= todayStart && billDate <= todayEnd) {
+          const hour = billDate.getHours();
+          const current = hourlyTotals.get(hour) || 0;
+          hourlyTotals.set(hour, current + bill.total);
+        }
+      });
+      
+      return hours.map(hour => {
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        const formattedHour = `${hour12}${ampm}`;
+        
+        return {
+          name: formattedHour,
+          amount: hourlyTotals.get(hour) || 0
+        };
+      });
+      
+    } else if (activeTab === 'daily') {
+      // Show revenue for all days of the current week
+      const weekStart = startOfWeek(now);
+      const weekEnd = endOfWeek(now);
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dailyTotals = new Map();
+      
+      bills.forEach(bill => {
+        const billDate = new Date(bill.createdAt);
+        if (billDate >= weekStart && billDate <= weekEnd) {
+          const dayOfWeek = billDate.getDay();
+          const current = dailyTotals.get(dayOfWeek) || 0;
+          dailyTotals.set(dayOfWeek, current + bill.total);
+        }
+      });
+      
+      return days.map((day, index) => ({
+        name: day,
+        amount: dailyTotals.get(index) || 0
+      }));
+      
+    } else if (activeTab === 'weekly') {
+      // Show revenue for all weeks of the current month
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+      const weeks = [];
+      
+      let weekStart = startOfWeek(monthStart);
+      let weekIndex = 1;
+      
+      while (weekStart <= monthEnd) {
+        const weekEnd = endOfWeek(weekStart);
+        weeks.push({
+          start: weekStart,
+          end: weekEnd,
+          label: `Week ${weekIndex}`,
+          index: weekIndex
+        });
+        weekStart = addWeeks(weekStart, 1);
+        weekIndex++;
+      }
+      
+      const weeklyTotals = new Map();
+      
+      bills.forEach(bill => {
+        const billDate = new Date(bill.createdAt);
+        if (billDate >= monthStart && billDate <= monthEnd) {
+          const week = weeks.find(w => billDate >= w.start && billDate <= w.end);
+          if (week) {
+            const current = weeklyTotals.get(week.index) || 0;
+            weeklyTotals.set(week.index, current + bill.total);
+          }
+        }
+      });
+      
+      return weeks.map(week => ({
+        name: week.label,
+        amount: weeklyTotals.get(week.index) || 0
+      }));
+      
+    } else {
+      // Monthly - keep existing logic
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthlyTotals = new Map();
+      
+      bills.forEach(bill => {
+        const date = new Date(bill.createdAt);
+        const month = months[date.getMonth()];
+        const current = monthlyTotals.get(month) || 0;
+        monthlyTotals.set(month, current + bill.total);
+      });
+      
+      return months.map(month => ({
+        name: month,
+        amount: monthlyTotals.get(month) || 0
+      }));
+    }
+  };
+
+  const data = generateChartData();
+
   return (
     <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
       <CardHeader>
