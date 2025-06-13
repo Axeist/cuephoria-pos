@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
@@ -15,6 +15,18 @@ import { useToast } from '@/components/ui/use-toast';
 import TournamentList from '@/components/tournaments/TournamentList';
 import { Button } from '@/components/ui/button';
 import TournamentDialog from '@/components/tournaments/TournamentDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { supabase } from '@/integrations/supabase/client';
 
 const Settings = () => {
   const { user } = useAuth();
@@ -26,6 +38,7 @@ const Settings = () => {
   const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedTournamentForHistory, setSelectedTournamentForHistory] = useState<{ id: string; name: string } | null>(null);
+  const [resetting, setResetting] = useState(false);
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
   
@@ -118,6 +131,51 @@ const Settings = () => {
   const handleViewHistory = (tournament: Tournament) => {
     setSelectedTournamentForHistory({ id: tournament.id, name: tournament.name });
     setHistoryDialogOpen(true);
+  };
+  
+  const handleResetLeaderboard = async () => {
+    setResetting(true);
+    try {
+      console.log('Resetting leaderboard - deleting all entries...');
+      
+      // Delete all tournament history entries
+      const { error: historyError } = await supabase
+        .from('tournament_history')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+        
+      if (historyError) {
+        console.error('Error deleting tournament history:', historyError);
+        throw historyError;
+      }
+      
+      // Delete all tournament winner entries
+      const { error: winnersError } = await supabase
+        .from('tournament_winners')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+        
+      if (winnersError) {
+        console.error('Error deleting tournament winners:', winnersError);
+        throw winnersError;
+      }
+      
+      console.log('Leaderboard reset completed successfully');
+      toast({
+        title: "Leaderboard Reset",
+        description: "All leaderboard entries have been cleared successfully.",
+      });
+      
+    } catch (error) {
+      console.error('Error resetting leaderboard:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reset leaderboard. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setResetting(false);
+    }
   };
   
   return (
@@ -213,6 +271,39 @@ const Settings = () => {
         </TabsContent>
 
         <TabsContent value="leaderboard" className="space-y-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Tournament Leaderboard</h2>
+            {isAdmin && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="destructive"
+                    className="flex items-center gap-2"
+                    disabled={resetting}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    {resetting ? 'Resetting...' : 'Reset Leaderboard'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Reset Leaderboard</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action will permanently delete all leaderboard entries and tournament history. 
+                      This cannot be undone. Are you sure you want to continue?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetLeaderboard} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Reset Leaderboard
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+          
           <TournamentLeaderboard />
         </TabsContent>
         
