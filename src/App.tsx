@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,7 +21,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
-import PublicStations from "./pages/PublicStations";
+import PublicTournaments from "./pages/PublicTournaments";
 
 // Create a new QueryClient instance outside of the component
 const queryClient = new QueryClient({
@@ -96,6 +95,7 @@ const App = () => (
                   <Route path="/login" element={<Login />} />
                   
                   {/* Public routes */}
+                  <Route path="/tournaments" element={<PublicTournaments />} />
                   <Route path="/public/stations" element={<PublicStations />} />
                   
                   <Route path="/dashboard" element={
