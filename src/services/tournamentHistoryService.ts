@@ -80,7 +80,11 @@ export const fetchTournamentHistory = async (tournamentId: string): Promise<Tour
       return [];
     }
 
-    return data || [];
+    // Cast the data to ensure proper typing, with validation
+    return (data || []).map(item => ({
+      ...item,
+      match_stage: item.match_stage as MatchStage
+    }));
   } catch (error) {
     console.error('Unexpected error fetching tournament history:', error);
     return [];
