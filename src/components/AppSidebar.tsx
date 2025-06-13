@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, Crown } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -92,39 +92,23 @@ const AppSidebar: React.FC = () => {
                     </div>
                   </div>
                   <div className="p-4">
-                    <div className="relative overflow-hidden bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-xl p-4 border border-purple-500/20 shadow-lg backdrop-blur-sm">
-                      {/* Animated background gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-purple-600/10 animate-pulse" />
-                      
-                      {/* Content */}
-                      <div className="relative z-10 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            {isAdmin ? (
-                              <div className="relative">
-                                <Shield className="h-8 w-8 text-purple-400 filter drop-shadow-lg" />
-                                <Crown className="absolute -top-1 -right-1 h-4 w-4 text-yellow-400 animate-pulse" />
-                              </div>
-                            ) : (
-                              <User className="h-8 w-8 text-blue-400" />
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-white font-semibold font-quicksand text-sm">
-                              {user.username}
-                            </span>
-                            <span className={`text-xs font-medium ${isAdmin ? 'text-purple-300 font-bold' : 'text-blue-300'}`}>
-                              {isAdmin ? 'Administrator' : 'Staff Member'}
-                            </span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={logout}
-                          className="px-3 py-1.5 text-xs bg-gradient-to-r from-red-600/80 to-red-700/80 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all duration-300 font-heading shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                        >
-                          Logout
-                        </button>
+                    <div className="flex items-center justify-between bg-cuephoria-dark rounded-lg p-3 shadow-md">
+                      <div className="flex items-center">
+                        {isAdmin ? (
+                          <Shield className="h-5 w-5 text-cuephoria-lightpurple" />
+                        ) : (
+                          <User className="h-5 w-5 text-cuephoria-blue" />
+                        )}
+                        <span className="ml-2 text-sm font-medium font-quicksand text-white">
+                          {user.username} {isAdmin ? '(Admin)' : '(Staff)'}
+                        </span>
                       </div>
+                      <button 
+                        onClick={logout}
+                        className="text-xs bg-cuephoria-darker px-3 py-1 rounded-md hover:bg-cuephoria-purple transition-all duration-300 font-heading text-white"
+                      >
+                        Logout
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -169,41 +153,23 @@ const AppSidebar: React.FC = () => {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
-        <div className="relative overflow-hidden bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-xl p-4 border border-purple-500/20 shadow-lg backdrop-blur-sm animate-scale-in">
-          {/* Animated background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-pink-600/10 to-purple-600/10 animate-pulse" />
-          
-          {/* Content */}
-          <div className="relative z-10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                {isAdmin ? (
-                  <div className="relative group">
-                    <Shield className="h-8 w-8 text-purple-400 filter drop-shadow-lg transition-transform group-hover:scale-110" />
-                    <Crown className="absolute -top-1 -right-1 h-4 w-4 text-yellow-400 animate-pulse" />
-                    {/* Glow effect */}
-                    <div className="absolute inset-0 h-8 w-8 bg-purple-400/20 rounded-full blur-md animate-pulse" />
-                  </div>
-                ) : (
-                  <User className="h-8 w-8 text-blue-400" />
-                )}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-white font-semibold font-quicksand">
-                  {user.username}
-                </span>
-                <span className={`text-xs font-medium ${isAdmin ? 'text-purple-300 font-bold tracking-wide' : 'text-blue-300'}`}>
-                  {isAdmin ? 'Administrator' : 'Staff Member'}
-                </span>
-              </div>
-            </div>
-            <button 
-              onClick={logout}
-              className="px-3 py-1.5 text-xs bg-gradient-to-r from-red-600/80 to-red-700/80 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all duration-300 font-heading shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-            >
-              Logout
-            </button>
+        <div className="flex items-center justify-between bg-cuephoria-dark rounded-lg p-3 animate-scale-in shadow-md">
+          <div className="flex items-center">
+            {isAdmin ? (
+              <Shield className="h-6 w-6 text-cuephoria-lightpurple" />
+            ) : (
+              <User className="h-6 w-6 text-cuephoria-blue" />
+            )}
+            <span className="ml-2 text-sm font-medium font-quicksand">
+              {user.username} {isAdmin ? '(Admin)' : '(Staff)'}
+            </span>
           </div>
+          <button 
+            onClick={logout}
+            className="text-xs bg-cuephoria-darker px-3 py-1 rounded-md hover:bg-cuephoria-purple transition-all duration-300 font-heading"
+          >
+            Logout
+          </button>
         </div>
       </SidebarFooter>
     </Sidebar>
