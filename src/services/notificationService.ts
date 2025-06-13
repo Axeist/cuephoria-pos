@@ -18,6 +18,7 @@ const isValidNotificationType = (type: string): type is 'info' | 'success' | 'wa
 export class NotificationService {
   private static instance: NotificationService;
   private templates: NotificationTemplate[] = [];
+  private lastNotificationTime: Map<string, number> = new Map();
 
   private constructor() {
     this.loadTemplates();
@@ -51,6 +52,8 @@ export class NotificationService {
           type: isValidNotificationType(item.type) ? item.type : 'info',
           is_active: item.is_active
         }));
+        
+        console.log('Loaded notification templates:', this.templates);
       }
     } catch (error) {
       console.error('Error in loadTemplates:', error);
@@ -63,6 +66,19 @@ export class NotificationService {
     });
   }
 
+  private shouldSendNotification(key: string): boolean {
+    const now = Date.now();
+    const lastTime = this.lastNotificationTime.get(key) || 0;
+    const cooldownPeriod = 5 * 60 * 1000; // 5 minutes
+
+    if (now - lastTime < cooldownPeriod) {
+      return false;
+    }
+
+    this.lastNotificationTime.set(key, now);
+    return true;
+  }
+
   async sendNotification(templateName: string, variables: Record<string, any>) {
     const template = this.templates.find(t => t.name === templateName);
     if (!template) {
@@ -70,11 +86,21 @@ export class NotificationService {
       return false;
     }
 
+    // Create a unique key for cooldown checking
+    const notificationKey = `${templateName}_${JSON.stringify(variables)}`;
+    
+    // Check cooldown for duplicate notifications
+    if (!this.shouldSendNotification(notificationKey)) {
+      console.log(`Notification '${templateName}' skipped due to cooldown`);
+      return false;
+    }
+
     const title = this.interpolateTemplate(template.title_template, variables);
     const message = this.interpolateTemplate(template.message_template, variables);
 
     try {
-      // Create notification for admin user (single user system)
+      console.log('Sending notification:', { title, message, type: template.type });
+      
       const { error } = await supabase
         .from('notifications')
         .insert([{
@@ -90,7 +116,7 @@ export class NotificationService {
         return false;
       }
 
-      console.log(`Notification sent: ${title}`);
+      console.log(`Notification sent successfully: ${title}`);
       return true;
     } catch (error) {
       console.error('Error in sendNotification:', error);
