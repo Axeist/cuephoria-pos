@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
@@ -6,10 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Gamepad2, Plus, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 
 const Stations = () => {
   const { stations } = usePOS();
   const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openPinDialog, setOpenPinDialog] = useState(false);
   
   // Separate stations by type
   const ps5Stations = stations.filter(station => station.type === 'ps5');
@@ -19,6 +20,14 @@ const Stations = () => {
   const activePs5 = ps5Stations.filter(s => s.isOccupied).length;
   const activeBall = ballStations.filter(s => s.isOccupied).length;
 
+  const handleAddStationClick = () => {
+    setOpenPinDialog(true);
+  };
+
+  const handlePinSuccess = () => {
+    setOpenAddDialog(true);
+  };
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between animate-slide-down">
@@ -26,12 +35,21 @@ const Stations = () => {
         <div className="flex space-x-2">
           <Button 
             className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
-            onClick={() => setOpenAddDialog(true)}
+            onClick={handleAddStationClick}
           >
             <Plus className="mr-2 h-4 w-4" /> Add Station
           </Button>
         </div>
       </div>
+
+      {/* PIN Verification Dialog */}
+      <PinVerificationDialog 
+        open={openPinDialog} 
+        onOpenChange={setOpenPinDialog}
+        onSuccess={handlePinSuccess}
+        title="Admin Access Required"
+        description="Enter the admin PIN to add a new game station"
+      />
 
       {/* Add Station Dialog */}
       <AddStationDialog 
