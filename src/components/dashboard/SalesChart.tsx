@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartContainer } from '@/components/ui/chart';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { usePOS } from '@/context/POSContext';
+import { useExpenses } from '@/context/ExpenseContext';
 import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, format, addDays, addWeeks } from 'date-fns';
 
 interface SalesChartProps {
@@ -19,7 +20,8 @@ interface SalesChartProps {
 
 const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const { bills } = usePOS();
-  const [chartData, setChartData] = useState<{ name: string; amount: number; }[]>([]);
+  const { expenses } = useExpenses();
+  const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; }[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   const generateChartData = () => {
@@ -32,6 +34,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       
       const hours = Array.from({ length: 24 }, (_, i) => i);
       const hourlyTotals = new Map();
+      const hourlyExpenses = new Map();
       
       bills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
@@ -41,6 +44,15 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           hourlyTotals.set(hour, current + bill.total);
         }
       });
+
+      // For hourly view, distribute daily expenses evenly across hours
+      const todayExpenses = expenses.filter(expense => {
+        const expenseDate = new Date(expense.date);
+        return expenseDate >= todayStart && expenseDate <= todayEnd;
+      });
+      
+      const totalTodayExpenses = todayExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+      const hourlyExpenseAmount = totalTodayExpenses / 24;
       
       return hours.map(hour => {
         const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -49,7 +61,8 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         
         return {
           name: formattedHour,
-          amount: hourlyTotals.get(hour) || 0
+          sales: hourlyTotals.get(hour) || 0,
+          expenses: hourlyExpenseAmount
         };
       });
       
@@ -59,6 +72,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const weekEnd = endOfWeek(now);
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const dailyTotals = new Map();
+      const dailyExpenses = new Map();
       
       bills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
@@ -68,10 +82,20 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           dailyTotals.set(dayOfWeek, current + bill.total);
         }
       });
+
+      expenses.forEach(expense => {
+        const expenseDate = new Date(expense.date);
+        if (expenseDate >= weekStart && expenseDate <= weekEnd) {
+          const dayOfWeek = expenseDate.getDay();
+          const current = dailyExpenses.get(dayOfWeek) || 0;
+          dailyExpenses.set(dayOfWeek, current + expense.amount);
+        }
+      });
       
       return days.map((day, index) => ({
         name: day,
-        amount: dailyTotals.get(index) || 0
+        sales: dailyTotals.get(index) || 0,
+        expenses: dailyExpenses.get(index) || 0
       }));
       
     } else if (activeTab === 'weekly') {
@@ -96,6 +120,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       }
       
       const weeklyTotals = new Map();
+      const weeklyExpenses = new Map();
       
       bills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
@@ -107,16 +132,29 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           }
         }
       });
+
+      expenses.forEach(expense => {
+        const expenseDate = new Date(expense.date);
+        if (expenseDate >= monthStart && expenseDate <= monthEnd) {
+          const week = weeks.find(w => expenseDate >= w.start && expenseDate <= w.end);
+          if (week) {
+            const current = weeklyExpenses.get(week.index) || 0;
+            weeklyExpenses.set(week.index, current + expense.amount);
+          }
+        }
+      });
       
       return weeks.map(week => ({
         name: week.label,
-        amount: weeklyTotals.get(week.index) || 0
+        sales: weeklyTotals.get(week.index) || 0,
+        expenses: weeklyExpenses.get(week.index) || 0
       }));
       
     } else {
-      // Monthly - keep existing logic
+      // Monthly
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthlyTotals = new Map();
+      const monthlyExpenses = new Map();
       
       bills.forEach(bill => {
         const date = new Date(bill.createdAt);
@@ -124,10 +162,18 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         const current = monthlyTotals.get(month) || 0;
         monthlyTotals.set(month, current + bill.total);
       });
+
+      expenses.forEach(expense => {
+        const date = new Date(expense.date);
+        const month = months[date.getMonth()];
+        const current = monthlyExpenses.get(month) || 0;
+        monthlyExpenses.set(month, current + expense.amount);
+      });
       
       return months.map(month => ({
         name: month,
-        amount: monthlyTotals.get(month) || 0
+        sales: monthlyTotals.get(month) || 0,
+        expenses: monthlyExpenses.get(month) || 0
       }));
     }
   };
@@ -144,7 +190,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [activeTab, bills]);
+  }, [activeTab, bills, expenses]);
 
   // Initialize chart data on first render
   useEffect(() => {
@@ -190,15 +236,22 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           </Tabs>
         </div>
       </CardHeader>
-      <CardContent className="h-[300px] pt-4">
+      <CardContent className="h-[350px] pt-4">
         <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}>
           <ChartContainer
             config={{
-              amount: {
-                label: "Amount",
+              sales: {
+                label: "Sales",
                 theme: {
                   light: "#9b87f5",
                   dark: "#9b87f5",
+                },
+              },
+              expenses: {
+                label: "Expenses",
+                theme: {
+                  light: "#ef4444",
+                  dark: "#ef4444",
                 },
               },
             }}
@@ -207,12 +260,16 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart 
                 data={chartData}
-                margin={{ top: 5, right: 10, left: 10, bottom: 25 }}
+                margin={{ top: 5, right: 10, left: 10, bottom: 50 }}
               >
                 <defs>
-                  <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#9b87f5" stopOpacity={0.8}/>
                     <stop offset="95%" stopColor="#9b87f5" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
@@ -227,14 +284,14 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                   stroke="#777"
                   axisLine={false}
                   tickLine={false}
-                  width={30}
+                  width={40}
                 />
                 <Tooltip 
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="rounded-lg border bg-card p-2 shadow-md transition-all duration-200 animate-fade-in">
-                          <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border bg-card p-3 shadow-md transition-all duration-200 animate-fade-in">
+                          <div className="grid gap-2">
                             <div className="flex flex-col">
                               <span className="text-[0.70rem] uppercase text-muted-foreground">
                                 {activeTab === 'hourly' ? 'Hour' : activeTab === 'daily' ? 'Day' : activeTab === 'weekly' ? 'Week' : 'Month'}
@@ -243,13 +300,25 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                                 {payload[0].payload.name}
                               </span>
                             </div>
-                            <div className="flex flex-col">
-                              <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                Sales
-                              </span>
-                              <span className="font-bold">
-                                <CurrencyDisplay amount={payload[0].value as number} />
-                              </span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full bg-[#9b87f5]"></div>
+                                  Sales
+                                </span>
+                                <span className="font-bold">
+                                  <CurrencyDisplay amount={payload[0].value as number} />
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full bg-[#ef4444]"></div>
+                                  Expenses
+                                </span>
+                                <span className="font-bold">
+                                  <CurrencyDisplay amount={payload[1]?.value as number || 0} />
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -259,10 +328,25 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                     return null;
                   }}
                 />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '20px' }}
+                  content={({ payload }) => (
+                    <div className="flex items-center justify-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#9b87f5]"></div>
+                        <span className="text-sm text-gray-300">Sales</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+                        <span className="text-sm text-gray-300">Expenses</span>
+                      </div>
+                    </div>
+                  )}
+                />
                 <Line
                   type="monotone"
-                  dataKey="amount"
-                  name="amount"
+                  dataKey="sales"
+                  name="Sales"
                   stroke="#9b87f5"
                   strokeWidth={2}
                   dot={{ r: 4, fill: "#9b87f5", strokeWidth: 0 }}
@@ -274,8 +358,29 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                     className: "transition-all duration-200 hover:r-8"
                   }}
                   fillOpacity={1}
-                  fill="url(#colorAmount)"
+                  fill="url(#colorSales)"
                   animationBegin={0}
+                  animationDuration={800}
+                  animationEasing="ease-in-out"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="expenses"
+                  name="Expenses"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ r: 4, fill: "#ef4444", strokeWidth: 0 }}
+                  activeDot={{ 
+                    r: 6, 
+                    fill: "#ef4444", 
+                    stroke: "#1A1F2C", 
+                    strokeWidth: 2,
+                    className: "transition-all duration-200 hover:r-8"
+                  }}
+                  fillOpacity={1}
+                  fill="url(#colorExpenses)"
+                  animationBegin={200}
                   animationDuration={800}
                   animationEasing="ease-in-out"
                 />
