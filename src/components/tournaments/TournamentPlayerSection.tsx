@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -187,9 +186,16 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     if (!tournamentId) return;
     
     try {
+      // Convert players to JSON-compatible format
+      const jsonPlayers = updatedPlayers.map(player => ({
+        id: player.id,
+        name: player.name,
+        ...(player.customerId && { customerId: player.customerId })
+      }));
+
       const { error } = await supabase
         .from('tournaments')
-        .update({ players: updatedPlayers })
+        .update({ players: jsonPlayers })
         .eq('id', tournamentId);
 
       if (error) {
@@ -277,11 +283,17 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     }
     
     // Update player name in the main player list
-    setPlayers(players.map(p => 
+    const updatedPlayers = players.map(p => 
       p.id === playerId 
         ? { ...p, name: editingPlayer.name.trim() } 
         : p
-    ));
+    );
+    setPlayers(updatedPlayers);
+
+    // Update the tournament's players array in the database
+    if (tournamentId) {
+      updateTournamentPlayers(updatedPlayers);
+    }
     
     // Update matches if the callback is provided
     if (updatePlayerName) {
