@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -103,18 +103,26 @@ const GeneralSettings = () => {
       if (!user?.id) return;
       
       try {
+        console.log('Loading preferences for user:', user.id);
+        
         const { data, error } = await supabase
           .from('user_preferences')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
           console.error('Error loading preferences:', error);
+          toast({
+            title: "Error loading preferences",
+            description: "Could not load your settings. Using defaults.",
+            variant: "destructive"
+          });
           return;
         }
 
         if (data) {
+          console.log('Loaded preferences:', data);
           form.reset({
             defaultTimeout: data.default_timeout?.toString() || '60',
             enableNotifications: data.notifications_enabled ?? true,
@@ -137,13 +145,18 @@ const GeneralSettings = () => {
         }
       } catch (error) {
         console.error('Error loading preferences:', error);
+        toast({
+          title: "Error loading preferences",
+          description: "Could not load your settings. Using defaults.",
+          variant: "destructive"
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
     loadPreferences();
-  }, [user?.id, form]);
+  }, [user?.id, form, toast]);
 
   const onSubmit = async (data: FormData) => {
     if (!user?.id) {
@@ -158,6 +171,9 @@ const GeneralSettings = () => {
     setIsSaving(true);
     
     try {
+      console.log('Saving preferences for user:', user.id);
+      console.log('Data to save:', data);
+      
       // Save to user_preferences table
       const { error } = await supabase
         .from('user_preferences')
@@ -172,9 +188,11 @@ const GeneralSettings = () => {
         });
 
       if (error) {
+        console.error('Save error:', error);
         throw error;
       }
 
+      console.log('Settings saved successfully');
       toast({
         title: "Settings saved",
         description: "Your preferences have been updated successfully.",
