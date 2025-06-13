@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 export interface UserPreferences {
   id?: string;
@@ -28,18 +29,22 @@ export const useUserPreferences = () => {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const loadPreferences = async () => {
     try {
       setLoading(true);
       
-      // Generate a valid UUID for default user
-      const defaultUserId = '00000000-0000-0000-0000-000000000001';
+      if (!user?.id) {
+        console.log('No user logged in, skipping preferences load');
+        setLoading(false);
+        return;
+      }
       
       const { data, error } = await supabase
         .from('user_preferences')
         .select('*')
-        .eq('user_id', defaultUserId)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) {
@@ -62,9 +67,9 @@ export const useUserPreferences = () => {
         
         setPreferences(transformedPreferences);
       } else {
-        // Create default preferences
+        // Create default preferences for the current user
         const defaultPrefs = {
-          user_id: defaultUserId,
+          user_id: user.id,
           theme: 'dark' as const,
           notifications_enabled: true,
           email_notifications: false,
@@ -104,7 +109,7 @@ export const useUserPreferences = () => {
   };
 
   const updatePreferences = async (updates: Partial<UserPreferences>) => {
-    if (!preferences) return false;
+    if (!preferences || !user?.id) return false;
 
     try {
       const { data, error } = await supabase
@@ -161,7 +166,7 @@ export const useUserPreferences = () => {
 
   useEffect(() => {
     loadPreferences();
-  }, []);
+  }, [user?.id]);
 
   return {
     preferences,

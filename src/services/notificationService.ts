@@ -77,7 +77,7 @@ export class NotificationService {
       const { error } = await supabase
         .from('notifications')
         .insert([{
-          user_id: null, // Use null for global notifications
+          user_id: userId || null, // Use provided userId or null for global notifications
           title,
           message,
           type: template.type,
