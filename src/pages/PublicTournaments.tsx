@@ -103,8 +103,8 @@ const PublicTournaments = () => {
         budget: item.budget,
         winner_prize: item.winner_prize,
         runner_up_prize: item.runner_up_prize,
-        players: item.players || [],
-        matches: item.matches || [],
+        players: Array.isArray(item.players) ? item.players : [],
+        matches: Array.isArray(item.matches) ? item.matches : [],
         winner: item.winner,
         total_registrations: Number(item.total_registrations) || 0,
         max_players: item.max_players || 8
