@@ -1174,6 +1174,7 @@ export type Database = {
           game_variant: string | null
           id: string
           matches: Json
+          max_players: number | null
           name: string
           players: Json
           runner_up_prize: number | null
@@ -1191,6 +1192,7 @@ export type Database = {
           game_variant?: string | null
           id?: string
           matches?: Json
+          max_players?: number | null
           name: string
           players?: Json
           runner_up_prize?: number | null
@@ -1208,6 +1210,7 @@ export type Database = {
           game_variant?: string | null
           id?: string
           matches?: Json
+          max_players?: number | null
           name?: string
           players?: Json
           runner_up_prize?: number | null

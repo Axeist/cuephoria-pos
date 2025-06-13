@@ -76,7 +76,10 @@ const TournamentList: React.FC<TournamentListProps> = ({
                 )}
               </TableCell>
               <TableCell>{format(new Date(tournament.date), 'dd MMM yyyy')}</TableCell>
-              <TableCell>{tournament.players.length}</TableCell>
+              <TableCell>
+                {tournament.players.length}
+                {tournament.maxPlayers && ` / ${tournament.maxPlayers}`}
+              </TableCell>
               <TableCell>{formatCurrency(tournament.budget)}</TableCell>
               <TableCell>{getStatusBadge(tournament.status)}</TableCell>
               <TableCell className="text-right">

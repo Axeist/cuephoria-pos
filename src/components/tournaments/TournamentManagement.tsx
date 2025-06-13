@@ -183,7 +183,8 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               setPlayers={setPlayers} 
               matchesExist={matches.length > 0}
               updatePlayerName={updatePlayerName}
-              tournamentId={tournament.id} // Pass tournament ID for cleanup
+              tournamentId={tournament.id}
+              maxPlayers={tournament.maxPlayers} // Pass maxPlayers prop
             />
             
             <div className="flex justify-end pt-4">

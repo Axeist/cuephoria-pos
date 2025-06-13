@@ -21,6 +21,7 @@ interface TournamentPlayerSectionProps {
   matchesExist: boolean;
   updatePlayerName?: (playerId: string, newName: string) => void;
   tournamentId?: string;
+  maxPlayers?: number; // Add maxPlayers prop
 }
 
 interface Customer {
@@ -44,7 +45,8 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
   setPlayers,
   matchesExist,
   updatePlayerName,
-  tournamentId 
+  tournamentId,
+  maxPlayers = 16 // Default to 16 if not specified
 }) => {
   const [playerName, setPlayerName] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -56,8 +58,8 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
   });
   const { toast } = useToast();
 
+  // Fetch customers from Supabase
   useEffect(() => {
-    // Fetch customers from Supabase
     const fetchCustomers = async () => {
       try {
         const { data, error } = await supabase
@@ -89,6 +91,16 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
 
   const addPlayer = () => {
     if (!playerName.trim() && !selectedCustomerId) return;
+    
+    // Check if maximum players limit is reached
+    if (players.length >= maxPlayers) {
+      toast({
+        title: 'Maximum Players Reached',
+        description: `This tournament is limited to ${maxPlayers} players. Cannot add more players.`,
+        variant: 'destructive'
+      });
+      return;
+    }
     
     let newPlayer: Player;
     
@@ -309,18 +321,31 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     });
   };
 
+  // Check if we've reached the maximum players limit
+  const isMaxPlayersReached = players.length >= maxPlayers;
+
   return (
     <div className="space-y-4">
+      {/* Display player count and limit */}
+      <div className="text-sm text-gray-400">
+        Players: {players.length} / {maxPlayers}
+        {isMaxPlayersReached && (
+          <span className="ml-2 text-amber-400">
+            (Maximum reached)
+          </span>
+        )}
+      </div>
+
       <div className="space-y-4">
         <div className="flex flex-col space-y-2">
           <label className="text-sm font-medium">Add Existing Customer</label>
           <Select
             value={selectedCustomerId}
             onValueChange={setSelectedCustomerId}
-            disabled={matchesExist}
+            disabled={matchesExist || isMaxPlayersReached}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select a customer" />
+              <SelectValue placeholder={isMaxPlayersReached ? "Maximum players reached" : "Select a customer"} />
             </SelectTrigger>
             <SelectContent>
               {customers.map(customer => (
@@ -336,7 +361,7 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
           <div className="flex-1">
             <label className="text-sm font-medium">Or Add New Player</label>
             <Input
-              placeholder="Enter player name or phone number"
+              placeholder={isMaxPlayersReached ? "Maximum players reached" : "Enter player name or phone number"}
               value={playerName}
               onChange={(e) => {
                 setPlayerName(e.target.value);
@@ -350,11 +375,11 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
               }}
               onKeyPress={(e) => e.key === 'Enter' && addPlayer()}
               className="mt-1"
-              disabled={matchesExist}
+              disabled={matchesExist || isMaxPlayersReached}
             />
           </div>
           <div className="pt-6">
-            <Button onClick={addPlayer} disabled={matchesExist}>
+            <Button onClick={addPlayer} disabled={matchesExist || isMaxPlayersReached}>
               <Plus className="mr-2 h-4 w-4" /> Add Player
             </Button>
           </div>

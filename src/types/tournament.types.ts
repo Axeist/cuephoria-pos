@@ -39,6 +39,7 @@ export interface Tournament {
   budget?: number;
   winnerPrize?: number;
   runnerUpPrize?: number;
+  maxPlayers?: number; // Add max_players field
   // Database sync fields
   created_at?: string;
   updated_at?: string;
@@ -60,6 +61,7 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     winnerPrize: item.winner_prize || undefined,
     runnerUpPrize: item.runner_up_prize || undefined,
     winner: item.winner || undefined,
+    maxPlayers: item.max_players || undefined, // Add max_players conversion
     created_at: item.created_at,
     updated_at: item.updated_at
   };
@@ -84,6 +86,7 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.winnerPrize !== undefined) cleanObject.winner_prize = tournament.winnerPrize;
   if (tournament.runnerUpPrize !== undefined) cleanObject.runner_up_prize = tournament.runnerUpPrize;
   if (tournament.winner) cleanObject.winner = tournament.winner;
+  if (tournament.maxPlayers !== undefined) cleanObject.max_players = tournament.maxPlayers; // Add max_players conversion
   
   return cleanObject;
 };
