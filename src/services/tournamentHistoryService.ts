@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { TournamentHistoryMatch, TournamentWinner, Tournament, Player, Match, MatchStage } from "@/types/tournament.types";
 
@@ -148,16 +149,18 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
       return [];
     }
 
+    // Type guard and cast for matches and players from Json to proper arrays
+    const matches = Array.isArray(tournament.matches) ? tournament.matches as Match[] : [];
+    const players = Array.isArray(tournament.players) ? tournament.players as Player[] : [];
+
     // Convert tournament matches to history format
     const historyRecords: TournamentHistoryMatch[] = [];
-    const matches = tournament.matches || [];
-    const players = tournament.players || [];
 
-    matches.forEach((match: any) => {
+    matches.forEach((match: Match) => {
       if (match.completed && match.winnerId) {
-        const player1 = players.find((p: any) => p.id === match.player1Id);
-        const player2 = players.find((p: any) => p.id === match.player2Id);
-        const winner = players.find((p: any) => p.id === match.winnerId);
+        const player1 = players.find((p: Player) => p.id === match.player1Id);
+        const player2 = players.find((p: Player) => p.id === match.player2Id);
+        const winner = players.find((p: Player) => p.id === match.winnerId);
         
         if (player1 && player2 && winner) {
           historyRecords.push({
@@ -179,23 +182,23 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
     if (historyRecords.length > 0 && tournament.status === 'completed') {
       console.log('Saving tournament history retroactively for tournament:', tournamentId);
       // Convert tournament data to proper format and save
-      const tournamentConverted = {
+      const tournamentConverted: Tournament = {
         id: tournament.id,
         name: tournament.name,
         gameType: tournament.game_type,
         gameVariant: tournament.game_variant,
         gameTitle: tournament.game_title,
         date: tournament.date,
-        players: tournament.players,
-        matches: tournament.matches,
-        winner: tournament.winner,
-        runnerUp: tournament.runner_up,
-        status: tournament.status,
+        players: players,
+        matches: matches,
+        winner: tournament.winner as Player,
+        runnerUp: tournament.runner_up as Player,
+        status: tournament.status as 'completed',
         budget: tournament.budget,
         winnerPrize: tournament.winner_prize,
         runnerUpPrize: tournament.runner_up_prize,
         maxPlayers: tournament.max_players
-      } as Tournament;
+      };
       
       await saveTournamentHistory(tournamentConverted);
     }
