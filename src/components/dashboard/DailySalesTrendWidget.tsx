@@ -98,14 +98,14 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
   }, [chartData, selectedPeriod]);
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 via-teal-950/30 to-gray-800/90 border-teal-600/40 shadow-xl hover:shadow-teal-500/30 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm hover:shadow-2xl hover:scale-[1.02]">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-teal-700/20">
+    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300 backdrop-blur-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
         <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-teal-400 drop-shadow-sm" />
+          <TrendingUp className="h-5 w-5 text-blue-400" />
           Daily Sales Trend
         </CardTitle>
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-teal-500/30 to-teal-600/20 flex items-center justify-center shadow-lg shadow-teal-500/20">
-          <BarChart3 className="h-4 w-4 text-teal-400 drop-shadow-sm" />
+        <div className="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+          <BarChart3 className="h-4 w-4 text-blue-400" />
         </div>
       </CardHeader>
       <CardContent className="p-6">
@@ -117,8 +117,8 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               onClick={() => setSelectedPeriod('7days')}
               className={`text-xs transition-all duration-200 ${
                 selectedPeriod === '7days' 
-                  ? 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white shadow-lg shadow-teal-500/30 border-teal-500/50' 
-                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-teal-900/30 hover:border-teal-600/40 hover:text-teal-200'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30' 
+                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500/50'
               }`}
             >
               7 Days
@@ -129,8 +129,8 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               onClick={() => setSelectedPeriod('30days')}
               className={`text-xs transition-all duration-200 ${
                 selectedPeriod === '30days' 
-                  ? 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white shadow-lg shadow-teal-500/30 border-teal-500/50' 
-                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-teal-900/30 hover:border-teal-600/40 hover:text-teal-200'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30' 
+                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500/50'
               }`}
             >
               30 Days
@@ -141,8 +141,8 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               onClick={() => setSelectedPeriod('year')}
               className={`text-xs transition-all duration-200 ${
                 selectedPeriod === 'year' 
-                  ? 'bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white shadow-lg shadow-teal-500/30 border-teal-500/50' 
-                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-teal-900/30 hover:border-teal-600/40 hover:text-teal-200'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30' 
+                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500/50'
               }`}
             >
               This Year
@@ -150,29 +150,29 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-teal-900/30 to-gray-800/50 rounded-lg p-3 border border-teal-700/30 hover:border-teal-600/50 transition-colors shadow-lg">
+            <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30 hover:border-gray-600/50 transition-colors">
               <div className="flex items-center gap-2 mb-1">
-                <Calendar className="h-4 w-4 text-teal-400" />
-                <p className="text-xs text-gray-300">Total Sales</p>
+                <Calendar className="h-4 w-4 text-green-400" />
+                <p className="text-xs text-gray-400">Total Sales</p>
               </div>
-              <p className="text-lg font-bold text-teal-300 drop-shadow-sm">
+              <p className="text-lg font-bold text-green-400">
                 <CurrencyDisplay amount={metrics.totalSales} />
               </p>
             </div>
-            <div className="bg-gradient-to-br from-teal-900/30 to-gray-800/50 rounded-lg p-3 border border-teal-700/30 hover:border-teal-600/50 transition-colors shadow-lg">
+            <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30 hover:border-gray-600/50 transition-colors">
               <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="h-4 w-4 text-indigo-400" />
-                <p className="text-xs text-gray-300">
+                <TrendingUp className="h-4 w-4 text-purple-400" />
+                <p className="text-xs text-gray-400">
                   {selectedPeriod === 'year' ? 'Monthly Avg' : 'Daily Avg'}
                 </p>
               </div>
-              <p className="text-lg font-bold text-indigo-300 drop-shadow-sm">
+              <p className="text-lg font-bold text-purple-400">
                 <CurrencyDisplay amount={metrics.periodAverage} />
               </p>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-teal-900/20 to-gray-800/30 rounded-lg p-4 border border-teal-700/30 shadow-inner">
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -200,26 +200,26 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
                   <Line 
                     type="monotone" 
                     dataKey="sales" 
-                    stroke="#14B8A6" 
+                    stroke="#8B5CF6" 
                     strokeWidth={3}
-                    dot={{ fill: '#14B8A6', strokeWidth: 2, r: 4, filter: 'drop-shadow(0 0 4px rgba(20, 184, 166, 0.5))' }}
-                    activeDot={{ r: 6, fill: '#14B8A6', stroke: '#ffffff', strokeWidth: 2, filter: 'drop-shadow(0 0 8px rgba(20, 184, 166, 0.8))' }}
-                    filter="drop-shadow(0 0 8px rgba(20, 184, 166, 0.3))"
+                    dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, fill: '#8B5CF6', stroke: '#ffffff', strokeWidth: 2 }}
+                    filter="drop-shadow(0 0 8px rgba(139, 92, 246, 0.3))"
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-teal-900/20 to-gray-800/30 rounded-lg p-4 border border-teal-700/30 shadow-inner">
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-teal-400 shadow-lg shadow-teal-400/50"></div>
+                <div className="w-3 h-3 rounded-full bg-purple-400 shadow-lg shadow-purple-400/30"></div>
                 <span className="text-gray-300">
                   {selectedPeriod === '7days' ? '7-day' : selectedPeriod === '30days' ? '30-day' : 'Monthly'} average:
                 </span>
               </div>
-              <span className="font-medium text-teal-300 drop-shadow-sm">
+              <span className="font-medium text-purple-400">
                 <CurrencyDisplay amount={metrics.periodAverage} />
               </span>
             </div>

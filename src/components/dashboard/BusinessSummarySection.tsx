@@ -53,15 +53,13 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
   
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card className="bg-gradient-to-br from-gray-900/95 via-emerald-950/30 to-gray-800/90 border-emerald-600/40 shadow-xl hover:shadow-emerald-500/30 hover:border-emerald-400/50 transition-all duration-300 hover:scale-[1.02]">
+      <Card className="bg-gray-800 border-gray-700 shadow-lg hover:shadow-emerald-500/20 hover:border-emerald-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Gross Income</CardTitle>
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/20 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <DollarSign className="h-4 w-4 text-emerald-400 drop-shadow-sm" />
-          </div>
+          <DollarSign className="h-4 w-4 text-emerald-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-white drop-shadow-sm">
+          <div className="text-2xl font-bold text-white">
             <CurrencyDisplay amount={grossIncome} />
           </div>
           <p className="text-xs text-gray-400">
@@ -70,15 +68,13 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
         </CardContent>
       </Card>
       
-      <Card className="bg-gradient-to-br from-gray-900/95 via-red-950/30 to-gray-800/90 border-red-600/40 shadow-xl hover:shadow-red-500/30 hover:border-red-400/50 transition-all duration-300 hover:scale-[1.02]">
+      <Card className="bg-gray-800 border-gray-700 shadow-lg hover:shadow-orange-500/20 hover:border-orange-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Total Expenses</CardTitle>
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-red-500/30 to-red-600/20 flex items-center justify-center shadow-lg shadow-red-500/20">
-            <Wallet className="h-4 w-4 text-red-400 drop-shadow-sm" />
-          </div>
+          <Wallet className="h-4 w-4 text-orange-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-white drop-shadow-sm">
+          <div className="text-2xl font-bold text-white">
             <CurrencyDisplay amount={totalExpenses} />
           </div>
           <p className="text-xs text-gray-400">
@@ -87,27 +83,21 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
         </CardContent>
       </Card>
       
-      <Card className={`bg-gradient-to-br from-gray-900/95 to-gray-800/90 border shadow-xl transition-all duration-300 hover:scale-[1.02] ${
+      <Card className={`bg-gray-800 border-gray-700 shadow-lg transition-all duration-300 ${
         netProfit >= 0 
-          ? 'via-green-950/30 border-green-600/40 hover:shadow-green-500/30 hover:border-green-400/50' 
-          : 'via-orange-950/30 border-orange-600/40 hover:shadow-orange-500/30 hover:border-orange-400/50'
+          ? 'hover:shadow-green-500/20 hover:border-green-500/30' 
+          : 'hover:shadow-red-500/20 hover:border-red-500/30'
       }`}>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Net Profit</CardTitle>
-          <div className={`h-8 w-8 rounded-full flex items-center justify-center shadow-lg ${
-            netProfit >= 0 
-              ? 'bg-gradient-to-br from-green-500/30 to-green-600/20 shadow-green-500/20' 
-              : 'bg-gradient-to-br from-orange-500/30 to-orange-600/20 shadow-orange-500/20'
-          }`}>
-            {netProfit >= 0 ? (
-              <ArrowUpRight className="h-4 w-4 text-green-400 drop-shadow-sm" />
-            ) : (
-              <ArrowDownRight className="h-4 w-4 text-orange-400 drop-shadow-sm" />
-            )}
-          </div>
+          {netProfit >= 0 ? (
+            <ArrowUpRight className="h-4 w-4 text-green-500" />
+          ) : (
+            <ArrowDownRight className="h-4 w-4 text-red-500" />
+          )}
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-white drop-shadow-sm">
+          <div className="text-2xl font-bold text-white">
             <CurrencyDisplay amount={netProfit} />
           </div>
           <p className="text-xs text-gray-400">
@@ -118,15 +108,13 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
         </CardContent>
       </Card>
       
-      <Card className="bg-gradient-to-br from-gray-900/95 via-indigo-950/30 to-gray-800/90 border-indigo-600/40 shadow-xl hover:shadow-indigo-500/30 hover:border-indigo-400/50 transition-all duration-300 hover:scale-[1.02]">
+      <Card className="bg-gray-800 border-gray-700 shadow-lg hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Profit Margin</CardTitle>
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500/30 to-indigo-600/20 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <TrendingUp className="h-4 w-4 text-indigo-400 drop-shadow-sm" />
-          </div>
+          <TrendingUp className="h-4 w-4 text-blue-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-white drop-shadow-sm">
+          <div className="text-2xl font-bold text-white">
             {formattedProfitMargin}%
           </div>
           <div className="mt-2">

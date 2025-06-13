@@ -157,22 +157,22 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
   }, [bills, startDate, endDate]);
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 via-fuchsia-950/30 to-gray-800/90 border-fuchsia-600/40 shadow-xl hover:shadow-fuchsia-500/30 hover:border-fuchsia-400/50 transition-all duration-300 backdrop-blur-sm hover:shadow-2xl hover:scale-[1.02]">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-fuchsia-700/20">
+    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-green-500/20 hover:border-green-500/30 transition-all duration-300 backdrop-blur-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
         <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
-          <CreditCard className="h-5 w-5 text-fuchsia-400 drop-shadow-sm" />
+          <CreditCard className="h-5 w-5 text-green-400" />
           Payment Analytics
         </CardTitle>
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-fuchsia-500/30 to-fuchsia-600/20 flex items-center justify-center shadow-lg shadow-fuchsia-500/20">
-          <TrendingUp className="h-4 w-4 text-fuchsia-400 drop-shadow-sm" />
+        <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">
+          <TrendingUp className="h-4 w-4 text-green-400" />
         </div>
       </CardHeader>
       <CardContent className="p-6">
         <div className="space-y-4">
-          <div className="bg-gradient-to-br from-fuchsia-900/30 to-gray-800/50 rounded-lg p-4 border border-fuchsia-700/30 shadow-inner">
+          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-200">Total Sales</span>
-              <span className="font-bold text-xl text-fuchsia-300 drop-shadow-sm">
+              <span className="font-bold text-xl text-green-400">
                 <CurrencyDisplay amount={paymentData.totalRevenue} />
               </span>
             </div>
@@ -197,8 +197,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                     backgroundColor: '#1F2937',
                     border: '1px solid #374151',
                     borderRadius: '6px',
-                    color: '#F9FAFB',
-                    boxShadow: '0 10px 30px rgba(236, 72, 153, 0.2)'
+                    color: '#F9FAFB'
                   }}
                   formatter={(value: number, name: string) => [
                     name === 'amount' ? `₹${Math.round(value)}` : value,
@@ -207,33 +206,26 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                 />
                 <Bar 
                   dataKey="amount" 
-                  fill="url(#fuchsiaGradient)"
+                  fill="#10B981"
                   radius={[4, 4, 0, 0]}
-                  filter="drop-shadow(0 0 8px rgba(236, 72, 153, 0.3))"
                 />
-                <defs>
-                  <linearGradient id="fuchsiaGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#EC4899" />
-                    <stop offset="100%" stopColor="#BE185D" />
-                  </linearGradient>
-                </defs>
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           <div className="space-y-3">
             {paymentData.chartData.map((item, index) => (
-              <div key={index} className="bg-gradient-to-r from-fuchsia-900/20 via-gray-800/40 to-fuchsia-900/20 border border-fuchsia-700/40 rounded-lg p-3 hover:bg-fuchsia-900/30 hover:border-fuchsia-600/50 transition-all duration-200 group shadow-lg">
+              <div key={index} className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/30 hover:border-gray-600/50 transition-all duration-200 group">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div 
                       className="w-3 h-3 rounded-full shadow-lg group-hover:scale-110 transition-transform duration-200" 
-                      style={{ backgroundColor: item.color, boxShadow: `0 0 10px ${item.color}50` }}
+                      style={{ backgroundColor: item.color, boxShadow: `0 0 10px ${item.color}30` }}
                     />
                     <span className="text-sm text-gray-300 group-hover:text-white transition-colors">{item.method}</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-white drop-shadow-sm">
+                    <p className="text-sm font-medium text-white">
                       <CurrencyDisplay amount={item.amount} />
                     </p>
                     <p className="text-xs text-gray-400">
@@ -249,24 +241,24 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
           </div>
 
           {/* Additional Insights Section */}
-          <div className="pt-2 border-t border-fuchsia-700/20 space-y-3">
+          <div className="pt-2 border-t border-gray-700/30 space-y-3">
             <h4 className="text-sm font-medium text-gray-200 mb-2 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-fuchsia-400" />
+              <TrendingUp className="h-4 w-4 text-blue-400" />
               Transaction Insights
             </h4>
             
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gradient-to-br from-fuchsia-900/30 to-gray-800/50 rounded-lg p-3 border border-fuchsia-700/30 shadow-lg">
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Total Transactions</p>
-                  <p className="text-lg font-bold text-white drop-shadow-sm">{paymentData.totalTransactions}</p>
+                  <p className="text-lg font-bold text-white">{paymentData.totalTransactions}</p>
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-fuchsia-900/30 to-gray-800/50 rounded-lg p-3 border border-fuchsia-700/30 shadow-lg">
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Avg Transaction</p>
-                  <p className="text-lg font-bold text-white drop-shadow-sm">
+                  <p className="text-lg font-bold text-white">
                     <CurrencyDisplay amount={paymentData.averageTransactionValue} />
                   </p>
                 </div>
@@ -274,31 +266,31 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gradient-to-br from-fuchsia-900/30 to-gray-800/50 rounded-lg p-3 border border-fuchsia-700/30 shadow-lg">
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Cash Preference</p>
-                  <p className="text-lg font-bold text-green-400 drop-shadow-sm">{paymentData.cashPreference.toFixed(1)}%</p>
+                  <p className="text-lg font-bold text-green-400">{paymentData.cashPreference.toFixed(1)}%</p>
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-fuchsia-900/30 to-gray-800/50 rounded-lg p-3 border border-fuchsia-700/30 shadow-lg">
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">UPI Preference</p>
-                  <p className="text-lg font-bold text-purple-400 drop-shadow-sm">{paymentData.upiPreference.toFixed(1)}%</p>
+                  <p className="text-lg font-bold text-purple-400">{paymentData.upiPreference.toFixed(1)}%</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Average Transaction Values */}
-          <div className="pt-2 border-t border-fuchsia-700/20 space-y-2">
+          <div className="pt-2 border-t border-gray-700/30 space-y-2">
             <h4 className="text-sm font-medium text-gray-200 mb-2">Avg by Payment Method</h4>
             
             {paymentData.paymentMethodCounts.cashOnly > 0 && (
-              <div className="bg-gradient-to-r from-fuchsia-900/20 to-gray-800/40 rounded-lg p-2 border border-fuchsia-700/30 shadow-lg">
+              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg Cash Only:</span>
-                  <span className="font-medium text-white drop-shadow-sm">
+                  <span className="font-medium text-white">
                     <CurrencyDisplay amount={paymentData.avgCashTransaction} />
                   </span>
                 </div>
@@ -306,10 +298,10 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             )}
             
             {paymentData.paymentMethodCounts.upiOnly > 0 && (
-              <div className="bg-gradient-to-r from-fuchsia-900/20 to-gray-800/40 rounded-lg p-2 border border-fuchsia-700/30 shadow-lg">
+              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg UPI Only:</span>
-                  <span className="font-medium text-white drop-shadow-sm">
+                  <span className="font-medium text-white">
                     <CurrencyDisplay amount={paymentData.avgUpiTransaction} />
                   </span>
                 </div>
@@ -317,10 +309,10 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             )}
             
             {paymentData.paymentMethodCounts.split > 0 && (
-              <div className="bg-gradient-to-r from-fuchsia-900/20 to-gray-800/40 rounded-lg p-2 border border-fuchsia-700/30 shadow-lg">
+              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg Split Payment:</span>
-                  <span className="font-medium text-white drop-shadow-sm">
+                  <span className="font-medium text-white">
                     <CurrencyDisplay amount={paymentData.avgSplitTransaction} />
                   </span>
                 </div>
@@ -329,31 +321,31 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
           </div>
 
           {paymentData.splitBreakdown.count > 0 && (
-            <div className="pt-2 border-t border-fuchsia-700/20">
+            <div className="pt-2 border-t border-gray-700/30">
               <h4 className="text-sm font-medium text-gray-200 mb-2">Split Payment Details</h4>
               <div className="space-y-2">
-                <div className="bg-gradient-to-r from-fuchsia-900/20 to-gray-800/40 rounded-lg p-2 border border-fuchsia-700/30 shadow-lg">
+                <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400">Split transactions:</span>
                     <span className="text-white">{paymentData.splitBreakdown.count}</span>
                   </div>
                 </div>
-                <div className="bg-gradient-to-r from-fuchsia-900/20 to-gray-800/40 rounded-lg p-2 border border-fuchsia-700/30 shadow-lg">
+                <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400">Cash portion:</span>
-                    <span className="text-white drop-shadow-sm"><CurrencyDisplay amount={paymentData.splitBreakdown.cash} /></span>
+                    <span className="text-white"><CurrencyDisplay amount={paymentData.splitBreakdown.cash} /></span>
                   </div>
                 </div>
-                <div className="bg-gradient-to-r from-fuchsia-900/20 to-gray-800/40 rounded-lg p-2 border border-fuchsia-700/30 shadow-lg">
+                <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400">UPI portion:</span>
-                    <span className="text-white drop-shadow-sm"><CurrencyDisplay amount={paymentData.splitBreakdown.upi} /></span>
+                    <span className="text-white"><CurrencyDisplay amount={paymentData.splitBreakdown.upi} /></span>
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-fuchsia-900/30 to-gray-800/50 rounded-lg p-2 border border-fuchsia-700/30 shadow-lg">
+                <div className="bg-gray-800/30 rounded-lg p-2 border border-gray-700/30">
                   <div className="flex justify-between text-xs font-medium">
                     <span className="text-gray-300">Split total:</span>
-                    <span className="text-fuchsia-300 drop-shadow-sm"><CurrencyDisplay amount={paymentData.splitBreakdown.total} /></span>
+                    <span className="text-green-400"><CurrencyDisplay amount={paymentData.splitBreakdown.total} /></span>
                   </div>
                 </div>
               </div>
