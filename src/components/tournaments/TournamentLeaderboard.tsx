@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Medal, Award, Users, Loader2 } from 'lucide-react';
-import { fetchTournamentLeaderboard } from '@/services/tournamentHistoryService';
+import { Trophy, Medal, Award, Users, Loader2, RefreshCw } from 'lucide-react';
+import { fetchTournamentLeaderboard, saveAllCompletedTournaments } from '@/services/tournamentHistoryService';
 
 interface LeaderboardEntry {
   player: string;
@@ -14,6 +14,7 @@ interface LeaderboardEntry {
 const TournamentLeaderboard: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     loadLeaderboard();
@@ -22,12 +23,28 @@ const TournamentLeaderboard: React.FC = () => {
   const loadLeaderboard = async () => {
     setLoading(true);
     try {
+      console.log('Loading tournament leaderboard...');
       const data = await fetchTournamentLeaderboard();
+      console.log('Leaderboard data loaded:', data);
       setLeaderboard(data);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncData = async () => {
+    setSyncing(true);
+    try {
+      console.log('Manually syncing tournament data...');
+      await saveAllCompletedTournaments();
+      await loadLeaderboard();
+      console.log('Tournament data sync completed');
+    } catch (error) {
+      console.error('Error syncing tournament data:', error);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -73,16 +90,34 @@ const TournamentLeaderboard: React.FC = () => {
   return (
     <Card className="bg-gray-950/50 border-gray-800">
       <CardHeader>
-        <CardTitle className="text-gray-100 flex items-center gap-2">
-          <Trophy className="h-5 w-5 text-yellow-500" />
-          Tournament Leaderboard
+        <CardTitle className="text-gray-100 flex items-center gap-2 justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            Tournament Leaderboard
+          </div>
+          <button
+            onClick={handleSyncData}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-md transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
         {leaderboard.length === 0 ? (
           <div className="text-center py-8">
             <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-400">No tournament winners recorded yet.</p>
+            <p className="text-gray-400 mb-4">No tournament winners recorded yet.</p>
+            <button
+              onClick={handleSyncData}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync Tournament Data'}
+            </button>
           </div>
         ) : (
           <div className="space-y-3">

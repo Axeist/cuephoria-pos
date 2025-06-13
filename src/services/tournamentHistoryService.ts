@@ -5,10 +5,13 @@ import { TournamentHistoryMatch, TournamentWinner, Tournament, Player, Match, Ma
 // Save tournament history when a tournament is completed
 export const saveTournamentHistory = async (tournament: Tournament): Promise<void> => {
   if (tournament.status !== 'completed' || !tournament.winner) {
+    console.log('Tournament not completed or no winner found:', tournament.status, tournament.winner);
     return;
   }
 
   try {
+    console.log('Attempting to save tournament history for:', tournament.name, 'Winner:', tournament.winner.name);
+
     // Check if history already exists for this tournament
     const { data: existingHistory } = await supabase
       .from('tournament_history')
@@ -53,6 +56,7 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
 
     // Insert match history with better error handling
     if (historyRecords.length > 0) {
+      console.log('Saving match history records:', historyRecords.length);
       const { error: historyError } = await supabase
         .from('tournament_history')
         .insert(historyRecords);
@@ -63,6 +67,18 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
       } else {
         console.log('Tournament history saved successfully');
       }
+    }
+
+    // Check if winner already exists
+    const { data: existingWinner } = await supabase
+      .from('tournament_winners')
+      .select('id')
+      .eq('tournament_id', tournament.id)
+      .limit(1);
+
+    if (existingWinner && existingWinner.length > 0) {
+      console.log('Tournament winner already exists for tournament:', tournament.id);
+      return;
     }
 
     // Save tournament winner record
@@ -76,6 +92,7 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
       game_variant: tournament.gameVariant
     };
 
+    console.log('Saving tournament winner record:', winnerRecord);
     const { error: winnerError } = await supabase
       .from('tournament_winners')
       .insert([winnerRecord]);
@@ -106,6 +123,67 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
     }
   } catch (error) {
     console.error('Unexpected error saving tournament history:', error);
+  }
+};
+
+// NEW: Function to retroactively save all completed tournaments
+export const saveAllCompletedTournaments = async (): Promise<void> => {
+  try {
+    console.log('Fetching all completed tournaments to save history...');
+    
+    const { data: tournaments, error } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('status', 'completed');
+
+    if (error) {
+      console.error('Error fetching completed tournaments:', error);
+      return;
+    }
+
+    console.log('Found completed tournaments:', tournaments?.length || 0);
+
+    if (!tournaments || tournaments.length === 0) {
+      console.log('No completed tournaments found');
+      return;
+    }
+
+    // Process each tournament
+    for (const tournamentData of tournaments) {
+      try {
+        // Convert tournament data to proper format
+        const tournament: Tournament = {
+          id: tournamentData.id,
+          name: tournamentData.name,
+          gameType: tournamentData.game_type as any,
+          gameVariant: tournamentData.game_variant as any,
+          gameTitle: tournamentData.game_title,
+          date: tournamentData.date,
+          players: Array.isArray(tournamentData.players) ? (tournamentData.players as unknown as Player[]) : [],
+          matches: Array.isArray(tournamentData.matches) ? (tournamentData.matches as unknown as Match[]) : [],
+          winner: tournamentData.winner ? (tournamentData.winner as unknown as Player) : undefined,
+          runnerUp: tournamentData.runner_up ? (tournamentData.runner_up as unknown as Player) : undefined,
+          status: 'completed',
+          budget: tournamentData.budget,
+          winnerPrize: tournamentData.winner_prize,
+          runnerUpPrize: tournamentData.runner_up_prize,
+          maxPlayers: tournamentData.max_players
+        };
+
+        if (tournament.winner) {
+          console.log('Processing tournament:', tournament.name, 'Winner:', tournament.winner.name);
+          await saveTournamentHistory(tournament);
+        } else {
+          console.log('Skipping tournament without winner:', tournament.name);
+        }
+      } catch (error) {
+        console.error('Error processing tournament:', tournamentData.name, error);
+      }
+    }
+
+    console.log('Completed processing all tournaments');
+  } catch (error) {
+    console.error('Error in saveAllCompletedTournaments:', error);
   }
 };
 
@@ -224,6 +302,9 @@ export const fetchTournamentLeaderboard = async (): Promise<{
   tournaments: string[];
 }[]> => {
   try {
+    // First, try to ensure all completed tournaments are saved
+    await saveAllCompletedTournaments();
+
     const { data, error } = await supabase
       .from('tournament_winners')
       .select('winner_name, tournament_name')
@@ -233,6 +314,8 @@ export const fetchTournamentLeaderboard = async (): Promise<{
       console.error('Error fetching leaderboard:', error);
       return [];
     }
+
+    console.log('Fetched tournament winners data:', data);
 
     // Group by winner and count wins
     const leaderboard = (data || []).reduce((acc, record) => {
@@ -249,6 +332,8 @@ export const fetchTournamentLeaderboard = async (): Promise<{
       }
       return acc;
     }, [] as { player: string; wins: number; tournaments: string[]; }[]);
+
+    console.log('Generated leaderboard:', leaderboard);
 
     // Sort by wins (descending)
     return leaderboard.sort((a, b) => b.wins - a.wins);

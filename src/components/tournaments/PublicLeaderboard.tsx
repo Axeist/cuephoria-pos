@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Crown, Trophy, Medal, Star, TrendingUp } from 'lucide-react';
-import { fetchTournamentLeaderboard } from '@/services/tournamentHistoryService';
+import { Crown, Trophy, Medal, Star, TrendingUp, RefreshCw } from 'lucide-react';
+import { fetchTournamentLeaderboard, saveAllCompletedTournaments } from '@/services/tournamentHistoryService';
 
 interface LeaderboardEntry {
   player: string;
@@ -14,21 +14,38 @@ interface LeaderboardEntry {
 const PublicLeaderboard: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    const loadLeaderboard = async () => {
-      try {
-        const data = await fetchTournamentLeaderboard();
-        setLeaderboard(data);
-      } catch (error) {
-        console.error('Error loading leaderboard:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadLeaderboard();
   }, []);
+
+  const loadLeaderboard = async () => {
+    try {
+      console.log('Loading tournament leaderboard...');
+      const data = await fetchTournamentLeaderboard();
+      console.log('Leaderboard data loaded:', data);
+      setLeaderboard(data);
+    } catch (error) {
+      console.error('Error loading leaderboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyncData = async () => {
+    setSyncing(true);
+    try {
+      console.log('Manually syncing tournament data...');
+      await saveAllCompletedTournaments();
+      await loadLeaderboard();
+      console.log('Tournament data sync completed');
+    } catch (error) {
+      console.error('Error syncing tournament data:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const getRankIcon = (position: number) => {
     switch (position) {
@@ -81,7 +98,15 @@ const PublicLeaderboard: React.FC = () => {
           <div className="text-center py-8 text-cuephoria-grey">
             <Crown className="h-16 w-16 mx-auto mb-4 opacity-50" />
             <p className="text-lg font-medium mb-2">No Champions Yet</p>
-            <p>Tournament winners will appear here once tournaments are completed.</p>
+            <p className="mb-4">Tournament winners will appear here once tournaments are completed.</p>
+            <button
+              onClick={handleSyncData}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-cuephoria-lightpurple hover:bg-cuephoria-lightpurple/80 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync Tournament Data'}
+            </button>
           </div>
         </CardContent>
       </Card>
@@ -91,9 +116,19 @@ const PublicLeaderboard: React.FC = () => {
   return (
     <Card className="bg-cuephoria-dark/80 border-cuephoria-lightpurple/30">
       <CardHeader>
-        <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          Champions Leaderboard
+        <CardTitle className="text-cuephoria-lightpurple flex items-center gap-2 justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Champions Leaderboard
+          </div>
+          <button
+            onClick={handleSyncData}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 px-3 py-1 text-xs bg-cuephoria-lightpurple/20 hover:bg-cuephoria-lightpurple/30 text-cuephoria-lightpurple rounded-md transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
         </CardTitle>
         <p className="text-cuephoria-grey text-sm">Top tournament winners of all time</p>
       </CardHeader>
