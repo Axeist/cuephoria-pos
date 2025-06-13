@@ -991,7 +991,7 @@ const PublicTournaments = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <Button
               onClick={() => window.open('https://cuephoria.in/book', '_blank')}
-              className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-green-500/30 group"
+              className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 group"
             >
               <CalendarDays className="mr-3 h-5 w-5 group-hover:animate-bounce" />
               <div className="text-left">
@@ -1003,7 +1003,7 @@ const PublicTournaments = () => {
 
             <Button
               onClick={() => window.open('https://cuephoria.in', '_blank')}
-              className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 group"
+              className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-darkpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-darkpurple/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-purple/30 group"
             >
               <Globe className="mr-3 h-5 w-5 group-hover:animate-spin" />
               <div className="text-left">
@@ -1015,7 +1015,7 @@ const PublicTournaments = () => {
 
             <Button
               onClick={() => window.open('https://admin.cuephoria.in/public/stations', '_blank')}
-              className="bg-gradient-to-r from-orange-600 to-red-500 hover:from-orange-700 hover:to-red-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-orange-500/30 group"
+              className="bg-gradient-to-r from-cuephoria-blue to-cuephoria-lightpurple hover:from-cuephoria-blue/90 hover:to-cuephoria-lightpurple/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-cuephoria-blue/30 group"
             >
               <Activity className="mr-3 h-5 w-5 group-hover:animate-pulse" />
               <div className="text-left">
