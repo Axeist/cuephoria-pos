@@ -390,7 +390,7 @@ const Dashboard = () => {
   return (
     <div className="flex-1 space-y-6 p-6 bg-[#1A1F2C] text-white">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight font-heading">Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
       </div>
       
       <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">

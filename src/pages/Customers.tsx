@@ -259,7 +259,7 @@ const Customers = () => {
   if (error) {
     return <div className="flex-1 space-y-4 p-8 pt-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
+          <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
         </div>
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
           <strong className="font-bold">Error: </strong>
@@ -271,7 +271,7 @@ const Customers = () => {
 
   return <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
+        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={exportCustomers}>
             <Download className="h-4 w-4 mr-2" /> Export

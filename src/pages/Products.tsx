@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
@@ -204,7 +205,7 @@ const ProductsPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-        <h2 className="text-3xl font-bold tracking-tight">Products</h2>
+        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Products</h2>
         <div className="flex flex-wrap gap-2">
           <ProductSalesExport />
           <StockExport />
