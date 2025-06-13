@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -250,8 +249,8 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
               expenses: {
                 label: "Expenses",
                 theme: {
-                  light: "#ef4444",
-                  dark: "#ef4444",
+                  light: "#06b6d4",
+                  dark: "#06b6d4",
                 },
               },
             }}
@@ -268,8 +267,8 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                     <stop offset="95%" stopColor="#9b87f5" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
@@ -312,7 +311,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
-                                  <div className="w-2 h-2 rounded-full bg-[#ef4444]"></div>
+                                  <div className="w-2 h-2 rounded-full bg-[#06b6d4]"></div>
                                   Expenses
                                 </span>
                                 <span className="font-bold">
@@ -337,7 +336,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                         <span className="text-sm text-gray-300">Sales</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+                        <div className="w-3 h-3 rounded-full bg-[#06b6d4]"></div>
                         <span className="text-sm text-gray-300">Expenses</span>
                       </div>
                     </div>
@@ -367,13 +366,12 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                   type="monotone"
                   dataKey="expenses"
                   name="Expenses"
-                  stroke="#ef4444"
+                  stroke="#06b6d4"
                   strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ r: 4, fill: "#ef4444", strokeWidth: 0 }}
+                  dot={{ r: 4, fill: "#06b6d4", strokeWidth: 0 }}
                   activeDot={{ 
                     r: 6, 
-                    fill: "#ef4444", 
+                    fill: "#06b6d4", 
                     stroke: "#1A1F2C", 
                     strokeWidth: 2,
                     className: "transition-all duration-200 hover:r-8"
