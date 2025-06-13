@@ -133,7 +133,7 @@ const PublicTournaments = () => {
     };
   }, [fetchTournaments]);
 
-  // Check for existing customer by phone number
+  // Check for existing customer by phone number and prevent duplicates
   const checkExistingCustomer = useCallback(async (phone: string) => {
     if (!phone.trim() || phone.length < 10) {
       setExistingCustomer(null);
@@ -142,27 +142,89 @@ const PublicTournaments = () => {
 
     setIsCheckingCustomer(true);
     try {
-      const { data, error } = await supabase
+      // Check for existing customer
+      const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .select('id, name, phone, email')
         .eq('phone', phone.trim())
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error checking customer:', error);
+      if (customerError && customerError.code !== 'PGRST116') {
+        console.error('Error checking customer:', customerError);
         return;
       }
 
-      if (data) {
-        setExistingCustomer(data);
+      if (customerData) {
+        // Check if this customer is already registered for the selected tournament
+        if (selectedTournament) {
+          const { data: existingRegistration, error: registrationError } = await supabase
+            .from('tournament_public_registrations')
+            .select('id')
+            .eq('tournament_id', selectedTournament.id)
+            .eq('customer_phone', phone.trim())
+            .single();
+
+          if (registrationError && registrationError.code !== 'PGRST116') {
+            console.error('Error checking registration:', registrationError);
+          }
+
+          if (existingRegistration) {
+            toast({
+              title: "Already Registered",
+              description: "This phone number is already registered for this tournament.",
+              variant: "destructive"
+            });
+            setExistingCustomer(null);
+            setRegistrationForm(prev => ({
+              ...prev,
+              customer_name: '',
+              customer_email: '',
+              customer_id: undefined,
+              is_existing_customer: false
+            }));
+            return;
+          }
+        }
+
+        setExistingCustomer(customerData);
         setRegistrationForm(prev => ({
           ...prev,
-          customer_name: data.name,
-          customer_email: data.email || '',
-          customer_id: data.id,
+          customer_name: customerData.name,
+          customer_email: customerData.email || '',
+          customer_id: customerData.id,
           is_existing_customer: true
         }));
       } else {
+        // Check if phone number is already registered as guest for this tournament
+        if (selectedTournament) {
+          const { data: guestRegistration, error: guestError } = await supabase
+            .from('tournament_public_registrations')
+            .select('id')
+            .eq('tournament_id', selectedTournament.id)
+            .eq('customer_phone', phone.trim())
+            .single();
+
+          if (guestError && guestError.code !== 'PGRST116') {
+            console.error('Error checking guest registration:', guestError);
+          }
+
+          if (guestRegistration) {
+            toast({
+              title: "Already Registered",
+              description: "This phone number is already registered for this tournament.",
+              variant: "destructive"
+            });
+            setRegistrationForm(prev => ({
+              ...prev,
+              customer_name: '',
+              customer_email: '',
+              customer_id: undefined,
+              is_existing_customer: false
+            }));
+            return;
+          }
+        }
+
         setExistingCustomer(null);
         setRegistrationForm(prev => ({
           ...prev,
@@ -177,7 +239,7 @@ const PublicTournaments = () => {
     } finally {
       setIsCheckingCustomer(false);
     }
-  }, []);
+  }, [selectedTournament, toast]);
 
   // Memoized form input handlers to prevent re-renders
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,6 +292,33 @@ const PublicTournaments = () => {
       return;
     }
 
+    // Double-check for duplicate registration before proceeding
+    const { data: duplicateCheck, error: duplicateError } = await supabase
+      .from('tournament_public_registrations')
+      .select('id')
+      .eq('tournament_id', selectedTournament.id)
+      .eq('customer_phone', registrationForm.customer_phone.trim())
+      .single();
+
+    if (duplicateError && duplicateError.code !== 'PGRST116') {
+      console.error('Error checking for duplicates:', duplicateError);
+      toast({
+        title: "Error",
+        description: "Failed to verify registration status. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (duplicateCheck) {
+      toast({
+        title: "Already Registered",
+        description: "This phone number is already registered for this tournament.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsRegistering(true);
 
     try {
@@ -246,7 +335,8 @@ const PublicTournaments = () => {
             is_member: false,
             loyalty_points: 0,
             total_spent: 0,
-            total_play_time: 0
+            total_play_time: 0,
+            created_via_tournament: true
           })
           .select()
           .single();
@@ -286,7 +376,7 @@ const PublicTournaments = () => {
         return;
       }
 
-      // Add player to tournament players array
+      // Add player to tournament players array with proper customer identification
       const updatedPlayers = [
         ...selectedTournament.players,
         {
@@ -294,7 +384,9 @@ const PublicTournaments = () => {
           name: registrationForm.customer_name.trim(),
           phone: registrationForm.customer_phone.trim(),
           email: registrationForm.customer_email.trim() || null,
-          registration_date: new Date().toISOString()
+          registration_date: new Date().toISOString(),
+          is_existing_customer: registrationForm.is_existing_customer,
+          customer_id: customerId
         }
       ];
 
@@ -879,7 +971,7 @@ const PublicTournaments = () => {
                   <span className="text-sm font-medium">Existing Customer Found!</span>
                 </div>
                 <p className="text-xs text-green-300">
-                  Welcome back, {existingCustomer.name}! Your details have been auto-filled.
+                  Welcome back, {existingCustomer.name}! Your details have been auto-filled. You will be registered as an existing customer.
                 </p>
               </div>
             )}
