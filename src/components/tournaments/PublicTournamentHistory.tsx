@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Crown, Medal, Calendar, Users, Sword } from 'lucide-react';
-import { fetchTournamentHistory } from '@/services/tournamentHistoryService';
+import { fetchTournamentHistoryFromData } from '@/services/tournamentHistoryService';
 import { TournamentHistoryMatch, MatchStage } from '@/types/tournament.types';
 
 interface PublicTournamentHistoryProps {
@@ -21,8 +20,10 @@ const PublicTournamentHistory: React.FC<PublicTournamentHistoryProps> = ({
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const historyData = await fetchTournamentHistory(tournamentId);
+        // Use the improved function that can fetch from both history table and tournament data
+        const historyData = await fetchTournamentHistoryFromData(tournamentId);
         setMatches(historyData);
+        console.log('Loaded tournament history:', historyData);
       } catch (error) {
         console.error('Error loading tournament history:', error);
       } finally {
