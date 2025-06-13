@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
@@ -14,7 +15,6 @@ import { useTournamentOperations } from '@/services/tournamentService';
 import { useToast } from '@/components/ui/use-toast';
 import TournamentList from '@/components/tournaments/TournamentList';
 import { Button } from '@/components/ui/button';
-import TournamentDialog from '@/components/tournaments/TournamentDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -255,7 +255,7 @@ const Settings = () => {
             onViewHistory={handleViewHistory}
           />
           
-          <TournamentDialog 
+          <TournamentManagement 
             open={dialogOpen}
             onOpenChange={setDialogOpen}
             onSave={handleSaveTournament}
