@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,34 +49,7 @@ const PublicTournaments = () => {
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchTournaments();
-    
-    // Set up real-time subscription only
-    const channel = supabase
-      .channel('tournament-updates')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'tournaments'
-      }, () => {
-        fetchTournaments();
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'tournament_public_registrations'
-      }, () => {
-        fetchTournaments();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const fetchTournaments = async () => {
+  const fetchTournaments = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('tournament_public_view')
@@ -119,9 +91,57 @@ const PublicTournaments = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const handleRegistration = async () => {
+  useEffect(() => {
+    fetchTournaments();
+    
+    // Set up real-time subscription only
+    const channel = supabase
+      .channel('tournament-updates')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'tournaments'
+      }, () => {
+        fetchTournaments();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'tournament_public_registrations'
+      }, () => {
+        fetchTournaments();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchTournaments]);
+
+  // Memoized form input handlers to prevent re-renders
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    setRegistrationForm(prev => ({ ...prev, customer_name: e.target.value }));
+  }, []);
+
+  const handlePhoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    setRegistrationForm(prev => ({ ...prev, customer_phone: e.target.value }));
+  }, []);
+
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    setRegistrationForm(prev => ({ ...prev, customer_email: e.target.value }));
+  }, []);
+
+  const handleRegistration = useCallback(async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!selectedTournament) return;
 
     // Validate form
@@ -184,7 +204,28 @@ const PublicTournaments = () => {
     } finally {
       setIsRegistering(false);
     }
-  };
+  }, [selectedTournament, registrationForm, toast, fetchTournaments]);
+
+  const resetForm = useCallback(() => {
+    setRegistrationForm({
+      customer_name: '',
+      customer_phone: '',
+      customer_email: ''
+    });
+  }, []);
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setSelectedTournament(null);
+      resetForm();
+    }
+  }, [resetForm]);
+
+  const handleTournamentSelect = useCallback((tournament: Tournament) => {
+    setSelectedTournament(tournament);
+    setIsDialogOpen(true);
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -225,7 +266,7 @@ const PublicTournaments = () => {
     return tournaments.filter(t => t.status === status);
   };
 
-  const TournamentCard = ({ tournament }: { tournament: Tournament }) => (
+  const TournamentCard = React.memo(({ tournament }: { tournament: Tournament }) => (
     <Card className="w-full bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-darkpurple/20 border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/60 transition-all duration-500 hover:shadow-2xl hover:shadow-cuephoria-lightpurple/20 hover:-translate-y-2 hover:scale-[1.02] group overflow-hidden relative">
       {/* Animated glow effect */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cuephoria-lightpurple/10 to-transparent animate-shimmer opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -340,88 +381,13 @@ const PublicTournaments = () => {
 
         {/* Registration Button */}
         {canRegister(tournament) && (
-          <Dialog 
-            open={isDialogOpen && selectedTournament?.id === tournament.id} 
-            onOpenChange={(open) => {
-              setIsDialogOpen(open);
-              if (!open) {
-                setSelectedTournament(null);
-                setRegistrationForm({
-                  customer_name: '',
-                  customer_phone: '',
-                  customer_email: ''
-                });
-              }
-            }}
+          <Button 
+            className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-3 transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 hover:scale-[1.02] group"
+            onClick={() => handleTournamentSelect(tournament)}
           >
-            <DialogTrigger asChild>
-              <Button 
-                className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold py-3 transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 hover:scale-[1.02] group"
-                onClick={() => setSelectedTournament(tournament)}
-              >
-                <Trophy className="mr-2 h-4 w-4 group-hover:animate-bounce" />
-                Register Now
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2">
-                  <Trophy className="h-5 w-5" />
-                  Register for {tournament.name}
-                </DialogTitle>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-cuephoria-grey">Name *</Label>
-                  <Input
-                    id="name"
-                    value={registrationForm.customer_name}
-                    onChange={(e) => setRegistrationForm(prev => ({ ...prev, customer_name: e.target.value }))}
-                    className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
-                    placeholder="Enter your full name"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-cuephoria-grey">Phone Number *</Label>
-                  <Input
-                    id="phone"
-                    value={registrationForm.customer_phone}
-                    onChange={(e) => setRegistrationForm(prev => ({ ...prev, customer_phone: e.target.value }))}
-                    className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
-                    placeholder="Enter your phone number"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-cuephoria-grey">Email (Optional)</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={registrationForm.customer_email}
-                    onChange={(e) => setRegistrationForm(prev => ({ ...prev, customer_email: e.target.value }))}
-                    className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
-                    placeholder="Enter your email address"
-                  />
-                </div>
-
-                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                  <p className="text-sm text-blue-300">
-                    Entry Fee: ₹250 (to be paid at the venue)
-                  </p>
-                </div>
-                
-                <Button 
-                  onClick={handleRegistration}
-                  disabled={isRegistering}
-                  className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
-                >
-                  {isRegistering ? 'Registering...' : 'Confirm Registration'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+            <Trophy className="mr-2 h-4 w-4 group-hover:animate-bounce" />
+            Register Now
+          </Button>
         )}
 
         {tournament.status === 'upcoming' && tournament.total_registrations >= tournament.max_players && (
@@ -431,7 +397,7 @@ const PublicTournaments = () => {
         )}
       </CardContent>
     </Card>
-  );
+  ));
 
   if (loading) {
     return (
@@ -740,6 +706,73 @@ const PublicTournaments = () => {
           </div>
         </div>
       </footer>
+
+      {/* Registration Dialog - Fixed to prevent page refresh */}
+      <Dialog open={isDialogOpen && selectedTournament !== null} onOpenChange={handleDialogOpenChange}>
+        <DialogContent className="bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              Register for {selectedTournament?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleRegistration} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-cuephoria-grey">Name *</Label>
+              <Input
+                id="name"
+                type="text"
+                value={registrationForm.customer_name}
+                onChange={handleNameChange}
+                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
+                placeholder="Enter your full name"
+                autoComplete="name"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="text-cuephoria-grey">Phone Number *</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={registrationForm.customer_phone}
+                onChange={handlePhoneChange}
+                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
+                placeholder="Enter your phone number"
+                autoComplete="tel"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-cuephoria-grey">Email (Optional)</Label>
+              <Input
+                id="email"
+                type="email"
+                value={registrationForm.customer_email}
+                onChange={handleEmailChange}
+                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
+                placeholder="Enter your email address"
+                autoComplete="email"
+              />
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+              <p className="text-sm text-blue-300">
+                Entry Fee: ₹250 (to be paid at the venue)
+              </p>
+            </div>
+            
+            <Button 
+              type="submit"
+              disabled={isRegistering}
+              className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
+            >
+              {isRegistering ? 'Registering...' : 'Confirm Registration'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Terms & Conditions Dialog */}
       <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
