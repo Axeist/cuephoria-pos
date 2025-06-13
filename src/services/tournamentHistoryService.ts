@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { TournamentHistoryMatch, TournamentWinner, Tournament, Player, Match, MatchStage } from "@/types/tournament.types";
 
@@ -9,6 +8,19 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
   }
 
   try {
+    // Check if history already exists for this tournament
+    const { data: existingHistory } = await supabase
+      .from('tournament_history')
+      .select('id')
+      .eq('tournament_id', tournament.id)
+      .limit(1);
+
+    // If history already exists, don't save again
+    if (existingHistory && existingHistory.length > 0) {
+      console.log('Tournament history already exists for tournament:', tournament.id);
+      return;
+    }
+
     // Determine runner-up if not already set
     let runnerUp = tournament.runnerUp;
     if (!runnerUp) {
@@ -111,6 +123,86 @@ export const fetchTournamentHistory = async (tournamentId: string): Promise<Tour
     }));
   } catch (error) {
     console.error('Unexpected error fetching tournament history:', error);
+    return [];
+  }
+};
+
+// NEW: Fetch tournament history from tournament data directly if not available in history table
+export const fetchTournamentHistoryFromData = async (tournamentId: string): Promise<TournamentHistoryMatch[]> => {
+  try {
+    // First try to get from tournament_history table
+    const historyFromTable = await fetchTournamentHistory(tournamentId);
+    if (historyFromTable.length > 0) {
+      return historyFromTable;
+    }
+
+    // If no history in table, get from tournament data
+    const { data: tournament, error } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('id', tournamentId)
+      .single();
+
+    if (error || !tournament) {
+      console.error('Error fetching tournament data:', error);
+      return [];
+    }
+
+    // Convert tournament matches to history format
+    const historyRecords: TournamentHistoryMatch[] = [];
+    const matches = tournament.matches || [];
+    const players = tournament.players || [];
+
+    matches.forEach((match: any) => {
+      if (match.completed && match.winnerId) {
+        const player1 = players.find((p: any) => p.id === match.player1Id);
+        const player2 = players.find((p: any) => p.id === match.player2Id);
+        const winner = players.find((p: any) => p.id === match.winnerId);
+        
+        if (player1 && player2 && winner) {
+          historyRecords.push({
+            id: `temp-${match.id}`, // Temporary ID for display
+            tournament_id: tournamentId,
+            match_id: match.id,
+            player1_name: player1.name,
+            player2_name: player2.name,
+            winner_name: winner.name,
+            match_date: tournament.date,
+            match_stage: match.stage as MatchStage,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+    });
+
+    // If we have matches and it's a completed tournament, save to history table for future use
+    if (historyRecords.length > 0 && tournament.status === 'completed') {
+      console.log('Saving tournament history retroactively for tournament:', tournamentId);
+      // Convert tournament data to proper format and save
+      const tournamentConverted = {
+        id: tournament.id,
+        name: tournament.name,
+        gameType: tournament.game_type,
+        gameVariant: tournament.game_variant,
+        gameTitle: tournament.game_title,
+        date: tournament.date,
+        players: tournament.players,
+        matches: tournament.matches,
+        winner: tournament.winner,
+        runnerUp: tournament.runner_up,
+        status: tournament.status,
+        budget: tournament.budget,
+        winnerPrize: tournament.winner_prize,
+        runnerUpPrize: tournament.runner_up_prize,
+        maxPlayers: tournament.max_players
+      } as Tournament;
+      
+      await saveTournamentHistory(tournamentConverted);
+    }
+
+    return historyRecords;
+  } catch (error) {
+    console.error('Unexpected error fetching tournament history from data:', error);
     return [];
   }
 };

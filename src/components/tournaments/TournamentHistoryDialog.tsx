@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -9,7 +8,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { TournamentHistoryMatch, MatchStage } from '@/types/tournament.types';
-import { fetchTournamentHistory } from '@/services/tournamentHistoryService';
+import { fetchTournamentHistoryFromData } from '@/services/tournamentHistoryService';
 import { Trophy, Medal, Flag, Users, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -38,8 +37,10 @@ const TournamentHistoryDialog: React.FC<TournamentHistoryDialogProps> = ({
   const loadTournamentHistory = async () => {
     setLoading(true);
     try {
-      const history = await fetchTournamentHistory(tournamentId);
+      // Use the new function that can fetch from tournament data if history table is empty
+      const history = await fetchTournamentHistoryFromData(tournamentId);
       setHistoryMatches(history);
+      console.log('Loaded tournament history:', history);
     } catch (error) {
       console.error('Error loading tournament history:', error);
     } finally {
