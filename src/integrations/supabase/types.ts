@@ -1301,6 +1301,7 @@ export type Database = {
           created_at: string
           default_timeout: number
           email_notifications: boolean
+          how_to_use_dismissed: boolean
           id: string
           notifications_enabled: boolean
           receipt_template: string
@@ -1312,6 +1313,7 @@ export type Database = {
           created_at?: string
           default_timeout?: number
           email_notifications?: boolean
+          how_to_use_dismissed?: boolean
           id?: string
           notifications_enabled?: boolean
           receipt_template?: string
@@ -1323,6 +1325,7 @@ export type Database = {
           created_at?: string
           default_timeout?: number
           email_notifications?: boolean
+          how_to_use_dismissed?: boolean
           id?: string
           notifications_enabled?: boolean
           receipt_template?: string
