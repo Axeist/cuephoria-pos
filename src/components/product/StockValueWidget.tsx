@@ -8,63 +8,90 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 const StockValueWidget: React.FC = () => {
   const { products } = usePOS();
 
-  // Log all products first for debugging
-  console.log("[StockValueWidget] All products:", products);
+  // Helper: case-insensitive category check
+  const isFoodOrDrinks = (cat: string) =>
+    cat && (cat.toLowerCase() === 'food' || cat.toLowerCase() === 'drinks');
 
-  // Debug: Build list of included items
-  let debugIncluded: {name: string, buyingPrice: number, stock: number, category: string, increment: number}[] = [];
+  // Deep debug - collect all increments and log them
+  let debugIncluded: {
+    name: string;
+    buyingPrice: number;
+    stock: number;
+    category: string;
+    increment: number;
+  }[] = [];
 
-  // Calculate total stock value based on buying prices for food and drinks only
+  // Calculate total stock value with explicit type casting and case-insensitive category match
   const totalStockValue = products.reduce((total, product) => {
-    const isFoodOrDrinks = product.category === 'food' || product.category === 'drinks';
-    const hasValidBuyingPrice = product.buyingPrice !== undefined && product.buyingPrice !== null && !isNaN(Number(product.buyingPrice));
-    const hasValidStock = typeof product.stock === 'number' && !isNaN(product.stock);
+    const cat = typeof product.category === 'string' ? product.category : '';
+    if (isFoodOrDrinks(cat)) {
+      // Defensive casting for both fields
+      let buyingPrice = typeof product.buyingPrice === 'number'
+        ? product.buyingPrice
+        : Number(product.buyingPrice);
+      let stock = typeof product.stock === 'number'
+        ? product.stock
+        : Number(product.stock);
 
-    if (isFoodOrDrinks && hasValidBuyingPrice && hasValidStock) {
-      const increment = Number(product.buyingPrice) * Number(product.stock);
-      debugIncluded.push({
-        name: product.name,
-        buyingPrice: Number(product.buyingPrice),
-        stock: Number(product.stock),
-        category: product.category,
-        increment
-      });
-      return total + increment;
+      const hasValidBuyingPrice = !isNaN(buyingPrice) && buyingPrice !== null && buyingPrice !== undefined;
+      const hasValidStock = !isNaN(stock) && stock !== null && stock !== undefined;
+
+      if (hasValidBuyingPrice && hasValidStock) {
+        const increment = buyingPrice * stock;
+        debugIncluded.push({
+          name: product.name,
+          buyingPrice,
+          stock,
+          category: cat,
+          increment,
+        });
+        console.log(
+          `[StockValueWidget DEBUG] Name: ${product.name} | Category: ${cat} | Buying: ${buyingPrice} | Stock: ${stock} | Increment: ${increment}`
+        );
+        return total + increment;
+      } else {
+        // Log why it was skipped
+        console.log(
+          `[StockValueWidget DEBUG] SKIPPED ${product.name} | Category: ${cat} | Invalid buying or stock | buyingPrice: ${product.buyingPrice}, stock: ${product.stock}`
+        );
+      }
     }
     return total;
   }, 0);
 
-  // Count food and drinks products with buying price (including 0)
-  const productsWithBuyingPrice = products.filter(
-    product =>
-      (product.category === 'food' || product.category === 'drinks') &&
-      product.buyingPrice !== undefined &&
-      !isNaN(product.buyingPrice)
+  // Count number of food/drinks with buying price
+  const productsWithBuyingPrice = products.filter(product =>
+    isFoodOrDrinks(product.category) &&
+    product.buyingPrice !== undefined &&
+    !isNaN(Number(product.buyingPrice))
   ).length;
 
-  // Log included and excluded products in reducer for debug
   React.useEffect(() => {
-    console.log("[StockValueWidget] Included products in stock value calculation:");
-    debugIncluded.forEach(item => {
+    // Summary console logs for full debug
+    const debugSum = debugIncluded.reduce((sum, i) => sum + i.increment, 0);
+    console.log("[StockValueWidget DEBUG] --- Included in computation:");
+    debugIncluded.forEach(item =>
       console.log(
-        `[StockValueWidget] - Name: ${item.name} | Category: ${item.category} | Buying Price: ${item.buyingPrice} | Stock: ${item.stock} | Increment: ${item.increment}`
-      );
-    });
-    console.log("[StockValueWidget] Stock Value Sum:", debugIncluded.reduce((sum, i) => sum + i.increment, 0));
-    const excluded = products.filter(
-      p =>
-        (p.category === 'food' || p.category === 'drinks') &&
-        (
-          p.buyingPrice === undefined || p.buyingPrice === null
-          || isNaN(Number(p.buyingPrice))
-          || typeof p.stock !== 'number'
-          || isNaN(p.stock)
-        )
+        `[StockValueWidget DEBUG SUM] - Name: ${item.name} | Category: ${item.category} | Buying Price: ${item.buyingPrice} | Stock: ${item.stock} | Increment: ${item.increment}`
+      )
     );
-    if (excluded.length > 0) {
-      console.log("[StockValueWidget] Excluded food/drink products due to invalid buyingPrice/stock:");
-      excluded.forEach(p => {
-        console.log(`[StockValueWidget] (Excluded) Name: ${p.name}, BuyingPrice: ${p.buyingPrice}, Stock: ${p.stock}, Category: ${p.category}`);
+    console.log("[StockValueWidget DEBUG] Raw sum (unrounded):", debugSum);
+    // Log skipped products
+    const skipped = products.filter(p =>
+      isFoodOrDrinks(p.category) &&
+      (
+        p.buyingPrice === undefined ||
+        p.buyingPrice === null ||
+        isNaN(Number(p.buyingPrice)) ||
+        p.stock === undefined ||
+        p.stock === null ||
+        isNaN(Number(p.stock))
+      )
+    );
+    if (skipped.length > 0) {
+      console.log("[StockValueWidget DEBUG] Skipped (invalid) food/drink products:");
+      skipped.forEach(p => {
+        console.log(`[StockValueWidget DEBUG] (Skipped) Name: ${p.name}, BuyingPrice: ${p.buyingPrice}, Stock: ${p.stock}, Category: ${p.category}`);
       });
     }
   }, [products]);
@@ -79,6 +106,10 @@ const StockValueWidget: React.FC = () => {
         <div className="text-2xl font-bold">
           <CurrencyDisplay amount={totalStockValue} />
         </div>
+        {/* DEBUG: Show raw calculated value as number */}
+        <div className="text-xs mt-2 text-yellow-500">
+          Raw value (debug): {totalStockValue}
+        </div>
         <p className="text-xs text-muted-foreground">
           Food & drinks inventory ({productsWithBuyingPrice} products)
         </p>
@@ -88,4 +119,3 @@ const StockValueWidget: React.FC = () => {
 };
 
 export default StockValueWidget;
-
