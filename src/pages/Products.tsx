@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
@@ -94,23 +93,20 @@ const ProductsPage: React.FC = () => {
   };
 
   const handleDeleteProduct = (id: string) => {
-    // Use PIN verification for delete operations
-    requestPinVerification(() => {
-      try {
-        deleteProduct(id);
-        toast({
-          title: 'Product Deleted',
-          description: 'The product has been removed successfully.',
-        });
-      } catch (error) {
-        console.error('Delete product error:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to delete product. Please try again.',
-          variant: 'destructive',
-        });
-      }
-    });
+    try {
+      deleteProduct(id);
+      toast({
+        title: 'Product Deleted',
+        description: 'The product has been removed successfully.',
+      });
+    } catch (error) {
+      console.error('Delete product error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete product. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Define categories that shouldn't show buying/selling price fields
@@ -299,6 +295,8 @@ const ProductsPage: React.FC = () => {
           onEdit={handleEditProduct}
           onDelete={handleDeleteProduct}
           onAddProduct={handleOpenDialog}
+          showManagementActions={true}
+          isAdmin={isAdmin}
         />
       </div>
     </div>

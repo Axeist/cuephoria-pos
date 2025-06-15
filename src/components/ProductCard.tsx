@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,8 @@ import { usePOS, Product } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { ShoppingCart, Edit, Trash, Clock, GraduationCap, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 
 interface ProductCardProps {
   product: Product;
@@ -26,10 +27,17 @@ const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const { addToCart, isStudentDiscount, setIsStudentDiscount, cart } = usePOS();
   const { user } = useAuth();
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   // Define categories that shouldn't show buying/selling price info
   const hidePricingFieldsCategories = ['membership', 'challenges'];
   const shouldShowPricingFields = !hidePricingFieldsCategories.includes(product.category);
+
+  const handleDelete = () => {
+    if (onDelete) {
+      requestPinVerification(() => onDelete(product.id));
+    }
+  };
 
   const getCategoryStyles = (category: string) => {
     const categoryStyleMap: Record<string, string> = {
@@ -110,122 +118,132 @@ const ProductCard: React.FC<ProductCardProps> = ({
     (product.price - product.buyingPrice).toFixed(2) : null;
 
   return (
-    <Card className={`flex flex-col h-full transition-all duration-300 ease-out transform hover:-translate-y-1 ${className} ${getCategoryStyles(product.category)} backdrop-blur-sm`}>
-      <CardHeader className="pb-3 space-y-2 relative overflow-hidden">
-        {/* Subtle animated background glow - only on hover */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
-        
-        {/* Product name with proper spacing */}
-        <div className="min-h-[3.5rem] flex items-start relative z-10">
-          <h3 className="text-base font-semibold leading-snug break-words hyphens-auto text-foreground">
-            {product.name}
-          </h3>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-grow py-3">
-        <div className="flex flex-col space-y-2">
-          <div className="flex justify-between text-sm font-medium">
-            <span>Price:</span>
-            <CurrencyDisplay amount={product.price} />
+    <>
+      <Card className={`flex flex-col h-full transition-all duration-300 ease-out transform hover:-translate-y-1 ${className} ${getCategoryStyles(product.category)} backdrop-blur-sm`}>
+        <CardHeader className="pb-3 space-y-2 relative overflow-hidden">
+          {/* Subtle animated background glow - only on hover */}
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
+          
+          {/* Product name with proper spacing */}
+          <div className="min-h-[3.5rem] flex items-start relative z-10">
+            <h3 className="text-base font-semibold leading-snug break-words hyphens-auto text-foreground">
+              {product.name}
+            </h3>
           </div>
-          
-          {/* Only display profit information for applicable categories */}
-          {shouldShowPricingFields && product.buyingPrice !== undefined && profit && (
-            <div className="flex justify-between text-sm">
-              <span>Profit:</span>
-              <span className="text-green-600 dark:text-green-400">
-                <CurrencyDisplay amount={parseFloat(profit)} />
-              </span>
+        </CardHeader>
+        <CardContent className="flex-grow py-3">
+          <div className="flex flex-col space-y-2">
+            <div className="flex justify-between text-sm font-medium">
+              <span>Price:</span>
+              <CurrencyDisplay amount={product.price} />
             </div>
-          )}
-          
-          {product.category === 'membership' && (
-            <>
-              {product.originalPrice && (
-                <div className="flex justify-between text-sm">
-                  <span>Original Price:</span>
-                  <span className="line-through text-gray-500">
-                    <CurrencyDisplay amount={product.originalPrice} />
-                  </span>
-                </div>
-              )}
-              {product.offerPrice && (
-                <div className="flex justify-between text-sm text-green-600">
-                  <span>Offer Price:</span>
-                  <CurrencyDisplay amount={product.offerPrice} />
-                </div>
-              )}
-              {product.studentPrice && (
-                <div className="flex justify-between text-sm text-blue-600">
-                  <span><GraduationCap className="h-3 w-3 inline mr-1" />Student Price:</span>
-                  <CurrencyDisplay amount={product.studentPrice} />
-                </div>
-              )}
-              <div className="text-xs text-gray-500 pt-1 flex items-center">
-                <Clock className="h-3 w-3 inline mr-1" />
-                {getDurationText()}
+            
+            {/* Only display profit information for applicable categories */}
+            {shouldShowPricingFields && product.buyingPrice !== undefined && profit && (
+              <div className="flex justify-between text-sm">
+                <span>Profit:</span>
+                <span className="text-green-600 dark:text-green-400">
+                  <CurrencyDisplay amount={parseFloat(profit)} />
+                </span>
               </div>
-              {product.membershipHours && (
+            )}
+            
+            {product.category === 'membership' && (
+              <>
+                {product.originalPrice && (
+                  <div className="flex justify-between text-sm">
+                    <span>Original Price:</span>
+                    <span className="line-through text-gray-500">
+                      <CurrencyDisplay amount={product.originalPrice} />
+                    </span>
+                  </div>
+                )}
+                {product.offerPrice && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Offer Price:</span>
+                    <CurrencyDisplay amount={product.offerPrice} />
+                  </div>
+                )}
+                {product.studentPrice && (
+                  <div className="flex justify-between text-sm text-blue-600">
+                    <span><GraduationCap className="h-3 w-3 inline mr-1" />Student Price:</span>
+                    <CurrencyDisplay amount={product.studentPrice} />
+                  </div>
+                )}
                 <div className="text-xs text-gray-500 pt-1 flex items-center">
                   <Clock className="h-3 w-3 inline mr-1" />
-                  {getMembershipHours()}
+                  {getDurationText()}
                 </div>
-              )}
-            </>
-          )}
-          
-          {product.category !== 'membership' && (
-            <div className="flex justify-between text-sm">
-              <span>Available:</span>
-              <span className={remainingStock <= 10 ? 'text-red-500' : ''}>
-                {remainingStock} / {product.stock}
-              </span>
-            </div>
-          )}
-        </div>
-      </CardContent>
-      <CardFooter className="mt-auto pt-2">
-        {showManagementActions ? (
-          <div className="flex w-full space-x-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex-1 justify-center"
-              onClick={() => onEdit && onEdit(product)}
-            >
-              <Edit className="h-4 w-4 mr-2" /> Edit
-            </Button>
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              className="flex-1 justify-center relative"
-              onClick={() => onDelete && onDelete(product.id)}
-              title={!isAdmin ? "PIN verification required for staff" : "Delete product"}
-            >
-              <Trash className="h-4 w-4 mr-2" /> Delete
-              {!isAdmin && (
-                <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
-              )}
-            </Button>
-          </div>
-        ) : (
-          <Button 
-            variant="default" 
-            className="w-full transition-all duration-300 bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
-            disabled={isOutOfStock}
-            onClick={handleAddToCart}
-          >
-            {isOutOfStock ? (
-              "Out of Stock"
-            ) : (
-              <>
-                <ShoppingCart className="h-4 w-4 mr-2" /> Add to Cart
+                {product.membershipHours && (
+                  <div className="text-xs text-gray-500 pt-1 flex items-center">
+                    <Clock className="h-3 w-3 inline mr-1" />
+                    {getMembershipHours()}
+                  </div>
+                )}
               </>
             )}
-          </Button>
-        )}
-      </CardFooter>
-    </Card>
+            
+            {product.category !== 'membership' && (
+              <div className="flex justify-between text-sm">
+                <span>Available:</span>
+                <span className={remainingStock <= 10 ? 'text-red-500' : ''}>
+                  {remainingStock} / {product.stock}
+                </span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter className="mt-auto pt-2">
+          {showManagementActions ? (
+            <div className="flex w-full space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1 justify-center"
+                onClick={() => onEdit && onEdit(product)}
+              >
+                <Edit className="h-4 w-4 mr-2" /> Edit
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="flex-1 justify-center relative"
+                onClick={handleDelete}
+                title={!isAdmin ? "PIN verification required for staff" : "Delete product"}
+              >
+                <Trash className="h-4 w-4 mr-2" /> Delete
+                {!isAdmin && (
+                  <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
+                )}
+              </Button>
+            </div>
+          ) : (
+            <Button 
+              variant="default" 
+              className="w-full transition-all duration-300 bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90"
+              disabled={isOutOfStock}
+              onClick={handleAddToCart}
+            >
+              {isOutOfStock ? (
+                "Out of Stock"
+              ) : (
+                <>
+                  <ShoppingCart className="h-4 w-4 mr-2" /> Add to Cart
+                </>
+              )}
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+      
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Verify PIN to Delete"
+        description="Enter the PIN to confirm this delete operation."
+      />
+    </>
   );
 };
 
