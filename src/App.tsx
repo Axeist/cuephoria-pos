@@ -1,4 +1,3 @@
-
 import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -25,6 +24,8 @@ import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import PublicTournaments from "./pages/PublicTournaments";
 import PublicStations from "./pages/PublicStations";
+import StaffAttendanceDashboard from "./pages/StaffAttendanceDashboard";
+import StaffAttendancePage from "./pages/StaffAttendancePage";
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
@@ -102,11 +103,9 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/login" element={<Login />} />
-
                   {/* Public routes */}
                   <Route path="/public/tournaments" element={<PublicTournaments />} />
                   <Route path="/public/stations" element={<PublicStations />} />
-
                   {/* Protected routes */}
                   <Route path="/dashboard" element={
                     <ProtectedRoute>
@@ -138,7 +137,6 @@ const App = () => (
                       <Reports />
                     </ProtectedRoute>
                   } />
-                  {/* How to Use page, protected */}
                   <Route path="/how-to-use" element={
                     <ProtectedRoute>
                       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
@@ -149,6 +147,18 @@ const App = () => (
                   <Route path="/settings" element={
                     <ProtectedRoute>
                       <Settings />
+                    </ProtectedRoute>
+                  } />
+
+                  {/* Staff Attendance Features */}
+                  <Route path="/attendance-dashboard" element={
+                    <ProtectedRoute>
+                      <StaffAttendanceDashboard />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/staff-attendance" element={
+                    <ProtectedRoute>
+                      <StaffAttendancePage />
                     </ProtectedRoute>
                   } />
 
@@ -164,4 +174,3 @@ const App = () => (
 );
 
 export default App;
-

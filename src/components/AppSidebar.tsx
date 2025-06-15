@@ -40,8 +40,10 @@ const AppSidebar: React.FC = () => {
     { icon: Clock, label: 'Gaming Stations', path: '/stations' },
     { icon: Package, label: 'Products', path: '/products' },
     { icon: Users, label: 'Customers', path: '/customers' },
-    { icon: BarChart2, label: 'Reports', path: '/reports' }, // Now accessible to staff
-    { icon: Settings, label: 'Settings', path: '/settings' }, // Now accessible to staff
+    { icon: BarChart2, label: 'Reports', path: '/reports' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
+    { icon: Clock, label: 'Attendance (My)', path: '/staff-attendance' },
+    { icon: Clock, label: 'Attendance Dashboard', path: '/attendance-dashboard' }
   ];
   
   // Insert the How To Use menu item before Settings (last)
