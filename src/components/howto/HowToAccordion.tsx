@@ -13,104 +13,158 @@ import {
   ListOrdered,
   ListCheck,
   ListVideo,
+  Help,
+  Phone,
+  BookOpen,
+  Mail,
+  Bell
 } from "lucide-react";
 
 const steps = [
   {
-    title: "Login as Admin or Staff",
-    icon: BookText,
-    detail: (
-      <>
-        <b>Admins</b> have full control (settings, staff, reports), while <b>Staff</b> focus on the POS and station management.<br />
-        <span className="text-cuephoria-lightpurple">Tip:</span> Use secure passwords and log out each day for safety.
-      </>
-    ),
-  },
-  {
-    title: "Check the Dashboard",
+    title: "Dashboard Page",
     icon: ListTodo,
     detail: (
       <>
-        See <b>real-time sales</b>, <b>active stations</b>, and <b>recent activity</b>.<br />
-        <span className="text-cuephoria-lightpurple">Did you know?</span> 
-        Low-stock and top customer alerts appear here automatically.
+        <ul className="list-disc ml-5 space-y-1">
+          <li>View <b>today's sales, hourly revenue, and recent transactions</b>.</li>
+          <li>See <b>active gaming stations</b> at a glance.</li>
+          <li>Track <b>top products, best customers, and low-stock alerts</b> in real time.</li>
+          <li>Catch up with <b>critical notifications and club performance</b> for any date range.</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Pro tip: Click "More" on any chart for deeper analytics.</span>
       </>
     ),
   },
   {
-    title: "Point of Sale (POS)",
+    title: "Point of Sale (POS) Page",
     icon: ListOrdered,
     detail: (
       <>
-        Easily record orders, handle <b>split payments</b>, give discounts, and print receipts.<br />
-        <span className="text-cuephoria-lightpurple">Fast tip:</span> 
-        Scan product barcodes for even quicker checkout!
+        <ul className="list-disc ml-5 space-y-1">
+          <li>Create new bills and add products (including time-based or hourly stations).</li>
+          <li><b>Apply discounts, loyalty points, or split payments</b> between cash/UPI.</li>
+          <li>Scan product barcodes for faster billing.</li>
+          <li>Print, download, or share receipts instantly.</li>
+          <li>Edit orders and correct mistakes before payment.</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Did you know? You can reprint any old receipt from the Reports page!</span>
       </>
     ),
   },
   {
-    title: "Manage Gaming Stations",
+    title: "Stations Page",
     icon: ListCheck,
     detail: (
       <>
-        Start/end sessions, see which tables are available and how long each game has run.<br />
-        <span className="text-cuephoria-lightpurple">Efficiency:</span>
-        Click a station to view details or make quick edits.
+        <ul className="list-disc ml-5 space-y-1">
+          <li>See all <b>gaming tables, consoles, and controllers</b> with current status (free/occupied).</li>
+          <li><b>Start or end sessions</b> with just one click.</li>
+          <li>Edit station details, set hourly rates, and assign types (e.g., snooker, FIFA, PS4).</li>
+          <li>View how long a customer has played and session history.</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Tip: Use the dashboard for a quick snapshot, or the Stations page for deep control.</span>
       </>
     ),
   },
   {
-    title: "Inventory and Product Control",
+    title: "Products Page",
     icon: Info,
     detail: (
       <>
-        Add, edit or remove products. Track stock instantly.<br />
-        <span className="text-cuephoria-lightpurple">Pro tip:</span>
-        Low and critical stock products are visually highlighted.
+        <ul className="list-disc ml-5 space-y-1">
+          <li>Add, edit, or remove products including snacks, drinks, time-pass, and memberships.</li>
+          <li>Bulk edit stock levels and prices.</li>
+          <li>See <b>real-time low stock alerts</b> – never run out unexpectedly!</li>
+          <li>Assign categories and images for better organization.</li>
+          <li>Export your inventory to Excel for backup or audits.</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Admins can set price tiers (student/membership/etc) for each product.</span>
       </>
     ),
   },
   {
-    title: "Customer Management",
-    icon: ListOrdered,
+    title: "Customers Page",
+    icon: BookOpen,
     detail: (
       <>
-        Manage member profiles, see loyalty stats, export lists for marketing, and view spenders by game.<br />
-        <span className="text-cuephoria-lightpurple">Smart tip:</span>
-        Top 5 customers are shown for recognition!
+        <ul className="list-disc ml-5 space-y-1">
+          <li>Add new members or regular customers with unique phone/email.</li>
+          <li><b>Track loyalty points, total spent, and playtime</b> per customer.</li>
+          <li>View, edit, or remove customer profiles.</li>
+          <li>See top spenders, regulars, and export lists for marketing.</li>
+          <li>Restore previous billings and view order history.</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Quick Filter: Use search or filter by member type for targeted info.</span>
       </>
     ),
   },
   {
-    title: "Business Reports",
-    icon: ListCheck,
+    title: "Reports Page",
+    icon: BookText,
     detail: (
       <>
-        Access daily, weekly, and filtered reports on sales, expenses, and game usage.<br />
-        <span className="text-cuephoria-lightpurple">Export:</span>
-        Download Excel or PDF summaries for accounting or sharing.
+        <ul className="list-disc ml-5 space-y-1">
+          <li>Access daily, weekly, or custom period <b>sales, payments, and performance summaries</b>.</li>
+          <li>Export reports in Excel or PDF format.</li>
+          <li>Deep dive into each bill, product, or session with expandable details.</li>
+          <li>See taxes, discounts, and payment breakdowns instantly.</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Admins: Use filters to audit staff performance and sales trends.</span>
       </>
     ),
   },
   {
-    title: "Settings & Security",
+    title: "Expense Tracking Page",
     icon: Info,
     detail: (
       <>
-        Only admins can manage system preferences, staff profiles, and privacy controls.<br />
-        <span className="text-cuephoria-lightpurple">Note:</span>
-        Make backups before making big changes!
+        <ul className="list-disc ml-5 space-y-1">
+          <li>Add, edit, or delete daily/weekly/monthly expenses for tracking profit.</li>
+          <li>Assign categories and notes to each expense for better reporting.</li>
+          <li>Export full expense lists alongside your sales data.</li>
+          <li>See recurring vs one-time expenses at a glance.</li>
+        </ul>
       </>
     ),
   },
   {
-    title: "Need Help or Training?",
+    title: "Tournaments Page",
     icon: ListVideo,
     detail: (
       <>
-        In-app tooltips and this guide are always accessible from the sidebar.<br />
-        <span className="text-cuephoria-lightpurple">Support:</span>
-        Reach out any time to your admin or the developer.
+        <ul className="list-disc ml-5 space-y-1">
+          <li>View, add, or edit tournaments with game details and player signup.</li>
+          <li>Track match progress, winners, and assign prizes.</li>
+          <li>Public leaderboard and tournament history available.</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Tip: Player stats auto-update as each round completes.</span>
+      </>
+    ),
+  },
+  {
+    title: "Settings Page",
+    icon: Bell,
+    detail: (
+      <>
+        <ul className="list-disc ml-5 space-y-1">
+          <li>Admins: Update club info, staff profiles, permissions, and security settings.</li>
+          <li>Manage notifications, data backup, user preferences, and club branding (logo, etc).</li>
+        </ul>
+        <span className="block mt-2 text-cuephoria-lightpurple">Back up data before big changes for extra safety!</span>
+      </>
+    ),
+  },
+  {
+    title: "Help, Training & Tips",
+    icon: Help,
+    detail: (
+      <>
+        <ul className="list-disc ml-5 space-y-1">
+          <li>This "How to Use" page and tooltips are always accessible from the sidebar.</li>
+          <li>Most buttons and features provide in-app prompts or extra info when hovered or clicked.</li>
+          <li>For ANY doubts, contact staff, or <b>reach out directly to Ranjith (RK) at <a href="tel:8667637565" className="underline text-cuephoria-blue">8667637565</a></b>.</li>
+        </ul>
       </>
     ),
   },
