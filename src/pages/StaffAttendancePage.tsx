@@ -3,6 +3,9 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import StaffClockInOutWidget from "../components/staff/StaffClockInOutWidget";
 import { useToast } from "@/hooks/use-toast";
+import LeaveRequestDialog from "@/components/staff/LeaveRequestDialog";
+import { Button } from "@/components/ui/button";
+import StaffLeaveRequestsTable from "@/components/staff/StaffLeaveRequestsTable";
 
 type StaffProfile = {
   id: string;
@@ -22,12 +25,27 @@ type AttendanceRow = {
   notes?: string;
 };
 
+type LeaveRequest = {
+  id: string;
+  staff_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  status: string;
+  remarks?: string | null;
+};
+
 const StaffAttendancePage: React.FC = () => {
   // For demo: emulate staff user by picking from profiles (replace with login later)
   const [selectedStaff, setSelectedStaff] = useState<StaffProfile | null>(null);
   const [profiles, setProfiles] = useState<StaffProfile[]>([]);
   const [attendanceToday, setAttendanceToday] = useState<AttendanceRow | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [leaveLoading, setLeaveLoading] = useState(false);
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,6 +67,7 @@ const StaffAttendancePage: React.FC = () => {
     const staff = profiles.find((p) => p.id === e.target.value) || null;
     setSelectedStaff(staff);
     setAttendanceToday(null);
+    setLeaveRequests([]);
   };
 
   // Fetch today's attendance for selected staff
@@ -63,13 +82,37 @@ const StaffAttendancePage: React.FC = () => {
         .eq("staff_id", selectedStaff.id)
         .eq("date", today)
         .maybeSingle();
-      if (error && error.code !== "PGRST116") // ignore "no row found"
+      if (error && error.code !== "PGRST116")
         toast({ title: "Error loading attendance", description: error.message, variant: "destructive" });
       setAttendanceToday(data || null);
       setLoading(false);
     };
     fetchAttendance();
   }, [selectedStaff, toast]);
+
+  // Fetch leave requests for the staff
+  useEffect(() => {
+    if (!selectedStaff) {
+      setLeaveRequests([]);
+      return;
+    }
+    const fetchLeaveRequests = async () => {
+      setLeaveLoading(true);
+      const { data, error } = await supabase
+        .from("staff_leave_requests")
+        .select("*")
+        .eq("staff_id", selectedStaff.id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        toast({ title: "Error loading leave requests", description: error.message, variant: "destructive" });
+        setLeaveRequests([]);
+      } else {
+        setLeaveRequests(data || []);
+      }
+      setLeaveLoading(false);
+    };
+    fetchLeaveRequests();
+  }, [selectedStaff, leaveDialogOpen, toast]);
 
   return (
     <div className="max-w-lg mx-auto p-6 space-y-6">
@@ -92,11 +135,34 @@ const StaffAttendancePage: React.FC = () => {
         </select>
       </div>
       {selectedStaff && (
-        <StaffClockInOutWidget
-          staff={selectedStaff}
-          attendance={attendanceToday}
-          setAttendance={setAttendanceToday}
-        />
+        <>
+          <StaffClockInOutWidget
+            staff={selectedStaff}
+            attendance={attendanceToday}
+            setAttendance={setAttendanceToday}
+          />
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold text-base">My Leave Requests</div>
+              <Button
+                size="sm"
+                onClick={() => setLeaveDialogOpen(true)}
+                className="bg-cuephoria-lightpurple hover:bg-cuephoria-blue"
+              >Request Leave</Button>
+            </div>
+            <StaffLeaveRequestsTable
+              requests={leaveRequests}
+              isLoading={leaveLoading}
+              actionable={false}
+            />
+          </div>
+          <LeaveRequestDialog
+            staffId={selectedStaff.id}
+            open={leaveDialogOpen}
+            onClose={() => setLeaveDialogOpen(false)}
+            onSuccess={() => { /* Refetch via useEffect on open/close */ }}
+          />
+        </>
       )}
     </div>
   );

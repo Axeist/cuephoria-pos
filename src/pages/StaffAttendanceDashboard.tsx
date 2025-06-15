@@ -5,6 +5,7 @@ import StaffAttendanceTable from "../components/staff/StaffAttendanceTable";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import StaffLeaveRequestsTable from "@/components/staff/StaffLeaveRequestsTable";
 
 type StaffProfile = {
   id: string;
@@ -28,11 +29,25 @@ type AttendanceRow = {
   staff?: StaffProfile;
 };
 
+type LeaveRequest = {
+  id: string;
+  staff_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  status: string;
+  remarks?: string | null;
+  staff?: { full_name: string; username: string };
+};
+
 const StaffAttendanceDashboard: React.FC = () => {
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [staffList, setStaffList] = useState<StaffProfile[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [leaveLoading, setLeaveLoading] = useState(false);
+
   const { toast } = useToast();
 
   // Fetch list of staff members (profiles)
@@ -66,6 +81,41 @@ const StaffAttendanceDashboard: React.FC = () => {
     fetchAttendance();
   }, [selectedDate, toast]);
 
+  // Fetch leave requests for all staff
+  useEffect(() => {
+    const fetchLeaveRequests = async () => {
+      setLeaveLoading(true);
+      const { data, error } = await supabase
+        .from("staff_leave_requests")
+        .select("*, staff:staff_profiles(id, full_name, username)")
+        .order("created_at", { ascending: false });
+      if (error) {
+        toast({ title: "Error loading leave requests", description: error.message, variant: "destructive" });
+        setLeaveRequests([]);
+      } else {
+        setLeaveRequests(data || []);
+      }
+      setLeaveLoading(false);
+    };
+    fetchLeaveRequests();
+  }, [toast]);
+
+  // Handle Approve/Reject
+  const handleLeaveAction = async (id: string, action: "approved" | "rejected") => {
+    const status = action;
+    const { error } = await supabase
+      .from("staff_leave_requests")
+      .update({ status })
+      .eq("id", id);
+    if (error) {
+      toast({ title: `Could not ${action}`, description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Leave ${action === "approved" ? "approved" : "rejected"}` });
+      // Refetch leave requests after update
+      setLeaveRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    }
+  };
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedDate(e.target.value);
   };
@@ -96,6 +146,18 @@ const StaffAttendanceDashboard: React.FC = () => {
         isLoading={loading}
         selectedDate={selectedDate}
       />
+      {/* Leave Requests Section */}
+      <div>
+        <h3 className="text-xl mt-8 mb-4 font-bold font-heading text-cuephoria-lightpurple">
+          Leave Requests
+        </h3>
+        <StaffLeaveRequestsTable
+          requests={leaveRequests}
+          isLoading={leaveLoading}
+          onAction={handleLeaveAction}
+          actionable={true}
+        />
+      </div>
       {/* Next version: Monthly overview, analytics, and CSV export. */}
     </div>
   );
