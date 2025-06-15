@@ -1,4 +1,5 @@
-import React from "react";
+
+import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -24,6 +25,8 @@ import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import PublicTournaments from "./pages/PublicTournaments";
 import PublicStations from "./pages/PublicStations";
+// Lazy load HowToUse for code splitting
+const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
 // Create a new QueryClient instance outside of the component
 const queryClient = new QueryClient({
@@ -138,9 +141,9 @@ const App = () => (
                   {/* How to Use page, protected */}
                   <Route path="/how-to-use" element={
                     <ProtectedRoute>
-                      <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-                        {React.createElement(require("./pages/HowToUse").default)}
-                      </React.Suspense>
+                      <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+                        <HowToUsePage />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   <Route path="/settings" element={
@@ -161,3 +164,4 @@ const App = () => (
 );
 
 export default App;
+
