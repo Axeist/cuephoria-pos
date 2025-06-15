@@ -1,9 +1,11 @@
+
 import React from "react";
 import HowToBanner from "../components/howto/HowToBanner";
 import HowToAccordion from "../components/howto/HowToAccordion";
 import HowToFAQ from "../components/howto/HowToFAQ";
 import SupportBanner from "../components/howto/SupportBanner";
-const HowToUse: React.FC = () => <div className="min-h-screen w-full flex flex-col items-center justify-center px-2 md:px-4 py-8 font-quicksand bg-transparent">
+const HowToUse: React.FC = () => (
+  <div className="min-h-screen w-full flex flex-col items-center justify-center px-2 md:px-3 py-7 font-quicksand bg-transparent text-base">
     <div className="w-full max-w-3xl">
       {/* Subtle hero/banner */}
       <HowToBanner />
@@ -25,5 +27,6 @@ const HowToUse: React.FC = () => <div className="min-h-screen w-full flex flex-c
         </span>
       </div>
     </div>
-  </div>;
+  </div>
+);
 export default HowToUse;
