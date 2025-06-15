@@ -1,476 +1,288 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { usePOS } from '@/context/POSContext';
-import { useExpenses } from '@/context/ExpenseContext';
-import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
-import StatCardSection from '@/components/dashboard/StatCardSection';
-import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
-import SalesChart from '@/components/dashboard/SalesChart';
-import BusinessSummarySection from '@/components/dashboard/BusinessSummarySection';
-import ActiveSessions from '@/components/dashboard/ActiveSessions';
-import RecentTransactions from '@/components/dashboard/RecentTransactions';
-import CustomerActivityChart from '@/components/dashboard/CustomerActivityChart';
-import ProductInventoryChart from '@/components/dashboard/ProductInventoryChart';
-import CustomerSpendingCorrelation from '@/components/dashboard/CustomerSpendingCorrelation';
-import HourlyRevenueDistribution from '@/components/dashboard/HourlyRevenueDistribution';
-import ProductPerformance from '@/components/dashboard/ProductPerformance';
-import ExpenseList from '@/components/expenses/ExpenseList';
-import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
-import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
-import CashManagement from '@/components/cash/CashManagement';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
-import { useToast } from '@/hooks/use-toast';
+import React, { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { generateId } from "@/utils/pos.utils";
+import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { format } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import HowToUsePopup from "@/components/HowToUsePopup";
+import { useHowToUsePopup } from "@/hooks/useHowToUsePopup";
+
+interface RecentActivity {
+  id: string;
+  timestamp: string;
+  type: string;
+  description: string;
+}
 
 const Dashboard = () => {
-  const { customers, bills, stations, sessions, products } = usePOS();
-  const { expenses, businessSummary } = useExpenses();
+  const { user } = useAuth();
+  const { shouldShow, loading, dismiss } = useHowToUsePopup();
+  const [popupOpen, setPopupOpen] = useState(false);
   const { toast } = useToast();
-  
-  const [activeTab, setActiveTab] = useState('daily');
-  const [chartData, setChartData] = useState([]);
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
-  
-  const [dashboardStats, setDashboardStats] = useState({
-    totalSales: 0,
-    salesChange: '',
-    activeSessionsCount: 0,
-    newMembersCount: 0,
-    lowStockCount: 0,
-    lowStockItems: []
-  });
-  
-  // Memoize expensive calculations to prevent unnecessary re-renders
-  const lowStockItems = useMemo(() => 
-    products.filter(p => p.stock < 5).sort((a, b) => a.stock - b.stock),
-    [products]);
-  
-  const activeSessionsCount = useMemo(() => 
-    stations.filter(s => s.isOccupied).length,
-    [stations]);
 
-  const newMembersCount = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return customers.filter(c => new Date(c.createdAt) >= today).length;
-  }, [customers]);
+  // Fetch total sales
+  const { data: totalSales, isLoading: isTotalSalesLoading, error: totalSalesError } = useQuery(
+    ['totalSales'],
+    async () => {
+      const { data, error } = await supabase
+        .from('sales')
+        .select('total_amount');
 
-  // Filter expenses by date range
-  const filteredExpenses = useMemo(() => {
-    if (!dateRange) return expenses;
-    
-    return expenses.filter(expense => {
-      const expenseDate = new Date(expense.date);
-      return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
-    });
-  }, [expenses, dateRange]);
-
-  const handleDateRangeChange = (startDate: Date, endDate: Date) => {
-    setDateRange({ start: startDate, end: endDate });
-  };
-
-  const handleExport = () => {
-    try {
-      if (filteredExpenses.length === 0) {
-        toast({
-          title: 'No Data to Export',
-          description: 'There are no expenses in the selected date range to export.',
-          variant: 'destructive'
-        });
-        return;
+      if (error) {
+        console.error("Error fetching total sales:", error);
+        throw error;
       }
 
-      // Prepare data for export
-      const exportData = filteredExpenses.map(expense => ({
-        'Date': format(new Date(expense.date), 'yyyy-MM-dd'),
-        'Name': expense.name,
-        'Category': expense.category.charAt(0).toUpperCase() + expense.category.slice(1),
-        'Amount': expense.amount,
-        'Recurring': expense.isRecurring ? 'Yes' : 'No',
-        'Frequency': expense.isRecurring ? expense.frequency : 'N/A',
-        'Notes': expense.notes || ''
+      return data.reduce((acc, sale) => acc + sale.total_amount, 0);
+    }
+  );
+
+  // Fetch total expenses
+  const { data: totalExpenses, isLoading: isTotalExpensesLoading, error: totalExpensesError } = useQuery(
+    ['totalExpenses'],
+    async () => {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('amount');
+
+      if (error) {
+        console.error("Error fetching total expenses:", error);
+        throw error;
+      }
+
+      return data.reduce((acc, expense) => acc + expense.amount, 0);
+    }
+  );
+
+  // Fetch recent activity
+  const { data: recentActivity, isLoading: isRecentActivityLoading, error: recentActivityError } = useQuery(
+    ['recentActivity'],
+    async () => {
+      const { data, error } = await supabase
+        .from('activity_log')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error("Error fetching recent activity:", error);
+        throw error;
+      }
+
+      return data;
+    }
+  );
+
+  // Fetch product stock levels
+  const { data: lowStockProducts, isLoading: isLowStockProductsLoading, error: lowStockProductsError } = useQuery(
+    ['lowStockProducts'],
+    async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, stock')
+        .lt('stock', 10);
+
+      if (error) {
+        console.error("Error fetching low stock products:", error);
+        throw error;
+      }
+
+      return data;
+    }
+  );
+
+  // Fetch sales data for the last 7 days
+  const { data: salesData, isLoading: isSalesDataLoading, error: salesDataError } = useQuery(
+    ['salesData'],
+    async () => {
+      const today = new Date();
+      const lastWeek = new Date(today);
+      lastWeek.setDate(today.getDate() - 7);
+
+      const { data, error } = await supabase
+        .from('sales')
+        .select('total_amount, created_at')
+        .gte('created_at', lastWeek.toISOString())
+        .lte('created_at', today.toISOString());
+
+      if (error) {
+        console.error("Error fetching sales data:", error);
+        throw error;
+      }
+
+      // Aggregate sales by date
+      const aggregatedSales = data.reduce((acc: { [key: string]: number }, sale) => {
+        const saleDate = format(new Date(sale.created_at), 'yyyy-MM-dd');
+        acc[saleDate] = (acc[saleDate] || 0) + sale.total_amount;
+        return acc;
+      }, {});
+
+      // Convert aggregated data to array format for Recharts
+      const chartData = Object.entries(aggregatedSales).map(([date, amount]) => ({
+        date,
+        amount,
       }));
 
-      // Create workbook and worksheet
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      
-      // Add title row with date range info
-      const titleRow = dateRange 
-        ? `Expenses Report: ${format(dateRange.start, 'dd MMM yyyy')} - ${format(dateRange.end, 'dd MMM yyyy')}`
-        : `All Expenses Report - ${format(new Date(), 'dd MMM yyyy')}`;
-      
-      // Set column widths for better readability
-      const columnWidths = [
-        { wch: 12 }, // Date
-        { wch: 25 }, // Name
-        { wch: 15 }, // Category
-        { wch: 12 }, // Amount
-        { wch: 10 }, // Recurring
-        { wch: 12 }, // Frequency
-        { wch: 30 }  // Notes
-      ];
-      worksheet['!cols'] = columnWidths;
-
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
-
-      // Generate filename with date range
-      const filename = dateRange 
-        ? `expenses_${format(dateRange.start, 'yyyy-MM-dd')}_to_${format(dateRange.end, 'yyyy-MM-dd')}.xlsx`
-        : `expenses_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-
-      // Export file
-      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      saveAs(blob, filename);
-
-      toast({
-        title: 'Export Successful',
-        description: `Exported ${filteredExpenses.length} expenses to ${filename}`,
-      });
-
-    } catch (error) {
-      console.error('Error exporting expenses:', error);
-      toast({
-        title: 'Export Failed',
-        description: 'There was an error exporting the expenses. Please try again.',
-        variant: 'destructive'
-      });
+      return chartData;
     }
-  };
+  );
 
-  // Optimize data generation and calculations
   useEffect(() => {
-    // Generate chart data based on the active tab
-    setChartData(generateChartData());
-    
-    // Update dashboard stats with memoized values
-    setDashboardStats({
-      totalSales: calculateTotalSales(),
-      salesChange: calculatePercentChange(),
-      activeSessionsCount,
-      newMembersCount,
-      lowStockCount: lowStockItems.length,
-      lowStockItems
+    // Only show for staff (not admin) on login
+    if (!loading && shouldShow) {
+      setPopupOpen(true);
+    }
+  }, [shouldShow, loading]);
+
+  if (totalSalesError || totalExpensesError || recentActivityError || lowStockProductsError || salesDataError) {
+    toast({
+      title: "Error",
+      description: "Failed to load dashboard data. Please try again.",
+      variant: "destructive"
     });
-  }, [bills, customers, stations, sessions, products, activeTab, activeSessionsCount, newMembersCount, lowStockItems]);
-  
-  // Optimize chart data generation
-  const generateChartData = () => {
-    if (activeTab === 'hourly') {
-      return generateHourlyChartData();
-    } else if (activeTab === 'daily') {
-      return generateDailyChartData();
-    } else if (activeTab === 'weekly') {
-      return generateWeeklyChartData();
-    } else {
-      return generateMonthlyChartData();
-    }
-  };
-  
-  const generateHourlyChartData = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const hours = Array.from({ length: 24 }, (_, i) => i);
-    
-    if (bills.length > 0) {
-      const hourlyTotals = new Map();
-      
-      bills.forEach(bill => {
-        const billDate = new Date(bill.createdAt);
-        
-        if (billDate >= today) {
-          const hour = billDate.getHours();
-          const current = hourlyTotals.get(hour) || 0;
-          hourlyTotals.set(hour, current + bill.total);
-        }
-      });
-      
-      return hours.map(hour => {
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const hour12 = hour % 12 || 12;
-        const formattedHour = `${hour12}${ampm}`;
-        
-        return {
-          name: formattedHour,
-          amount: hourlyTotals.get(hour) || 0
-        };
-      });
-    }
-    
-    return hours.map(hour => {
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const hour12 = hour % 12 || 12;
-      const formattedHour = `${hour12}${ampm}`;
-      
-      return {
-        name: formattedHour,
-        amount: 0
-      };
-    });
-  };
-  
-  const generateDailyChartData = () => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
-    if (bills.length > 0) {
-      const dailyTotals = new Map();
-      
-      bills.forEach(bill => {
-        const date = new Date(bill.createdAt);
-        const day = days[date.getDay()];
-        const current = dailyTotals.get(day) || 0;
-        dailyTotals.set(day, current + bill.total);
-      });
-      
-      return days.map(day => ({
-        name: day,
-        amount: dailyTotals.get(day) || 0
-      }));
-    }
-    
-    return [
-      { name: 'Sun', amount: 0 },
-      { name: 'Mon', amount: 0 },
-      { name: 'Tue', amount: 0 },
-      { name: 'Wed', amount: 0 },
-      { name: 'Thu', amount: 0 },
-      { name: 'Fri', amount: 0 },
-      { name: 'Sat', amount: 0 }
-    ];
-  };
-  
-  const generateWeeklyChartData = () => {
-    const weeks = [];
-    const now = new Date();
-    
-    for (let i = 3; i >= 0; i--) {
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - (i * 7) - now.getDay());
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      
-      const weekLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()} - ${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
-      
-      weeks.push({
-        start: weekStart,
-        end: weekEnd,
-        label: weekLabel
-      });
-    }
-    
-    if (bills.length > 0) {
-      return weeks.map(week => {
-        const weeklyTotal = bills.reduce((sum, bill) => {
-          const billDate = new Date(bill.createdAt);
-          if (billDate >= week.start && billDate <= week.end) {
-            return sum + bill.total;
-          }
-          return sum;
-        }, 0);
-        
-        return {
-          name: week.label,
-          amount: weeklyTotal
-        };
-      });
-    }
-    
-    return weeks.map(week => ({
-      name: week.label,
-      amount: 0
-    }));
-  };
-  
-  const generateMonthlyChartData = () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    if (bills.length > 0) {
-      const monthlyTotals = new Map();
-      
-      bills.forEach(bill => {
-        const date = new Date(bill.createdAt);
-        const month = months[date.getMonth()];
-        const current = monthlyTotals.get(month) || 0;
-        monthlyTotals.set(month, current + bill.total);
-      });
-      
-      return months.map(month => ({
-        name: month,
-        amount: monthlyTotals.get(month) || 0
-      }));
-    }
-    
-    return months.map(month => ({
-      name: month,
-      amount: 0
-    }));
-  };
-  
-  const calculateTotalSales = () => {
-    let startDate = new Date();
-    const now = new Date();
-    
-    if (activeTab === 'hourly') {
-      startDate.setHours(0, 0, 0, 0);
-    } else if (activeTab === 'daily') {
-      const dayOfWeek = startDate.getDay();
-      startDate.setDate(startDate.getDate() - dayOfWeek);
-      startDate.setHours(0, 0, 0, 0);
-    } else if (activeTab === 'weekly') {
-      // For weekly tab, show total sales of the current month
-      startDate = startOfMonth(now);
-    } else if (activeTab === 'monthly') {
-      // For monthly tab, show total sales of the current year
-      startDate = startOfYear(now);
-    }
-    
-    // Optimize filtering by using a cached result if possible
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      return billDate >= startDate && billDate <= now;
-    });
-    
-    const total = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
-    
-    return total;
-  };
-  
-  const calculatePercentChange = () => {
-    const currentPeriodSales = calculateTotalSales();
-    
-    let previousPeriodStart = new Date();
-    let previousPeriodEnd = new Date();
-    let currentPeriodStart = new Date();
-    
-    if (activeTab === 'hourly') {
-      currentPeriodStart.setHours(0, 0, 0, 0);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = new Date(previousPeriodEnd);
-      previousPeriodStart.setDate(previousPeriodStart.getDate() - 1);
-    } else if (activeTab === 'daily') {
-      const dayOfWeek = currentPeriodStart.getDay();
-      currentPeriodStart.setDate(currentPeriodStart.getDate() - dayOfWeek);
-      currentPeriodStart.setHours(0, 0, 0, 0);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = new Date(previousPeriodEnd);
-      previousPeriodStart.setDate(previousPeriodStart.getDate() - 7);
-    } else if (activeTab === 'weekly') {
-      // For weekly tab, compare with previous month
-      const now = new Date();
-      currentPeriodStart = startOfMonth(now);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-    } else if (activeTab === 'monthly') {
-      // For monthly tab, compare with previous year
-      const now = new Date();
-      currentPeriodStart = startOfYear(now);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = startOfYear(new Date(now.getFullYear() - 1, 0, 1));
-    }
-    
-    const previousPeriodBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      return billDate >= previousPeriodStart && billDate < previousPeriodEnd;
-    });
-    
-    const previousPeriodSales = previousPeriodBills.reduce((sum, bill) => sum + bill.total, 0);
-    
-    if (previousPeriodSales === 0) {
-      return currentPeriodSales > 0 ? "+100% from last period" : "No previous data";
-    }
-    
-    const percentChange = ((currentPeriodSales - previousPeriodSales) / previousPeriodSales) * 100;
-    
-    const formattedChange = percentChange.toFixed(1);
-    return (percentChange >= 0 ? "+" : "") + formattedChange + "% from last period";
-  };
-  
+  }
+
   return (
-    <div className="flex-1 space-y-6 p-6 bg-[#1A1F2C] text-white">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
+    <div className="container p-4 mx-auto max-w-7xl">
+      {/* HowToUse Popup for staff */}
+      <HowToUsePopup
+        open={popupOpen}
+        onClose={() => setPopupOpen(false)}
+        onDismiss={() => {
+          dismiss();
+          setPopupOpen(false);
+        }}
+      />
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Here&apos;s an overview of your business
+        </p>
       </div>
-      
-      <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
-        <div className="flex items-center justify-between mb-6">
-          <TabsList className="w-auto">
-            <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-            <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-            <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
-            <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
-          </TabsList>
-          
-          {currentDashboardTab === 'expenses' && (
-            <ExpenseDateFilter 
-              onDateRangeChange={handleDateRangeChange}
-              onExport={handleExport}
-            />
-          )}
-        </div>
-        
-        <TabsContent value="overview" className="space-y-6">
-          <StatCardSection 
-            totalSales={dashboardStats.totalSales}
-            salesChange={dashboardStats.salesChange}
-            activeSessionsCount={dashboardStats.activeSessionsCount}
-            totalStations={stations.length}
-            customersCount={customers.length}
-            newMembersCount={dashboardStats.newMembersCount}
-            lowStockCount={dashboardStats.lowStockCount}
-            lowStockItems={dashboardStats.lowStockItems}
-          />
-          
-          <ActionButtonSection />
-          
-          <SalesChart 
-            data={chartData}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-          />
-          
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-            <ActiveSessions />
-            <RecentTransactions bills={bills} customers={customers} />
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-            <CustomerSpendingCorrelation />
-            <HourlyRevenueDistribution />
-          </div>
-          
-          <ProductPerformance />
-          
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-            <CustomerActivityChart />
-            <ProductInventoryChart />
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="expenses" className="space-y-6">
-          <BusinessSummarySection 
-            filteredExpenses={filteredExpenses}
-            dateRange={dateRange}
-          />
-          
-          {dateRange ? (
-            <FilteredExpenseList 
-              startDate={dateRange.start}
-              endDate={dateRange.end}
-            />
-          ) : (
-            <ExpenseList />
-          )}
-        </TabsContent>
-        
-        <TabsContent value="cash" className="space-y-6">
-          <CashManagement />
-        </TabsContent>
-      </Tabs>
+
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Total Sales</CardTitle>
+            <CardDescription>All sales recorded</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isTotalSalesLoading ? (
+              <Skeleton className="h-10 w-32" />
+            ) : (
+              <div className="text-2xl font-bold">${totalSales?.toFixed(2) || 0}</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Total Expenses</CardTitle>
+            <CardDescription>All expenses recorded</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isTotalExpensesLoading ? (
+              <Skeleton className="h-10 w-32" />
+            ) : (
+              <div className="text-2xl font-bold">${totalExpenses?.toFixed(2) || 0}</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Sales Chart (Last 7 Days)</CardTitle>
+            <CardDescription>Overview of sales trends</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isSalesDataLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={salesData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="amount" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 mt-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest actions performed</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[400px]">
+            {isRecentActivityLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-[80%]" />
+                <Skeleton className="h-4 w-[50%]" />
+                <Skeleton className="h-4 w-[90%]" />
+                <Skeleton className="h-4 w-[60%]" />
+                <Skeleton className="h-4 w-[75%]" />
+              </div>
+            ) : (
+              <ScrollArea className="rounded-md border">
+                <div className="p-4">
+                  {recentActivity?.map((activity: RecentActivity) => (
+                    <div key={activity.id} className="mb-4 last:mb-0">
+                      <div className="text-sm font-medium">{activity.type}</div>
+                      <div className="text-xs text-muted-foreground">{activity.description}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(activity.timestamp).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Low Stock Products</CardTitle>
+            <CardDescription>Products with stock less than 10</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[400px]">
+            {isLowStockProductsLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-[80%]" />
+                <Skeleton className="h-4 w-[50%]" />
+                <Skeleton className="h-4 w-[90%]" />
+                <Skeleton className="h-4 w-[60%]" />
+                <Skeleton className="h-4 w-[75%]" />
+              </div>
+            ) : (
+              <ScrollArea className="rounded-md border">
+                <div className="p-4">
+                  {lowStockProducts?.map((product: any) => (
+                    <div key={product.id} className="mb-2 last:mb-0 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium">{product.name}</div>
+                        <div className="text-xs text-muted-foreground">Stock: {product.stock}</div>
+                      </div>
+                      <Badge variant="secondary">Low Stock</Badge>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
