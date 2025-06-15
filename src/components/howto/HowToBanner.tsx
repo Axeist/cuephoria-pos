@@ -28,20 +28,49 @@ const HowToBanner: React.FC = () => (
       <div className="flex items-center gap-2 mb-0.5">
         <BookOpenText className="h-6 w-6 text-cuephoria-lightpurple" />
         <h1 className="text-2xl font-heading font-bold text-white tracking-tight">
-          Welcome to <span className="text-cuephoria-blue">Cuephoria!</span>
+          Welcome to{" "}
+          <span
+            className="gradient-text font-heading font-bold"
+            style={{
+              background:
+                "linear-gradient(90deg, #9b87f5 0%, #0EA5E9 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              display: "inline-block",
+            }}
+          >
+            Cuephoria
+          </span>
+          !
         </h1>
       </div>
       <p className="text-base md:text-lg font-quicksand text-white/85 mt-0.5 leading-normal">
         Manage your club, staff, customers, and games{" "}
-        <span className="text-cuephoria-blue font-semibold">efficiently</span>.<br />
+        <span
+          className="gradient-text font-heading font-bold"
+          style={{
+            background:
+              "linear-gradient(90deg, #9b87f5 0%, #0EA5E9 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            display: "inline-block",
+          }}
+        >
+          efficiently
+        </span>
+        .<br />
         <span className="text-white/75">
           This interactive guide unlocks every feature for your workflow.
-        </span><br />
+        </span>
+        <br />
         <span className="text-cuephoria-lightpurple font-semibold">Tip:</span>
-        <span className="ml-1 text-white/75">Click any section below for pro tips!</span>
+        <span className="ml-1 text-white/75">
+          Click any section below for pro tips!
+        </span>
       </p>
     </div>
   </div>
 );
 
 export default HowToBanner;
+
