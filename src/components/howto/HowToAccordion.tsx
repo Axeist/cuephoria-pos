@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Accordion,
@@ -13,7 +12,7 @@ import {
   ListOrdered,
   ListCheck,
   ListVideo,
-  Help,
+  CircleHelp,
   Phone,
   BookOpen,
   Mail,
@@ -157,7 +156,7 @@ const steps = [
   },
   {
     title: "Help, Training & Tips",
-    icon: Help,
+    icon: CircleHelp,
     detail: (
       <>
         <ul className="list-disc ml-5 space-y-1">
