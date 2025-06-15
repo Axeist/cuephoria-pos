@@ -19,15 +19,15 @@ const SupportBanner: React.FC = () => (
           "0 2px 20px 0 rgba(155,135,245,0.08), 0 1.5px 14px 0 rgba(14,165,233,0.10)",
       }}
     >
-      <Info className="h-5 w-5 md:h-6 md:w-6 text-cuephoria-orange flex-shrink-0" />
+      <Info className="h-5 w-5 md:h-6 md:w-6 text-cuephoria-lightpurple flex-shrink-0" />
       <span className="text-white text-base md:text-lg font-bold leading-snug">
         For any doubts or support,
-        <span className="font-bold text-cuephoria-orange ml-2">
+        <span className="font-bold text-cuephoria-lightpurple ml-2">
           Contact Ranjith (RK):
         </span>
         <a
           href="tel:8667637565"
-          className="ml-1 underline text-cuephoria-orange font-extrabold"
+          className="ml-1 underline text-cuephoria-lightpurple font-extrabold"
           style={{ textDecorationThickness: 2 }}
         >
           8667637565
@@ -38,4 +38,3 @@ const SupportBanner: React.FC = () => (
 );
 
 export default SupportBanner;
-
