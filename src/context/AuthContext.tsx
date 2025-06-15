@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
@@ -26,6 +26,55 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Track the inactivity timer
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const INACTIVITY_LIMIT_MS = 5 * 60 * 60 * 1000; // 5 hours
+
+  // Helper to clear inactivity timer
+  const clearInactivityTimer = () => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+  };
+
+  // Helper to set inactivity timer
+  const startInactivityTimer = () => {
+    clearInactivityTimer();
+    inactivityTimerRef.current = setTimeout(() => {
+      // Auto logout after inactivity
+      setUser(null);
+      localStorage.removeItem('cuephoriaAdmin');
+      toast.warning('You have been logged out due to inactivity. Please login again.');
+    }, INACTIVITY_LIMIT_MS);
+  };
+
+  // Listen for user interactions to reset inactivity timer (only if logged in)
+  useEffect(() => {
+    if (user) {
+      const events = [
+        'mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'resize',
+        'focus'
+      ];
+      const resetTimer = () => startInactivityTimer();
+
+      events.forEach(event =>
+        window.addEventListener(event, resetTimer, true)
+      );
+      startInactivityTimer();
+
+      return () => {
+        events.forEach(event =>
+          window.removeEventListener(event, resetTimer, true)
+        );
+        clearInactivityTimer();
+      };
+    } else {
+      clearInactivityTimer();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   useEffect(() => {
     const checkExistingUser = async () => {

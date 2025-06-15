@@ -50,7 +50,7 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
-  
+
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
       <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
@@ -76,6 +76,10 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
             <SidebarTrigger />
           </div>
           {children}
+          {/* Branding footer */}
+          <footer className="mt-auto w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-50">
+            Designed & Developed by RK.
+          </footer>
         </div>
       </div>
     </SidebarProvider>
@@ -95,54 +99,56 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/login" element={<Login />} />
-                  
+
                   {/* Public routes */}
                   <Route path="/public/tournaments" element={<PublicTournaments />} />
                   <Route path="/public/stations" element={<PublicStations />} />
-                  
+
                   {/* Protected routes */}
                   <Route path="/dashboard" element={
                     <ProtectedRoute>
                       <Dashboard />
                     </ProtectedRoute>
                   } />
-                  
                   <Route path="/pos" element={
                     <ProtectedRoute>
                       <POS />
                     </ProtectedRoute>
                   } />
-                  
                   <Route path="/stations" element={
                     <ProtectedRoute>
                       <Stations />
                     </ProtectedRoute>
                   } />
-                  
                   <Route path="/products" element={
                     <ProtectedRoute>
                       <Products />
                     </ProtectedRoute>
                   } />
-                  
                   <Route path="/customers" element={
                     <ProtectedRoute>
                       <Customers />
                     </ProtectedRoute>
                   } />
-                  
                   <Route path="/reports" element={
                     <ProtectedRoute>
                       <Reports />
                     </ProtectedRoute>
                   } />
-                  
+                  {/* How to Use page, protected */}
+                  <Route path="/how-to-use" element={
+                    <ProtectedRoute>
+                      <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+                        {React.createElement(require("./pages/HowToUse").default)}
+                      </React.Suspense>
+                    </ProtectedRoute>
+                  } />
                   <Route path="/settings" element={
                     <ProtectedRoute>
                       <Settings />
                     </ProtectedRoute>
                   } />
-                  
+
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </BrowserRouter>
