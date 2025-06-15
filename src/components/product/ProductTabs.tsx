@@ -38,9 +38,9 @@ const ProductTabs: React.FC<ProductTabsProps> = ({
     return products.filter(p => p.category === category);
   };
 
-  const renderProductGrid = (categoryProducts: Product[]) => {
+  const renderProductGrid = (categoryProducts: Product[], currentTab: string) => {
     if (categoryProducts.length === 0) {
-      return <NoProductsFound onAddProduct={onAddProduct} />;
+      return <NoProductsFound activeTab={currentTab} onAddProduct={onAddProduct} />;
     }
 
     return (
@@ -73,12 +73,12 @@ const ProductTabs: React.FC<ProductTabsProps> = ({
       </TabsList>
 
       <TabsContent value="all" className="mt-6">
-        {renderProductGrid(getTabProducts('all'))}
+        {renderProductGrid(getTabProducts('all'), 'all')}
       </TabsContent>
 
       {categories.map(category => (
         <TabsContent key={category} value={category} className="mt-6">
-          {renderProductGrid(getTabProducts(category))}
+          {renderProductGrid(getTabProducts(category), category)}
         </TabsContent>
       ))}
     </Tabs>
