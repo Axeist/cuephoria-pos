@@ -65,7 +65,7 @@ const LeaveRequestDialog: React.FC<Props> = ({ staffId, open, onClose, onSuccess
           <Input type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder="Optional" />
           <DialogFooter>
             <Button variant="outline" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
-            <Button type="submit" loading={loading ? "Submitting..." : undefined} disabled={loading}>
+            <Button type="submit" disabled={loading}>
               {loading ? "Submitting..." : "Submit Request"}
             </Button>
           </DialogFooter>
