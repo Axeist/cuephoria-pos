@@ -10,16 +10,23 @@ const StockValueWidget: React.FC = () => {
 
   // Calculate total stock value based on buying prices for food and drinks only
   const totalStockValue = products.reduce((total, product) => {
-    // Only include food and drinks products that have buying price
-    if (product.buyingPrice && (product.category === 'food' || product.category === 'drinks')) {
+    // Only include food and drinks products that have a buying price (including 0)
+    if (
+      (product.category === 'food' || product.category === 'drinks') &&
+      product.buyingPrice !== undefined &&
+      !isNaN(product.buyingPrice)
+    ) {
       return total + (product.buyingPrice * product.stock);
     }
     return total;
   }, 0);
 
-  // Count food and drinks products with buying price
+  // Count food and drinks products with buying price (including 0)
   const productsWithBuyingPrice = products.filter(
-    product => product.buyingPrice && (product.category === 'food' || product.category === 'drinks')
+    product =>
+      (product.category === 'food' || product.category === 'drinks') &&
+      product.buyingPrice !== undefined &&
+      !isNaN(product.buyingPrice)
   ).length;
 
   return (
