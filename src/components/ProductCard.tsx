@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { usePOS, Product } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { ShoppingCart, Edit, Trash, Clock, GraduationCap } from 'lucide-react';
+import { ShoppingCart, Edit, Trash, Clock, GraduationCap, Lock } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface ProductCardProps {
   product: Product;
@@ -11,6 +13,7 @@ interface ProductCardProps {
   onEdit?: (product: Product) => void;
   onDelete?: (id: string) => void;
   className?: string;
+  showManagementActions?: boolean; // New prop to control showing edit/delete buttons
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ 
@@ -18,9 +21,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
   isAdmin = false, 
   onEdit, 
   onDelete,
-  className = ''
+  className = '',
+  showManagementActions = false
 }) => {
   const { addToCart, isStudentDiscount, setIsStudentDiscount, cart } = usePOS();
+  const { user } = useAuth();
 
   // Define categories that shouldn't show buying/selling price info
   const hidePricingFieldsCategories = ['membership', 'challenges'];
@@ -180,7 +185,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         </div>
       </CardContent>
       <CardFooter className="mt-auto pt-2">
-        {isAdmin ? (
+        {showManagementActions ? (
           <div className="flex w-full space-x-2">
             <Button 
               variant="outline" 
@@ -193,10 +198,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
             <Button 
               variant="destructive" 
               size="sm" 
-              className="flex-1 justify-center"
+              className="flex-1 justify-center relative"
               onClick={() => onDelete && onDelete(product.id)}
+              title={!isAdmin ? "PIN verification required for staff" : "Delete product"}
             >
               <Trash className="h-4 w-4 mr-2" /> Delete
+              {!isAdmin && (
+                <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
+              )}
             </Button>
           </div>
         ) : (

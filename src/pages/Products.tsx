@@ -18,6 +18,9 @@ import ProductSalesWidget from '@/components/product/ProductSalesWidget';
 import ProductProfitWidget from '@/components/product/ProductProfitWidget';
 import ProductSalesExport from '@/components/product/ProductSalesExport';
 import StockExport from '@/components/product/StockExport';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { useAuth } from '@/context/AuthContext';
 import {
   Sheet,
   SheetContent,
@@ -31,6 +34,9 @@ const ProductsPage: React.FC = () => {
   const { addProduct, updateProduct, deleteProduct, products } = usePOS();
   const { resetToInitialProducts, refreshFromDB } = useProducts();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -88,20 +94,23 @@ const ProductsPage: React.FC = () => {
   };
 
   const handleDeleteProduct = (id: string) => {
-    try {
-      deleteProduct(id);
-      toast({
-        title: 'Product Deleted',
-        description: 'The product has been removed successfully.',
-      });
-    } catch (error) {
-      console.error('Delete product error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete product. Please try again.',
-        variant: 'destructive',
-      });
-    }
+    // Use PIN verification for delete operations
+    requestPinVerification(() => {
+      try {
+        deleteProduct(id);
+        toast({
+          title: 'Product Deleted',
+          description: 'The product has been removed successfully.',
+        });
+      } catch (error) {
+        console.error('Delete product error:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to delete product. Please try again.',
+          variant: 'destructive',
+        });
+      }
+    });
   };
 
   // Define categories that shouldn't show buying/selling price fields
@@ -243,6 +252,14 @@ const ProductsPage: React.FC = () => {
         selectedProduct={selectedProduct}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+      />
+
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Verify PIN to Delete"
+        description="Enter the PIN to confirm this delete operation."
       />
 
       {/* Product Widgets Section */}
