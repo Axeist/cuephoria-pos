@@ -41,18 +41,12 @@ const AppSidebar: React.FC = () => {
     { icon: Clock, label: 'Gaming Stations', path: '/stations' },
     { icon: Package, label: 'Products', path: '/products' },
     { icon: Users, label: 'Customers', path: '/customers' },
+    { icon: BarChart2, label: 'Reports', path: '/reports' }, // Now accessible to staff
+    { icon: Settings, label: 'Settings', path: '/settings' }, // Now accessible to staff
   ];
   
-  // Admin-only menu items
-  const adminOnlyMenuItems = [
-    { icon: BarChart2, label: 'Reports', path: '/reports' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
-  ];
-  
-  // Combine menu items based on user role
-  const menuItems = isAdmin ? 
-    [...baseMenuItems, ...adminOnlyMenuItems] : 
-    baseMenuItems;
+  // All users now have access to all menu items
+  const menuItems = baseMenuItems;
 
   // Mobile version with sheet
   if (isMobile) {

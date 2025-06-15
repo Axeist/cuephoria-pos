@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
@@ -27,6 +28,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 
 const Settings = () => {
   const { user } = useAuth();
@@ -41,6 +44,7 @@ const Settings = () => {
   const [resetting, setResetting] = useState(false);
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
   
   // Load tournaments on component mount
   useEffect(() => {
@@ -177,6 +181,10 @@ const Settings = () => {
       setResetting(false);
     }
   };
+
+  const handleResetLeaderboardWithPin = () => {
+    requestPinVerification(handleResetLeaderboard);
+  };
   
   return (
     <div className="container p-4 mx-auto max-w-7xl">
@@ -204,6 +212,7 @@ const Settings = () => {
           {isAdmin && (
             <TabsTrigger value="staff" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
+              <Shield className="h-3 w-3 text-amber-500" />
               Staff Management
             </TabsTrigger>
           )}
@@ -273,35 +282,38 @@ const Settings = () => {
         <TabsContent value="leaderboard" className="space-y-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Tournament Leaderboard</h2>
-            {isAdmin && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive"
-                    className="flex items-center gap-2"
-                    disabled={resetting}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="destructive"
+                  className="flex items-center gap-2"
+                  disabled={resetting}
+                  title={!isAdmin ? "PIN verification required for staff" : "Reset leaderboard"}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  {!isAdmin && <Lock className="h-3 w-3 text-amber-500" />}
+                  {resetting ? 'Resetting...' : 'Reset Leaderboard'}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset Leaderboard</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action will permanently delete all leaderboard entries and tournament history. 
+                    This cannot be undone. Are you sure you want to continue?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={isAdmin ? handleResetLeaderboard : handleResetLeaderboardWithPin} 
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    <RotateCcw className="h-4 w-4" />
-                    {resetting ? 'Resetting...' : 'Reset Leaderboard'}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Reset Leaderboard</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action will permanently delete all leaderboard entries and tournament history. 
-                      This cannot be undone. Are you sure you want to continue?
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleResetLeaderboard} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Reset Leaderboard
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
+                    Reset Leaderboard
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
           
           <TournamentLeaderboard />
@@ -313,6 +325,14 @@ const Settings = () => {
           </TabsContent>
         )}
       </Tabs>
+
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Admin Verification Required"
+        description="Enter the admin PIN to perform this restricted action."
+      />
     </div>
   );
 };

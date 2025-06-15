@@ -6,10 +6,13 @@ import {
   TableHeader, TableRow 
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash, Trophy, ChevronRight, History } from 'lucide-react';
+import { Edit, Trash, Trophy, ChevronRight, History, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
+import { useAuth } from '@/context/AuthContext';
+import { usePinVerification } from '@/hooks/usePinVerification';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 
 interface TournamentListProps {
   tournaments: Tournament[];
@@ -24,6 +27,14 @@ const TournamentList: React.FC<TournamentListProps> = ({
   onDelete,
   onViewHistory 
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
+
+  const handleDelete = (id: string) => {
+    requestPinVerification(() => onDelete(id));
+  };
+
   if (tournaments.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -53,62 +64,81 @@ const TournamentList: React.FC<TournamentListProps> = ({
   };
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Game Type</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Players</TableHead>
-            <TableHead>Budget</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {tournaments.map((tournament) => (
-            <TableRow key={tournament.id}>
-              <TableCell className="font-medium">{tournament.name}</TableCell>
-              <TableCell>
-                {tournament.gameType === 'PS5' ? (
-                  <span>{tournament.gameTitle}</span>
-                ) : (
-                  <span>{tournament.gameVariant}</span>
-                )}
-              </TableCell>
-              <TableCell>{format(new Date(tournament.date), 'dd MMM yyyy')}</TableCell>
-              <TableCell>
-                {tournament.players.length}
-                {tournament.maxPlayers && ` / ${tournament.maxPlayers}`}
-              </TableCell>
-              <TableCell>{formatCurrency(tournament.budget)}</TableCell>
-              <TableCell>{getStatusBadge(tournament.status)}</TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-2">
-                  {onViewHistory && tournament.status === 'completed' && (
+    <>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Game Type</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Players</TableHead>
+              <TableHead>Budget</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tournaments.map((tournament) => (
+              <TableRow key={tournament.id}>
+                <TableCell className="font-medium">{tournament.name}</TableCell>
+                <TableCell>
+                  {tournament.gameType === 'PS5' ? (
+                    <span>{tournament.gameTitle}</span>
+                  ) : (
+                    <span>{tournament.gameVariant}</span>
+                  )}
+                </TableCell>
+                <TableCell>{format(new Date(tournament.date), 'dd MMM yyyy')}</TableCell>
+                <TableCell>
+                  {tournament.players.length}
+                  {tournament.maxPlayers && ` / ${tournament.maxPlayers}`}
+                </TableCell>
+                <TableCell>{formatCurrency(tournament.budget)}</TableCell>
+                <TableCell>{getStatusBadge(tournament.status)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    {onViewHistory && tournament.status === 'completed' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => onViewHistory(tournament)}
+                        className="text-blue-500 hover:text-blue-600"
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => onEdit(tournament)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => onViewHistory(tournament)}
-                      className="text-blue-500 hover:text-blue-600"
+                      className="text-red-500 relative" 
+                      onClick={() => handleDelete(tournament.id)}
+                      title={!isAdmin ? "PIN verification required for staff" : "Delete tournament"}
                     >
-                      <History className="h-4 w-4" />
+                      <Trash className="h-4 w-4" />
+                      {!isAdmin && (
+                        <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
+                      )}
                     </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={() => onEdit(tournament)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-red-500" onClick={() => onDelete(tournament.id)}>
-                    <Trash className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <PinVerificationDialog
+        open={showPinDialog}
+        onOpenChange={handlePinCancel}
+        onSuccess={handlePinSuccess}
+        title="Verify PIN to Delete"
+        description="Enter the PIN to confirm this delete operation."
+      />
+    </>
   );
 };
 
