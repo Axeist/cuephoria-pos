@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -28,48 +29,45 @@ const Dashboard = () => {
   const [popupOpen, setPopupOpen] = useState(false);
   const { toast } = useToast();
 
-  // Fetch total sales
-  const { data: totalSales, isLoading: isTotalSalesLoading, error: totalSalesError } = useQuery(
-    ['totalSales'],
-    async () => {
+  // Fetch total sales (from bills)
+  const { data: totalSales, isLoading: isTotalSalesLoading, error: totalSalesError } = useQuery({
+    queryKey: ['totalSales'],
+    queryFn: async () => {
       const { data, error } = await supabase
-        .from('sales')
-        .select('total_amount');
-
+        .from('bills')
+        .select('total');
       if (error) {
         console.error("Error fetching total sales:", error);
         throw error;
       }
-
-      return data.reduce((acc, sale) => acc + sale.total_amount, 0);
-    }
-  );
+      return data ? data.reduce((acc, bill) => acc + Number(bill.total), 0) : 0;
+    },
+  });
 
   // Fetch total expenses
-  const { data: totalExpenses, isLoading: isTotalExpensesLoading, error: totalExpensesError } = useQuery(
-    ['totalExpenses'],
-    async () => {
+  const { data: totalExpenses, isLoading: isTotalExpensesLoading, error: totalExpensesError } = useQuery({
+    queryKey: ['totalExpenses'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('expenses')
         .select('amount');
-
       if (error) {
         console.error("Error fetching total expenses:", error);
         throw error;
       }
+      return data ? data.reduce((acc, expense) => acc + Number(expense.amount), 0) : 0;
+    },
+  });
 
-      return data.reduce((acc, expense) => acc + expense.amount, 0);
-    }
-  );
-
-  // Fetch recent activity
-  const { data: recentActivity, isLoading: isRecentActivityLoading, error: recentActivityError } = useQuery(
-    ['recentActivity'],
-    async () => {
+  // Fetch recent activity (using bills as a stand-in for demo, as activity_log table does not exist)
+  const { data: recentActivity, isLoading: isRecentActivityLoading, error: recentActivityError } = useQuery({
+    queryKey: ['recentActivity'],
+    queryFn: async () => {
+      // As there is no activity_log table, let's show latest 5 bills as activity
       const { data, error } = await supabase
-        .from('activity_log')
-        .select('*')
-        .order('timestamp', { ascending: false })
+        .from('bills')
+        .select('id, created_at, total, payment_method')
+        .order('created_at', { ascending: false })
         .limit(5);
 
       if (error) {
@@ -77,39 +75,44 @@ const Dashboard = () => {
         throw error;
       }
 
-      return data;
-    }
-  );
+      return data
+        ? data.map((bill: any) => ({
+            id: bill.id,
+            timestamp: bill.created_at,
+            type: "Bill Created",
+            description: `Total: $${bill.total} • Method: ${bill.payment_method ?? "unknown"}`
+          }))
+        : [];
+    },
+  });
 
-  // Fetch product stock levels
-  const { data: lowStockProducts, isLoading: isLowStockProductsLoading, error: lowStockProductsError } = useQuery(
-    ['lowStockProducts'],
-    async () => {
+  // Fetch low stock products
+  const { data: lowStockProducts, isLoading: isLowStockProductsLoading, error: lowStockProductsError } = useQuery({
+    queryKey: ['lowStockProducts'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
         .select('id, name, stock')
         .lt('stock', 10);
-
       if (error) {
         console.error("Error fetching low stock products:", error);
         throw error;
       }
+      return data || [];
+    },
+  });
 
-      return data;
-    }
-  );
-
-  // Fetch sales data for the last 7 days
-  const { data: salesData, isLoading: isSalesDataLoading, error: salesDataError } = useQuery(
-    ['salesData'],
-    async () => {
+  // Fetch sales data for the last 7 days (from bills)
+  const { data: salesData, isLoading: isSalesDataLoading, error: salesDataError } = useQuery({
+    queryKey: ['salesData'],
+    queryFn: async () => {
       const today = new Date();
       const lastWeek = new Date(today);
       lastWeek.setDate(today.getDate() - 7);
 
       const { data, error } = await supabase
-        .from('sales')
-        .select('total_amount, created_at')
+        .from('bills')
+        .select('total, created_at')
         .gte('created_at', lastWeek.toISOString())
         .lte('created_at', today.toISOString());
 
@@ -119,9 +122,9 @@ const Dashboard = () => {
       }
 
       // Aggregate sales by date
-      const aggregatedSales = data.reduce((acc: { [key: string]: number }, sale) => {
-        const saleDate = format(new Date(sale.created_at), 'yyyy-MM-dd');
-        acc[saleDate] = (acc[saleDate] || 0) + sale.total_amount;
+      const aggregatedSales = (data || []).reduce((acc: { [key: string]: number }, bill: any) => {
+        const saleDate = format(new Date(bill.created_at), 'yyyy-MM-dd');
+        acc[saleDate] = (acc[saleDate] || 0) + Number(bill.total);
         return acc;
       }, {});
 
@@ -132,23 +135,24 @@ const Dashboard = () => {
       }));
 
       return chartData;
-    }
-  );
+    },
+  });
 
   useEffect(() => {
-    // Only show for staff (not admin) on login
     if (!loading && shouldShow) {
       setPopupOpen(true);
     }
   }, [shouldShow, loading]);
 
-  if (totalSalesError || totalExpensesError || recentActivityError || lowStockProductsError || salesDataError) {
-    toast({
-      title: "Error",
-      description: "Failed to load dashboard data. Please try again.",
-      variant: "destructive"
-    });
-  }
+  useEffect(() => {
+    if (totalSalesError || totalExpensesError || recentActivityError || lowStockProductsError || salesDataError) {
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data. Please try again.",
+        variant: "destructive"
+      });
+    }
+  }, [totalSalesError, totalExpensesError, recentActivityError, lowStockProductsError, salesDataError, toast]);
 
   return (
     <div className="container p-4 mx-auto max-w-7xl">

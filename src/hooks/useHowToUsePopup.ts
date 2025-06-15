@@ -21,7 +21,7 @@ export function useHowToUsePopup() {
         .from("user_preferences")
         .select("how_to_use_dismissed")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         setShouldShow(true); // Default: show popup if no record exists
@@ -36,29 +36,31 @@ export function useHowToUsePopup() {
   // Update preference in Supabase
   const dismiss = useCallback(async () => {
     if (!user) return;
-
-    // Upsert preference row
     const { error } = await supabase
       .from("user_preferences")
-      .upsert({
-        user_id: user.id,
-        how_to_use_dismissed: true,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id" });
-
+      .upsert(
+        {
+          user_id: user.id,
+          how_to_use_dismissed: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
     if (!error) setShouldShow(false);
   }, [user]);
 
   const reset = useCallback(async () => {
     if (!user) return;
-    // For admin testing or re-showing tutorial
     await supabase
       .from("user_preferences")
-      .upsert({
-        user_id: user.id,
-        how_to_use_dismissed: false,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id" });
+      .upsert(
+        {
+          user_id: user.id,
+          how_to_use_dismissed: false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
     setShouldShow(true);
   }, [user]);
 
