@@ -23,7 +23,7 @@ const StockValueWidget: React.FC = () => {
   ).length;
 
   return (
-    <Card className="shadow-lg transition-all duration-300 hover:shadow-[#9b87f5]/20 hover:border-[#9b87f5]/30">
+    <Card className="mb-6">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-medium">Current Stock Value</CardTitle>
         <Package className="h-4 w-4 text-muted-foreground" />
@@ -41,4 +41,3 @@ const StockValueWidget: React.FC = () => {
 };
 
 export default StockValueWidget;
-
