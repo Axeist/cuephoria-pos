@@ -12,13 +12,10 @@ export const useBills = (
 
   // Calculate loyalty points based on correct formula
   const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
-    // Base calculation: 2 points for every 100 rupees spent
-    const basePoints = Math.floor((total / 100) * 2);
-    
-    // Additional 5 points for members
-    const memberBonusPoints = isMember ? 5 : 0;
-    
-    return basePoints + memberBonusPoints;
+    // Members: 5 points per ₹100 spent
+    // Non-members: 2 points per ₹100 spent
+    const pointsRate = isMember ? 5 : 2;
+    return Math.floor((total / 100) * pointsRate);
   };
 
   // Load bills from Supabase on component mount

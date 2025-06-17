@@ -31,13 +31,10 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
 
   // Calculate loyalty points based on correct formula
   const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
-    // Base calculation: 2 points for every 100 rupees spent
-    const basePoints = Math.floor((total / 100) * 2);
-    
-    // Additional 5 points for members
-    const memberBonusPoints = isMember ? 5 : 0;
-    
-    return basePoints + memberBonusPoints;
+    // Members: 5 points per ₹100 spent
+    // Non-members: 2 points per ₹100 spent
+    const pointsRate = isMember ? 5 : 2;
+    return Math.floor((total / 100) * pointsRate);
   };
 
   const handleEditToggle = () => {
@@ -172,7 +169,7 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
           {bill.loyaltyPointsEarned > 0 && (
             <div className="mt-1">Points Earned: {bill.loyaltyPointsEarned} 
               <span className="text-xs text-gray-500 ml-1">
-                (2 points per ₹100{customer?.isMember ? ' + 5 bonus for members' : ''})
+                ({customer?.isMember ? '5 points' : '2 points'} per ₹100)
               </span>
             </div>
           )}
