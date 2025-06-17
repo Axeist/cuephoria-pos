@@ -89,7 +89,7 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1 bg-transparent">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1 bg-inherit rounded-none">
               {widget.value}
             </div>
             <p className="text-xs text-zinc-500">
