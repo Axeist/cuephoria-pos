@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,20 +34,24 @@ const Customers: React.FC = () => {
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   const handleAddCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt'>) => {
-    const newCustomer = await addCustomer(customerData);
-    if (newCustomer) {
+    try {
+      await addCustomer(customerData);
       setIsAddDialogOpen(false);
+    } catch (error) {
+      console.error('Error adding customer:', error);
     }
   };
 
   const handleEditCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt'>) => {
     if (editingCustomer) {
-      const updatedCustomer = await updateCustomer({
-        ...editingCustomer,
-        ...customerData
-      });
-      if (updatedCustomer) {
+      try {
+        await updateCustomer({
+          ...editingCustomer,
+          ...customerData
+        });
         setEditingCustomer(null);
+      } catch (error) {
+        console.error('Error updating customer:', error);
       }
     }
   };
