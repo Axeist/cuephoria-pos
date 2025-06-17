@@ -10,6 +10,17 @@ export const useBills = (
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
 
+  // Calculate loyalty points based on correct formula
+  const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
+    // Base calculation: 2 points for every 100 rupees spent
+    const basePoints = Math.floor((total / 100) * 2);
+    
+    // Additional 5 points for members
+    const memberBonusPoints = isMember ? 5 : 0;
+    
+    return basePoints + memberBonusPoints;
+  };
+
   // Load bills from Supabase on component mount
   useEffect(() => {
     const loadBills = async () => {
@@ -105,7 +116,8 @@ export const useBills = (
       }
       
       const total = calculateTotal();
-      const loyaltyPointsEarned = Math.floor(total / 10); // 1 point per ₹10 spent
+      // Use corrected loyalty points calculation
+      const loyaltyPointsEarned = calculateLoyaltyPoints(total, customer.isMember);
 
       console.log('Calculated values:', { subtotal, discountValue, total, loyaltyPointsEarned });
 
@@ -273,7 +285,8 @@ export const useBills = (
       }
       
       const total = subtotal - discountValue - loyaltyPointsUsed;
-      const loyaltyPointsEarned = Math.floor(total / 10);
+      // Use corrected loyalty points calculation
+      const loyaltyPointsEarned = calculateLoyaltyPoints(total, customer.isMember);
 
       // Update bill in database
       const { error: billError } = await supabase

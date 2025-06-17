@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bill, Customer } from '@/types/pos.types';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -29,6 +28,17 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
     cashAmount: bill.cashAmount || 0,
     upiAmount: bill.upiAmount || 0
   });
+
+  // Calculate loyalty points based on correct formula
+  const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
+    // Base calculation: 2 points for every 100 rupees spent
+    const basePoints = Math.floor((total / 100) * 2);
+    
+    // Additional 5 points for members
+    const memberBonusPoints = isMember ? 5 : 0;
+    
+    return basePoints + memberBonusPoints;
+  };
 
   const handleEditToggle = () => {
     setIsEditing(!isEditing);
@@ -67,10 +77,8 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
       }
     }
 
-    // Calculate loyalty points earned using the membership status
-    // Members: 5 points per 100 INR spent, Non-members: 2 points per 100 INR spent
-    const pointsRate = customer?.isMember ? 5 : 2;
-    const loyaltyPointsEarned = Math.floor((total / 100) * pointsRate);
+    // Calculate loyalty points earned using the corrected formula
+    const loyaltyPointsEarned = calculateLoyaltyPoints(total, customer?.isMember || false);
 
     if (onUpdateBill) {
       onUpdateBill({
@@ -164,7 +172,7 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
           {bill.loyaltyPointsEarned > 0 && (
             <div className="mt-1">Points Earned: {bill.loyaltyPointsEarned} 
               <span className="text-xs text-gray-500 ml-1">
-                ({bill.loyaltyPointsEarned / bill.total * 100 > 2.1 ? '5 points' : '2 points'} per ₹100)
+                (2 points per ₹100{customer?.isMember ? ' + 5 bonus for members' : ''})
               </span>
             </div>
           )}
