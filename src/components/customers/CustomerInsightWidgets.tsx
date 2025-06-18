@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, UserCheck, DollarSign, Calendar, Award } from 'lucide-react';
@@ -88,10 +87,10 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
       {widgets.map((widget, index) => (
         <Card 
           key={index} 
-          className="shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-purple/20 border-0 bg-card"
+          className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-xl hover:shadow-cuephoria-purple/20 transition-all duration-300 backdrop-blur-sm"
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-50">
+            <CardTitle className="text-base font-medium text-white">
               {widget.title}
             </CardTitle>
             <div className={`h-8 w-8 rounded-full ${widget.bgColor} flex items-center justify-center`}>
@@ -99,10 +98,10 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white-900 dark:text-white mb-1 rounded-none bg-inherit">
+            <div className="text-xl font-bold text-white">
               {widget.value}
             </div>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-gray-400">
               {widget.description}
             </p>
           </CardContent>
