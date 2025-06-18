@@ -76,16 +76,18 @@ const ProductProfitWidget: React.FC = () => {
   console.log('Products with profit data:', productsWithProfit);
 
   return (
-    <Card className="mb-6 shadow-lg hover:shadow-green-500/20 hover:border-green-500/30 transition-all duration-300">
+    <Card className="mb-6 bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-green-500/20 hover:border-green-500/30 transition-all duration-300 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Total Product Profit</CardTitle>
-        <DollarSign className="h-4 w-4 text-muted-foreground" />
+        <CardTitle className="text-base font-medium text-white">Total Product Profit</CardTitle>
+        <div className="h-8 w-8 rounded-full bg-green-500/20 flex items-center justify-center">
+          <DollarSign className="h-4 w-4 text-green-400" />
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">
+        <div className="text-xl font-bold text-white">
           <CurrencyDisplay amount={totalProfit} />
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-gray-400">
           Food & drinks profit ({productsWithProfit} products tracked)
         </p>
       </CardContent>
