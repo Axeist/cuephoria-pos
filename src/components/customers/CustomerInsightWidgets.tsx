@@ -88,7 +88,7 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
       {widgets.map((widget, index) => (
         <Card 
           key={index} 
-          className="shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-purple/20 border-gray-200 dark:border-gray-700 hover:border-cuephoria-purple/30"
+          className="shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-purple/20 border-0 bg-card"
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-50">
