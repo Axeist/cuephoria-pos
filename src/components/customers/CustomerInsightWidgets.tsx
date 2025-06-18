@@ -1,11 +1,14 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, UserCheck, DollarSign, Calendar, Award } from 'lucide-react';
 import { Customer } from '@/types/pos.types';
 import { CurrencyDisplay } from '@/components/ui/currency';
+
 interface CustomerInsightWidgetsProps {
   customers: Customer[];
 }
+
 const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
   customers
 }) => {
@@ -35,6 +38,7 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
   // Loyalty points insights
   const totalLoyaltyPoints = customers.reduce((sum, customer) => sum + customer.loyaltyPoints, 0);
   const avgLoyaltyPoints = totalCustomers > 0 ? totalLoyaltyPoints / totalCustomers : 0;
+
   const widgets = [{
     title: "Total Customers",
     value: totalCustomers.toLocaleString(),
@@ -78,8 +82,14 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
     color: "text-yellow-500",
     bgColor: "bg-yellow-500/10"
   }];
-  return <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
-      {widgets.map((widget, index) => <Card key={index} className="shadow-lg transition-all duration-300 hover:shadow-xl border-gray-200 dark:border-gray-700">
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
+      {widgets.map((widget, index) => (
+        <Card 
+          key={index} 
+          className="shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-cuephoria-purple/20 border-gray-200 dark:border-gray-700 hover:border-cuephoria-purple/30"
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-50">
               {widget.title}
@@ -96,7 +106,10 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
               {widget.description}
             </p>
           </CardContent>
-        </Card>)}
-    </div>;
+        </Card>
+      ))}
+    </div>
+  );
 };
+
 export default CustomerInsightWidgets;
