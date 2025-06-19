@@ -21,11 +21,14 @@ interface Offer {
   id: string;
   title: string;
   description: string;
-  discount_type: string;
+  discount_type: 'percentage' | 'fixed' | 'bogo' | 'free_item';
   discount_value: number;
   validity_days: number;
-  target_audience: string;
+  target_audience: 'all' | 'members' | 'non_members' | 'new_customers' | 'vip';
   min_spend: number;
+  max_uses?: number;
+  current_uses: number;
+  is_active: boolean;
 }
 
 interface Tournament {
@@ -79,7 +82,14 @@ const WhatsAppMessageDialog: React.FC<WhatsAppMessageDialogProps> = ({
         return;
       }
       
-      setOffers(data || []);
+      // Type cast the data to ensure proper types
+      const typedOffers: Offer[] = (data || []).map(offer => ({
+        ...offer,
+        discount_type: offer.discount_type as 'percentage' | 'fixed' | 'bogo' | 'free_item',
+        target_audience: offer.target_audience as 'all' | 'members' | 'non_members' | 'new_customers' | 'vip'
+      }));
+      
+      setOffers(typedOffers);
     } catch (error) {
       console.error('Error fetching offers:', error);
     }

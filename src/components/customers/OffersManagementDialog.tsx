@@ -47,10 +47,10 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    discount_type: 'percentage' as const,
+    discount_type: 'percentage' as 'percentage' | 'fixed' | 'bogo' | 'free_item',
     discount_value: 0,
     validity_days: 7,
-    target_audience: 'all' as const,
+    target_audience: 'all' as 'all' | 'members' | 'non_members' | 'new_customers' | 'vip',
     min_spend: 0,
     max_uses: undefined as number | undefined,
     is_active: true
@@ -71,7 +71,15 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      setOffers(data || []);
+      
+      // Type cast the data to ensure proper types
+      const typedOffers: Offer[] = (data || []).map(offer => ({
+        ...offer,
+        discount_type: offer.discount_type as 'percentage' | 'fixed' | 'bogo' | 'free_item',
+        target_audience: offer.target_audience as 'all' | 'members' | 'non_members' | 'new_customers' | 'vip'
+      }));
+      
+      setOffers(typedOffers);
     } catch (error) {
       console.error('Error fetching offers:', error);
       toast({
@@ -322,7 +330,6 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
                         <Switch
                           checked={offer.is_active}
                           onCheckedChange={() => handleToggleActive(offer)}
-                          size="sm"
                         />
                         <Button
                           variant="ghost"
@@ -419,7 +426,7 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
                         <Label htmlFor="discount_type" className="text-white">Discount Type</Label>
                         <Select
                           value={formData.discount_type}
-                          onValueChange={(value: any) => setFormData(prev => ({ ...prev, discount_type: value }))}
+                          onValueChange={(value: 'percentage' | 'fixed' | 'bogo' | 'free_item') => setFormData(prev => ({ ...prev, discount_type: value }))}
                         >
                           <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
                             <SelectValue />
@@ -452,7 +459,7 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
                         <Label htmlFor="target_audience" className="text-white">Target Audience</Label>
                         <Select
                           value={formData.target_audience}
-                          onValueChange={(value: any) => setFormData(prev => ({ ...prev, target_audience: value }))}
+                          onValueChange={(value: 'all' | 'members' | 'non_members' | 'new_customers' | 'vip') => setFormData(prev => ({ ...prev, target_audience: value }))}
                         >
                           <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
                             <SelectValue />
