@@ -720,6 +720,54 @@ export type Database = {
         }
         Relationships: []
       }
+      offers: {
+        Row: {
+          created_at: string | null
+          current_uses: number | null
+          description: string
+          discount_type: string | null
+          discount_value: number | null
+          id: string
+          is_active: boolean | null
+          max_uses: number | null
+          min_spend: number | null
+          target_audience: string | null
+          title: string
+          updated_at: string | null
+          validity_days: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_uses?: number | null
+          description: string
+          discount_type?: string | null
+          discount_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_uses?: number | null
+          min_spend?: number | null
+          target_audience?: string | null
+          title: string
+          updated_at?: string | null
+          validity_days?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          current_uses?: number | null
+          description?: string
+          discount_type?: string | null
+          discount_value?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_uses?: number | null
+          min_spend?: number | null
+          target_audience?: string | null
+          title?: string
+          updated_at?: string | null
+          validity_days?: number | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           buying_price: number | null
