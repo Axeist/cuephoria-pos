@@ -55,6 +55,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     setActiveTab('matches');
     
     handleSave(players, generatedMatches, winner, runnerUp);
+    toast.success(`${generatedMatches.length} matches generated successfully!`);
   };
 
   const handleUpdateMatchResult = (matchId: string, winnerId: string) => {
@@ -177,6 +178,11 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
 
   // Check if tournament is completed
   const isCompleted = tournament.status === 'completed' || !!winner;
+  
+  // Check if we can generate matches
+  const canGenerateMatches = players.length >= 2 && 
+    (tournament.tournamentFormat !== 'knockout' || players.length % 2 === 0) &&
+    !isCompleted;
 
   // Get tournament format display info
   const getFormatInfo = () => {
@@ -223,8 +229,8 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="players">Players</TabsTrigger>
-            <TabsTrigger value="matches">Fixtures</TabsTrigger>
+            <TabsTrigger value="players">Players ({players.length})</TabsTrigger>
+            <TabsTrigger value="matches">Fixtures ({matches.length})</TabsTrigger>
           </TabsList>
           
           <TabsContent value="players" className="space-y-4 animate-fade-in">
@@ -234,28 +240,38 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               matchesExist={matches.length > 0}
               updatePlayerName={updatePlayerName}
               tournamentId={tournament.id}
-              maxPlayers={tournament.maxPlayers} // Pass maxPlayers prop
+              maxPlayers={tournament.maxPlayers}
             />
             
             <div className="flex justify-end pt-4">
               <Button 
                 onClick={handleGenerateMatches} 
-                disabled={players.length < 2 || saving || isLoading || isCompleted}
+                disabled={!canGenerateMatches || saving || isLoading}
                 className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
               >
                 {(saving || isLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {matches.length > 0 ? 'Regenerate Fixtures' : 'Generate Fixtures'}
               </Button>
             </div>
-            {isCompleted && matches.length > 0 && (
-              <div className="text-amber-400 text-sm mt-2 text-center">
-                Cannot regenerate fixtures for completed tournaments.
+            
+            {/* Validation Messages */}
+            {players.length < 2 && (
+              <div className="text-orange-400 text-sm mt-2 text-center flex items-center justify-center gap-2">
+                <Info className="h-4 w-4" />
+                Add at least 2 players to generate fixtures.
               </div>
             )}
+            
             {tournament.tournamentFormat === 'knockout' && players.length > 0 && players.length % 2 !== 0 && (
               <div className="text-orange-400 text-sm mt-2 text-center flex items-center justify-center gap-2">
                 <Info className="h-4 w-4" />
                 Knockout tournaments require an even number of players. Current: {players.length}
+              </div>
+            )}
+            
+            {isCompleted && (
+              <div className="text-amber-400 text-sm mt-2 text-center">
+                Cannot regenerate fixtures for completed tournaments.
               </div>
             )}
           </TabsContent>
@@ -269,6 +285,8 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               updateMatchStatus={handleUpdateMatchStatus}
               winner={winner}
               runnerUp={runnerUp}
+              onGenerateMatches={handleGenerateMatches}
+              canGenerateMatches={canGenerateMatches}
             />
           </TabsContent>
         </Tabs>

@@ -1,25 +1,11 @@
+
 import React from 'react';
-import { Match, Player, Tournament, MatchStatus, MatchStage } from '@/types/tournament.types';
+import { Match, Player, MatchStatus } from '@/types/tournament.types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, Trophy, Calendar, Clock, AlertTriangle, Flag, Users, Medal, ArrowRight } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { format } from 'date-fns';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, Trophy, Users, Plus } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface TournamentMatchSectionProps {
   matches: Match[];
@@ -29,6 +15,8 @@ interface TournamentMatchSectionProps {
   updateMatchStatus: (matchId: string, status: MatchStatus) => void;
   winner?: Player;
   runnerUp?: Player;
+  onGenerateMatches?: () => void;
+  canGenerateMatches?: boolean;
 }
 
 const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
@@ -38,350 +26,211 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
   updateMatchSchedule,
   updateMatchStatus,
   winner,
-  runnerUp
+  runnerUp,
+  onGenerateMatches,
+  canGenerateMatches = false
 }) => {
-  const [selectedMatchId, setSelectedMatchId] = React.useState<string | null>(null);
-  const [editDate, setEditDate] = React.useState('');
-  const [editTime, setEditTime] = React.useState('');
-  
-  const getPlayerName = (playerId: string) => {
-    return players.find(player => player.id === playerId)?.name || 'Unknown';
-  };
-  
-  const handleOpenScheduleDialog = (match: Match) => {
-    setSelectedMatchId(match.id);
-    setEditDate(match.scheduledDate || '');
-    setEditTime(match.scheduledTime || '');
-  };
-  
-  const handleSaveSchedule = () => {
-    if (selectedMatchId && editDate && editTime) {
-      updateMatchSchedule(selectedMatchId, editDate, editTime);
-      setSelectedMatchId(null);
-    }
-  };
-
-  const getStatusLabel = (status: MatchStatus) => {
+  const getStatusColor = (status: MatchStatus) => {
     switch (status) {
-      case 'scheduled': return 'Scheduled';
-      case 'completed': return 'Completed';
-      case 'cancelled': return 'Cancelled';
-      default: return 'Unknown';
+      case 'scheduled':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  const getStatusIcon = (status: MatchStatus) => {
-    switch (status) {
-      case 'scheduled': return <Calendar className="h-4 w-4 mr-1" />;
-      case 'completed': return <Check className="h-4 w-4 mr-1" />;
-      case 'cancelled': return <AlertTriangle className="h-4 w-4 mr-1" />;
-      default: return null;
-    }
-  };
-
-  const getStageDisplayInfo = (stage: MatchStage) => {
+  const getStageColor = (stage: string) => {
     switch (stage) {
       case 'final':
-        return {
-          label: 'FINAL',
-          color: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white',
-          icon: <Trophy className="h-4 w-4 mr-1" />
-        };
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'semi_final':
-        return {
-          label: 'SEMI FINAL',
-          color: 'bg-gradient-to-r from-purple-600 to-purple-400 text-white',
-          icon: <Medal className="h-4 w-4 mr-1" />
-        };
+        return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'quarter_final':
-        return {
-          label: 'QUARTER FINAL',
-          color: 'bg-gradient-to-r from-blue-600 to-blue-400 text-white',
-          icon: <Flag className="h-4 w-4 mr-1" />
-        };
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       default:
-        return {
-          label: '',
-          color: '',
-          icon: null
-        };
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  // Group matches by stage
-  const groupedMatches = React.useMemo(() => {
-    // First, separate matches by stage
-    const groups: { [key in MatchStage]?: Match[] } = {};
-    
-    // Make sure final is first, followed by semi-finals, then quarter-finals, then regular matches
-    const displayOrder: MatchStage[] = ['final', 'semi_final', 'quarter_final', 'regular'];
-    
-    // Initialize all groups to ensure proper order
-    displayOrder.forEach(stage => {
-      groups[stage] = matches.filter(match => match.stage === stage);
-    });
-    
-    return displayOrder.filter(stage => groups[stage]?.length);
-  }, [matches]);
-
-  // Show tournament winner and runner-up announcement if there is one
-  const renderWinnerSection = () => {
-    if (!winner) return null;
-    
-    return (
-      <div className="p-6 text-center animate-fade-in mb-8">
-        <div className="flex justify-center mb-4 animate-scale-in">
-          <div className="relative">
-            <div className="absolute inset-0 bg-yellow-400 rounded-full blur-md opacity-50 animate-pulse-glow"></div>
-            <Trophy className="h-20 w-20 text-yellow-500 relative z-10 animate-float" />
-          </div>
-        </div>
-        <h3 className="text-3xl font-bold bg-gradient-to-r from-yellow-500 to-amber-500 bg-clip-text text-transparent">
-          Tournament Champion
-        </h3>
-        <p className="text-2xl font-medium mt-3 animate-fade-in delay-200">{winner.name}</p>
-        
-        {runnerUp && (
-          <div className="mt-6 animate-fade-in delay-300">
-            <div className="flex justify-center mb-2">
-              <Medal className="h-12 w-12 text-gray-400" />
-            </div>
-            <h4 className="text-xl font-semibold text-gray-300">Runner-up</h4>
-            <p className="text-lg text-gray-400 mt-1">{runnerUp.name}</p>
-          </div>
-        )}
-        
-        <p className="text-muted-foreground mt-4 animate-fade-in delay-400">
-          Congratulations to all participants for an amazing tournament!
-        </p>
-      </div>
-    );
+  const getPlayerName = (playerId: string) => {
+    const player = players.find(p => p.id === playerId);
+    return player ? player.name : 'TBD';
   };
 
+  const formatStage = (stage: string) => {
+    switch (stage) {
+      case 'final':
+        return 'Final';
+      case 'semi_final':
+        return 'Semi-Final';
+      case 'quarter_final':
+        return 'Quarter-Final';
+      default:
+        return 'Match';
+    }
+  };
+
+  // If no matches exist but we have players, show generate button
   if (matches.length === 0) {
     return (
-      <div className="text-center py-8 animate-fade-in">
-        <div className="flex justify-center mb-4">
-          <Users className="h-12 w-12 text-muted-foreground opacity-50" />
-        </div>
-        <p className="text-lg text-muted-foreground">
-          No matches generated yet. Click the button below to generate matches.
-        </p>
+      <div className="space-y-4">
+        <Card className="bg-gray-950/50 border-gray-800">
+          <CardContent className="p-8 text-center">
+            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">No Fixtures Generated</h3>
+            <p className="text-gray-500 mb-4">Generate tournament fixtures to start organizing matches.</p>
+            
+            {canGenerateMatches && onGenerateMatches && (
+              <Button 
+                onClick={onGenerateMatches}
+                className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Generate Fixtures
+              </Button>
+            )}
+            
+            {!canGenerateMatches && (
+              <p className="text-amber-400 text-sm">
+                Add at least 2 players in the Players tab to generate fixtures.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  // Group matches by round for better organization
+  const matchesByRound = matches.reduce((acc, match) => {
+    if (!acc[match.round]) {
+      acc[match.round] = [];
+    }
+    acc[match.round].push(match);
+    return acc;
+  }, {} as Record<number, Match[]>);
+
+  const rounds = Object.keys(matchesByRound).map(Number).sort((a, b) => a - b);
+
   return (
-    <div className="space-y-12">
-      {/* Always render the winner section if we have a winner */}
-      {renderWinnerSection()}
-      
-      {groupedMatches.map((stage) => {
-        const stageMatches = matches.filter(match => match.stage === stage);
-        if (stageMatches.length === 0) return null;
-        
-        const stageInfo = getStageDisplayInfo(stage);
-        
-        return (
-          <div key={stage} className="space-y-4 animate-fade-in">
-            {stageInfo.label && (
-              <div className="flex items-center justify-center mb-6">
-                <Badge className={`text-md px-6 py-2 shadow-lg ${stageInfo.color} animate-scale-in`}>
-                  {stageInfo.icon}
-                  {stageInfo.label}
+    <div className="space-y-6">
+      {/* Winner and Runner-up Display */}
+      {winner && (
+        <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-800/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-yellow-200">
+              <Trophy className="h-5 w-5" />
+              Tournament Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-yellow-500" />
+              <span className="font-medium text-yellow-200">Winner: {winner.name}</span>
+            </div>
+            {runnerUp && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-gray-700 text-gray-300 border-gray-600">
+                  Runner-up: {runnerUp.name}
                 </Badge>
               </div>
             )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {stageMatches.map((match, index) => (
-                <Card 
-                  key={match.id} 
-                  className={`overflow-hidden border-gray-800/50 shadow-lg hover:shadow-xl transition-all duration-300 animate-scale-in ${
-                    match.status === 'cancelled' ? 'bg-gray-900/40' : 
-                    match.completed ? 'bg-gray-900/20' : ''
-                  }`}
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <div className={`h-1.5 w-full ${
-                    match.status === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-600' :
-                    match.status === 'cancelled' ? 'bg-gradient-to-r from-red-500 to-rose-600' :
-                    'bg-gradient-to-r from-amber-500 to-orange-500'
-                  }`}></div>
-                  <CardContent className="p-5">
-                    <div className="flex justify-between items-center">
-                      <div className="font-medium flex items-center gap-2">
-                        <span className="bg-gray-800 text-xs rounded-full h-6 w-6 flex items-center justify-center">
-                          {match.id.split('-')[1]}
-                        </span>
-                        {match.stage !== 'regular' && (
-                          <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-800/70">
-                            {match.stage.replace('_', ' ').toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      <div className={`text-sm flex items-center rounded-full px-2 py-1 ${
-                        match.status === 'completed' ? 'bg-green-900/30 text-green-400' : 
-                        match.status === 'cancelled' ? 'bg-red-900/30 text-red-400' : 
-                        'bg-amber-900/30 text-amber-400'
-                      }`}>
-                        {getStatusIcon(match.status)}
-                        {match.status === 'completed' ? (
-                          <span className="font-semibold">
-                            Winner: {getPlayerName(match.winnerId || '')}
-                          </span>
-                        ) : (
-                          getStatusLabel(match.status)
-                        )}
-                      </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Matches by Round */}
+      {rounds.map(round => (
+        <div key={round} className="space-y-4">
+          <h3 className="text-lg font-semibold text-white">
+            Round {round} {rounds.length > 1 && round === rounds[rounds.length - 1] ? '(Final)' : ''}
+          </h3>
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            {matchesByRound[round].map(match => (
+              <Card key={match.id} className="bg-gray-950/50 border-gray-800">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-base font-medium text-white">
+                      {formatStage(match.stage)}
+                    </CardTitle>
+                    <div className="flex gap-2">
+                      <Badge variant="outline" className={getStageColor(match.stage)}>
+                        {formatStage(match.stage)}
+                      </Badge>
+                      <Badge variant="outline" className={getStatusColor(match.status)}>
+                        {match.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-4">
+                  {/* Players */}
+                  <div className="space-y-2">
+                    <div className={`p-3 rounded-lg border ${match.winnerId === match.player1Id ? 'bg-green-900/20 border-green-800/30' : 'bg-gray-800/50 border-gray-700'}`}>
+                      <span className="text-white font-medium">{getPlayerName(match.player1Id)}</span>
+                      {match.winnerId === match.player1Id && (
+                        <Trophy className="inline h-4 w-4 ml-2 text-yellow-500" />
+                      )}
                     </div>
                     
-                    {match.scheduledDate && match.scheduledTime && (
-                      <div className="mt-3 flex items-center text-xs text-gray-400 bg-gray-800/30 rounded-md px-2 py-1">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        <span>{format(new Date(match.scheduledDate), 'dd MMM yyyy')}</span>
-                        <Clock className="h-3 w-3 ml-3 mr-1" />
-                        <span>{match.scheduledTime}</span>
-                        {match.status !== 'cancelled' && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="ml-1 h-5 text-xs p-0 hover:bg-transparent text-blue-400 hover:text-blue-300"
-                            onClick={() => handleOpenScheduleDialog(match)}
-                          >
-                            (Edit)
-                          </Button>
-                        )}
-                      </div>
-                    )}
+                    <div className="text-center text-gray-400 text-sm">VS</div>
                     
-                    <div className="mt-5 flex justify-between items-center bg-gray-800/20 rounded-md p-3 relative">
-                      <div className={`flex-1 text-center p-2 rounded-md transition-all duration-300 ${
-                        match.status !== 'cancelled' && match.winnerId === match.player1Id 
-                          ? 'bg-gradient-to-r from-green-900/40 to-green-800/20 text-green-400' 
-                          : 'hover:bg-gray-800/30'
-                      }`}>
-                        {getPlayerName(match.player1Id)}
-                      </div>
-                      
-                      <div className="mx-2 flex flex-col items-center justify-center">
-                        <span className="text-lg font-semibold text-gray-400">VS</span>
-                        <ArrowRight className="h-4 w-4 text-gray-600" />
-                      </div>
-                      
-                      <div className={`flex-1 text-center p-2 rounded-md transition-all duration-300 ${
-                        match.status !== 'cancelled' && match.winnerId === match.player2Id 
-                          ? 'bg-gradient-to-r from-green-900/40 to-green-800/20 text-green-400' 
-                          : 'hover:bg-gray-800/30'
-                      }`}>
-                        {getPlayerName(match.player2Id)}
-                      </div>
+                    <div className={`p-3 rounded-lg border ${match.winnerId === match.player2Id ? 'bg-green-900/20 border-green-800/30' : 'bg-gray-800/50 border-gray-700'}`}>
+                      <span className="text-white font-medium">{getPlayerName(match.player2Id)}</span>
+                      {match.winnerId === match.player2Id && (
+                        <Trophy className="inline h-4 w-4 ml-2 text-yellow-500" />
+                      )}
                     </div>
-                    
-                    {match.status === 'scheduled' && !match.completed && (
-                      <>
-                        {/* Only render the Select when both players are valid */}
-                        {match.player1Id && match.player2Id && match.player1Id.trim() !== '' && match.player2Id.trim() !== '' && (
-                          <div className="mt-4">
-                            <Select
-                              onValueChange={(value) => updateMatchResult(match.id, value)}
-                            >
-                              <SelectTrigger className="bg-gray-800/40 border-gray-700">
-                                <SelectValue placeholder="Select winner" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-gray-800 border-gray-700">
-                                {match.player1Id && match.player1Id.trim() !== '' && (
-                                  <SelectItem value={match.player1Id}>
-                                    {getPlayerName(match.player1Id)}
-                                  </SelectItem>
-                                )}
-                                {match.player2Id && match.player2Id.trim() !== '' && (
-                                  <SelectItem value={match.player2Id}>
-                                    {getPlayerName(match.player2Id)}
-                                  </SelectItem>
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                        <div className="mt-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="w-full text-red-500 border-red-800/30 hover:bg-red-900/20 hover:text-red-400 transition-colors"
-                            onClick={() => updateMatchStatus(match.id, 'cancelled')}
-                          >
-                            <AlertTriangle className="h-4 w-4 mr-2" /> Cancel Match
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                    
-                    {match.status === 'cancelled' && (
-                      <div className="mt-2">
-                        <Button 
-                          variant="outline" 
+                  </div>
+
+                  {/* Schedule Info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>{format(new Date(match.scheduledDate), 'MMM dd')}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      <span>{match.scheduledTime}</span>
+                    </div>
+                  </div>
+
+                  {/* Match Actions */}
+                  {!match.completed && match.player1Id && match.player2Id && match.player1Id !== '' && match.player2Id !== '' && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-400">Select Winner:</p>
+                      <div className="flex gap-2">
+                        <Button
                           size="sm"
-                          className="w-full text-amber-500 border-amber-800/30 hover:bg-amber-900/20 hover:text-amber-400 transition-colors"
-                          onClick={() => updateMatchStatus(match.id, 'scheduled')}
+                          variant="outline"
+                          onClick={() => updateMatchResult(match.id, match.player1Id)}
+                          className="flex-1 bg-green-600/20 border-green-600/30 text-green-300 hover:bg-green-600/30"
                         >
-                          <Calendar className="h-4 w-4 mr-2" /> Reschedule Match
+                          {getPlayerName(match.player1Id)}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateMatchResult(match.id, match.player2Id)}
+                          className="flex-1 bg-green-600/20 border-green-600/30 text-green-300 hover:bg-green-600/30"
+                        >
+                          {getPlayerName(match.player2Id)}
                         </Button>
                       </div>
-                    )}
-                    
-                    {match.nextMatchId && (
-                      <div className="mt-3 text-xs bg-gray-800/30 text-gray-400 text-center py-1 px-2 rounded">
-                        Winner advances to match #{match.nextMatchId.split('-')[1]}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        );
-      })}
-
-      <Dialog open={!!selectedMatchId} onOpenChange={(open) => !open && setSelectedMatchId(null)}>
-        <DialogContent className="sm:max-w-[425px] bg-gray-900 border-gray-800">
-          <DialogHeader>
-            <DialogTitle className="text-gray-100">Edit Match Schedule</DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="date" className="text-right text-gray-300">Date</label>
-              <Input
-                id="date"
-                type="date"
-                className="col-span-3 bg-gray-800 border-gray-700 text-gray-100"
-                value={editDate}
-                onChange={(e) => setEditDate(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="time" className="text-right text-gray-300">Time</label>
-              <Input
-                id="time"
-                type="time"
-                className="col-span-3 bg-gray-800 border-gray-700 text-gray-100"
-                value={editTime}
-                onChange={(e) => setEditTime(e.target.value)}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => setSelectedMatchId(null)}>
-              Cancel
-            </Button>
-            <Button className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600" onClick={handleSaveSchedule}>
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      ))}
     </div>
   );
 };
