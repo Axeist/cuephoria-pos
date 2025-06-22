@@ -1,6 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { TournamentHistoryMatch, TournamentWinner, Tournament, Player, Match, MatchStage } from "@/types/tournament.types";
+import { TournamentHistoryMatch, TournamentWinner, Tournament, Player, Match, MatchStage, TournamentFormat } from "@/types/tournament.types";
 
 // Save tournament history when a tournament is completed
 export const saveTournamentHistory = async (tournament: Tournament): Promise<void> => {
@@ -168,7 +167,7 @@ export const saveAllCompletedTournaments = async (): Promise<void> => {
           winnerPrize: tournamentData.winner_prize,
           runnerUpPrize: tournamentData.runner_up_prize,
           maxPlayers: tournamentData.max_players,
-          tournamentFormat: tournamentData.tournament_format || 'knockout' // Add missing tournamentFormat property
+          tournamentFormat: (tournamentData.tournament_format as TournamentFormat) || 'knockout' // Properly cast to TournamentFormat
         };
 
         if (tournament.winner) {
@@ -283,7 +282,7 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
         winnerPrize: tournament.winner_prize,
         runnerUpPrize: tournament.runner_up_prize,
         maxPlayers: tournament.max_players,
-        tournamentFormat: tournament.tournament_format || 'knockout' // Add missing tournamentFormat property
+        tournamentFormat: (tournament.tournament_format as TournamentFormat) || 'knockout' // Properly cast to TournamentFormat
       };
       
       // Try to save history, but don't block the display if it fails
