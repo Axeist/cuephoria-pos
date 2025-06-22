@@ -1,171 +1,153 @@
 
 import React from 'react';
 import { Tournament } from '@/types/tournament.types';
-import { 
-  Table, TableBody, TableCell, TableHead, 
-  TableHeader, TableRow 
-} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash, Trophy, ChevronRight, History, Lock, Zap, Users } from 'lucide-react';
-import { format } from 'date-fns';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
-import { useAuth } from '@/context/AuthContext';
-import { usePinVerification } from '@/hooks/usePinVerification';
-import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { Edit, Trash2, History, Users, Trophy, Calendar, Settings } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface TournamentListProps {
   tournaments: Tournament[];
   onEdit: (tournament: Tournament) => void;
+  onManage: (tournament: Tournament) => void;
   onDelete: (id: string) => void;
-  onViewHistory?: (tournament: Tournament) => void;
+  onViewHistory: (tournament: Tournament) => void;
 }
 
-const TournamentList: React.FC<TournamentListProps> = ({ 
-  tournaments, 
-  onEdit, 
+const TournamentList: React.FC<TournamentListProps> = ({
+  tournaments,
+  onEdit,
+  onManage,
   onDelete,
-  onViewHistory 
+  onViewHistory
 }) => {
-  const { user } = useAuth();
-  const isAdmin = user?.isAdmin || false;
-  const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'upcoming':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'in-progress':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
 
-  const handleDelete = (id: string) => {
-    requestPinVerification(() => onDelete(id));
+  const getFormatColor = (format: string) => {
+    switch (format) {
+      case 'knockout':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'league':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
   };
 
   if (tournaments.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <Trophy className="h-16 w-16 text-gray-300 mb-4" />
-        <h3 className="text-lg font-medium">No tournaments found</h3>
-        <p className="text-muted-foreground mt-2 max-w-md">
-          Create your first tournament by clicking the "Add Tournament" button above.
-        </p>
-      </div>
+      <Card className="bg-gray-950/50 border-gray-800">
+        <CardContent className="p-8 text-center">
+          <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-300 mb-2">No Tournaments Yet</h3>
+          <p className="text-gray-500">Create your first tournament to get started.</p>
+        </CardContent>
+      </Card>
     );
   }
 
-  const getStatusBadge = (status: Tournament['status']) => {
-    switch (status) {
-      case 'upcoming':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">Upcoming</Badge>;
-      case 'in-progress':
-        return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200">In Progress</Badge>;
-      case 'completed':
-        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">Completed</Badge>;
-    }
-  };
-
-  const getFormatBadge = (format: string) => {
-    switch (format) {
-      case 'knockout':
-        return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-            <Zap className="h-3 w-3 mr-1" />
-            Knockout
-          </Badge>
-        );
-      case 'league':
-        return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-            <Users className="h-3 w-3 mr-1" />
-            League
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-            Unknown
-          </Badge>
-        );
-    }
-  };
-
-  const formatCurrency = (amount?: number) => {
-    if (!amount) return '-';
-    return `₹${amount.toLocaleString('en-IN')}`;
-  };
-
   return (
-    <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Format</TableHead>
-              <TableHead>Game Type</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Players</TableHead>
-              <TableHead>Budget</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tournaments.map((tournament) => (
-              <TableRow key={tournament.id}>
-                <TableCell className="font-medium">{tournament.name}</TableCell>
-                <TableCell>{getFormatBadge(tournament.tournamentFormat)}</TableCell>
-                <TableCell>
-                  {tournament.gameType === 'PS5' ? (
-                    <span>{tournament.gameTitle}</span>
-                  ) : (
-                    <span>{tournament.gameVariant}</span>
-                  )}
-                </TableCell>
-                <TableCell>{format(new Date(tournament.date), 'dd MMM yyyy')}</TableCell>
-                <TableCell>
-                  {tournament.players.length}
-                  {tournament.maxPlayers && ` / ${tournament.maxPlayers}`}
-                </TableCell>
-                <TableCell>{formatCurrency(tournament.budget)}</TableCell>
-                <TableCell>{getStatusBadge(tournament.status)}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    {onViewHistory && tournament.status === 'completed' && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => onViewHistory(tournament)}
-                        className="text-blue-500 hover:text-blue-600"
-                      >
-                        <History className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => onEdit(tournament)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-red-500 relative" 
-                      onClick={() => handleDelete(tournament.id)}
-                      title={!isAdmin ? "PIN verification required for staff" : "Delete tournament"}
-                    >
-                      <Trash className="h-4 w-4" />
-                      {!isAdmin && (
-                        <Lock className="h-3 w-3 absolute -top-1 -right-1 text-amber-500" />
-                      )}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {tournaments.map((tournament) => (
+        <Card key={tournament.id} className="bg-gray-950/50 border-gray-800 hover:border-gray-700 transition-colors">
+          <CardHeader className="pb-3">
+            <div className="flex justify-between items-start">
+              <CardTitle className="text-lg font-semibold text-white truncate">
+                {tournament.name}
+              </CardTitle>
+              <div className="flex gap-1">
+                <Badge variant="outline" className={getStatusColor(tournament.status)}>
+                  {tournament.status}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <Badge variant="outline" className={getFormatColor(tournament.tournamentFormat)}>
+                {tournament.tournamentFormat === 'knockout' ? 'Knockout' : 'League'}
+              </Badge>
+              <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-200">
+                {tournament.gameType} {tournament.gameVariant || tournament.gameTitle || ''}
+              </Badge>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex items-center gap-2 text-gray-400">
+                <Calendar className="h-4 w-4" />
+                <span>{format(new Date(tournament.date), 'MMM dd, yyyy')}</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                <Users className="h-4 w-4" />
+                <span>{tournament.players.length}/{tournament.maxPlayers || 16}</span>
+              </div>
+            </div>
 
-      <PinVerificationDialog
-        open={showPinDialog}
-        onOpenChange={handlePinCancel}
-        onSuccess={handlePinSuccess}
-        title="Verify PIN to Delete"
-        description="Enter the PIN to confirm this delete operation."
-      />
-    </>
+            {tournament.winner && (
+              <div className="p-3 bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 rounded-lg border border-yellow-800/30">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm font-medium text-yellow-200">Winner: {tournament.winner.name}</span>
+                </div>
+                {tournament.runnerUp && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    Runner-up: {tournament.runnerUp.name}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onManage(tournament)}
+                className="flex-1 bg-purple-600/20 border-purple-600/30 text-purple-300 hover:bg-purple-600/30"
+              >
+                <Settings className="h-4 w-4 mr-1" />
+                Manage
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(tournament)}
+                className="bg-blue-600/20 border-blue-600/30 text-blue-300 hover:bg-blue-600/30"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onViewHistory(tournament)}
+                className="bg-green-600/20 border-green-600/30 text-green-300 hover:bg-green-600/30"
+              >
+                <History className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onDelete(tournament.id)}
+                className="bg-red-600/20 border-red-600/30 text-red-300 hover:bg-red-600/30"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 };
 
