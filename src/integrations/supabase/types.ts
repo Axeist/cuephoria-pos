@@ -1468,6 +1468,7 @@ export type Database = {
           runner_up: Json | null
           runner_up_prize: number | null
           status: string
+          tournament_format: string
           updated_at: string | null
           winner: Json | null
           winner_prize: number | null
@@ -1487,6 +1488,7 @@ export type Database = {
           runner_up?: Json | null
           runner_up_prize?: number | null
           status: string
+          tournament_format?: string
           updated_at?: string | null
           winner?: Json | null
           winner_prize?: number | null
@@ -1506,6 +1508,7 @@ export type Database = {
           runner_up?: Json | null
           runner_up_prize?: number | null
           status?: string
+          tournament_format?: string
           updated_at?: string | null
           winner?: Json | null
           winner_prize?: number | null

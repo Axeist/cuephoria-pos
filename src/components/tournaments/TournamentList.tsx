@@ -6,7 +6,7 @@ import {
   TableHeader, TableRow 
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash, Trophy, ChevronRight, History, Lock } from 'lucide-react';
+import { Edit, Trash, Trophy, ChevronRight, History, Lock, Zap, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
@@ -58,6 +58,31 @@ const TournamentList: React.FC<TournamentListProps> = ({
     }
   };
 
+  const getFormatBadge = (format: string) => {
+    switch (format) {
+      case 'knockout':
+        return (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+            <Zap className="h-3 w-3 mr-1" />
+            Knockout
+          </Badge>
+        );
+      case 'league':
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            <Users className="h-3 w-3 mr-1" />
+            League
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+            Unknown
+          </Badge>
+        );
+    }
+  };
+
   const formatCurrency = (amount?: number) => {
     if (!amount) return '-';
     return `₹${amount.toLocaleString('en-IN')}`;
@@ -70,6 +95,7 @@ const TournamentList: React.FC<TournamentListProps> = ({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Format</TableHead>
               <TableHead>Game Type</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Players</TableHead>
@@ -82,6 +108,7 @@ const TournamentList: React.FC<TournamentListProps> = ({
             {tournaments.map((tournament) => (
               <TableRow key={tournament.id}>
                 <TableCell className="font-medium">{tournament.name}</TableCell>
+                <TableCell>{getFormatBadge(tournament.tournamentFormat)}</TableCell>
                 <TableCell>
                   {tournament.gameType === 'PS5' ? (
                     <span>{tournament.gameTitle}</span>

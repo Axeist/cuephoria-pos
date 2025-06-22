@@ -4,6 +4,7 @@ export type PoolGameVariant = '8 Ball' | 'Snooker';
 export type PS5GameTitle = 'FIFA' | 'COD' | string;
 export type MatchStatus = 'scheduled' | 'completed' | 'cancelled';
 export type MatchStage = 'regular' | 'quarter_final' | 'semi_final' | 'final';
+export type TournamentFormat = 'knockout' | 'league';
 
 export interface Player {
   id: string;
@@ -41,6 +42,7 @@ export interface Tournament {
   winnerPrize?: number;
   runnerUpPrize?: number;
   maxPlayers?: number; // Add max_players field
+  tournamentFormat: TournamentFormat; // New field for tournament format
   // Database sync fields
   created_at?: string;
   updated_at?: string;
@@ -89,6 +91,7 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     winner: item.winner || undefined,
     runnerUp: item.runner_up || undefined, // Add runner_up conversion
     maxPlayers: item.max_players || 16, // Ensure we always have a value
+    tournamentFormat: item.tournament_format || 'knockout', // Add tournament format conversion
     created_at: item.created_at,
     updated_at: item.updated_at
   };
@@ -105,6 +108,7 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
     matches: tournament.matches || [],
     status: tournament.status,
     max_players: tournament.maxPlayers || 16, // Always include max_players with a default
+    tournament_format: tournament.tournamentFormat || 'knockout', // Add tournament format conversion
   };
   
   // Only add optional fields if they have values

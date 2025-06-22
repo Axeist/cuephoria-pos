@@ -9,7 +9,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { generateMatches, determineWinner } from '@/services/tournamentService';
 import { determineRunnerUp } from '@/services/tournamentHistoryService';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Info } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface TournamentManagementProps {
   tournament: Tournament;
@@ -37,18 +38,19 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   }, [tournament]);
 
   const handleGenerateMatches = () => {
-    // Ensure we have at least 2 players and an even number of players
+    // Ensure we have at least 2 players
     if (players.length < 2) {
       toast.error('You need at least 2 players to generate matches.');
       return;
     }
     
-    if (players.length % 2 !== 0) {
-      toast.error('You need an even number of players to generate matches.');
+    // For knockout tournaments, we need an even number of players
+    if (tournament.tournamentFormat === 'knockout' && players.length % 2 !== 0) {
+      toast.error('Knockout tournaments require an even number of players.');
       return;
     }
 
-    const generatedMatches = generateMatches(players);
+    const generatedMatches = generateMatches(players, tournament.tournamentFormat);
     setMatches(generatedMatches);
     setActiveTab('matches');
     
@@ -176,9 +178,49 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   // Check if tournament is completed
   const isCompleted = tournament.status === 'completed' || !!winner;
 
+  // Get tournament format display info
+  const getFormatInfo = () => {
+    switch (tournament.tournamentFormat) {
+      case 'knockout':
+        return {
+          label: 'Knockout Tournament',
+          description: 'Single elimination format',
+          color: 'bg-red-100 text-red-800 border-red-200'
+        };
+      case 'league':
+        return {
+          label: 'League Tournament', 
+          description: 'Round-robin format',
+          color: 'bg-blue-100 text-blue-800 border-blue-200'
+        };
+      default:
+        return {
+          label: 'Unknown Format',
+          description: '',
+          color: 'bg-gray-100 text-gray-800 border-gray-200'
+        };
+    }
+  };
+
+  const formatInfo = getFormatInfo();
+
   return (
     <Card className="bg-gray-950/50 border-gray-800">
       <CardContent className="p-5 sm:p-6">
+        {/* Tournament Format Badge */}
+        <div className="mb-4 flex items-center gap-2">
+          <Badge variant="outline" className={formatInfo.color}>
+            {formatInfo.label}
+          </Badge>
+          <span className="text-sm text-gray-400">{formatInfo.description}</span>
+          {tournament.tournamentFormat === 'league' && (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Info className="h-3 w-3" />
+              <span>Every player plays against every other player</span>
+            </div>
+          )}
+        </div>
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="players">Players</TabsTrigger>
@@ -208,6 +250,12 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
             {isCompleted && matches.length > 0 && (
               <div className="text-amber-400 text-sm mt-2 text-center">
                 Cannot regenerate fixtures for completed tournaments.
+              </div>
+            )}
+            {tournament.tournamentFormat === 'knockout' && players.length > 0 && players.length % 2 !== 0 && (
+              <div className="text-orange-400 text-sm mt-2 text-center flex items-center justify-center gap-2">
+                <Info className="h-4 w-4" />
+                Knockout tournaments require an even number of players. Current: {players.length}
               </div>
             )}
           </TabsContent>
