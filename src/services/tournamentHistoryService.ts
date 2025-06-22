@@ -167,7 +167,8 @@ export const saveAllCompletedTournaments = async (): Promise<void> => {
           budget: tournamentData.budget,
           winnerPrize: tournamentData.winner_prize,
           runnerUpPrize: tournamentData.runner_up_prize,
-          maxPlayers: tournamentData.max_players
+          maxPlayers: tournamentData.max_players,
+          tournamentFormat: tournamentData.tournament_format || 'knockout' // Add missing tournamentFormat property
         };
 
         if (tournament.winner) {
@@ -281,7 +282,8 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
         budget: tournament.budget,
         winnerPrize: tournament.winner_prize,
         runnerUpPrize: tournament.runner_up_prize,
-        maxPlayers: tournament.max_players
+        maxPlayers: tournament.max_players,
+        tournamentFormat: tournament.tournament_format || 'knockout' // Add missing tournamentFormat property
       };
       
       // Try to save history, but don't block the display if it fails

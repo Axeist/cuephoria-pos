@@ -244,7 +244,8 @@ const Settings = () => {
                     date: new Date().toISOString().split('T')[0],
                     players: [],
                     matches: [],
-                    status: "upcoming"
+                    status: "upcoming",
+                    tournamentFormat: "knockout" // Add missing tournamentFormat property
                   };
                   setEditingTournament(defaultTournament);
                   setDialogOpen(true);
