@@ -135,6 +135,27 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
     setMatches(updatedMatches);
     handleSave(players, updatedMatches, winner, runnerUp);
   };
+
+  const handleUpdateMatch = (matchId: string, updates: Partial<Match>) => {
+    const updatedMatches = matches.map(match => {
+      if (match.id === matchId) {
+        return {
+          ...match,
+          ...updates
+        };
+      }
+      return match;
+    });
+    
+    setMatches(updatedMatches);
+    handleSave(players, updatedMatches, winner, runnerUp);
+  };
+
+  const handleRegenerateFixtures = (newMatches: Match[]) => {
+    setMatches(newMatches);
+    handleSave(players, newMatches, winner, runnerUp);
+    toast.success('Fixtures regenerated with updated player assignments!');
+  };
   
   // Function to update player names across all matches
   const updatePlayerName = (playerId: string, newName: string) => {
@@ -283,10 +304,13 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               updateMatchResult={handleUpdateMatchResult}
               updateMatchSchedule={handleUpdateMatchSchedule}
               updateMatchStatus={handleUpdateMatchStatus}
+              onUpdateMatch={handleUpdateMatch}
+              onRegenerateFixtures={handleRegenerateFixtures}
               winner={winner}
               runnerUp={runnerUp}
               onGenerateMatches={handleGenerateMatches}
               canGenerateMatches={canGenerateMatches}
+              tournamentFormat={tournament.tournamentFormat}
             />
           </TabsContent>
         </Tabs>
