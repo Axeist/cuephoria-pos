@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Tournament, Player, Match, MatchStatus } from '@/types/tournament.types';
 import TournamentPlayerSection from './TournamentPlayerSection';
@@ -9,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { generateMatches, determineWinner } from '@/services/tournamentService';
 import { determineRunnerUp } from '@/services/tournamentHistoryService';
 import { toast } from 'sonner';
-import { Loader2, Info } from 'lucide-react';
+import { Loader2, Info, Users, Trophy, Play, Sparkles, Target, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface TournamentManagementProps {
@@ -212,19 +211,22 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
         return {
           label: 'Knockout Tournament',
           description: 'Single elimination format',
-          color: 'bg-red-100 text-red-800 border-red-200'
+          color: 'bg-gradient-to-r from-red-500/20 to-pink-500/20 text-red-300 border-red-500/40',
+          icon: Target
         };
       case 'league':
         return {
           label: 'League Tournament', 
           description: 'Round-robin format',
-          color: 'bg-blue-100 text-blue-800 border-blue-200'
+          color: 'bg-gradient-to-r from-purple-500/20 to-violet-500/20 text-purple-300 border-purple-500/40',
+          icon: Trophy
         };
       default:
         return {
           label: 'Unknown Format',
           description: '',
-          color: 'bg-gray-100 text-gray-800 border-gray-200'
+          color: 'bg-gradient-to-r from-gray-500/20 to-slate-500/20 text-gray-300 border-gray-500/40',
+          icon: Trophy
         };
     }
   };
@@ -232,29 +234,47 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   const formatInfo = getFormatInfo();
 
   return (
-    <Card className="bg-gray-950/50 border-gray-800">
-      <CardContent className="p-5 sm:p-6">
+    <Card className="bg-gradient-to-br from-gray-950/90 to-gray-900/90 border-gray-800/60 shadow-2xl backdrop-blur-sm">
+      <CardContent className="p-6">
         {/* Tournament Format Badge */}
-        <div className="mb-4 flex items-center gap-2">
-          <Badge variant="outline" className={formatInfo.color}>
-            {formatInfo.label}
-          </Badge>
-          <span className="text-sm text-gray-400">{formatInfo.description}</span>
+        <div className="mb-6 flex items-center gap-4 p-4 bg-gradient-to-r from-gray-800/50 to-gray-700/50 rounded-xl border border-gray-700/60">
+          <div className="p-3 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-xl border border-purple-500/30">
+            <formatInfo.icon className="h-6 w-6 text-purple-400" />
+          </div>
+          <div className="flex-1">
+            <Badge variant="outline" className={formatInfo.color}>
+              <Sparkles className="h-3 w-3 mr-1" />
+              {formatInfo.label}
+            </Badge>
+            <p className="text-gray-400 text-sm mt-1">{formatInfo.description}</p>
+          </div>
           {tournament.tournamentFormat === 'league' && (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <Info className="h-3 w-3" />
-              <span>Every player plays against every other player</span>
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <Info className="h-4 w-4 text-blue-400" />
+              <span className="text-blue-300 text-sm font-medium">Every player plays against every other player</span>
             </div>
           )}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="players">Players ({players.length})</TabsTrigger>
-            <TabsTrigger value="matches">Fixtures ({matches.length})</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 mb-8 h-12 bg-gray-800/60 border border-gray-700/60 rounded-xl">
+            <TabsTrigger 
+              value="players" 
+              className="flex items-center gap-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600/30 data-[state=active]:to-blue-600/30 data-[state=active]:text-white font-semibold h-10 rounded-lg transition-all duration-200"
+            >
+              <Users className="h-4 w-4" />
+              Players ({players.length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="matches" 
+              className="flex items-center gap-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600/30 data-[state=active]:to-blue-600/30 data-[state=active]:text-white font-semibold h-10 rounded-lg transition-all duration-200"
+            >
+              <Play className="h-4 w-4" />
+              Fixtures ({matches.length})
+            </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="players" className="space-y-4 animate-fade-in">
+          <TabsContent value="players" className="space-y-6 animate-fade-in">
             <TournamentPlayerSection 
               players={players} 
               setPlayers={setPlayers} 
@@ -264,35 +284,44 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
               maxPlayers={tournament.maxPlayers}
             />
             
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-6">
               <Button 
                 onClick={handleGenerateMatches} 
                 disabled={!canGenerateMatches || saving || isLoading}
-                className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+                className="bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 hover:from-purple-700 hover:via-blue-700 hover:to-purple-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:scale-105"
+                size="lg"
               >
-                {(saving || isLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {(saving || isLoading) && <Loader2 className="mr-3 h-5 w-5 animate-spin" />}
+                <Zap className="mr-3 h-5 w-5" />
                 {matches.length > 0 ? 'Regenerate Fixtures' : 'Generate Fixtures'}
               </Button>
             </div>
             
             {/* Validation Messages */}
             {players.length < 2 && (
-              <div className="text-orange-400 text-sm mt-2 text-center flex items-center justify-center gap-2">
-                <Info className="h-4 w-4" />
-                Add at least 2 players to generate fixtures.
+              <div className="text-center p-4 bg-gradient-to-r from-amber-900/20 to-orange-900/20 border border-amber-600/30 rounded-xl">
+                <div className="flex items-center justify-center gap-3 text-amber-300">
+                  <Info className="h-5 w-5" />
+                  <span className="font-medium">Add at least 2 players to generate fixtures.</span>
+                </div>
               </div>
             )}
             
             {tournament.tournamentFormat === 'knockout' && players.length > 0 && players.length % 2 !== 0 && (
-              <div className="text-orange-400 text-sm mt-2 text-center flex items-center justify-center gap-2">
-                <Info className="h-4 w-4" />
-                Knockout tournaments require an even number of players. Current: {players.length}
+              <div className="text-center p-4 bg-gradient-to-r from-amber-900/20 to-orange-900/20 border border-amber-600/30 rounded-xl">
+                <div className="flex items-center justify-center gap-3 text-amber-300">
+                  <Info className="h-5 w-5" />
+                  <span className="font-medium">Knockout tournaments require an even number of players. Current: {players.length}</span>
+                </div>
               </div>
             )}
             
             {isCompleted && (
-              <div className="text-amber-400 text-sm mt-2 text-center">
-                Cannot regenerate fixtures for completed tournaments.
+              <div className="text-center p-4 bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-600/30 rounded-xl">
+                <div className="flex items-center justify-center gap-3 text-green-300">
+                  <Trophy className="h-5 w-5" />
+                  <span className="font-medium">Tournament completed - fixtures are locked.</span>
+                </div>
               </div>
             )}
           </TabsContent>
