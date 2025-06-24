@@ -93,12 +93,28 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
         updates.player1Id !== originalMatch.player1Id || 
         updates.player2Id !== originalMatch.player2Id
       )) {
-        console.log('Player change detected, regenerating fixtures');
+        console.log('Player change detected, regenerating fixtures intelligently');
         if (onRegenerateFixtures) {
+          // Generate new matches but preserve completed matches
           const newMatches = generateTournamentMatches(players, tournamentFormat);
-          const updatedMatches = newMatches.map(match => 
-            match.id === matchId ? { ...match, ...updates } : match
-          );
+          
+          // Merge with existing matches, preserving completed ones
+          const updatedMatches = newMatches.map(newMatch => {
+            const existingMatch = matches.find(m => m.id === newMatch.id);
+            
+            // If the existing match has a winner, preserve all its data
+            if (existingMatch && existingMatch.winnerId && existingMatch.completed) {
+              return existingMatch;
+            }
+            
+            // For the match being edited, apply the updates
+            if (newMatch.id === matchId) {
+              return { ...newMatch, ...updates };
+            }
+            
+            return newMatch;
+          });
+          
           onRegenerateFixtures(updatedMatches);
         }
       } else {
@@ -225,7 +241,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
               <Play className="h-6 w-6 text-purple-400" />
             </div>
             <div className="flex-1">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+              <h3 className="text-xl font-bold text-white flex items-center gap-3">
                 Round {round}
                 {rounds.length > 1 && round === rounds[rounds.length - 1] && (
                   <Badge className="bg-gradient-to-r from-yellow-500/30 to-amber-500/30 text-yellow-300 border-yellow-500/50 px-3 py-1 font-semibold">
@@ -238,11 +254,11 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
             </div>
           </div>
           
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
             {matchesByRound[round].map((match, matchIndex) => (
               <Card 
                 key={match.id} 
-                className="group bg-gradient-to-br from-gray-950/85 to-gray-900/85 border-gray-800/60 hover:border-gray-700/80 transition-all duration-500 shadow-xl hover:shadow-2xl backdrop-blur-sm hover:transform hover:scale-105 animate-fade-in"
+                className="group bg-gradient-to-br from-gray-950/85 to-gray-900/85 border-gray-800/60 hover:border-gray-700/80 transition-all duration-300 shadow-lg hover:shadow-xl backdrop-blur-sm animate-fade-in"
                 style={{ animationDelay: `${matchIndex * 0.1}s` }}
               >
                 {editingMatchId === match.id ? (
@@ -254,13 +270,13 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                   />
                 ) : (
                   <>
-                    <CardHeader className="pb-4">
+                    <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <div className="p-2 bg-gradient-to-br from-gray-800/60 to-gray-700/60 rounded-lg border border-gray-700/50">
-                            <Trophy className="h-5 w-5 text-gray-300" />
+                            <Trophy className="h-4 w-4 text-gray-300" />
                           </div>
-                          <CardTitle className="text-lg font-bold text-white">
+                          <CardTitle className="text-base font-bold text-white">
                             {formatStage(match.stage)}
                           </CardTitle>
                         </div>
@@ -269,9 +285,9 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                             size="sm"
                             variant="ghost"
                             onClick={() => setEditingMatchId(match.id)}
-                            className="h-8 w-8 p-0 hover:bg-gray-800 text-gray-400 hover:text-white transition-all duration-300 rounded-lg transform hover:scale-110"
+                            className="h-7 w-7 p-0 hover:bg-gray-800 text-gray-400 hover:text-white transition-all duration-300 rounded-lg"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-3 w-3" />
                           </Button>
                           <Badge variant="outline" className={getStageColor(match.stage)}>
                             {formatStage(match.stage)}
@@ -283,48 +299,48 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                       </div>
                     </CardHeader>
                     
-                    <CardContent className="space-y-5">
+                    <CardContent className="space-y-4">
                       {/* Players */}
-                      <div className="space-y-3">
-                        <div className={`p-4 rounded-xl border transition-all duration-300 transform ${
+                      <div className="space-y-2">
+                        <div className={`p-3 rounded-lg border transition-all duration-300 ${
                           match.winnerId === match.player1Id 
-                            ? 'bg-gradient-to-r from-emerald-900/50 to-green-900/50 border-emerald-500/60 shadow-lg scale-102' 
+                            ? 'bg-gradient-to-r from-emerald-900/50 to-green-900/50 border-emerald-500/60 shadow-md' 
                             : 'bg-gradient-to-r from-gray-800/50 to-gray-700/50 border-gray-700/60 hover:bg-gray-800/70 hover:border-gray-600/70'
                         }`}>
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"></div>
-                              <span className="text-white font-semibold">{getPlayerName(match.player1Id)}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"></div>
+                              <span className="text-white font-medium text-sm">{getPlayerName(match.player1Id)}</span>
                             </div>
                             {match.winnerId === match.player1Id && (
-                              <div className="flex items-center gap-2">
-                                <Crown className="h-4 w-4 text-yellow-400" />
-                                <span className="text-sm font-semibold text-yellow-300">Winner</span>
+                              <div className="flex items-center gap-1">
+                                <Crown className="h-3 w-3 text-yellow-400" />
+                                <span className="text-xs font-semibold text-yellow-300">Winner</span>
                               </div>
                             )}
                           </div>
                         </div>
                         
-                        <div className="text-center py-2">
-                          <span className="text-gray-300 font-semibold px-4 py-2 bg-gradient-to-r from-gray-800/60 to-gray-700/60 rounded-full border border-gray-600/50">
+                        <div className="text-center py-1">
+                          <span className="text-gray-300 font-medium text-xs px-3 py-1 bg-gradient-to-r from-gray-800/60 to-gray-700/60 rounded-full border border-gray-600/50">
                             VS
                           </span>
                         </div>
                         
-                        <div className={`p-4 rounded-xl border transition-all duration-300 transform ${
+                        <div className={`p-3 rounded-lg border transition-all duration-300 ${
                           match.winnerId === match.player2Id 
-                            ? 'bg-gradient-to-r from-emerald-900/50 to-green-900/50 border-emerald-500/60 shadow-lg scale-102' 
+                            ? 'bg-gradient-to-r from-emerald-900/50 to-green-900/50 border-emerald-500/60 shadow-md' 
                             : 'bg-gradient-to-r from-gray-800/50 to-gray-700/50 border-gray-700/60 hover:bg-gray-800/70 hover:border-gray-600/70'
                         }`}>
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-3 h-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-full"></div>
-                              <span className="text-white font-semibold">{getPlayerName(match.player2Id)}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full"></div>
+                              <span className="text-white font-medium text-sm">{getPlayerName(match.player2Id)}</span>
                             </div>
                             {match.winnerId === match.player2Id && (
-                              <div className="flex items-center gap-2">
-                                <Crown className="h-4 w-4 text-yellow-400" />
-                                <span className="text-sm font-semibold text-yellow-300">Winner</span>
+                              <div className="flex items-center gap-1">
+                                <Crown className="h-3 w-3 text-yellow-400" />
+                                <span className="text-xs font-semibold text-yellow-300">Winner</span>
                               </div>
                             )}
                           </div>
@@ -332,51 +348,51 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                       </div>
 
                       {/* Schedule Info */}
-                      <div className="grid grid-cols-2 gap-4 p-4 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/50">
-                        <div className="flex items-center gap-3 text-gray-300">
-                          <div className="p-2 bg-blue-500/20 rounded-lg">
-                            <Calendar className="h-4 w-4 text-blue-400" />
+                      <div className="grid grid-cols-2 gap-3 p-3 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-lg border border-gray-700/50">
+                        <div className="flex items-center gap-2 text-gray-300">
+                          <div className="p-1 bg-blue-500/20 rounded">
+                            <Calendar className="h-3 w-3 text-blue-400" />
                           </div>
                           <div>
                             <span className="text-xs text-gray-400 font-medium">Date</span>
-                            <div className="font-semibold text-white">{format(new Date(match.scheduledDate), 'MMM dd')}</div>
+                            <div className="font-medium text-white text-sm">{format(new Date(match.scheduledDate), 'MMM dd')}</div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 text-gray-300">
-                          <div className="p-2 bg-green-500/20 rounded-lg">
-                            <Clock className="h-4 w-4 text-green-400" />
+                        <div className="flex items-center gap-2 text-gray-300">
+                          <div className="p-1 bg-green-500/20 rounded">
+                            <Clock className="h-3 w-3 text-green-400" />
                           </div>
                           <div>
                             <span className="text-xs text-gray-400 font-medium">Time</span>
-                            <div className="font-semibold text-white">{match.scheduledTime}</div>
+                            <div className="font-medium text-white text-sm">{match.scheduledTime}</div>
                           </div>
                         </div>
                       </div>
 
                       {/* Match Actions */}
                       {!match.completed && match.player1Id && match.player2Id && match.player1Id !== '' && match.player2Id !== '' && (
-                        <div className="space-y-4 pt-3">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-purple-500/20 rounded-lg">
-                              <Settings className="h-4 w-4 text-purple-400" />
+                        <div className="space-y-3 pt-2">
+                          <div className="flex items-center gap-2">
+                            <div className="p-1 bg-purple-500/20 rounded">
+                              <Settings className="h-3 w-3 text-purple-400" />
                             </div>
-                            <span className="font-semibold text-gray-200">Select Winner:</span>
+                            <span className="font-medium text-gray-200 text-sm">Select Winner:</span>
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-2 gap-2">
                             <Button
                               size="sm"
                               onClick={() => updateMatchResult(match.id, match.player1Id)}
-                              className="bg-gradient-to-r from-emerald-600/30 to-green-600/30 border border-emerald-600/50 text-emerald-300 hover:from-emerald-600/50 hover:to-green-600/50 hover:border-emerald-600/70 transition-all duration-300 font-medium py-2 rounded-lg transform hover:scale-105"
+                              className="bg-gradient-to-r from-blue-600/80 to-cyan-600/80 hover:from-blue-700 hover:to-cyan-700 border border-blue-500/50 hover:border-blue-400/70 text-white transition-all duration-300 font-medium text-xs py-2 rounded-lg transform hover:scale-105 shadow-lg hover:shadow-blue-500/25"
                             >
-                              <Trophy className="h-4 w-4 mr-2" />
+                              <Trophy className="h-3 w-3 mr-1" />
                               {getPlayerName(match.player1Id)}
                             </Button>
                             <Button
                               size="sm"
                               onClick={() => updateMatchResult(match.id, match.player2Id)}
-                              className="bg-gradient-to-r from-emerald-600/30 to-green-600/30 border border-emerald-600/50 text-emerald-300 hover:from-emerald-600/50 hover:to-green-600/50 hover:border-emerald-600/70 transition-all duration-300 font-medium py-2 rounded-lg transform hover:scale-105"
+                              className="bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-700 hover:to-pink-700 border border-purple-500/50 hover:border-purple-400/70 text-white transition-all duration-300 font-medium text-xs py-2 rounded-lg transform hover:scale-105 shadow-lg hover:shadow-purple-500/25"
                             >
-                              <Trophy className="h-4 w-4 mr-2" />
+                              <Trophy className="h-3 w-3 mr-1" />
                               {getPlayerName(match.player2Id)}
                             </Button>
                           </div>
