@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
 import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet } from 'lucide-react';
@@ -66,8 +67,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     products, 
     updateProduct, 
     updateCustomer,
-    updateBill,
-    refetchBills
+    updateBill
   } = usePOS();
   
   const { toast } = useToast();
@@ -484,13 +484,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         throw error;
       }
       
-      // Update customer loyalty points
+      // Update customer loyalty points - Fixed: use snake_case for database column
       const pointsDifference = editingLoyaltyPointsUsed - editingBill.loyaltyPointsUsed;
       const updatedLoyaltyPoints = Math.max(0, editingCustomer.loyaltyPoints - pointsDifference + loyaltyPointsEarned);
       
       const { error: customerError } = await supabase
         .from('customers')
-        .update({ loyaltyPoints: updatedLoyaltyPoints })
+        .update({ loyalty_points: updatedLoyaltyPoints })
         .eq('id', editingCustomer.id);
       
       if (customerError) {
@@ -512,11 +512,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
             : customer
         )
       );
-      
-      // Refresh bills data
-      if (refetchBills) {
-        await refetchBills();
-      }
       
       toast({
         title: "Transaction Updated",
