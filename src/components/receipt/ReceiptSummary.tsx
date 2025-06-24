@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Bill, Customer } from '@/types/pos.types';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -65,13 +66,30 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
     // Calculate new total
     const total = Math.max(0, editValues.subtotal - discountValue - editValues.loyaltyPointsUsed);
 
-    // Validate split payment amounts if split payment is enabled
+    // Determine final payment method and amounts based on split payment setting
+    let finalPaymentMethod: 'cash' | 'upi' | 'split';
+    let finalCashAmount = 0;
+    let finalUpiAmount = 0;
+    let finalIsSplitPayment = false;
+
     if (editValues.isSplitPayment) {
+      // Validate split payment amounts
       const totalPayment = editValues.cashAmount + editValues.upiAmount;
-      if (Math.abs(totalPayment - total) > 0.01) { // Allow for small rounding errors
+      if (Math.abs(totalPayment - total) > 0.01) {
         alert(`Split payment amounts must sum to the total (₹${total}). Current sum: ₹${totalPayment}`);
         return;
       }
+      
+      finalPaymentMethod = 'split';
+      finalCashAmount = editValues.cashAmount;
+      finalUpiAmount = editValues.upiAmount;
+      finalIsSplitPayment = true;
+    } else {
+      // Regular payment method - reset split amounts
+      finalPaymentMethod = editValues.paymentMethod as 'cash' | 'upi';
+      finalCashAmount = editValues.paymentMethod === 'cash' ? total : 0;
+      finalUpiAmount = editValues.paymentMethod === 'upi' ? total : 0;
+      finalIsSplitPayment = false;
     }
 
     // Calculate loyalty points earned using the corrected formula
@@ -86,10 +104,10 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
         loyaltyPointsUsed: editValues.loyaltyPointsUsed,
         loyaltyPointsEarned,
         total,
-        paymentMethod: editValues.isSplitPayment ? 'split' : editValues.paymentMethod,
-        isSplitPayment: editValues.isSplitPayment,
-        cashAmount: editValues.isSplitPayment ? editValues.cashAmount : (editValues.paymentMethod === 'cash' ? total : 0),
-        upiAmount: editValues.isSplitPayment ? editValues.upiAmount : (editValues.paymentMethod === 'upi' ? total : 0)
+        paymentMethod: finalPaymentMethod,
+        isSplitPayment: finalIsSplitPayment,
+        cashAmount: finalCashAmount,
+        upiAmount: finalUpiAmount
       });
     }
 
@@ -97,10 +115,70 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
   };
 
   const handleInputChange = (field: string, value: string | number | boolean) => {
-    setEditValues(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setEditValues(prev => {
+      const newValues = { ...prev, [field]: value };
+      
+      // Handle payment method changes
+      if (field === 'paymentMethod') {
+        // Reset split payment when changing regular payment method
+        newValues.isSplitPayment = false;
+        
+        // Calculate current total for amount distribution
+        let discountValue = 0;
+        if (newValues.discountType === 'percentage') {
+          discountValue = newValues.subtotal * (newValues.discount / 100);
+        } else {
+          discountValue = newValues.discount;
+        }
+        const currentTotal = Math.max(0, newValues.subtotal - discountValue - newValues.loyaltyPointsUsed);
+        
+        // Set amounts based on payment method
+        if (value === 'cash') {
+          newValues.cashAmount = currentTotal;
+          newValues.upiAmount = 0;
+        } else if (value === 'upi') {
+          newValues.cashAmount = 0;
+          newValues.upiAmount = currentTotal;
+        }
+      }
+      
+      // Handle split payment toggle
+      if (field === 'isSplitPayment') {
+        if (value === true) {
+          // Calculate current total for 50/50 split
+          let discountValue = 0;
+          if (newValues.discountType === 'percentage') {
+            discountValue = newValues.subtotal * (newValues.discount / 100);
+          } else {
+            discountValue = newValues.discount;
+          }
+          const currentTotal = Math.max(0, newValues.subtotal - discountValue - newValues.loyaltyPointsUsed);
+          
+          // Initialize with 50/50 split
+          const defaultCash = Math.floor(currentTotal / 2);
+          newValues.cashAmount = defaultCash;
+          newValues.upiAmount = currentTotal - defaultCash;
+          newValues.paymentMethod = 'split';
+        } else {
+          // Reset to single payment method
+          newValues.paymentMethod = 'cash';
+          
+          // Calculate current total
+          let discountValue = 0;
+          if (newValues.discountType === 'percentage') {
+            discountValue = newValues.subtotal * (newValues.discount / 100);
+          } else {
+            discountValue = newValues.discount;
+          }
+          const currentTotal = Math.max(0, newValues.subtotal - discountValue - newValues.loyaltyPointsUsed);
+          
+          newValues.cashAmount = currentTotal;
+          newValues.upiAmount = 0;
+        }
+      }
+      
+      return newValues;
+    });
   };
 
   // Calculate total during edit for validation
@@ -312,7 +390,7 @@ const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
               <select
                 className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm"
                 value={editValues.paymentMethod}
-                onChange={(e) => handleInputChange('paymentMethod', e.target.value as 'cash' | 'upi' | 'split')}
+                onChange={(e) => handleInputChange('paymentMethod', e.target.value as 'cash' | 'upi')}
               >
                 <option value="cash">Cash</option>
                 <option value="upi">UPI</option>
