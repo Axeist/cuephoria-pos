@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
 import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet } from 'lucide-react';
@@ -66,7 +67,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     products, 
     updateProduct, 
     updateCustomer,
-    updateBill
+    updateBill 
   } = usePOS();
   
   const { toast } = useToast();
@@ -214,25 +215,17 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   
   // Function to open edit dialog
   const handleEditClick = (bill: Bill) => {
-    console.log('Opening edit dialog for bill:', bill);
     setEditingBill(bill);
     setEditedItems([...bill.items]);
     setEditingDiscount(bill.discount);
     setEditingDiscountType(bill.discountType);
     setEditingLoyaltyPointsUsed(bill.loyaltyPointsUsed);
+    setEditingPaymentMethod(bill.paymentMethod);
     
-    // Properly set payment method and split payment state
-    if (bill.isSplitPayment) {
-      setEditingPaymentMethod('split');
-      setEditingSplitPayment(true);
-      setEditingCashAmount(bill.cashAmount || 0);
-      setEditingUpiAmount(bill.upiAmount || 0);
-    } else {
-      setEditingPaymentMethod(bill.paymentMethod as 'cash' | 'upi');
-      setEditingSplitPayment(false);
-      setEditingCashAmount(0);
-      setEditingUpiAmount(0);
-    }
+    // Initialize split payment state
+    setEditingSplitPayment(bill.isSplitPayment || false);
+    setEditingCashAmount(bill.cashAmount || 0);
+    setEditingUpiAmount(bill.upiAmount || 0);
     
     setEditingCustomer(customers.find(c => c.id === bill.customerId) || null);
     setIsEditing(true);
@@ -358,23 +351,20 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setIsAddItemDialogOpen(false);
   };
   
-  // Handle split payment fields with proper state management
+  // Handle split payment fields
   const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split') => {
-    console.log('Payment method changing to:', value);
     setEditingPaymentMethod(value);
     
     if (value === 'split') {
       setEditingSplitPayment(true);
       const total = calculateUpdatedBill().total;
-      // Initialize split amounts to half and half
-      const halfAmount = Math.floor(total / 2);
-      setEditingCashAmount(halfAmount);
-      setEditingUpiAmount(total - halfAmount);
+      // Initialize split amounts to half and half if not previously set
+      if (editingCashAmount === 0 && editingUpiAmount === 0) {
+        setEditingCashAmount(Math.floor(total / 2));
+        setEditingUpiAmount(total - Math.floor(total / 2));
+      }
     } else {
       setEditingSplitPayment(false);
-      // Reset split amounts to 0 when not using split payment
-      setEditingCashAmount(0);
-      setEditingUpiAmount(0);
     }
   };
   
@@ -420,40 +410,20 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     return Math.floor((total / 100) * pointsRate);
   };
   
-  // Function to save changes to bill - ENHANCED VERSION WITH DEBUGGING
+  // Function to save changes to bill
   const handleSaveChanges = async () => {
-    if (!editingBill || !editingCustomer) {
-      console.error('❌ Missing required data:', { editingBill: !!editingBill, editingCustomer: !!editingCustomer });
-      toast({
-        title: "Error",
-        description: "Missing bill or customer data",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (!editingBill || !editingCustomer) return;
     
     setIsSaving(true);
     
     try {
-      console.log('🔧 Starting transaction update process...');
-      console.log('📋 Original Bill ID:', editingBill.id);
-      console.log('👤 Customer ID:', editingCustomer.id);
-      console.log('💰 Payment method:', editingPaymentMethod);
-      console.log('🔄 Is split payment:', editingSplitPayment);
-      console.log('💵 Cash amount:', editingCashAmount);
-      console.log('📱 UPI amount:', editingUpiAmount);
-      
       // Calculate new values
       const { subtotal, discountValue, total } = calculateUpdatedBill();
-      console.log('📊 Calculated values:', { subtotal, discountValue, total });
       
       // Check if split payment amounts match total
-      if (editingSplitPayment && editingPaymentMethod === 'split') {
+      if (editingSplitPayment) {
         const totalSplitAmount = editingCashAmount + editingUpiAmount;
-        console.log('💱 Split payment validation:', { totalSplitAmount, total, difference: Math.abs(totalSplitAmount - total) });
-        
         if (Math.abs(totalSplitAmount - total) > 0.01) {
-          console.error('❌ Split payment amounts mismatch');
           toast({
             title: "Invalid Split",
             description: `Split amounts (₹${totalSplitAmount.toFixed(2)}) don't match total (₹${total.toFixed(2)})`,
@@ -464,149 +434,37 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         }
       }
       
-      // Calculate loyalty points earned
-      const loyaltyPointsEarned = calculateLoyaltyPointsEarned(total, editingCustomer.isMember);
-      console.log('🎯 Loyalty points earned:', loyaltyPointsEarned);
-      
-      // Prepare updated bill data
-      const updatedBillData: Partial<Bill> = {
-        items: editedItems,
-        subtotal,
-        discount: editingDiscount,
-        discountType: editingDiscountType,
-        discountValue,
-        loyaltyPointsUsed: editingLoyaltyPointsUsed,
-        loyaltyPointsEarned,
-        total,
-        paymentMethod: editingPaymentMethod,
-        isSplitPayment: editingSplitPayment,
-        cashAmount: editingSplitPayment ? editingCashAmount : (editingPaymentMethod === 'cash' ? total : 0),
-        upiAmount: editingSplitPayment ? editingUpiAmount : (editingPaymentMethod === 'upi' ? total : 0)
-      };
-      
-      console.log('📝 Updated bill data to send:', updatedBillData);
-      
-      // First, let's check if the bill exists in the database
-      console.log('🔍 Checking if bill exists in database...');
-      const { data: existingBill, error: checkError } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('id', editingBill.id)
-        .single();
-      
-      if (checkError) {
-        console.error('❌ Error checking bill existence:', checkError);
-        throw new Error(`Failed to verify bill exists: ${checkError.message}`);
+      // Use the updateBill function to update the bill and automatically handle loyalty points
+      if (updateBill) {
+        const updatedBill = await updateBill(
+          editingBill,
+          editedItems,
+          editingCustomer,
+          editingDiscount,
+          editingDiscountType,
+          editingLoyaltyPointsUsed,
+          editingSplitPayment,
+          editingCashAmount,
+          editingUpiAmount
+        );
+        
+        if (updatedBill) {
+          toast({
+            title: "Transaction Updated",
+            description: "The transaction has been successfully updated.",
+            variant: "default"
+          });
+          
+          // Close dialog and reset state
+          setIsEditing(false);
+          setIsEditDialogOpen(false);
+        }
       }
-      
-      if (!existingBill) {
-        console.error('❌ Bill not found in database');
-        throw new Error('Bill not found in database');
-      }
-      
-      console.log('✅ Bill exists:', existingBill);
-      
-      // Update bill in database
-      console.log('📤 Updating bill in database...');
-      const { data: updatedBillResponse, error: billError } = await supabase
-        .from('bills')
-        .update(updatedBillData)
-        .eq('id', editingBill.id)
-        .select();
-      
-      if (billError) {
-        console.error('❌ Error updating bill:', billError);
-        console.error('📋 Bill error details:', {
-          message: billError.message,
-          details: billError.details,
-          hint: billError.hint,
-          code: billError.code
-        });
-        throw new Error(`Failed to update bill: ${billError.message}`);
-      }
-      
-      console.log('✅ Bill updated successfully:', updatedBillResponse);
-      
-      // Update customer loyalty points
-      console.log('🎯 Updating customer loyalty points...');
-      const pointsDifference = editingLoyaltyPointsUsed - editingBill.loyaltyPointsUsed;
-      const updatedLoyaltyPoints = Math.max(0, editingCustomer.loyaltyPoints - pointsDifference + loyaltyPointsEarned);
-      
-      console.log('🧮 Loyalty points calculation:', {
-        currentPoints: editingCustomer.loyaltyPoints,
-        pointsDifference,
-        loyaltyPointsEarned,
-        finalPoints: updatedLoyaltyPoints
-      });
-      
-      const { data: updatedCustomerResponse, error: customerError } = await supabase
-        .from('customers')
-        .update({ loyalty_points: updatedLoyaltyPoints })
-        .eq('id', editingCustomer.id)
-        .select();
-      
-      if (customerError) {
-        console.error('❌ Error updating customer:', customerError);
-        console.error('👤 Customer error details:', {
-          message: customerError.message,
-          details: customerError.details,
-          hint: customerError.hint,
-          code: customerError.code
-        });
-        throw new Error(`Failed to update customer: ${customerError.message}`);
-      }
-      
-      console.log('✅ Customer updated successfully:', updatedCustomerResponse);
-      
-      // Update local state
-      console.log('🔄 Updating local state...');
-      setBills(prevBills =>
-        prevBills.map(bill =>
-          bill.id === editingBill.id ? { ...bill, ...updatedBillData } : bill
-        )
-      );
-      
-      setCustomers(prevCustomers =>
-        prevCustomers.map(customer =>
-          customer.id === editingCustomer.id
-            ? { ...customer, loyaltyPoints: updatedLoyaltyPoints }
-            : customer
-        )
-      );
-      
-      console.log('✅ Transaction update completed successfully!');
-      
-      toast({
-        title: "Transaction Updated",
-        description: "The transaction has been successfully updated.",
-        variant: "default"
-      });
-      
-      // Close dialog and reset state
-      setIsEditing(false);
-      setIsEditDialogOpen(false);
-      
     } catch (error) {
-      console.error('💥 CRITICAL ERROR in transaction update:', error);
-      console.error('🔍 Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
-      
-      // Log the current state for debugging
-      console.error('🔧 Current state when error occurred:', {
-        editingBillId: editingBill?.id,
-        editingCustomerId: editingCustomer?.id,
-        editedItemsCount: editedItems.length,
-        editingDiscount,
-        editingDiscountType,
-        editingLoyaltyPointsUsed,
-        editingPaymentMethod,
-        editingSplitPayment,
-        editingCashAmount,
-        editingUpiAmount
-      });
-      
+      console.error('Error updating transaction:', error);
       toast({
         title: "Update Failed",
-        description: error instanceof Error ? error.message : "Failed to update the transaction. Check console for details.",
+        description: "Failed to update the transaction. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -826,6 +684,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 </Table>
               </div>
               
+              {/* Section for discount, loyalty points, and payment method */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-gray-700 pt-4">
                 <div className="space-y-3">
                   <h3 className="text-sm font-medium text-gray-300">Discount</h3>
@@ -833,7 +692,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     <Input 
                       type="number" 
                       value={editingDiscount} 
-                      onChange={(e) => setEditingDiscount(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => setEditingDiscount(parseFloat(e.target.value))}
                       className="bg-gray-700 border-gray-600 text-white flex-1"
                       min="0"
                     />
@@ -900,7 +759,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 </div>
               </div>
 
-              {editingPaymentMethod === 'split' && editingSplitPayment && (
+              {/* Split payment fields */}
+              {editingPaymentMethod === 'split' && (
                 <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800/40 rounded-md border border-gray-700">
                   <div className="space-y-2">
                     <Label htmlFor="cashAmount" className="text-sm text-gray-300">Cash Amount</Label>
@@ -1054,7 +914,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
             
             {/* Quantity */}
             <div className="space-y-2">
-              <Label htmlFor="quantity"  className="text-white">Quantity</Label>
+              <Label htmlFor="quantity" className="text-white">Quantity</Label>
               <div className="flex items-center space-x-2">
                 <Input
                   id="quantity"
