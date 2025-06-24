@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
 import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet } from 'lucide-react';
@@ -421,27 +420,40 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     return Math.floor((total / 100) * pointsRate);
   };
   
-  // Function to save changes to bill - FIXED VERSION
+  // Function to save changes to bill - ENHANCED VERSION WITH DEBUGGING
   const handleSaveChanges = async () => {
-    if (!editingBill || !editingCustomer) return;
+    if (!editingBill || !editingCustomer) {
+      console.error('❌ Missing required data:', { editingBill: !!editingBill, editingCustomer: !!editingCustomer });
+      toast({
+        title: "Error",
+        description: "Missing bill or customer data",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsSaving(true);
     
     try {
-      console.log('Saving bill changes...', {
-        paymentMethod: editingPaymentMethod,
-        isSplitPayment: editingSplitPayment,
-        cashAmount: editingCashAmount,
-        upiAmount: editingUpiAmount
-      });
+      console.log('🔧 Starting transaction update process...');
+      console.log('📋 Original Bill ID:', editingBill.id);
+      console.log('👤 Customer ID:', editingCustomer.id);
+      console.log('💰 Payment method:', editingPaymentMethod);
+      console.log('🔄 Is split payment:', editingSplitPayment);
+      console.log('💵 Cash amount:', editingCashAmount);
+      console.log('📱 UPI amount:', editingUpiAmount);
       
       // Calculate new values
       const { subtotal, discountValue, total } = calculateUpdatedBill();
+      console.log('📊 Calculated values:', { subtotal, discountValue, total });
       
       // Check if split payment amounts match total
       if (editingSplitPayment && editingPaymentMethod === 'split') {
         const totalSplitAmount = editingCashAmount + editingUpiAmount;
+        console.log('💱 Split payment validation:', { totalSplitAmount, total, difference: Math.abs(totalSplitAmount - total) });
+        
         if (Math.abs(totalSplitAmount - total) > 0.01) {
+          console.error('❌ Split payment amounts mismatch');
           toast({
             title: "Invalid Split",
             description: `Split amounts (₹${totalSplitAmount.toFixed(2)}) don't match total (₹${total.toFixed(2)})`,
@@ -454,6 +466,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       
       // Calculate loyalty points earned
       const loyaltyPointsEarned = calculateLoyaltyPointsEarned(total, editingCustomer.isMember);
+      console.log('🎯 Loyalty points earned:', loyaltyPointsEarned);
       
       // Prepare updated bill data
       const updatedBillData: Partial<Bill> = {
@@ -471,34 +484,82 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         upiAmount: editingSplitPayment ? editingUpiAmount : (editingPaymentMethod === 'upi' ? total : 0)
       };
       
-      console.log('Updated bill data:', updatedBillData);
+      console.log('📝 Updated bill data to send:', updatedBillData);
       
-      // Update bill in database
-      const { error } = await supabase
+      // First, let's check if the bill exists in the database
+      console.log('🔍 Checking if bill exists in database...');
+      const { data: existingBill, error: checkError } = await supabase
         .from('bills')
-        .update(updatedBillData)
-        .eq('id', editingBill.id);
+        .select('*')
+        .eq('id', editingBill.id)
+        .single();
       
-      if (error) {
-        console.error('Error updating bill:', error);
-        throw error;
+      if (checkError) {
+        console.error('❌ Error checking bill existence:', checkError);
+        throw new Error(`Failed to verify bill exists: ${checkError.message}`);
       }
       
-      // Update customer loyalty points - Fixed: use snake_case for database column
+      if (!existingBill) {
+        console.error('❌ Bill not found in database');
+        throw new Error('Bill not found in database');
+      }
+      
+      console.log('✅ Bill exists:', existingBill);
+      
+      // Update bill in database
+      console.log('📤 Updating bill in database...');
+      const { data: updatedBillResponse, error: billError } = await supabase
+        .from('bills')
+        .update(updatedBillData)
+        .eq('id', editingBill.id)
+        .select();
+      
+      if (billError) {
+        console.error('❌ Error updating bill:', billError);
+        console.error('📋 Bill error details:', {
+          message: billError.message,
+          details: billError.details,
+          hint: billError.hint,
+          code: billError.code
+        });
+        throw new Error(`Failed to update bill: ${billError.message}`);
+      }
+      
+      console.log('✅ Bill updated successfully:', updatedBillResponse);
+      
+      // Update customer loyalty points
+      console.log('🎯 Updating customer loyalty points...');
       const pointsDifference = editingLoyaltyPointsUsed - editingBill.loyaltyPointsUsed;
       const updatedLoyaltyPoints = Math.max(0, editingCustomer.loyaltyPoints - pointsDifference + loyaltyPointsEarned);
       
-      const { error: customerError } = await supabase
+      console.log('🧮 Loyalty points calculation:', {
+        currentPoints: editingCustomer.loyaltyPoints,
+        pointsDifference,
+        loyaltyPointsEarned,
+        finalPoints: updatedLoyaltyPoints
+      });
+      
+      const { data: updatedCustomerResponse, error: customerError } = await supabase
         .from('customers')
         .update({ loyalty_points: updatedLoyaltyPoints })
-        .eq('id', editingCustomer.id);
+        .eq('id', editingCustomer.id)
+        .select();
       
       if (customerError) {
-        console.error('Error updating customer:', customerError);
-        throw customerError;
+        console.error('❌ Error updating customer:', customerError);
+        console.error('👤 Customer error details:', {
+          message: customerError.message,
+          details: customerError.details,
+          hint: customerError.hint,
+          code: customerError.code
+        });
+        throw new Error(`Failed to update customer: ${customerError.message}`);
       }
       
+      console.log('✅ Customer updated successfully:', updatedCustomerResponse);
+      
       // Update local state
+      console.log('🔄 Updating local state...');
       setBills(prevBills =>
         prevBills.map(bill =>
           bill.id === editingBill.id ? { ...bill, ...updatedBillData } : bill
@@ -513,6 +574,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         )
       );
       
+      console.log('✅ Transaction update completed successfully!');
+      
       toast({
         title: "Transaction Updated",
         description: "The transaction has been successfully updated.",
@@ -524,10 +587,26 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       setIsEditDialogOpen(false);
       
     } catch (error) {
-      console.error('Error updating transaction:', error);
+      console.error('💥 CRITICAL ERROR in transaction update:', error);
+      console.error('🔍 Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
+      
+      // Log the current state for debugging
+      console.error('🔧 Current state when error occurred:', {
+        editingBillId: editingBill?.id,
+        editingCustomerId: editingCustomer?.id,
+        editedItemsCount: editedItems.length,
+        editingDiscount,
+        editingDiscountType,
+        editingLoyaltyPointsUsed,
+        editingPaymentMethod,
+        editingSplitPayment,
+        editingCashAmount,
+        editingUpiAmount
+      });
+      
       toast({
         title: "Update Failed",
-        description: "Failed to update the transaction. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to update the transaction. Check console for details.",
         variant: "destructive"
       });
     } finally {
