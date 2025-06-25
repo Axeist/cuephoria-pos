@@ -15,12 +15,15 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
   const matches: Match[] = [];
   let matchId = 1;
   const currentDate = new Date();
+  const tournamentDate = currentDate.toISOString().split('T')[0];
   
   // Shuffle players for randomized seeding
   const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
   
-  // Calculate tournament structure
-  const numRounds = Math.ceil(Math.log2(players.length));
+  // Define time slots to avoid conflicts
+  const timeSlots = [
+    "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
+  ];
   
   // Special handling for different player counts
   if (players.length === 2) {
@@ -30,8 +33,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: shuffledPlayers[0].id,
       player2Id: shuffledPlayers[1].id,
       completed: false,
-      scheduledDate: currentDate.toISOString().split('T')[0],
-      scheduledTime: '18:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '18:00', // Final at 6 PM
       status: 'scheduled',
       stage: 'final'
     });
@@ -46,8 +49,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: shuffledPlayers[0].id,
       player2Id: shuffledPlayers[1].id,
       completed: false,
-      scheduledDate: currentDate.toISOString().split('T')[0],
-      scheduledTime: '17:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '15:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-3`
@@ -59,22 +62,22 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: shuffledPlayers[2].id,
       player2Id: shuffledPlayers[3].id,
       completed: false,
-      scheduledDate: currentDate.toISOString().split('T')[0],
-      scheduledTime: '18:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '16:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-3`
     });
 
-    // Final
+    // Final at 6 PM
     matches.push({
       id: `match-3`,
       round: 2,
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '19:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '18:00',
       status: 'scheduled',
       stage: 'final'
     });
@@ -90,8 +93,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: shuffledPlayers[0].id,
       player2Id: shuffledPlayers[1].id,
       completed: false,
-      scheduledDate: currentDate.toISOString().split('T')[0],
-      scheduledTime: '16:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '12:00',
       status: 'scheduled',
       stage: 'quarter_final',
       nextMatchId: `match-4`
@@ -103,8 +106,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: shuffledPlayers[2].id,
       player2Id: shuffledPlayers[3].id,
       completed: false,
-      scheduledDate: currentDate.toISOString().split('T')[0],
-      scheduledTime: '17:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '13:00',
       status: 'scheduled',
       stage: 'quarter_final',
       nextMatchId: `match-5`
@@ -117,8 +120,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: shuffledPlayers[4].id, // Bye player 1
       player2Id: shuffledPlayers[5].id, // Bye player 2
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '16:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '15:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-6`
@@ -130,22 +133,22 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '', // Winner of match-1
       player2Id: '', // Winner of match-2
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '17:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '16:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-6`
     });
 
-    // Final
+    // Final at 6 PM
     matches.push({
       id: `match-5`,
       round: 3,
       player1Id: '', // Winner of match-3
       player2Id: '', // Winner of match-4
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '19:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '18:00',
       status: 'scheduled',
       stage: 'final'
     });
@@ -162,8 +165,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
         player1Id: shuffledPlayers[i * 2].id,
         player2Id: shuffledPlayers[i * 2 + 1].id,
         completed: false,
-        scheduledDate: currentDate.toISOString().split('T')[0],
-        scheduledTime: `${16 + i}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[i + 2], // Start from 12:00
         status: 'scheduled',
         stage: 'quarter_final',
         nextMatchId: `match-${5 + Math.floor(i / 2)}`
@@ -177,8 +180,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '17:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '16:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-7`
@@ -190,22 +193,22 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '18:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '17:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-7`
     });
 
-    // Final
+    // Final at 6 PM
     matches.push({
       id: `match-7`,
       round: 3,
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '19:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '18:00',
       status: 'scheduled',
       stage: 'final'
     });
@@ -223,8 +226,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
         player1Id: shuffledPlayers[i * 2].id,
         player2Id: shuffledPlayers[i * 2 + 1].id,
         completed: false,
-        scheduledDate: currentDate.toISOString().split('T')[0],
-        scheduledTime: `${16 + i}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[i], // 10:00, 11:00, 12:00, 13:00
         status: 'scheduled',
         stage: 'regular',
         nextMatchId: `match-${5 + Math.floor(i / 2)}`
@@ -240,8 +243,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
         player1Id: isFirstTwo ? '' : shuffledPlayers[8 + i - 2].id, // Winners from first round or bye players
         player2Id: isFirstTwo ? '' : shuffledPlayers[8 + i - 1].id,
         completed: false,
-        scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        scheduledTime: `${16 + i}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[i + 2], // 12:00, 13:00, 14:00, 15:00
         status: 'scheduled',
         stage: 'quarter_final',
         nextMatchId: `match-${9 + Math.floor(i / 2)}`
@@ -255,8 +258,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '17:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '16:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-11`
@@ -268,22 +271,22 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '18:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '17:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-11`
     });
 
-    // Final
+    // Final at 6 PM
     matches.push({
       id: `match-11`,
       round: 4,
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '19:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '18:00',
       status: 'scheduled',
       stage: 'final'
     });
@@ -300,8 +303,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
         player1Id: shuffledPlayers[i * 2].id,
         player2Id: shuffledPlayers[i * 2 + 1].id,
         completed: false,
-        scheduledDate: currentDate.toISOString().split('T')[0],
-        scheduledTime: `${16 + (i % 4)}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[i], // 10:00 to 15:00
         status: 'scheduled',
         stage: 'regular',
         nextMatchId: `match-${7 + Math.floor(i / 2)}`
@@ -317,8 +320,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
         player1Id: isByeMatch ? shuffledPlayers[12 + i - 3].id : '', // Bye players or winners
         player2Id: isByeMatch ? shuffledPlayers[13 + i - 3].id : '',
         completed: false,
-        scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        scheduledTime: `${16 + i}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[i + 2], // 12:00 to 15:00
         status: 'scheduled',
         stage: 'quarter_final',
         nextMatchId: `match-${11 + Math.floor(i / 2)}`
@@ -332,8 +335,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '17:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '16:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-13`
@@ -345,22 +348,22 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '18:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '17:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-13`
     });
 
-    // Final
+    // Final at 6 PM
     matches.push({
       id: `match-13`,
       round: 4,
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '19:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '18:00',
       status: 'scheduled',
       stage: 'final'
     });
@@ -377,8 +380,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
         player1Id: shuffledPlayers[i * 2].id,
         player2Id: shuffledPlayers[i * 2 + 1].id,
         completed: false,
-        scheduledDate: currentDate.toISOString().split('T')[0],
-        scheduledTime: `${16 + (i % 4)}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[i % timeSlots.length],
         status: 'scheduled',
         stage: 'regular',
         nextMatchId: `match-${9 + Math.floor(i / 2)}`
@@ -393,8 +396,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
         player1Id: '',
         player2Id: '',
         completed: false,
-        scheduledDate: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        scheduledTime: `${16 + i}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[i + 2], // 12:00 to 15:00
         status: 'scheduled',
         stage: 'quarter_final',
         nextMatchId: `match-${13 + Math.floor(i / 2)}`
@@ -408,8 +411,8 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '17:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '16:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-15`
@@ -421,22 +424,22 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '18:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '17:00',
       status: 'scheduled',
       stage: 'semi_final',
       nextMatchId: `match-15`
     });
 
-    // Final
+    // Final at 6 PM
     matches.push({
       id: `match-15`,
       round: 4,
       player1Id: '',
       player2Id: '',
       completed: false,
-      scheduledDate: new Date(currentDate.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      scheduledTime: '19:00',
+      scheduledDate: tournamentDate,
+      scheduledTime: '18:00',
       status: 'scheduled',
       stage: 'final'
     });
@@ -445,14 +448,18 @@ export const generateKnockoutMatches = (players: Player[]): Match[] => {
   }
 
   // For larger tournaments (handle using general algorithm)
-  return generateGeneralKnockoutMatches(shuffledPlayers);
+  return generateGeneralKnockoutMatches(shuffledPlayers, tournamentDate);
 };
 
 // General knockout algorithm for any number of players
-function generateGeneralKnockoutMatches(players: Player[]): Match[] {
+function generateGeneralKnockoutMatches(players: Player[], tournamentDate: string): Match[] {
   const matches: Match[] = [];
   let matchId = 1;
-  const currentDate = new Date();
+  
+  // Define time slots to avoid conflicts
+  const timeSlots = [
+    "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
+  ];
   
   // Calculate rounds needed
   const numRounds = Math.ceil(Math.log2(players.length));
@@ -460,6 +467,7 @@ function generateGeneralKnockoutMatches(players: Player[]): Match[] {
   // Generate all rounds
   let currentRound = 1;
   let currentPlayers = [...players];
+  let timeSlotIndex = 0;
   
   while (currentPlayers.length > 1) {
     const matchesThisRound = Math.floor(currentPlayers.length / 2);
@@ -467,14 +475,23 @@ function generateGeneralKnockoutMatches(players: Player[]): Match[] {
     for (let i = 0; i < matchesThisRound; i++) {
       const stage = getStageForRound(currentRound, numRounds);
       
+      // Special timing for final round
+      let scheduledTime;
+      if (stage === 'final') {
+        scheduledTime = '18:00'; // Final at 6 PM
+      } else {
+        scheduledTime = timeSlots[timeSlotIndex % timeSlots.length];
+        timeSlotIndex++;
+      }
+      
       matches.push({
         id: `match-${matchId++}`,
         round: currentRound,
         player1Id: currentPlayers[i * 2].id,
         player2Id: currentPlayers[i * 2 + 1].id,
         completed: false,
-        scheduledDate: new Date(currentDate.getTime() + (currentRound - 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        scheduledTime: `${16 + (i % 8)}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime,
         status: 'scheduled',
         stage,
         nextMatchId: currentRound < numRounds ? `match-${matchId + Math.floor(i / 2)}` : undefined
@@ -507,26 +524,31 @@ export const generateLeagueMatches = (players: Player[]): Match[] => {
   const matches: Match[] = [];
   let matchId = 1;
   const currentDate = new Date();
+  const tournamentDate = currentDate.toISOString().split('T')[0];
+  
+  // Define time slots to avoid conflicts
+  const timeSlots = [
+    "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
+  ];
+  
+  let timeSlotIndex = 0;
   
   // Generate all possible combinations of players (round-robin)
   for (let i = 0; i < players.length; i++) {
     for (let j = i + 1; j < players.length; j++) {
-      const matchNumber = matchId - 1;
-      const dayOffset = Math.floor(matchNumber / 4); // 4 matches per day
-      const timeSlot = matchNumber % 4;
-      const startHour = 16 + timeSlot; // Start from 4 PM
-      
       matches.push({
         id: `match-${matchId++}`,
         round: 1, // All matches are in round 1 for league format
         player1Id: players[i].id,
         player2Id: players[j].id,
         completed: false,
-        scheduledDate: new Date(currentDate.getTime() + dayOffset * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        scheduledTime: `${startHour}:00`,
+        scheduledDate: tournamentDate,
+        scheduledTime: timeSlots[timeSlotIndex % timeSlots.length],
         status: 'scheduled',
         stage: 'regular'
       });
+      
+      timeSlotIndex++;
     }
   }
   
