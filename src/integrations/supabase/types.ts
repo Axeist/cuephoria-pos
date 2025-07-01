@@ -628,6 +628,7 @@ export type Database = {
           email: string | null
           equity_percentage: number | null
           id: string
+          initial_investment_amount: number | null
           investment_amount: number
           investment_date: string
           name: string
@@ -645,6 +646,7 @@ export type Database = {
           email?: string | null
           equity_percentage?: number | null
           id?: string
+          initial_investment_amount?: number | null
           investment_amount?: number
           investment_date: string
           name: string
@@ -662,6 +664,7 @@ export type Database = {
           email?: string | null
           equity_percentage?: number | null
           id?: string
+          initial_investment_amount?: number | null
           investment_amount?: number
           investment_date?: string
           name?: string
@@ -714,6 +717,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_investment_transactions_partner"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "investment_partners"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "investment_transactions_partner_id_fkey"
             columns: ["partner_id"]

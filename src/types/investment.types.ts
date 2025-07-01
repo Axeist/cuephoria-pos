@@ -6,6 +6,7 @@ export interface InvestmentPartner {
   phone?: string;
   company?: string;
   investment_amount: number;
+  initial_investment_amount?: number;
   investment_date: string;
   equity_percentage?: number;
   partnership_type: 'investor' | 'partner' | 'advisor' | 'other';

@@ -57,9 +57,15 @@ export const useInvestments = () => {
 
   const addPartner = async (partner: Omit<InvestmentPartner, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      // Create partner with initial_investment_amount set to investment_amount
+      const partnerWithInitial = {
+        ...partner,
+        initial_investment_amount: partner.investment_amount
+      };
+
       const { data, error } = await supabase
         .from('investment_partners')
-        .insert([partner])
+        .insert([partnerWithInitial])
         .select()
         .single();
 
@@ -146,6 +152,10 @@ export const useInvestments = () => {
       };
       
       setTransactions(prev => [typedData, ...prev]);
+      
+      // Refresh partners to update investment amounts
+      await fetchPartners();
+      
       toast.success('Investment transaction added successfully');
       return typedData;
     } catch (error) {
@@ -174,6 +184,10 @@ export const useInvestments = () => {
       };
       
       setTransactions(prev => prev.map(t => t.id === id ? typedData : t));
+      
+      // Refresh partners to update investment amounts
+      await fetchPartners();
+      
       toast.success('Investment transaction updated successfully');
       return typedData;
     } catch (error) {
@@ -193,6 +207,10 @@ export const useInvestments = () => {
       if (error) throw error;
       
       setTransactions(prev => prev.filter(t => t.id !== id));
+      
+      // Refresh partners to update investment amounts
+      await fetchPartners();
+      
       toast.success('Investment transaction deleted successfully');
     } catch (error) {
       console.error('Error deleting transaction:', error);
