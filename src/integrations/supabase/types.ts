@@ -619,6 +619,110 @@ export type Database = {
         }
         Relationships: []
       }
+      investment_partners: {
+        Row: {
+          address: string | null
+          company: string | null
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          equity_percentage: number | null
+          id: string
+          investment_amount: number
+          investment_date: string
+          name: string
+          notes: string | null
+          partnership_type: string
+          phone: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          company?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          equity_percentage?: number | null
+          id?: string
+          investment_amount?: number
+          investment_date: string
+          name: string
+          notes?: string | null
+          partnership_type?: string
+          phone?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          company?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          equity_percentage?: number | null
+          id?: string
+          investment_amount?: number
+          investment_date?: string
+          name?: string
+          notes?: string | null
+          partnership_type?: string
+          phone?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      investment_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          notes: string | null
+          partner_id: string
+          reference_number: string | null
+          status: string
+          transaction_date: string
+          transaction_type: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          partner_id: string
+          reference_number?: string | null
+          status?: string
+          transaction_date: string
+          transaction_type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          partner_id?: string
+          reference_number?: string | null
+          status?: string
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investment_transactions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "investment_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loyalty_transactions: {
         Row: {
           created_at: string | null
