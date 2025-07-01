@@ -25,12 +25,12 @@ const InvestmentTransactionDialog: React.FC<InvestmentTransactionDialogProps> = 
 }) => {
   const [formData, setFormData] = useState({
     partner_id: '',
-    transaction_type: 'investment' as const,
+    transaction_type: 'investment' as 'investment' | 'dividend' | 'withdrawal' | 'return',
     amount: '',
     transaction_date: '',
     description: '',
     reference_number: '',
-    status: 'completed' as const,
+    status: 'completed' as 'completed' | 'pending' | 'cancelled',
     notes: ''
   });
 
@@ -122,7 +122,7 @@ const InvestmentTransactionDialog: React.FC<InvestmentTransactionDialogProps> = 
               <Label htmlFor="transaction_type" className="text-gray-200">Type *</Label>
               <Select
                 value={formData.transaction_type}
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, transaction_type: value }))}
+                onValueChange={(value: 'investment' | 'dividend' | 'withdrawal' | 'return') => setFormData(prev => ({ ...prev, transaction_type: value }))}
               >
                 <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                   <SelectValue />
@@ -167,7 +167,7 @@ const InvestmentTransactionDialog: React.FC<InvestmentTransactionDialogProps> = 
               <Label htmlFor="status" className="text-gray-200">Status</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, status: value }))}
+                onValueChange={(value: 'completed' | 'pending' | 'cancelled') => setFormData(prev => ({ ...prev, status: value }))}
               >
                 <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                   <SelectValue />

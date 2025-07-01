@@ -29,8 +29,8 @@ const InvestmentPartnerDialog: React.FC<InvestmentPartnerDialogProps> = ({
     investment_amount: '',
     investment_date: '',
     equity_percentage: '',
-    partnership_type: 'investor' as const,
-    status: 'active' as const,
+    partnership_type: 'investor' as 'investor' | 'partner' | 'advisor' | 'other',
+    status: 'active' as 'active' | 'inactive' | 'pending' | 'exited',
     notes: '',
     contact_person: '',
     address: ''
@@ -204,7 +204,7 @@ const InvestmentPartnerDialog: React.FC<InvestmentPartnerDialogProps> = ({
               <Label htmlFor="partnership_type" className="text-gray-200">Type</Label>
               <Select
                 value={formData.partnership_type}
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, partnership_type: value }))}
+                onValueChange={(value: 'investor' | 'partner' | 'advisor' | 'other') => setFormData(prev => ({ ...prev, partnership_type: value }))}
               >
                 <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                   <SelectValue />
@@ -222,7 +222,7 @@ const InvestmentPartnerDialog: React.FC<InvestmentPartnerDialogProps> = ({
               <Label htmlFor="status" className="text-gray-200">Status</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value: any) => setFormData(prev => ({ ...prev, status: value }))}
+                onValueChange={(value: 'active' | 'inactive' | 'pending' | 'exited') => setFormData(prev => ({ ...prev, status: value }))}
               >
                 <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                   <SelectValue />

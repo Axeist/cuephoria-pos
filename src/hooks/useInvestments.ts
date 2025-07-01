@@ -17,7 +17,15 @@ export const useInvestments = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPartners(data || []);
+      
+      // Type assertion to ensure the data matches our interface
+      const typedData = (data || []).map(partner => ({
+        ...partner,
+        partnership_type: partner.partnership_type as 'investor' | 'partner' | 'advisor' | 'other',
+        status: partner.status as 'active' | 'inactive' | 'pending' | 'exited'
+      }));
+      
+      setPartners(typedData);
     } catch (error) {
       console.error('Error fetching partners:', error);
       toast.error('Failed to fetch investment partners');
@@ -32,7 +40,15 @@ export const useInvestments = () => {
         .order('transaction_date', { ascending: false });
 
       if (error) throw error;
-      setTransactions(data || []);
+      
+      // Type assertion to ensure the data matches our interface
+      const typedData = (data || []).map(transaction => ({
+        ...transaction,
+        transaction_type: transaction.transaction_type as 'investment' | 'dividend' | 'withdrawal' | 'return',
+        status: transaction.status as 'completed' | 'pending' | 'cancelled'
+      }));
+      
+      setTransactions(typedData);
     } catch (error) {
       console.error('Error fetching transactions:', error);
       toast.error('Failed to fetch investment transactions');
@@ -49,9 +65,16 @@ export const useInvestments = () => {
 
       if (error) throw error;
       
-      setPartners(prev => [data, ...prev]);
+      // Type assertion for the returned data
+      const typedData = {
+        ...data,
+        partnership_type: data.partnership_type as 'investor' | 'partner' | 'advisor' | 'other',
+        status: data.status as 'active' | 'inactive' | 'pending' | 'exited'
+      };
+      
+      setPartners(prev => [typedData, ...prev]);
       toast.success('Investment partner added successfully');
-      return data;
+      return typedData;
     } catch (error) {
       console.error('Error adding partner:', error);
       toast.error('Failed to add investment partner');
@@ -70,9 +93,16 @@ export const useInvestments = () => {
 
       if (error) throw error;
       
-      setPartners(prev => prev.map(p => p.id === id ? data : p));
+      // Type assertion for the returned data
+      const typedData = {
+        ...data,
+        partnership_type: data.partnership_type as 'investor' | 'partner' | 'advisor' | 'other',
+        status: data.status as 'active' | 'inactive' | 'pending' | 'exited'
+      };
+      
+      setPartners(prev => prev.map(p => p.id === id ? typedData : p));
       toast.success('Investment partner updated successfully');
-      return data;
+      return typedData;
     } catch (error) {
       console.error('Error updating partner:', error);
       toast.error('Failed to update investment partner');
@@ -108,9 +138,16 @@ export const useInvestments = () => {
 
       if (error) throw error;
       
-      setTransactions(prev => [data, ...prev]);
+      // Type assertion for the returned data
+      const typedData = {
+        ...data,
+        transaction_type: data.transaction_type as 'investment' | 'dividend' | 'withdrawal' | 'return',
+        status: data.status as 'completed' | 'pending' | 'cancelled'
+      };
+      
+      setTransactions(prev => [typedData, ...prev]);
       toast.success('Investment transaction added successfully');
-      return data;
+      return typedData;
     } catch (error) {
       console.error('Error adding transaction:', error);
       toast.error('Failed to add investment transaction');
@@ -129,9 +166,16 @@ export const useInvestments = () => {
 
       if (error) throw error;
       
-      setTransactions(prev => prev.map(t => t.id === id ? data : t));
+      // Type assertion for the returned data
+      const typedData = {
+        ...data,
+        transaction_type: data.transaction_type as 'investment' | 'dividend' | 'withdrawal' | 'return',
+        status: data.status as 'completed' | 'pending' | 'cancelled'
+      };
+      
+      setTransactions(prev => prev.map(t => t.id === id ? typedData : t));
       toast.success('Investment transaction updated successfully');
-      return data;
+      return typedData;
     } catch (error) {
       console.error('Error updating transaction:', error);
       toast.error('Failed to update investment transaction');
