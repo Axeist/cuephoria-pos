@@ -1,16 +1,5 @@
 
 import React from "react";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
 import { useNavigate, useLocation } from "react-router-dom";
 import { 
   Home, 
@@ -44,7 +33,7 @@ const AppSidebar = () => {
       icon: ShoppingCart,
     },
     {
-      title: "Stations",
+      title: "Gaming Stations",
       url: "/stations",
       icon: Monitor,
     },
@@ -89,58 +78,59 @@ const AppSidebar = () => {
   };
 
   return (
-    <Sidebar className="bg-cuephoria-darker border-r border-cuephoria-lightpurple/20">
-      <SidebarContent>
-        <div className="p-4">
-          <Logo />
-        </div>
-        
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-cuephoria-lightpurple">
-            Main Menu
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    onClick={() => navigate(item.url)}
-                    isActive={location.pathname === item.url}
-                    className="text-gray-300 hover:text-white hover:bg-cuephoria-lightpurple/20 data-[state=open]:bg-cuephoria-lightpurple/20"
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-cuephoria-lightpurple">
-            Support
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {supportItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    onClick={() => navigate(item.url)}
-                    isActive={location.pathname === item.url}
-                    className="text-gray-300 hover:text-white hover:bg-cuephoria-lightpurple/20 data-[state=open]:bg-cuephoria-lightpurple/20"
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+    <div className="w-64 bg-cuephoria-darker border-r border-cuephoria-lightpurple/20 flex flex-col h-screen">
+      <div className="p-4 border-b border-cuephoria-lightpurple/20">
+        <Logo />
+      </div>
       
-      <SidebarFooter className="p-4">
+      <div className="flex-1 overflow-y-auto">
+        <nav className="p-4 space-y-2">
+          {menuItems.map((item) => (
+            <button
+              key={item.title}
+              onClick={() => navigate(item.url)}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                location.pathname === item.url
+                  ? 'bg-cuephoria-lightpurple/20 text-white'
+                  : 'text-gray-300 hover:text-white hover:bg-cuephoria-lightpurple/10'
+              }`}
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.title}</span>
+            </button>
+          ))}
+        </nav>
+        
+        <div className="px-4 py-2">
+          <div className="border-t border-cuephoria-lightpurple/20 pt-4 space-y-2">
+            {supportItems.map((item) => (
+              <button
+                key={item.title}
+                onClick={() => navigate(item.url)}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  location.pathname === item.url
+                    ? 'bg-cuephoria-lightpurple/20 text-white'
+                    : 'text-gray-300 hover:text-white hover:bg-cuephoria-lightpurple/10'
+                }`}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      <div className="p-4 border-t border-cuephoria-lightpurple/20">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-8 h-8 bg-cuephoria-lightpurple rounded-full flex items-center justify-center">
+            <Users className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <div className="text-white text-sm font-medium">admin</div>
+            <div className="text-cuephoria-lightpurple text-xs">(Administrator)</div>
+          </div>
+        </div>
         <Button
           onClick={handleLogout}
           variant="outline"
@@ -148,8 +138,8 @@ const AppSidebar = () => {
         >
           Logout
         </Button>
-      </SidebarFooter>
-    </Sidebar>
+      </div>
+    </div>
   );
 };
 
