@@ -21,7 +21,9 @@ import {
   BarChart3, 
   Settings, 
   HelpCircle,
-  TrendingUp
+  TrendingUp,
+  Shield,
+  LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
@@ -91,9 +93,13 @@ const AppSidebar = () => {
   return (
     <Sidebar className="bg-cuephoria-darker border-r border-cuephoria-lightpurple/20">
       <SidebarContent>
-        <div className="p-4 flex items-center space-x-3">
-          <Logo />
-          <h1 className="text-2xl font-bold text-white">Cuephoria</h1>
+        <div className="p-6 flex flex-col items-center space-y-4">
+          <div className="animate-pulse">
+            <div className="p-2 rounded-lg bg-gradient-to-r from-cuephoria-lightpurple/20 to-cuephoria-lightpurple/40 shadow-lg shadow-cuephoria-lightpurple/30">
+              <Logo />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-cuephoria-lightpurple">Cuephoria</h1>
         </div>
         
         <SidebarGroup>
@@ -143,22 +149,22 @@ const AppSidebar = () => {
       
       <SidebarFooter className="p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-cuephoria-lightpurple rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-cuephoria-lightpurple/20 border border-cuephoria-lightpurple rounded-lg flex items-center justify-center">
+              <Shield className="h-5 w-5 text-cuephoria-lightpurple" />
             </div>
             <div>
-              <div className="text-white font-medium">admin</div>
-              <div className="text-gray-400 text-sm">(Administrator)</div>
+              <div className="text-white font-medium text-sm">admin</div>
+              <div className="text-gray-400 text-xs">(Administrator)</div>
             </div>
           </div>
           <Button
             onClick={handleLogout}
             variant="ghost"
             size="icon"
-            className="text-gray-400 hover:text-white"
+            className="text-gray-400 hover:text-red-400 hover:bg-red-500/10"
           >
-            <HelpCircle className="h-4 w-4" />
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </SidebarFooter>
