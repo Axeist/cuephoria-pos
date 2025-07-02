@@ -25,6 +25,7 @@ import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import PublicTournaments from "./pages/PublicTournaments";
 import PublicStations from "./pages/PublicStations";
+import Investments from "./pages/Investments";
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
@@ -138,6 +139,11 @@ const App = () => (
                       <Reports />
                     </ProtectedRoute>
                   } />
+                  <Route path="/investments" element={
+                    <ProtectedRoute>
+                      <Investments />
+                    </ProtectedRoute>
+                  } />
                   {/* How to Use page, protected */}
                   <Route path="/how-to-use" element={
                     <ProtectedRoute>
@@ -164,4 +170,3 @@ const App = () => (
 );
 
 export default App;
-
