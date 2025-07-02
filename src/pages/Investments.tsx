@@ -5,14 +5,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useInvestments } from '@/hooks/useInvestments';
-import BusinessMetricsWidget from '@/components/investments/BusinessMetricsWidget';
-import InvestmentDistributionChart from '@/components/investments/InvestmentDistributionChart';
+import InvestmentSummaryCards from '@/components/investments/InvestmentSummaryCards';
+import InvestmentMetricsWidget from '@/components/investments/InvestmentMetricsWidget';
+import InvestmentTrendChart from '@/components/investments/InvestmentTrendChart';
 import InvestmentPartnersTable from '@/components/investments/InvestmentPartnersTable';
 import InvestmentTransactionsTable from '@/components/investments/InvestmentTransactionsTable';
 import InvestmentPartnerDialog from '@/components/investments/InvestmentPartnerDialog';
 import InvestmentTransactionDialog from '@/components/investments/InvestmentTransactionDialog';
 import { InvestmentPartner, InvestmentTransaction } from '@/types/investment.types';
-import { Plus, Search, Users, TrendingUp } from 'lucide-react';
+import { Plus, Search, Users, TrendingUp, BarChart3 } from 'lucide-react';
 
 const Investments = () => {
   const {
@@ -103,11 +104,14 @@ const Investments = () => {
           </div>
         </div>
 
-        {/* Business Metrics */}
-        <BusinessMetricsWidget />
+        {/* Summary Cards */}
+        <InvestmentSummaryCards partners={partners} transactions={transactions} />
 
-        {/* Investment Distribution Chart */}
-        <InvestmentDistributionChart partners={partners} />
+        {/* Metrics and Trends */}
+        <div className="space-y-6">
+          <InvestmentMetricsWidget partners={partners} transactions={transactions} />
+          <InvestmentTrendChart transactions={transactions} />
+        </div>
 
         {/* Main Content */}
         <Tabs defaultValue="partners" className="space-y-6">
@@ -119,6 +123,10 @@ const Investments = () => {
             <TabsTrigger value="transactions" className="data-[state=active]:bg-gray-700">
               <TrendingUp className="h-4 w-4 mr-2" />
               Transactions
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-gray-700">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics
             </TabsTrigger>
           </TabsList>
 
@@ -202,6 +210,14 @@ const Investments = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="analytics" className="space-y-4">
+            <div className="text-center py-8">
+              <h3 className="text-lg font-semibold text-white mb-2">Analytics Dashboard</h3>
+              <p className="text-gray-400">
+                Detailed analytics and insights are displayed in the charts above
+              </p>
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* Dialogs */}
