@@ -91,8 +91,9 @@ const AppSidebar = () => {
   return (
     <Sidebar className="bg-cuephoria-darker border-r border-cuephoria-lightpurple/20">
       <SidebarContent>
-        <div className="p-4">
+        <div className="p-4 flex items-center space-x-3">
           <Logo />
+          <h1 className="text-2xl font-bold text-white">Cuephoria</h1>
         </div>
         
         <SidebarGroup>
@@ -141,13 +142,25 @@ const AppSidebar = () => {
       </SidebarContent>
       
       <SidebarFooter className="p-4">
-        <Button
-          onClick={handleLogout}
-          variant="outline"
-          className="w-full bg-red-600/10 border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
-        >
-          Logout
-        </Button>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-cuephoria-lightpurple rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">A</span>
+            </div>
+            <div>
+              <div className="text-white font-medium">admin</div>
+              <div className="text-gray-400 text-sm">(Administrator)</div>
+            </div>
+          </div>
+          <Button
+            onClick={handleLogout}
+            variant="ghost"
+            size="icon"
+            className="text-gray-400 hover:text-white"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
