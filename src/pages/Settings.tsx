@@ -8,6 +8,7 @@ import TournamentManagement from '@/components/tournaments/TournamentManagement'
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
+import TournamentImageUpload from '@/components/tournaments/TournamentImageUpload';
 import { Tournament } from '@/types/tournament.types';
 import { generateId } from '@/utils/pos.utils';
 import { useTournamentOperations } from '@/services/tournamentService';
@@ -45,7 +46,26 @@ const Settings = () => {
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
-  
+
+  const handleImageUploaded = () => {
+    // Refresh tournaments list if needed
+    const loadTournaments = async () => {
+      try {
+        const fetchedTournaments = await tournamentOps.fetchTournaments();
+        setTournaments(fetchedTournaments);
+      } catch (error) {
+        console.error("Error loading tournaments:", error);
+      }
+    };
+    
+    loadTournaments();
+    
+    toast({
+      title: "Image uploaded successfully!",
+      description: "The tournament winner image has been added to the gallery.",
+    });
+  };
+
   // Load tournaments on component mount
   useEffect(() => {
     const loadTournaments = async () => {
@@ -67,7 +87,7 @@ const Settings = () => {
     
     loadTournaments();
   }, []);
-  
+
   const handleSaveTournament = async (updatedTournament: Tournament) => {
     setLoading(true);
     try {
@@ -281,6 +301,10 @@ const Settings = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">Tournaments</h2>
                 <div className="flex gap-2">
+                  <TournamentImageUpload 
+                    tournaments={tournaments}
+                    onImageUploaded={handleImageUploaded}
+                  />
                   <Button 
                     variant="outline"
                     onClick={handleOpenPublicTournaments}

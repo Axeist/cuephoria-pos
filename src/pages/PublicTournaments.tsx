@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,11 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap } from 'lucide-react';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
 import PublicLeaderboard from '@/components/tournaments/PublicLeaderboard';
+import TournamentImageGallery from '@/components/tournaments/TournamentImageGallery';
 import PromotionalPopup from '@/components/PromotionalPopup';
 
 interface Tournament {
@@ -700,14 +700,16 @@ const PublicTournaments = () => {
       upcoming: filterTournaments('upcoming').length,
       'in-progress': filterTournaments('in-progress').length,
       completed: filterTournaments('completed').length,
-      leaderboard: ''
+      leaderboard: '',
+      gallery: ''
     };
 
     const labels = {
       upcoming: `Upcoming (${counts.upcoming})`,
       'in-progress': `Live (${counts['in-progress']})`,
       completed: `Completed (${counts.completed})`,
-      leaderboard: 'Leaderboard'
+      leaderboard: 'Leaderboard',
+      gallery: 'Gallery'
     };
 
     return labels[tab as keyof typeof labels];
@@ -718,7 +720,8 @@ const PublicTournaments = () => {
       upcoming: Trophy,
       'in-progress': GamepadIcon,
       completed: Crown,
-      leaderboard: TrendingUp
+      leaderboard: TrendingUp,
+      gallery: ImageIcon
     };
     
     const IconComponent = icons[tab as keyof typeof icons];
@@ -730,6 +733,14 @@ const PublicTournaments = () => {
       return (
         <div className="max-w-4xl mx-auto">
           <PublicLeaderboard />
+        </div>
+      );
+    }
+
+    if (tabValue === 'gallery') {
+      return (
+        <div className="max-w-6xl mx-auto">
+          <TournamentImageGallery />
         </div>
       );
     }
@@ -901,7 +912,7 @@ const PublicTournaments = () => {
         {/* Desktop Tabs */}
         {!isMobile && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
+            <TabsList className="grid w-full grid-cols-5 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
               <TabsTrigger 
                 value="upcoming" 
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
@@ -924,6 +935,13 @@ const PublicTournaments = () => {
                 Completed ({filterTournaments('completed').length})
               </TabsTrigger>
               <TabsTrigger 
+                value="gallery"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              >
+                {getTabIcon('gallery')}
+                Gallery
+              </TabsTrigger>
+              <TabsTrigger 
                 value="leaderboard"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
               >
@@ -942,6 +960,10 @@ const PublicTournaments = () => {
 
             <TabsContent value="completed" className="mt-8">
               {renderTabContent('completed')}
+            </TabsContent>
+
+            <TabsContent value="gallery" className="mt-8">
+              {renderTabContent('gallery')}
             </TabsContent>
 
             <TabsContent value="leaderboard" className="mt-8">
@@ -990,6 +1012,13 @@ const PublicTournaments = () => {
                 >
                   {getTabIcon('completed')}
                   {getTabLabel('completed')}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setActiveTab('gallery')}
+                  className={`text-white hover:bg-cuephoria-lightpurple/20 ${activeTab === 'gallery' ? 'bg-cuephoria-lightpurple/10' : ''}`}
+                >
+                  {getTabIcon('gallery')}
+                  {getTabLabel('gallery')}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => setActiveTab('leaderboard')}
