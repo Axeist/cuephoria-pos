@@ -9,25 +9,27 @@ import { format } from 'date-fns';
 import Logo from '@/components/Logo';
 import TournamentImageGallery from '@/components/tournaments/TournamentImageGallery';
 
-interface Tournament {
+// Interface that matches the actual database schema for public view
+interface PublicTournament {
   id: string;
   name: string;
   game_type: string;
   game_variant: string | null;
+  game_title: string | null;
   date: string;
   status: string;
   winner: any;
   runner_up: any;
   winner_prize: number | null;
   runner_up_prize: number | null;
-  players: any[];
-  matches: any[];
+  players: any;
+  matches: any;
   total_registrations: number;
   max_players: number | null;
 }
 
 const PublicTournaments = () => {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournaments, setTournaments] = useState<PublicTournament[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -158,7 +160,7 @@ const PublicTournaments = () => {
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center text-muted-foreground">
                         <Users className="h-4 w-4 mr-1" />
-                        {tournament.total_registrations || tournament.players?.length || 0}
+                        {tournament.total_registrations || (tournament.players ? (Array.isArray(tournament.players) ? tournament.players.length : 0) : 0)}
                         {tournament.max_players && ` / ${tournament.max_players}`} players
                       </div>
                     </div>
