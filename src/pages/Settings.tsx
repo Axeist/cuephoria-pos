@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
@@ -5,13 +6,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
+import TournamentImageUpload from '@/components/tournaments/TournamentImageUpload';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
 import { Tournament } from '@/types/tournament.types';
 import { generateId } from '@/utils/pos.utils';
 import { useTournamentOperations } from '@/services/tournamentService';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import TournamentList from '@/components/tournaments/TournamentList';
 import { Button } from '@/components/ui/button';
 import TournamentDialog from '@/components/tournaments/TournamentDialog';
@@ -270,11 +272,24 @@ const Settings = () => {
                 </Button>
               </div>
               
-              <TournamentManagement
-                tournament={managingTournament}
-                onSave={handleSaveTournamentFromManagement}
-                isLoading={loading}
-              />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <TournamentManagement
+                  tournament={managingTournament}
+                  onSave={handleSaveTournamentFromManagement}
+                  isLoading={loading}
+                />
+                
+                <TournamentImageUpload
+                  tournament={managingTournament}
+                  onImageUploaded={() => {
+                    // Optional: You can add a callback here if needed
+                    toast({
+                      title: "Success",
+                      description: "Image uploaded and will appear in the public gallery.",
+                    });
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <>
