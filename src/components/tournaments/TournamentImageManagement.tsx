@@ -88,12 +88,14 @@ const TournamentImageManagement: React.FC<TournamentImageManagementProps> = ({ o
     if (!editingImage) return;
 
     try {
+      const updatedData = {
+        winner_name: editForm.winner_name.trim() || null,
+        caption: editForm.caption.trim() || null
+      };
+
       const { error } = await supabase
         .from('tournament_winner_images')
-        .update({
-          winner_name: editForm.winner_name.trim() || null,
-          caption: editForm.caption.trim() || null
-        })
+        .update(updatedData)
         .eq('id', editingImage.id);
 
       if (error) {
@@ -106,6 +108,15 @@ const TournamentImageManagement: React.FC<TournamentImageManagementProps> = ({ o
         return;
       }
 
+      // Update the local state immediately with the new data
+      setImages(prevImages => 
+        prevImages.map(img => 
+          img.id === editingImage.id 
+            ? { ...img, ...updatedData }
+            : img
+        )
+      );
+
       toast({
         title: "Success",
         description: "Image details updated successfully.",
@@ -113,7 +124,8 @@ const TournamentImageManagement: React.FC<TournamentImageManagementProps> = ({ o
 
       setEditDialogOpen(false);
       setEditingImage(null);
-      fetchImages();
+      
+      // Call onRefresh if provided to update parent components
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Unexpected error:', error);
@@ -158,12 +170,14 @@ const TournamentImageManagement: React.FC<TournamentImageManagementProps> = ({ o
         return;
       }
 
+      // Update local state immediately
+      setImages(prevImages => prevImages.filter(img => img.id !== imageId));
+
       toast({
         title: "Success",
         description: "Image deleted successfully.",
       });
 
-      fetchImages();
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Unexpected error:', error);
