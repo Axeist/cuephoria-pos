@@ -15,11 +15,13 @@ import { Tournament } from '@/types/tournament.types';
 interface TournamentImageUploadProps {
   tournaments: Tournament[];
   onImageUploaded?: () => void;
+  iconOnly?: boolean;
 }
 
 const TournamentImageUpload: React.FC<TournamentImageUploadProps> = ({ 
   tournaments, 
-  onImageUploaded 
+  onImageUploaded,
+  iconOnly = false
 }) => {
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [winnerName, setWinnerName] = useState('');
@@ -184,10 +186,20 @@ const TournamentImageUpload: React.FC<TournamentImageUploadProps> = ({
       }
     }}>
       <DialogTrigger asChild>
-        <Button className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-lightpurple/30">
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Winner Image
-        </Button>
+        {iconOnly ? (
+          <Button 
+            size="sm"
+            className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-lightpurple/30"
+            title="Upload Winner Image"
+          >
+            <Upload className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 text-white font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-cuephoria-lightpurple/30">
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Winner Image
+          </Button>
+        )}
       </DialogTrigger>
       
       <DialogContent className="max-w-2xl bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white">

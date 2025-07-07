@@ -3,12 +3,13 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
 import TournamentImageUpload from '@/components/tournaments/TournamentImageUpload';
+import TournamentImageManagement from '@/components/tournaments/TournamentImageManagement';
 import { Tournament } from '@/types/tournament.types';
 import { generateId } from '@/utils/pos.utils';
 import { useTournamentOperations } from '@/services/tournamentService';
@@ -43,6 +44,7 @@ const Settings = () => {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedTournamentForHistory, setSelectedTournamentForHistory] = useState<{ id: string; name: string } | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [imageManagementKey, setImageManagementKey] = useState(0);
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
@@ -60,10 +62,17 @@ const Settings = () => {
     
     loadTournaments();
     
+    // Refresh image management component
+    setImageManagementKey(prev => prev + 1);
+    
     toast({
       title: "Image uploaded successfully!",
       description: "The tournament winner image has been added to the gallery.",
     });
+  };
+
+  const handleImageManagementRefresh = () => {
+    setImageManagementKey(prev => prev + 1);
   };
 
   // Load tournaments on component mount
@@ -304,6 +313,7 @@ const Settings = () => {
                   <TournamentImageUpload 
                     tournaments={tournaments}
                     onImageUploaded={handleImageUploaded}
+                    iconOnly={true}
                   />
                   <Button 
                     variant="outline"
@@ -343,6 +353,11 @@ const Settings = () => {
                 onManage={handleManageTournament}
                 onDelete={handleDeleteTournament}
                 onViewHistory={handleViewHistory}
+              />
+
+              <TournamentImageManagement 
+                key={imageManagementKey}
+                onRefresh={handleImageManagementRefresh}
               />
             </>
           )}
