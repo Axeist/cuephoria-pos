@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -82,7 +81,26 @@ const PublicTournaments = () => {
         return;
       }
 
-      setTournaments(data || []);
+      // Convert the data to match Tournament interface
+      const convertedTournaments: Tournament[] = (data || []).map(item => ({
+        id: item.id || '',
+        name: item.name || '',
+        game_type: item.game_type || '',
+        game_variant: item.game_variant || undefined,
+        date: item.date || '',
+        status: item.status || 'upcoming',
+        max_players: item.max_players || undefined,
+        winner_prize: item.winner_prize || undefined,
+        runner_up_prize: item.runner_up_prize || undefined,
+        budget: item.budget || undefined,
+        players: Array.isArray(item.players) ? item.players : [],
+        matches: Array.isArray(item.matches) ? item.matches : [],
+        winner: item.winner || undefined,
+        runner_up: item.runner_up || undefined,
+        total_registrations: item.total_registrations || undefined
+      }));
+
+      setTournaments(convertedTournaments);
     } catch (error) {
       console.error('Unexpected error:', error);
     } finally {
