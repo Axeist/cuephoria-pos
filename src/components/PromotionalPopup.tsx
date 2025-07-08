@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, Clock, ExternalLink, Crown } from 'lucide-react';
+import { Star, Clock, ExternalLink } from 'lucide-react';
 
 const PromotionalPopup = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,10 +51,10 @@ const PromotionalPopup = () => {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-2 border-yellow-400/50 text-white max-w-md animate-scale-in shadow-2xl shadow-yellow-400/20">
         <DialogHeader className="text-center space-y-4 pt-2">
-          <div className="flex justify-center gap-2">
+          <div className="flex justify-center">
             <Badge className="bg-gradient-to-r from-yellow-400 to-orange-400 text-black font-bold text-lg px-4 py-2 animate-pulse">
               <Star className="mr-2 h-5 w-5" />
-              25% OFF
+              50% OFF
             </Badge>
           </div>
           
@@ -64,26 +64,12 @@ const PromotionalPopup = () => {
         </DialogHeader>
 
         <div className="space-y-6 text-center px-2">
-          <div className="space-y-3">
+          <div className="space-y-2">
             <p className="text-lg font-semibold text-yellow-200">
-              Get 25% discount on all gaming sessions!
+              Massive 50% discount running at Cuephoria!
             </p>
-            
-            <div className="bg-gradient-to-r from-purple-600/30 to-blue-600/30 p-4 rounded-lg border border-purple-400/30">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Crown className="h-5 w-5 text-yellow-400" />
-                <span className="text-yellow-300 font-bold">EXCLUSIVE MEMBER OFFER</span>
-              </div>
-              <p className="text-purple-200 font-semibold">
-                50% OFF for Membership Holders!
-              </p>
-              <p className="text-purple-300 text-sm mt-1">
-                Take a membership and unlock massive savings
-              </p>
-            </div>
-            
-            <p className="text-cuephoria-grey text-sm">
-              Don't miss out on these incredible deals. Book your gaming session now!
+            <p className="text-cuephoria-grey">
+              Don't miss out on this incredible deal. Book your gaming session now and save big!
             </p>
           </div>
 
@@ -98,7 +84,7 @@ const PromotionalPopup = () => {
               className="w-full bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-black font-bold py-3 text-lg transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-yellow-400/30"
             >
               <ExternalLink className="mr-2 h-5 w-5" />
-              Book Now & Save Big
+              Book Now & Save 50%
             </Button>
             
             <Button
