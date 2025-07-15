@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -670,9 +671,11 @@ const POS = () => {
             {paymentMethod === 'split' && (
               <div className="mt-4 animate-slide-up delay-500">
                 <SplitPaymentForm 
-                  total={total} 
-                  onSplitChange={setIsSplitPayment}
-                  onAmountChange={(cash, upi) => updateSplitAmounts(cash, upi)}
+                  total={total}
+                  cashAmount={cashAmount}
+                  upiAmount={upiAmount}
+                  onCashAmountChange={setCashAmount}
+                  onUpiAmountChange={setUpiAmount}
                 />
               </div>
             )}
