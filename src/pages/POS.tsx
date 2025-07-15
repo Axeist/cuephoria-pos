@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -51,7 +50,7 @@ const POS = () => {
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'split'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'credit' | 'split'>('cash');
   const [customDiscountAmount, setCustomDiscountAmount] = useState(discount.toString());
   const [customDiscountType, setCustomDiscountType] = useState<'percentage' | 'fixed'>(discountType);
   const [customLoyaltyPoints, setCustomLoyaltyPoints] = useState(loyaltyPointsUsed.toString());
@@ -168,7 +167,7 @@ const POS = () => {
     setLoyaltyPointsUsed(points);
   };
 
-  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split') => {
+  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'credit' | 'split') => {
     setPaymentMethod(value);
     if (value === 'split') {
       setIsSplitPayment(true);
@@ -649,8 +648,8 @@ const POS = () => {
               <h4 className="font-medium font-heading">Payment Method</h4>
               <RadioGroup
                 value={paymentMethod}
-                onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split')}
-                className="flex space-x-4"
+                onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'credit' | 'split')}
+                className="flex flex-wrap gap-4"
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="cash" id="cash" />
@@ -659,6 +658,10 @@ const POS = () => {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="upi" id="upi" />
                   <Label htmlFor="upi" className="font-quicksand">UPI</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="credit" id="credit" />
+                  <Label htmlFor="credit" className="font-quicksand">Credit</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="split" id="split" />
