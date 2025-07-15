@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
 import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet } from 'lucide-react';
@@ -93,7 +92,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   const [editingDiscount, setEditingDiscount] = useState<number>(0);
   const [editingDiscountType, setEditingDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [editingLoyaltyPointsUsed, setEditingLoyaltyPointsUsed] = useState<number>(0);
-  const [editingPaymentMethod, setEditingPaymentMethod] = useState<'cash' | 'upi' | 'split'>('cash');
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState<'cash' | 'upi' | 'split' | 'credit'>('cash');
   const [isEditing, setIsEditing] = useState<boolean>(false);
   
   // Added split payment fields
@@ -352,7 +351,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   // Handle split payment fields
-  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split') => {
+  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split' | 'credit') => {
     setEditingPaymentMethod(value);
     
     if (value === 'split') {
@@ -734,8 +733,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                   <h3 className="text-sm font-medium text-gray-300">Payment Method</h3>
                   <RadioGroup 
                     value={editingPaymentMethod} 
-                    onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split')}
-                    className="flex space-x-4"
+                    onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split' | 'credit')}
+                    className="flex flex-col space-y-2"
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="cash" id="cash" className="text-purple-400" />
@@ -747,6 +746,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       <RadioGroupItem value="upi" id="upi" className="text-purple-400" />
                       <Label htmlFor="upi" className="flex items-center gap-1 cursor-pointer">
                         <CreditCard className="h-4 w-4" /> UPI
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="credit" id="credit" className="text-purple-400" />
+                      <Label htmlFor="credit" className="flex items-center gap-1 cursor-pointer">
+                        <CreditCard className="h-4 w-4" /> Credit
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
