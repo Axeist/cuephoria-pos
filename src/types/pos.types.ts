@@ -166,7 +166,18 @@ export interface POSContextType {
   setLoyaltyPointsUsed: (points: number) => void;
   calculateTotal: () => number;
   completeSale: (paymentMethod: 'cash' | 'upi' | 'split' | 'credit') => Promise<Bill | undefined>; // Added credit to payment methods
-  updateBill: (originalBill: Bill, updatedItems: CartItem[], customer: Customer, discount: number, discountType: 'percentage' | 'fixed', loyaltyPointsUsed: number, isSplitPayment?: boolean, cashAmount?: number, upiAmount?: number) => Promise<Bill | null>;
+  updateBill: (
+    originalBill: Bill, 
+    updatedItems: CartItem[], 
+    customer: Customer, 
+    discount: number, 
+    discountType: 'percentage' | 'fixed', 
+    loyaltyPointsUsed: number, 
+    isSplitPayment?: boolean, 
+    cashAmount?: number, 
+    upiAmount?: number,
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
+  ) => Promise<Bill | null>;
   
   // Data export
   exportBills: () => void;

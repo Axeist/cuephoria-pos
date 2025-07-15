@@ -666,7 +666,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loyaltyPointsUsed: number,
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
-    upiAmount: number = 0
+    upiAmount: number = 0,
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
   ): Promise<Bill | null> => {
     return updateBillBase(
       originalBill,
@@ -677,7 +678,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       loyaltyPointsUsed,
       isSplitPayment,
       cashAmount,
-      upiAmount
+      upiAmount,
+      paymentMethod
     );
   };
   
