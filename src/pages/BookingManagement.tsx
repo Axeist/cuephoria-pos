@@ -117,6 +117,9 @@ export default function BookingManagement() {
 
       if (!bookingsData || bookingsData.length === 0) {
         setBookings([]);
+        // Clear expanded states when no bookings
+        setExpandedDates(new Set());
+        setExpandedCustomers(new Set());
         return;
       }
 
@@ -183,6 +186,20 @@ export default function BookingManagement() {
       }
 
       setBookings(filteredData as Booking[]);
+      
+      // Auto-expand sections when data is refreshed to show available bookings
+      if (filteredData.length > 0) {
+        const dates = new Set(filteredData.map(b => b.booking_date));
+        const customerKeys = new Set<string>();
+        
+        filteredData.forEach(booking => {
+          const dateCustomerKey = `${booking.booking_date}-${booking.customer.name}`;
+          customerKeys.add(dateCustomerKey);
+        });
+        
+        setExpandedDates(dates);
+        setExpandedCustomers(customerKeys);
+      }
     } catch (error) {
       console.error('Error fetching bookings:', error);
       toast.error('Failed to load bookings');
