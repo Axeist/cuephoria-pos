@@ -11,7 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { StationSelector } from '@/components/booking/StationSelector';
 import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker';
 import CouponPromotionalPopup from '@/components/CouponPromotionalPopup';
-import { CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap, Search, Percent, CheckCircle } from 'lucide-react';
+import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
+import { CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap, Search, Percent, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -53,6 +54,8 @@ export default function PublicBooking() {
   const [appliedCoupon, setAppliedCoupon] = useState('');
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
 
   // Fetch stations on component mount
   useEffect(() => {
@@ -269,13 +272,37 @@ export default function PublicBooking() {
         coupon_code: appliedCoupon || null
       }));
 
-      const { error: bookingError } = await supabase
+      const { data: insertedBookings, error: bookingError } = await supabase
         .from('bookings')
-        .insert(bookings);
+        .insert(bookings)
+        .select('id');
 
       if (bookingError) throw bookingError;
 
-      toast.success('Booking confirmed successfully! 🎉');
+      // Prepare confirmation data
+      const selectedStationObjects = stations.filter(s => selectedStations.includes(s.id));
+      const confirmationData = {
+        bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
+        customerName: customerInfo.name,
+        stationNames: selectedStationObjects.map(s => s.name),
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        startTime: new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }),
+        endTime: new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }),
+        totalAmount: finalPrice,
+        couponCode: appliedCoupon || undefined,
+        discountAmount: discount > 0 ? discount : undefined
+      };
+
+      setBookingConfirmationData(confirmationData);
+      setShowConfirmationDialog(true);
       
       // Reset form
       setSelectedStations([]);
@@ -553,11 +580,23 @@ export default function PublicBooking() {
                     </Button>
                   </div>
                   {appliedCoupon && (
-                    <div className="mt-2 p-2 bg-green-900/30 border border-green-500/30 rounded">
-                      <p className="text-sm text-green-400 flex items-center gap-2">
-                        <Percent className="h-4 w-4" />
-                        Coupon {appliedCoupon} applied!
-                      </p>
+                    <div className="mt-2 space-y-2">
+                      <div className="p-2 bg-green-900/30 border border-green-500/30 rounded">
+                        <p className="text-sm text-green-400 flex items-center gap-2">
+                          <Percent className="h-4 w-4" />
+                          Coupon {appliedCoupon} applied!
+                        </p>
+                      </div>
+                      {appliedCoupon === 'NIT50' && (
+                        <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded">
+                          <p className="text-sm text-amber-400 flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <span>
+                              <strong>Important:</strong> To avail this offer, you must present a valid NIT Trichy student ID card at reception. This is mandatory.
+                            </span>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -605,25 +644,79 @@ export default function PublicBooking() {
 
       {/* Footer */}
       <footer className="py-8 px-4 sm:px-6 md:px-8 border-t border-gray-800/50 mt-6 backdrop-blur-md bg-black/30 relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center mb-4 md:mb-0">
-            <img 
-              src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-              alt="Cuephoria Logo" 
-              className="h-8 mr-3" 
-            />
-            <p className="text-gray-400 text-sm">
-              © {new Date().getFullYear()} Cuephoria. All rights reserved.
-            </p>
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center mb-4 md:mb-0">
+              <img 
+                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
+                alt="Cuephoria Logo" 
+                className="h-8 mr-3" 
+              />
+              <p className="text-gray-400 text-sm">
+                © {new Date().getFullYear()} Cuephoria. All rights reserved.
+              </p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center text-gray-400 text-sm">
+                <Clock className="h-4 w-4 text-gray-400 mr-1.5" />
+                <span>Book anytime, anywhere</span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center text-gray-400 text-sm">
-              <Clock className="h-4 w-4 text-gray-400 mr-1.5" />
-              <span>Book anytime, anywhere</span>
+
+          {/* Legal Links */}
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <div className="flex flex-wrap justify-center md:justify-start gap-6">
+              <a 
+                href="/terms" 
+                className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors"
+              >
+                Terms & Conditions
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              <a 
+                href="/privacy" 
+                className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors"
+              >
+                Privacy Policy
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              <a 
+                href="/contact" 
+                className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors"
+              >
+                Contact Us
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            
+            {/* Contact Info */}
+            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
+              <div className="flex items-center gap-1">
+                <Phone className="h-4 w-4" />
+                <a href="tel:+918637625155" className="hover:text-white transition-colors">
+                  +91 86376 25155
+                </a>
+              </div>
+              <div className="flex items-center gap-1">
+                <Mail className="h-4 w-4" />
+                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
+                  contact@cuephoria.in
+                </a>
+              </div>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* Booking Confirmation Dialog */}
+      {bookingConfirmationData && (
+        <BookingConfirmationDialog
+          isOpen={showConfirmationDialog}
+          onClose={() => setShowConfirmationDialog(false)}
+          bookingData={bookingConfirmationData}
+        />
+      )}
     </div>
   );
 }
