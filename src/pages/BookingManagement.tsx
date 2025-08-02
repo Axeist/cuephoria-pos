@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
-import { Calendar, Search, Filter, Download, Phone, Mail, Clock, MapPin } from 'lucide-react';
-import { format } from 'date-fns';
+import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
+import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Calendar, Search, Filter, Download, Phone, Mail, Clock, MapPin, Plus, Edit2, Trash2, ChevronDown, ChevronRight, Users, CalendarDays, TrendingUp } from 'lucide-react';
+import { format, isToday, isYesterday, isTomorrow } from 'date-fns';
 
 interface Booking {
   id: string;
@@ -48,6 +50,11 @@ export default function BookingManagement() {
     stationType: '',
     search: ''
   });
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchBookings();
@@ -131,25 +138,42 @@ export default function BookingManagement() {
     }
   };
 
-  const updateBookingStatus = async (bookingId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ 
-          status: newStatus,
-          status_updated_at: new Date().toISOString(),
-          status_updated_by: 'admin'
-        })
-        .eq('id', bookingId);
+  const handleEditBooking = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setEditDialogOpen(true);
+  };
 
-      if (error) throw error;
+  const handleDeleteBooking = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setDeleteDialogOpen(true);
+  };
 
-      toast.success('Booking status updated successfully');
-      fetchBookings(); // Refresh the list
-    } catch (error) {
-      console.error('Error updating booking status:', error);
-      toast.error('Failed to update booking status');
-    }
+  const toggleDateExpansion = (date: string) => {
+    setExpandedDates(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(date)) {
+        newSet.delete(date);
+        // Also collapse all customers for this date
+        const customersToRemove = Array.from(expandedCustomers).filter(key => key.startsWith(date));
+        customersToRemove.forEach(key => newSet.delete(key));
+        setExpandedCustomers(new Set(Array.from(expandedCustomers).filter(key => !key.startsWith(date))));
+      } else {
+        newSet.add(date);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleCustomerExpansion = (dateCustomerKey: string) => {
+    setExpandedCustomers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dateCustomerKey)) {
+        newSet.delete(dateCustomerKey);
+      } else {
+        newSet.add(dateCustomerKey);
+      }
+      return newSet;
+    });
   };
 
   const exportBookings = () => {
@@ -188,21 +212,105 @@ export default function BookingManagement() {
     return type === 'ps5' ? 'PlayStation 5' : type === '8ball' ? '8-Ball Pool' : type;
   };
 
+  const getDateLabel = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) return 'Today';
+    if (isTomorrow(date)) return 'Tomorrow';
+    if (isYesterday(date)) return 'Yesterday';
+    return format(date, 'EEEE, MMM d, yyyy');
+  };
+
+  // Group bookings by date and then by customer
+  const groupedBookings = bookings.reduce((acc, booking) => {
+    const dateKey = booking.booking_date;
+    const customerKey = booking.customer.name;
+    
+    if (!acc[dateKey]) {
+      acc[dateKey] = {};
+    }
+    if (!acc[dateKey][customerKey]) {
+      acc[dateKey][customerKey] = [];
+    }
+    
+    acc[dateKey][customerKey].push(booking);
+    return acc;
+  }, {} as Record<string, Record<string, Booking[]>>);
+
+  // Calculate stats
+  const totalBookings = bookings.length;
+  const confirmedBookings = bookings.filter(b => b.status === 'confirmed').length;
+  const todayBookings = bookings.filter(b => b.booking_date === format(new Date(), 'yyyy-MM-dd')).length;
+  const uniqueCustomers = new Set(bookings.map(b => b.customer.name)).size;
+
   const today = format(new Date(), 'yyyy-MM-dd');
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Booking Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight gradient-text font-heading">Bookings</h1>
           <p className="text-muted-foreground">
             Manage customer bookings and reservations
           </p>
         </div>
-        <Button onClick={exportBookings} variant="outline" className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={exportBookings} variant="outline" className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            New Booking
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Bookings</p>
+                <p className="text-2xl font-bold">{totalBookings}</p>
+              </div>
+              <CalendarDays className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Confirmed</p>
+                <p className="text-2xl font-bold text-green-600">{confirmedBookings}</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Today's Bookings</p>
+                <p className="text-2xl font-bold">{todayBookings}</p>
+              </div>
+              <Calendar className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Unique Customers</p>
+                <p className="text-2xl font-bold">{uniqueCustomers}</p>
+              </div>
+              <Users className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -270,7 +378,7 @@ export default function BookingManagement() {
         </CardContent>
       </Card>
 
-      {/* Bookings Table */}
+      {/* Hierarchical Bookings Display */}
       <Card>
         <CardHeader>
           <CardTitle>Bookings ({bookings.length})</CardTitle>
@@ -288,106 +396,151 @@ export default function BookingManagement() {
               <p>No bookings found with the current filters</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Station</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookings.map((booking) => (
-                    <TableRow key={booking.id}>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="font-medium">
-                            {format(new Date(booking.booking_date), 'MMM d, yyyy')}
-                          </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-                          </div>
+            <div className="space-y-2">
+              {Object.entries(groupedBookings)
+                .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+                .map(([date, customerBookings]) => (
+                  <Collapsible key={date}>
+                    <CollapsibleTrigger
+                      onClick={() => toggleDateExpansion(date)}
+                      className="flex items-center gap-2 w-full p-3 text-left bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                    >
+                      {expandedDates.has(date) ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-semibold">{getDateLabel(date)}</span>
+                      <Badge variant="outline" className="ml-auto">
+                        {Object.values(customerBookings).flat().length} bookings
+                      </Badge>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      {expandedDates.has(date) && (
+                        <div className="ml-6 mt-2 space-y-2">
+                          {Object.entries(customerBookings).map(([customerName, bookings]) => {
+                            const dateCustomerKey = `${date}-${customerName}`;
+                            return (
+                              <Collapsible key={dateCustomerKey}>
+                                <CollapsibleTrigger
+                                  onClick={() => toggleCustomerExpansion(dateCustomerKey)}
+                                  className="flex items-center gap-2 w-full p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors"
+                                >
+                                  {expandedCustomers.has(dateCustomerKey) ? (
+                                    <ChevronDown className="h-3 w-3" />
+                                  ) : (
+                                    <ChevronRight className="h-3 w-3" />
+                                  )}
+                                  <Users className="h-3 w-3" />
+                                  <span className="font-medium">{customerName}</span>
+                                  <Badge variant="secondary" className="ml-auto text-xs">
+                                    {bookings.length} booking{bookings.length !== 1 ? 's' : ''}
+                                  </Badge>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  {expandedCustomers.has(dateCustomerKey) && (
+                                    <div className="ml-6 mt-2 space-y-2">
+                                      {bookings.map((booking) => (
+                                        <div key={booking.id} className="p-3 border rounded-lg bg-card">
+                                          <div className="flex items-center justify-between">
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+                                              <div>
+                                                <div className="text-sm text-muted-foreground">Time</div>
+                                                <div className="font-medium flex items-center gap-1">
+                                                  <Clock className="h-3 w-3" />
+                                                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                                                </div>
+                                              </div>
+                                              <div>
+                                                <div className="text-sm text-muted-foreground">Station</div>
+                                                <div className="font-medium flex items-center gap-1">
+                                                  <MapPin className="h-3 w-3" />
+                                                  {booking.station.name}
+                                                </div>
+                                                <Badge variant="outline" className="text-xs mt-1">
+                                                  {getStationTypeLabel(booking.station.type)}
+                                                </Badge>
+                                              </div>
+                                              <div>
+                                                <div className="text-sm text-muted-foreground">Contact</div>
+                                                <div className="text-sm flex items-center gap-1">
+                                                  <Phone className="h-3 w-3" />
+                                                  {booking.customer.phone}
+                                                </div>
+                                                {booking.customer.email && (
+                                                  <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                                    <Mail className="h-3 w-3" />
+                                                    {booking.customer.email}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <div>
+                                                <div className="text-sm text-muted-foreground">Status & Price</div>
+                                                <div className="flex items-center gap-2">
+                                                  <BookingStatusBadge status={booking.status} />
+                                                  {booking.final_price && (
+                                                    <span className="text-sm font-medium">₹{booking.final_price}</span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="flex gap-1 ml-4">
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleEditBooking(booking)}
+                                              >
+                                                <Edit2 className="h-3 w-3" />
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleDeleteBooking(booking)}
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                          {booking.notes && (
+                                            <div className="mt-2 p-2 bg-muted/50 rounded text-sm">
+                                              <span className="text-muted-foreground">Notes: </span>
+                                              {booking.notes}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </CollapsibleContent>
+                              </Collapsible>
+                            );
+                          })}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="font-medium flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {booking.station.name}
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
-                            {getStationTypeLabel(booking.station.type)}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{booking.customer.name}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="text-sm flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {booking.customer.phone}
-                          </div>
-                          {booking.customer.email && (
-                            <div className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {booking.customer.email}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <BookingStatusBadge status={booking.status} />
-                      </TableCell>
-                      <TableCell>
-                        {booking.final_price ? `₹${booking.final_price}` : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          {booking.status === 'confirmed' && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateBookingStatus(booking.id, 'in-progress')}
-                              >
-                                Start
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                              >
-                                Cancel
-                              </Button>
-                            </>
-                          )}
-                          {booking.status === 'in-progress' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateBookingStatus(booking.id, 'completed')}
-                            >
-                              Complete
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
+                ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <BookingEditDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        booking={selectedBooking}
+        onBookingUpdated={fetchBookings}
+      />
+
+      {/* Delete Dialog */}
+      <BookingDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        booking={selectedBooking}
+        onBookingDeleted={fetchBookings}
+      />
     </div>
   );
 }
