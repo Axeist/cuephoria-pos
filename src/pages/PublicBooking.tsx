@@ -10,8 +10,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { StationSelector } from '@/components/booking/StationSelector';
 import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker';
-import { ExistingBookingSearch } from '@/components/booking/ExistingBookingSearch';
-import { TodaysBookings } from '@/components/booking/TodaysBookings';
 import CouponPromotionalPopup from '@/components/CouponPromotionalPopup';
 import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
@@ -737,17 +735,6 @@ export default function PublicBooking() {
           </div>
         </div>
       </main>
-
-      {/* Booking Management Section */}
-      <section className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-8 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Existing Booking Search */}
-          <ExistingBookingSearch />
-          
-          {/* Today's Bookings */}
-          <TodaysBookings />
-        </div>
-      </section>
 
       {/* Footer */}
       <footer className="py-8 px-4 sm:px-6 md:px-8 border-t border-gray-800/50 mt-6 backdrop-blur-md bg-black/30 relative z-10">
