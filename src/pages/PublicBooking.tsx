@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { StationSelector } from '@/components/booking/StationSelector';
 import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker';
-import { CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap } from 'lucide-react';
+import CouponPromotionalPopup from '@/components/CouponPromotionalPopup';
+import { CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap, Search, Percent, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -29,10 +29,10 @@ interface TimeSlot {
 }
 
 interface CustomerInfo {
+  id?: string;
   name: string;
   phone: string;
   email: string;
-  notes: string;
 }
 
 export default function PublicBooking() {
@@ -44,9 +44,13 @@ export default function PublicBooking() {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: '',
     phone: '',
-    email: '',
-    notes: ''
+    email: ''
   });
+  const [customerNumber, setCustomerNumber] = useState('');
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [isReturningCustomer, setIsReturningCustomer] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState('');
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
 
@@ -85,8 +89,6 @@ export default function PublicBooking() {
 
     setSlotsLoading(true);
     try {
-      // For simplicity, get slots for the first selected station
-      // In a real app, you might want to show common available slots across all selected stations
       const stationId = selectedStations[0];
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -107,30 +109,110 @@ export default function PublicBooking() {
     }
   };
 
+  const searchCustomer = async () => {
+    if (!customerNumber.trim()) {
+      toast.error('Please enter a customer number');
+      return;
+    }
+
+    setSearchingCustomer(true);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, phone, email')
+        .eq('phone', customerNumber)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      if (data) {
+        setIsReturningCustomer(true);
+        setCustomerInfo({
+          id: data.id,
+          name: data.name,
+          phone: data.phone,
+          email: data.email || ''
+        });
+        toast.success(`Welcome back, ${data.name}! 🎮`);
+      } else {
+        setIsReturningCustomer(false);
+        setCustomerInfo({
+          name: '',
+          phone: customerNumber,
+          email: ''
+        });
+        toast.info('New customer! Please fill in your details below.');
+      }
+    } catch (error) {
+      console.error('Error searching customer:', error);
+      toast.error('Failed to search customer');
+    } finally {
+      setSearchingCustomer(false);
+    }
+  };
+
   const handleStationToggle = (stationId: string) => {
     setSelectedStations(prev => 
       prev.includes(stationId)
         ? prev.filter(id => id !== stationId)
         : [...prev, stationId]
     );
-    setSelectedSlot(null); // Reset slot when stations change
+    setSelectedSlot(null);
   };
 
   const handleSlotSelect = (slot: TimeSlot) => {
     setSelectedSlot(slot);
   };
 
-  const calculateTotalPrice = () => {
+  const handleCouponApply = () => {
+    const upperCoupon = couponCode.toUpperCase();
+    if (upperCoupon === 'CUEPHORIA25' || upperCoupon === 'NIT50') {
+      setAppliedCoupon(upperCoupon);
+      toast.success(`Coupon ${upperCoupon} applied successfully! 🎉`);
+    } else {
+      toast.error('Invalid coupon code');
+    }
+  };
+
+  const handleCouponSelect = (coupon: string) => {
+    setCouponCode(coupon);
+    setAppliedCoupon(coupon);
+    toast.success(`Coupon ${coupon} applied successfully! 🎉`);
+  };
+
+  const calculateOriginalPrice = () => {
     if (selectedStations.length === 0 || !selectedSlot) return 0;
     
     const selectedStationObjects = stations.filter(s => selectedStations.includes(s.id));
     const totalHourlyRate = selectedStationObjects.reduce((sum, station) => sum + station.hourly_rate, 0);
     
-    return totalHourlyRate; // For 1-hour slots
+    return totalHourlyRate;
+  };
+
+  const calculateDiscount = () => {
+    const originalPrice = calculateOriginalPrice();
+    if (!appliedCoupon || originalPrice === 0) return 0;
+
+    if (appliedCoupon === 'CUEPHORIA25') {
+      return originalPrice * 0.25;
+    } else if (appliedCoupon === 'NIT50') {
+      return originalPrice * 0.50;
+    }
+    return 0;
+  };
+
+  const calculateFinalPrice = () => {
+    const originalPrice = calculateOriginalPrice();
+    const discount = calculateDiscount();
+    return originalPrice - discount;
   };
 
   const handleBookingSubmit = async () => {
     // Validation
+    if (!customerNumber.trim()) {
+      toast.error('Please enter a customer number first');
+      return;
+    }
     if (selectedStations.length === 0) {
       toast.error('Please select at least one station');
       return;
@@ -143,24 +225,13 @@ export default function PublicBooking() {
       toast.error('Please enter your name');
       return;
     }
-    if (!customerInfo.phone.trim()) {
-      toast.error('Please enter your phone number');
-      return;
-    }
 
     setLoading(true);
     try {
-      // First, create or find customer
-      let customerId;
-      const { data: existingCustomer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('phone', customerInfo.phone)
-        .single();
-
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
-      } else {
+      // Create or update customer
+      let customerId = customerInfo.id;
+      
+      if (!customerId) {
         const { data: newCustomer, error: customerError } = await supabase
           .from('customers')
           .insert({
@@ -180,16 +251,22 @@ export default function PublicBooking() {
       }
 
       // Create bookings for each selected station
+      const originalPrice = calculateOriginalPrice();
+      const discount = calculateDiscount();
+      const finalPrice = calculateFinalPrice();
+
       const bookings = selectedStations.map(stationId => ({
         station_id: stationId,
         customer_id: customerId,
         booking_date: format(selectedDate, 'yyyy-MM-dd'),
         start_time: selectedSlot.start_time,
         end_time: selectedSlot.end_time,
-        duration: 60, // 1 hour slots
+        duration: 60,
         status: 'confirmed',
-        notes: customerInfo.notes || null,
-        final_price: calculateTotalPrice()
+        original_price: originalPrice,
+        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+        final_price: finalPrice,
+        coupon_code: appliedCoupon || null
       }));
 
       const { error: bookingError } = await supabase
@@ -198,12 +275,16 @@ export default function PublicBooking() {
 
       if (bookingError) throw bookingError;
 
-      toast.success('Booking confirmed successfully!');
+      toast.success('Booking confirmed successfully! 🎉');
       
       // Reset form
       setSelectedStations([]);
       setSelectedSlot(null);
-      setCustomerInfo({ name: '', phone: '', email: '', notes: '' });
+      setCustomerNumber('');
+      setCustomerInfo({ name: '', phone: '', email: '' });
+      setIsReturningCustomer(false);
+      setCouponCode('');
+      setAppliedCoupon('');
       setAvailableSlots([]);
       
     } catch (error) {
@@ -215,10 +296,15 @@ export default function PublicBooking() {
   };
 
   const today = new Date();
-  const totalPrice = calculateTotalPrice();
+  const originalPrice = calculateOriginalPrice();
+  const discount = calculateDiscount();
+  const finalPrice = calculateFinalPrice();
 
   return (
     <div className="min-h-screen bg-gradient-to-r from-gray-900 to-black overflow-hidden">
+      {/* Promotional Popup */}
+      <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
+
       {/* Animated particles background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-cuephoria-purple rounded-full animate-pulse opacity-60"></div>
@@ -270,12 +356,71 @@ export default function PublicBooking() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Booking Form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Station Selection */}
+            {/* Customer Search */}
             <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 flex items-center justify-center">
-                    <MapPin className="h-4 w-4 text-cuephoria-purple" />
+                    <Search className="h-4 w-4 text-cuephoria-purple" />
+                  </div>
+                  Customer Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    value={customerNumber}
+                    onChange={(e) => setCustomerNumber(e.target.value)}
+                    placeholder="Enter customer phone number"
+                    className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400 flex-1"
+                  />
+                  <Button
+                    onClick={searchCustomer}
+                    disabled={searchingCustomer}
+                    className="bg-cuephoria-purple hover:bg-cuephoria-purple/90"
+                  >
+                    {searchingCustomer ? 'Searching...' : 'Search'}
+                  </Button>
+                </div>
+
+                {customerNumber && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name" className="text-gray-200">
+                        Full Name * {isReturningCustomer && <CheckCircle className="inline h-4 w-4 text-green-400 ml-1" />}
+                      </Label>
+                      <Input
+                        id="name"
+                        value={customerInfo.name}
+                        onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Enter your full name"
+                        className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
+                        disabled={isReturningCustomer}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email" className="text-gray-200">Email (Optional)</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={customerInfo.email}
+                        onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="Enter your email address"
+                        className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
+                        disabled={isReturningCustomer}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Station Selection */}
+            <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in" style={{animationDelay: '100ms'}}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 flex items-center justify-center">
+                    <MapPin className="h-4 w-4 text-cuephoria-blue" />
                   </div>
                   Select Gaming Stations
                 </CardTitle>
@@ -290,11 +435,11 @@ export default function PublicBooking() {
             </Card>
 
             {/* Date & Time Selection */}
-            <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in" style={{animationDelay: '100ms'}}>
+            <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in" style={{animationDelay: '200ms'}}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 flex items-center justify-center">
-                    <CalendarIcon className="h-4 w-4 text-cuephoria-blue" />
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 flex items-center justify-center">
+                    <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
                   </div>
                   Select Date & Time
                 </CardTitle>
@@ -327,64 +472,6 @@ export default function PublicBooking() {
                       </div>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Customer Information */}
-            <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in" style={{animationDelay: '200ms'}}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 flex items-center justify-center">
-                    <User className="h-4 w-4 text-cuephoria-lightpurple" />
-                  </div>
-                  Your Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name" className="text-gray-200">Full Name *</Label>
-                    <Input
-                      id="name"
-                      value={customerInfo.name}
-                      onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter your full name"
-                      className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone" className="text-gray-200">Phone Number *</Label>
-                    <Input
-                      id="phone"
-                      value={customerInfo.phone}
-                      onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="Enter your phone number"
-                      className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="email" className="text-gray-200">Email (Optional)</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={customerInfo.email}
-                    onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="Enter your email address"
-                    className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="notes" className="text-gray-200">Special Requests (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={customerInfo.notes}
-                    onChange={(e) => setCustomerInfo(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Any special requests or notes..."
-                    rows={3}
-                    className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
-                  />
                 </div>
               </CardContent>
             </Card>
@@ -447,19 +534,60 @@ export default function PublicBooking() {
                   </div>
                 )}
 
-                {totalPrice > 0 && (
+                {/* Coupon Code Section */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-200">Coupon Code</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      placeholder="Enter coupon code"
+                      className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400 flex-1"
+                    />
+                    <Button
+                      onClick={handleCouponApply}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                  {appliedCoupon && (
+                    <div className="mt-2 p-2 bg-green-900/30 border border-green-500/30 rounded">
+                      <p className="text-sm text-green-400 flex items-center gap-2">
+                        <Percent className="h-4 w-4" />
+                        Coupon {appliedCoupon} applied!
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {originalPrice > 0 && (
                   <>
                     <Separator className="bg-gray-700" />
-                    <div className="flex justify-between items-center">
-                      <Label className="text-base font-medium text-gray-200">Total Amount</Label>
-                      <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{totalPrice}</span>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-sm text-gray-200">Subtotal</Label>
+                        <span className="text-sm text-gray-300">₹{originalPrice}</span>
+                      </div>
+                      {discount > 0 && (
+                        <div className="flex justify-between items-center">
+                          <Label className="text-sm text-green-400">Discount ({appliedCoupon})</Label>
+                          <span className="text-sm text-green-400">-₹{discount}</span>
+                        </div>
+                      )}
+                      <Separator className="bg-gray-700" />
+                      <div className="flex justify-between items-center">
+                        <Label className="text-base font-medium text-gray-200">Total Amount</Label>
+                        <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{finalPrice}</span>
+                      </div>
                     </div>
                   </>
                 )}
 
                 <Button 
                   onClick={handleBookingSubmit}
-                  disabled={!selectedSlot || selectedStations.length === 0 || loading}
+                  disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
                   className="w-full bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0"
                   size="lg"
                 >
