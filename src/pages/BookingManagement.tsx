@@ -84,7 +84,7 @@ export default function BookingManagement() {
       if (filters.date) {
         query = query.eq('booking_date', filters.date);
       }
-      if (filters.status) {
+      if (filters.status && filters.status !== 'all') {
         query = query.eq('status', filters.status);
       }
       if (filters.search) {
@@ -118,7 +118,7 @@ export default function BookingManagement() {
 
       // Apply station type filter on the client side (since it's a nested field)
       let filteredData = transformedData;
-      if (filters.stationType) {
+      if (filters.stationType && filters.stationType !== 'all') {
         filteredData = transformedData.filter(booking => booking.station.type === filters.stationType);
       }
 
@@ -231,7 +231,7 @@ export default function BookingManagement() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="in-progress">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
@@ -247,7 +247,7 @@ export default function BookingManagement() {
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="all">All types</SelectItem>
                   <SelectItem value="ps5">PlayStation 5</SelectItem>
                   <SelectItem value="8ball">8-Ball Pool</SelectItem>
                 </SelectContent>
