@@ -47,7 +47,7 @@ const AppSidebar: React.FC = () => {
   // Insert the Booking Management and How To Use menu items before Settings (last)
   const customMenuItems = [
     ...baseMenuItems.slice(0, baseMenuItems.findIndex(item => item.label === 'Settings')),
-    { icon: Calendar, label: 'Bookings', path: '/booking-management' },
+    { icon: Calendar, label: 'Booking Management', path: '/booking-management' },
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
     ...baseMenuItems.slice(baseMenuItems.findIndex(item => item.label === 'Settings'))
   ];
