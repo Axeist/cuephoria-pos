@@ -13,7 +13,6 @@ import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker';
 import CouponPromotionalPopup from '@/components/CouponPromotionalPopup';
 import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
-import { ExistingBookingSearch } from '@/components/booking/ExistingBookingSearch';
 import { CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap, Search, Percent, CheckCircle, AlertTriangle, ArrowRight, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -736,9 +735,6 @@ export default function PublicBooking() {
           </div>
         </div>
       </main>
-
-      {/* Existing Booking Search Section */}
-      <ExistingBookingSearch />
 
       {/* Footer */}
       <footer className="py-8 px-4 sm:px-6 md:px-8 border-t border-gray-800/50 mt-6 backdrop-blur-md bg-black/30 relative z-10">
