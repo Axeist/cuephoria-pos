@@ -60,6 +60,29 @@ export default function BookingManagement() {
     fetchBookings();
   }, [filters]);
 
+  // Real-time updates for bookings
+  useEffect(() => {
+    const channel = supabase
+      .channel('booking-management-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings'
+        },
+        () => {
+          // Refresh bookings when any booking changes
+          fetchBookings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const fetchBookings = async () => {
     setLoading(true);
     try {
