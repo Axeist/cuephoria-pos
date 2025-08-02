@@ -25,6 +25,7 @@ import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import PublicTournaments from "./pages/PublicTournaments";
 import PublicStations from "./pages/PublicStations";
+import PublicBooking from "./pages/PublicBooking";
 import BookingPage from "./pages/BookingPage";
 import BookingManagement from "./pages/BookingManagement";
 // Lazy load HowToUse for code splitting
@@ -108,7 +109,7 @@ const App = () => (
                   {/* Public routes */}
                   <Route path="/public/tournaments" element={<PublicTournaments />} />
                   <Route path="/public/stations" element={<PublicStations />} />
-                  <Route path="/booking" element={<BookingPage />} />
+                  <Route path="/public/booking" element={<PublicBooking />} />
 
                   {/* Protected routes */}
                   <Route path="/dashboard" element={
