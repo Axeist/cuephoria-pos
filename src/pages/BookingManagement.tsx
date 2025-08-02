@@ -74,15 +74,8 @@ export default function BookingManagement() {
           status,
           notes,
           final_price,
-          stations:station_id (
-            name,
-            type
-          ),
-          customers:customer_id (
-            name,
-            phone,
-            email
-          )
+          station_id,
+          customer_id
         `)
         .order('booking_date', { ascending: false })
         .order('start_time', { ascending: false });
@@ -94,39 +87,76 @@ export default function BookingManagement() {
       if (filters.status && filters.status !== 'all') {
         query = query.eq('status', filters.status);
       }
-      if (filters.search) {
-        query = query.or(`customers.name.ilike.%${filters.search}%,customers.phone.ilike.%${filters.search}%`);
-      }
 
-      const { data, error } = await query;
+      const { data: bookingsData, error } = await query;
 
       if (error) throw error;
 
-      // Transform the data to match our interface
-      const transformedData = (data || []).map(booking => ({
-        id: booking.id,
-        booking_date: booking.booking_date,
-        start_time: booking.start_time,
-        end_time: booking.end_time,
-        duration: booking.duration,
-        status: booking.status,
-        notes: booking.notes,
-        final_price: booking.final_price,
-        station: {
-          name: booking.stations?.name || 'Unknown',
-          type: booking.stations?.type || 'unknown'
-        },
-        customer: {
-          name: booking.customers?.name || 'Unknown',
-          phone: booking.customers?.phone || '',
-          email: booking.customers?.email
-        }
-      }));
+      if (!bookingsData || bookingsData.length === 0) {
+        setBookings([]);
+        return;
+      }
 
-      // Apply station type filter on the client side (since it's a nested field)
+      // Get unique station and customer IDs
+      const stationIds = [...new Set(bookingsData.map(b => b.station_id))];
+      const customerIds = [...new Set(bookingsData.map(b => b.customer_id))];
+
+      // Fetch stations data
+      const { data: stationsData, error: stationsError } = await supabase
+        .from('stations')
+        .select('id, name, type')
+        .in('id', stationIds);
+
+      if (stationsError) throw stationsError;
+
+      // Fetch customers data
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('id, name, phone, email')
+        .in('id', customerIds);
+
+      if (customersError) throw customersError;
+
+      // Transform the data to match our interface
+      const transformedData = bookingsData.map(booking => {
+        const station = stationsData?.find(s => s.id === booking.station_id);
+        const customer = customersData?.find(c => c.id === booking.customer_id);
+
+        return {
+          id: booking.id,
+          booking_date: booking.booking_date,
+          start_time: booking.start_time,
+          end_time: booking.end_time,
+          duration: booking.duration,
+          status: booking.status,
+          notes: booking.notes,
+          final_price: booking.final_price,
+          station: {
+            name: station?.name || 'Unknown',
+            type: station?.type || 'unknown'
+          },
+          customer: {
+            name: customer?.name || 'Unknown',
+            phone: customer?.phone || '',
+            email: customer?.email
+          }
+        };
+      });
+
+      // Apply additional filters on the client side
       let filteredData = transformedData;
+      
       if (filters.stationType && filters.stationType !== 'all') {
         filteredData = transformedData.filter(booking => booking.station.type === filters.stationType);
+      }
+
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        filteredData = filteredData.filter(booking =>
+          booking.customer.name.toLowerCase().includes(searchLower) ||
+          booking.customer.phone.includes(filters.search) ||
+          (booking.customer.email && booking.customer.email.toLowerCase().includes(searchLower))
+        );
       }
 
       setBookings(filteredData as Booking[]);

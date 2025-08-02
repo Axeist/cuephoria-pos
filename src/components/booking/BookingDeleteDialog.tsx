@@ -25,6 +25,18 @@ export function BookingDeleteDialog({ open, onOpenChange, booking, onBookingDele
 
     setLoading(true);
     try {
+      // First, delete any related booking_views records
+      const { error: viewsError } = await supabase
+        .from('booking_views')
+        .delete()
+        .eq('booking_id', booking.id);
+
+      if (viewsError) {
+        console.warn('Error deleting booking views:', viewsError);
+        // Continue with booking deletion even if views deletion fails
+      }
+
+      // Then delete the booking
       const { error } = await supabase
         .from('bookings')
         .delete()
