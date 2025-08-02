@@ -119,12 +119,16 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
           <Badge variant="outline" className={
             bill.paymentMethod === 'upi'
               ? "bg-blue-900/30 text-blue-400 border-blue-800"
+              : bill.paymentMethod === 'credit'
+              ? "bg-orange-900/30 text-orange-400 border-orange-800"
               : bill.paymentMethod === 'split'
               ? "bg-purple-900/30 text-purple-400 border-purple-800"
               : "bg-green-900/30 text-green-400 border-green-800"
           }>
             {bill.paymentMethod === 'upi' 
               ? 'UPI' 
+              : bill.paymentMethod === 'credit'
+              ? 'Credit'
               : bill.paymentMethod === 'split'
               ? 'Split'
               : 'Cash'}

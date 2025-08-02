@@ -64,7 +64,7 @@ export const useBills = (
             loyaltyPointsUsed: bill.loyalty_points_used,
             loyaltyPointsEarned: bill.loyalty_points_earned,
             total: Number(bill.total),
-            paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split',
+            paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split' | 'credit',
             isSplitPayment: bill.is_split_payment || false,
             cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
             upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
@@ -89,7 +89,7 @@ export const useBills = (
     discountType: 'percentage' | 'fixed',
     loyaltyPointsUsed: number,
     calculateTotal: () => number,
-    paymentMethod: 'cash' | 'upi' | 'split',
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit',
     products: Product[],
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
@@ -270,7 +270,8 @@ export const useBills = (
     loyaltyPointsUsed: number,
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
-    upiAmount: number = 0
+    upiAmount: number = 0,
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
   ): Promise<Bill | null> => {
     try {
       const subtotal = updatedItems.reduce((sum, item) => sum + item.total, 0);
@@ -285,6 +286,11 @@ export const useBills = (
       // Use corrected loyalty points calculation
       const loyaltyPointsEarned = calculateLoyaltyPoints(total, customer.isMember);
 
+      // Determine the final payment method
+      const finalPaymentMethod = isSplitPayment ? 'split' : (paymentMethod || originalBill.paymentMethod);
+
+      console.log('Updating bill with payment method:', finalPaymentMethod);
+
       // Update bill in database
       const { error: billError } = await supabase
         .from('bills')
@@ -296,9 +302,10 @@ export const useBills = (
           loyalty_points_used: loyaltyPointsUsed,
           loyalty_points_earned: loyaltyPointsEarned,
           total: total,
+          payment_method: finalPaymentMethod,
           is_split_payment: isSplitPayment,
-          cash_amount: cashAmount,
-          upi_amount: upiAmount
+          cash_amount: isSplitPayment ? cashAmount : (finalPaymentMethod === 'cash' ? total : 0),
+          upi_amount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0)
         })
         .eq('id', originalBill.id);
 
@@ -306,6 +313,8 @@ export const useBills = (
         console.error('Error updating bill:', billError);
         throw new Error('Failed to update bill');
       }
+
+      console.log('Bill updated successfully in database');
 
       // Delete existing bill items
       const { error: deleteError } = await supabase
@@ -348,9 +357,10 @@ export const useBills = (
         loyaltyPointsUsed: loyaltyPointsUsed,
         loyaltyPointsEarned: loyaltyPointsEarned,
         total: total,
+        paymentMethod: finalPaymentMethod,
         isSplitPayment: isSplitPayment,
-        cashAmount: cashAmount,
-        upiAmount: upiAmount
+        cashAmount: isSplitPayment ? cashAmount : (finalPaymentMethod === 'cash' ? total : 0),
+        upiAmount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0)
       };
 
       setBills(prevBills =>
