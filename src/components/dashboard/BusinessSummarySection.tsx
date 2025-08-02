@@ -33,7 +33,7 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
       })
     : bills;
   
-  // Calculate gross income from filtered bills (including credit payments)
+  // Calculate gross income from filtered bills
   const grossIncome = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
   
   // Calculate total expenses from filtered expenses
@@ -63,7 +63,7 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({
             <CurrencyDisplay amount={grossIncome} />
           </div>
           <p className="text-xs text-gray-400">
-            {dateRange ? 'Revenue for selected period (all payment methods)' : 'Total revenue from all sales'}
+            {dateRange ? 'Revenue for selected period' : 'Total revenue from all sales'}
           </p>
         </CardContent>
       </Card>

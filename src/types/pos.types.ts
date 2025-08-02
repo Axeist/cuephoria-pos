@@ -73,7 +73,7 @@ export interface Bill {
   loyaltyPointsUsed: number;
   loyaltyPointsEarned: number;
   total: number;
-  paymentMethod: 'cash' | 'upi' | 'split' | 'credit'; // Added credit payment method
+  paymentMethod: 'cash' | 'upi' | 'split';
   isSplitPayment?: boolean;
   cashAmount?: number;
   upiAmount?: number;
@@ -165,19 +165,8 @@ export interface POSContextType {
   setDiscount: (amount: number, type: 'percentage' | 'fixed') => void;
   setLoyaltyPointsUsed: (points: number) => void;
   calculateTotal: () => number;
-  completeSale: (paymentMethod: 'cash' | 'upi' | 'split' | 'credit') => Promise<Bill | undefined>; // Added credit to payment methods
-  updateBill: (
-    originalBill: Bill, 
-    updatedItems: CartItem[], 
-    customer: Customer, 
-    discount: number, 
-    discountType: 'percentage' | 'fixed', 
-    loyaltyPointsUsed: number, 
-    isSplitPayment?: boolean, 
-    cashAmount?: number, 
-    upiAmount?: number,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
-  ) => Promise<Bill | null>;
+  completeSale: (paymentMethod: 'cash' | 'upi' | 'split') => Promise<Bill | undefined>; // Made async
+  updateBill: (originalBill: Bill, updatedItems: CartItem[], customer: Customer, discount: number, discountType: 'percentage' | 'fixed', loyaltyPointsUsed: number, isSplitPayment?: boolean, cashAmount?: number, upiAmount?: number) => Promise<Bill | null>;
   
   // Data export
   exportBills: () => void;

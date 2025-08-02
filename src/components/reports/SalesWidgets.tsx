@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { DollarSign, CreditCard, Split, Gamepad2, Package, HandCoins } from 'lucide-react';
+import { DollarSign, CreditCard, Split, Gamepad2, Package } from 'lucide-react';
 
 interface BillItem {
   id: string;
@@ -40,11 +39,6 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
   // Calculate UPI sales
   const upiSales = filteredBills
     .filter(bill => bill.paymentMethod === 'upi')
-    .reduce((sum, bill) => sum + bill.total, 0);
-
-  // Calculate credit sales
-  const creditSales = filteredBills
-    .filter(bill => bill.paymentMethod === 'credit')
     .reduce((sum, bill) => sum + bill.total, 0);
 
   // Calculate split payment details
@@ -117,7 +111,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
   const totalSales = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-8 mb-6">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 mb-6">
       <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-red-500/30 hover:border-red-400/40 transition-all duration-300 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base font-medium text-white">Cash Sales</CardTitle>
@@ -142,20 +136,6 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         <CardContent>
           <div className="text-xl font-bold text-white">
             <CurrencyDisplay amount={upiSales} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-orange-500/30 hover:border-orange-400/40 transition-all duration-300 backdrop-blur-sm">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base font-medium text-white">Credit Sales</CardTitle>
-          <div className="h-8 w-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-            <HandCoins className="h-4 w-4 text-orange-400" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-xl font-bold text-white">
-            <CurrencyDisplay amount={creditSales} />
           </div>
         </CardContent>
       </Card>

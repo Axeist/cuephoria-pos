@@ -25,8 +25,6 @@ import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import PublicTournaments from "./pages/PublicTournaments";
 import PublicStations from "./pages/PublicStations";
-import BookingPage from "./pages/BookingPage";
-import BookingManagement from "./pages/BookingManagement";
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
@@ -108,7 +106,6 @@ const App = () => (
                   {/* Public routes */}
                   <Route path="/public/tournaments" element={<PublicTournaments />} />
                   <Route path="/public/stations" element={<PublicStations />} />
-                  <Route path="/booking" element={<BookingPage />} />
 
                   {/* Protected routes */}
                   <Route path="/dashboard" element={
@@ -139,11 +136,6 @@ const App = () => (
                   <Route path="/reports" element={
                     <ProtectedRoute>
                       <Reports />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/booking-management" element={
-                    <ProtectedRoute>
-                      <BookingManagement />
                     </ProtectedRoute>
                   } />
                   {/* How to Use page, protected */}

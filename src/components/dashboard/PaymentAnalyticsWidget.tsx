@@ -39,10 +39,8 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     
     let totalCashAmount = 0;
     let totalUpiAmount = 0;
-    let totalCreditAmount = 0; // Add credit tracking
     let cashOnlyCount = 0;
     let upiOnlyCount = 0;
-    let creditOnlyCount = 0; // Add credit count
     let splitCount = 0;
     let splitCashTotal = 0;
     let splitUpiTotal = 0;
@@ -79,14 +77,11 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       } else if (bill.paymentMethod === 'upi') {
         totalUpiAmount += bill.total;
         upiOnlyCount++;
-      } else if (bill.paymentMethod === 'credit') {
-        totalCreditAmount += bill.total;
-        creditOnlyCount++;
       }
     });
 
-    // Total revenue is the sum of all payment amounts
-    const totalRevenue = totalCashAmount + totalUpiAmount + totalCreditAmount;
+    // Total revenue is the sum of all cash and UPI amounts
+    const totalRevenue = totalCashAmount + totalUpiAmount;
     
     // Calculate additional insights
     const totalTransactions = filteredBills.length;
@@ -95,23 +90,19 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     // Calculate payment method preferences
     const cashPreference = totalRevenue > 0 ? (totalCashAmount / totalRevenue) * 100 : 0;
     const upiPreference = totalRevenue > 0 ? (totalUpiAmount / totalRevenue) * 100 : 0;
-    const creditPreference = totalRevenue > 0 ? (totalCreditAmount / totalRevenue) * 100 : 0;
     
     // Calculate average amounts per payment method
     const avgCashTransaction = cashOnlyCount > 0 ? (totalCashAmount - splitCashTotal) / cashOnlyCount : 0;
     const avgUpiTransaction = upiOnlyCount > 0 ? (totalUpiAmount - splitUpiTotal) / upiOnlyCount : 0;
-    const avgCreditTransaction = creditOnlyCount > 0 ? totalCreditAmount / creditOnlyCount : 0;
     const avgSplitTransaction = splitCount > 0 ? (splitCashTotal + splitUpiTotal) / splitCount : 0;
     
     console.log('Final calculation breakdown:', {
       cashOnlyBills: { count: cashOnlyCount, amount: totalCashAmount - splitCashTotal },
       upiOnlyBills: { count: upiOnlyCount, amount: totalUpiAmount - splitUpiTotal },
-      creditOnlyBills: { count: creditOnlyCount, amount: totalCreditAmount },
       splitBills: { count: splitCount, cashPortion: splitCashTotal, upiPortion: splitUpiTotal },
       totals: {
         totalCashAmount,
         totalUpiAmount,
-        totalCreditAmount,
         calculatedRevenue: totalRevenue,
         directSumOfAllBills: debugTotalSum,
         difference: Math.abs(totalRevenue - debugTotalSum)
@@ -120,31 +111,36 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
         averageTransactionValue,
         cashPreference,
         upiPreference,
-        creditPreference,
         avgCashTransaction,
         avgUpiTransaction,
-        avgCreditTransaction,
         avgSplitTransaction
       }
     });
+    
+    // Verify split payment calculations
+    const manualSplitVerification = filteredBills.filter(bill => bill.isSplitPayment);
+    if (manualSplitVerification.length > 0) {
+      console.log('Manual split payment verification:');
+      manualSplitVerification.forEach(bill => {
+        const calculatedSplit = (bill.cashAmount || 0) + (bill.upiAmount || 0);
+        console.log(`Bill ${bill.id}: cashAmount=${bill.cashAmount}, upiAmount=${bill.upiAmount}, sum=${calculatedSplit}, billTotal=${bill.total}, matches=${calculatedSplit === bill.total}`);
+      });
+    }
     
     console.log('=== End Debug ===');
 
     return {
       chartData: [
         { method: 'Cash', amount: totalCashAmount, count: cashOnlyCount + splitCount, color: '#10B981' },
-        { method: 'UPI', amount: totalUpiAmount, count: upiOnlyCount + splitCount, color: '#8B5CF6' },
-        { method: 'Credit', amount: totalCreditAmount, count: creditOnlyCount, color: '#F59E0B' }
-      ].filter(item => item.amount > 0), // Only show payment methods that have been used
+        { method: 'UPI', amount: totalUpiAmount, count: upiOnlyCount + splitCount, color: '#8B5CF6' }
+      ],
       totalRevenue,
       totalTransactions,
       averageTransactionValue,
       cashPreference,
       upiPreference,
-      creditPreference,
       avgCashTransaction,
       avgUpiTransaction,
-      avgCreditTransaction,
       avgSplitTransaction,
       splitBreakdown: {
         cash: splitCashTotal,
@@ -155,7 +151,6 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       paymentMethodCounts: {
         cashOnly: cashOnlyCount,
         upiOnly: upiOnlyCount,
-        creditOnly: creditOnlyCount,
         split: splitCount
       }
     };
@@ -270,7 +265,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
               </div>
             </div>
             
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Cash Preference</p>
@@ -282,13 +277,6 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                 <div className="text-center">
                   <p className="text-xs text-gray-400">UPI Preference</p>
                   <p className="text-lg font-bold text-purple-400">{paymentData.upiPreference.toFixed(1)}%</p>
-                </div>
-              </div>
-
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Credit Preference</p>
-                  <p className="text-lg font-bold text-yellow-400">{paymentData.creditPreference.toFixed(1)}%</p>
                 </div>
               </div>
             </div>
@@ -315,17 +303,6 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                   <span className="text-gray-400">Avg UPI Only:</span>
                   <span className="font-medium text-white">
                     <CurrencyDisplay amount={paymentData.avgUpiTransaction} />
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {paymentData.paymentMethodCounts.creditOnly > 0 && (
-              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-400">Avg Credit Only:</span>
-                  <span className="font-medium text-white">
-                    <CurrencyDisplay amount={paymentData.avgCreditTransaction} />
                   </span>
                 </div>
               </div>

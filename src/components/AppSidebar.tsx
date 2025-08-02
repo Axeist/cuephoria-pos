@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -44,10 +44,9 @@ const AppSidebar: React.FC = () => {
     { icon: Settings, label: 'Settings', path: '/settings' }, // Now accessible to staff
   ];
   
-  // Insert the Booking Management and How To Use menu items before Settings (last)
+  // Insert the How To Use menu item before Settings (last)
   const customMenuItems = [
     ...baseMenuItems.slice(0, baseMenuItems.findIndex(item => item.label === 'Settings')),
-    { icon: Calendar, label: 'Booking Management', path: '/booking-management' },
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
     ...baseMenuItems.slice(baseMenuItems.findIndex(item => item.label === 'Settings'))
   ];

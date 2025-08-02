@@ -524,8 +524,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
   
-  // Modified completeSale to properly handle async operations and support credit payment
-  const completeSale = async (paymentMethod: 'cash' | 'upi' | 'split' | 'credit'): Promise<Bill | undefined> => {
+  // Modified completeSale to properly handle async operations and return the actual bill
+  const completeSale = async (paymentMethod: 'cash' | 'upi' | 'split'): Promise<Bill | undefined> => {
     if (!selectedCustomer) {
       toast({
         title: 'No Customer Selected',
@@ -666,8 +666,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loyaltyPointsUsed: number,
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
-    upiAmount: number = 0,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
+    upiAmount: number = 0
   ): Promise<Bill | null> => {
     return updateBillBase(
       originalBill,
@@ -678,8 +677,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       loyaltyPointsUsed,
       isSplitPayment,
       cashAmount,
-      upiAmount,
-      paymentMethod
+      upiAmount
     );
   };
   
