@@ -72,7 +72,7 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
               variant={isSelected ? "default" : slot.is_available ? "outline" : "ghost"}
               disabled={!slot.is_available}
               onClick={() => slot.is_available && onSlotSelect(slot)}
-              className={`h-12 flex flex-col items-center justify-center text-xs ${
+              className={`h-12 flex flex-col items-center justify-center text-xs relative ${
                 !slot.is_available ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
@@ -83,9 +83,11 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
                 {formatTime(slot.end_time)}
               </div>
               {!slot.is_available && (
-                <Badge variant="secondary" className="text-xs mt-1">
-                  Booked
-                </Badge>
+                <div className="absolute -top-1 -right-1">
+                  <Badge variant="destructive" className="text-xs px-1 py-0 text-[10px] leading-3">
+                    Booked
+                  </Badge>
+                </div>
               )}
             </Button>
           );

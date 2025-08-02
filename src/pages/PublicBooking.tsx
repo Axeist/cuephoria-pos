@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,8 @@ interface CustomerInfo {
 }
 
 export default function PublicBooking() {
+  const [refreshCountdown, setRefreshCountdown] = useState(30);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -59,6 +62,27 @@ export default function PublicBooking() {
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
+
+  // Auto-refresh page every 30 seconds
+  useAutoRefresh(30000, false);
+
+  // Countdown timer for refresh
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshCountdown(prev => {
+        if (prev <= 1) {
+          setIsRefreshing(true);
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch stations on component mount
   useEffect(() => {
@@ -359,6 +383,16 @@ export default function PublicBooking() {
         <div className="absolute bottom-1/4 left-1/3 w-1 h-1 bg-cuephoria-blue rounded-full animate-pulse opacity-50" style={{animationDelay: '2s'}}></div>
         <div className="absolute top-1/2 right-1/4 w-3 h-3 bg-cuephoria-purple/30 rounded-full animate-pulse opacity-30" style={{animationDelay: '0.5s'}}></div>
         <div className="absolute bottom-1/3 right-1/2 w-2 h-2 bg-cuephoria-lightpurple/40 rounded-full animate-pulse opacity-40" style={{animationDelay: '1.5s'}}></div>
+      </div>
+
+      {/* Auto-refresh countdown */}
+      <div className="fixed top-4 right-4 z-50">
+        <div className="bg-black/80 backdrop-blur-md border border-gray-700/50 rounded-lg px-3 py-2 flex items-center gap-2">
+          <Timer className="h-4 w-4 text-cuephoria-purple" />
+          <span className="text-sm text-white">
+            {isRefreshing ? 'Refreshing...' : `Refresh in ${refreshCountdown}s`}
+          </span>
+        </div>
       </div>
 
       {/* Header with logo */}

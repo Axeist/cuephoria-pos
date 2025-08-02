@@ -69,7 +69,7 @@ ${bookingData.couponCode ? `Coupon: ${bookingData.couponCode}` : ''}
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-black/90 backdrop-blur-md border-gray-800/50 text-white">
+      <DialogContent className="max-w-md bg-background border text-foreground">
         <DialogHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center">
             <CheckCircle2 className="h-8 w-8 text-green-400" />
@@ -79,7 +79,7 @@ ${bookingData.couponCode ? `Coupon: ${bookingData.couponCode}` : ''}
           </DialogTitle>
         </DialogHeader>
 
-        <Card className="bg-gray-900/50 border-gray-700/50">
+        <Card className="bg-muted/20 border-border/50">
           <CardContent className="p-4 space-y-4">
             {/* Booking ID */}
             <div className="text-center">
@@ -99,7 +99,7 @@ ${bookingData.couponCode ? `Coupon: ${bookingData.couponCode}` : ''}
               </div>
             </div>
 
-            <Separator className="bg-gray-700" />
+            <Separator className="bg-border" />
 
             {/* Booking Details */}
             <div className="space-y-3">
@@ -134,7 +134,7 @@ ${bookingData.couponCode ? `Coupon: ${bookingData.couponCode}` : ''}
               )}
             </div>
 
-            <Separator className="bg-gray-700" />
+            <Separator className="bg-border" />
 
             {/* Total Amount */}
             <div className="text-center">
