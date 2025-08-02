@@ -22,6 +22,25 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   onSlotSelect,
   loading = false
 }) => {
+  // Filter out past time slots for today
+  const filterSlots = (slots: TimeSlot[]) => {
+    const now = new Date();
+    const isToday = now.toDateString() === new Date().toDateString();
+    
+    if (!isToday) {
+      return slots;
+    }
+    
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    return slots.filter(slot => {
+      const [hours, minutes] = slot.start_time.split(':').map(Number);
+      const slotTime = hours * 60 + minutes;
+      return slotTime >= currentTime;
+    });
+  };
+
+  const filteredSlots = filterSlots(slots);
   const formatTime = (timeString: string) => {
     return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
       hour: 'numeric',
@@ -40,7 +59,7 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
     );
   }
 
-  if (slots.length === 0) {
+  if (filteredSlots.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -63,7 +82,7 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
       </div>
       
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-        {slots.map((slot, index) => {
+        {filteredSlots.map((slot, index) => {
           const isSelected = selectedSlot?.start_time === slot.start_time;
           
           return (
