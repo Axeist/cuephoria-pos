@@ -12,7 +12,8 @@ import { StationSelector } from '@/components/booking/StationSelector';
 import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker';
 import CouponPromotionalPopup from '@/components/CouponPromotionalPopup';
 import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
-import { CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap, Search, Percent, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import LegalDialog from '@/components/dialog/LegalDialog';
+import { CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap, Search, Percent, CheckCircle, AlertTriangle, ArrowRight, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -56,6 +57,8 @@ export default function PublicBooking() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
+  const [showLegalDialog, setShowLegalDialog] = useState(false);
+  const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
   // Fetch stations on component mount
   useEffect(() => {
@@ -210,10 +213,27 @@ export default function PublicBooking() {
     return originalPrice - discount;
   };
 
+  const handleLegalClick = (type: 'terms' | 'privacy' | 'contact') => {
+    setLegalDialogType(type);
+    setShowLegalDialog(true);
+  };
+
+  const isCustomerInfoComplete = () => {
+    return customerNumber.trim() && customerInfo.name.trim();
+  };
+
+  const isStationSelectionAvailable = () => {
+    return isCustomerInfoComplete();
+  };
+
+  const isTimeSelectionAvailable = () => {
+    return isStationSelectionAvailable() && selectedStations.length > 0;
+  };
+
   const handleBookingSubmit = async () => {
     // Validation
     if (!customerNumber.trim()) {
-      toast.error('Please enter a customer number first');
+      toast.error('Please complete customer information first');
       return;
     }
     if (selectedStations.length === 0) {
@@ -383,22 +403,30 @@ export default function PublicBooking() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Booking Form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Customer Search */}
+            {/* Step 1: Customer Information - Always visible */}
             <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 flex items-center justify-center">
-                    <Search className="h-4 w-4 text-cuephoria-purple" />
+                    <User className="h-4 w-4 text-cuephoria-purple" />
                   </div>
-                  Customer Information
+                  Step 1: Customer Information
+                  {isCustomerInfoComplete() && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-lg p-3">
+                  <p className="text-sm text-cuephoria-purple font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Please complete customer information to proceed with booking
+                  </p>
+                </div>
+                
                 <div className="flex gap-2">
                   <Input
                     value={customerNumber}
                     onChange={(e) => setCustomerNumber(e.target.value)}
-                    placeholder="Enter customer phone number"
+                    placeholder="Enter customer phone number *"
                     className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400 flex-1"
                   />
                   <Button
@@ -439,67 +467,108 @@ export default function PublicBooking() {
                     </div>
                   </div>
                 )}
+
+                {isCustomerInfoComplete() && (
+                  <div className="flex items-center gap-2 text-green-400 text-sm">
+                    <CheckCircle className="h-4 w-4" />
+                    Customer information complete! You can now proceed to station selection.
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            {/* Station Selection */}
-            <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in" style={{animationDelay: '100ms'}}>
+            {/* Step 2: Station Selection */}
+            <Card className={cn(
+              "bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in transition-all duration-300",
+              !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
+            )} style={{animationDelay: '100ms'}}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 flex items-center justify-center">
-                    <MapPin className="h-4 w-4 text-cuephoria-blue" />
+                    {!isStationSelectionAvailable() ? (
+                      <Lock className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <MapPin className="h-4 w-4 text-cuephoria-blue" />
+                    )}
                   </div>
-                  Select Gaming Stations
+                  Step 2: Select Gaming Stations
+                  {isStationSelectionAvailable() && selectedStations.length > 0 && (
+                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <StationSelector
-                  stations={stations}
-                  selectedStations={selectedStations}
-                  onStationToggle={handleStationToggle}
-                />
+                {!isStationSelectionAvailable() ? (
+                  <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-center">
+                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+                    <p className="text-gray-400">Complete customer information to unlock station selection</p>
+                  </div>
+                ) : (
+                  <StationSelector
+                    stations={stations}
+                    selectedStations={selectedStations}
+                    onStationToggle={handleStationToggle}
+                  />
+                )}
               </CardContent>
             </Card>
 
-            {/* Date & Time Selection */}
-            <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in" style={{animationDelay: '200ms'}}>
+            {/* Step 3: Date & Time Selection */}
+            <Card className={cn(
+              "bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in transition-all duration-300",
+              !isTimeSelectionAvailable() && "opacity-50 pointer-events-none"
+            )} style={{animationDelay: '200ms'}}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 flex items-center justify-center">
-                    <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
+                    {!isTimeSelectionAvailable() ? (
+                      <Lock className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
+                    )}
                   </div>
-                  Select Date & Time
+                  Step 3: Choose Date & Time
+                  {isTimeSelectionAvailable() && selectedSlot && (
+                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <Label className="text-base font-medium text-gray-200">Choose Date</Label>
-                    <div className="mt-2">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => date && setSelectedDate(date)}
-                        disabled={(date) => date < today}
-                        className={cn("rounded-md border bg-black/30 border-gray-700 pointer-events-auto")}
-                      />
-                    </div>
+                {!isTimeSelectionAvailable() ? (
+                  <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-center">
+                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+                    <p className="text-gray-400">Select stations to unlock date and time selection</p>
                   </div>
-
-                  {selectedStations.length > 0 && (
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <Label className="text-base font-medium text-gray-200">Available Time Slots</Label>
+                      <Label className="text-base font-medium text-gray-200">Choose Date</Label>
                       <div className="mt-2">
-                        <TimeSlotPicker
-                          slots={availableSlots}
-                          selectedSlot={selectedSlot}
-                          onSlotSelect={handleSlotSelect}
-                          loading={slotsLoading}
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date) => date && setSelectedDate(date)}
+                          disabled={(date) => date < today}
+                          className={cn("rounded-md border bg-black/30 border-gray-700 pointer-events-auto")}
                         />
                       </div>
                     </div>
-                  )}
-                </div>
+
+                    {selectedStations.length > 0 && (
+                      <div>
+                        <Label className="text-base font-medium text-gray-200">Available Time Slots</Label>
+                        <div className="mt-2">
+                          <TimeSlotPicker
+                            slots={availableSlots}
+                            selectedSlot={selectedSlot}
+                            onSlotSelect={handleSlotSelect}
+                            loading={slotsLoading}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -667,27 +736,24 @@ export default function PublicBooking() {
           {/* Legal Links */}
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
-              <a 
-                href="/terms" 
+              <button 
+                onClick={() => handleLegalClick('terms')}
                 className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors"
               >
                 Terms & Conditions
-                <ExternalLink className="h-3 w-3" />
-              </a>
-              <a 
-                href="/privacy" 
+              </button>
+              <button 
+                onClick={() => handleLegalClick('privacy')}
                 className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors"
               >
                 Privacy Policy
-                <ExternalLink className="h-3 w-3" />
-              </a>
-              <a 
-                href="/contact" 
+              </button>
+              <button 
+                onClick={() => handleLegalClick('contact')}
                 className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors"
               >
                 Contact Us
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              </button>
             </div>
             
             {/* Contact Info */}
@@ -717,6 +783,13 @@ export default function PublicBooking() {
           bookingData={bookingConfirmationData}
         />
       )}
+
+      {/* Legal Dialog */}
+      <LegalDialog
+        isOpen={showLegalDialog}
+        onClose={() => setShowLegalDialog(false)}
+        type={legalDialogType}
+      />
     </div>
   );
 }
