@@ -134,7 +134,7 @@ export default function PublicBooking() {
         .eq('phone', customerNumber)
         .single();
 
-      if (error && (error as any).code !== 'PGRST116') throw error;
+    if (error && (error as any).code !== 'PGRST116') throw error;
 
       if (data) {
         setIsReturningCustomer(true);
@@ -144,7 +144,7 @@ export default function PublicBooking() {
           phone: data.phone,
           email: data.email || ''
         });
-        toast.success(Welcome back, ${data.name}! 🎮);
+        toast.success(`Welcome back, ${data.name}! 🎮`);
       } else {
         setIsReturningCustomer(false);
         setCustomerInfo({
@@ -176,7 +176,7 @@ export default function PublicBooking() {
     const upper = couponCode.toUpperCase();
     if (upper === 'CUEPHORIA25' || upper === 'NIT50') {
       setAppliedCoupon(upper);
-      toast.success(Coupon ${upper} applied successfully! 🎉);
+      toast.success(`Coupon ${upper} applied successfully! 🎉`);
     } else {
       toast.error('Invalid coupon code');
     }
@@ -185,7 +185,7 @@ export default function PublicBooking() {
   const handleCouponSelect = (coupon: string) => {
     setCouponCode(coupon);
     setAppliedCoupon(coupon);
-    toast.success(Coupon ${coupon} applied successfully! 🎉);
+    toast.success(`Coupon ${coupon} applied successfully! 🎉`);
   };
 
   const calculateOriginalPrice = () => {
@@ -273,8 +273,8 @@ export default function PublicBooking() {
         customerName: customerInfo.name,
         stationNames: selectedStationObjects.map(s => s.name),
         date: format(selectedDate, 'yyyy-MM-dd'),
-        startTime: new Date(2000-01-01T${selectedSlot.start_time}).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-        endTime: new Date(2000-01-01T${selectedSlot.end_time}).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        startTime: new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        endTime: new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
         totalAmount: finalPrice,
         couponCode: appliedCoupon || undefined,
         discountAmount: discount > 0 ? discount : undefined
@@ -307,38 +307,53 @@ export default function PublicBooking() {
   const finalPrice = calculateFinalPrice();
 
   return (
-    <div className="min-h-screen bg-gradient-to-r from-gray-900 to-black overflow-hidden">
-      <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
-
-      {/* background particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-cuephoria-purple rounded-full animate-pulse opacity-60"></div>
-        <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-cuephoria-lightpurple rounded-full animate-pulse opacity-40" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-1 h-1 bg-cuephoria-blue rounded-full animate-pulse opacity-50" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute top-1/2 right-1/4 w-3 h-3 bg-cuephoria-purple/30 rounded-full animate-pulse opacity-30" style={{ animationDelay: '0.5s' }}></div>
-        <div className="absolute bottom-1/3 right-1/2 w-2 h-2 bg-cuephoria-lightpurple/40 rounded-full animate-pulse opacity-40" style={{ animationDelay: '1.5s' }}></div>
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
+      {/* Decorative glows */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
+        <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
+        <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
       </div>
 
+      <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
+
       {/* Header */}
-      <header className="py-8 px-4 sm:px-6 md:px-8 animate-fade-in relative z-10">
+      <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col items-center mb-8">
             <div className="mb-6 animate-float">
-              <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria Logo" className="h-24 shadow-lg shadow-cuephoria-purple/30" />
+              <img
+                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
+                alt="Cuephoria Logo"
+                className="h-24 drop-shadow-[0_0_25px_rgba(168,85,247,0.15)]"
+              />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-white font-heading bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple via-cuephoria-lightpurple to-cuephoria-blue animate-text-gradient">
+
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-widest uppercase text-gray-300 backdrop-blur-md">
+              <Sparkles className="h-3.5 w-3.5 text-cuephoria-lightpurple" />
+              Premium Gaming Lounge
+            </span>
+
+            <h1 className="mt-3 text-4xl md:text-5xl font-extrabold text-white font-heading bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple via-cuephoria-lightpurple to-cuephoria-blue animate-text-gradient">
               Book Your Gaming Session
             </h1>
-            <p className="mt-2 text-xl text-gray-300 max-w-2xl text-center">Reserve PlayStation 5 or Pool Table sessions at Cuephoria</p>
-            <div className="mt-6 flex flex-wrap justify-center gap-4">
-              <div className="flex items-center bg-black/20 backdrop-blur-md rounded-full px-4 py-2 border border-cuephoria-purple/20">
-                <Sparkles className="h-4 w-4 text-cuephoria-purple mr-2" /><span className="text-sm text-gray-300">Premium Equipment</span>
+            <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
+              Reserve PlayStation 5 or Pool Table sessions at Cuephoria
+            </p>
+
+            {/* Feature highlights */}
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-purple/10">
+                <Sparkles className="h-4 w-4 text-cuephoria-purple mr-2" />
+                <span className="text-xs text-gray-300">Premium Equipment</span>
               </div>
-              <div className="flex items-center bg-black/20 backdrop-blur-md rounded-full px-4 py-2 border border-cuephoria-blue/20">
-                <Star className="h-4 w-4 text-cuephoria-blue mr-2" /><span className="text-sm text-gray-300">Best Gaming Experience</span>
+              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-blue/10">
+                <Star className="h-4 w-4 text-cuephoria-blue mr-2" />
+                <span className="text-xs text-gray-300">Best Gaming Experience</span>
               </div>
-              <div className="flex items-center bg-black/20 backdrop-blur-md rounded-full px-4 py-2 border border-cuephoria-lightpurple/20">
-                <Zap className="h-4 w-4 text-cuephoria-lightpurple mr-2" /><span className="text-sm text-gray-300">Instant Booking</span>
+              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-lightpurple/10">
+                <Zap className="h-4 w-4 text-cuephoria-lightpurple mr-2" />
+                <span className="text-xs text-gray-300">Instant Booking</span>
               </div>
             </div>
           </div>
@@ -346,15 +361,15 @@ export default function PublicBooking() {
       </header>
 
       {/* Main */}
-      <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-12 relative z-10">
+      <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Form */}
           <div className="lg:col-span-2 space-y-6">
             {/* Step 1 */}
-            <Card className="bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 flex items-center justify-center">
+                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
                     <User className="h-4 w-4 text-cuephoria-purple" />
                   </div>
                   Step 1: Customer Information
@@ -362,8 +377,8 @@ export default function PublicBooking() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-lg p-3">
-                  <p className="text-sm text-cuephoria-purple font-medium flex items-center gap-2">
+                <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-xl p-3">
+                  <p className="text-sm text-cuephoria-purple/90 font-medium flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4" /> Please complete customer information to proceed with booking
                   </p>
                 </div>
@@ -381,9 +396,13 @@ export default function PublicBooking() {
                       setCustomerInfo(prev => ({ ...prev, name: '', email: '', phone: val }));
                     }}
                     placeholder="Enter phone number"
-                    className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400 flex-1"
+                    className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
                   />
-                  <Button onClick={searchCustomer} disabled={searchingCustomer} className="bg-cuephoria-purple hover:bg-cuephoria-purple/90">
+                  <Button
+                    onClick={searchCustomer}
+                    disabled={searchingCustomer}
+                    className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 transition-all duration-150 active:scale-[.98] shadow-lg shadow-cuephoria-lightpurple/20"
+                  >
                     {searchingCustomer ? 'Searching...' : 'Search'}
                   </Button>
                 </div>
@@ -392,27 +411,27 @@ export default function PublicBooking() {
                 {hasSearched && (
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="name" className="text-gray-200">
-                        Full Name * {isReturningCustomer && <CheckCircle className="inline h-4 w-4 text-green-400 ml-1" />}
+                      <Label htmlFor="name" className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                        Full Name {isReturningCustomer && <CheckCircle className="inline h-4 w-4 text-green-400 ml-1" />}
                       </Label>
                       <Input
                         id="name"
                         value={customerInfo.name}
                         onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="Enter your full name"
-                        className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
+                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
                         disabled={isReturningCustomer}
                       />
                     </div>
                     <div>
-                      <Label htmlFor="email" className="text-gray-200">Email (Optional)</Label>
+                      <Label htmlFor="email" className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Email (Optional)</Label>
                       <Input
                         id="email"
                         type="email"
                         value={customerInfo.email}
                         onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
                         placeholder="Enter your email address"
-                        className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400"
+                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
                         disabled={isReturningCustomer}
                       />
                     </div>
@@ -428,13 +447,16 @@ export default function PublicBooking() {
             </Card>
 
             {/* Step 2 */}
-            <Card className={cn(
-              "bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in transition-all duration-300",
-              !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
-            )} style={{ animationDelay: '100ms' }}>
+            <Card
+              className={cn(
+                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300",
+                !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
+              )}
+              style={{ animationDelay: '100ms' }}
+            >
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 flex items-center justify-center">
+                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
                     {!isStationSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <MapPin className="h-4 w-4 text-cuephoria-blue" />}
                   </div>
                   Step 2: Select Gaming Stations
@@ -443,7 +465,7 @@ export default function PublicBooking() {
               </CardHeader>
               <CardContent>
                 {!isStationSelectionAvailable() ? (
-                  <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-center">
+                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                     <p className="text-gray-400">Complete customer information to unlock station selection</p>
                   </div>
@@ -458,13 +480,16 @@ export default function PublicBooking() {
             </Card>
 
             {/* Step 3 */}
-            <Card className={cn(
-              "bg-black/20 backdrop-blur-md border-gray-800/50 animate-scale-in transition-all duration-300",
-              !isTimeSelectionAvailable() && "opacity-50 pointer-events-none"
-            )} style={{ animationDelay: '200ms' }}>
+            <Card
+              className={cn(
+                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-lightpurple/10 animate-scale-in transition-all duration-300",
+                !isTimeSelectionAvailable() && "opacity-50 pointer-events-none"
+              )}
+              style={{ animationDelay: '200ms' }}
+            >
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 flex items-center justify-center">
+                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
                     {!isTimeSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />}
                   </div>
                   Step 3: Choose Date & Time
@@ -473,7 +498,7 @@ export default function PublicBooking() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {!isTimeSelectionAvailable() ? (
-                  <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-4 text-center">
+                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                     <p className="text-gray-400">Select stations to unlock date and time selection</p>
                   </div>
@@ -487,7 +512,7 @@ export default function PublicBooking() {
                           selected={selectedDate}
                           onSelect={(date) => date && setSelectedDate(date)}
                           disabled={(date) => date < today}
-                          className={cn("rounded-md border bg-black/30 border-gray-700 pointer-events-auto")}
+                          className={cn("rounded-xl border bg-black/30 border-white/10 pointer-events-auto")}
                         />
                       </div>
                     </div>
@@ -513,21 +538,25 @@ export default function PublicBooking() {
 
           {/* Summary */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-4 bg-black/30 backdrop-blur-md border-gray-800/50 animate-scale-in" style={{ animationDelay: '300ms' }}>
-              <CardHeader><CardTitle className="text-white">Booking Summary</CardTitle></CardHeader>
+            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in" style={{ animationDelay: '300ms' }}>
+              <CardHeader>
+                <CardTitle className="text-white">Booking Summary</CardTitle>
+              </CardHeader>
               <CardContent className="space-y-4">
                 {selectedStations.length > 0 && (
                   <div>
-                    <Label className="text-sm font-medium text-gray-200">Selected Stations</Label>
-                    <div className="mt-1 space-y-1">
+                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Stations</Label>
+                    <div className="mt-2 space-y-1">
                       {selectedStations.map(stationId => {
                         const station = stations.find(s => s.id === stationId);
                         return station ? (
                           <div key={stationId} className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded bg-cuephoria-purple/20 flex items-center justify-center">
-                              {station.type === 'ps5' ? <Gamepad2 className="h-3 w-3 text-cuephoria-purple" /> : <Timer className="h-3 w-3 text-green-400" />}
+                            <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
+                              {station.type === 'ps5' ? <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" /> : <Timer className="h-3.5 w-3.5 text-green-400" />}
                             </div>
-                            <Badge variant="secondary" className="bg-gray-700/50 text-gray-200 border-gray-600">{station.name}</Badge>
+                            <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1">
+                              {station.name}
+                            </Badge>
                           </div>
                         ) : null;
                       })}
@@ -537,43 +566,49 @@ export default function PublicBooking() {
 
                 {selectedDate && (
                   <div>
-                    <Label className="text-sm font-medium text-gray-200">Date</Label>
-                    <p className="text-sm text-gray-300">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
+                    <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
                   </div>
                 )}
 
                 {selectedSlot && (
                   <div>
-                    <Label className="text-sm font-medium text-gray-200">Time</Label>
-                    <p className="text-sm text-gray-300">
-                      {new Date(2000-01-01T${selectedSlot.start_time}).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                      {' - '}
-                      {new Date(2000-01-01T${selectedSlot.end_time}).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
+                    <p className="mt-1 text-sm text-gray-200">
+                      {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                      {' — '}
+                      {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                     </p>
                   </div>
                 )}
 
                 {/* Coupon */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-200">Coupon Code</Label>
+                  <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coupon Code</Label>
                   <div className="flex gap-2 mt-1">
                     <Input
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                       placeholder="Enter coupon code"
-                      className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400 flex-1"
+                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
                     />
-                    <Button onClick={handleCouponApply} size="sm" className="bg-green-600 hover:bg-green-700">Apply</Button>
+                    <Button
+                      onClick={handleCouponApply}
+                      size="sm"
+                      className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
+                    >
+                      Apply
+                    </Button>
                   </div>
                   {appliedCoupon && (
                     <div className="mt-2 space-y-2">
-                      <div className="p-2 bg-green-900/30 border border-green-500/30 rounded">
+                      <div className="p-2 bg-green-900/30 border border-green-500/30 rounded-lg">
                         <p className="text-sm text-green-400 flex items-center gap-2">
                           <Percent className="h-4 w-4" /> Coupon {appliedCoupon} applied!
                         </p>
                       </div>
                       {appliedCoupon === 'NIT50' && (
-                        <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded">
+                        <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
                           <p className="text-sm text-amber-400 flex items-start gap-2">
                             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                             <span><strong>Important:</strong> To avail this offer, you must present a valid NIT Trichy student ID card at reception. This is mandatory.</span>
@@ -586,11 +621,11 @@ export default function PublicBooking() {
 
                 {originalPrice > 0 && (
                   <>
-                    <Separator className="bg-gray-700" />
+                    <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <Label className="text-sm text-gray-200">Subtotal</Label>
-                        <span className="text-sm text-gray-300">₹{originalPrice}</span>
+                        <Label className="text-sm text-gray-300">Subtotal</Label>
+                        <span className="text-sm text-gray-200">₹{originalPrice}</span>
                       </div>
                       {discount > 0 && (
                         <div className="flex justify-between items-center">
@@ -598,10 +633,10 @@ export default function PublicBooking() {
                           <span className="text-sm text-green-400">-₹{discount}</span>
                         </div>
                       )}
-                      <Separator className="bg-gray-700" />
+                      <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                       <div className="flex justify-between items-center">
-                        <Label className="text-base font-medium text-gray-200">Total Amount</Label>
-                        <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{finalPrice}</span>
+                        <Label className="text-base font-semibold text-gray-100">Total Amount</Label>
+                        <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{finalPrice}</span>
                       </div>
                     </div>
                   </>
@@ -610,7 +645,7 @@ export default function PublicBooking() {
                 <Button
                   onClick={handleBookingSubmit}
                   disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
-                  className="w-full bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0"
+                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
                   size="lg"
                 >
                   {loading ? 'Creating Booking...' : 'Confirm Booking'}
@@ -624,7 +659,7 @@ export default function PublicBooking() {
       </main>
 
       {/* Footer */}
-      <footer className="py-8 px-4 sm:px-6 md:px-8 border-t border-gray-800/50 mt-6 backdrop-blur-md bg-black/30 relative z-10">
+      <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-4 md:mb-0">
@@ -641,13 +676,13 @@ export default function PublicBooking() {
           {/* Legal Links */}
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
-              <button onClick={() => handleLegalClick('terms')} className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors">
+              <button onClick={() => handleLegalClick('terms')} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
                 Terms & Conditions
               </button>
-              <button onClick={() => handleLegalClick('privacy')} className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors">
+              <button onClick={() => handleLegalClick('privacy')} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
                 Privacy Policy
               </button>
-              <button onClick={() => handleLegalClick('contact')} className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors">
+              <button onClick={() => handleLegalClick('contact')} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
                 Contact Us
               </button>
             </div>
