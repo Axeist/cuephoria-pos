@@ -311,10 +311,15 @@ export default function BookingManagement() {
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
-          <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            New Booking
-          </Button>
+          <Button
+  className="flex items-center gap-2"
+  onClick={() =>
+    window.open('https://admin.cuephoria.in/public/booking', '_blank', 'noopener,noreferrer')
+  }
+>
+  <Plus className="h-4 w-4" />
+  New Booking
+</Button>
         </div>
       </div>
 
