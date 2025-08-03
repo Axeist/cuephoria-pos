@@ -380,7 +380,7 @@ export default function PublicBooking() {
                       setIsReturningCustomer(false);
                       setCustomerInfo(prev => ({ ...prev, name: '', email: '', phone: val }));
                     }}
-                    placeholder="Enter customer phone number *"
+                    placeholder="Enter phone number"
                     className="bg-black/30 border-gray-700 text-white placeholder:text-gray-400 flex-1"
                   />
                   <Button onClick={searchCustomer} disabled={searchingCustomer} className="bg-cuephoria-purple hover:bg-cuephoria-purple/90">
