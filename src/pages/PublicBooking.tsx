@@ -52,7 +52,7 @@ export default function PublicBooking() {
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [isReturningCustomer, setIsReturningCustomer] = useState(false);
 
-  // NEW: only show name/email after Search is pressed
+  // only show name/email after Search is pressed
   const [hasSearched, setHasSearched] = useState(false);
 
   const [couponCode, setCouponCode] = useState('');
@@ -134,7 +134,7 @@ export default function PublicBooking() {
         .eq('phone', customerNumber)
         .single();
 
-    if (error && (error as any).code !== 'PGRST116') throw error;
+      if (error && (error as any).code !== 'PGRST116') throw error;
 
       if (data) {
         setIsReturningCustomer(true);
@@ -170,7 +170,67 @@ export default function PublicBooking() {
     setSelectedSlot(null);
   };
 
-  const handleSlotSelect = (slot: TimeSlot) => setSelectedSlot(slot);
+  // ---- NEW HELPER: keep only stations that are free for the chosen slot ----
+  const filterStationsForSlot = async (slot: TimeSlot) => {
+    if (selectedStations.length === 0) return selectedStations;
+
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+    const checks = await Promise.all(
+      selectedStations.map(async (stationId) => {
+        const { data, error } = await supabase.rpc('get_available_slots', {
+          p_date: dateStr,
+          p_station_id: stationId,
+          p_slot_duration: 60
+        });
+        if (error) return { stationId, available: false };
+
+        const match = (data || []).find(
+          (s: any) =>
+            s.start_time === slot.start_time &&
+            s.end_time === slot.end_time &&
+            s.is_available
+        );
+        return { stationId, available: Boolean(match) };
+      })
+    );
+
+    const availableIds = checks.filter(c => c.available).map(c => c.stationId);
+    const removedIds   = checks.filter(c => !c.available).map(c => c.stationId);
+
+    if (removedIds.length > 0) {
+      const removedNames = stations
+        .filter(s => removedIds.includes(s.id))
+        .map(s => s.name)
+        .join(', ');
+      toast.message('Some stations aren’t free at this time', {
+        description: `Removed: ${removedNames}. You can proceed with the rest.`,
+      });
+    }
+
+    return availableIds;
+  };
+  // -------------------------------------------------------------------------
+
+  // ---- UPDATED: auto-remove unavailable stations for the chosen slot ----
+  const handleSlotSelect = async (slot: TimeSlot) => {
+    if (selectedStations.length > 0) {
+      const filtered = await filterStationsForSlot(slot);
+
+      if (filtered.length === 0) {
+        toast.error('That time isn’t available for the selected stations.');
+        setSelectedSlot(null);
+        return;
+      }
+
+      if (filtered.length !== selectedStations.length) {
+        setSelectedStations(filtered);
+      }
+    }
+
+    setSelectedSlot(slot);
+  };
+  // -----------------------------------------------------------------------
 
   const handleCouponApply = () => {
     const upper = couponCode.toUpperCase();
@@ -390,7 +450,6 @@ export default function PublicBooking() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setCustomerNumber(val);
-                      // Hide fields again until Search is pressed
                       setHasSearched(false);
                       setIsReturningCustomer(false);
                       setCustomerInfo(prev => ({ ...prev, name: '', email: '', phone: val }));
