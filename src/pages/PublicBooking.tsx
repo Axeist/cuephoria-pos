@@ -102,17 +102,78 @@ export default function PublicBooking() {
     }
   };
 
+  // UPDATED: when multiple stations are selected, show a slot as AVAILABLE
+  // if ANY of the selected stations has it free (union view). When the
+  // user actually selects a slot, we auto-remove the busy stations.
   const fetchAvailableSlots = async () => {
     if (selectedStations.length === 0) return;
     setSlotsLoading(true);
     try {
-      const stationId = selectedStations[0];
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const { data, error } = await supabase.rpc('get_available_slots', {
-        p_date: dateStr, p_station_id: stationId, p_slot_duration: 60
-      });
-      if (error) throw error;
-      setAvailableSlots(data || []);
+
+      if (selectedStations.length === 1) {
+        // Single station: original behavior
+        const { data, error } = await supabase.rpc('get_available_slots', {
+          p_date: dateStr,
+          p_station_id: selectedStations[0],
+          p_slot_duration: 60
+        });
+        if (error) throw error;
+        setAvailableSlots(data || []);
+      } else {
+        // Multiple stations: fetch all and OR their availability
+        const results = await Promise.all(
+          selectedStations.map(stationId =>
+            supabase.rpc('get_available_slots', {
+              p_date: dateStr,
+              p_station_id: stationId,
+              p_slot_duration: 60
+            })
+          )
+        );
+
+        // Pick the first successful data set as the "time grid"
+        const base = results.find(r => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
+        if (!base) {
+          const firstErr = results.find(r => r.error)?.error;
+          if (firstErr) throw firstErr;
+          setAvailableSlots([]);
+          return;
+        }
+
+        // Build a map of slotKey -> is_available (union across stations)
+        const unionMap = new Map<string, boolean>();
+        const keyOf = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
+
+        // initialize with base (usually all time grid for the day)
+        base.forEach(s => unionMap.set(keyOf(s), Boolean(s.is_available)));
+
+        // merge in the rest (OR)
+        results.forEach(r => {
+          const arr = (r.data || []) as TimeSlot[];
+          arr.forEach(s => {
+            const k = keyOf(s);
+            unionMap.set(k, Boolean(unionMap.get(k)) || Boolean(s.is_available));
+          });
+        });
+
+        const merged: TimeSlot[] = base.map(s => ({
+          start_time: s.start_time,
+          end_time: s.end_time,
+          is_available: Boolean(unionMap.get(keyOf(s)))
+        }));
+
+        setAvailableSlots(merged);
+      }
+
+      // if the previously selected slot no longer appears available in the union list, clear it
+      if (selectedSlot && !(availableSlots || []).some(
+        s => s.start_time === selectedSlot.start_time &&
+             s.end_time === selectedSlot.end_time &&
+             s.is_available
+      )) {
+        setSelectedSlot(null);
+      }
     } catch (error) {
       console.error('Error fetching available slots:', error);
       toast.error('Failed to load available time slots');
@@ -170,7 +231,7 @@ export default function PublicBooking() {
     setSelectedSlot(null);
   };
 
-  // ---- NEW HELPER: keep only stations that are free for the chosen slot ----
+  // ---- Helper: keep only stations that are free for the chosen slot ----
   const filterStationsForSlot = async (slot: TimeSlot) => {
     if (selectedStations.length === 0) return selectedStations;
 
@@ -210,9 +271,9 @@ export default function PublicBooking() {
 
     return availableIds;
   };
-  // -------------------------------------------------------------------------
+  // ---------------------------------------------------------------------
 
-  // ---- UPDATED: auto-remove unavailable stations for the chosen slot ----
+  // ---- When a slot is picked, auto-remove the busy stations ----
   const handleSlotSelect = async (slot: TimeSlot) => {
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
@@ -230,7 +291,7 @@ export default function PublicBooking() {
 
     setSelectedSlot(slot);
   };
-  // -----------------------------------------------------------------------
+  // ---------------------------------------------------------------------
 
   const handleCouponApply = () => {
     const upper = couponCode.toUpperCase();
@@ -310,8 +371,8 @@ export default function PublicBooking() {
         station_id: stationId,
         customer_id: customerId!,
         booking_date: format(selectedDate, 'yyyy-MM-dd'),
-        start_time: selectedSlot.start_time,
-        end_time: selectedSlot.end_time,
+        start_time: selectedSlot!.start_time,
+        end_time: selectedSlot!.end_time,
         duration: 60,
         status: 'confirmed',
         original_price: originalPrice,
@@ -333,8 +394,8 @@ export default function PublicBooking() {
         customerName: customerInfo.name,
         stationNames: selectedStationObjects.map(s => s.name),
         date: format(selectedDate, 'yyyy-MM-dd'),
-        startTime: new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-        endTime: new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
         totalAmount: finalPrice,
         couponCode: appliedCoupon || undefined,
         discountAmount: discount > 0 ? discount : undefined
