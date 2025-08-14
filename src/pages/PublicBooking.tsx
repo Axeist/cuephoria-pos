@@ -552,11 +552,12 @@ export default function PublicBooking() {
                 )}
               </CardContent>
             </Card>
+            
 {/* Step 2 */}
 <Card
   className={cn(
     "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300",
-    !isStationSelectionAvailable() && "opacity-100" // keep full opacity for the locked view
+    !isStationSelectionAvailable() && "opacity-100"
   )}
   style={{ animationDelay: '100ms' }}
 >
@@ -577,8 +578,17 @@ export default function PublicBooking() {
   </CardHeader>
 
   <CardContent className="space-y-4">
+    {/* Tip — always visible */}
+    <div className="flex items-start gap-2 text-xs text-gray-300 bg-white/5 border border-white/10 rounded-lg p-2">
+      <Info className="h-4 w-4 mt-0.5 text-cuephoria-lightpurple" />
+      <p>
+        You can select <strong>multiple stations</strong>. In the next step, you
+        can also choose <strong>multiple time slots</strong>.
+      </p>
+    </div>
+
     {!isStationSelectionAvailable() ? (
-      // LOCKED VIEW — shown until customer info is complete
+      // LOCKED VIEW
       <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
         <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
         <p className="text-gray-400">
@@ -586,17 +596,8 @@ export default function PublicBooking() {
         </p>
       </div>
     ) : (
-      // UNLOCKED VIEW — tips, filters, and stations
+      // UNLOCKED VIEW
       <>
-        {/* Small tip */}
-        <div className="flex items-start gap-2 text-xs text-gray-300 bg-white/5 border border-white/10 rounded-lg p-2">
-          <Info className="h-4 w-4 mt-0.5 text-cuephoria-lightpurple" />
-          <p>
-            You can select <strong>multiple stations</strong>. In the next step,
-            you can also choose <strong>multiple time slots</strong>.
-          </p>
-        </div>
-
         {/* Filter chips */}
         <div className="flex items-center flex-wrap gap-2">
           <span className="inline-flex items-center gap-1 text-xs text-gray-300">
@@ -630,7 +631,6 @@ export default function PublicBooking() {
     )}
   </CardContent>
 </Card>
-
             {/* Step 3 */}
             <Card
               className={cn(
