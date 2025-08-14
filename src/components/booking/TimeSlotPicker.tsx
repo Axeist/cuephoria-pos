@@ -1,60 +1,50 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Clock } from 'lucide-react';
+import React from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Clock } from "lucide-react";
 
-export interface TimeSlot {
-  start_time: string;
-  end_time: string;
+interface TimeSlot {
+  start_time: string; // e.g., "11:00"
+  end_time: string;   // e.g., "12:00"
   is_available: boolean;
 }
 
 interface TimeSlotPickerProps {
   slots: TimeSlot[];
-  /** Multi-select: pass the array of currently selected slots */
-  selectedSlots: TimeSlot[];
-  /** Called with next selected slots after toggle */
-  onChange: (next: TimeSlot[]) => void;
+  selectedSlot: TimeSlot | null;
+  onSlotSelect: (slot: TimeSlot) => void;
   loading?: boolean;
 }
 
-const keyOf = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
-
-const formatTime = (timeString: string) =>
-  new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
+// Helper to format a "HH:mm" string into a localized time (e.g., 11:00 AM)
+const formatTime = (timeString: string) => {
+  // Safely construct a Date at an arbitrary fixed date with the given time
+  const [h, m] = timeString.split(":").map(Number);
+  const d = new Date(2000, 0, 1, h || 0, m || 0, 0, 0);
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   });
+};
 
 export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   slots,
-  selectedSlots,
-  onChange,
-  loading = false
+  selectedSlot,
+  onSlotSelect,
+  loading = false,
 }) => {
-  const selectedSet = new Set(selectedSlots.map(keyOf));
-
-  const toggle = (slot: TimeSlot) => {
-    const k = keyOf(slot);
-    if (selectedSet.has(k)) {
-      onChange(selectedSlots.filter(s => keyOf(s) !== k));
-    } else {
-      onChange([...selectedSlots, slot]);
-    }
-  };
-
   if (loading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        {Array.from({ length: 9 }).map((_, i) => (
+        {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="h-12 bg-muted/50 rounded-md animate-pulse" />
         ))}
       </div>
     );
   }
 
-  if (!slots || slots.length === 0) {
+  if (slots.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -65,51 +55,41 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* tiny legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-primary/70" />
-          <span>Selected</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-muted/20 border border-border" />
+          <div className="w-3 h-3 bg-primary rounded-sm" />
           <span>Available</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-muted border" />
+          <div className="w-3 h-3 bg-muted border rounded-sm" />
           <span>Booked</span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-        {slots.map((slot) => {
-          const k = keyOf(slot);
-          const isSelected = selectedSet.has(k);
-          const disabled = !slot.is_available;
+        {slots.map((slot, index) => {
+          const isSelected = selectedSlot?.start_time === slot.start_time;
 
           return (
             <Button
-              key={k}
-              variant={isSelected ? 'default' : disabled ? 'ghost' : 'outline'}
-              disabled={disabled}
-              onClick={() => !disabled && toggle(slot)}
+              key={index}
+              variant={isSelected ? "default" : slot.is_available ? "outline" : "ghost"}
+              disabled={!slot.is_available}
+              onClick={() => slot.is_available && onSlotSelect(slot)}
+              className={`h-12 flex flex-col items-center justify-center text-xs relative ${
+                !slot.is_available ? "opacity-50 cursor-not-allowed" : ""
+              }`}
               aria-pressed={isSelected}
-              className={[
-                'h-12 flex flex-col items-center justify-center text-xs relative transition',
-                disabled ? 'opacity-50 cursor-not-allowed line-through' : '',
-                isSelected ? 'ring-1 ring-cuephoria-lightpurple/50' : ''
-              ].join(' ')}
             >
-              <div className="font-medium">
-                {formatTime(slot.start_time)}
-              </div>
-              <div className="text-[11px] opacity-70">
-                {formatTime(slot.end_time)}
-              </div>
+              <div className="font-medium">{formatTime(slot.start_time)}</div>
+              <div className="text-xs opacity-70">{formatTime(slot.end_time)}</div>
 
               {!slot.is_available && (
                 <div className="absolute -top-1 -right-1">
-                  <Badge variant="destructive" className="text-[10px] px-1 py-0 leading-3">
+                  <Badge
+                    variant="destructive"
+                    className="text-xs px-1 py-0 text-[10px] leading-3"
+                  >
                     Booked
                   </Badge>
                 </div>
@@ -121,3 +101,5 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
     </div>
   );
 };
+
+export default TimeSlotPicker;
