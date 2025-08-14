@@ -80,9 +80,9 @@ export default function PublicBooking() {
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
-  // Today's bookings
+  // Today's bookings (now grouped by slot first)
   const [todayBookings, setTodayBookings] = useState<TodayBookingRow[]>([]);
-  const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
+  const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set()); // time-slot accordions
 
   // Fetch stations on component mount
   useEffect(() => { fetchStations(); }, []);
@@ -93,7 +93,7 @@ export default function PublicBooking() {
       .channel('booking-changes-public')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
         if (selectedStations.length > 0 && selectedDate) fetchAvailableSlots();
-        fetchTodaysBookings(); // keep the list in sync
+        fetchTodaysBookings();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -128,8 +128,7 @@ export default function PublicBooking() {
     }
   };
 
-  // When multiple stations are selected, show a slot as AVAILABLE if ANY selected station has it free (union view).
-  // When the user actually selects a slot, we auto-remove the busy stations, keeping only those that are free.
+  // When multiple stations are selected, show union availability.
   const fetchAvailableSlots = async () => {
     if (selectedStations.length === 0) return;
     setSlotsLoading(true);
@@ -137,7 +136,6 @@ export default function PublicBooking() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
       if (selectedStations.length === 1) {
-        // Single station
         const { data, error } = await supabase.rpc('get_available_slots', {
           p_date: dateStr,
           p_station_id: selectedStations[0],
@@ -146,7 +144,6 @@ export default function PublicBooking() {
         if (error) throw error;
         setAvailableSlots(data || []);
       } else {
-        // Multiple stations: union availability
         const results = await Promise.all(
           selectedStations.map(stationId =>
             supabase.rpc('get_available_slots', {
@@ -178,7 +175,6 @@ export default function PublicBooking() {
         setAvailableSlots(merged);
       }
 
-      // Clear selected slot if it no longer exists or became unavailable
       if (selectedSlot && !(availableSlots || []).some(
         s => s.start_time === selectedSlot.start_time &&
              s.end_time === selectedSlot.end_time &&
@@ -207,7 +203,7 @@ export default function PublicBooking() {
         .eq('phone', customerNumber)
         .single();
 
-      if (error && (error as any).code !== 'PGRST116') throw error;
+    if (error && (error as any).code !== 'PGRST116') throw error;
 
       if (data) {
         setIsReturningCustomer(true);
@@ -243,10 +239,8 @@ export default function PublicBooking() {
     setSelectedSlot(null);
   };
 
-  // Helper: for a chosen slot, keep only stations that are actually free for that slot
   const filterStationsForSlot = async (slot: TimeSlot) => {
     if (selectedStations.length === 0) return selectedStations;
-
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
     const checks = await Promise.all(
@@ -277,7 +271,6 @@ export default function PublicBooking() {
     return availableIds;
   };
 
-  // When a slot is picked, auto-remove the busy stations, keep only the free ones
   const handleSlotSelect = async (slot: TimeSlot) => {
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
@@ -488,7 +481,7 @@ export default function PublicBooking() {
         customer_phone: custMap.get(b.customer_id)?.phone || '',
       }));
 
-      // Sort by time just in case
+      // Sort by time
       rows.sort((a, b) =>
         compareAsc(
           new Date(`2000-01-01T${a.start_time}`),
@@ -502,20 +495,39 @@ export default function PublicBooking() {
     }
   };
 
-  // Group today’s bookings by customer (name + phone)
-  const groupedByCustomer = todayBookings.reduce((acc, row) => {
-    const key = `${row.customer_name}__${row.customer_phone}`;
+  // GROUP BY TIME SLOT, then by CUSTOMER
+  type SlotGroup = Record<string, TodayBookingRow[]>;
+  const groupedBySlot: SlotGroup = todayBookings.reduce((acc, row) => {
+    const key = `${row.start_time}|${row.end_time}`;
     if (!acc[key]) acc[key] = [];
     acc[key].push(row);
     return acc;
-  }, {} as Record<string, TodayBookingRow[]>);
+  }, {} as SlotGroup);
 
-  const toggleCustomer = (key: string) => {
-    setExpandedCustomers(prev => {
+  const sortedSlotKeys = Object.keys(groupedBySlot).sort((a, b) => {
+    const [aStart] = a.split('|');
+    const [bStart] = b.split('|');
+    return compareAsc(new Date(`2000-01-01T${aStart}`), new Date(`2000-01-01T${bStart}`));
+  });
+
+  const toggleSlot = (slotKey: string) => {
+    setExpandedSlots(prev => {
       const n = new Set(prev);
-      if (n.has(key)) n.delete(key); else n.add(key);
+      if (n.has(slotKey)) n.delete(slotKey); else n.add(slotKey);
       return n;
     });
+  };
+
+  // helper to group bookings (inside a slot) by customer
+  const groupByCustomerInside = (rows: TodayBookingRow[]) => {
+    const byCustomer = rows.reduce((acc, r) => {
+      const key = `${r.customer_name}__${r.customer_phone}`;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(r);
+      return acc;
+    }, {} as Record<string, TodayBookingRow[]>);
+    // sort customer groups by customer name
+    return Object.entries(byCustomer).sort(([a], [b]) => a.localeCompare(b));
   };
 
   return (
@@ -922,7 +934,7 @@ export default function PublicBooking() {
           </div>
         </div>
 
-        {/* TODAY'S BOOKINGS — grouped by customer, expandable, phone masked, horizontal scroll */}
+        {/* TODAY'S BOOKINGS — group by time slot, then by customer */}
         <div className="mt-10">
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -932,68 +944,64 @@ export default function PublicBooking() {
               </Badge>
             </CardHeader>
             <CardContent>
-              {Object.keys(groupedByCustomer).length === 0 ? (
+              {sortedSlotKeys.length === 0 ? (
                 <div className="text-sm text-gray-400 py-6">No bookings yet today.</div>
               ) : (
                 <div className="space-y-2">
-                  {/* Header row */}
-                  <div className="hidden sm:grid grid-cols-12 gap-3 text-xs uppercase tracking-wide text-gray-300/80 pb-2 border-b border-white/10">
-                    <div className="col-span-5">Customer</div>
-                    <div className="col-span-7">Details</div>
-                  </div>
-
-                  {Object.entries(groupedByCustomer).map(([key, rows]) => {
-                    // rows already sorted by start_time
-                    const [name, phoneRaw] = key.split('__');
-                    const phone = maskPhone(phoneRaw || '');
-                    const isOpen = expandedCustomers.has(key);
+                  {sortedSlotKeys.map((slotKey) => {
+                    const [start, end] = slotKey.split('|');
+                    const rows = groupedBySlot[slotKey];
+                    const total = rows.length;
+                    const open = expandedSlots.has(slotKey);
 
                     return (
-                      <div key={key} className="rounded-xl border border-white/10 bg-white/5">
+                      <div key={slotKey} className="rounded-xl border border-white/10 bg-white/5">
                         <button
-                          onClick={() => toggleCustomer(key)}
+                          onClick={() => toggleSlot(slotKey)}
                           className="w-full flex items-center justify-between gap-3 p-3 sm:p-4"
                         >
                           <div className="flex items-center gap-3">
-                            {isOpen ? <ChevronDown className="h-4 w-4 text-white/70" /> : <ChevronRight className="h-4 w-4 text-white/70" />}
+                            {open ? <ChevronDown className="h-4 w-4 text-white/70" /> : <ChevronRight className="h-4 w-4 text-white/70" />}
                             <div className="text-left">
-                              <div className="text-sm font-medium text-white">{name}</div>
-                              <div className="text-xs text-gray-400">{phone}</div>
+                              <div className="text-sm font-medium text-white">
+                                {new Date(`2000-01-01T${start}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} —{" "}
+                                {new Date(`2000-01-01T${end}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                              </div>
+                              <div className="text-xs text-gray-400">{total} booking{total !== 1 ? 's' : ''}</div>
                             </div>
                           </div>
                           <Badge variant="outline" className="border-white/15 text-gray-300">
-                            {rows.length} booking{rows.length !== 1 ? 's' : ''}
+                            Time Slot
                           </Badge>
                         </button>
 
-                        {isOpen && (
+                        {open && (
                           <div className="px-3 sm:px-4 pb-4">
                             <div className="overflow-x-auto">
                               <table className="w-full min-w-[720px] border-separate border-spacing-0">
                                 <thead>
                                   <tr className="text-left text-sm text-gray-300">
-                                    <th className="py-2 px-3">Time Slot</th>
-                                    <th className="py-2 px-3">Station</th>
-                                    <th className="py-2 px-3">Status</th>
-                                    <th className="py-2 px-3">Notes</th>
+                                    <th className="py-2 px-3">Customer</th>
+                                    <th className="py-2 px-3">Stations</th>
+                                    <th className="py-2 px-3">Count</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {rows.map((r) => (
-                                    <tr key={r.id} className="border-t border-white/10 text-sm">
-                                      <td className="py-2 px-3 whitespace-nowrap">
-                                        {new Date(`2000-01-01T${r.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} —{" "}
-                                        {new Date(`2000-01-01T${r.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                                      </td>
-                                      <td className="py-2 px-3 whitespace-nowrap">{r.station_name}</td>
-                                      <td className="py-2 px-3 whitespace-nowrap capitalize">
-                                        <span className="inline-flex items-center rounded-full bg-white/10 px-2 py-0.5 text-xs">
-                                          {r.status}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 px-3">-</td>
-                                    </tr>
-                                  ))}
+                                  {groupByCustomerInside(rows).map(([custKey, custRows]) => {
+                                    const [name, phoneRaw] = custKey.split('__');
+                                    const phone = maskPhone(phoneRaw || '');
+                                    const stationList = Array.from(new Set(custRows.map(r => r.station_name))).join(', ');
+                                    return (
+                                      <tr key={custKey} className="border-t border-white/10 text-sm">
+                                        <td className="py-2 px-3 whitespace-nowrap">
+                                          <div className="text-white">{name}</div>
+                                          <div className="text-xs text-gray-400">{phone}</div>
+                                        </td>
+                                        <td className="py-2 px-3">{stationList}</td>
+                                        <td className="py-2 px-3">{custRows.length}</td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
