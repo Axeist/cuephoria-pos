@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { StationSelector } from '@/components/booking/StationSelector';
@@ -15,7 +16,7 @@ import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
 import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap,
-  Percent, CheckCircle, AlertTriangle, Lock
+  Percent, CheckCircle, AlertTriangle, Lock, ChevronDown, ChevronRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -75,11 +76,10 @@ export default function PublicBooking() {
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
   const [todaysBookings, setTodaysBookings] = useState<TodayBookingRow[]>([]);
+  const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
-  // Step 2 filters (no search, just clean chips)
+  // Step 2 filters (chips only — no legend)
   const [stationType, setStationType] = useState<'all'|'ps5'|'8ball'>('all');
-
-  // Derived list passed to StationSelector
   const filteredStations = stations.filter(s => (stationType === 'all' ? true : s.type === stationType));
 
   useEffect(() => { fetchStations(); }, []);
@@ -119,7 +119,7 @@ export default function PublicBooking() {
     }
   };
 
-  // mask phone for privacy
+  // mask phone for privacy (XX…XX in the middle)
   const maskPhone = (p?: string) => {
     if (!p) return '';
     const digits = p.replace(/\D/g, '');
@@ -163,6 +163,9 @@ export default function PublicBooking() {
           station_name: st?.name || '—',
         };
       });
+
+      // sort by time just in case
+      rows.sort((a, b) => a.start_time.localeCompare(b.start_time));
       setTodaysBookings(rows);
     } catch (err) {
       console.error('Error fetching today’s bookings:', err);
@@ -232,9 +235,7 @@ export default function PublicBooking() {
   };
 
   const searchCustomer = async () => {
-    if (!customerNumber.trim()) {
-      toast.error('Please enter a customer number'); return;
-    }
+    if (!customerNumber.trim()) { toast.error('Please enter a customer number'); return; }
     setSearchingCustomer(true);
     try {
       const { data, error } = await supabase
@@ -455,6 +456,27 @@ export default function PublicBooking() {
     return <span className={`${base} ${map[status]}`}>{status.replace('-', ' ')}</span>;
   };
 
+  // group today's bookings by customer (and keep each customer's rows sorted by time)
+  const groupedByCustomer = todaysBookings.reduce<Record<string, TodayBookingRow[]>>((acc, row) => {
+    (acc[row.customer_name] ||= []).push(row);
+    return acc;
+  }, {});
+  Object.values(groupedByCustomer).forEach(arr => arr.sort((a,b)=>a.start_time.localeCompare(b.start_time)));
+
+  // order customers by their earliest booking time
+  const customerOrder = Object.entries(groupedByCustomer)
+    .map(([name, rows]) => ({ name, first: rows[0]?.start_time || '23:59:59' }))
+    .sort((a,b)=>a.first.localeCompare(b.first))
+    .map(x => x.name);
+
+  const toggleCustomer = (name: string) => {
+    setExpandedCustomers(prev => {
+      const n = new Set(prev);
+      if (n.has(name)) n.delete(name); else n.add(name);
+      return n;
+    });
+  };
+
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
       {/* subtle glows */}
@@ -573,7 +595,7 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* Step 2 — filters + nicer framing (keeps your StationSelector) */}
+            {/* Step 2 — mobile-aligned header, no legend, comfy chips */}
             <Card
               className={cn(
                 "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl",
@@ -581,61 +603,62 @@ export default function PublicBooking() {
               )}
             >
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide flex-wrap">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
-                    {!isStationSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <MapPin className="h-4 w-4 text-cuephoria-blue" />}
+                {/* header: icon perfectly aligned with title across breakpoints */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
+                      {!isStationSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <MapPin className="h-4 w-4 text-cuephoria-blue" />}
+                    </div>
+                    <CardTitle className="m-0 p-0 text-white tracking-wide">
+                      Step 2: Select Gaming Stations
+                    </CardTitle>
                   </div>
-                  Step 2: Select Gaming Stations
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
-                </CardTitle>
+                  {isStationSelectionAvailable() && selectedStations.length > 0 && (
+                    <CheckCircle className="h-5 w-5 text-green-400" />
+                  )}
+                </div>
 
                 {/* filter chips */}
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('all')}
-                    className={cn(
-                      "rounded-full border-white/15 text-gray-200",
-                      stationType === 'all' ? "bg-white/10" : "bg-transparent hover:bg-white/5"
-                    )}
-                  >
-                    All
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('ps5')}
-                    className={cn(
-                      "rounded-full border-white/15 text-cuephoria-purple",
-                      stationType === 'ps5' ? "bg-cuephoria-purple/15" : "bg-transparent hover:bg-white/5"
-                    )}
-                  >
-                    PS5
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('8ball')}
-                    className={cn(
-                      "rounded-full border-white/15 text-emerald-300",
-                      stationType === '8ball' ? "bg-emerald-500/15" : "bg-transparent hover:bg-white/5"
-                    )}
-                  >
-                    8-Ball
-                  </Button>
-
-                  <div className="ml-auto flex items-center gap-3 text-xs text-gray-400">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="inline-block h-2 w-2 rounded-full bg-cuephoria-purple" /> PS5
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" /> 8-Ball
-                    </span>
-                    <Badge variant="outline" className="border-white/20 text-gray-300">
-                      {filteredStations.length} of {stations.length}
-                    </Badge>
+                <div className="mt-4 flex flex-wrap items-center gap-8">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStationType('all')}
+                      className={cn(
+                        "rounded-full border-white/15 text-gray-200",
+                        stationType === 'all' ? "bg-white/10" : "bg-transparent hover:bg-white/5"
+                      )}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStationType('ps5')}
+                      className={cn(
+                        "rounded-full border-white/15 text-cuephoria-purple",
+                        stationType === 'ps5' ? "bg-cuephoria-purple/15" : "bg-transparent hover:bg-white/5"
+                      )}
+                    >
+                      PS5
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStationType('8ball')}
+                      className={cn(
+                        "rounded-full border-white/15 text-emerald-300",
+                        stationType === '8ball' ? "bg-emerald-500/15" : "bg-transparent hover:bg-white/5"
+                      )}
+                    >
+                      8-Ball
+                    </Button>
                   </div>
+
+                  <Badge variant="outline" className="border-white/20 text-gray-300 ml-auto">
+                    {filteredStations.length} of {stations.length}
+                  </Badge>
                 </div>
               </CardHeader>
 
@@ -646,8 +669,6 @@ export default function PublicBooking() {
                     <p className="text-gray-400">Complete customer information to unlock station selection</p>
                   </div>
                 ) : (
-                  // NOTE: Station cards styling is controlled by StationSelector.
-                  // This container adds nicer breathing room & consistent grid gaps on mobile.
                   <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/5">
                     <StationSelector
                       stations={filteredStations}
@@ -834,7 +855,7 @@ export default function PublicBooking() {
         </div>
       </main>
 
-      {/* Today’s Bookings */}
+      {/* Today’s Bookings — grouped by customer, expandable, sorted by time */}
       <section className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-8 relative z-10">
         <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
           <CardHeader>
@@ -849,36 +870,57 @@ export default function PublicBooking() {
             {!todaysBookings.length ? (
               <div className="text-center text-gray-400 py-8">No bookings yet today.</div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-white/10">
-                <table className="w-full text-sm">
-                  <thead className="bg-white/5">
-                    <tr className="text-left">
-                      <th className="px-3 py-2 font-medium text-gray-300">Customer</th>
-                      <th className="px-3 py-2 font-medium text-gray-300">Time Slot</th>
-                      <th className="px-3 py-2 font-medium text-gray-300">Station</th>
-                      <th className="px-3 py-2 font-medium text-gray-300">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {todaysBookings.map((b) => (
-                      <tr key={b.id} className="border-t border-white/10">
-                        <td className="px-3 py-2">
-                          <div className="font-medium text-gray-100">{b.customer_name}</div>
-                          {b.customer_phone && (
-                            <div className="text-xs text-gray-400">{b.customer_phone}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-gray-100 whitespace-nowrap">
-                          {new Date(`2000-01-01T${b.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                          {' — '}
-                          {new Date(`2000-01-01T${b.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                        </td>
-                        <td className="px-3 py-2 text-gray-100">{b.station_name || '—'}</td>
-                        <td className="px-3 py-2">{statusBadge(b.status)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                {customerOrder.map((customerName) => {
+                  const rows = groupedByCustomer[customerName] || [];
+                  const phone = rows.find(r => !!r.customer_phone)?.customer_phone;
+                  const open = expandedCustomers.has(customerName);
+
+                  return (
+                    <Collapsible key={customerName}>
+                      <CollapsibleTrigger
+                        onClick={() => toggleCustomer(customerName)}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition"
+                      >
+                        {open ? <ChevronDown className="h-4 w-4 text-gray-300" /> : <ChevronRight className="h-4 w-4 text-gray-300" />}
+                        <div className="flex-1">
+                          <div className="text-gray-100 font-medium">{customerName}</div>
+                          {phone && <div className="text-xs text-gray-400">{phone}</div>}
+                        </div>
+                        <Badge variant="outline" className="border-white/20 text-gray-300">
+                          {rows.length} booking{rows.length > 1 ? 's' : ''}
+                        </Badge>
+                      </CollapsibleTrigger>
+
+                      <CollapsibleContent>
+                        <div className="mt-2 ml-6 rounded-xl border border-white/10 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-white/5">
+                              <tr className="text-left">
+                                <th className="px-3 py-2 font-medium text-gray-300">Time Slot</th>
+                                <th className="px-3 py-2 font-medium text-gray-300">Station</th>
+                                <th className="px-3 py-2 font-medium text-gray-300">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((b) => (
+                                <tr key={b.id} className="border-t border-white/10">
+                                  <td className="px-3 py-2 text-gray-100 whitespace-nowrap">
+                                    {new Date(`2000-01-01T${b.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                    {' — '}
+                                    {new Date(`2000-01-01T${b.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-100">{b.station_name || '—'}</td>
+                                  <td className="px-3 py-2">{statusBadge(b.status)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
               </div>
             )}
           </CardContent>
