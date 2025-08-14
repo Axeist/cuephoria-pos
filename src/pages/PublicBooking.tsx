@@ -595,91 +595,97 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* Step 2 — mobile-aligned header, no legend, comfy chips */}
-            <Card
-              className={cn(
-                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl",
-                !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
-              )}
-            >
-              <CardHeader className="pb-2">
-                {/* header: icon perfectly aligned with title across breakpoints */}
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
-                      {!isStationSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <MapPin className="h-4 w-4 text-cuephoria-blue" />}
-                    </div>
-                    <CardTitle className="m-0 p-0 text-white tracking-wide">
-                      Step 2: Select Gaming Stations
-                    </CardTitle>
-                  </div>
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && (
-                    <CheckCircle className="h-5 w-5 text-green-400" />
-                  )}
-                </div>
+  {/* Step 2 — compact chips, aligned tick + total */}
+<Card
+  className={cn(
+    "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl",
+    !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
+  )}
+>
+  <CardHeader className="pb-3">
+    {/* Top row: icon + title on the left, total + tick on the right */}
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
+          {!isStationSelectionAvailable() ? (
+            <Lock className="h-4 w-4 text-gray-500" />
+          ) : (
+            <MapPin className="h-4 w-4 text-cuephoria-blue" />
+          )}
+        </div>
+        <CardTitle className="m-0 p-0 text-white tracking-wide">
+          Step 2: Select Gaming Stations
+        </CardTitle>
+      </div>
 
-                {/* filter chips */}
-                <div className="mt-4 flex flex-wrap items-center gap-8">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStationType('all')}
-                      className={cn(
-                        "rounded-full border-white/15 text-gray-200",
-                        stationType === 'all' ? "bg-white/10" : "bg-transparent hover:bg-white/5"
-                      )}
-                    >
-                      All
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStationType('ps5')}
-                      className={cn(
-                        "rounded-full border-white/15 text-cuephoria-purple",
-                        stationType === 'ps5' ? "bg-cuephoria-purple/15" : "bg-transparent hover:bg-white/5"
-                      )}
-                    >
-                      PS5
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStationType('8ball')}
-                      className={cn(
-                        "rounded-full border-white/15 text-emerald-300",
-                        stationType === '8ball' ? "bg-emerald-500/15" : "bg-transparent hover:bg-white/5"
-                      )}
-                    >
-                      8-Ball
-                    </Button>
-                  </div>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="border-white/20 text-gray-300">
+          {filteredStations.length} of {stations.length}
+        </Badge>
+        {isStationSelectionAvailable() && selectedStations.length > 0 && (
+          <CheckCircle className="h-5 w-5 text-green-400" />
+        )}
+      </div>
+    </div>
 
-                  <Badge variant="outline" className="border-white/20 text-gray-300 ml-auto">
-                    {filteredStations.length} of {stations.length}
-                  </Badge>
-                </div>
-              </CardHeader>
+    {/* Compact filter chips on their own row */}
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setStationType('all')}
+        className={cn(
+          // compact chip size
+          "h-7 px-3 text-[11px] leading-none rounded-full border-white/15 text-gray-200",
+          stationType === 'all' ? "bg-white/10" : "bg-transparent hover:bg-white/5"
+        )}
+      >
+        All
+      </Button>
 
-              <CardContent className="pt-2">
-                {!isStationSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Complete customer information to unlock station selection</p>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/5">
-                    <StationSelector
-                      stations={filteredStations}
-                      selectedStations={selectedStations}
-                      onStationToggle={handleStationToggle}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setStationType('ps5')}
+        className={cn(
+          "h-7 px-3 text-[11px] leading-none rounded-full border-white/15 text-cuephoria-purple",
+          stationType === 'ps5' ? "bg-cuephoria-purple/15" : "bg-transparent hover:bg-white/5"
+        )}
+      >
+        PS5
+      </Button>
 
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setStationType('8ball')}
+        className={cn(
+          "h-7 px-3 text-[11px] leading-none rounded-full border-white/15 text-emerald-300",
+          stationType === '8ball' ? "bg-emerald-500/15" : "bg-transparent hover:bg-white/5"
+        )}
+      >
+        8-Ball
+      </Button>
+    </div>
+  </CardHeader>
+
+  <CardContent className="pt-2">
+    {!isStationSelectionAvailable() ? (
+      <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+        <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+        <p className="text-gray-400">Complete customer information to unlock station selection</p>
+      </div>
+    ) : (
+      <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/5">
+        <StationSelector
+          stations={filteredStations}
+          selectedStations={selectedStations}
+          onStationToggle={handleStationToggle}
+        />
+      </div>
+    )}
+  </CardContent>
+</Card>
             {/* Step 3 */}
             <Card
               className={cn(
