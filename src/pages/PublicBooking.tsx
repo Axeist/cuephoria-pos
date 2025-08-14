@@ -49,6 +49,7 @@ interface TodayBookingRow {
   status: BookingStatus;
   customer_name: string;
   customer_phone?: string;
+  station_name?: string;
 }
 
 export default function PublicBooking() {
@@ -75,7 +76,7 @@ export default function PublicBooking() {
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
-  // NEW: today's bookings for the summary table
+  // Today's bookings for the summary table
   const [todaysBookings, setTodaysBookings] = useState<TodayBookingRow[]>([]);
 
   // Fetch stations on component mount
@@ -122,15 +123,25 @@ export default function PublicBooking() {
     }
   };
 
-  // NEW: fetch today's bookings (simple join via two queries to avoid schema changes)
+  // Mask phone number: keep first 2 and last 2 digits, mask the rest with X
+  const maskPhone = (p?: string) => {
+    if (!p) return '';
+    const digits = p.replace(/\D/g, '');
+    if (digits.length <= 4) return digits;
+    const first = digits.slice(0, 2);
+    const last = digits.slice(-2);
+    return `${first}${'X'.repeat(digits.length - 4)}${last}`;
+  };
+
+  // Fetch today's bookings (include station + masked phone)
   const fetchTodaysBookings = async () => {
     try {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-      // 1) Pull today's bookings (basic fields)
+      // 1) Pull today's bookings including station_id and customer_id
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, booking_date, start_time, end_time, status, customer_id')
+        .select('id, booking_date, start_time, end_time, status, customer_id, station_id')
         .eq('booking_date', todayStr)
         .order('start_time', { ascending: true });
 
@@ -141,31 +152,39 @@ export default function PublicBooking() {
         return;
       }
 
-      // 2) Fetch customers for those bookings
+      // 2) Fetch customers
       const customerIds = Array.from(new Set(bookingsData.map(b => b.customer_id)));
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
         .select('id, name, phone')
         .in('id', customerIds);
-
       if (customersError) throw customersError;
+
+      // 3) Fetch stations
+      const stationIds = Array.from(new Set(bookingsData.map(b => b.station_id)));
+      const { data: stationsData, error: stationsError } = await supabase
+        .from('stations')
+        .select('id, name')
+        .in('id', stationIds);
+      if (stationsError) throw stationsError;
 
       const rows: TodayBookingRow[] = bookingsData.map(b => {
         const c = customersData?.find(cu => cu.id === b.customer_id);
+        const st = stationsData?.find(s => s.id === b.station_id);
         return {
           id: b.id,
           start_time: b.start_time,
           end_time: b.end_time,
           status: (b.status || 'confirmed') as BookingStatus,
           customer_name: c?.name || 'Unknown',
-          customer_phone: c?.phone,
+          customer_phone: c?.phone ? maskPhone(c.phone) : undefined,
+          station_name: st?.name || '—',
         };
       });
 
       setTodaysBookings(rows);
     } catch (err) {
       console.error('Error fetching today’s bookings:', err);
-      // Non-blocking for the booking flow; just show a soft toast
       toast.message('Could not load today’s bookings', { description: 'You can still book normally.' });
     }
   };
@@ -476,7 +495,7 @@ export default function PublicBooking() {
       setAppliedCoupon('');
       setAvailableSlots([]);
 
-      // Also refresh the "today's bookings" summary after creating bookings
+      // Refresh the "today's bookings" summary after creating bookings
       fetchTodaysBookings();
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -491,9 +510,9 @@ export default function PublicBooking() {
   const discount = calculateDiscount();
   const finalPrice = calculateFinalPrice();
 
-  // Small helper to show a nice colored badge for status using your Badge component
+  // Small helper to show a colored badge for status
   const statusBadge = (status: BookingStatus) => {
-    const base = 'rounded-full px-2 py-0.5 border';
+    const base = 'rounded-full px-2 py-0.5 border capitalize';
     const map: Record<BookingStatus, string> = {
       'confirmed': 'bg-blue-500/10 text-blue-300 border-blue-500/20',
       'in-progress': 'bg-amber-500/10 text-amber-300 border-amber-500/20',
@@ -855,7 +874,7 @@ export default function PublicBooking() {
         </div>
       </main>
 
-      {/* NEW: Today’s Bookings Summary (just above the footer) */}
+      {/* Today’s Bookings Summary (just above the footer) */}
       <section className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-8 relative z-10">
         <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
           <CardHeader>
@@ -878,6 +897,7 @@ export default function PublicBooking() {
                     <tr className="text-left">
                       <th className="px-3 py-2 font-medium text-gray-300">Customer</th>
                       <th className="px-3 py-2 font-medium text-gray-300">Time Slot</th>
+                      <th className="px-3 py-2 font-medium text-gray-300">Station</th>
                       <th className="px-3 py-2 font-medium text-gray-300">Status</th>
                     </tr>
                   </thead>
@@ -890,7 +910,7 @@ export default function PublicBooking() {
                             <div className="text-xs text-gray-400">{b.customer_phone}</div>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-gray-100">
+                        <td className="px-3 py-2 text-gray-100 whitespace-nowrap">
                           {new Date(`2000-01-01T${b.start_time}`).toLocaleTimeString('en-US', {
                             hour: 'numeric', minute: '2-digit', hour12: true
                           })}
@@ -898,6 +918,9 @@ export default function PublicBooking() {
                           {new Date(`2000-01-01T${b.end_time}`).toLocaleTimeString('en-US', {
                             hour: 'numeric', minute: '2-digit', hour12: true
                           })}
+                        </td>
+                        <td className="px-3 py-2 text-gray-100">
+                          {b.station_name || '—'}
                         </td>
                         <td className="px-3 py-2">
                           {statusBadge(b.status)}
