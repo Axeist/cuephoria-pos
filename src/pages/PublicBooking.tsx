@@ -1,3 +1,4 @@
+// app/public/booking/PublicBooking.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,18 +10,16 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { StationSelector } from '@/components/booking/StationSelector';
-import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker';
+import { TimeSlotPicker } from '@/components/booking/TimeSlotPicker'; // your (multi) picker
 import CouponPromotionalPopup from '@/components/CouponPromotionalPopup';
 import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
 import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap,
-  Percent, CheckCircle, AlertTriangle, Lock, Info, Filter, ChevronDown, Dot
+  Percent, CheckCircle, AlertTriangle, Lock, Info, ChevronDown, Dot
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, compareAsc } from 'date-fns';
 import { cn } from '@/lib/utils';
-
-type FilterType = 'all' | 'ps5' | '8ball';
 
 interface Station {
   id: string;
@@ -42,24 +41,25 @@ interface CustomerInfo {
   email: string;
 }
 
-interface TodayBookingRow {
+interface BookingRow {
   id: string;
+  booking_date: string;
   start_time: string;
   end_time: string;
-  status: string;
-  station: { name: string };
-  customer: { name: string; phone?: string | null };
+  status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
+  station_name: string;
+  customer_name: string;
+  customer_phone: string;
 }
 
 export default function PublicBooking() {
-  // --- booking form state
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
-  const [typeFilter, setTypeFilter] = useState<FilterType>('all');
-
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Multi-slot support: store an array of selected slots (unique by start/end)
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
 
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({ name: '', phone: '', email: '' });
   const [customerNumber, setCustomerNumber] = useState('');
@@ -71,44 +71,40 @@ export default function PublicBooking() {
   const [appliedCoupon, setAppliedCoupon] = useState('');
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
+
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
+
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
-  // --- today's bookings (for the box above footer)
-  const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
-  const [openTimes, setOpenTimes] = useState<Record<string, boolean>>({});
+  // “Today’s bookings” data
+  const [todayBookings, setTodayBookings] = useState<BookingRow[]>([]);
+  const [openTimeGroups, setOpenTimeGroups] = useState<Record<string, boolean>>({});
 
-  const toggleTime = (label: string) =>
-    setOpenTimes(prev => ({ ...prev, [label]: !prev[label] }));
-
-  // fetch stations
   useEffect(() => { fetchStations(); }, []);
 
-  // realtime refresh on bookings table
+  // live updates
   useEffect(() => {
     const channel = supabase
-      .channel('booking-changes')
+      .channel('booking-changes-public')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
         if (selectedStations.length > 0 && selectedDate) fetchAvailableSlots();
-        fetchTodayBookings(); // keep the LIVE box fresh
+        fetchTodayBookings(); // keep “LIVE”
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedStations, selectedDate]);
 
-  // update slots on date/stations change
   useEffect(() => {
     if (selectedStations.length > 0 && selectedDate) {
       fetchAvailableSlots();
     } else {
       setAvailableSlots([]);
-      setSelectedSlot(null);
+      setSelectedSlots([]);
     }
   }, [selectedStations, selectedDate]);
 
-  // fetch today’s bookings once on mount
   useEffect(() => { fetchTodayBookings(); }, []);
 
   const fetchStations = async () => {
@@ -125,97 +121,43 @@ export default function PublicBooking() {
     }
   };
 
-  const fetchTodayBookings = async () => {
-    try {
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-
-      const { data: rows, error } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          booking_date,
-          start_time,
-          end_time,
-          status,
-          station:stations(id, name),
-          customer:customers(id, name, phone)
-        `)
-        .eq('booking_date', todayStr)
-        .order('start_time', { ascending: true });
-
-      if (error) throw error;
-
-      const mapped: TodayBookingRow[] = (rows || []).map((r: any) => ({
-        id: r.id,
-        start_time: r.start_time,
-        end_time: r.end_time,
-        status: r.status,
-        station: { name: r.station?.name || '—' },
-        customer: { name: r.customer?.name || '—', phone: r.customer?.phone || '' }
-      }));
-
-      setTodayRows(mapped);
-    } catch (e) {
-      console.error('Error loading today bookings:', e);
-    }
-  };
-
   const fetchAvailableSlots = async () => {
     if (selectedStations.length === 0) return;
     setSlotsLoading(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      if (selectedStations.length === 1) {
-        const { data, error } = await supabase.rpc('get_available_slots', {
-          p_date: dateStr,
-          p_station_id: selectedStations[0],
-          p_slot_duration: 60
-        });
-        if (error) throw error;
-        setAvailableSlots(data || []);
-      } else {
-        const results = await Promise.all(
-          selectedStations.map(stationId =>
-            supabase.rpc('get_available_slots', {
-              p_date: dateStr,
-              p_station_id: stationId,
-              p_slot_duration: 60
-            })
-          )
-        );
-        const base = results.find(r => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
-        if (!base) {
-          const firstErr = results.find(r => r.error)?.error;
-          if (firstErr) throw firstErr;
-          setAvailableSlots([]);
-          return;
-        }
-        const keyOf = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
-        const unionMap = new Map<string, boolean>();
-        base.forEach(s => unionMap.set(keyOf(s), Boolean(s.is_available)));
-        results.forEach(r => {
-          const arr = (r.data || []) as TimeSlot[];
-          arr.forEach(s => {
-            const k = keyOf(s);
-            unionMap.set(k, Boolean(unionMap.get(k)) || Boolean(s.is_available));
-          });
-        });
-        const merged: TimeSlot[] = base.map(s => ({
-          start_time: s.start_time,
-          end_time: s.end_time,
-          is_available: Boolean(unionMap.get(keyOf(s)))
-        }));
-        setAvailableSlots(merged);
-      }
-
-      // clear selectedSlot if it disappeared
-      setSelectedSlot(prev =>
-        prev && !(availableSlots || []).some(s =>
-          s.start_time === prev.start_time && s.end_time === prev.end_time && s.is_available
+      // union availability across selected stations (so customers can book any slot that is free in at least one station)
+      const results = await Promise.all(
+        selectedStations.map((stationId) =>
+          supabase.rpc('get_available_slots', {
+            p_date: dateStr,
+            p_station_id: stationId,
+            p_slot_duration: 60
+          })
         )
-          ? null
-          : prev
+      );
+
+      const base = results.find(r => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
+      if (!base) {
+        const firstErr = results.find(r => r.error)?.error;
+        if (firstErr) throw firstErr;
+        setAvailableSlots([]);
+        return;
+      }
+      const key = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
+      const union = new Map<string, boolean>();
+      base.forEach(s => union.set(key(s), !!s.is_available));
+      results.forEach(r => {
+        const arr = (r.data || []) as TimeSlot[];
+        arr.forEach(s => union.set(key(s), Boolean(union.get(key(s))) || Boolean(s.is_available)));
+      });
+      const merged = base.map(s => ({ ...s, is_available: Boolean(union.get(key(s))) }));
+      setAvailableSlots(merged);
+
+      // prune any selectedSlots that are no longer available
+      setSelectedSlots(prev =>
+        prev.filter(sel => merged.find(m => m.start_time === sel.start_time && m.end_time === sel.end_time && m.is_available))
       );
     } catch (error) {
       console.error('Error fetching available slots:', error);
@@ -271,50 +213,37 @@ export default function PublicBooking() {
     setSelectedStations(prev =>
       prev.includes(stationId) ? prev.filter(id => id !== stationId) : [...prev, stationId]
     );
-    setSelectedSlot(null);
+    setSelectedSlots([]);
   };
 
-  const filterStationsForSlot = async (slot: TimeSlot) => {
-    if (selectedStations.length === 0) return selectedStations;
+  // Multi-select in TimeSlotPicker
+  const handleSlotToggle = async (slot: TimeSlot) => {
+    // Filter stations: keep only stations actually free for this slot
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const checks = await Promise.all(
-      selectedStations.map(async (stationId) => {
-        const { data, error } = await supabase.rpc('get_available_slots', {
-          p_date: dateStr,
-          p_station_id: stationId,
-          p_slot_duration: 60
-        });
-        if (error) return { stationId, available: false };
-        const match = (data || []).find(
-          (s: any) => s.start_time === slot.start_time && s.end_time === slot.end_time && s.is_available
-        );
-        return { stationId, available: Boolean(match) };
-      })
-    );
-    const availableIds = checks.filter(c => c.available).map(c => c.stationId);
-    const removedIds   = checks.filter(c => !c.available).map(c => c.stationId);
-    if (removedIds.length > 0) {
-      const removedNames = stations.filter(s => removedIds.includes(s.id)).map(s => s.name).join(', ');
-      toast.message('Some stations aren’t free at this time', {
-        description: `Removed: ${removedNames}. You can proceed with the rest.`,
+    const checks = await Promise.all(selectedStations.map(async (stationId) => {
+      const { data } = await supabase.rpc('get_available_slots', {
+        p_date: dateStr, p_station_id: stationId, p_slot_duration: 60
       });
+      const match = (data || []).find((s: any) =>
+        s.start_time === slot.start_time &&
+        s.end_time === slot.end_time &&
+        s.is_available
+      );
+      return { stationId, ok: !!match };
+    }));
+    const okIds = checks.filter(c => c.ok).map(c => c.stationId);
+    const removed = checks.filter(c => !c.ok).map(c => c.stationId);
+    if (removed.length) {
+      const names = stations.filter(s => removed.includes(s.id)).map(s => s.name).join(', ');
+      toast.message('Some stations aren’t free at this time', { description: `Removed: ${names}` });
     }
-    return availableIds;
-  };
+    setSelectedStations(okIds);
 
-  const handleSlotSelect = async (slot: TimeSlot) => {
-    if (selectedStations.length > 0) {
-      const filtered = await filterStationsForSlot(slot);
-      if (filtered.length === 0) {
-        toast.error('That time isn’t available for the selected stations.');
-        setSelectedSlot(null);
-        return;
-      }
-      if (filtered.length !== selectedStations.length) {
-        setSelectedStations(filtered);
-      }
-    }
-    setSelectedSlot(slot);
+    setSelectedSlots(prev => {
+      const exists = prev.find(s => s.start_time === slot.start_time && s.end_time === slot.end_time);
+      if (exists) return prev.filter(s => !(s.start_time === slot.start_time && s.end_time === slot.end_time));
+      return [...prev, slot];
+    });
   };
 
   const handleCouponApply = () => {
@@ -333,17 +262,17 @@ export default function PublicBooking() {
     toast.success(`Coupon ${coupon} applied successfully! 🎉`);
   };
 
-  // pricing
   const calculateOriginalPrice = () => {
-    if (selectedStations.length === 0 || !selectedSlot) return 0;
+    if (selectedStations.length === 0 || selectedSlots.length === 0) return 0;
     const selectedObjs = stations.filter(s => selectedStations.includes(s.id));
-    return selectedObjs.reduce((sum, s) => sum + s.hourly_rate, 0);
+    const perHour = selectedObjs.reduce((sum, s) => sum + s.hourly_rate, 0);
+    return perHour * selectedSlots.length;
   };
   const calculateDiscount = () => {
     const original = calculateOriginalPrice();
     if (!appliedCoupon || original === 0) return 0;
-    if (appliedCoupon === 'CUEPHORIA25') return original * 0.25;
-    if (appliedCoupon === 'NIT50') return original * 0.5;
+    if (appliedCoupon === 'CUEPHORIA25') return Math.round(original * 0.25);
+    if (appliedCoupon === 'NIT50') return Math.round(original * 0.5);
     return 0;
   };
   const calculateFinalPrice = () => calculateOriginalPrice() - calculateDiscount();
@@ -360,12 +289,12 @@ export default function PublicBooking() {
   const handleBookingSubmit = async () => {
     if (!customerNumber.trim()) { toast.error('Please complete customer information first'); return; }
     if (selectedStations.length === 0) { toast.error('Please select at least one station'); return; }
-    if (!selectedSlot) { toast.error('Please select a time slot'); return; }
+    if (selectedSlots.length === 0) { toast.error('Please select at least one time slot'); return; }
     if (!customerInfo.name.trim()) { toast.error('Please enter your name'); return; }
 
     setLoading(true);
     try {
-      // ensure customer exists
+      // ensure customer
       let customerId = customerInfo.id;
       if (!customerId) {
         const { data: newCustomer, error: customerError } = await supabase
@@ -389,46 +318,56 @@ export default function PublicBooking() {
       const discount = calculateDiscount();
       const finalPrice = calculateFinalPrice();
 
-      const bookings = selectedStations.map(stationId => ({
-        station_id: stationId,
-        customer_id: customerId!,
-        booking_date: format(selectedDate, 'yyyy-MM-dd'),
-        start_time: selectedSlot!.start_time,
-        end_time: selectedSlot!.end_time,
-        duration: 60,
-        status: 'confirmed',
-        original_price: originalPrice,
-        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-        final_price: finalPrice,
-        coupon_code: appliedCoupon || null
-      }));
+      // create a booking row per (station x slot)
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const rows = selectedStations.flatMap(stationId =>
+        selectedSlots.map(slot => ({
+          station_id: stationId,
+          customer_id: customerId!,
+          booking_date: dateStr,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          duration: 60,
+          status: 'confirmed' as const,
+          original_price: stations.find(s => s.id === stationId)?.hourly_rate ?? 0,
+          discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+          final_price: (stations.find(s => s.id === stationId)?.hourly_rate ?? 0) * (1 - (discount > 0 ? discount / originalPrice : 0)),
+          coupon_code: appliedCoupon || null
+        }))
+      );
 
-      const { data: insertedBookings, error: bookingError } = await supabase
+      const { data: inserted, error: bookingError } = await supabase
         .from('bookings')
-        .insert(bookings)
+        .insert(rows)
         .select('id');
-
       if (bookingError) throw bookingError;
 
-      const selectedStationObjects = stations.filter(s => selectedStations.includes(s.id));
-      const confirmationData = {
-        bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
+      // Confirmation dialog data
+      const selStations = stations.filter(s => selectedStations.includes(s.id)).map(s => s.name);
+      const slotStr = selectedSlots
+        .sort((a, b) => a.start_time.localeCompare(b.start_time))
+        .map(s =>
+          `${new Date(`2000-01-01T${s.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} – ${new Date(`2000-01-01T${s.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        )
+        .join(', ');
+
+      setBookingConfirmationData({
+        bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
-        stationNames: selectedStationObjects.map(s => s.name),
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        startTime: selectedSlot ? new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '-',
-        endTime: selectedSlot ? new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '-',
+        stationNames: selStations,
+        date: dateStr,
+        // show the list of slots (instead of a single dash)
+        startTime: slotStr,
+        endTime: '',
         totalAmount: finalPrice,
         couponCode: appliedCoupon || undefined,
         discountAmount: discount > 0 ? discount : undefined
-      };
-
-      setBookingConfirmationData(confirmationData);
+      });
       setShowConfirmationDialog(true);
 
-      // reset form
+      // reset
       setSelectedStations([]);
-      setSelectedSlot(null);
+      setSelectedSlots([]);
       setCustomerNumber('');
       setCustomerInfo({ name: '', phone: '', email: '' });
       setIsReturningCustomer(false);
@@ -436,9 +375,6 @@ export default function PublicBooking() {
       setCouponCode('');
       setAppliedCoupon('');
       setAvailableSlots([]);
-
-      // refresh LIVE box
-      fetchTodayBookings();
     } catch (error) {
       console.error('Error creating booking:', error);
       toast.error('Failed to create booking. Please try again.');
@@ -447,39 +383,77 @@ export default function PublicBooking() {
     }
   };
 
-  // helpers
+  // ---------- Today’s bookings (group by time then customer) ----------
+  const fetchTodayBookings = async () => {
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          id, booking_date, start_time, end_time, status,
+          stations:station_id ( name ),
+          customers:customer_id ( name, phone )
+        `)
+        .eq('booking_date', todayStr)
+        .in('status', ['confirmed','in-progress']); // active ones
+      if (error) throw error;
+
+      const rows: BookingRow[] = (data || []).map((r: any) => ({
+        id: r.id,
+        booking_date: r.booking_date,
+        start_time: r.start_time,
+        end_time: r.end_time,
+        status: r.status,
+        station_name: r.stations?.name || 'Unknown',
+        customer_name: r.customers?.name || 'Unknown',
+        customer_phone: r.customers?.phone || ''
+      }));
+      setTodayBookings(rows);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const timeKey = (start: string, end: string) => `${start}-${end}`;
+  const groupByTimeThenCustomer = useMemo(() => {
+    const byTime: Record<string, BookingRow[]> = {};
+    [...todayBookings].sort((a, b) => a.start_time.localeCompare(b.start_time)).forEach(b => {
+      const key = timeKey(b.start_time, b.end_time);
+      (byTime[key] ||= []).push(b);
+    });
+    const final = Object.entries(byTime).map(([tkey, list]) => {
+      const [s, e] = tkey.split('-');
+      // group by customer inside this time
+      const byCust: Record<string, BookingRow[]> = {};
+      list.forEach(b => (byCust[b.customer_name] ||= []).push(b));
+      // sort customers alphabetically
+      const buckets = Object.entries(byCust)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([cust, rows]) => ({
+          customer: cust,
+          rows: rows.sort((a, b) => a.station_name.localeCompare(b.station_name))
+        }));
+      return { start: s, end: e, total: list.length, buckets };
+    });
+    return final;
+  }, [todayBookings]);
+
+  const toggleGroup = (key: string) =>
+    setOpenTimeGroups(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const maskedPhone = (p: string) =>
+    p && p.length >= 7 ? `${p.slice(0, 2)}XXX${p.slice(-2)}` : p || '-';
+
+  // -------------------------------------------------------------------
+
   const today = new Date();
   const originalPrice = calculateOriginalPrice();
   const discount = calculateDiscount();
   const finalPrice = calculateFinalPrice();
 
-  const formatTime = (t: string) =>
-    new Date(`2000-01-01T${t}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-  const filteredStations = useMemo(() => {
-    if (typeFilter === 'all') return stations;
-    return stations.filter(s => (typeFilter === 'ps5' ? s.type === 'ps5' : s.type === '8ball'));
-  }, [typeFilter, stations]);
-
-  // group today's bookings by time label
-  const groupedTodayByTime: Record<string, TodayBookingRow[]> = useMemo(() => {
-    const groups: Record<string, TodayBookingRow[]> = {};
-    for (const row of todayRows) {
-      const label = `${formatTime(row.start_time)} — ${formatTime(row.end_time)}`;
-      (groups[label] ||= []).push(row);
-    }
-    return groups;
-  }, [todayRows]);
-
-  const maskedPhone = (phone?: string | null) => {
-    if (!phone) return '';
-    // keep first 2 and last 2 digits, mask the middle
-    return phone.replace(/^(\d{2})(\d+)(\d{2})$/, (_, a, mid, c) => `${a}${'X'.repeat(mid.length)}${c}`);
-  };
-
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
-      {/* Decorative glows */}
+      {/* subtle glows */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
         <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
@@ -511,33 +485,17 @@ export default function PublicBooking() {
             <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
               Reserve PlayStation 5 or Pool Table sessions at Cuephoria
             </p>
-
-            {/* Highlights */}
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-purple/10">
-                <Sparkles className="h-4 w-4 text-cuephoria-purple mr-2" />
-                <span className="text-xs text-gray-300">Premium Equipment</span>
-              </div>
-              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-blue/10">
-                <Star className="h-4 w-4 text-cuephoria-blue mr-2" />
-                <span className="text-xs text-gray-300">Best Gaming Experience</span>
-              </div>
-              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-lightpurple/10">
-                <Zap className="h-4 w-4 text-cuephoria-lightpurple mr-2" />
-                <span className="text-xs text-gray-300">Instant Booking</span>
-              </div>
-            </div>
           </div>
         </div>
       </header>
 
       {/* Main */}
-      <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-10 relative z-10">
+      <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Form */}
           <div className="lg:col-span-2 space-y-6">
             {/* Step 1 */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white tracking-wide">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
@@ -554,7 +512,6 @@ export default function PublicBooking() {
                   </p>
                 </div>
 
-                {/* Phone + Search */}
                 <div className="flex gap-2">
                   <Input
                     value={customerNumber}
@@ -566,12 +523,12 @@ export default function PublicBooking() {
                       setCustomerInfo(prev => ({ ...prev, name: '', email: '', phone: val }));
                     }}
                     placeholder="Enter phone number"
-                    className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
+                    className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl focus:ring-2 focus:ring-cuephoria-purple/40 flex-1"
                   />
                   <Button
                     onClick={searchCustomer}
                     disabled={searchingCustomer}
-                    className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 transition-all duration-150 active:scale-[.98] shadow-lg shadow-cuephoria-lightpurple/20"
+                    className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90"
                   >
                     {searchingCustomer ? 'Searching...' : 'Search'}
                   </Button>
@@ -589,7 +546,7 @@ export default function PublicBooking() {
                         value={customerInfo.name}
                         onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="Enter your full name"
-                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
+                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-cuephoria-purple/40"
                         disabled={isReturningCustomer}
                       />
                     </div>
@@ -601,16 +558,10 @@ export default function PublicBooking() {
                         value={customerInfo.email}
                         onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
                         placeholder="Enter your email address"
-                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
+                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-cuephoria-purple/40"
                         disabled={isReturningCustomer}
                       />
                     </div>
-                  </div>
-                )}
-
-                {isCustomerInfoComplete() && (
-                  <div className="flex items-center gap-2 text-green-400 text-sm">
-                    <CheckCircle className="h-4 w-4" /> Customer information complete! You can now proceed to station selection.
                   </div>
                 )}
               </CardContent>
@@ -619,66 +570,36 @@ export default function PublicBooking() {
             {/* Step 2 */}
             <Card
               className={cn(
-                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300",
-                !isStationSelectionAvailable() && "opacity-100"
+                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-blue/10 transition",
               )}
-              style={{ animationDelay: '100ms' }}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3 text-white tracking-wide">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
-                    {!isStationSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <MapPin className="h-4 w-4 text-cuephoria-blue" />}
+                    {isStationSelectionAvailable() ? <MapPin className="h-4 w-4 text-cuephoria-blue" /> : <Lock className="h-4 w-4 text-gray-500" />}
                   </div>
                   Step 2: Select Gaming Stations
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
                 </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Tip — always visible */}
-                <div className="flex items-start gap-2 text-xs text-gray-300 bg-white/5 border border-white/10 rounded-lg p-2">
-                  <Info className="h-4 w-4 mt-0.5 text-cuephoria-lightpurple" />
-                  <p>
-                    You can select <strong>multiple stations</strong>. In the next step, you can also choose <strong>multiple time slots</strong>.
-                  </p>
-                </div>
 
+                {/* Tip is ALWAYS visible (even when locked) */}
+                <div className="mt-2 flex items-start gap-2 text-xs text-gray-300/90 bg-white/5 border border-white/10 rounded-lg p-2">
+                  <Info className="h-4 w-4 text-cuephoria-lightpurple mt-0.5" />
+                  <span>You can select <strong>multiple stations</strong>. In next step, you can also choose <strong>multiple time slots</strong>.</span>
+                </div>
+              </CardHeader>
+
+              <CardContent>
                 {!isStationSelectionAvailable() ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                     <p className="text-gray-400">Complete customer information to unlock station selection</p>
                   </div>
                 ) : (
-                  <>
-                    {/* Filters */}
-                    <div className="flex items-center flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-300">
-                        <Filter className="h-3.5 w-3.5" /> Filter:
-                      </span>
-                      {(['all','ps5','8ball'] as FilterType[]).map(ft => (
-                        <button
-                          key={ft}
-                          onClick={() => setTypeFilter(ft)}
-                          className={cn(
-                            "px-3 py-1 rounded-full text-sm border backdrop-blur-md",
-                            ft === typeFilter
-                              ? "border-cuephoria-lightpurple/40 bg-cuephoria-lightpurple/10 text-white"
-                              : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-                          )}
-                        >
-                          {ft === 'all' ? 'All' : ft === 'ps5' ? 'PS5' : '8-Ball'}
-                        </button>
-                      ))}
-                      <span className="ml-auto text-xs text-gray-400">
-                        {selectedStations.length} selected
-                      </span>
-                    </div>
-
-                    <StationSelector
-                      stations={filteredStations}
-                      selectedStations={selectedStations}
-                      onStationToggle={handleStationToggle}
-                    />
-                  </>
+                  <StationSelector
+                    stations={stations}
+                    selectedStations={selectedStations}
+                    onStationToggle={handleStationToggle}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -686,71 +607,59 @@ export default function PublicBooking() {
             {/* Step 3 */}
             <Card
               className={cn(
-                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-lightpurple/10 animate-scale-in transition-all duration-300",
-                !isTimeSelectionAvailable() && "opacity-50 pointer-events-none"
+                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-lightpurple/10 transition",
+                !isTimeSelectionAvailable() && "opacity-100" // keep tip visible even if locked
               )}
-              style={{ animationDelay: '200ms' }}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3 text-white tracking-wide">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
                     {!isTimeSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />}
                   </div>
                   Step 3: Choose Date & Time
-                  {isTimeSelectionAvailable() && selectedSlot && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
                 </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Tip — always visible for clarity */}
-                <div className="flex items-start gap-2 text-xs text-gray-300 bg-white/5 border border-white/10 rounded-lg p-2">
-                  <Info className="h-4 w-4 mt-0.5 text-cuephoria-lightpurple" />
-                  <p>
-                    You can choose <strong>multiple time slots</strong> (one per hour) after selecting stations. The price updates automatically.
-                  </p>
+                <div className="mt-2 flex items-start gap-2 text-xs text-gray-300/90 bg-white/5 border border-white/10 rounded-lg p-2">
+                  <Info className="h-4 w-4 text-cuephoria-lightpurple mt-0.5" />
+                  <span>You can choose <strong>multiple time slots</strong> (one per hour) after selecting stations. The price updates automatically.</span>
                 </div>
+              </CardHeader>
 
-                {!isTimeSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Select stations to unlock date and time selection</p>
+              <CardContent className={cn(!isTimeSelectionAvailable() && "pointer-events-none opacity-60")}>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <Label className="text-base font-medium text-gray-200">Choose Date</Label>
+                    <div className="mt-2 flex justify-center md:justify-start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => date && setSelectedDate(date)}
+                        disabled={(date) => date < today}
+                        className="rounded-xl border bg-black/30 border-white/10"
+                      />
+                    </div>
                   </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-6">
+
+                  {isTimeSelectionAvailable() && (
                     <div>
-                      <Label className="text-base font-medium text-gray-200">Choose Date</Label>
-                      <div className="mt-2 flex justify-center md:block">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => date && setSelectedDate(date)}
-                          disabled={(date) => date < today}
-                          className={cn("rounded-xl border bg-black/30 border-white/10 pointer-events-auto")}
+                      <Label className="text-base font-medium text-gray-200">Available Time Slots</Label>
+                      <div className="mt-2">
+                        <TimeSlotPicker
+                          slots={availableSlots}
+                          selectedSlots={selectedSlots}
+                          onSlotToggle={handleSlotToggle}
+                          loading={slotsLoading}
                         />
                       </div>
                     </div>
-
-                    {selectedStations.length > 0 && (
-                      <div>
-                        <Label className="text-base font-medium text-gray-200">Available Time Slots</Label>
-                        <div className="mt-2">
-                          <TimeSlotPicker
-                            slots={availableSlots}
-                            selectedSlot={selectedSlot}
-                            onSlotSelect={handleSlotSelect}
-                            loading={slotsLoading}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Booking Summary */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in" style={{ animationDelay: '300ms' }}>
+            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)]">
               <CardHeader>
                 <CardTitle className="text-white">Booking Summary</CardTitle>
               </CardHeader>
@@ -776,19 +685,21 @@ export default function PublicBooking() {
                   </div>
                 )}
 
-                {selectedDate && (
+                {selectedSlots.length > 0 && (
                   <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
-                    <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
-                  </div>
-                )}
-
-                {selectedSlot && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
-                    <p className="mt-1 text-sm text-gray-200">
-                      {formatTime(selectedSlot.start_time)} — {formatTime(selectedSlot.end_time)}
-                    </p>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time Slots</Label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedSlots
+                        .slice()
+                        .sort((a,b)=>a.start_time.localeCompare(b.start_time))
+                        .map((s, i) => (
+                          <Badge key={i} variant="outline" className="border-white/10 text-gray-200 bg-white/5">
+                            {new Date(`2000-01-01T${s.start_time}`).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+                            {' – '}
+                            {new Date(`2000-01-01T${s.end_time}`).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+                          </Badge>
+                        ))}
+                    </div>
                   </div>
                 )}
 
@@ -800,12 +711,12 @@ export default function PublicBooking() {
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                       placeholder="Enter coupon code"
-                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
+                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-cuephoria-purple/40 flex-1"
                     />
                     <Button
                       onClick={handleCouponApply}
                       size="sm"
-                      className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
+                      className="rounded-xl bg-green-600 hover:bg-green-700"
                     >
                       Apply
                     </Button>
@@ -819,9 +730,8 @@ export default function PublicBooking() {
                       </div>
                       {appliedCoupon === 'NIT50' && (
                         <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
-                          <p className="text-sm text-amber-400 flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span><strong>Important:</strong> To avail this offer, you must present a valid NIT Trichy student ID card at reception. This is mandatory.</span>
+                          <p className="text-sm text-amber-400">
+                            <strong>Note:</strong> Show valid NIT Trichy ID at reception to use this offer.
                           </p>
                         </div>
                       )}
@@ -854,8 +764,8 @@ export default function PublicBooking() {
 
                 <Button
                   onClick={handleBookingSubmit}
-                  disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
-                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
+                  disabled={selectedStations.length === 0 || selectedSlots.length === 0 || !customerNumber || loading}
+                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90"
                   size="lg"
                 >
                   {loading ? 'Creating Booking...' : 'Confirm Booking'}
@@ -867,94 +777,97 @@ export default function PublicBooking() {
           </div>
         </div>
 
-        {/* TODAY'S BOOKINGS — LIVE */}
-        <Card className="mt-8 bg-white/5 border-white/10 rounded-2xl overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-3">
-              <CardTitle className="text-white">Today’s Bookings</CardTitle>
-              {/* LIVE tag */}
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-green-400/30 bg-green-400/10 text-green-300">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400/60 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+        {/* ---------- TODAY’S BOOKINGS (aligned like steps) ---------- */}
+        <Card className="mt-8 bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-white flex items-center gap-3">
+                Today’s Bookings
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/30 px-2 py-0.5 text-[11px]">
+                  <span className="inline-block h-2 w-2 rounded-full bg-green-400" />
+                  LIVE
                 </span>
-                LIVE
-              </span>
+              </CardTitle>
+              <Badge variant="outline" className="border-white/10 text-gray-300 bg-white/5">
+                {todayBookings.length} total
+              </Badge>
             </div>
-            <span className="text-xs text-gray-400">
-              {todayRows.length} total
-            </span>
           </CardHeader>
 
-          <CardContent className="p-0">
-            {/* Header row */}
-            <div className="grid grid-cols-12 px-4 py-3 text-xs text-gray-400 border-t border-white/10">
-              <div className="col-span-3">Time</div>
-              <div className="col-span-5">Customer</div>
-              <div className="col-span-2">Station</div>
-              <div className="col-span-2 text-right">Status</div>
-            </div>
+          <CardContent className="pt-0">
+            {groupByTimeThenCustomer.length === 0 ? (
+              <div className="py-10 text-center text-gray-400">No bookings yet today.</div>
+            ) : (
+              <div className="divide-y divide-white/10">
+                {groupByTimeThenCustomer.map((grp, idx) => {
+                  const k = timeKey(grp.start, grp.end);
+                  const isOpen = !!openTimeGroups[k];
+                  const label = `${new Date(`2000-01-01T${grp.start}`).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} — ${new Date(`2000-01-01T${grp.end}`).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
 
-            {Object.entries(groupedTodayByTime)
-              .sort(([a],[b]) => {
-                const getStart = (label: string) => label.split('—')[0].trim();
-                return new Date(`2000-01-01 ${getStart(a)}`).getTime() - new Date(`2000-01-01 ${getStart(b)}`).getTime();
-              })
-              .map(([timeLabel, items]) => {
-                const open = !!openTimes[timeLabel];
-                return (
-                  <div key={timeLabel} className="border-t border-white/10">
-                    {/* Time group header */}
-                    <button
-                      onClick={() => toggleTime(timeLabel)}
-                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition"
-                      title="Tap to expand bookings in this time slot"
-                    >
-                      <ChevronDown
-                        className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-                      />
-                      <div className="text-sm text-white">{timeLabel}</div>
-                      <div className="ml-2 text-xs text-gray-400">
-                        {items.length} booking{items.length > 1 ? 's' : ''}
-                      </div>
-                    </button>
+                  return (
+                    <div key={k} className="py-1">
+                      {/* Collapsed Row (no headers) */}
+                      <button
+                        className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 transition text-left"
+                        onClick={() => toggleGroup(k)}
+                        title="Tap to expand"
+                      >
+                        <ChevronDown className={cn("h-5 w-5 text-gray-300 transition", isOpen ? "rotate-180" : "")} />
+                        <div className="font-medium text-gray-100">{label}</div>
+                        <Badge className="ml-auto bg-white/5 border-white/10 text-gray-300">
+                          {grp.total} booking{grp.total !== 1 ? 's' : ''}
+                        </Badge>
+                      </button>
 
-                    {/* Expanded content */}
-                    {open && (
-                      <div className="px-4 pb-2">
-                        {items
-                          .sort((a, b) => a.customer.name.localeCompare(b.customer.name, undefined, { sensitivity: 'base' }))
-                          .map((b) => (
-                            <div key={b.id} className="grid grid-cols-12 items-center gap-2 px-3 py-3 rounded-lg hover:bg-white/5">
-                              <div className="col-span-3 flex items-center text-sm text-gray-300">
-                                <Dot className="h-5 w-5 -ml-1 text-gray-500" />
-                                {timeLabel}
-                              </div>
-                              <div className="col-span-5 text-sm text-white truncate" title={b.customer.name}>
-                                {b.customer.name}
-                                <div className="text-xs text-gray-400 truncate">
-                                  {maskedPhone(b.customer.phone)}
-                                </div>
-                              </div>
-                              <div className="col-span-2 text-sm text-gray-200 truncate" title={b.station.name}>
-                                {b.station.name}
-                              </div>
-                              <div className="col-span-2 text-right">
-                                <span
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px]
-                                  border border-white/10 bg-white/5 text-gray-200 capitalize"
-                                  title={`Status: ${b.status}`}
-                                >
-                                  {b.status}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      {/* Expanded table */}
+                      {isOpen && (
+                        <div className="mt-2 overflow-x-auto">
+                          <table className="min-w-[720px] w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-gray-400">
+                                <th className="px-3 py-2 font-medium">Customer</th>
+                                <th className="px-3 py-2 font-medium">Phone</th>
+                                <th className="px-3 py-2 font-medium">Station(s)</th>
+                                <th className="px-3 py-2 font-medium">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {grp.buckets.map((bucket, i) => (
+                                <tr key={i} className="border-t border-white/10">
+                                  <td className="px-3 py-3 text-gray-100 align-top">{bucket.customer}</td>
+                                  <td className="px-3 py-3 text-gray-300 align-top">{maskedPhone(bucket.rows[0]?.customer_phone)}</td>
+                                  <td className="px-3 py-3 text-gray-300">
+                                    <div className="flex flex-wrap gap-2">
+                                      {bucket.rows.map(r => (
+                                        <Badge key={r.id} variant="outline" className="border-white/10 bg-white/5 text-gray-200">
+                                          {r.station_name}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <Badge
+                                      className={cn(
+                                        "border-white/10 bg-white/5",
+                                        bucket.rows[0].status === 'confirmed' && "text-blue-300",
+                                        bucket.rows[0].status === 'in-progress' && "text-amber-300"
+                                      )}
+                                      variant="outline"
+                                    >
+                                      {bucket.rows[0].status}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>
@@ -974,7 +887,6 @@ export default function PublicBooking() {
             </div>
           </div>
 
-          {/* Legal Links */}
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
               <button onClick={() => handleLegalClick('terms')} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
