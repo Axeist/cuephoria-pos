@@ -52,7 +52,7 @@ export default function PublicBooking() {
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [isReturningCustomer, setIsReturningCustomer] = useState(false);
 
-  // only show name/email after Search is pressed
+  // Only show name/email after Search is pressed
   const [hasSearched, setHasSearched] = useState(false);
 
   const [couponCode, setCouponCode] = useState('');
@@ -102,9 +102,8 @@ export default function PublicBooking() {
     }
   };
 
-  // UPDATED: when multiple stations are selected, show a slot as AVAILABLE
-  // if ANY of the selected stations has it free (union view). When the
-  // user actually selects a slot, we auto-remove the busy stations.
+  // When multiple stations are selected, show a slot as AVAILABLE if ANY selected station has it free (union view).
+  // When the user actually selects a slot, we auto-remove the busy stations, keeping only those that are free.
   const fetchAvailableSlots = async () => {
     if (selectedStations.length === 0) return;
     setSlotsLoading(true);
@@ -121,7 +120,7 @@ export default function PublicBooking() {
         if (error) throw error;
         setAvailableSlots(data || []);
       } else {
-        // Multiple stations: fetch all and OR their availability
+        // Multiple stations: fetch each and OR (union) their availability
         const results = await Promise.all(
           selectedStations.map(stationId =>
             supabase.rpc('get_available_slots', {
@@ -132,7 +131,7 @@ export default function PublicBooking() {
           )
         );
 
-        // Pick the first successful data set as the "time grid"
+        // Choose a base array to define the day's slot grid
         const base = results.find(r => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
         if (!base) {
           const firstErr = results.find(r => r.error)?.error;
@@ -141,14 +140,10 @@ export default function PublicBooking() {
           return;
         }
 
-        // Build a map of slotKey -> is_available (union across stations)
         const unionMap = new Map<string, boolean>();
         const keyOf = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
 
-        // initialize with base (usually all time grid for the day)
         base.forEach(s => unionMap.set(keyOf(s), Boolean(s.is_available)));
-
-        // merge in the rest (OR)
         results.forEach(r => {
           const arr = (r.data || []) as TimeSlot[];
           arr.forEach(s => {
@@ -166,7 +161,7 @@ export default function PublicBooking() {
         setAvailableSlots(merged);
       }
 
-      // if the previously selected slot no longer appears available in the union list, clear it
+      // Clear previously selected slot if it's no longer available
       if (selectedSlot && !(availableSlots || []).some(
         s => s.start_time === selectedSlot.start_time &&
              s.end_time === selectedSlot.end_time &&
@@ -231,7 +226,7 @@ export default function PublicBooking() {
     setSelectedSlot(null);
   };
 
-  // ---- Helper: keep only stations that are free for the chosen slot ----
+  // Helper: for a chosen slot, keep only stations that are actually free for that slot
   const filterStationsForSlot = async (slot: TimeSlot) => {
     if (selectedStations.length === 0) return selectedStations;
 
@@ -271,9 +266,8 @@ export default function PublicBooking() {
 
     return availableIds;
   };
-  // ---------------------------------------------------------------------
 
-  // ---- When a slot is picked, auto-remove the busy stations ----
+  // When a slot is picked, auto-remove the busy stations, keep only the free ones
   const handleSlotSelect = async (slot: TimeSlot) => {
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
@@ -291,7 +285,6 @@ export default function PublicBooking() {
 
     setSelectedSlot(slot);
   };
-  // ---------------------------------------------------------------------
 
   const handleCouponApply = () => {
     const upper = couponCode.toUpperCase();
@@ -487,7 +480,7 @@ export default function PublicBooking() {
           {/* Form */}
           <div className="lg:col-span-2 space-y-6">
             {/* Step 1 */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
+            <Card className="bg白/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white tracking-wide">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
@@ -656,7 +649,7 @@ export default function PublicBooking() {
             </Card>
           </div>
 
-          {/* Summary */}
+          {/* Booking Summary */}
           <div className="lg:col-span-1">
             <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in" style={{ animationDelay: '300ms' }}>
               <CardHeader>
