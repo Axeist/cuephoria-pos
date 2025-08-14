@@ -693,58 +693,156 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* TODAY'S BOOKINGS */}
-            <Card className="bg-white/5 border-white/10 rounded-2xl shadow-xl mt-6">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-white">Today’s Bookings</CardTitle>
-                <span className="text-xs text-gray-400 border border-white/10 rounded-full px-2 py-0.5">{todayTotal} total</span>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {todayLoading ? (
-                  <div className="space-y-2">
-                    {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-10 bg-white/5 rounded animate-pulse" />)}
-                  </div>
-                ) : todayGrouped.length === 0 ? (
-                  <div className="text-center py-6 text-gray-400">
-                    <CalendarIcon className="h-6 w-6 mx-auto mb-2 opacity-70" />
-                    No bookings yet today.
-                  </div>
-                ) : (
-                  todayGrouped.map((blk) => (
-                    <details key={blk.time} className="group border border-white/10 rounded-xl overflow-hidden">
-                      <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-3 bg-white/5">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
-                          <span className="font-medium text-white">{blk.time}</span>
-                        </div>
-                        <span className="text-xs text-gray-400">{blk.groups.reduce((acc:any,g:any)=>acc+g.items.length,0)} bookings</span>
-                      </summary>
-                      <div className="px-4 py-3 overflow-x-auto">
-                        <div className="min-w-[520px]">
-                          <div className="grid grid-cols-3 text-xs text-gray-400 border-b border-white/10 pb-2">
-                            <div>Customer</div>
-                            <div>Stations</div>
-                            <div className="text-right">Status</div>
-                          </div>
-                          {blk.groups.map((g:any, idx:number) => (
-                            <div key={idx} className="grid grid-cols-3 py-2 border-b border-white/5">
-                              <div className="text-sm text-white">{g.name}</div>
-                              <div className="text-sm text-gray-200">
-                                {g.items.map((i:any)=>i.station?.name).filter(Boolean).join(', ')}
-                              </div>
-                              <div className="text-right">
-                                <Badge variant="outline" className="bg-white/5 border-white/10 text-xs capitalize">{g.items[0]?.status || 'confirmed'}</Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </details>
-                  ))
-                )}
-              </CardContent>
-            </Card>
+           {/* Today's Bookings */}
+<section className="max-w-7xl mx-auto mt-8">
+  <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,.25)] p-4 sm:p-5">
+    {/* Header with LIVE pill and total */}
+    <div className="flex items-center gap-3">
+      <h3 className="text-lg sm:text-xl font-semibold text-white">Today’s Bookings</h3>
+
+      {/* LIVE pill */}
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-xs font-medium text-emerald-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        Live
+      </span>
+
+      {/* total count – optional; keep if you already compute it */}
+      {Array.isArray(todayBookings) && (
+        <span className="ml-auto text-[11px] text-gray-400">
+          {todayBookings.length} total
+        </span>
+      )}
+    </div>
+
+    {/* Helper: group by time then by customer (uses your existing todayBookings) */}
+    {(() => {
+      // guard: if you already compute this elsewhere, you can delete this IIFE.
+      const fmt = (t: string) =>
+        new Date(`2000-01-01T${t}`).toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit', hour12: true,
+        });
+
+      const maskPhone = (p: string) => (p?.length >= 10
+        ? `${p.slice(0,3)}XXXX${p.slice(-3)}`
+        : '—');
+
+      type TB = {
+        customer?: { name?: string; phone?: string };
+        station?: { name?: string };
+        start_time: string;
+        end_time: string;
+        status: string;
+      };
+
+      const groups: Record<string, TB[]> = {};
+      (todayBookings || []).forEach((b: TB) => {
+        const key = `${fmt(b.start_time)} — ${fmt(b.end_time)}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(b);
+      });
+
+      // sort the time keys by start time
+      const sortedKeys = Object.keys(groups).sort((a, b) => {
+        const aStart = a.split(' — ')[0];
+        const bStart = b.split(' — ')[0];
+        return new Date(`2000-01-01T${aStart}`).getTime() - new Date(`2000-01-01T${bStart}`).getTime();
+      });
+
+      if (sortedKeys.length === 0) {
+        return (
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-gray-400">
+            No bookings yet today.
           </div>
+        );
+      }
+
+      return (
+        <div className="mt-3 space-y-2">
+          {sortedKeys.map((timeKey) => {
+            const bookingsAtTime = groups[timeKey];
+
+            // group by customer under this time
+            const byCustomer: Record<string, TB[]> = {};
+            bookingsAtTime.forEach((b) => {
+              const k = `${b.customer?.name || 'Unknown'}|${b.customer?.phone || ''}`;
+              if (!byCustomer[k]) byCustomer[k] = [];
+              byCustomer[k].push(b);
+            });
+
+            const customerEntries = Object.entries(byCustomer);
+
+            return (
+              <details
+                key={timeKey}
+                className="group rounded-xl border border-white/10 bg-white/[0.03] open:bg-white/[0.05]"
+              >
+                <summary
+                  title="Tap to expand"
+                  className="flex cursor-pointer list-none items-center gap-3 px-4 py-3"
+                >
+                  <div className="flex items-center gap-2">
+                    {/* chevron that rotates on open */}
+                    <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
+                    <span className="text-sm font-medium text-white">{timeKey}</span>
+                  </div>
+                  <span className="ml-auto inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-gray-300">
+                    {bookingsAtTime.length} booking{bookingsAtTime.length === 1 ? '' : 's'}
+                  </span>
+                </summary>
+
+                {/* inner table – horizontal scroll friendly */}
+                <div className="px-2 pb-3">
+                  <div className="overflow-x-auto rounded-lg border border-white/10 bg-black/20">
+                    <table className="min-w-[640px] w-full text-sm">
+                      <thead className="text-gray-400">
+                        <tr className="border-b border-white/[0.06]">
+                          <th className="py-2 pl-3 pr-2 text-left font-normal">Customer</th>
+                          <th className="px-2 text-left font-normal">Phone</th>
+                          <th className="px-2 text-left font-normal">Stations</th>
+                          <th className="px-2 text-left font-normal">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customerEntries.map(([ckey, bookings]) => {
+                          const [name, phoneRaw] = ckey.split('|');
+                          const stations = bookings.map(b => b.station?.name || '—').join(', ');
+                          const status = bookings[0]?.status || '—';
+                          return (
+                            <tr key={ckey} className="border-b border-white/[0.06] last:border-b-0">
+                              <td className="py-2 pl-3 pr-2 text-gray-100">{name}</td>
+                              <td className="px-2 text-gray-300">{maskPhone(phoneRaw || '')}</td>
+                              <td className="px-2 text-gray-200">{stations}</td>
+                              <td className="px-2">
+                                <span
+                                  className={
+                                    'inline-flex items-center rounded-full px-2 py-0.5 text-xs ' +
+                                    (status === 'confirmed'
+                                      ? 'bg-blue-500/15 text-blue-300 border border-blue-400/30'
+                                      : status === 'completed'
+                                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30'
+                                      : status === 'in-progress'
+                                      ? 'bg-amber-500/15 text-amber-300 border border-amber-400/30'
+                                      : 'bg-gray-500/15 text-gray-300 border border-gray-400/30')
+                                  }
+                                >
+                                  {status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      );
+    })()}
+  </div>
+</section>
 
           {/* Booking Summary */}
           <div className="lg:col-span-1">
