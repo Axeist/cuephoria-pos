@@ -15,7 +15,7 @@ import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
 import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer, Sparkles, Star, Zap,
-  Percent, CheckCircle, AlertTriangle, Lock, Search
+  Percent, CheckCircle, AlertTriangle, Lock
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -76,18 +76,11 @@ export default function PublicBooking() {
 
   const [todaysBookings, setTodaysBookings] = useState<TodayBookingRow[]>([]);
 
-  // NEW: Step 2 lightweight filters (no logic changes to bookings)
-  const [stationSearch, setStationSearch] = useState('');
+  // Step 2 filters (no search, just clean chips)
   const [stationType, setStationType] = useState<'all'|'ps5'|'8ball'>('all');
 
-  // Derived list passed to StationSelector (so we don't touch its internals)
-  const filteredStations = stations.filter(s => {
-    const matchesType = stationType === 'all' ? true : s.type === stationType;
-    const matchesSearch = stationSearch.trim()
-      ? s.name.toLowerCase().includes(stationSearch.toLowerCase())
-      : true;
-    return matchesType && matchesSearch;
-  });
+  // Derived list passed to StationSelector
+  const filteredStations = stations.filter(s => (stationType === 'all' ? true : s.type === stationType));
 
   useEffect(() => { fetchStations(); }, []);
   useEffect(() => { fetchTodaysBookings(); }, []);
@@ -126,7 +119,7 @@ export default function PublicBooking() {
     }
   };
 
-  // mask phone
+  // mask phone for privacy
   const maskPhone = (p?: string) => {
     if (!p) return '';
     const digits = p.replace(/\D/g, '');
@@ -223,7 +216,6 @@ export default function PublicBooking() {
         })));
       }
 
-      // clear selected slot if not available anymore
       setSelectedSlot(prev => {
         if (!prev) return prev;
         const still = (availableSlots || []).some(
@@ -465,7 +457,7 @@ export default function PublicBooking() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
-      {/* soft glows */}
+      {/* subtle glows */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
         <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
@@ -581,7 +573,7 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* Step 2 — beautified with filters */}
+            {/* Step 2 — filters + nicer framing (keeps your StationSelector) */}
             <Card
               className={cn(
                 "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl",
@@ -597,70 +589,72 @@ export default function PublicBooking() {
                   {isStationSelectionAvailable() && selectedStations.length > 0 && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
                 </CardTitle>
 
-                {/* NEW: filter bar */}
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <div className="md:col-span-2 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search station name…"
-                      value={stationSearch}
-                      onChange={(e) => setStationSearch(e.target.value)}
-                      className="pl-9 bg-black/30 border-white/10 text-white rounded-xl"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 justify-start md:justify-end flex-wrap">
-                    <Badge
-                      onClick={() => setStationType('all')}
-                      className={cn(
-                        "cursor-pointer px-3 py-1 rounded-full border",
-                        stationType === 'all'
-                          ? "bg-white/10 border-white/20 text-white"
-                          : "bg-transparent border-white/10 text-gray-300 hover:bg-white/5"
-                      )}
-                    >
-                      All
-                    </Badge>
-                    <Badge
-                      onClick={() => setStationType('ps5')}
-                      className={cn(
-                        "cursor-pointer px-3 py-1 rounded-full border",
-                        stationType === 'ps5'
-                          ? "bg-cuephoria-purple/15 border-cuephoria-purple/30 text-cuephoria-purple"
-                          : "bg-transparent border-white/10 text-gray-300 hover:bg-white/5"
-                      )}
-                    >
-                      PS5
-                    </Badge>
-                    <Badge
-                      onClick={() => setStationType('8ball')}
-                      className={cn(
-                        "cursor-pointer px-3 py-1 rounded-full border",
-                        stationType === '8ball'
-                          ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                          : "bg-transparent border-white/10 text-gray-300 hover:bg-white/5"
-                      )}
-                    >
-                      8-Ball
-                    </Badge>
-                    <Badge variant="outline" className="ml-auto md:ml-0 border-white/20 text-gray-300">
+                {/* filter chips */}
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType('all')}
+                    className={cn(
+                      "rounded-full border-white/15 text-gray-200",
+                      stationType === 'all' ? "bg-white/10" : "bg-transparent hover:bg-white/5"
+                    )}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType('ps5')}
+                    className={cn(
+                      "rounded-full border-white/15 text-cuephoria-purple",
+                      stationType === 'ps5' ? "bg-cuephoria-purple/15" : "bg-transparent hover:bg-white/5"
+                    )}
+                  >
+                    PS5
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType('8ball')}
+                    className={cn(
+                      "rounded-full border-white/15 text-emerald-300",
+                      stationType === '8ball' ? "bg-emerald-500/15" : "bg-transparent hover:bg-white/5"
+                    )}
+                  >
+                    8-Ball
+                  </Button>
+
+                  <div className="ml-auto flex items-center gap-3 text-xs text-gray-400">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block h-2 w-2 rounded-full bg-cuephoria-purple" /> PS5
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" /> 8-Ball
+                    </span>
+                    <Badge variant="outline" className="border-white/20 text-gray-300">
                       {filteredStations.length} of {stations.length}
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
 
-              <CardContent>
+              <CardContent className="pt-2">
                 {!isStationSelectionAvailable() ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                     <p className="text-gray-400">Complete customer information to unlock station selection</p>
                   </div>
                 ) : (
-                  <StationSelector
-                    stations={filteredStations}
-                    selectedStations={selectedStations}
-                    onStationToggle={handleStationToggle}
-                  />
+                  // NOTE: Station cards styling is controlled by StationSelector.
+                  // This container adds nicer breathing room & consistent grid gaps on mobile.
+                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/5">
+                    <StationSelector
+                      stations={filteredStations}
+                      selectedStations={selectedStations}
+                      onStationToggle={handleStationToggle}
+                    />
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -691,7 +685,7 @@ export default function PublicBooking() {
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
                       <Label className="text-base font-medium text-gray-200">Choose Date</Label>
-                      {/* CENTERED calendar */}
+                      {/* perfectly centered calendar */}
                       <div className="mt-2 flex justify-center">
                         <Calendar
                           mode="single"
