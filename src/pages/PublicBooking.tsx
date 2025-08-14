@@ -40,6 +40,17 @@ interface CustomerInfo {
   email: string;
 }
 
+type BookingStatus = 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
+
+interface TodayBookingRow {
+  id: string;
+  start_time: string;
+  end_time: string;
+  status: BookingStatus;
+  customer_name: string;
+  customer_phone?: string;
+}
+
 export default function PublicBooking() {
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
@@ -64,15 +75,24 @@ export default function PublicBooking() {
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
+  // NEW: today's bookings for the summary table
+  const [todaysBookings, setTodaysBookings] = useState<TodayBookingRow[]>([]);
+
   // Fetch stations on component mount
   useEffect(() => { fetchStations(); }, []);
+
+  // Also fetch today's bookings on mount
+  useEffect(() => { fetchTodaysBookings(); }, []);
 
   // Real-time updates for bookings
   useEffect(() => {
     const channel = supabase
       .channel('booking-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        // Refresh slots when any booking changes
         if (selectedStations.length > 0 && selectedDate) fetchAvailableSlots();
+        // Also refresh today's bookings summary
+        fetchTodaysBookings();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -99,6 +119,54 @@ export default function PublicBooking() {
     } catch (error) {
       console.error('Error fetching stations:', error);
       toast.error('Failed to load stations');
+    }
+  };
+
+  // NEW: fetch today's bookings (simple join via two queries to avoid schema changes)
+  const fetchTodaysBookings = async () => {
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+      // 1) Pull today's bookings (basic fields)
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id, booking_date, start_time, end_time, status, customer_id')
+        .eq('booking_date', todayStr)
+        .order('start_time', { ascending: true });
+
+      if (bookingsError) throw bookingsError;
+
+      if (!bookingsData || bookingsData.length === 0) {
+        setTodaysBookings([]);
+        return;
+      }
+
+      // 2) Fetch customers for those bookings
+      const customerIds = Array.from(new Set(bookingsData.map(b => b.customer_id)));
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('id, name, phone')
+        .in('id', customerIds);
+
+      if (customersError) throw customersError;
+
+      const rows: TodayBookingRow[] = bookingsData.map(b => {
+        const c = customersData?.find(cu => cu.id === b.customer_id);
+        return {
+          id: b.id,
+          start_time: b.start_time,
+          end_time: b.end_time,
+          status: (b.status || 'confirmed') as BookingStatus,
+          customer_name: c?.name || 'Unknown',
+          customer_phone: c?.phone,
+        };
+      });
+
+      setTodaysBookings(rows);
+    } catch (err) {
+      console.error('Error fetching today’s bookings:', err);
+      // Non-blocking for the booking flow; just show a soft toast
+      toast.message('Could not load today’s bookings', { description: 'You can still book normally.' });
     }
   };
 
@@ -407,6 +475,9 @@ export default function PublicBooking() {
       setCouponCode('');
       setAppliedCoupon('');
       setAvailableSlots([]);
+
+      // Also refresh the "today's bookings" summary after creating bookings
+      fetchTodaysBookings();
     } catch (error) {
       console.error('Error creating booking:', error);
       toast.error('Failed to create booking. Please try again.');
@@ -419,6 +490,19 @@ export default function PublicBooking() {
   const originalPrice = calculateOriginalPrice();
   const discount = calculateDiscount();
   const finalPrice = calculateFinalPrice();
+
+  // Small helper to show a nice colored badge for status using your Badge component
+  const statusBadge = (status: BookingStatus) => {
+    const base = 'rounded-full px-2 py-0.5 border';
+    const map: Record<BookingStatus, string> = {
+      'confirmed': 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+      'in-progress': 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+      'completed': 'bg-green-500/10 text-green-300 border-green-500/20',
+      'cancelled': 'bg-rose-500/10 text-rose-300 border-rose-500/20',
+      'no-show': 'bg-zinc-500/10 text-zinc-300 border-zinc-500/20',
+    };
+    return <span className={`${base} ${map[status]}`}>{status.replace('-', ' ')}</span>;
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
@@ -480,7 +564,7 @@ export default function PublicBooking() {
           {/* Form */}
           <div className="lg:col-span-2 space-y-6">
             {/* Step 1 */}
-            <Card className="bg白/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white tracking-wide">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
@@ -770,6 +854,63 @@ export default function PublicBooking() {
           </div>
         </div>
       </main>
+
+      {/* NEW: Today’s Bookings Summary (just above the footer) */}
+      <section className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-8 relative z-10">
+        <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-white">
+              <span>Today’s Bookings</span>
+              <Badge variant="outline" className="border-white/20 text-gray-300">
+                {todaysBookings.length} total
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {todaysBookings.length === 0 ? (
+              <div className="text-center text-gray-400 py-8">
+                No bookings yet today.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/5">
+                    <tr className="text-left">
+                      <th className="px-3 py-2 font-medium text-gray-300">Customer</th>
+                      <th className="px-3 py-2 font-medium text-gray-300">Time Slot</th>
+                      <th className="px-3 py-2 font-medium text-gray-300">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {todaysBookings.map((b) => (
+                      <tr key={b.id} className="border-t border-white/10">
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-gray-100">{b.customer_name}</div>
+                          {b.customer_phone && (
+                            <div className="text-xs text-gray-400">{b.customer_phone}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-gray-100">
+                          {new Date(`2000-01-01T${b.start_time}`).toLocaleTimeString('en-US', {
+                            hour: 'numeric', minute: '2-digit', hour12: true
+                          })}
+                          {' — '}
+                          {new Date(`2000-01-01T${b.end_time}`).toLocaleTimeString('en-US', {
+                            hour: 'numeric', minute: '2-digit', hour12: true
+                          })}
+                        </td>
+                        <td className="px-3 py-2">
+                          {statusBadge(b.status)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Footer */}
       <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
