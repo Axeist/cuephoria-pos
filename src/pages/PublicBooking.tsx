@@ -552,60 +552,84 @@ export default function PublicBooking() {
                 )}
               </CardContent>
             </Card>
+{/* Step 2 */}
+<Card
+  className={cn(
+    "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300",
+    !isStationSelectionAvailable() && "opacity-100" // keep full opacity for the locked view
+  )}
+  style={{ animationDelay: '100ms' }}
+>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2 text-white tracking-wide">
+      <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
+        {!isStationSelectionAvailable() ? (
+          <Lock className="h-4 w-4 text-gray-500" />
+        ) : (
+          <MapPin className="h-4 w-4 text-cuephoria-blue" />
+        )}
+      </div>
+      Step 2: Select Gaming Stations
+      {isStationSelectionAvailable() && selectedStations.length > 0 && (
+        <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+      )}
+    </CardTitle>
+  </CardHeader>
 
-            {/* Step 2 */}
-            <Card
+  <CardContent className="space-y-4">
+    {!isStationSelectionAvailable() ? (
+      // LOCKED VIEW — shown until customer info is complete
+      <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+        <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+        <p className="text-gray-400">
+          Complete customer information to unlock station selection
+        </p>
+      </div>
+    ) : (
+      // UNLOCKED VIEW — tips, filters, and stations
+      <>
+        {/* Small tip */}
+        <div className="flex items-start gap-2 text-xs text-gray-300 bg-white/5 border border-white/10 rounded-lg p-2">
+          <Info className="h-4 w-4 mt-0.5 text-cuephoria-lightpurple" />
+          <p>
+            You can select <strong>multiple stations</strong>. In the next step,
+            you can also choose <strong>multiple time slots</strong>.
+          </p>
+        </div>
+
+        {/* Filter chips */}
+        <div className="flex items-center flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1 text-xs text-gray-300">
+            <Filter className="h-3.5 w-3.5" /> Filter:
+          </span>
+          {(['all','ps5','8ball'] as FilterType[]).map(ft => (
+            <button
+              key={ft}
+              onClick={() => setTypeFilter(ft)}
               className={cn(
-                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300",
-                !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
+                "px-3 py-1 rounded-full text-sm border backdrop-blur-md",
+                ft === typeFilter
+                  ? "border-cuephoria-lightpurple/40 bg-cuephoria-lightpurple/10 text-white"
+                  : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
               )}
-              style={{ animationDelay: '100ms' }}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
-                    {!isStationSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <MapPin className="h-4 w-4 text-cuephoria-blue" />}
-                  </div>
-                  Step 2: Select Gaming Stations
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Small tip */}
-                <div className="flex items-start gap-2 text-xs text-gray-300 bg-white/5 border border-white/10 rounded-lg p-2">
-                  <Info className="h-4 w-4 mt-0.5 text-cuephoria-lightpurple" />
-                  <p>You can select <strong>multiple stations</strong>. In the next step, you can also choose <strong>multiple time slots</strong>.</p>
-                </div>
+              {ft === 'all' ? 'All' : ft === 'ps5' ? 'PS5' : '8-Ball'}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-gray-400">
+            {selectedStations.length} selected
+          </span>
+        </div>
 
-                {/* Filter chips */}
-                <div className="flex items-center flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1 text-xs text-gray-300">
-                    <Filter className="h-3.5 w-3.5" /> Filter:
-                  </span>
-                  {(['all','ps5','8ball'] as FilterType[]).map(ft => (
-                    <button
-                      key={ft}
-                      onClick={() => setTypeFilter(ft)}
-                      className={cn(
-                        "px-3 py-1 rounded-full text-sm border backdrop-blur-md",
-                        ft === typeFilter
-                          ? "border-cuephoria-lightpurple/40 bg-cuephoria-lightpurple/10 text-white"
-                          : "border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
-                      )}
-                    >
-                      {ft === 'all' ? 'All' : ft === 'ps5' ? 'PS5' : '8-Ball'}
-                    </button>
-                  ))}
-                  <span className="ml-auto text-xs text-gray-400">{selectedStations.length} selected</span>
-                </div>
-
-                <StationSelector
-                  stations={filteredStations}
-                  selectedStations={selectedStations}
-                  onStationToggle={handleStationToggle}
-                />
-              </CardContent>
-            </Card>
+        <StationSelector
+          stations={filteredStations}
+          selectedStations={selectedStations}
+          onStationToggle={handleStationToggle}
+        />
+      </>
+    )}
+  </CardContent>
+</Card>
 
             {/* Step 3 */}
             <Card
