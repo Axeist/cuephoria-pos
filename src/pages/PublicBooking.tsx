@@ -837,6 +837,89 @@ export default function PublicBooking() {
         </div>
       </main>
 
+       {/* TODAY'S BOOKINGS — group by time slot, then by customer */}
+        <div className="mt-10">
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <CardTitle className="text-white">Today’s Bookings</CardTitle>
+              <Badge variant="outline" className="border-white/20 text-gray-300">
+                {todayBookings.length} total
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              {sortedSlotKeys.length === 0 ? (
+                <div className="text-sm text-gray-400 py-6">No bookings yet today.</div>
+              ) : (
+                <div className="space-y-2">
+                  {sortedSlotKeys.map((slotKey) => {
+                    const [start, end] = slotKey.split('|');
+                    const rows = groupedBySlot[slotKey];
+                    const total = rows.length;
+                    const open = expandedSlots.has(slotKey);
+
+                    return (
+                      <div key={slotKey} className="rounded-xl border border-white/10 bg-white/5">
+                        <button
+                          onClick={() => toggleSlot(slotKey)}
+                          className="w-full flex items-center justify-between gap-3 p-3 sm:p-4"
+                        >
+                          <div className="flex items-center gap-3">
+                            {open ? <ChevronDown className="h-4 w-4 text-white/70" /> : <ChevronRight className="h-4 w-4 text-white/70" />}
+                            <div className="text-left">
+                              <div className="text-sm font-medium text-white">
+                                {new Date(`2000-01-01T${start}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} —{" "}
+                                {new Date(`2000-01-01T${end}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                              </div>
+                              <div className="text-xs text-gray-400">{total} booking{total !== 1 ? 's' : ''}</div>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="border-white/15 text-gray-300">
+                            Time Slot
+                          </Badge>
+                        </button>
+
+                        {open && (
+                          <div className="px-3 sm:px-4 pb-4">
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[720px] border-separate border-spacing-0">
+                                <thead>
+                                  <tr className="text-left text-sm text-gray-300">
+                                    <th className="py-2 px-3">Customer</th>
+                                    <th className="py-2 px-3">Stations</th>
+                                    <th className="py-2 px-3">Count</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {groupByCustomerInside(rows).map(([custKey, custRows]) => {
+                                    const [name, phoneRaw] = custKey.split('__');
+                                    const phone = maskPhone(phoneRaw || '');
+                                    const stationList = Array.from(new Set(custRows.map(r => r.station_name))).join(', ');
+                                    return (
+                                      <tr key={custKey} className="border-t border-white/10 text-sm">
+                                        <td className="py-2 px-3 whitespace-nowrap">
+                                          <div className="text-white">{name}</div>
+                                          <div className="text-xs text-gray-400">{phone}</div>
+                                        </td>
+                                        <td className="py-2 px-3">{stationList}</td>
+                                        <td className="py-2 px-3">{custRows.length}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
       {/* Footer */}
       <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
         <div className="max-w-7xl mx-auto space-y-6">
