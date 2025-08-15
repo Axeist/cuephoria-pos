@@ -669,93 +669,114 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* Step 2 — compact full-width filters, no count badge */}
-            <Card
-              className={cn(
-                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl",
-                !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
-              )}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-cuephoria-blue/20 ring-1 ring-white/10 flex items-center justify-center">
-                      {!isStationSelectionAvailable() ? (
-                        <Lock className="h-4 w-4 text-gray-500" />
-                      ) : (
-                        <MapPin className="h-4 w-4 text-cuephoria-blue" />
-                      )}
-                    </div>
-                    <CardTitle className="m-0 p-0 text-white tracking-wide">
-                      Step 2: Select Gaming Stations
-                    </CardTitle>
-                  </div>
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && (
-                    <CheckCircle className="h-5 w-5 text-green-400" />
-                  )}
-                </div>
+           {/* --- STEP 2: Select Gaming Stations (REPLACE THIS WHOLE CARD) --- */}
+<Card
+  className={cn(
+    "relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-xl",
+    // add a subtle outer glow to match other steps
+    "shadow-cuephoria-blue/20",
+    !isStationSelectionAvailable() && "opacity-50 pointer-events-none"
+  )}
+>
+  {/* decorative gradient sheen */}
+  <div className="pointer-events-none absolute inset-0 opacity-[0.15]">
+    <div className="absolute -top-24 -right-16 h-56 w-56 rounded-full bg-cuephoria-blue/40 blur-3xl" />
+    <div className="absolute bottom-[-60px] left-[-30px] h-48 w-48 rounded-full bg-cuephoria-purple/40 blur-3xl" />
+  </div>
 
-                {/* full-width compact chips */}
-                <div className="mt-3 grid grid-cols-3 gap-2 w-full">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('all')}
-                    className={cn(
-                      "h-9 w-full rounded-full border-white/15 text-[12px] leading-none",
-                      stationType === 'all'
-                        ? "bg-white/10 text-gray-100"
-                        : "bg-transparent text-gray-300 hover:bg-white/5"
-                    )}
-                  >
-                    All
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('ps5')}
-                    className={cn(
-                      "h-9 w-full rounded-full border-white/15 text-[12px] leading-none",
-                      stationType === 'ps5'
-                        ? "bg-cuephoria-purple/15 text-cuephoria-purple"
-                        : "bg-transparent text-cuephoria-purple hover:bg-white/5"
-                    )}
-                  >
-                    PS5
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('8ball')}
-                    className={cn(
-                      "h-9 w-full rounded-full border-white/15 text-[12px] leading-none",
-                      stationType === '8ball'
-                        ? "bg-emerald-500/15 text-emerald-300"
-                        : "bg-transparent text-emerald-300 hover:bg-white/5"
-                    )}
-                  >
-                    8-Ball
-                  </Button>
-                </div>
-              </CardHeader>
+  <CardHeader className="relative pb-4">
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
+          {!isStationSelectionAvailable() ? (
+            <Lock className="h-4 w-4 text-gray-500" />
+          ) : (
+            <MapPin className="h-4 w-4 text-cuephoria-blue" />
+          )}
+        </div>
+        <CardTitle className="m-0 p-0 text-white tracking-wide">
+          Step 2: Select Gaming Stations
+        </CardTitle>
+      </div>
 
-              <CardContent className="pt-2">
-                {!isStationSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Complete customer information to unlock station selection</p>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/5">
-                    <StationSelector
-                      stations={filteredStations}
-                      selectedStations={selectedStations}
-                      onStationToggle={handleStationToggle}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {isStationSelectionAvailable() && selectedStations.length > 0 && (
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
+          <CheckCircle className="h-3.5 w-3.5" />
+          {selectedStations.length} selected
+        </div>
+      )}
+    </div>
+
+    {/* subtle divider that matches other steps */}
+    <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+  </CardHeader>
+
+  <CardContent className="relative pt-3">
+    {/* full-width compact filter chips */}
+    <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setStationType('all')}
+        className={cn(
+          "h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all",
+          "hover:translate-y-[1px] hover:bg-white/10",
+          stationType === 'all'
+            ? "bg-white/12 text-gray-100 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset]"
+            : "bg-transparent text-gray-300"
+        )}
+      >
+        All
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setStationType('ps5')}
+        className={cn(
+          "h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all",
+          "hover:translate-y-[1px] hover:bg-cuephoria-purple/10",
+          stationType === 'ps5'
+            ? "bg-cuephoria-purple/15 text-cuephoria-purple shadow-[0_0_0_1px_rgba(168,85,247,0.25)_inset]"
+            : "bg-transparent text-cuephoria-purple"
+        )}
+      >
+        PS5
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setStationType('8ball')}
+        className={cn(
+          "h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all",
+          "hover:translate-y-[1px] hover:bg-emerald-400/10",
+          stationType === '8ball'
+            ? "bg-emerald-400/15 text-emerald-300 shadow-[0_0_0_1px_rgba(52,211,153,0.25)_inset]"
+            : "bg-transparent text-emerald-300"
+        )}
+      >
+        8-Ball
+      </Button>
+    </div>
+
+    {/* stations grid wrapper (adds inner panel & consistent padding) */}
+    {!isStationSelectionAvailable() ? (
+      <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+        <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+        <p className="text-gray-400">Complete customer information to unlock station selection</p>
+      </div>
+    ) : (
+      <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6 shadow-inner">
+        <StationSelector
+          stations={stationType === 'all' ? stations : stations.filter(s => s.type === stationType)}
+          selectedStations={selectedStations}
+          onStationToggle={handleStationToggle}
+        />
+      </div>
+    )}
+  </CardContent>
+</Card>
 
             {/* Step 3 */}
             <Card
