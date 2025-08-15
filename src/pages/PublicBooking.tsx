@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,7 @@ import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer,
   Sparkles, Star, Zap, Percent, CheckCircle, AlertTriangle, Lock
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface Station {
@@ -40,6 +40,19 @@ interface CustomerInfo {
   email: string;
 }
 
+interface TodayBookingRow {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
+  station_id: string;
+  customer_id: string;
+  stationName: string;
+  customerName: string;
+  customerPhone: string;
+}
+
 export default function PublicBooking() {
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
@@ -51,7 +64,7 @@ export default function PublicBooking() {
   const [customerNumber, setCustomerNumber] = useState('');
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [isReturningCustomer, setIsReturningCustomer] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false); // show name/email only after search
+  const [hasSearched, setHasSearched] = useState(false);
 
   const [stationType, setStationType] = useState<'all' | 'ps5' | '8ball'>('all');
 
@@ -64,14 +77,19 @@ export default function PublicBooking() {
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
-  useEffect(() => { fetchStations(); }, []);
+  // Today's bookings
+  const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
+  const [todayLoading, setTodayLoading] = useState<boolean>(true);
 
-  // Realtime: refresh slots if bookings table changes
+  useEffect(() => { fetchStations(); fetchTodaysBookings(); }, []);
+
+  // Realtime refresh
   useEffect(() => {
     const channel = supabase
       .channel('booking-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
         if (selectedStations.length > 0 && selectedDate) fetchAvailableSlots();
+        fetchTodaysBookings();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -101,7 +119,7 @@ export default function PublicBooking() {
     }
   };
 
-  // Union availability across selected stations (slot considered AVAILABLE if ANY selected station has it free).
+  // Union availability across selected stations
   const fetchAvailableSlots = async () => {
     if (selectedStations.length === 0) return;
     setSlotsLoading(true);
@@ -138,7 +156,6 @@ export default function PublicBooking() {
         const unionMap = new Map<string, boolean>();
         const keyOf = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
         base.forEach(s => unionMap.set(keyOf(s), Boolean(s.is_available)));
-
         results.forEach(r => {
           const arr = (r.data || []) as TimeSlot[];
           arr.forEach(s => {
@@ -155,7 +172,6 @@ export default function PublicBooking() {
         setAvailableSlots(merged);
       }
 
-      // Clear selectedSlot if no longer available
       if (selectedSlot && !(availableSlots || []).some(
         s => s.start_time === selectedSlot.start_time &&
              s.end_time === selectedSlot.end_time &&
@@ -220,7 +236,6 @@ export default function PublicBooking() {
     setSelectedSlot(null);
   };
 
-  // For a chosen slot, keep only stations that are actually free for that slot
   const filterStationsForSlot = async (slot: TimeSlot) => {
     if (selectedStations.length === 0) return selectedStations;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -405,6 +420,100 @@ export default function PublicBooking() {
     }
   };
 
+  // ========= TODAY'S BOOKINGS (group by TIME -> customers) =========
+  const maskPhone = (p?: string) => {
+    if (!p) return '';
+    const s = p.replace(/\D/g, '');
+    if (s.length <= 4) return s;
+    // show first 3 and last 2, mask middle
+    return `${s.slice(0,3)}${'X'.repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
+  };
+
+  const fetchTodaysBookings = async () => {
+    setTodayLoading(true);
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const { data: bookingsData, error } = await supabase
+        .from('bookings')
+        .select('id, booking_date, start_time, end_time, status, station_id, customer_id')
+        .eq('booking_date', todayStr)
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+      if (!bookingsData || bookingsData.length === 0) {
+        setTodayRows([]);
+        setTodayLoading(false);
+        return;
+      }
+
+      const stationIds = [...new Set(bookingsData.map(b => b.station_id))];
+      const customerIds = [...new Set(bookingsData.map(b => b.customer_id))];
+
+      const [{ data: stationsData }, { data: customersData }] = await Promise.all([
+        supabase.from('stations').select('id, name').in('id', stationIds),
+        supabase.from('customers').select('id, name, phone').in('id', customerIds)
+      ]);
+
+      const rows: TodayBookingRow[] = bookingsData.map(b => {
+        const st = stationsData?.find(s => s.id === b.station_id);
+        const cu = customersData?.find(c => c.id === b.customer_id);
+        return {
+          id: b.id,
+          booking_date: b.booking_date,
+          start_time: b.start_time,
+          end_time: b.end_time,
+          status: b.status as TodayBookingRow['status'],
+          station_id: b.station_id,
+          customer_id: b.customer_id,
+          stationName: st?.name || '—',
+          customerName: cu?.name || '—',
+          customerPhone: maskPhone(cu?.phone)
+        };
+      });
+
+      setTodayRows(rows);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to load today’s bookings');
+    } finally {
+      setTodayLoading(false);
+    }
+  };
+
+  const timeKey = (s: string, e: string) => {
+    const start = new Date(`2000-01-01T${s}`);
+    const end = new Date(`2000-01-01T${e}`);
+    return `${start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} — ${end.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+  };
+
+  const groupedByTime = useMemo(() => {
+    const map = new Map<string, TodayBookingRow[]>();
+    todayRows.forEach(r => {
+      const k = timeKey(r.start_time, r.end_time);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(r);
+    });
+    // sort by real start time
+    const entries = Array.from(map.entries()).sort(([a],[b]) => {
+      const aStart = parse(a.split(' — ')[0], 'h:mm a', new Date()).getTime();
+      const bStart = parse(b.split(' — ')[0], 'h:mm a', new Date()).getTime();
+      return aStart - bStart;
+    });
+    return entries;
+  }, [todayRows]);
+
+  const statusChip = (s: TodayBookingRow['status']) => {
+    const base = 'px-2 py-0.5 rounded-full text-xs capitalize';
+    switch (s) {
+      case 'confirmed': return <span className={cn(base,'bg-blue-500/15 text-blue-300 border border-blue-400/20')}>confirmed</span>;
+      case 'in-progress': return <span className={cn(base,'bg-amber-500/15 text-amber-300 border border-amber-400/20')}>in-progress</span>;
+      case 'completed': return <span className={cn(base,'bg-emerald-500/15 text-emerald-300 border border-emerald-400/20')}>completed</span>;
+      case 'cancelled': return <span className={cn(base,'bg-rose-500/15 text-rose-300 border border-rose-400/20')}>cancelled</span>;
+      case 'no-show': return <span className={cn(base,'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>no-show</span>;
+      default: return <span className={cn(base,'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>{s}</span>;
+    }
+  };
+
   const today = new Date();
   const originalPrice = calculateOriginalPrice();
   const discount = calculateDiscount();
@@ -547,14 +656,8 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* Step 2 (kept BRIGHT even when locked) */}
-            <Card
-              className={cn(
-                // NOTE: no opacity reduction here (even when locked)
-                "relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300"
-              )}
-            >
-              {/* decorative sheen */}
+            {/* Step 2 */}
+            <Card className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300">
               <div className="pointer-events-none absolute inset-0 opacity-[0.15]">
                 <div className="absolute -top-24 -right-16 h-56 w-56 rounded-full bg-cuephoria-blue/40 blur-3xl" />
                 <div className="absolute bottom-[-60px] left-[-30px] h-48 w-48 rounded-full bg-cuephoria-purple/40 blur-3xl" />
@@ -586,10 +689,9 @@ export default function PublicBooking() {
               </CardHeader>
 
               <CardContent className="relative pt-3">
-                {/* Filters row */}
                 <div className={cn(
                   "grid grid-cols-3 gap-2 sm:gap-3 mb-4",
-                  !isStationSelectionAvailable() && "pointer-events-none" // lock interaction but keep card bright
+                  !isStationSelectionAvailable() && "pointer-events-none"
                 )}>
                   <Button
                     size="sm"
@@ -637,7 +739,6 @@ export default function PublicBooking() {
                   </Button>
                 </div>
 
-                {/* Stations grid (interaction locked if needed, but no dim) */}
                 {!isStationSelectionAvailable() ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
@@ -660,12 +761,7 @@ export default function PublicBooking() {
             </Card>
 
             {/* Step 3 */}
-            <Card
-              className={cn(
-                "bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-lightpurple/10 animate-scale-in transition-all duration-300",
-                !isTimeSelectionAvailable() && "pointer-events-none" // keep bright, just disable interaction
-              )}
-            >
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-lightpurple/10 animate-scale-in transition-all duration-300">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white tracking-wide">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
@@ -835,85 +931,65 @@ export default function PublicBooking() {
             </Card>
           </div>
         </div>
-      </main>
 
-       {/* TODAY'S BOOKINGS — group by time slot, then by customer */}
+        {/* ==== TODAY'S BOOKINGS (grouped by TIME; expandable) ==== */}
         <div className="mt-10">
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-white">Today’s Bookings</CardTitle>
-              <Badge variant="outline" className="border-white/20 text-gray-300">
-                {todayBookings.length} total
-              </Badge>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-white flex items-center gap-2">
+                <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
+                Today’s Bookings
+              </CardTitle>
+              <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
+                {todayRows.length} total
+              </span>
             </CardHeader>
-            <CardContent>
-              {sortedSlotKeys.length === 0 ? (
-                <div className="text-sm text-gray-400 py-6">No bookings yet today.</div>
+
+            <CardContent className="space-y-3">
+              {todayLoading ? (
+                <div className="h-12 rounded-md bg-white/5 animate-pulse" />
+              ) : groupedByTime.length === 0 ? (
+                <div className="text-sm text-gray-400">No bookings today.</div>
               ) : (
-                <div className="space-y-2">
-                  {sortedSlotKeys.map((slotKey) => {
-                    const [start, end] = slotKey.split('|');
-                    const rows = groupedBySlot[slotKey];
-                    const total = rows.length;
-                    const open = expandedSlots.has(slotKey);
-
-                    return (
-                      <div key={slotKey} className="rounded-xl border border-white/10 bg-white/5">
-                        <button
-                          onClick={() => toggleSlot(slotKey)}
-                          className="w-full flex items-center justify-between gap-3 p-3 sm:p-4"
-                        >
-                          <div className="flex items-center gap-3">
-                            {open ? <ChevronDown className="h-4 w-4 text-white/70" /> : <ChevronRight className="h-4 w-4 text-white/70" />}
-                            <div className="text-left">
-                              <div className="text-sm font-medium text-white">
-                                {new Date(`2000-01-01T${start}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} —{" "}
-                                {new Date(`2000-01-01T${end}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                              </div>
-                              <div className="text-xs text-gray-400">{total} booking{total !== 1 ? 's' : ''}</div>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="border-white/15 text-gray-300">
-                            Time Slot
-                          </Badge>
-                        </button>
-
-                        {open && (
-                          <div className="px-3 sm:px-4 pb-4">
-                            <div className="overflow-x-auto">
-                              <table className="w-full min-w-[720px] border-separate border-spacing-0">
-                                <thead>
-                                  <tr className="text-left text-sm text-gray-300">
-                                    <th className="py-2 px-3">Customer</th>
-                                    <th className="py-2 px-3">Stations</th>
-                                    <th className="py-2 px-3">Count</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {groupByCustomerInside(rows).map(([custKey, custRows]) => {
-                                    const [name, phoneRaw] = custKey.split('__');
-                                    const phone = maskPhone(phoneRaw || '');
-                                    const stationList = Array.from(new Set(custRows.map(r => r.station_name))).join(', ');
-                                    return (
-                                      <tr key={custKey} className="border-t border-white/10 text-sm">
-                                        <td className="py-2 px-3 whitespace-nowrap">
-                                          <div className="text-white">{name}</div>
-                                          <div className="text-xs text-gray-400">{phone}</div>
-                                        </td>
-                                        <td className="py-2 px-3">{stationList}</td>
-                                        <td className="py-2 px-3">{custRows.length}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
+                groupedByTime.map(([timeLabel, rows]) => (
+                  <details key={timeLabel} className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40">
+                    <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-gray-200">
+                        <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                        <span className="font-medium">{timeLabel}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
+                        {rows.length} booking{rows.length !== 1 ? 's' : ''}
+                      </span>
+                    </summary>
+
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
+                      <table className="min-w-[520px] w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-400">
+                            <th className="py-2 pr-3 font-medium">Customer</th>
+                            <th className="py-2 pr-3 font-medium">Station</th>
+                            <th className="py-2 font-medium">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(r => (
+                            <tr key={r.id} className="border-t border-white/10">
+                              <td className="py-2 pr-3">
+                                <div className="text-gray-100">{r.customerName}</div>
+                                <div className="text-xs text-gray-400">{r.customerPhone}</div>
+                              </td>
+                              <td className="py-2 pr-3">
+                                <Badge className="bg-white/5 border-white/10 text-gray-200 rounded-full">{r.stationName}</Badge>
+                              </td>
+                              <td className="py-2">{statusChip(r.status)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))
               )}
             </CardContent>
           </Card>
@@ -935,16 +1011,15 @@ export default function PublicBooking() {
             </div>
           </div>
 
-          {/* Legal Links */}
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
-              <button onClick={() => handleLegalClick('terms')} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
+              <button onClick={() => setLegalDialogType('terms') || setShowLegalDialog(true)} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
                 Terms & Conditions
               </button>
-              <button onClick={() => handleLegalClick('privacy')} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
+              <button onClick={() => setLegalDialogType('privacy') || setShowLegalDialog(true)} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
                 Privacy Policy
               </button>
-              <button onClick={() => handleLegalClick('contact')} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
+              <button onClick={() => setLegalDialogType('contact') || setShowLegalDialog(true)} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
                 Contact Us
               </button>
             </div>
