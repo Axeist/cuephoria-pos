@@ -53,57 +53,6 @@ interface TodayBookingRow {
   customerPhone: string;
 }
 
-/** Lightweight in-file promo popup for ALMA50 (50% OFF) */
-function AlmaPromotionalPopup({ onCouponSelect }: { onCouponSelect: (code: string) => void }) {
-  const [open, setOpen] = useState(true);
-  if (!open) return null;
-
-  return (
-    <div className="fixed bottom-6 right-6 left-6 sm:left-auto z-50">
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl shadow-xl">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.18]">
-          <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-emerald-400/40 blur-3xl" />
-          <div className="absolute bottom-[-40px] left-[-20px] h-32 w-32 rounded-full bg-cuephoria-purple/40 blur-3xl" />
-        </div>
-
-        <div className="relative p-4 sm:p-5 text-white">
-          <button
-            onClick={() => setOpen(false)}
-            className="absolute right-2 top-2 h-7 w-7 rounded-full border border-white/10 bg-white/10 text-gray-200 hover:bg-white/20"
-            aria-label="Close"
-            title="Close"
-          >
-            ×
-          </button>
-
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-emerald-400/20">
-              <Percent className="h-5 w-5 text-emerald-300" />
-            </div>
-            <div className="flex-1">
-              <div className="text-xs uppercase tracking-widest text-gray-300">Limited Offer</div>
-              <div className="mt-0.5 text-base font-semibold">
-                Use <span className="text-emerald-300">ALMA50</span> for <span className="text-emerald-300">50% OFF</span>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => { onCouponSelect('ALMA50'); setOpen(false); }}
-                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-500/15"
-                >
-                  Apply ALMA50
-                </Button>
-                <span className="text-xs text-gray-300">No strings attached ✨</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function PublicBooking() {
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
@@ -343,29 +292,22 @@ export default function PublicBooking() {
     setSelectedSlot(slot);
   };
 
-  /** Centralized coupon applier (handles ALMA50 and AXEIST too) */
+  /** Centralized coupon applier (ALMA50 stays, popup removed; AXEIST quirky confirm retained) */
   const applyCoupon = (code: string) => {
     const upper = (code || '').toUpperCase().trim();
-
-    // Validate known coupons
     const allowed = ['CUEPHORIA25', 'NIT50', 'ALMA50', 'AXEIST'];
     if (!allowed.includes(upper)) {
       toast.error('Invalid coupon code');
       return;
     }
-
-    // Fun confirmation for AXEIST (100% OFF)
     if (upper === 'AXEIST') {
       const ok = window.confirm(
         '🥷 Psst… AXEIST unlocked!\n\nThis grants 100% OFF for close friends 💜\n\nApply it now?'
       );
       if (!ok) return;
     }
-
     setCouponCode(upper);
     setAppliedCoupon(upper);
-
-    // Friendly success messages
     const msg =
       upper === 'AXEIST'
         ? 'AXEIST applied — VIP mode: 100% OFF 🎉'
@@ -389,18 +331,14 @@ export default function PublicBooking() {
   const calculateDiscount = () => {
     const original = calculateOriginalPrice();
     if (!appliedCoupon || original === 0) return 0;
-
-    if (appliedCoupon === 'AXEIST') return original;           // 100%
-    if (appliedCoupon === 'ALMA50') return original * 0.5;      // 50%
-    if (appliedCoupon === 'NIT50') return original * 0.5;       // 50%
+    if (appliedCoupon === 'AXEIST') return original;            // 100%
+    if (appliedCoupon === 'ALMA50') return original * 0.5;       // 50%
+    if (appliedCoupon === 'NIT50') return original * 0.5;        // 50%
     if (appliedCoupon === 'CUEPHORIA25') return original * 0.25; // 25%
     return 0;
   };
 
-  const calculateFinalPrice = () => {
-    const res = calculateOriginalPrice() - calculateDiscount();
-    return Math.max(0, res);
-  };
+  const calculateFinalPrice = () => Math.max(0, calculateOriginalPrice() - calculateDiscount());
 
   const handleLegalClick = (type: 'terms' | 'privacy' | 'contact') => {
     setLegalDialogType(type);
@@ -607,9 +545,8 @@ export default function PublicBooking() {
         <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
       </div>
 
-      {/* Promo popups */}
+      {/* Only the default popup remains */}
       <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
-      <AlmaPromotionalPopup onCouponSelect={handleCouponSelect} />
 
       {/* Header */}
       <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
@@ -888,140 +825,6 @@ export default function PublicBooking() {
                     )}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Summary */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in">
-              <CardHeader>
-                <CardTitle className="text-white">Booking Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {selectedStations.length > 0 && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Stations</Label>
-                    <div className="mt-2 space-y-1">
-                      {selectedStations.map(stationId => {
-                        const station = stations.find(s => s.id === stationId);
-                        return station ? (
-                          <div key={stationId} className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
-                              {station.type === 'ps5' ? <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" /> : <Timer className="h-3.5 w-3.5 text-green-400" />}
-                            </div>
-                            <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1">
-                              {station.name}
-                            </Badge>
-                          </div>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {selectedDate && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
-                    <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
-                  </div>
-                )}
-
-                {selectedSlot && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
-                    <p className="mt-1 text-sm text-gray-200">
-                      {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                      {' — '}
-                      {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                    </p>
-                  </div>
-                )}
-
-                {/* Coupon */}
-                <div>
-                  <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coupon Code</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon code"
-                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
-                    />
-                    <Button
-                      onClick={handleCouponApply}
-                      size="sm"
-                      className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
-                    >
-                      Apply
-                    </Button>
-                  </div>
-
-                  {/* Applied-coupon notes */}
-                  {appliedCoupon && (
-                    <div className="mt-2 space-y-2">
-                      {(appliedCoupon === 'ALMA50') && (
-                        <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
-                          <p className="text-sm text-emerald-300">
-                            ALMA50 applied — enjoy 50% OFF!
-                          </p>
-                        </div>
-                      )}
-
-                      {(appliedCoupon === 'NIT50') && (
-                        <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
-                          <p className="text-sm text-amber-400 flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span><strong>Important:</strong> To avail this offer, you must present a valid NIT Trichy student ID card at reception. This is mandatory.</span>
-                          </p>
-                        </div>
-                      )}
-
-                      {(appliedCoupon === 'AXEIST') && (
-                        <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
-                          <p className="text-sm text-violet-300 flex items-start gap-2">
-                            <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span><strong>AXEIST Mode:</strong> 100% OFF activated for the inner circle. Shhh 🤫</span>
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {originalPrice > 0 && (
-                  <>
-                    <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-sm text-gray-300">Subtotal</Label>
-                        <span className="text-sm text-gray-200">₹{originalPrice}</span>
-                      </div>
-                      {discount > 0 && (
-                        <div className="flex justify-between items-center">
-                          <Label className="text-sm text-green-400">Discount ({appliedCoupon})</Label>
-                          <span className="text-sm text-green-400">-₹{discount}</span>
-                        </div>
-                      )}
-                      <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                      <div className="flex justify-between items-center">
-                        <Label className="text-base font-semibold text-gray-100">Total Amount</Label>
-                        <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{finalPrice}</span>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <Button
-                  onClick={handleBookingSubmit}
-                  disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
-                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
-                  size="lg"
-                >
-                  {loading ? 'Creating Booking...' : 'Confirm Booking'}
-                </Button>
-
-                <p className="text-xs text-gray-400 text-center">Payment will be collected at the venue</p>
               </CardContent>
             </Card>
           </div>
