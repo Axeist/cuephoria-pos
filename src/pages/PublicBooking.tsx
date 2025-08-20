@@ -963,7 +963,7 @@ export default function PublicBooking() {
                       {(appliedCoupon === 'ALMA50') && (
                         <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
                           <p className="text-sm text-emerald-300">
-                            ALMA50 applied — enjoy 50% OFF! To avail this offer, you must be a registered ALMAMATER User of NIT Trichy. This is mandatory.
+                            ALMA50 applied — To avail this offer, you must be a registered ALMAMATER User of NIT Trichy. This is mandatory.
                           </p>
                         </div>
                       )}
