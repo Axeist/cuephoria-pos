@@ -53,6 +53,57 @@ interface TodayBookingRow {
   customerPhone: string;
 }
 
+/** Lightweight in-file promo popup for ALMA50 (50% OFF) */
+function AlmaPromotionalPopup({ onCouponSelect }: { onCouponSelect: (code: string) => void }) {
+  const [open, setOpen] = useState(true);
+  if (!open) return null;
+
+  return (
+    <div className="fixed bottom-6 right-6 left-6 sm:left-auto z-50">
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/10 backdrop-blur-xl shadow-xl">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.18]">
+          <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-emerald-400/40 blur-3xl" />
+          <div className="absolute bottom-[-40px] left-[-20px] h-32 w-32 rounded-full bg-cuephoria-purple/40 blur-3xl" />
+        </div>
+
+        <div className="relative p-4 sm:p-5 text-white">
+          <button
+            onClick={() => setOpen(false)}
+            className="absolute right-2 top-2 h-7 w-7 rounded-full border border-white/10 bg-white/10 text-gray-200 hover:bg-white/20"
+            aria-label="Close"
+            title="Close"
+          >
+            ×
+          </button>
+
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-emerald-400/20">
+              <Percent className="h-5 w-5 text-emerald-300" />
+            </div>
+            <div className="flex-1">
+              <div className="text-xs uppercase tracking-widest text-gray-300">Limited Offer</div>
+              <div className="mt-0.5 text-base font-semibold">
+                Use <span className="text-emerald-300">ALMA50</span> for <span className="text-emerald-300">50% OFF</span>
+              </div>
+
+              <div className="mt-3 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => { onCouponSelect('ALMA50'); setOpen(false); }}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-500/15"
+                >
+                  Apply ALMA50
+                </Button>
+                <span className="text-xs text-gray-300">No strings attached ✨</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PublicBooking() {
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
@@ -292,35 +343,64 @@ export default function PublicBooking() {
     setSelectedSlot(slot);
   };
 
-  const handleCouponApply = () => {
-    const upper = couponCode.toUpperCase();
-    if (upper === 'CUEPHORIA25' || upper === 'NIT50') {
-      setAppliedCoupon(upper);
-      toast.success(`Coupon ${upper} applied successfully! 🎉`);
-    } else {
+  /** Centralized coupon applier (handles ALMA50 and AXEIST too) */
+  const applyCoupon = (code: string) => {
+    const upper = (code || '').toUpperCase().trim();
+
+    // Validate known coupons
+    const allowed = ['CUEPHORIA25', 'NIT50', 'ALMA50', 'AXEIST'];
+    if (!allowed.includes(upper)) {
       toast.error('Invalid coupon code');
+      return;
     }
+
+    // Fun confirmation for AXEIST (100% OFF)
+    if (upper === 'AXEIST') {
+      const ok = window.confirm(
+        '🥷 Psst… AXEIST unlocked!\n\nThis grants 100% OFF for close friends 💜\n\nApply it now?'
+      );
+      if (!ok) return;
+    }
+
+    setCouponCode(upper);
+    setAppliedCoupon(upper);
+
+    // Friendly success messages
+    const msg =
+      upper === 'AXEIST'
+        ? 'AXEIST applied — VIP mode: 100% OFF 🎉'
+        : upper === 'ALMA50'
+          ? 'ALMA50 applied — 50% OFF!'
+          : upper === 'NIT50'
+            ? 'NIT50 applied — 50% OFF!'
+            : 'CUEPHORIA25 applied — 25% OFF!';
+    toast.success(msg);
   };
 
-  const handleCouponSelect = (coupon: string) => {
-    setCouponCode(coupon);
-    setAppliedCoupon(coupon);
-    toast.success(`Coupon ${coupon} applied successfully! 🎉`);
-  };
+  const handleCouponApply = () => applyCoupon(couponCode);
+  const handleCouponSelect = (coupon: string) => applyCoupon(coupon);
 
   const calculateOriginalPrice = () => {
     if (selectedStations.length === 0 || !selectedSlot) return 0;
     const selectedObjs = stations.filter(s => selectedStations.includes(s.id));
     return selectedObjs.reduce((sum, s) => sum + s.hourly_rate, 0);
   };
+
   const calculateDiscount = () => {
     const original = calculateOriginalPrice();
     if (!appliedCoupon || original === 0) return 0;
-    if (appliedCoupon === 'CUEPHORIA25') return original * 0.25;
-    if (appliedCoupon === 'NIT50') return original * 0.5;
+
+    if (appliedCoupon === 'AXEIST') return original;           // 100%
+    if (appliedCoupon === 'ALMA50') return original * 0.5;      // 50%
+    if (appliedCoupon === 'NIT50') return original * 0.5;       // 50%
+    if (appliedCoupon === 'CUEPHORIA25') return original * 0.25; // 25%
     return 0;
   };
-  const calculateFinalPrice = () => calculateOriginalPrice() - calculateDiscount();
+
+  const calculateFinalPrice = () => {
+    const res = calculateOriginalPrice() - calculateDiscount();
+    return Math.max(0, res);
+  };
 
   const handleLegalClick = (type: 'terms' | 'privacy' | 'contact') => {
     setLegalDialogType(type);
@@ -425,7 +505,6 @@ export default function PublicBooking() {
     if (!p) return '';
     const s = p.replace(/\D/g, '');
     if (s.length <= 4) return s;
-    // show first 3 and last 2, mask middle
     return `${s.slice(0,3)}${'X'.repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
   };
 
@@ -528,7 +607,9 @@ export default function PublicBooking() {
         <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
       </div>
 
+      {/* Promo popups */}
       <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
+      <AlmaPromotionalPopup onCouponSelect={handleCouponSelect} />
 
       {/* Header */}
       <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
@@ -875,18 +956,32 @@ export default function PublicBooking() {
                       Apply
                     </Button>
                   </div>
+
+                  {/* Applied-coupon notes */}
                   {appliedCoupon && (
                     <div className="mt-2 space-y-2">
-                      <div className="p-2 bg-green-900/30 border border-green-500/30 rounded-lg">
-                        <p className="text-sm text-green-400 flex items-center gap-2">
-                          <Percent className="h-4 w-4" /> Coupon {appliedCoupon} applied!
-                        </p>
-                      </div>
-                      {appliedCoupon === 'NIT50' && (
+                      {(appliedCoupon === 'ALMA50') && (
+                        <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
+                          <p className="text-sm text-emerald-300">
+                            ALMA50 applied — enjoy 50% OFF!
+                          </p>
+                        </div>
+                      )}
+
+                      {(appliedCoupon === 'NIT50') && (
                         <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
                           <p className="text-sm text-amber-400 flex items-start gap-2">
                             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                             <span><strong>Important:</strong> To avail this offer, you must present a valid NIT Trichy student ID card at reception. This is mandatory.</span>
+                          </p>
+                        </div>
+                      )}
+
+                      {(appliedCoupon === 'AXEIST') && (
+                        <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
+                          <p className="text-sm text-violet-300 flex items-start gap-2">
+                            <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <span><strong>AXEIST Mode:</strong> 100% OFF activated for the inner circle. Shhh 🤫</span>
                           </p>
                         </div>
                       )}
