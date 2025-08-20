@@ -830,6 +830,178 @@ export default function PublicBooking() {
           </div>
         </div>
 
+        {/* Summary */}
+<div className="lg:col-span-1">
+  <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in">
+    <CardHeader>
+      <CardTitle className="text-white">Booking Summary</CardTitle>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+      {/* Selected stations */}
+      {selectedStations.length > 0 && (
+        <div>
+          <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            Selected Stations
+          </Label>
+          <div className="mt-2 space-y-1">
+            {selectedStations.map((stationId) => {
+              const station = stations.find((s) => s.id === stationId);
+              if (!station) return null;
+              return (
+                <div key={stationId} className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
+                    {station.type === 'ps5'
+                      ? <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" />
+                      : <Timer className="h-3.5 w-3.5 text-green-400" />}
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1"
+                  >
+                    {station.name}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Date */}
+      {selectedDate && (
+        <div>
+          <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            Date
+          </Label>
+          <p className="mt-1 text-sm text-gray-200">
+            {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+          </p>
+        </div>
+      )}
+
+      {/* Time */}
+      {selectedSlot && (
+        <div>
+          <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            Time
+          </Label>
+          <p className="mt-1 text-sm text-gray-200">
+            {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+            {' — '}
+            {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+          </p>
+        </div>
+      )}
+
+      {/* Coupon */}
+      <div>
+        <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          Coupon Code
+        </Label>
+        <div className="flex gap-2 mt-1">
+          <Input
+            value={couponCode}
+            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+            placeholder="Enter coupon code"
+            className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
+          />
+          <Button
+            onClick={handleCouponApply}
+            size="sm"
+            className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
+          >
+            Apply
+          </Button>
+        </div>
+
+        {/* Applied coupon notes */}
+        {appliedCoupon && (
+          <div className="mt-2 space-y-2">
+            {/* ALMA50 & NIT50: NIT ID requirement note */}
+            {(appliedCoupon === 'ALMA50' || appliedCoupon === 'NIT50') && (
+              <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
+                <p className="text-sm text-amber-400 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    <strong>Important:</strong> To avail this offer, you must present a valid
+                    NIT Trichy student ID card at reception. This is mandatory.
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {/* AXEIST: quirky VIP note */}
+            {appliedCoupon === 'AXEIST' && (
+              <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
+                <p className="text-sm text-violet-300 flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span><strong>AXEIST Mode:</strong> 100% OFF activated for the inner circle. Shhh 🤫</span>
+                </p>
+              </div>
+            )}
+
+            {/* CUEPHORIA25: simple success */}
+            {appliedCoupon === 'CUEPHORIA25' && (
+              <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
+                <p className="text-sm text-emerald-300">CUEPHORIA25 applied — enjoy 25% OFF!</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Totals */}
+      {originalPrice > 0 && (
+        <>
+          <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label className="text-sm text-gray-300">Subtotal</Label>
+              <span className="text-sm text-gray-200">₹{originalPrice}</span>
+            </div>
+
+            {discount > 0 && (
+              <div className="flex justify-between items-center">
+                <Label className="text-sm text-green-400">
+                  Discount ({appliedCoupon})
+                </Label>
+                <span className="text-sm text-green-400">-₹{discount}</span>
+              </div>
+            )}
+
+            <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+            <div className="flex justify-between items-center">
+              <Label className="text-base font-semibold text-gray-100">
+                Total Amount
+              </Label>
+              <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
+                ₹{finalPrice}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* CTA */}
+      <Button
+        onClick={handleBookingSubmit}
+        disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
+        className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
+        size="lg"
+      >
+        {loading ? 'Creating Booking...' : 'Confirm Booking'}
+      </Button>
+
+      <p className="text-xs text-gray-400 text-center">
+        Payment will be collected at the venue
+      </p>
+    </CardContent>
+  </Card>
+</div>
+
+
         {/* ==== TODAY'S BOOKINGS (grouped by TIME; expandable) ==== */}
         <div className="mt-10">
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
