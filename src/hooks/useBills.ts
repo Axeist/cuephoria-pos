@@ -19,10 +19,15 @@ export const useBills = (
   };
 
   // Load bills from Supabase on component mount
-  useEffect(() => {
-    const loadBills = async () => {
-      try {
-        // Fetch bills with their items
+ useEffect(() => {
+  const loadBills = async () => {
+    try {
+      let page = 0;
+      const pageSize = 1000; // You can adjust this if needed.
+      let allBillsData = [];
+      let finished = false;
+
+      while (!finished) {
         const { data: billsData, error: billsError } = await supabase
           .from('bills')
           .select(`
@@ -37,50 +42,57 @@ export const useBills = (
               item_type
             )
           `)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1); // Paging logic
 
         if (billsError) {
           console.error('Error loading bills:', billsError);
           return;
         }
 
-        if (billsData) {
-          // Transform the data to match our Bill interface
-          const transformedBills: Bill[] = billsData.map(bill => ({
-            id: bill.id,
-            customerId: bill.customer_id,
-            items: (bill.bill_items || []).map((item: any) => ({
-              id: item.item_id,
-              type: item.item_type as 'product' | 'session',
-              name: item.name,
-              price: Number(item.price),
-              quantity: item.quantity,
-              total: Number(item.total)
-            })),
-            subtotal: Number(bill.subtotal),
-            discount: Number(bill.discount),
-            discountValue: Number(bill.discount_value),
-            discountType: bill.discount_type as 'percentage' | 'fixed',
-            loyaltyPointsUsed: bill.loyalty_points_used,
-            loyaltyPointsEarned: bill.loyalty_points_earned,
-            total: Number(bill.total),
-            paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split' | 'credit',
-            isSplitPayment: bill.is_split_payment || false,
-            cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
-            upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
-            createdAt: new Date(bill.created_at)
-          }));
-
-          setBills(transformedBills);
-          console.log('Bills loaded from database:', transformedBills.length);
+        if (billsData && billsData.length > 0) {
+          allBillsData = [...allBillsData, ...billsData];
+          page++;
+        } else {
+          finished = true; // Exit loop when no more data is fetched
         }
-      } catch (error) {
-        console.error('Error in loadBills:', error);
       }
-    };
 
-    loadBills();
-  }, []);
+      // Transform the data to match our Bill interface
+      const transformedBills = allBillsData.map(bill => ({
+        id: bill.id,
+        customerId: bill.customer_id,
+        items: (bill.bill_items || []).map((item: any) => ({
+          id: item.item_id,
+          type: item.item_type as 'product' | 'session',
+          name: item.name,
+          price: Number(item.price),
+          quantity: item.quantity,
+          total: Number(item.total)
+        })),
+        subtotal: Number(bill.subtotal),
+        discount: Number(bill.discount),
+        discountValue: Number(bill.discount_value),
+        discountType: bill.discount_type as 'percentage' | 'fixed',
+        loyaltyPointsUsed: bill.loyalty_points_used,
+        loyaltyPointsEarned: bill.loyalty_points_earned,
+        total: Number(bill.total),
+        paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split' | 'credit',
+        isSplitPayment: bill.is_split_payment || false,
+        cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
+        upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
+        createdAt: new Date(bill.created_at)
+      }));
+
+      setBills(transformedBills);
+      console.log('Bills loaded from database:', transformedBills.length);
+    } catch (error) {
+      console.error('Error in loadBills:', error);
+    }
+  };
+
+  loadBills();
+}, []);
 
   const completeSale = async (
     cart: CartItem[],
