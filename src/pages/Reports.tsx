@@ -658,7 +658,7 @@ const ReportsPage: React.FC = () => {
   };
 
   // Only display a limited number of items at once for better performance
-  const itemsPerPage = 2000;
+  const itemsPerPage = 50;
   const [currentPage, setCurrentPage] = useState(1);
 
   // Calculate paginated data for each tab
