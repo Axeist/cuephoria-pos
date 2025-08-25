@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
-import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
 import SalesChart from '@/components/dashboard/SalesChart';
@@ -21,27 +21,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeBills, isBetween } from '@/lib/date'; // <-- NEW
+
 const Dashboard = () => {
-  const {
-    customers,
-    bills,
-    stations,
-    sessions,
-    products
-  } = usePOS();
-  const {
-    expenses,
-    businessSummary
-  } = useExpenses();
-  const {
-    toast
-  } = useToast();
+  const { customers, bills, stations, sessions, products } = usePOS();
+  const { expenses, businessSummary } = useExpenses();
+  const { toast } = useToast();
+
+  // Normalize bills once; createdAtDate is safe UTC Date
+  const billsN = useMemo(() => normalizeBills(bills), [bills]);
+
   const [activeTab, setActiveTab] = useState('daily');
-  const [chartData, setChartData] = useState([]);
-  const [dateRange, setDateRange] = useState<{
-    start: Date;
-    end: Date;
-  } | null>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
   const [dashboardStats, setDashboardStats] = useState({
     totalSales: 0,
@@ -49,47 +41,42 @@ const Dashboard = () => {
     activeSessionsCount: 0,
     newMembersCount: 0,
     lowStockCount: 0,
-    lowStockItems: []
+    lowStockItems: [] as any[]
   });
 
-  // Memoize expensive calculations to prevent unnecessary re-renders
-  const lowStockItems = useMemo(() => products.filter(p => p.stock < 5).sort((a, b) => a.stock - b.stock), [products]);
-  const activeSessionsCount = useMemo(() => stations.filter(s => s.isOccupied).length, [stations]);
+  // Memoized stats
+  const lowStockItems = useMemo(
+    () => products.filter(p => p.stock < 5).sort((a, b) => a.stock - b.stock),
+    [products]
+  );
+  const activeSessionsCount = useMemo(
+    () => stations.filter(s => s.isOccupied).length,
+    [stations]
+  );
   const newMembersCount = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0,0,0,0);
     return customers.filter(c => new Date(c.createdAt) >= today).length;
   }, [customers]);
 
-  // Filter expenses by date range
+  // Expenses date filter
   const filteredExpenses = useMemo(() => {
     if (!dateRange) return expenses;
     return expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
-      return isWithinInterval(expenseDate, {
-        start: dateRange.start,
-        end: dateRange.end
-      });
+      return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
     });
   }, [expenses, dateRange]);
+
   const handleDateRangeChange = (startDate: Date, endDate: Date) => {
-    setDateRange({
-      start: startDate,
-      end: endDate
-    });
+    setDateRange({ start: startDate, end: endDate });
   };
+
   const handleExport = () => {
     try {
       if (filteredExpenses.length === 0) {
-        toast({
-          title: 'No Data to Export',
-          description: 'There are no expenses in the selected date range to export.',
-          variant: 'destructive'
-        });
+        toast({ title: 'No Data to Export', description: 'There are no expenses in the selected date range to export.', variant: 'destructive' });
         return;
       }
-
-      // Prepare data for export
       const exportData = filteredExpenses.map(expense => ({
         'Date': format(new Date(expense.date), 'yyyy-MM-dd'),
         'Name': expense.name,
@@ -99,78 +86,26 @@ const Dashboard = () => {
         'Frequency': expense.isRecurring ? expense.frequency : 'N/A',
         'Notes': expense.notes || ''
       }));
-
-      // Create workbook and worksheet
       const worksheet = XLSX.utils.json_to_sheet(exportData);
       const workbook = XLSX.utils.book_new();
-
-      // Add title row with date range info
-      const titleRow = dateRange ? `Expenses Report: ${format(dateRange.start, 'dd MMM yyyy')} - ${format(dateRange.end, 'dd MMM yyyy')}` : `All Expenses Report - ${format(new Date(), 'dd MMM yyyy')}`;
-
-      // Set column widths for better readability
-      const columnWidths = [{
-        wch: 12
-      },
-      // Date
-      {
-        wch: 25
-      },
-      // Name
-      {
-        wch: 15
-      },
-      // Category
-      {
-        wch: 12
-      },
-      // Amount
-      {
-        wch: 10
-      },
-      // Recurring
-      {
-        wch: 12
-      },
-      // Frequency
-      {
-        wch: 30
-      } // Notes
-      ];
-      worksheet['!cols'] = columnWidths;
+      worksheet['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
-
-      // Generate filename with date range
-      const filename = dateRange ? `expenses_${format(dateRange.start, 'yyyy-MM-dd')}_to_${format(dateRange.end, 'yyyy-MM-dd')}.xlsx` : `expenses_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
-
-      // Export file
-      const excelBuffer = XLSX.write(workbook, {
-        bookType: 'xlsx',
-        type: 'array'
-      });
-      const blob = new Blob([excelBuffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      });
+      const filename = dateRange
+        ? `expenses_${format(dateRange.start, 'yyyy-MM-dd')}_to_${format(dateRange.end, 'yyyy-MM-dd')}.xlsx`
+        : `expenses_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       saveAs(blob, filename);
-      toast({
-        title: 'Export Successful',
-        description: `Exported ${filteredExpenses.length} expenses to ${filename}`
-      });
+      toast({ title: 'Export Successful', description: `Exported ${filteredExpenses.length} expenses to ${filename}` });
     } catch (error) {
       console.error('Error exporting expenses:', error);
-      toast({
-        title: 'Export Failed',
-        description: 'There was an error exporting the expenses. Please try again.',
-        variant: 'destructive'
-      });
+      toast({ title: 'Export Failed', description: 'There was an error exporting the expenses. Please try again.', variant: 'destructive' });
     }
   };
 
-  // Optimize data generation and calculations
+  // Recompute charts/stats
   useEffect(() => {
-    // Generate chart data based on the active tab
     setChartData(generateChartData());
-
-    // Update dashboard stats with memoized values
     setDashboardStats({
       totalSales: calculateTotalSales(),
       salesChange: calculatePercentChange(),
@@ -179,221 +114,133 @@ const Dashboard = () => {
       lowStockCount: lowStockItems.length,
       lowStockItems
     });
-  }, [bills, customers, stations, sessions, products, activeTab, activeSessionsCount, newMembersCount, lowStockItems]);
+  }, [billsN, customers, stations, sessions, products, activeTab, activeSessionsCount, newMembersCount, lowStockItems]);
 
-  // Optimize chart data generation
   const generateChartData = () => {
-    if (activeTab === 'hourly') {
-      return generateHourlyChartData();
-    } else if (activeTab === 'daily') {
-      return generateDailyChartData();
-    } else if (activeTab === 'weekly') {
-      return generateWeeklyChartData();
-    } else {
-      return generateMonthlyChartData();
-    }
+    if (activeTab === 'hourly') return generateHourlyChartData();
+    if (activeTab === 'daily')  return generateDailyChartData();
+    if (activeTab === 'weekly') return generateWeeklyChartData();
+    return generateMonthlyChartData();
   };
+
   const generateHourlyChartData = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const hours = Array.from({
-      length: 24
-    }, (_, i) => i);
-    if (bills.length > 0) {
-      const hourlyTotals = new Map();
-      bills.forEach(bill => {
-        const billDate = new Date(bill.createdAt);
-        if (billDate >= today) {
-          const hour = billDate.getHours();
-          const current = hourlyTotals.get(hour) || 0;
-          hourlyTotals.set(hour, current + bill.total);
-        }
-      });
-      return hours.map(hour => {
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const hour12 = hour % 12 || 12;
-        const formattedHour = `${hour12}${ampm}`;
-        return {
-          name: formattedHour,
-          amount: hourlyTotals.get(hour) || 0
-        };
-      });
-    }
+    const today = new Date(); today.setHours(0,0,0,0);
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const hourlyTotals = new Map<number, number>();
+    billsN.forEach(bill => {
+      if (bill.createdAtDate >= today) {
+        const h = bill.createdAtDate.getUTCHours(); // UTC hour to avoid shifts
+        hourlyTotals.set(h, (hourlyTotals.get(h) || 0) + bill.total);
+      }
+    });
     return hours.map(hour => {
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const hour12 = hour % 12 || 12;
-      const formattedHour = `${hour12}${ampm}`;
-      return {
-        name: formattedHour,
-        amount: 0
-      };
+      return { name: `${hour12}${ampm}`, amount: hourlyTotals.get(hour) || 0 };
     });
   };
+
   const generateDailyChartData = () => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    if (bills.length > 0) {
-      const dailyTotals = new Map();
-      bills.forEach(bill => {
-        const date = new Date(bill.createdAt);
-        const day = days[date.getDay()];
-        const current = dailyTotals.get(day) || 0;
-        dailyTotals.set(day, current + bill.total);
-      });
-      return days.map(day => ({
-        name: day,
-        amount: dailyTotals.get(day) || 0
-      }));
-    }
-    return [{
-      name: 'Sun',
-      amount: 0
-    }, {
-      name: 'Mon',
-      amount: 0
-    }, {
-      name: 'Tue',
-      amount: 0
-    }, {
-      name: 'Wed',
-      amount: 0
-    }, {
-      name: 'Thu',
-      amount: 0
-    }, {
-      name: 'Fri',
-      amount: 0
-    }, {
-      name: 'Sat',
-      amount: 0
-    }];
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const dailyTotals = new Map<string, number>();
+    billsN.forEach(bill => {
+      const d = bill.createdAtDate;
+      const label = days[d.getUTCDay()];
+      dailyTotals.set(label, (dailyTotals.get(label) || 0) + bill.total);
+    });
+    return days.map(day => ({ name: day, amount: dailyTotals.get(day) || 0 }));
   };
+
   const generateWeeklyChartData = () => {
-    const weeks = [];
+    const weeks: { start: Date; end: Date; label: string }[] = [];
     const now = new Date();
     for (let i = 3; i >= 0; i--) {
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - i * 7 - now.getDay());
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      const weekLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()} - ${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
-      weeks.push({
-        start: weekStart,
-        end: weekEnd,
-        label: weekLabel
-      });
+      const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i * 7 - now.getUTCDay()));
+      const weekEnd   = new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate() + 6, 23, 59, 59, 999));
+      weeks.push({ start: weekStart, end: weekEnd, label: `${weekStart.getUTCMonth()+1}/${weekStart.getUTCDate()} - ${weekEnd.getUTCMonth()+1}/${weekEnd.getUTCDate()}` });
     }
-    if (bills.length > 0) {
-      return weeks.map(week => {
-        const weeklyTotal = bills.reduce((sum, bill) => {
-          const billDate = new Date(bill.createdAt);
-          if (billDate >= week.start && billDate <= week.end) {
-            return sum + bill.total;
-          }
-          return sum;
-        }, 0);
-        return {
-          name: week.label,
-          amount: weeklyTotal
-        };
-      });
-    }
-    return weeks.map(week => ({
-      name: week.label,
-      amount: 0
-    }));
+    return weeks.map(w => {
+      const total = billsN.reduce((sum, b) => (isBetween(b.createdAtDate, w.start, w.end) ? sum + b.total : sum), 0);
+      return { name: w.label, amount: total };
+    });
   };
+
   const generateMonthlyChartData = () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    if (bills.length > 0) {
-      const monthlyTotals = new Map();
-      bills.forEach(bill => {
-        const date = new Date(bill.createdAt);
-        const month = months[date.getMonth()];
-        const current = monthlyTotals.get(month) || 0;
-        monthlyTotals.set(month, current + bill.total);
-      });
-      return months.map(month => ({
-        name: month,
-        amount: monthlyTotals.get(month) || 0
-      }));
-    }
-    return months.map(month => ({
-      name: month,
-      amount: 0
-    }));
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const y = new Date().getUTCFullYear(); // same-year only
+    const monthlyTotals = new Map<string, number>();
+    billsN.forEach(bill => {
+      const d = bill.createdAtDate;
+      if (d.getUTCFullYear() !== y) return;
+      const label = months[d.getUTCMonth()];
+      monthlyTotals.set(label, (monthlyTotals.get(label) || 0) + bill.total);
+    });
+    return months.map(m => ({ name: m, amount: monthlyTotals.get(m) || 0 }));
   };
+
   const calculateTotalSales = () => {
     let startDate = new Date();
     const now = new Date();
     if (activeTab === 'hourly') {
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0,0,0,0);
     } else if (activeTab === 'daily') {
-      const dayOfWeek = startDate.getDay();
-      startDate.setDate(startDate.getDate() - dayOfWeek);
-      startDate.setHours(0, 0, 0, 0);
+      const dow = startDate.getUTCDay();
+      startDate.setUTCDate(startDate.getUTCDate() - dow);
+      startDate.setUTCHours(0,0,0,0);
     } else if (activeTab === 'weekly') {
-      // For weekly tab, show total sales of the current month
       startDate = startOfMonth(now);
     } else if (activeTab === 'monthly') {
-      // For monthly tab, show total sales of the current year
       startDate = startOfYear(now);
     }
-
-    // Optimize filtering by using a cached result if possible
-    const filteredBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      return billDate >= startDate && billDate <= now;
-    });
-    const total = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
+    const total = billsN
+      .filter(b => isBetween(b.createdAtDate, startDate, now))
+      .reduce((sum, b) => sum + b.total, 0);
     return total;
   };
+
   const calculatePercentChange = () => {
-    const currentPeriodSales = calculateTotalSales();
-    let previousPeriodStart = new Date();
-    let previousPeriodEnd = new Date();
-    let currentPeriodStart = new Date();
+    const current = calculateTotalSales();
+    let previousStart = new Date();
+    let previousEnd = new Date();
+    let currentStart = new Date();
+
     if (activeTab === 'hourly') {
-      currentPeriodStart.setHours(0, 0, 0, 0);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = new Date(previousPeriodEnd);
-      previousPeriodStart.setDate(previousPeriodStart.getDate() - 1);
+      currentStart.setUTCHours(0,0,0,0);
+      previousEnd = new Date(currentStart);
+      previousStart = new Date(previousEnd); previousStart.setUTCDate(previousStart.getUTCDate() - 1);
     } else if (activeTab === 'daily') {
-      const dayOfWeek = currentPeriodStart.getDay();
-      currentPeriodStart.setDate(currentPeriodStart.getDate() - dayOfWeek);
-      currentPeriodStart.setHours(0, 0, 0, 0);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = new Date(previousPeriodEnd);
-      previousPeriodStart.setDate(previousPeriodStart.getDate() - 7);
+      const dow = currentStart.getUTCDay();
+      currentStart.setUTCDate(currentStart.getUTCDate() - dow);
+      currentStart.setUTCHours(0,0,0,0);
+      previousEnd = new Date(currentStart);
+      previousStart = new Date(previousEnd); previousStart.setUTCDate(previousStart.getUTCDate() - 7);
     } else if (activeTab === 'weekly') {
-      // For weekly tab, compare with previous month
       const now = new Date();
-      currentPeriodStart = startOfMonth(now);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-    } else if (activeTab === 'monthly') {
-      // For monthly tab, compare with previous year
+      currentStart = startOfMonth(now);
+      previousEnd = new Date(currentStart);
+      previousStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    } else {
       const now = new Date();
-      currentPeriodStart = startOfYear(now);
-      previousPeriodEnd = new Date(currentPeriodStart);
-      previousPeriodStart = startOfYear(new Date(now.getFullYear() - 1, 0, 1));
+      currentStart = startOfYear(now);
+      previousEnd = new Date(currentStart);
+      previousStart = startOfYear(new Date(now.getFullYear() - 1, 0, 1));
     }
-    const previousPeriodBills = bills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      return billDate >= previousPeriodStart && billDate < previousPeriodEnd;
-    });
-    const previousPeriodSales = previousPeriodBills.reduce((sum, bill) => sum + bill.total, 0);
-    if (previousPeriodSales === 0) {
-      return currentPeriodSales > 0 ? "+100% from last period" : "No previous data";
-    }
-    const percentChange = (currentPeriodSales - previousPeriodSales) / previousPeriodSales * 100;
-    const formattedChange = percentChange.toFixed(1);
-    return (percentChange >= 0 ? "+" : "") + formattedChange + "% from last period";
+
+    const prev = billsN
+      .filter(b => b.createdAtDate >= previousStart && b.createdAtDate < previousEnd)
+      .reduce((sum, b) => sum + b.total, 0);
+
+    if (prev === 0) return current > 0 ? '+100% from last period' : 'No previous data';
+    const pct = ((current - prev) / prev) * 100;
+    return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% from last period`;
   };
-  return <div className="flex-1 space-y-6 p-6 text-white bg-inherit">
+
+  return (
+    <div className="flex-1 space-y-6 p-6 text-white bg-inherit">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
       </div>
-      
+
       <Tabs defaultValue="overview" value={currentDashboardTab} onValueChange={setCurrentDashboardTab} className="w-full">
         <div className="flex items-center justify-between mb-6">
           <TabsList className="w-auto">
@@ -402,47 +249,53 @@ const Dashboard = () => {
             <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
             <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
           </TabsList>
-          
-          {currentDashboardTab === 'expenses' && <ExpenseDateFilter onDateRangeChange={handleDateRangeChange} onExport={handleExport} />}
+          {currentDashboardTab === 'expenses' && (
+            <ExpenseDateFilter onDateRangeChange={handleDateRangeChange} onExport={handleExport} />
+          )}
         </div>
-        
+
         <TabsContent value="overview" className="space-y-6">
-          <StatCardSection totalSales={dashboardStats.totalSales} salesChange={dashboardStats.salesChange} activeSessionsCount={dashboardStats.activeSessionsCount} totalStations={stations.length} customersCount={customers.length} newMembersCount={dashboardStats.newMembersCount} lowStockCount={dashboardStats.lowStockCount} lowStockItems={dashboardStats.lowStockItems} />
-          
+          <StatCardSection
+            totalSales={dashboardStats.totalSales}
+            salesChange={dashboardStats.salesChange}
+            activeSessionsCount={dashboardStats.activeSessionsCount}
+            totalStations={stations.length}
+            customersCount={customers.length}
+            newMembersCount={dashboardStats.newMembersCount}
+            lowStockCount={dashboardStats.lowStockCount}
+            lowStockItems={dashboardStats.lowStockItems}
+          />
           <ActionButtonSection />
-          
           <SalesChart data={chartData} activeTab={activeTab} setActiveTab={setActiveTab} />
-          
           <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>
         </TabsContent>
-        
+
         <TabsContent value="analytics" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerSpendingCorrelation />
             <HourlyRevenueDistribution />
           </div>
-          
           <ProductPerformance />
-          
           <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerActivityChart />
             <ProductInventoryChart />
           </div>
         </TabsContent>
-        
+
         <TabsContent value="expenses" className="space-y-6">
           <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={dateRange} />
-          
           {dateRange ? <FilteredExpenseList startDate={dateRange.start} endDate={dateRange.end} /> : <ExpenseList />}
         </TabsContent>
-        
+
         <TabsContent value="cash" className="space-y-6">
           <CashManagement />
         </TabsContent>
       </Tabs>
-    </div>;
+    </div>
+  );
 };
+
 export default Dashboard;
