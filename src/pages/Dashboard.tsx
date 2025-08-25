@@ -285,21 +285,7 @@ const Dashboard = () => {
           </div>
         </TabsContent>
 
-       <TabsContent value="expenses" className="space-y-6">
-  <div className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-purple/10 animate-scale-in p-6">
-    {/* Add consistent background and shadow to the expense widget */}
-    <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={dateRange} />
-
-    {/* Expense List Section */}
-    <div className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl p-6">
-      {dateRange ? (
-        <FilteredExpenseList startDate={dateRange.start} endDate={dateRange.end} />
-      ) : (
-        <ExpenseList />
-      )}
-    </div>
-  </div>
-</TabsContent>
+    <TabsContent value="expenses" className="space-y-6"> <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={dateRange} /> {dateRange ? <FilteredExpenseList startDate={dateRange.start} endDate={dateRange.end} /> : <ExpenseList />} </TabsContent>
 
         <TabsContent value="cash" className="space-y-6">
           <CashManagement />
