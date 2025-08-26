@@ -17,7 +17,7 @@ import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer,
   Sparkles, Star, Zap, Percent, CheckCircle, AlertTriangle, Lock
 } from 'lucide-react';
-import { format, parse } from 'date-fns';
+import { format, parse, getDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface Station {
@@ -68,8 +68,10 @@ export default function PublicBooking() {
 
   const [stationType, setStationType] = useState<'all' | 'ps5' | '8ball'>('all');
 
+  // Changed to hold coupons per station type or 'all'
+  const [appliedCoupons, setAppliedCoupons] = useState<{ [key: string]: string }>({});
+
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState('');
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
@@ -83,7 +85,6 @@ export default function PublicBooking() {
 
   useEffect(() => { fetchStations(); fetchTodaysBookings(); }, []);
 
-  // Realtime refresh
   useEffect(() => {
     const channel = supabase
       .channel('booking-changes')
@@ -95,7 +96,6 @@ export default function PublicBooking() {
     return () => { supabase.removeChannel(channel); };
   }, [selectedStations, selectedDate]);
 
-  // Refresh availability when selection/date changes
   useEffect(() => {
     if (selectedStations.length > 0 && selectedDate) {
       fetchAvailableSlots();
@@ -119,7 +119,6 @@ export default function PublicBooking() {
     }
   };
 
-  // Union availability across selected stations
   const fetchAvailableSlots = async () => {
     if (selectedStations.length === 0) return;
     setSlotsLoading(true);
@@ -174,8 +173,8 @@ export default function PublicBooking() {
 
       if (selectedSlot && !(availableSlots || []).some(
         s => s.start_time === selectedSlot.start_time &&
-             s.end_time === selectedSlot.end_time &&
-             s.is_available
+          s.end_time === selectedSlot.end_time &&
+          s.is_available
       )) {
         setSelectedSlot(null);
       }
@@ -248,7 +247,6 @@ export default function PublicBooking() {
           p_slot_duration: 60
         });
         if (error) return { stationId, available: false };
-
         const match = (data || []).find(
           (s: any) =>
             s.start_time === slot.start_time &&
@@ -260,7 +258,7 @@ export default function PublicBooking() {
     );
 
     const availableIds = checks.filter(c => c.available).map(c => c.stationId);
-    const removedIds   = checks.filter(c => !c.available).map(c => c.stationId);
+    const removedIds = checks.filter(c => !c.available).map(c => c.stationId);
 
     if (removedIds.length > 0) {
       const removedNames = stations
@@ -292,42 +290,70 @@ export default function PublicBooking() {
     setSelectedSlot(slot);
   };
 
-  /** Centralized coupon applier (handles ALMA50 and AXEIST too) */
+  // Helpers for coupon validation
+  const isHappyHour = (date: Date, slot: TimeSlot | null) => {
+    if (!slot) return false;
+    const day = getDay(date);
+    const startHour = Number(slot.start_time.split(':')[0]);
+    return day >= 1 && day <= 5 && startHour >= 11 && startHour < 15;
+  };
+
+  /** Centralized coupon applier with multi-coupon support */
   const applyCoupon = (code: string) => {
     const upper = (code || '').toUpperCase().trim();
 
-    // Validate known coupons
-    const allowed = ['CUEPHORIA25', 'NIT50', 'ALMA50', 'AXEIST'];
+    const allowed = ['CUEPHORIA25', 'NIT50', 'ALMA50', 'AXEIST', 'NIT99'];
     if (!allowed.includes(upper)) {
       toast.error('Invalid coupon code');
       return;
     }
 
-    // Fun confirmation for AXEIST (100% OFF)
-    if (upper === 'AXEIST') {
-      const ok = window.confirm(
-        '🥷 Psst… AXEIST unlocked!\n\nThis grants 100% OFF for close friends 💜\n\nApply it now?'
-      );
-      if (!ok) return;
+    // NIT99 can apply only on 8ball stations and only during happy hours
+    if (upper === 'NIT99') {
+      if (!selectedStations.some(id => stations.find(s => s.id === id && s.type === '8ball'))) {
+        toast.error('NIT99 applies only to 8-Ball stations');
+        return;
+      }
+      if (!isHappyHour(selectedDate, selectedSlot)) {
+        toast.error('NIT99 valid only Monday-Friday, 11 AM to 3 PM');
+        return;
+      }
+      setAppliedCoupons(prev => ({ ...prev, '8ball': 'NIT99' }));
+      toast.success('NIT99 applied to 8-Ball stations');
+      return;
     }
 
-    setCouponCode(upper);
-    setAppliedCoupon(upper);
+    // NIT50 and ALMA50 apply only to ps5 stations and can't both be applied simultaneously
+    if (upper === 'NIT50' || upper === 'ALMA50') {
+      if (!selectedStations.some(id => stations.find(s => s.id === id && s.type === 'ps5'))) {
+        toast.error(`${upper} applies only to PS5 stations`);
+        return;
+      }
+      if (appliedCoupons['ps5'] && appliedCoupons['ps5'] !== upper) {
+        toast.error(`You can apply only one PS5 coupon: either NIT50 or ALMA50`);
+        return;
+      }
+      setAppliedCoupons(prev => ({ ...prev, 'ps5': upper }));
+      toast.success(`${upper} applied to PS5 stations`);
+      return;
+    }
 
-    // Friendly success messages
-    const msg =
-      upper === 'AXEIST'
-        ? 'AXEIST applied — VIP mode: 100% OFF 🎉'
-        : upper === 'ALMA50'
-          ? 'ALMA50 applied — 50% OFF! (ALMA Users Only - NIT)'
-          : upper === 'NIT50'
-            ? 'NIT50 applied — 50% OFF!'
-            : 'CUEPHORIA25 applied — 25% OFF!';
-    toast.success(msg);
+    // AXEIST and CUEPHORIA25 are single global coupons that clear others
+    if (upper === 'AXEIST' || upper === 'CUEPHORIA25') {
+      setAppliedCoupons({ 'all': upper });
+      toast.success(`${upper} applied globally`);
+      return;
+    }
   };
 
-  const handleCouponApply = () => applyCoupon(couponCode);
-  const handleCouponSelect = (coupon: string) => applyCoupon(coupon);
+  const handleCouponApply = () => {
+    applyCoupon(couponCode);
+    setCouponCode(''); // clear input after applying
+  };
+
+  const handleCouponSelect = (coupon: string) => {
+    applyCoupon(coupon);
+  };
 
   const calculateOriginalPrice = () => {
     if (selectedStations.length === 0 || !selectedSlot) return 0;
@@ -336,19 +362,42 @@ export default function PublicBooking() {
   };
 
   const calculateDiscount = () => {
-    const original = calculateOriginalPrice();
-    if (!appliedCoupon || original === 0) return 0;
+    if (selectedStations.length === 0 || !selectedSlot) return 0;
 
-    if (appliedCoupon === 'AXEIST') return original;           // 100%
-    if (appliedCoupon === 'ALMA50') return original * 0.5;      // 50%
-    if (appliedCoupon === 'NIT50') return original * 0.5;       // 50%
-    if (appliedCoupon === 'CUEPHORIA25') return original * 0.25; // 25%
-    return 0;
+    // If a single global coupon applied
+    if (appliedCoupons['all']) {
+      const original = calculateOriginalPrice();
+      if (appliedCoupons['all'] === 'AXEIST') return original;
+      if (appliedCoupons['all'] === 'CUEPHORIA25') return original * 0.25;
+      return 0;
+    }
+
+    let discount = 0;
+
+    // Discount for 8ball stations with NIT99
+    if (appliedCoupons['8ball'] === 'NIT99') {
+      const eightBalls = stations.filter(s => selectedStations.includes(s.id) && s.type === '8ball');
+      const sum = eightBalls.reduce((acc, s) => acc + s.hourly_rate, 0);
+      const discounted = 99 * eightBalls.length;
+      discount += (sum - discounted > 0 ? (sum - discounted) : 0);
+    }
+
+    // Discount for ps5 stations with NIT50 or ALMA50
+    if (appliedCoupons['ps5']) {
+      const ps5Stations = stations.filter(s => selectedStations.includes(s.id) && s.type === 'ps5');
+      const sum = ps5Stations.reduce((acc, s) => acc + s.hourly_rate, 0);
+      if (appliedCoupons['ps5'] === 'NIT50' || appliedCoupons['ps5'] === 'ALMA50') {
+        discount += sum * 0.5;
+      }
+    }
+
+    return discount;
   };
 
   const calculateFinalPrice = () => {
-    const res = calculateOriginalPrice() - calculateDiscount();
-    return Math.max(0, res);
+    const original = calculateOriginalPrice();
+    const discount = calculateDiscount();
+    return Math.max(0, original - discount);
   };
 
   const handleLegalClick = (type: 'terms' | 'privacy' | 'contact') => {
@@ -390,6 +439,10 @@ export default function PublicBooking() {
         customerId = newCustomer.id;
       }
 
+      // Since multiple coupons can be applied, send the combined appliedCoupons info as JSON string or separate fields as needed
+      // Here, simplifying by sending combined coupon codes as comma separated string for record keeping
+      const couponCodes = Object.values(appliedCoupons).join(',');
+
       const originalPrice = calculateOriginalPrice();
       const discount = calculateDiscount();
       const finalPrice = calculateFinalPrice();
@@ -405,7 +458,7 @@ export default function PublicBooking() {
         original_price: originalPrice,
         discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
         final_price: finalPrice,
-        coupon_code: appliedCoupon || null
+        coupon_code: couponCodes || null
       }));
 
       const { data: insertedBookings, error: bookingError } = await supabase
@@ -424,7 +477,7 @@ export default function PublicBooking() {
         startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
         endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
         totalAmount: finalPrice,
-        couponCode: appliedCoupon || undefined,
+        couponCode: couponCodes || undefined,
         discountAmount: discount > 0 ? discount : undefined
       };
 
@@ -439,7 +492,7 @@ export default function PublicBooking() {
       setIsReturningCustomer(false);
       setHasSearched(false);
       setCouponCode('');
-      setAppliedCoupon('');
+      setAppliedCoupons({});
       setAvailableSlots([]);
     } catch (error) {
       console.error('Error creating booking:', error);
@@ -454,7 +507,7 @@ export default function PublicBooking() {
     if (!p) return '';
     const s = p.replace(/\D/g, '');
     if (s.length <= 4) return s;
-    return `${s.slice(0,3)}${'X'.repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
+    return `${s.slice(0, 3)}${'X'.repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
   };
 
   const fetchTodaysBookings = async () => {
@@ -511,7 +564,7 @@ export default function PublicBooking() {
   const timeKey = (s: string, e: string) => {
     const start = new Date(`2000-01-01T${s}`);
     const end = new Date(`2000-01-01T${e}`);
-    return `${start.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} — ${end.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+    return `${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} — ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
   };
 
   const groupedByTime = useMemo(() => {
@@ -522,7 +575,7 @@ export default function PublicBooking() {
       map.get(k)!.push(r);
     });
     // sort by real start time
-    const entries = Array.from(map.entries()).sort(([a],[b]) => {
+    const entries = Array.from(map.entries()).sort(([a], [b]) => {
       const aStart = parse(a.split(' — ')[0], 'h:mm a', new Date()).getTime();
       const bStart = parse(b.split(' — ')[0], 'h:mm a', new Date()).getTime();
       return aStart - bStart;
@@ -533,12 +586,12 @@ export default function PublicBooking() {
   const statusChip = (s: TodayBookingRow['status']) => {
     const base = 'px-2 py-0.5 rounded-full text-xs capitalize';
     switch (s) {
-      case 'confirmed': return <span className={cn(base,'bg-blue-500/15 text-blue-300 border border-blue-400/20')}>confirmed</span>;
-      case 'in-progress': return <span className={cn(base,'bg-amber-500/15 text-amber-300 border border-amber-400/20')}>in-progress</span>;
-      case 'completed': return <span className={cn(base,'bg-emerald-500/15 text-emerald-300 border border-emerald-400/20')}>completed</span>;
-      case 'cancelled': return <span className={cn(base,'bg-rose-500/15 text-rose-300 border border-rose-400/20')}>cancelled</span>;
-      case 'no-show': return <span className={cn(base,'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>no-show</span>;
-      default: return <span className={cn(base,'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>{s}</span>;
+      case 'confirmed': return <span className={cn(base, 'bg-blue-500/15 text-blue-300 border border-blue-400/20')}>confirmed</span>;
+      case 'in-progress': return <span className={cn(base, 'bg-amber-500/15 text-amber-300 border border-amber-400/20')}>in-progress</span>;
+      case 'completed': return <span className={cn(base, 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/20')}>completed</span>;
+      case 'cancelled': return <span className={cn(base, 'bg-rose-500/15 text-rose-300 border border-rose-400/20')}>cancelled</span>;
+      case 'no-show': return <span className={cn(base, 'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>no-show</span>;
+      default: return <span className={cn(base, 'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>{s}</span>;
     }
   };
 
@@ -556,7 +609,7 @@ export default function PublicBooking() {
         <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
       </div>
 
-      {/* Promo popup (kept existing, ALMA50 popup removed as requested) */}
+      {/* Promo popup */}
       <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
 
       {/* Header */}
@@ -815,7 +868,7 @@ export default function PublicBooking() {
                           mode="single"
                           selected={selectedDate}
                           onSelect={(date) => date && setSelectedDate(date)}
-                          disabled={(date) => date < today}
+                          disabled={(date) => date < new Date()}
                           className={cn("rounded-xl border bg-black/30 border-white/10 pointer-events-auto")}
                         />
                       </div>
@@ -893,7 +946,7 @@ export default function PublicBooking() {
                     <Input
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon code"
+                      placeholder="Enter coupon code (e.g. NIT99 for 8-Ball, NIT50/ALMA50 for PS5)"
                       className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
                     />
                     <Button
@@ -905,45 +958,37 @@ export default function PublicBooking() {
                     </Button>
                   </div>
 
-                  {/* Applied-coupon notes (enhanced phrasing only) */}
-                  {appliedCoupon && (
+                  {/* Applied-coupon notes */}
+                  {Object.entries(appliedCoupons).length > 0 && (
                     <div className="mt-2 space-y-2">
-                      {appliedCoupon === 'ALMA50' && (
-                        <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
-                          <p className="text-sm text-emerald-300">
-                            ✅ <strong>ALMA50 applied.</strong> You’ll get <strong>50% OFF</strong>.
-                            <span className="ml-1">Offer reserved for ALMA (NIT Trichy) users; verification required at reception.</span>
+                      {appliedCoupons['8ball'] === 'NIT99' && (
+                        <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg">
+                          <p className="text-sm text-blue-300 flex items-start gap-2">
+                            <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <span>✅ <strong>NIT99 applied</strong> — ₹99/hr for 8-Ball during Mon-Fri 11 AM–3 PM</span>
                           </p>
                         </div>
                       )}
-
-                      {appliedCoupon === 'NIT50' && (
+                      {appliedCoupons['ps5'] === 'NIT50' && (
                         <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
                           <p className="text-sm text-amber-400 flex items-start gap-2">
                             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span>
-                              ✅ <strong>NIT50 applied — 50% OFF.</strong>
-                              <span className="ml-1">Show a valid NIT Trichy student ID at reception.</span>
-                            </span>
+                            <span>✅ <strong>NIT50 applied</strong> — 50% OFF on PS5 stations</span>
                           </p>
                         </div>
                       )}
-
-                      {appliedCoupon === 'AXEIST' && (
+                      {appliedCoupons['ps5'] === 'ALMA50' && (
+                        <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
+                          <p className="text-sm text-emerald-300">
+                            ✅ <strong>ALMA50 applied</strong> — 50% OFF on PS5 stations (ALMA users only, verification required)
+                          </p>
+                        </div>
+                      )}
+                      {appliedCoupons['all'] && (
                         <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
                           <p className="text-sm text-violet-300 flex items-start gap-2">
                             <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span>
-                              ✅ <strong>AXEIST applied — 100% OFF.</strong> Friends & fam tier. Keep it hush 🤫
-                            </span>
-                          </p>
-                        </div>
-                      )}
-
-                      {appliedCoupon === 'CUEPHORIA25' && (
-                        <div className="p-2 bg-cuephoria-purple/15 border border-cuephoria-purple/25 rounded-lg">
-                          <p className="text-sm text-cuephoria-lightpurple">
-                            ✅ <strong>CUEPHORIA25 applied — 25% OFF.</strong> No ID required.
+                            <span>✅ <strong>{appliedCoupons['all']}</strong> applied globally</span>
                           </p>
                         </div>
                       )}
@@ -961,7 +1006,7 @@ export default function PublicBooking() {
                       </div>
                       {discount > 0 && (
                         <div className="flex justify-between items-center">
-                          <Label className="text-sm text-green-400">Discount ({appliedCoupon})</Label>
+                          <Label className="text-sm text-green-400">Discount</Label>
                           <span className="text-sm text-green-400">-₹{discount}</span>
                         </div>
                       )}
@@ -1095,7 +1140,6 @@ export default function PublicBooking() {
         </div>
       </footer>
 
-      {/* Booking Confirmation Dialog */}
       {bookingConfirmationData && (
         <BookingConfirmationDialog
           isOpen={showConfirmationDialog}
@@ -1104,7 +1148,6 @@ export default function PublicBooking() {
         />
       )}
 
-      {/* Legal Dialog */}
       <LegalDialog
         isOpen={showLegalDialog}
         onClose={() => setShowLegalDialog(false)}
