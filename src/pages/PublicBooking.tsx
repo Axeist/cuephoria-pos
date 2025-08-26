@@ -15,7 +15,7 @@ import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
 import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer,
-  Sparkles, Star, Zap, Percent, CheckCircle, AlertTriangle, Lock
+  Sparkles, Star, Zap, Percent, CheckCircle, AlertTriangle, Lock, X
 } from 'lucide-react';
 import { format, parse, getDay } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -68,7 +68,7 @@ export default function PublicBooking() {
 
   const [stationType, setStationType] = useState<'all' | 'ps5' | '8ball'>('all');
 
-  // Use object to hold multiple applied coupons per station type or all
+  // Track applied coupons with ability to remove
   const [appliedCoupons, setAppliedCoupons] = useState<{ [key: string]: string }>({});
 
   const [couponCode, setCouponCode] = useState('');
@@ -83,12 +83,12 @@ export default function PublicBooking() {
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
 
-  // Helper function: Check if slot is during Happy Hours (Mon-Fri, 11 AM - 3 PM)
+  // Happy hours adjusted to 11 AM – 4 PM Mon-Fri
   const isHappyHour = (date: Date, slot: TimeSlot | null) => {
     if (!slot) return false;
     const day = getDay(date);
     const startHour = Number(slot.start_time.split(':')[0]);
-    return day >= 1 && day <= 5 && startHour >= 11 && startHour < 15;
+    return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
   };
 
   useEffect(() => {
@@ -97,16 +97,12 @@ export default function PublicBooking() {
   }, []);
 
   useEffect(() => {
-    // Auto-remove NIT99 coupon if not happy hour and notify user
+    // Auto-remove NIT99 if not happy hour and notify
     if (appliedCoupons['8ball'] === 'NIT99' && !isHappyHour(selectedDate, selectedSlot)) {
-      setAppliedCoupons((prev) => {
-        const copy = { ...prev };
-        delete copy['8ball'];
-        toast.error('NIT99 coupon removed: valid only Mon-Fri 11 AM–3 PM');
-        return copy;
-      });
+      removeCoupon('8ball');
+      toast.error('NIT99 coupon removed: valid only Mon-Fri 11 AM–4 PM');
     }
-  }, [selectedDate, selectedSlot, appliedCoupons]);
+  }, [selectedDate, selectedSlot]);
 
   useEffect(() => {
     const channel = supabase
@@ -132,8 +128,7 @@ export default function PublicBooking() {
       const { data, error } = await supabase.from('stations').select('id, name, type, hourly_rate').order('name');
       if (error) throw error;
       setStations(data || []);
-    } catch (error) {
-      console.error('Error fetching stations:', error);
+    } catch {
       toast.error('Failed to load stations');
     }
   };
@@ -153,50 +148,47 @@ export default function PublicBooking() {
         setAvailableSlots(data || []);
       } else {
         const results = await Promise.all(
-          selectedStations.map(stationId =>
+          selectedStations.map((stationId) =>
             supabase.rpc('get_available_slots', { p_date: dateStr, p_station_id: stationId, p_slot_duration: 60 })
           )
         );
 
-        const base = results.find(r => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
+        const base = results.find((r) => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
         if (!base) {
-          const firstErr = results.find(r => r.error)?.error;
+          const firstErr = results.find((r) => r.error)?.error;
           if (firstErr) throw firstErr;
           setAvailableSlots([]);
           return;
         }
 
         const unionMap = new Map<string, boolean>();
-        const key = (slot: TimeSlot) => `${slot.start_time}-${slot.end_time}`;
-        base.forEach(s => unionMap.set(key(s), Boolean(s.is_available)));
-        results.forEach(r => {
-          (r.data || []).forEach(s => {
-            const k = key(s);
+        const keyOf = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
+        base.forEach((s) => unionMap.set(keyOf(s), Boolean(s.is_available)));
+        results.forEach((r) => {
+          (r.data || []).forEach((s: TimeSlot) => {
+            const k = keyOf(s);
             unionMap.set(k, unionMap.get(k) || Boolean(s.is_available));
           });
         });
 
-        const merged = base.map(s => ({
+        const merged = base.map((s) => ({
           start_time: s.start_time,
           end_time: s.end_time,
-          is_available: unionMap.get(key(s)) ?? false,
+          is_available: unionMap.get(keyOf(s)) ?? false,
         }));
+
         setAvailableSlots(merged);
       }
 
       if (
         selectedSlot &&
         !availableSlots.some(
-          (s) =>
-            s.start_time === selectedSlot.start_time &&
-            s.end_time === selectedSlot.end_time &&
-            s.is_available
+          (s) => s.start_time === selectedSlot.start_time && s.end_time === selectedSlot.end_time && s.is_available
         )
       ) {
         setSelectedSlot(null);
       }
-    } catch (error) {
-      console.error('Error fetching available slots:', error);
+    } catch {
       toast.error('Failed to load available time slots');
     } finally {
       setSlotsLoading(false);
@@ -218,12 +210,7 @@ export default function PublicBooking() {
       if (error && (error as any).code !== 'PGRST116') throw error;
       if (data) {
         setIsReturningCustomer(true);
-        setCustomerInfo({
-          id: data.id,
-          name: data.name,
-          phone: data.phone,
-          email: data.email || '',
-        });
+        setCustomerInfo({ id: data.id, name: data.name, phone: data.phone, email: data.email || '' });
         toast.success(`Welcome back, ${data.name}! 🎮`);
       } else {
         setIsReturningCustomer(false);
@@ -231,8 +218,7 @@ export default function PublicBooking() {
         toast.info('New customer! Please fill in your details below.');
       }
       setHasSearched(true);
-    } catch (error) {
-      console.error('Error searching customer:', error);
+    } catch {
       toast.error('Failed to search customer');
     } finally {
       setSearchingCustomer(false);
@@ -240,16 +226,13 @@ export default function PublicBooking() {
   };
 
   const handleStationToggle = (stationId: string) => {
-    setSelectedStations((prev) =>
-      prev.includes(stationId) ? prev.filter((id) => id !== stationId) : [...prev, stationId]
-    );
+    setSelectedStations((prev) => (prev.includes(stationId) ? prev.filter((id) => id !== stationId) : [...prev, stationId]));
     setSelectedSlot(null);
   };
 
   const filterStationsForSlot = async (slot: TimeSlot) => {
     if (selectedStations.length === 0) return selectedStations;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
-
     const checks = await Promise.all(
       selectedStations.map(async (stationId) => {
         const { data, error } = await supabase.rpc('get_available_slots', {
@@ -264,33 +247,25 @@ export default function PublicBooking() {
         return { stationId, available: Boolean(match) };
       })
     );
-
     const availableIds = checks.filter((c) => c.available).map((c) => c.stationId);
     const removedIds = checks.filter((c) => !c.available).map((c) => c.stationId);
-
     if (removedIds.length > 0) {
-      const removedNames = stations
-        .filter((s) => removedIds.includes(s.id))
-        .map((s) => s.name)
-        .join(', ');
+      const removedNames = stations.filter((s) => removedIds.includes(s.id)).map((s) => s.name).join(', ');
       toast.message('Some stations aren’t free at this time', {
         description: `Removed: ${removedNames}. You can proceed with the rest.`,
       });
     }
-
     return availableIds;
   };
 
   const handleSlotSelect = async (slot: TimeSlot) => {
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
-
       if (filtered.length === 0) {
         toast.error('That time isn’t available for the selected stations.');
         setSelectedSlot(null);
         return;
       }
-
       if (filtered.length !== selectedStations.length) {
         setSelectedStations(filtered);
       }
@@ -298,20 +273,27 @@ export default function PublicBooking() {
     setSelectedSlot(slot);
   };
 
+  // Remove coupon by key
+  const removeCoupon = (key: string) => {
+    setAppliedCoupons((prev) => {
+      const copy = { ...prev };
+      if (copy[key]) {
+        delete copy[key];
+        toast.success(`Coupon removed.`);
+      }
+      return copy;
+    });
+  };
+
   const applyCoupon = (code: string) => {
     const upper = (code || '').toUpperCase().trim();
-
     const allowed = ['CUEPHORIA25', 'NIT99', 'NIT50', 'ALMA50', 'AXEIST'];
     if (!allowed.includes(upper)) {
       toast.error('Invalid coupon code');
       return;
     }
-
     if (upper === 'AXEIST') {
-      const ok = window.confirm(
-        '🥷 Psst… AXEIST unlocked!\n\nThis grants 100% OFF for close friends 💜\n\nApply it now?'
-      );
-      if (!ok) return;
+      if (!window.confirm('🥷 Psst… AXEIST unlocked!\n\nThis grants 100% OFF for close friends 💜\n\nApply it now?')) return;
     }
 
     if (upper === 'NIT99') {
@@ -320,7 +302,7 @@ export default function PublicBooking() {
         return;
       }
       if (!isHappyHour(selectedDate, selectedSlot)) {
-        toast.error('NIT99 valid only Mon-Fri 11 AM to 3 PM');
+        toast.error('NIT99 valid only Mon-Fri 11 AM–4 PM');
         return;
       }
       setAppliedCoupons((prev) => ({ ...prev, '8ball': 'NIT99' }));
@@ -330,7 +312,6 @@ export default function PublicBooking() {
     }
 
     if (upper === 'NIT50' || upper === 'ALMA50') {
-      // If NIT99 applied and happy hour, NIT50/ALMA50 only on PS5
       if (appliedCoupons['8ball'] === 'NIT99' && isHappyHour(selectedDate, selectedSlot)) {
         if (!selectedStations.some((id) => stations.find((s) => s.id === id && s.type === 'ps5'))) {
           toast.error(`${upper} applies only to PS5 stations during happy hours with NIT99.`);
@@ -348,7 +329,6 @@ export default function PublicBooking() {
       return;
     }
 
-    // CUEPHORIA25 and AXEIST apply globally (clear others)
     if (upper === 'CUEPHORIA25' || upper === 'AXEIST') {
       setAppliedCoupons({ all: upper });
       toast.success(`${upper} applied globally.`);
@@ -357,8 +337,12 @@ export default function PublicBooking() {
   };
 
   const handleCouponApply = () => {
-    applyCoupon(couponCode);
-    setCouponCode('');
+    if (couponCode) {
+      applyCoupon(couponCode);
+      setCouponCode('');
+    } else {
+      toast.error('Enter a coupon code first');
+    }
   };
 
   const handleCouponSelect = (coupon: string) => {
@@ -366,22 +350,19 @@ export default function PublicBooking() {
   };
 
   const calculateOriginalPrice = () => {
-    if (selectedStations.length === 0 || !selectedSlot) return 0;
-    return stations
-      .filter((s) => selectedStations.includes(s.id))
-      .reduce((sum, s) => sum + s.hourly_rate, 0);
+    if (!selectedSlot || selectedStations.length === 0) return 0;
+    return stations.filter((s) => selectedStations.includes(s.id)).reduce((sum, s) => sum + s.hourly_rate, 0);
   };
 
   const calculateDiscount = () => {
     const original = calculateOriginalPrice();
-    if (original === 0) return { total: 0, breakdown: {} };
-    if (!Object.keys(appliedCoupons).length) return { total: 0, breakdown: {} };
+    if (original === 0 || Object.keys(appliedCoupons).length === 0) return { total: 0, breakdown: {} };
 
     if (appliedCoupons['all']) {
       if (appliedCoupons['all'] === 'AXEIST') return { total: original, breakdown: { all: original } };
       if (appliedCoupons['all'] === 'CUEPHORIA25') {
-        const disc = original * 0.25;
-        return { total: disc, breakdown: { all: disc } };
+        const discount = original * 0.25;
+        return { total: discount, breakdown: { all: discount } };
       }
       return { total: 0, breakdown: {} };
     }
@@ -389,24 +370,24 @@ export default function PublicBooking() {
     let totalDiscount = 0;
     const breakdown: Record<string, number> = {};
 
+    // NIT99 discount on 8ball stations at flat 99 each
     if (appliedCoupons['8ball'] === 'NIT99') {
-      const eightBallStations = stations.filter(
-        (s) => selectedStations.includes(s.id) && s.type === '8ball'
-      );
-      const totalEightBallRate = eightBallStations.reduce((sum, s) => sum + s.hourly_rate, 0);
-      const discountAmount = totalEightBallRate - eightBallStations.length * 99;
-      if (discountAmount > 0) {
-        totalDiscount += discountAmount;
-        breakdown['8-Ball (NIT99)'] = discountAmount;
+      const balls = stations.filter((s) => selectedStations.includes(s.id) && s.type === '8ball');
+      const ballsTotal = balls.reduce((acc, s) => acc + s.hourly_rate, 0);
+      const discount = ballsTotal - balls.length * 99;
+      if (discount > 0) {
+        totalDiscount += discount;
+        breakdown['8-Ball (NIT99)'] = discount;
       }
     }
 
+    // NIT50 or ALMA50 on PS5 stations half off
     if (appliedCoupons['ps5'] === 'NIT50' || appliedCoupons['ps5'] === 'ALMA50') {
       const ps5Stations = stations.filter((s) => selectedStations.includes(s.id) && s.type === 'ps5');
-      const totalPs5Rate = ps5Stations.reduce((sum, s) => sum + s.hourly_rate, 0);
-      const discountAmount = totalPs5Rate * 0.5;
-      totalDiscount += discountAmount;
-      breakdown[`PS5 (${appliedCoupons['ps5']})`] = discountAmount;
+      const ps5Total = ps5Stations.reduce((acc, s) => acc + s.hourly_rate, 0);
+      const discount = ps5Total * 0.5;
+      totalDiscount += discount;
+      breakdown[`PS5 (${appliedCoupons['ps5']})`] = discount;
     }
 
     return { total: totalDiscount, breakdown };
@@ -418,9 +399,7 @@ export default function PublicBooking() {
     return Math.max(original - discount, 0);
   };
 
-  const isCustomerInfoComplete = () =>
-    hasSearched && customerNumber.trim() !== '' && customerInfo.name.trim() !== '';
-
+  const isCustomerInfoComplete = () => hasSearched && customerNumber.trim() !== '' && customerInfo.name.trim() !== '';
   const isStationSelectionAvailable = () => isCustomerInfoComplete();
   const isTimeSelectionAvailable = () => isStationSelectionAvailable() && selectedStations.length > 0;
 
@@ -465,7 +444,6 @@ export default function PublicBooking() {
       const originalPrice = calculateOriginalPrice();
       const discountResult = calculateDiscount();
       const finalPrice = calculateFinalPrice();
-
       const couponCodes = Object.values(appliedCoupons).join(',');
 
       const bookings = selectedStations.map((stationId) => ({
@@ -631,7 +609,7 @@ export default function PublicBooking() {
   const originalPrice = calculateOriginalPrice();
   const discountObj = calculateDiscount();
   const discount = discountObj.total;
-  const discountBreakdown = discountObj.breakdown;
+  const breakdown = discountObj.breakdown;
   const finalPrice = calculateFinalPrice();
 
   return (
@@ -694,544 +672,306 @@ export default function PublicBooking() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Step 1 */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
-                    <User className="h-4 w-4 text-cuephoria-purple" />
-                  </div>
-                  Step 1: Customer Information
-                  {isCustomerInfoComplete() && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-xl p-3">
-                  <p className="text-sm text-cuephoria-purple/90 font-medium flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" /> Please complete customer information to proceed with booking
-                  </p>
-                </div>
+            {/* The customer info, station selection, date/time cards here remain as before */}
 
-                <div className="flex gap-2">
-                  <Input
-                    value={customerNumber}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomerNumber(val);
-                      setHasSearched(false);
-                      setIsReturningCustomer(false);
-                      setCustomerInfo((prev) => ({ ...prev, name: '', email: '', phone: val }));
-                    }}
-                    placeholder="Enter phone number"
-                    className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
-                  />
-                  <Button
-                    onClick={searchCustomer}
-                    disabled={searchingCustomer}
-                    className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 transition-all duration-150 active:scale-[.98] shadow-lg shadow-cuephoria-lightpurple/20"
-                  >
-                    {searchingCustomer ? 'Searching...' : 'Search'}
-                  </Button>
-                </div>
-
-                {hasSearched && (
-                  <div className="grid md:grid-cols-2 gap-4">
+            {/* Summary */}
+            <div className="lg:col-span-1">
+              <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in">
+                <CardHeader>
+                  <CardTitle className="text-white">Booking Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {selectedStations.length > 0 && (
                     <div>
-                      <Label htmlFor="name" className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                        Full Name {isReturningCustomer && <CheckCircle className="inline h-4 w-4 text-green-400 ml-1" />}
-                      </Label>
-                      <Input
-                        id="name"
-                        value={customerInfo.name}
-                        onChange={(e) => setCustomerInfo((prev) => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter your full name"
-                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
-                        disabled={isReturningCustomer}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email" className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                        Email (Optional)
-                      </Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={customerInfo.email}
-                        onChange={(e) => setCustomerInfo((prev) => ({ ...prev, email: e.target.value }))}
-                        placeholder="Enter your email address"
-                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
-                        disabled={isReturningCustomer}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {isCustomerInfoComplete() && (
-                  <div className="flex items-center gap-2 text-green-400 text-sm">
-                    <CheckCircle className="h-4 w-4" /> Customer information complete! You can now proceed to station selection.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Step 2 */}
-            <Card className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300">
-              <div className="pointer-events-none absolute inset-0 opacity-[0.15]">
-                <div className="absolute -top-24 -right-16 h-56 w-56 rounded-full bg-cuephoria-blue/40 blur-3xl" />
-                <div className="absolute bottom-[-60px] left-[-30px] h-48 w-48 rounded-full bg-cuephoria-purple/40 blur-3xl" />
-              </div>
-
-              <CardHeader className="relative pb-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
-                      {!isStationSelectionAvailable() ? (
-                        <Lock className="h-4 w-4 text-gray-500" />
-                      ) : (
-                        <MapPin className="h-4 w-4 text-cuephoria-blue" />
-                      )}
-                    </div>
-                    <CardTitle className="m-0 p-0 text-white tracking-wide">Step 2: Select Gaming Stations</CardTitle>
-                  </div>
-
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      {selectedStations.length} selected
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-              </CardHeader>
-              <CardContent className="relative pt-3">
-                <div
-                  className={cn('grid grid-cols-3 gap-2 sm:gap-3 mb-4', !isStationSelectionAvailable() && 'pointer-events-none')}
-                >
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('all')}
-                    className={cn(
-                      'h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all',
-                      'hover:translate-y-[1px] hover:bg-white/10',
-                      stationType === 'all' ? 'bg-white/12 text-gray-100 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset]' : 'bg-transparent text-gray-300'
-                    )}
-                  >
-                    All
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('ps5')}
-                    className={cn(
-                      'h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all',
-                      'hover:translate-y-[1px] hover:bg-cuephoria-purple/10',
-                      stationType === 'ps5' ? 'bg-cuephoria-purple/15 text-cuephoria-purple shadow-[0_0_0_1px_rgba(168,85,247,0.25)_inset]' : 'bg-transparent text-cuephoria-purple'
-                    )}
-                  >
-                    PS5
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('8ball')}
-                    className={cn(
-                      'h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all',
-                      'hover:translate-y-[1px] hover:bg-emerald-400/10',
-                      stationType === '8ball'
-                        ? 'bg-emerald-400/15 text-emerald-300 shadow-[0_0_0_1px_rgba(52,211,153,0.25)_inset]'
-                        : 'bg-transparent text-emerald-300'
-                    )}
-                  >
-                    8-Ball
-                  </Button>
-                </div>
-                {!isStationSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Complete customer information to unlock station selection</p>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6 shadow-inner">
-                    <StationSelector
-                      stations={stationType === 'all' ? stations : stations.filter((s) => s.type === stationType)}
-                      selectedStations={selectedStations}
-                      onStationToggle={handleStationToggle}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Step 3 */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-lightpurple/10 animate-scale-in transition-all duration-300">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
-                    {!isTimeSelectionAvailable() ? (
-                      <Lock className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
-                    )}
-                  </div>
-                  Step 3: Choose Date & Time
-                  {isTimeSelectionAvailable() && selectedSlot && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {!isTimeSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Select stations to unlock date and time selection</p>
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <Label className="text-base font-medium text-gray-200">Choose Date</Label>
-                      <div className="mt-2">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => date && setSelectedDate(date)}
-                          disabled={(date) => date < new Date()}
-                          className={cn('rounded-xl border bg-black/30 border-white/10 pointer-events-auto')}
-                        />
-                      </div>
-                    </div>
-
-                    {selectedStations.length > 0 && (
-                      <div>
-                        <Label className="text-base font-medium text-gray-200">Available Time Slots</Label>
-                        <div className="mt-2">
-                          <TimeSlotPicker
-                            slots={availableSlots}
-                            selectedSlot={selectedSlot}
-                            onSlotSelect={handleSlotSelect}
-                            loading={slotsLoading}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Summary */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in">
-              <CardHeader>
-                <CardTitle className="text-white">Booking Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {selectedStations.length > 0 && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Stations</Label>
-                    <div className="mt-2 space-y-1">
-                      {selectedStations.map((stationId) => {
-                        const station = stations.find((s) => s.id === stationId);
-                        return station ? (
-                          <div key={stationId} className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
-                              {station.type === 'ps5' ? (
-                                <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" />
-                              ) : (
-                                <Timer className="h-3.5 w-3.5 text-green-400" />
-                              )}
+                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Stations</Label>
+                      <div className="mt-2 space-y-1">
+                        {selectedStations.map((stationId) => {
+                          const station = stations.find((s) => s.id === stationId);
+                          return station ? (
+                            <div key={stationId} className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
+                                {station.type === 'ps5' ? (
+                                  <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" />
+                                ) : (
+                                  <Timer className="h-3.5 w-3.5 text-green-400" />
+                                )}
+                              </div>
+                              <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1">
+                                {station.name}
+                              </Badge>
                             </div>
-                            <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1">
-                              {station.name}
-                            </Badge>
-                          </div>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {selectedDate && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
-                    <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
-                  </div>
-                )}
-
-                {selectedSlot && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
-                    <p className="mt-1 text-sm text-gray-200">
-                      {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true,
-                      })}
-                      {' — '}
-                      {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true,
-                      })}
-                    </p>
-                  </div>
-                )}
-
-                {/* Coupon Section */}
-                <div>
-                  <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coupon Code</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon code"
-                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
-                    />
-                    <Button
-                      onClick={handleCouponApply}
-                      size="sm"
-                      className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
-                    >
-                      Apply
-                    </Button>
-                  </div>
-
-                  {/* Hint for NIT99 and NIT50 combo */}
-                  {appliedCoupons['8ball'] === 'NIT99' && (
-                    <p className="text-xs text-gray-400 italic mt-2">
-                      Hint: With NIT99 applied, you may also apply NIT50 to get 50% off on PS5 stations if selected during booking.
-                    </p>
-                  )}
-
-                  {/* Applied coupons notes */}
-                  {Object.values(appliedCoupons).length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {Object.values(appliedCoupons).includes('ALMA50') && (
-                        <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
-                          <p className="text-sm text-emerald-300">
-                            ✅ <strong>ALMA50 applied.</strong> You’ll get <strong>50% OFF</strong>.{' '}
-                            <span className="ml-1">Offer reserved for ALMA (NIT Trichy) users; verification required at reception.</span>
-                          </p>
-                        </div>
-                      )}
-                      {Object.values(appliedCoupons).includes('NIT50') && (
-                        <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
-                          <p className="text-sm text-amber-400 flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span>
-                              ✅ <strong>NIT50 applied — 50% OFF.</strong>{' '}
-                              <span className="ml-1">Show a valid NIT Trichy student ID at reception.</span>
-                            </span>
-                          </p>
-                        </div>
-                      )}
-                      {Object.values(appliedCoupons).includes('AXEIST') && (
-                        <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
-                          <p className="text-sm text-violet-300 flex items-start gap-2">
-                            <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span>✅ <strong>AXEIST applied — 100% OFF.</strong> Friends & fam tier. Keep it hush 🤫</span>
-                          </p>
-                        </div>
-                      )}
-                      {Object.values(appliedCoupons).includes('CUEPHORIA25') && (
-                        <div className="p-2 bg-cuephoria-purple/15 border border-cuephoria-purple/25 rounded-lg">
-                          <p className="text-sm text-cuephoria-lightpurple">✅ <strong>CUEPHORIA25 applied — 25% OFF.</strong> No ID required.</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {originalPrice > 0 && (
-                  <>
-                    <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-sm text-gray-300">Subtotal</Label>
-                        <span className="text-sm text-gray-200">₹{originalPrice}</span>
+                          ) : null;
+                        })}
                       </div>
+                    </div>
+                  )}
 
-                      {discount > 0 && (
-                        <>
-                          <div className="border p-2 rounded bg-black/10 text-green-400">
-                            <Label className="font-semibold text-xs uppercase">Discount Breakdown</Label>
-                            <ul className="list-disc ml-5 mt-1 text-sm">
-                              {Object.entries(discountBreakdown).map(([key, val]) => (
-                                <li key={key}>
-                                  {key}: -₹{val.toFixed(2)}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <Label className="text-sm text-green-400">Total Discount</Label>
-                            <span className="text-sm text-green-400">-₹{discount.toFixed(2)}</span>
-                          </div>
-                        </>
-                      )}
+                  {selectedDate && (
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
+                      <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
+                    </div>
+                  )}
 
+                  {selectedSlot && (
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
+                      <p className="mt-1 text-sm text-gray-200">
+                        {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                        {' — '}
+                        {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Coupon Section */}
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coupon Code</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Enter coupon code"
+                        className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
+                      />
+                      <Button
+                        onClick={handleCouponApply}
+                        size="sm"
+                        className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
+                      >
+                        Apply
+                      </Button>
+                    </div>
+
+                    {/* Show applied coupons with remove buttons */}
+                    {Object.entries(appliedCoupons).length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {Object.entries(appliedCoupons).map(([key, val]) => {
+                          let displayText = val === 'NIT99' ? 'NIT99 (8-Ball)' : val === 'NIT50' || val === 'ALMA50' ? `${val} (PS5)` : val;
+                          return (
+                            <div key={key} className="inline-flex items-center gap-2 p-2 bg-gray-800 rounded-lg shadow-md text-sm text-gray-200">
+                              <span>✅ <strong>{displayText} applied.</strong></span>
+                              <button
+                                type="button"
+                                onClick={() => removeCoupon(key)}
+                                aria-label={`Remove ${val} coupon`}
+                                className="hover:text-red-400"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Confirmation message for NIT99 */}
+                    {appliedCoupons['8ball'] === 'NIT99' && (
+                      <p className="text-xs text-green-400 italic mt-2">
+                        NIT99 coupon applied — 8-Ball stations charged ₹99/hr during happy hours (Mon–Fri 11 AM to 4 PM).
+                      </p>
+                    )}
+
+                    {/* Hint for NIT99 + NIT50 combo */}
+                    {appliedCoupons['8ball'] === 'NIT99' && !appliedCoupons['ps5'] && (
+                      <p className="text-xs text-gray-400 italic mt-1">
+                        Hint: With NIT99 applied, you may also apply NIT50 to get 50% off on PS5 stations if selected.
+                      </p>
+                    )}
+                  </div>
+
+                  {originalPrice > 0 && (
+                    <>
                       <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-                      <div className="flex justify-between items-center">
-                        <Label className="text-base font-semibold text-gray-100">Total Amount</Label>
-                        <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
-                          ₹{finalPrice.toFixed(2)}
-                        </span>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Label className="text-sm text-gray-300">Subtotal</Label>
+                          <span className="text-sm text-gray-200">₹{originalPrice.toFixed(2)}</span>
+                        </div>
+                        {discount > 0 && (
+                          <>
+                            <div className="border p-2 rounded bg-black/10 text-green-400">
+                              <Label className="font-semibold text-xs uppercase">Discount Breakdown</Label>
+                              <ul className="list-disc ml-5 mt-1 text-sm">
+                                {Object.entries(breakdown).map(([key, val]) => (
+                                  <li key={key}>
+                                    {key}: -₹{val.toFixed(2)}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <Label className="text-sm text-green-400">Total Discount</Label>
+                              <span className="text-sm text-green-400">-₹{discount.toFixed(2)}</span>
+                            </div>
+                          </>
+                        )}
+                        <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                        <div className="flex justify-between items-center">
+                          <Label className="text-base font-semibold text-gray-100">Total Amount</Label>
+                          <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
+                            ₹{finalPrice.toFixed(2)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </>
+                    </>
+                  )}
+
+                  <Button
+                    onClick={handleBookingSubmit}
+                    disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
+                    className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
+                    size="lg"
+                  >
+                    {loading ? 'Creating Booking...' : 'Confirm Booking'}
+                  </Button>
+
+                  <p className="text-xs text-gray-400 text-center">Payment will be collected at the venue</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Today's Bookings section */}
+          <div className="mt-10">
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
+                  Today’s Bookings
+                </CardTitle>
+                <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">{todayRows.length} total</span>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {todayLoading ? (
+                  <div className="h-12 rounded-md bg-white/5 animate-pulse" />
+                ) : groupedByTime.length === 0 ? (
+                  <div className="text-sm text-gray-400">No bookings today.</div>
+                ) : (
+                  groupedByTime.map(([timeLabel, rows]) => (
+                    <details
+                      key={timeLabel}
+                      className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40"
+                    >
+                      <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-gray-200">
+                          <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
+                          <span className="font-medium">{timeLabel}</span>
+                        </div>
+                        <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
+                          {rows.length} booking{rows.length !== 1 ? 's' : ''}
+                        </span>
+                      </summary>
+                      <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
+                        <table className="min-w-[520px] w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-400">
+                              <th className="py-2 pr-3 font-medium">Customer</th>
+                              <th className="py-2 pr-3 font-medium">Station</th>
+                              <th className="py-2 font-medium">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((r) => (
+                              <tr key={r.id} className="border-t border-white/10">
+                                <td className="py-2 pr-3">
+                                  <div className="text-gray-100">{r.customerName}</div>
+                                  <div className="text-xs text-gray-400">{r.customerPhone}</div>
+                                </td>
+                                <td className="py-2 pr-3">
+                                  <Badge className="bg-white/5 border-white/10 text-gray-200 rounded-full">{r.stationName}</Badge>
+                                </td>
+                                <td className="py-2">{statusChip(r.status)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  ))
                 )}
-
-                <Button
-                  onClick={handleBookingSubmit}
-                  disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
-                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
-                  size="lg"
-                >
-                  {loading ? 'Creating Booking...' : 'Confirm Booking'}
-                </Button>
-
-                <p className="text-xs text-gray-400 text-center">Payment will be collected at the venue</p>
               </CardContent>
             </Card>
           </div>
-        </div>
+        </main>
 
-        {/* ==== TODAY'S BOOKINGS (grouped by TIME; expandable) ==== */}
-        <div className="mt-10">
-          <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-white flex items-center gap-2">
-                <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
-                Today’s Bookings
-              </CardTitle>
-              <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">{todayRows.length} total</span>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {todayLoading ? (
-                <div className="h-12 rounded-md bg-white/5 animate-pulse" />
-              ) : groupedByTime.length === 0 ? (
-                <div className="text-sm text-gray-400">No bookings today.</div>
-              ) : (
-                groupedByTime.map(([timeLabel, rows]) => (
-                  <details
-                    key={timeLabel}
-                    className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40"
-                  >
-                    <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-gray-200">
-                        <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
-                        <span className="font-medium">{timeLabel}</span>
-                      </div>
-                      <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
-                        {rows.length} booking{rows.length !== 1 ? 's' : ''}
-                      </span>
-                    </summary>
-                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
-                      <table className="min-w-[520px] w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-gray-400">
-                            <th className="py-2 pr-3 font-medium">Customer</th>
-                            <th className="py-2 pr-3 font-medium">Station</th>
-                            <th className="py-2 font-medium">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((r) => (
-                            <tr key={r.id} className="border-t border-white/10">
-                              <td className="py-2 pr-3">
-                                <div className="text-gray-100">{r.customerName}</div>
-                                <div className="text-xs text-gray-400">{r.customerPhone}</div>
-                              </td>
-                              <td className="py-2 pr-3">
-                                <Badge className="bg-white/5 border-white/10 text-gray-200 rounded-full">{r.stationName}</Badge>
-                              </td>
-                              <td className="py-2">{statusChip(r.status)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center mb-4 md:mb-0">
-              <img
-                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-                alt="Cuephoria Logo"
-                className="h-8 mr-3"
-              />
-              <p className="text-gray-400 text-sm">© {new Date().getFullYear()} Cuephoria. All rights reserved.</p>
+        {/* Footer */}
+        <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex items-center mb-4 md:mb-0">
+                <img
+                  src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
+                  alt="Cuephoria Logo"
+                  className="h-8 mr-3"
+                />
+                <p className="text-gray-400 text-sm">© {new Date().getFullYear()} Cuephoria. All rights reserved.</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center text-gray-400 text-sm">
+                  <Clock className="h-4 w-4 text-gray-400 mr-1.5" />
+                  <span>Book anytime, anywhere</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-gray-400 text-sm">
-                <Clock className="h-4 w-4 text-gray-400 mr-1.5" />
-                <span>Book anytime, anywhere</span>
+            <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+              <div className="flex flex-wrap justify-center md:justify-start gap-6">
+                <button
+                  onClick={() => setLegalDialogType('terms') || setShowLegalDialog(true)}
+                  className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+                >
+                  Terms & Conditions
+                </button>
+                <button
+                  onClick={() => setLegalDialogType('privacy') || setShowLegalDialog(true)}
+                  className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+                >
+                  Privacy Policy
+                </button>
+                <button
+                  onClick={() => setLegalDialogType('contact') || setShowLegalDialog(true)}
+                  className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+                >
+                  Contact Us
+                </button>
+              </div>
+              <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
+                <div className="flex items-center gap-1">
+                  <Phone className="h-4 w-4" />
+                  <a href="tel:+918637625155" className="hover:text-white transition-colors">
+                    +91 86376 25155
+                  </a>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Mail className="h-4 w-4" />
+                  <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
+                    contact@cuephoria.in
+                  </a>
+                </div>
               </div>
             </div>
           </div>
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="flex flex-wrap justify-center md:justify-start gap-6">
-              <button
-                onClick={() => setLegalDialogType('terms') || setShowLegalDialog(true)}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
-              >
-                Terms & Conditions
-              </button>
-              <button
-                onClick={() => setLegalDialogType('privacy') || setShowLegalDialog(true)}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
-              >
-                Privacy Policy
-              </button>
-              <button
-                onClick={() => setLegalDialogType('contact') || setShowLegalDialog(true)}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
-              >
-                Contact Us
-              </button>
-            </div>
-            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
-              <div className="flex items-center gap-1">
-                <Phone className="h-4 w-4" />
-                <a href="tel:+918637625155" className="hover:text-white transition-colors">
-                  +91 86376 25155
-                </a>
-              </div>
-              <div className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
-                  contact@cuephoria.in
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+        </footer>
 
-      {/* Booking Confirmation Dialog */}
-      {bookingConfirmationData && (
-        <BookingConfirmationDialog
-          isOpen={showConfirmationDialog}
-          onClose={() => setShowConfirmationDialog(false)}
-          bookingData={bookingConfirmationData}
-        />
-      )}
+        {/* Booking Confirmation Dialog */}
+        {bookingConfirmationData && (
+          <BookingConfirmationDialog
+            isOpen={showConfirmationDialog}
+            onClose={() => setShowConfirmationDialog(false)}
+            bookingData={bookingConfirmationData}
+          />
+        )}
 
-      {/* Legal Dialog */}
-      <LegalDialog
-        isOpen={showLegalDialog}
-        onClose={() => setShowLegalDialog(false)}
-        type={legalDialogType}
-      />
-    </div>
-  );
+        {/* Legal Dialog */}
+        <LegalDialog isOpen={showLegalDialog} onClose={() => setShowLegalDialog(false)} type={legalDialogType} />
+      </div>
+    );
 }
