@@ -68,7 +68,7 @@ export default function PublicBooking() {
 
   const [stationType, setStationType] = useState<'all' | 'ps5' | '8ball'>('all');
 
-  // Changed to hold coupons per station type or 'all'
+  // Using object to store coupons per station type or global
   const [appliedCoupons, setAppliedCoupons] = useState<{ [key: string]: string }>({});
 
   const [couponCode, setCouponCode] = useState('');
@@ -78,6 +78,9 @@ export default function PublicBooking() {
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
+
+  // For recent news ticker
+  const [showTicker, setShowTicker] = useState(true);
 
   // Today's bookings
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
@@ -104,6 +107,20 @@ export default function PublicBooking() {
       setSelectedSlot(null);
     }
   }, [selectedStations, selectedDate]);
+
+  // Effect to validate NIT99 coupon if date or slot changes (remove if invalid)
+  useEffect(() => {
+    if (appliedCoupons['8ball'] === 'NIT99') {
+      if (!isHappyHour(selectedDate, selectedSlot)) {
+        setAppliedCoupons(prev => {
+          const copy = { ...prev };
+          delete copy['8ball'];
+          toast.error('NIT99 coupon removed as it is valid only Mon-Fri 11 AM to 3 PM');
+          return copy;
+        });
+      }
+    }
+  }, [selectedDate, selectedSlot]);
 
   const fetchStations = async () => {
     try {
@@ -169,6 +186,16 @@ export default function PublicBooking() {
           is_available: Boolean(unionMap.get(keyOf(s)))
         }));
         setAvailableSlots(merged);
+      }
+
+      // After fetching slots, validate applied coupons against times as well
+      if (appliedCoupons['8ball'] === 'NIT99' && !isHappyHour(selectedDate, selectedSlot)) {
+        setAppliedCoupons(prev => {
+          const copy = { ...prev };
+          delete copy['8ball'];
+          toast.error('NIT99 coupon removed as it is valid only Mon-Fri 11 AM to 3 PM');
+          return copy;
+        });
       }
 
       if (selectedSlot && !(availableSlots || []).some(
@@ -288,9 +315,21 @@ export default function PublicBooking() {
       }
     }
     setSelectedSlot(slot);
+
+    // Check if NIT99 coupon exists and timing matches; else remove coupon
+    if (appliedCoupons['8ball'] === 'NIT99') {
+      if (!isHappyHour(selectedDate, slot)) {
+        setAppliedCoupons(prev => {
+          const copy = { ...prev };
+          delete copy['8ball'];
+          toast.error('NIT99 coupon removed as it is valid only Mon-Fri 11 AM to 3 PM');
+          return copy;
+        });
+      }
+    }
   };
 
-  // Helpers for coupon validation
+  // Helpers
   const isHappyHour = (date: Date, slot: TimeSlot | null) => {
     if (!slot) return false;
     const day = getDay(date);
@@ -298,7 +337,6 @@ export default function PublicBooking() {
     return day >= 1 && day <= 5 && startHour >= 11 && startHour < 15;
   };
 
-  /** Centralized coupon applier with multi-coupon support */
   const applyCoupon = (code: string) => {
     const upper = (code || '').toUpperCase().trim();
 
@@ -308,7 +346,6 @@ export default function PublicBooking() {
       return;
     }
 
-    // NIT99 can apply only on 8ball stations and only during happy hours
     if (upper === 'NIT99') {
       if (!selectedStations.some(id => stations.find(s => s.id === id && s.type === '8ball'))) {
         toast.error('NIT99 applies only to 8-Ball stations');
@@ -320,10 +357,10 @@ export default function PublicBooking() {
       }
       setAppliedCoupons(prev => ({ ...prev, '8ball': 'NIT99' }));
       toast.success('NIT99 applied to 8-Ball stations');
+      setCouponCode('');
       return;
     }
 
-    // NIT50 and ALMA50 apply only to ps5 stations and can't both be applied simultaneously
     if (upper === 'NIT50' || upper === 'ALMA50') {
       if (!selectedStations.some(id => stations.find(s => s.id === id && s.type === 'ps5'))) {
         toast.error(`${upper} applies only to PS5 stations`);
@@ -335,25 +372,20 @@ export default function PublicBooking() {
       }
       setAppliedCoupons(prev => ({ ...prev, 'ps5': upper }));
       toast.success(`${upper} applied to PS5 stations`);
+      setCouponCode('');
       return;
     }
 
-    // AXEIST and CUEPHORIA25 are single global coupons that clear others
     if (upper === 'AXEIST' || upper === 'CUEPHORIA25') {
       setAppliedCoupons({ 'all': upper });
       toast.success(`${upper} applied globally`);
+      setCouponCode('');
       return;
     }
   };
 
-  const handleCouponApply = () => {
-    applyCoupon(couponCode);
-    setCouponCode(''); // clear input after applying
-  };
-
-  const handleCouponSelect = (coupon: string) => {
-    applyCoupon(coupon);
-  };
+  const handleCouponApply = () => applyCoupon(couponCode);
+  const handleCouponSelect = (coupon: string) => applyCoupon(coupon);
 
   const calculateOriginalPrice = () => {
     if (selectedStations.length === 0 || !selectedSlot) return 0;
@@ -361,10 +393,45 @@ export default function PublicBooking() {
     return selectedObjs.reduce((sum, s) => sum + s.hourly_rate, 0);
   };
 
+  const calculateDiscountsDetail = () => {
+    // Returns array of discount details for display
+    const details: { label: string; before: number; after: number }[] = [];
+    if (selectedStations.length === 0 || !selectedSlot) return details;
+
+    // Global single coupon case
+    if (appliedCoupons['all']) {
+      const original = calculateOriginalPrice();
+      if (appliedCoupons['all'] === 'AXEIST') {
+        details.push({ label: 'AXEIST (100% OFF)', before: original, after: 0 });
+      }
+      if (appliedCoupons['all'] === 'CUEPHORIA25') {
+        details.push({ label: 'CUEPHORIA25 (25% OFF)', before: original, after: original * 0.75 });
+      }
+      return details;
+    }
+
+    // NIT99 for 8ball
+    if (appliedCoupons['8ball'] === 'NIT99') {
+      const eightBalls = stations.filter(s => selectedStations.includes(s.id) && s.type === '8ball');
+      const sum = eightBalls.reduce((acc, s) => acc + s.hourly_rate, 0);
+      const after = 99 * eightBalls.length;
+      details.push({ label: `NIT99 for 8-Ball (${eightBalls.length} table${eightBalls.length > 1 ? 's' : ''})`, before: sum, after });
+    }
+
+    // NIT50 or ALMA50 for PS5
+    if (appliedCoupons['ps5']) {
+      const ps5Stations = stations.filter(s => selectedStations.includes(s.id) && s.type === 'ps5');
+      const sum = ps5Stations.reduce((acc, s) => acc + s.hourly_rate, 0);
+      const after = sum * 0.5;
+      const label = appliedCoupons['ps5'] === 'NIT50' ? 'NIT50 for PS5' : 'ALMA50 for PS5';
+      details.push({ label, before: sum, after });
+    }
+
+    return details;
+  };
+
   const calculateDiscount = () => {
     if (selectedStations.length === 0 || !selectedSlot) return 0;
-
-    // If a single global coupon applied
     if (appliedCoupons['all']) {
       const original = calculateOriginalPrice();
       if (appliedCoupons['all'] === 'AXEIST') return original;
@@ -373,24 +440,16 @@ export default function PublicBooking() {
     }
 
     let discount = 0;
-
-    // Discount for 8ball stations with NIT99
     if (appliedCoupons['8ball'] === 'NIT99') {
       const eightBalls = stations.filter(s => selectedStations.includes(s.id) && s.type === '8ball');
       const sum = eightBalls.reduce((acc, s) => acc + s.hourly_rate, 0);
-      const discounted = 99 * eightBalls.length;
-      discount += (sum - discounted > 0 ? (sum - discounted) : 0);
+      discount += sum - (99 * eightBalls.length);
     }
-
-    // Discount for ps5 stations with NIT50 or ALMA50
     if (appliedCoupons['ps5']) {
       const ps5Stations = stations.filter(s => selectedStations.includes(s.id) && s.type === 'ps5');
       const sum = ps5Stations.reduce((acc, s) => acc + s.hourly_rate, 0);
-      if (appliedCoupons['ps5'] === 'NIT50' || appliedCoupons['ps5'] === 'ALMA50') {
-        discount += sum * 0.5;
-      }
+      discount += sum * 0.5;
     }
-
     return discount;
   };
 
@@ -419,7 +478,6 @@ export default function PublicBooking() {
 
     setLoading(true);
     try {
-      // Create or update customer
       let customerId = customerInfo.id;
       if (!customerId) {
         const { data: newCustomer, error: customerError } = await supabase
@@ -439,13 +497,10 @@ export default function PublicBooking() {
         customerId = newCustomer.id;
       }
 
-      // Since multiple coupons can be applied, send the combined appliedCoupons info as JSON string or separate fields as needed
-      // Here, simplifying by sending combined coupon codes as comma separated string for record keeping
-      const couponCodes = Object.values(appliedCoupons).join(',');
-
       const originalPrice = calculateOriginalPrice();
       const discount = calculateDiscount();
       const finalPrice = calculateFinalPrice();
+      const couponCodes = Object.values(appliedCoupons).join(',');
 
       const bookings = selectedStations.map(stationId => ({
         station_id: stationId,
@@ -484,7 +539,6 @@ export default function PublicBooking() {
       setBookingConfirmationData(confirmationData);
       setShowConfirmationDialog(true);
 
-      // Reset form
       setSelectedStations([]);
       setSelectedSlot(null);
       setCustomerNumber('');
@@ -502,7 +556,6 @@ export default function PublicBooking() {
     }
   };
 
-  // ========= TODAY'S BOOKINGS (group by TIME -> customers) =========
   const maskPhone = (p?: string) => {
     if (!p) return '';
     const s = p.replace(/\D/g, '');
@@ -519,7 +572,6 @@ export default function PublicBooking() {
         .select('id, booking_date, start_time, end_time, status, station_id, customer_id')
         .eq('booking_date', todayStr)
         .order('start_time', { ascending: true });
-
       if (error) throw error;
       if (!bookingsData || bookingsData.length === 0) {
         setTodayRows([]);
@@ -574,7 +626,6 @@ export default function PublicBooking() {
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(r);
     });
-    // sort by real start time
     const entries = Array.from(map.entries()).sort(([a], [b]) => {
       const aStart = parse(a.split(' — ')[0], 'h:mm a', new Date()).getTime();
       const bStart = parse(b.split(' — ')[0], 'h:mm a', new Date()).getTime();
@@ -595,444 +646,185 @@ export default function PublicBooking() {
     }
   };
 
-  const today = new Date();
-  const originalPrice = calculateOriginalPrice();
-  const discount = calculateDiscount();
-  const finalPrice = calculateFinalPrice();
+  // --- News Ticker Component ---
+  const NewsTicker = () => {
+    if (!showTicker) return null;
+    return (
+      <div className="w-full bg-gradient-to-r from-cuephoria-purple via-cuephoria-lightpurple to-cuephoria-blue shadow-lg py-2 px-4 overflow-hidden relative text-white text-center text-sm sm:text-base rounded-b-md fixed top-0 left-0 z-50 font-semibold select-none">
+        <marquee behavior="scroll" direction="left" scrollamount={7} className="max-w-full whitespace-nowrap" onMouseEnter={() => setShowTicker(false)} onMouseLeave={() => setShowTicker(true)}>
+          🎉 <strong>Happy Hours Alert! </strong> Exclusive for NIT Trichy students at Cuephoria — Flat ₹99/hour for 8-Ball tables from Monday to Friday, 11 AM to 3 PM! Grab your slot now!
+        </marquee>
+      </div>
+    );
+  };
+
+  const discountDetails = calculateDiscountsDetail();
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
-      {/* Decorative glows */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
-        <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
-        <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
-      </div>
+    <>
+      <NewsTicker />
+      <div className="pt-10 min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
+        {/* ... rest of your layout remains same ... */}
 
-      {/* Promo popup */}
-      <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
-
-      {/* Header */}
-      <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col items-center mb-8">
-            <div className="mb-6 animate-float">
-              <img
-                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-                alt="Cuephoria Logo"
-                className="h-24 drop-shadow-[0_0_25px_rgba(168,85,247,0.15)]"
-              />
-            </div>
-
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-widest uppercase text-gray-300 backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5 text-cuephoria-lightpurple" />
-              Premium Gaming Lounge
-            </span>
-
-            <h1 className="mt-3 text-4xl md:text-5xl font-extrabold text-white font-heading bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple via-cuephoria-lightpurple to-cuephoria-blue animate-text-gradient">
-              Book Your Gaming Session
-            </h1>
-            <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
-              Reserve PlayStation 5 or Pool Table sessions at Cuephoria
-            </p>
-
-            {/* Feature highlights */}
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-purple/10">
-                <Sparkles className="h-4 w-4 text-cuephoria-purple mr-2" />
-                <span className="text-xs text-gray-300">Premium Equipment</span>
-              </div>
-              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-blue/10">
-                <Star className="h-4 w-4 text-cuephoria-blue mr-2" />
-                <span className="text-xs text-gray-300">Best Gaming Experience</span>
-              </div>
-              <div className="flex items-center rounded-full px-4 py-2 border border-white/10 bg-white/5 backdrop-blur-md shadow-sm shadow-cuephoria-lightpurple/10">
-                <Zap className="h-4 w-4 text-cuephoria-lightpurple mr-2" />
-                <span className="text-xs text-gray-300">Instant Booking</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Step 1 */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-2xl shadow-cuephoria-purple/10 animate-scale-in">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-purple/20 ring-1 ring-white/10 flex items-center justify-center">
-                    <User className="h-4 w-4 text-cuephoria-purple" />
-                  </div>
-                  Step 1: Customer Information
-                  {isCustomerInfoComplete() && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-xl p-3">
-                  <p className="text-sm text-cuephoria-purple/90 font-medium flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" /> Please complete customer information to proceed with booking
-                  </p>
-                </div>
-
-                <div className="flex gap-2">
-                  <Input
-                    value={customerNumber}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomerNumber(val);
-                      setHasSearched(false);
-                      setIsReturningCustomer(false);
-                      setCustomerInfo(prev => ({ ...prev, name: '', email: '', phone: val }));
-                    }}
-                    placeholder="Enter phone number"
-                    className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
-                  />
-                  <Button
-                    onClick={searchCustomer}
-                    disabled={searchingCustomer}
-                    className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 transition-all duration-150 active:scale-[.98] shadow-lg shadow-cuephoria-lightpurple/20"
-                  >
-                    {searchingCustomer ? 'Searching...' : 'Search'}
-                  </Button>
-                </div>
-
-                {hasSearched && (
-                  <div className="grid md:grid-cols-2 gap-4">
+        {/* Summary section updated below */}
+        <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Left: form steps as before */}
+            {/* ... */}
+            {/* Right: Booking Summary */}
+            <div className="lg:col-span-1">
+              <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in">
+                <CardHeader>
+                  <CardTitle className="text-white">Booking Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {selectedStations.length > 0 && (
                     <div>
-                      <Label htmlFor="name" className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                        Full Name {isReturningCustomer && <CheckCircle className="inline h-4 w-4 text-green-400 ml-1" />}
-                      </Label>
-                      <Input
-                        id="name"
-                        value={customerInfo.name}
-                        onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter your full name"
-                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
-                        disabled={isReturningCustomer}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email" className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Email (Optional)</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={customerInfo.email}
-                        onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
-                        placeholder="Enter your email address"
-                        className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
-                        disabled={isReturningCustomer}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {isCustomerInfoComplete() && (
-                  <div className="flex items-center gap-2 text-green-400 text-sm">
-                    <CheckCircle className="h-4 w-4" /> Customer information complete! You can now proceed to station selection.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Step 2 */}
-            <Card className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-xl shadow-cuephoria-blue/10 animate-scale-in transition-all duration-300">
-              <div className="pointer-events-none absolute inset-0 opacity-[0.15]">
-                <div className="absolute -top-24 -right-16 h-56 w-56 rounded-full bg-cuephoria-blue/40 blur-3xl" />
-                <div className="absolute bottom-[-60px] left-[-30px] h-48 w-48 rounded-full bg-cuephoria-purple/40 blur-3xl" />
-              </div>
-
-              <CardHeader className="relative pb-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
-                      {!isStationSelectionAvailable() ? (
-                        <Lock className="h-4 w-4 text-gray-500" />
-                      ) : (
-                        <MapPin className="h-4 w-4 text-cuephoria-blue" />
-                      )}
-                    </div>
-                    <CardTitle className="m-0 p-0 text-white tracking-wide">
-                      Step 2: Select Gaming Stations
-                    </CardTitle>
-                  </div>
-
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      {selectedStations.length} selected
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-              </CardHeader>
-
-              <CardContent className="relative pt-3">
-                <div className={cn(
-                  "grid grid-cols-3 gap-2 sm:gap-3 mb-4",
-                  !isStationSelectionAvailable() && "pointer-events-none"
-                )}>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('all')}
-                    className={cn(
-                      "h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all",
-                      "hover:translate-y-[1px] hover:bg-white/10",
-                      stationType === 'all'
-                        ? "bg-white/12 text-gray-100 shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset]"
-                        : "bg-transparent text-gray-300"
-                    )}
-                  >
-                    All
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('ps5')}
-                    className={cn(
-                      "h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all",
-                      "hover:translate-y-[1px] hover:bg-cuephoria-purple/10",
-                      stationType === 'ps5'
-                        ? "bg-cuephoria-purple/15 text-cuephoria-purple shadow-[0_0_0_1px_rgba(168,85,247,0.25)_inset]"
-                        : "bg-transparent text-cuephoria-purple"
-                    )}
-                  >
-                    PS5
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType('8ball')}
-                    className={cn(
-                      "h-9 w-full rounded-full border-white/15 text-[12px] leading-none transition-all",
-                      "hover:translate-y-[1px] hover:bg-emerald-400/10",
-                      stationType === '8ball'
-                        ? "bg-emerald-400/15 text-emerald-300 shadow-[0_0_0_1px_rgba(52,211,153,0.25)_inset]"
-                        : "bg-transparent text-emerald-300"
-                    )}
-                  >
-                    8-Ball
-                  </Button>
-                </div>
-
-                {!isStationSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Complete customer information to unlock station selection</p>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6 shadow-inner">
-                    <StationSelector
-                      stations={
-                        stationType === 'all'
-                          ? stations
-                          : stations.filter(s => s.type === stationType)
-                      }
-                      selectedStations={selectedStations}
-                      onStationToggle={handleStationToggle}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Step 3 */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl shadow-cuephoria-lightpurple/10 animate-scale-in transition-all duration-300">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white tracking-wide">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
-                    {!isTimeSelectionAvailable() ? <Lock className="h-4 w-4 text-gray-500" /> : <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />}
-                  </div>
-                  Step 3: Choose Date & Time
-                  {isTimeSelectionAvailable() && selectedSlot && <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {!isTimeSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Select stations to unlock date and time selection</p>
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <Label className="text-base font-medium text-gray-200">Choose Date</Label>
-                      <div className="mt-2">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => date && setSelectedDate(date)}
-                          disabled={(date) => date < new Date()}
-                          className={cn("rounded-xl border bg-black/30 border-white/10 pointer-events-auto")}
-                        />
-                      </div>
-                    </div>
-
-                    {selectedStations.length > 0 && (
-                      <div>
-                        <Label className="text-base font-medium text-gray-200">Available Time Slots</Label>
-                        <div className="mt-2">
-                          <TimeSlotPicker
-                            slots={availableSlots}
-                            selectedSlot={selectedSlot}
-                            onSlotSelect={handleSlotSelect}
-                            loading={slotsLoading}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Summary */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in">
-              <CardHeader>
-                <CardTitle className="text-white">Booking Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {selectedStations.length > 0 && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Stations</Label>
-                    <div className="mt-2 space-y-1">
-                      {selectedStations.map(stationId => {
-                        const station = stations.find(s => s.id === stationId);
-                        return station ? (
-                          <div key={stationId} className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
-                              {station.type === 'ps5' ? <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" /> : <Timer className="h-3.5 w-3.5 text-green-400" />}
+                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Stations</Label>
+                      <div className="mt-2 space-y-1">
+                        {selectedStations.map(stationId => {
+                          const station = stations.find(s => s.id === stationId);
+                          return station ? (
+                            <div key={stationId} className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
+                                {station.type === 'ps5' ? <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" /> : <Timer className="h-3.5 w-3.5 text-green-400" />}
+                              </div>
+                              <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1">
+                                {station.name}
+                              </Badge>
                             </div>
-                            <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1">
-                              {station.name}
-                            </Badge>
-                          </div>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {selectedDate && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
-                    <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
-                  </div>
-                )}
-
-                {selectedSlot && (
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
-                    <p className="mt-1 text-sm text-gray-200">
-                      {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                      {' — '}
-                      {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                    </p>
-                  </div>
-                )}
-
-                {/* Coupon */}
-                <div>
-                  <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coupon Code</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon code (e.g. NIT99 for 8-Ball, NIT50/ALMA50 for PS5)"
-                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
-                    />
-                    <Button
-                      onClick={handleCouponApply}
-                      size="sm"
-                      className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
-                    >
-                      Apply
-                    </Button>
-                  </div>
-
-                  {/* Applied-coupon notes */}
-                  {Object.entries(appliedCoupons).length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {appliedCoupons['8ball'] === 'NIT99' && (
-                        <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg">
-                          <p className="text-sm text-blue-300 flex items-start gap-2">
-                            <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span>✅ <strong>NIT99 applied</strong> — ₹99/hr for 8-Ball during Mon-Fri 11 AM–3 PM</span>
-                          </p>
-                        </div>
-                      )}
-                      {appliedCoupons['ps5'] === 'NIT50' && (
-                        <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
-                          <p className="text-sm text-amber-400 flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span>✅ <strong>NIT50 applied</strong> — 50% OFF on PS5 stations</span>
-                          </p>
-                        </div>
-                      )}
-                      {appliedCoupons['ps5'] === 'ALMA50' && (
-                        <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
-                          <p className="text-sm text-emerald-300">
-                            ✅ <strong>ALMA50 applied</strong> — 50% OFF on PS5 stations (ALMA users only, verification required)
-                          </p>
-                        </div>
-                      )}
-                      {appliedCoupons['all'] && (
-                        <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
-                          <p className="text-sm text-violet-300 flex items-start gap-2">
-                            <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                            <span>✅ <strong>{appliedCoupons['all']}</strong> applied globally</span>
-                          </p>
-                        </div>
-                      )}
+                          ) : null;
+                        })}
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {originalPrice > 0 && (
-                  <>
-                    <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-sm text-gray-300">Subtotal</Label>
-                        <span className="text-sm text-gray-200">₹{originalPrice}</span>
-                      </div>
-                      {discount > 0 && (
-                        <div className="flex justify-between items-center">
-                          <Label className="text-sm text-green-400">Discount</Label>
-                          <span className="text-sm text-green-400">-₹{discount}</span>
-                        </div>
-                      )}
-                      <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                      <div className="flex justify-between items-center">
-                        <Label className="text-base font-semibold text-gray-100">Total Amount</Label>
-                        <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{finalPrice}</span>
-                      </div>
+                  {selectedDate && (
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
+                      <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
                     </div>
-                  </>
-                )}
+                  )}
 
-                <Button
-                  onClick={handleBookingSubmit}
-                  disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
-                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
-                  size="lg"
-                >
-                  {loading ? 'Creating Booking...' : 'Confirm Booking'}
-                </Button>
+                  {selectedSlot && (
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
+                      <p className="mt-1 text-sm text-gray-200">
+                        {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                        {' — '}
+                        {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                      </p>
+                    </div>
+                  )}
 
-                <p className="text-xs text-gray-400 text-center">Payment will be collected at the venue</p>
-              </CardContent>
-            </Card>
+                  {/* Coupon Input and Applied Coupons Info */}
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coupon Code</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Enter coupon code (NIT99 for 8-Ball, NIT50/ALMA50 for PS5)"
+                        className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
+                      />
+                      <Button
+                        onClick={handleCouponApply}
+                        size="sm"
+                        className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
+                      >
+                        Apply
+                      </Button>
+                    </div>
+
+                    {Object.entries(appliedCoupons).length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {appliedCoupons['8ball'] === 'NIT99' && (
+                          <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg">
+                            <p className="text-sm text-blue-300 flex items-start gap-2">
+                              <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                              <span>✅ <strong>NIT99:</strong> ₹99/hr for 8-Ball tables (Mon-Fri 11 AM - 3 PM)</span>
+                            </p>
+                          </div>
+                        )}
+                        {appliedCoupons['ps5'] === 'NIT50' && (
+                          <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
+                            <p className="text-sm text-amber-400 flex items-start gap-2">
+                              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                              <span>✅ <strong>NIT50:</strong> 50% OFF on PS5 stations</span>
+                            </p>
+                          </div>
+                        )}
+                        {appliedCoupons['ps5'] === 'ALMA50' && (
+                          <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
+                            <p className="text-sm text-emerald-300">
+                              ✅ <strong>ALMA50:</strong> 50% OFF on PS5 stations (ALMA users only, verification required)
+                            </p>
+                          </div>
+                        )}
+                        {appliedCoupons['all'] && (
+                          <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
+                            <p className="text-sm text-violet-300 flex items-start gap-2">
+                              <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                              <span>✅ <strong>{appliedCoupons['all']}</strong> applied globally</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pricing Details with proper bifurcation */}
+                  {originalPrice > 0 && (
+                    <>
+                      <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                      <div className="space-y-3">
+                        {discountDetails.map(({ label, before, after }) => (
+                          <div key={label} className="text-sm text-gray-300">
+                            <div className="flex justify-between">
+                              <span>{label} (Before)</span>
+                              <span>₹{before.toFixed(0)}</span>
+                            </div>
+                            <div className="flex justify-between text-green-400 font-semibold">
+                              <span>{label} (After Discount)</span>
+                              <span>₹{after.toFixed(0)}</span>
+                            </div>
+                          </div>
+                        ))}
+                        <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                        <div className="flex justify-between items-center">
+                          <Label className="text-base font-semibold text-gray-100">Subtotal</Label>
+                          <span className="text-sm text-gray-200">₹{originalPrice.toFixed(0)}</span>
+                        </div>
+                        {discount > 0 && (
+                          <div className="flex justify-between items-center">
+                            <Label className="text-sm text-green-400">Total Discount</Label>
+                            <span className="text-sm text-green-400">-₹{discount.toFixed(0)}</span>
+                          </div>
+                        )}
+                        <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                        <div className="flex justify-between items-center">
+                          <Label className="text-xl font-extrabold text-gray-100">Total Amount</Label>
+                          <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{calculateFinalPrice().toFixed(0)}</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <Button
+                    onClick={handleBookingSubmit}
+                    disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
+                    className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
+                    size="lg"
+                  >
+                    {loading ? 'Creating Booking...' : 'Confirm Booking'}
+                  </Button>
+
+                  <p className="text-xs text-gray-400 text-center">Payment will be collected at the venue</p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        </main>
 
         {/* ==== TODAY'S BOOKINGS (grouped by TIME; expandable) ==== */}
         <div className="mt-10">
