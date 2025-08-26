@@ -62,16 +62,15 @@ export default function PublicBooking() {
 
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({ name: '', phone: '', email: '' });
   const [customerNumber, setCustomerNumber] = useState('');
-  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [isReturningCustomer, setIsReturningCustomer] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
   const [stationType, setStationType] = useState<'all' | 'ps5' | '8ball'>('all');
-
-  // Using object to store coupons per station type or global
+  // For multiple coupons support:
   const [appliedCoupons, setAppliedCoupons] = useState<{ [key: string]: string }>({});
 
-  const [couponCode, setCouponCode] = useState('');
+  const [couponInput, setCouponInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
@@ -79,28 +78,32 @@ export default function PublicBooking() {
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
-  // For recent news ticker
-  const [showTicker, setShowTicker] = useState(true);
-
-  // Today's bookings
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
-  const [todayLoading, setTodayLoading] = useState<boolean>(true);
+  const [todayLoading, setTodayLoading] = useState(true);
 
-  useEffect(() => { fetchStations(); fetchTodaysBookings(); }, []);
+  const today = new Date();
 
+  useEffect(() => {
+    fetchStations();
+    fetchTodaysBookings();
+  }, []);
+
+  // Realtime refresh
   useEffect(() => {
     const channel = supabase
       .channel('booking-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        if (selectedStations.length > 0 && selectedDate) fetchAvailableSlots();
+        if (selectedStations.length && selectedDate) fetchAvailableSlots();
         fetchTodaysBookings();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedStations, selectedDate]);
 
   useEffect(() => {
-    if (selectedStations.length > 0 && selectedDate) {
+    if (selectedStations.length && selectedDate) {
       fetchAvailableSlots();
     } else {
       setAvailableSlots([]);
@@ -108,17 +111,15 @@ export default function PublicBooking() {
     }
   }, [selectedStations, selectedDate]);
 
-  // Effect to validate NIT99 coupon if date or slot changes (remove if invalid)
+  // Validate NIT99 coupon time restriction on slot or date change
   useEffect(() => {
-    if (appliedCoupons['8ball'] === 'NIT99') {
-      if (!isHappyHour(selectedDate, selectedSlot)) {
-        setAppliedCoupons(prev => {
-          const copy = { ...prev };
-          delete copy['8ball'];
-          toast.error('NIT99 coupon removed as it is valid only Mon-Fri 11 AM to 3 PM');
-          return copy;
-        });
-      }
+    if (appliedCoupons['8ball'] === 'NIT99' && !checkHappyHour(selectedDate, selectedSlot)) {
+      setAppliedCoupons(prev => {
+        const copy = { ...prev };
+        delete copy['8ball'];
+        toast.error('NIT99 coupon removed - valid only Mon-Fri 11 AM to 3 PM');
+        return copy;
+      });
     }
   }, [selectedDate, selectedSlot]);
 
@@ -129,15 +130,16 @@ export default function PublicBooking() {
         .select('id, name, type, hourly_rate')
         .order('name');
       if (error) throw error;
-      setStations((data || []) as Station[]);
-    } catch (error) {
-      console.error('Error fetching stations:', error);
+      setStations(data || []);
+    } catch (e) {
+      console.error(e);
       toast.error('Failed to load stations');
     }
   };
 
   const fetchAvailableSlots = async () => {
-    if (selectedStations.length === 0) return;
+    if (!selectedStations.length) return;
+
     setSlotsLoading(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -146,22 +148,21 @@ export default function PublicBooking() {
         const { data, error } = await supabase.rpc('get_available_slots', {
           p_date: dateStr,
           p_station_id: selectedStations[0],
-          p_slot_duration: 60
+          p_slot_duration: 60,
         });
         if (error) throw error;
         setAvailableSlots(data || []);
       } else {
-        const results = await Promise.all(
-          selectedStations.map(stationId =>
-            supabase.rpc('get_available_slots', {
-              p_date: dateStr,
-              p_station_id: stationId,
-              p_slot_duration: 60
-            })
-          )
-        );
+        const results = await Promise.all(selectedStations.map(stationId =>
+          supabase.rpc('get_available_slots', {
+            p_date: dateStr,
+            p_station_id: stationId,
+            p_slot_duration: 60,
+          })
+        ));
 
         const base = results.find(r => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
+
         if (!base) {
           const firstErr = results.find(r => r.error)?.error;
           if (firstErr) throw firstErr;
@@ -171,54 +172,58 @@ export default function PublicBooking() {
 
         const unionMap = new Map<string, boolean>();
         const keyOf = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
+
         base.forEach(s => unionMap.set(keyOf(s), Boolean(s.is_available)));
         results.forEach(r => {
-          const arr = (r.data || []) as TimeSlot[];
-          arr.forEach(s => {
-            const k = keyOf(s);
-            unionMap.set(k, Boolean(unionMap.get(k)) || Boolean(s.is_available));
+          (r.data || []).forEach((s: TimeSlot) => {
+            const key = keyOf(s);
+            unionMap.set(key, unionMap.get(key) || Boolean(s.is_available));
           });
         });
 
-        const merged: TimeSlot[] = base.map(s => ({
+        setAvailableSlots(base.map(s => ({
           start_time: s.start_time,
           end_time: s.end_time,
-          is_available: Boolean(unionMap.get(keyOf(s)))
-        }));
-        setAvailableSlots(merged);
+          is_available: unionMap.get(keyOf(s)) || false,
+        })));
       }
 
-      // After fetching slots, validate applied coupons against times as well
-      if (appliedCoupons['8ball'] === 'NIT99' && !isHappyHour(selectedDate, selectedSlot)) {
-        setAppliedCoupons(prev => {
-          const copy = { ...prev };
-          delete copy['8ball'];
-          toast.error('NIT99 coupon removed as it is valid only Mon-Fri 11 AM to 3 PM');
-          return copy;
-        });
-      }
-
-      if (selectedSlot && !(availableSlots || []).some(
-        s => s.start_time === selectedSlot.start_time &&
-          s.end_time === selectedSlot.end_time &&
-          s.is_available
+      if (selectedSlot && !availableSlots.some(s =>
+        s.start_time === selectedSlot.start_time && s.end_time === selectedSlot.end_time && s.is_available
       )) {
         setSelectedSlot(null);
       }
-    } catch (error) {
-      console.error('Error fetching available slots:', error);
-      toast.error('Failed to load available time slots');
+
+      // Re-validate coupons on availability refresh:
+      if (appliedCoupons['8ball'] === 'NIT99' && !checkHappyHour(selectedDate, selectedSlot)) {
+        setAppliedCoupons(prev => {
+          const cp = { ...prev };
+          delete cp['8ball'];
+          toast.error('NIT99 coupon removed due to invalid time');
+          return cp;
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to load available slots');
     } finally {
       setSlotsLoading(false);
     }
   };
 
+  function checkHappyHour(date: Date, slot: TimeSlot | null) {
+    if (!slot) return false;
+    const day = getDay(date); // 0=Sunday, 6=Saturday
+    const hour = Number(slot.start_time.split(':')[0]);
+    return day >= 1 && day <= 5 && hour >= 11 && hour < 15;
+  }
+
   const searchCustomer = async () => {
     if (!customerNumber.trim()) {
-      toast.error('Please enter a customer number');
+      toast.error('Please enter phone number');
       return;
     }
-    setSearchingCustomer(true);
+    setSearching(true);
     try {
       const { data, error } = await supabase
         .from('customers')
@@ -229,722 +234,748 @@ export default function PublicBooking() {
       if (error && (error as any).code !== 'PGRST116') throw error;
 
       if (data) {
-        setIsReturningCustomer(true);
         setCustomerInfo({
           id: data.id,
           name: data.name,
           phone: data.phone,
-          email: data.email || ''
+          email: data.email || '',
         });
-        toast.success(`Welcome back, ${data.name}! 🎮`);
+        setIsReturningCustomer(true);
+        toast.success(`Welcome back, ${data.name}!`);
       } else {
+        setCustomerInfo({ id: undefined, name: '', phone: customerNumber, email: '' });
         setIsReturningCustomer(false);
-        setCustomerInfo({
-          name: '',
-          phone: customerNumber,
-          email: ''
-        });
-        toast.info('New customer! Please fill in your details below.');
+        toast.info('New customer, please fill details below.');
       }
       setHasSearched(true);
-    } catch (error) {
-      console.error('Error searching customer:', error);
-      toast.error('Failed to search customer');
+    } catch (e) {
+      console.error(e);
+      toast.error('Customer search failed');
     } finally {
-      setSearchingCustomer(false);
+      setSearching(false);
     }
   };
 
-  const handleStationToggle = (stationId: string) => {
+  const handleStationToggle = (id: string) => {
     setSelectedStations(prev =>
-      prev.includes(stationId) ? prev.filter(id => id !== stationId) : [...prev, stationId]
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
     );
     setSelectedSlot(null);
   };
 
   const filterStationsForSlot = async (slot: TimeSlot) => {
-    if (selectedStations.length === 0) return selectedStations;
+    if (!selectedStations.length) return [];
+
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-    const checks = await Promise.all(
-      selectedStations.map(async (stationId) => {
-        const { data, error } = await supabase.rpc('get_available_slots', {
-          p_date: dateStr,
-          p_station_id: stationId,
-          p_slot_duration: 60
-        });
-        if (error) return { stationId, available: false };
-        const match = (data || []).find(
-          (s: any) =>
-            s.start_time === slot.start_time &&
-            s.end_time === slot.end_time &&
-            s.is_available
-        );
-        return { stationId, available: Boolean(match) };
-      })
-    );
+    const checks = await Promise.all(selectedStations.map(async id => {
+      const { data, error } = await supabase.rpc('get_available_slots', {
+        p_date: dateStr,
+        p_station_id: id,
+        p_slot_duration: 60,
+      });
+      if (error) return { stationId: id, available: false };
+      const isAvailable = (data as TimeSlot[]).some(s =>
+        s.start_time === slot.start_time && s.end_time === slot.end_time && s.is_available
+      );
+      return { stationId: id, available: isAvailable };
+    }));
 
     const availableIds = checks.filter(c => c.available).map(c => c.stationId);
     const removedIds = checks.filter(c => !c.available).map(c => c.stationId);
 
-    if (removedIds.length > 0) {
-      const removedNames = stations
-        .filter(s => removedIds.includes(s.id))
-        .map(s => s.name)
-        .join(', ');
-      toast.message('Some stations aren’t free at this time', {
-        description: `Removed: ${removedNames}. You can proceed with the rest.`,
-      });
+    if (removedIds.length) {
+      const removedNames = stations.filter(s => removedIds.includes(s.id)).map(s => s.name).join(', ');
+      toast.message('Some stations removed due to unavailable time slots', { description: removedNames });
     }
-
     return availableIds;
   };
 
   const handleSlotSelect = async (slot: TimeSlot) => {
-    if (selectedStations.length > 0) {
-      const filtered = await filterStationsForSlot(slot);
-
-      if (filtered.length === 0) {
-        toast.error('That time isn’t available for the selected stations.');
-        setSelectedSlot(null);
-        return;
+    if (selectedStations.length) {
+      const available = await filterStationsForSlot(slot);
+      if (!available.length) {
+        toast.error('This time is not available for selected stations');
+        return setSelectedSlot(null);
       }
+      if (available.length !== selectedStations.length) setSelectedStations(available);
 
-      if (filtered.length !== selectedStations.length) {
-        setSelectedStations(filtered);
-      }
-    }
-    setSelectedSlot(slot);
-
-    // Check if NIT99 coupon exists and timing matches; else remove coupon
-    if (appliedCoupons['8ball'] === 'NIT99') {
-      if (!isHappyHour(selectedDate, slot)) {
+      // If NIT99 is applied but new slot is invalid, remove coupon
+      if (appliedCoupons['8ball'] === 'NIT99' && !checkHappyHour(selectedDate, slot)) {
         setAppliedCoupons(prev => {
-          const copy = { ...prev };
-          delete copy['8ball'];
-          toast.error('NIT99 coupon removed as it is valid only Mon-Fri 11 AM to 3 PM');
-          return copy;
+          const c = { ...prev };
+          delete c['8ball'];
+          toast.error('NIT99 coupon removed due to invalid time');
+          return c;
         });
       }
     }
-  };
-
-  // Helpers
-  const isHappyHour = (date: Date, slot: TimeSlot | null) => {
-    if (!slot) return false;
-    const day = getDay(date);
-    const startHour = Number(slot.start_time.split(':')[0]);
-    return day >= 1 && day <= 5 && startHour >= 11 && startHour < 15;
+    setSelectedSlot(slot);
   };
 
   const applyCoupon = (code: string) => {
-    const upper = (code || '').toUpperCase().trim();
-
+    const c = code.trim().toUpperCase();
     const allowed = ['CUEPHORIA25', 'NIT50', 'ALMA50', 'AXEIST', 'NIT99'];
-    if (!allowed.includes(upper)) {
-      toast.error('Invalid coupon code');
+
+    if (!allowed.includes(c)) {
+      toast.error('Invalid coupon');
       return;
     }
 
-    if (upper === 'NIT99') {
-      if (!selectedStations.some(id => stations.find(s => s.id === id && s.type === '8ball'))) {
-        toast.error('NIT99 applies only to 8-Ball stations');
-        return;
-      }
-      if (!isHappyHour(selectedDate, selectedSlot)) {
-        toast.error('NIT99 valid only Monday-Friday, 11 AM to 3 PM');
-        return;
-      }
-      setAppliedCoupons(prev => ({ ...prev, '8ball': 'NIT99' }));
-      toast.success('NIT99 applied to 8-Ball stations');
-      setCouponCode('');
+    if (c === 'AXEIST' && !window.confirm('Use AXEIST for 100% OFF?')) return;
+
+    // Check stations matching coupon requirements
+    if (c === 'NIT99' && !selectedStations.some(id => stations.find(s => s.id === id && s.type === '8ball'))) {
+      toast.error('NIT99 valid only for 8-ball');
       return;
     }
+    if ((c === 'NIT99' || c === 'NIT50' || c === 'ALMA50') && !checkHappyHour(selectedDate, selectedSlot)) {
+      if(c === 'NIT99') {
+        toast.error('NIT99 valid only Mon-Fri from 11AM to 3PM');
+        return;
+      }
+      // NIT50 and ALMA50 can be used anytime for students, so no time check
+    }
 
-    if (upper === 'NIT50' || upper === 'ALMA50') {
+    if (c === 'NIT50' || c === 'ALMA50') {
       if (!selectedStations.some(id => stations.find(s => s.id === id && s.type === 'ps5'))) {
-        toast.error(`${upper} applies only to PS5 stations`);
+        toast.error(`${c} valid only on PS5 stations`);
         return;
       }
-      if (appliedCoupons['ps5'] && appliedCoupons['ps5'] !== upper) {
-        toast.error(`You can apply only one PS5 coupon: either NIT50 or ALMA50`);
+      // Can't stack NIT50 and ALMA50 both for PS5
+      if (appliedCoupons['ps5'] && appliedCoupons['ps5'] !== c) {
+        toast.error('Cannot use both NIT50 and ALMA50 together');
         return;
       }
-      setAppliedCoupons(prev => ({ ...prev, 'ps5': upper }));
-      toast.success(`${upper} applied to PS5 stations`);
-      setCouponCode('');
-      return;
     }
 
-    if (upper === 'AXEIST' || upper === 'CUEPHORIA25') {
-      setAppliedCoupons({ 'all': upper });
-      toast.success(`${upper} applied globally`);
-      setCouponCode('');
-      return;
-    }
+    if (c === 'NIT99') setAppliedCoupons(prev => ({ ...prev, '8ball': c }));
+    else if (c === 'NIT50' || c === 'ALMA50') setAppliedCoupons(prev => ({ ...prev, 'ps5': c }));
+    else setAppliedCoupons({ 'all': c }); // For global coupons
+
+    toast.success(`${c} coupon applied`);
+    setCouponInput('');
   };
-
-  const handleCouponApply = () => applyCoupon(couponCode);
-  const handleCouponSelect = (coupon: string) => applyCoupon(coupon);
 
   const calculateOriginalPrice = () => {
-    if (selectedStations.length === 0 || !selectedSlot) return 0;
-    const selectedObjs = stations.filter(s => selectedStations.includes(s.id));
-    return selectedObjs.reduce((sum, s) => sum + s.hourly_rate, 0);
+    if (!selectedStations.length || !selectedSlot) return 0;
+    return stations.filter(s => selectedStations.includes(s.id)).reduce((acc, s) => acc + s.hourly_rate, 0);
   };
 
-  const calculateDiscountsDetail = () => {
-    // Returns array of discount details for display
-    const details: { label: string; before: number; after: number }[] = [];
-    if (selectedStations.length === 0 || !selectedSlot) return details;
+  const calculateDiscountDetails = () => {
+    if (!selectedStations.length || !selectedSlot) return [];
+    const details = [];
 
-    // Global single coupon case
-    if (appliedCoupons['all']) {
-      const original = calculateOriginalPrice();
-      if (appliedCoupons['all'] === 'AXEIST') {
-        details.push({ label: 'AXEIST (100% OFF)', before: original, after: 0 });
-      }
-      if (appliedCoupons['all'] === 'CUEPHORIA25') {
-        details.push({ label: 'CUEPHORIA25 (25% OFF)', before: original, after: original * 0.75 });
-      }
-      return details;
+    const ps5Stations = stations.filter(s => selectedStations.includes(s.id) && s.type === 'ps5');
+    const ballStations = stations.filter(s => selectedStations.includes(s.id) && s.type === '8ball');
+
+    if ('8ball' in appliedCoupons) {
+      const before = ballStations.reduce((a,s) => a + s.hourly_rate, 0);
+      const after = (appliedCoupons['8ball'] === 'NIT99') ? (99 * ballStations.length) : before;
+      if (before > 0) details.push({ label: `8-Ball (${ballStations.length}) - ${appliedCoupons['8ball']}`, before, after });
     }
-
-    // NIT99 for 8ball
-    if (appliedCoupons['8ball'] === 'NIT99') {
-      const eightBalls = stations.filter(s => selectedStations.includes(s.id) && s.type === '8ball');
-      const sum = eightBalls.reduce((acc, s) => acc + s.hourly_rate, 0);
-      const after = 99 * eightBalls.length;
-      details.push({ label: `NIT99 for 8-Ball (${eightBalls.length} table${eightBalls.length > 1 ? 's' : ''})`, before: sum, after });
+    if ('ps5' in appliedCoupons) {
+      const before = ps5Stations.reduce((a,s) => a + s.hourly_rate, 0);
+      const after = (appliedCoupons['ps5'] === 'NIT50' || appliedCoupons['ps5'] === 'ALMA50') ? before * 0.5 : before;
+      if (before > 0) details.push({ label: `PS5 (${ps5Stations.length}) - ${appliedCoupons['ps5']}`, before, after });
     }
+    if ('all' in appliedCoupons) {
+      const before = calculateOriginalPrice();
+      let after = before;
+      if (appliedCoupons['all'] === 'AXEIST') after = 0;
+      else if (appliedCoupons['all'] === 'CUEPHORIA25') after = before * 0.75;
 
-    // NIT50 or ALMA50 for PS5
-    if (appliedCoupons['ps5']) {
-      const ps5Stations = stations.filter(s => selectedStations.includes(s.id) && s.type === 'ps5');
-      const sum = ps5Stations.reduce((acc, s) => acc + s.hourly_rate, 0);
-      const after = sum * 0.5;
-      const label = appliedCoupons['ps5'] === 'NIT50' ? 'NIT50 for PS5' : 'ALMA50 for PS5';
-      details.push({ label, before: sum, after });
+      details.push({ label: `${appliedCoupons['all']}`, before, after });
     }
-
     return details;
   };
 
-  const calculateDiscount = () => {
-    if (selectedStations.length === 0 || !selectedSlot) return 0;
-    if (appliedCoupons['all']) {
-      const original = calculateOriginalPrice();
-      if (appliedCoupons['all'] === 'AXEIST') return original;
-      if (appliedCoupons['all'] === 'CUEPHORIA25') return original * 0.25;
-      return 0;
-    }
-
-    let discount = 0;
-    if (appliedCoupons['8ball'] === 'NIT99') {
-      const eightBalls = stations.filter(s => selectedStations.includes(s.id) && s.type === '8ball');
-      const sum = eightBalls.reduce((acc, s) => acc + s.hourly_rate, 0);
-      discount += sum - (99 * eightBalls.length);
-    }
-    if (appliedCoupons['ps5']) {
-      const ps5Stations = stations.filter(s => selectedStations.includes(s.id) && s.type === 'ps5');
-      const sum = ps5Stations.reduce((acc, s) => acc + s.hourly_rate, 0);
-      discount += sum * 0.5;
-    }
-    return discount;
+  const discountTotal = () => {
+    let disc = 0;
+    calculateDiscountDetails().forEach(d => disc += d.before - d.after);
+    return disc;
   };
 
   const calculateFinalPrice = () => {
     const original = calculateOriginalPrice();
-    const discount = calculateDiscount();
-    return Math.max(0, original - discount);
+    let totalDiscount = discountTotal();
+    return Math.max(original - totalDiscount, 0);
   };
-
-  const handleLegalClick = (type: 'terms' | 'privacy' | 'contact') => {
-    setLegalDialogType(type);
-    setShowLegalDialog(true);
-  };
-
-  const isCustomerInfoComplete = () =>
-    hasSearched && customerNumber.trim() && customerInfo.name.trim();
-
-  const isStationSelectionAvailable = () => isCustomerInfoComplete();
-  const isTimeSelectionAvailable = () => isStationSelectionAvailable() && selectedStations.length > 0;
 
   const handleBookingSubmit = async () => {
-    if (!customerNumber.trim()) { toast.error('Please complete customer information first'); return; }
-    if (selectedStations.length === 0) { toast.error('Please select at least one station'); return; }
-    if (!selectedSlot) { toast.error('Please select a time slot'); return; }
-    if (!customerInfo.name.trim()) { toast.error('Please enter your name'); return; }
-
+    if (!customerNumber.trim()) {
+      toast.error('Please fill phone number');
+      return;
+    }
+    if (!selectedStations.length) {
+      toast.error('Select at least one station');
+      return;
+    }
+    if (!selectedSlot) {
+      toast.error('Select a time slot');
+      return;
+    }
+    if (!customerInfo.name.trim()) {
+      toast.error('Please enter your name');
+      return;
+    }
     setLoading(true);
     try {
-      let customerId = customerInfo.id;
-      if (!customerId) {
-        const { data: newCustomer, error: customerError } = await supabase
-          .from('customers')
-          .insert({
-            name: customerInfo.name,
-            phone: customerInfo.phone,
-            email: customerInfo.email || null,
-            is_member: false,
-            loyalty_points: 0,
-            total_spent: 0,
-            total_play_time: 0
-          })
-          .select('id')
-          .single();
-        if (customerError) throw customerError;
-        customerId = newCustomer.id;
+      let custId = customerInfo.id;
+      if (!custId) {
+        const { data, error } = await supabase.from('customers').insert({
+          name: customerInfo.name,
+          phone: customerInfo.phone,
+          email: customerInfo.email || null,
+          is_member: false,
+          loyalty_points: 0,
+          total_spent: 0,
+          total_play_time: 0,
+        }).select('id').single();
+        if (error) throw error;
+        custId = data!.id;
       }
+      const totalDiscount = discountTotal();
+      const finalAmount = calculateFinalPrice();
+      const couponTag = Object.values(appliedCoupons).join(',');
 
-      const originalPrice = calculateOriginalPrice();
-      const discount = calculateDiscount();
-      const finalPrice = calculateFinalPrice();
-      const couponCodes = Object.values(appliedCoupons).join(',');
-
-      const bookings = selectedStations.map(stationId => ({
-        station_id: stationId,
-        customer_id: customerId!,
+      const bookings = selectedStations.map(id => ({
+        station_id: id,
+        customer_id: custId!,
         booking_date: format(selectedDate, 'yyyy-MM-dd'),
         start_time: selectedSlot!.start_time,
         end_time: selectedSlot!.end_time,
         duration: 60,
         status: 'confirmed',
-        original_price: originalPrice,
-        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-        final_price: finalPrice,
-        coupon_code: couponCodes || null
+        original_price: calculateOriginalPrice(),
+        discount_percentage: totalDiscount > 0 ? (totalDiscount / calculateOriginalPrice()) * 100 : null,
+        final_price: finalAmount,
+        coupon_code: couponTag || null,
       }));
 
-      const { data: insertedBookings, error: bookingError } = await supabase
-        .from('bookings')
-        .insert(bookings)
-        .select('id');
-
+      const { data: bookingsData, error: bookingError } = await supabase.from('bookings').insert(bookings).select('id');
       if (bookingError) throw bookingError;
 
-      const selectedStationObjects = stations.filter(s => selectedStations.includes(s.id));
-      const confirmationData = {
-        bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
+      setBookingConfirmationData({
+        bookingId: bookingsData![0].id.slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
-        stationNames: selectedStationObjects.map(s => s.name),
+        stationNames: stations.filter(s => selectedStations.includes(s.id)).map(s => s.name),
         date: format(selectedDate, 'yyyy-MM-dd'),
         startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
         endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-        totalAmount: finalPrice,
-        couponCode: couponCodes || undefined,
-        discountAmount: discount > 0 ? discount : undefined
-      };
-
-      setBookingConfirmationData(confirmationData);
+        totalAmount: finalAmount,
+        couponCode: couponTag || undefined,
+        discountAmount: totalDiscount > 0 ? totalDiscount : undefined,
+      });
       setShowConfirmationDialog(true);
 
       setSelectedStations([]);
       setSelectedSlot(null);
       setCustomerNumber('');
-      setCustomerInfo({ name: '', phone: '', email: '' });
+      setCustomerInfo({ id: undefined, name: '', phone: '', email: '' });
       setIsReturningCustomer(false);
       setHasSearched(false);
-      setCouponCode('');
       setAppliedCoupons({});
+      setCouponInput('');
       setAvailableSlots([]);
-    } catch (error) {
-      console.error('Error creating booking:', error);
-      toast.error('Failed to create booking. Please try again.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Booking creation failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const maskPhone = (p?: string) => {
-    if (!p) return '';
-    const s = p.replace(/\D/g, '');
-    if (s.length <= 4) return s;
-    return `${s.slice(0, 3)}${'X'.repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
+  const maskPhone = (phone?: string) => {
+    if (!phone) return '';
+    const digits = phone.replace(/\D/g, '');
+    return digits.length <= 4 ? digits : `${digits.slice(0, 3)}${'X'.repeat(digits.length - 5)}${digits.slice(-2)}`;
   };
 
   const fetchTodaysBookings = async () => {
     setTodayLoading(true);
     try {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const { data: bookingsData, error } = await supabase
-        .from('bookings')
-        .select('id, booking_date, start_time, end_time, status, station_id, customer_id')
-        .eq('booking_date', todayStr)
-        .order('start_time', { ascending: true });
+      const { data, error } = await supabase.from('bookings').select(
+        'id, booking_date, start_time, end_time, status, station_id, customer_id'
+      ).eq('booking_date', todayStr).order('start_time', { ascending: true });
       if (error) throw error;
-      if (!bookingsData || bookingsData.length === 0) {
+      if (!data?.length) {
         setTodayRows([]);
         setTodayLoading(false);
         return;
       }
-
-      const stationIds = [...new Set(bookingsData.map(b => b.station_id))];
-      const customerIds = [...new Set(bookingsData.map(b => b.customer_id))];
+      const stationIds = Array.from(new Set(data.map(d => d.station_id)));
+      const customerIds = Array.from(new Set(data.map(d => d.customer_id)));
 
       const [{ data: stationsData }, { data: customersData }] = await Promise.all([
         supabase.from('stations').select('id, name').in('id', stationIds),
-        supabase.from('customers').select('id, name, phone').in('id', customerIds)
+        supabase.from('customers').select('id, name, phone').in('id', customerIds),
       ]);
 
-      const rows: TodayBookingRow[] = bookingsData.map(b => {
-        const st = stationsData?.find(s => s.id === b.station_id);
-        const cu = customersData?.find(c => c.id === b.customer_id);
+      const rows = data.map(booking => {
+        const st = stationsData?.find(s => s.id === booking.station_id);
+        const cu = customersData?.find(c => c.id === booking.customer_id);
         return {
-          id: b.id,
-          booking_date: b.booking_date,
-          start_time: b.start_time,
-          end_time: b.end_time,
-          status: b.status as TodayBookingRow['status'],
-          station_id: b.station_id,
-          customer_id: b.customer_id,
+          id: booking.id,
+          booking_date: booking.booking_date,
+          start_time: booking.start_time,
+          end_time: booking.end_time,
+          status: booking.status as any,
+          station_id: booking.station_id,
+          customer_id: booking.customer_id,
           stationName: st?.name || '—',
           customerName: cu?.name || '—',
-          customerPhone: maskPhone(cu?.phone)
+          customerPhone: maskPhone(cu?.phone),
         };
       });
 
       setTodayRows(rows);
     } catch (e) {
+      setTodayRows([]);
+      toast.error('Failed to load today\'s bookings');
       console.error(e);
-      toast.error('Failed to load today’s bookings');
     } finally {
       setTodayLoading(false);
     }
   };
 
-  const timeKey = (s: string, e: string) => {
-    const start = new Date(`2000-01-01T${s}`);
-    const end = new Date(`2000-01-01T${e}`);
-    return `${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} — ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  const timeKey = (start: string, end: string) => {
+    const s = new Date(`2000-01-01T${start}`);
+    const e = new Date(`2000-01-01T${end}`);
+    return `${s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} — ${e.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
   };
 
-  const groupedByTime = useMemo(() => {
-    const map = new Map<string, TodayBookingRow[]>();
-    todayRows.forEach(r => {
-      const k = timeKey(r.start_time, r.end_time);
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(r);
+  const groupedBookings = useMemo(() => {
+    const groupMap = new Map<string, TodayBookingRow[]>();
+    todayRows.forEach(row => {
+      const k = timeKey(row.start_time, row.end_time);
+      if (!groupMap.has(k)) groupMap.set(k, []);
+      groupMap.get(k)!.push(row);
     });
-    const entries = Array.from(map.entries()).sort(([a], [b]) => {
-      const aStart = parse(a.split(' — ')[0], 'h:mm a', new Date()).getTime();
-      const bStart = parse(b.split(' — ')[0], 'h:mm a', new Date()).getTime();
-      return aStart - bStart;
+    return Array.from(groupMap.entries()).sort((a, b) => {
+      const aT = parse(a[0].split(' — ')[0], 'h:mm a', new Date()).getTime();
+      const bT = parse(b[0].split(' — ')[0], 'h:mm a', new Date()).getTime();
+      return aT - bT;
     });
-    return entries;
   }, [todayRows]);
 
-  const statusChip = (s: TodayBookingRow['status']) => {
+  const statusChip = (status: TodayBookingRow['status']) => {
     const base = 'px-2 py-0.5 rounded-full text-xs capitalize';
-    switch (s) {
-      case 'confirmed': return <span className={cn(base, 'bg-blue-500/15 text-blue-300 border border-blue-400/20')}>confirmed</span>;
-      case 'in-progress': return <span className={cn(base, 'bg-amber-500/15 text-amber-300 border border-amber-400/20')}>in-progress</span>;
-      case 'completed': return <span className={cn(base, 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/20')}>completed</span>;
-      case 'cancelled': return <span className={cn(base, 'bg-rose-500/15 text-rose-300 border border-rose-400/20')}>cancelled</span>;
-      case 'no-show': return <span className={cn(base, 'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>no-show</span>;
-      default: return <span className={cn(base, 'bg-zinc-500/15 text-zinc-300 border border-zinc-400/20')}>{s}</span>;
+    switch (status) {
+      case 'confirmed': return <span className={cn(base, 'bg-blue-500/15 text-blue-400 border border-blue-400')}>confirmed</span>;
+      case 'in-progress': return <span className={cn(base, 'bg-amber-500/15 text-amber-400 border border-amber-400')}>in-progress</span>;
+      case 'completed': return <span className={cn(base, 'bg-green-500/15 text-green-400 border border-green-400')}>completed</span>;
+      case 'cancelled': return <span className={cn(base, 'bg-red-500/15 text-red-400 border border-red-400')}>cancelled</span>;
+      case 'no-show': return <span className={cn(base, 'bg-gray-500/15 text-gray-400 border border-gray-400')}>no-show</span>;
+      default: return <span className={cn(base, 'bg-gray-500/15 text-gray-400 border border-gray-400')}>{status}</span>;
     }
   };
 
-  // --- News Ticker Component ---
-  const NewsTicker = () => {
-    if (!showTicker) return null;
-    return (
-      <div className="w-full bg-gradient-to-r from-cuephoria-purple via-cuephoria-lightpurple to-cuephoria-blue shadow-lg py-2 px-4 overflow-hidden relative text-white text-center text-sm sm:text-base rounded-b-md fixed top-0 left-0 z-50 font-semibold select-none">
-        <marquee behavior="scroll" direction="left" scrollamount={7} className="max-w-full whitespace-nowrap" onMouseEnter={() => setShowTicker(false)} onMouseLeave={() => setShowTicker(true)}>
-          🎉 <strong>Happy Hours Alert! </strong> Exclusive for NIT Trichy students at Cuephoria — Flat ₹99/hour for 8-Ball tables from Monday to Friday, 11 AM to 3 PM! Grab your slot now!
-        </marquee>
-      </div>
-    );
-  };
+  // News ticker component for mobile and desktop top fixed
+  const NewsTicker = () => (
+    <div className="fixed top-0 w-full bg-gradient-to-r from-purple-700 via-purple-900 to-indigo-800 text-white text-center select-none py-2 px-4 md:hidden z-[9999] shadow-lg">
+      <marquee behavior="scroll" scrollamount={7} direction="left" onMouseEnter={(e) => (e.currentTarget.stop(), setTimeout(() => e.currentTarget.start(), 1000))}>
+        <Sparkles className="inline-block mr-2" /> 
+        <strong>Happy hours at Cuephoria:</strong> Exclusive for NIT students of Trichy, flat ₹99/hour on 8-Ball tables — Monday to Friday, 11 AM to 3 PM!
+      </marquee>
+    </div>
+  );
 
-  const discountDetails = calculateDiscountsDetail();
+  const discountDetails = calculateDiscountDetails();
+  const totalDiscount = discountTotal();
+  const finalPrice = calculateFinalPrice();
 
   return (
     <>
       <NewsTicker />
       <div className="pt-10 min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
-        {/* ... rest of your layout remains same ... */}
+        {/* Decorative background glows */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-purple-700/20 blur-3xl" />
+          <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-indigo-700/20 blur-3xl" />
+          <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-purple-500/20 blur-3xl" />
+        </div>
 
-        {/* Summary section updated below */}
-        <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* Left: form steps as before */}
-            {/* ... */}
-            {/* Right: Booking Summary */}
-            <div className="lg:col-span-1">
-              <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,.25)] animate-scale-in">
-                <CardHeader>
-                  <CardTitle className="text-white">Booking Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {selectedStations.length > 0 && (
-                    <div>
-                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Stations</Label>
-                      <div className="mt-2 space-y-1">
-                        {selectedStations.map(stationId => {
-                          const station = stations.find(s => s.id === stationId);
-                          return station ? (
-                            <div key={stationId} className="flex items-center gap-2">
-                              <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
-                                {station.type === 'ps5' ? <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" /> : <Timer className="h-3.5 w-3.5 text-green-400" />}
-                              </div>
-                              <Badge variant="secondary" className="bg-white/5 text-gray-200 border-white/10 rounded-full px-2.5 py-1">
-                                {station.name}
-                              </Badge>
-                            </div>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  )}
+        {/* Promo popup */}
+        <CouponPromotionalPopup onCouponSelect={applyCoupon} />
 
-                  {selectedDate && (
-                    <div>
-                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</Label>
-                      <p className="mt-1 text-sm text-gray-200">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
-                    </div>
-                  )}
+        {/* Header */}
+        <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
+          <div className="max-w-7xl mx-auto text-center">
+            <img src="/lovable-uploads/61f60f.png" alt="Cuephoria Logo" className="mx-auto h-24 drop-shadow-lg" />
+            <small className="mt-2 inline-flex items-center justify-center gap-2 bg-white/10 rounded-full px-3 py-1 text-xs uppercase text-white tracking-wide shadow-inner shadow-purple-900/40">
+              <Sparkles className="h-4 w-4" /> Premium Gaming Lounge
+            </small>
+            <h1 className="mt-5 text-5xl font-extrabold bg-gradient-to-r from-purple-600 via-purple-400 to-indigo-600 bg-clip-text text-transparent">
+              Book Your Gaming Session
+            </h1>
+            <p className="mt-2 text-lg font-light text-white/80 max-w-xl mx-auto">
+              Reserve PlayStation 5 or Pool Table sessions at Cuephoria
+            </p>
+          </div>
+        </header>
 
-                  {selectedSlot && (
-                    <div>
-                      <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</Label>
-                      <p className="mt-1 text-sm text-gray-200">
-                        {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                        {' — '}
-                        {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Coupon Input and Applied Coupons Info */}
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Coupon Code</Label>
-                    <div className="flex gap-2 mt-1">
-                      <Input
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        placeholder="Enter coupon code (NIT99 for 8-Ball, NIT50/ALMA50 for PS5)"
-                        className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition flex-1"
-                      />
-                      <Button
-                        onClick={handleCouponApply}
-                        size="sm"
-                        className="rounded-xl bg-green-600 hover:bg-green-700 transition-all duration-150 active:scale-[.98] shadow-lg shadow-green-500/10"
-                      >
-                        Apply
-                      </Button>
-                    </div>
-
-                    {Object.entries(appliedCoupons).length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        {appliedCoupons['8ball'] === 'NIT99' && (
-                          <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg">
-                            <p className="text-sm text-blue-300 flex items-start gap-2">
-                              <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                              <span>✅ <strong>NIT99:</strong> ₹99/hr for 8-Ball tables (Mon-Fri 11 AM - 3 PM)</span>
-                            </p>
-                          </div>
-                        )}
-                        {appliedCoupons['ps5'] === 'NIT50' && (
-                          <div className="p-3 bg-amber-900/30 border border-amber-500/30 rounded-lg">
-                            <p className="text-sm text-amber-400 flex items-start gap-2">
-                              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                              <span>✅ <strong>NIT50:</strong> 50% OFF on PS5 stations</span>
-                            </p>
-                          </div>
-                        )}
-                        {appliedCoupons['ps5'] === 'ALMA50' && (
-                          <div className="p-2 bg-emerald-900/20 border border-emerald-500/20 rounded-lg">
-                            <p className="text-sm text-emerald-300">
-                              ✅ <strong>ALMA50:</strong> 50% OFF on PS5 stations (ALMA users only, verification required)
-                            </p>
-                          </div>
-                        )}
-                        {appliedCoupons['all'] && (
-                          <div className="p-3 bg-violet-900/30 border border-violet-500/30 rounded-lg">
-                            <p className="text-sm text-violet-300 flex items-start gap-2">
-                              <Sparkles className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                              <span>✅ <strong>{appliedCoupons['all']}</strong> applied globally</span>
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+        {/* Main Content */}
+        <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-28 grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10">
+          {/* Left two columns: Form */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Step 1: Customer Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3 text-white text-lg font-semibold">
+                  <User className="text-purple-600" />
+                  Step 1: Customer Information
+                  {isReturningCustomer && <CheckCircle className="text-green-400 ml-auto" />}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      placeholder="Enter phone number"
+                      value={customerNumber}
+                      onChange={e => {
+                        setCustomerNumber(e.target.value);
+                        setHasSearched(false);
+                        setIsReturningCustomer(false);
+                        setCustomerInfo({ id: undefined, name: '', phone: e.target.value, email: '' });
+                      }}
+                      className="flex-grow bg-black/40 text-white"
+                    />
+                    <Button disabled={searching} onClick={searchCustomer}>
+                      {searching ? 'Searching...' : 'Search'}
+                    </Button>
                   </div>
 
-                  {/* Pricing Details with proper bifurcation */}
-                  {originalPrice > 0 && (
-                    <>
-                      <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                      <div className="space-y-3">
-                        {discountDetails.map(({ label, before, after }) => (
-                          <div key={label} className="text-sm text-gray-300">
-                            <div className="flex justify-between">
-                              <span>{label} (Before)</span>
-                              <span>₹{before.toFixed(0)}</span>
-                            </div>
-                            <div className="flex justify-between text-green-400 font-semibold">
-                              <span>{label} (After Discount)</span>
-                              <span>₹{after.toFixed(0)}</span>
-                            </div>
-                          </div>
-                        ))}
-                        <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                        <div className="flex justify-between items-center">
-                          <Label className="text-base font-semibold text-gray-100">Subtotal</Label>
-                          <span className="text-sm text-gray-200">₹{originalPrice.toFixed(0)}</span>
-                        </div>
-                        {discount > 0 && (
-                          <div className="flex justify-between items-center">
-                            <Label className="text-sm text-green-400">Total Discount</Label>
-                            <span className="text-sm text-green-400">-₹{discount.toFixed(0)}</span>
-                          </div>
-                        )}
-                        <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                        <div className="flex justify-between items-center">
-                          <Label className="text-xl font-extrabold text-gray-100">Total Amount</Label>
-                          <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">₹{calculateFinalPrice().toFixed(0)}</span>
-                        </div>
+                  {hasSearched && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="input-name">Full Name</Label>
+                        <Input
+                          id="input-name"
+                          placeholder="Full name"
+                          value={customerInfo.name}
+                          onChange={e => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
+                          disabled={isReturningCustomer}
+                          className="bg-black/40 text-white"
+                        />
                       </div>
-                    </>
+                      <div>
+                        <Label htmlFor="input-email">Email (optional)</Label>
+                        <Input
+                          id="input-email"
+                          placeholder="Email"
+                          value={customerInfo.email}
+                          onChange={e => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
+                          disabled={isReturningCustomer}
+                          className="bg-black/40 text-white"
+                        />
+                      </div>
+                    </div>
                   )}
 
-                  <Button
-                    onClick={handleBookingSubmit}
-                    disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
-                    className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
-                    size="lg"
-                  >
-                    {loading ? 'Creating Booking...' : 'Confirm Booking'}
-                  </Button>
+                  {isReturningCustomer && (
+                    <div className="flex items-center gap-2 text-green-400 mt-1 text-sm">
+                      <CheckCircle /> Customer information verified.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-                  <p className="text-xs text-gray-400 text-center">Payment will be collected at the venue</p>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Step 2: Station Selection */}
+            <Card>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-3 text-white text-lg font-semibold">
+                  <MapPin className="text-indigo-500" />
+                  Step 2: Select Stations
+                </CardTitle>
+                {selectedStations.length > 0 && (
+                  <Badge variant='secondary' className="bg-green-600 text-white">
+                    {selectedStations.length} Selected
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="mb-3 flex gap-2">
+                  {['all', 'ps5', '8ball'].map(type => (
+                    <Button
+                      key={type}
+                      size="sm"
+                      variant={stationType === type ? 'default' : 'outline'}
+                      onClick={() => setStationType(type as any)}
+                    >
+                      {type === 'all' ? 'All' : type.toUpperCase()}
+                    </Button>
+                  ))}
+                </div>
+
+                {!isReturningCustomer || !hasSearched ? (
+                  <div className="opacity-60 pointer-events-none">
+                    Complete customer info to select stations.
+                  </div>
+                ) : (
+                  <StationSelector
+                    stations={stationType === 'all' ? stations : stations.filter(s => s.type === stationType)}
+                    selectedStations={selectedStations}
+                    onToggle={handleStationToggle}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Step 3: Select Date and Time */}
+            <Card>
+              <CardHeader className="flex items-center gap-3">
+                <div>
+                  {stationType === 'none' || !isReturningCustomer ? (
+                    <Lock className="text-gray-400" />
+                  ) : (
+                    <CalendarIcon className="text-blue-400" />
+                  )}
+                </div>
+                <CardTitle className="text-white text-lg font-semibold">Step 3: Choose Date & Time</CardTitle>
+                {isReturningCustomer && selectedSlot && <CheckCircle className="text-green-400 ml-auto" />}
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <Label>Pick a Date</Label>
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={date => date && setSelectedDate(date)}
+                      disabled={date => date < today}
+                      className="bg-black/40 text-white rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <Label>Available Time Slots</Label>
+                    <TimeSlotPicker
+                      slots={availableSlots}
+                      selectedSlot={selectedSlot}
+                      onSelect={handleSlotSelect}
+                      loading={slotsLoading}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right column: Booking Summary */}
+          <div>
+            <Card className="sticky top-20">
+              <CardHeader>
+                <CardTitle className="text-white">Booking Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedStations.length > 0 && (
+                  <>
+                    <Label className="text-xs uppercase text-gray-400 mb-2">Selected Stations</Label>
+                    <div className="space-y-2 mb-4">
+                      {selectedStations.map(id => {
+                        const st = stations.find(s => s.id === id);
+                        if (!st) return null;
+                        return (
+                          <div key={id} className="flex items-center gap-2">
+                            <div className={cn("w-5 h-5 flex items-center justify-center rounded-md",
+                              st.type === 'ps5' ? "bg-purple-600" : "bg-green-600")}>
+                              {st.type === 'ps5' ? <Gamepad2 className="text-white w-3.5 h-3.5" /> : <Timer className="text-white w-3.5 h-3.5" />}
+                            </div>
+                            <Badge>{st.name}</Badge>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {selectedDate && (
+                  <div className="mb-2">
+                    <Label className="text-xs uppercase text-gray-400">Date</Label>
+                    <p>{format(selectedDate, 'eeee, MMMM d, yyyy')}</p>
+                  </div>
+                )}
+
+                {selectedSlot && (
+                  <div className="mb-4">
+                    <Label className="text-xs uppercase text-gray-400">Time</Label>
+                    <p>{new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString()} - {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString()}</p>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <Label className="text-xs uppercase text-gray-400">Coupon Code</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter coupon code"
+                      value={couponInput}
+                      onChange={e => setCouponInput(e.target.value.toUpperCase())}
+                      className="bg-black/40 text-white"
+                    />
+                    <Button size="sm" onClick={() => couponInput && applyCoupon(couponInput)}>
+                      Apply
+                    </Button>
+                  </div>
+                  {Object.keys(appliedCoupons).length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {appliedCoupons['all'] && (
+                        <div className="p-2 bg-gradient-to-r from-purple-700 via-purple-900 to-indigo-800 text-white rounded">
+                          <Sparkles className="inline mr-2" /> Applied: <strong>{appliedCoupons['all']}</strong> (Global Discount)
+                        </div>
+                      )}
+                      {appliedCoupons['ps5'] && (
+                        <div className="p-2 bg-purple-700 text-white rounded">
+                          Applied on PS5: <strong>{appliedCoupons['ps5']}</strong>
+                        </div>
+                      )}
+                      {appliedCoupons['8ball'] && (
+                        <div className="p-2 bg-green-700 text-white rounded">
+                          Applied on 8-Ball: <strong>{appliedCoupons['8ball']}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {(selectedStations.length > 0 && selectedSlot) && (
+                  <>
+                    <Separator />
+                    <div className="mb-2 text-sm">
+                      {calculateDiscountDetails().map(({ label, before, after }) => (
+                        <div key={label} className="flex justify-between text-gray-300">
+                          <span>{label}:</span>
+                          <span><s>₹{before.toFixed(0)}</s> → ₹{after.toFixed(0)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-between text-gray-400 text-sm font-semibold">
+                      <span>Subtotal:</span> <span>₹{calculateOriginalPrice().toFixed(0)}</span>
+                    </div>
+                    <div className="flex justify-between text-green-400 text-sm font-semibold">
+                      <span>Total Discount:</span> <span>-₹{discountTotal().toFixed(0)}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between font-extrabold text-xl text-gradient-purple">
+                      <span>Total Amount:</span> <span>₹{calculateFinalPrice().toFixed(0)}</span>
+                    </div>
+                  </>
+                )}
+
+                <Button
+                  disabled={loading || !selectedSlot || !selectedStations.length || !customerNumber}
+                  onClick={handleBookingSubmit}
+                  size="lg"
+                  className="w-full mt-6 bg-gradient-to-r from-purple-700 via-indigo-700 to-indigo-600 text-white font-bold"
+                >
+                  {loading ? 'Booking...' : 'Confirm Booking'}
+                </Button>
+
+                <p className="text-xs text-gray-400 mt-2 text-center">Payment collected at venue</p>
+              </CardContent>
+            </Card>
           </div>
         </main>
 
-        {/* ==== TODAY'S BOOKINGS (grouped by TIME; expandable) ==== */}
-        <div className="mt-10">
-          <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-white flex items-center gap-2">
-                <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
-                Today’s Bookings
+        {/* Today's Bookings */}
+        <div className="max-w-7xl mx-auto px-4 py-10">
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Clock className="text-indigo-400" /> Today's Bookings ({todayRows.length})
               </CardTitle>
-              <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
-                {todayRows.length} total
-              </span>
             </CardHeader>
-
-            <CardContent className="space-y-3">
-              {todayLoading ? (
-                <div className="h-12 rounded-md bg-white/5 animate-pulse" />
-              ) : groupedByTime.length === 0 ? (
-                <div className="text-sm text-gray-400">No bookings today.</div>
-              ) : (
-                groupedByTime.map(([timeLabel, rows]) => (
-                  <details key={timeLabel} className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40">
-                    <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-gray-200">
-                        <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
-                        <span className="font-medium">{timeLabel}</span>
-                      </div>
-                      <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
-                        {rows.length} booking{rows.length !== 1 ? 's' : ''}
-                      </span>
-                    </summary>
-
-                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
-                      <table className="min-w-[520px] w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-gray-400">
-                            <th className="py-2 pr-3 font-medium">Customer</th>
-                            <th className="py-2 pr-3 font-medium">Station</th>
-                            <th className="py-2 font-medium">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(r => (
-                            <tr key={r.id} className="border-t border-white/10">
-                              <td className="py-2 pr-3">
-                                <div className="text-gray-100">{r.customerName}</div>
-                                <div className="text-xs text-gray-400">{r.customerPhone}</div>
-                              </td>
-                              <td className="py-2 pr-3">
-                                <Badge className="bg-white/5 border-white/10 text-gray-200 rounded-full">{r.stationName}</Badge>
-                              </td>
-                              <td className="py-2">{statusChip(r.status)}</td>
+            <CardContent>
+              {todayLoading && <p className="text-gray-500">Loading...</p>}
+              {!todayLoading && todayRows.length === 0 && <p className="text-gray-500">No bookings for today.</p>}
+              {!todayLoading && todayRows.length > 0 && (
+                <div className="divide-y divide-gray-700">
+                  {groupedBookings.map(([timeLabel, bookings]) => (
+                    <details key={timeLabel} className="mb-3 bg-black bg-opacity-30 rounded shadow">
+                      <summary className="flex justify-between py-2 px-4 cursor-pointer font-medium text-indigo-400">
+                        <span>{timeLabel}</span>
+                        <span>{bookings.length} booking{bookings.length > 1 ? 's' : ''}</span>
+                      </summary>
+                      <div className="px-4 py-2 overflow-x-auto">
+                        <table className="w-full text-left text-xs text-gray-300">
+                          <thead>
+                            <tr>
+                              <th className="py-1">Customer</th>
+                              <th className="py-1">Station</th>
+                              <th className="py-1">Status</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                ))
+                          </thead>
+                          <tbody>
+                            {bookings.map(b => (
+                              <tr key={b.id} className="border-t border-gray-700">
+                                <td>
+                                  <div>{b.customerName}</div>
+                                  <div className="text-xs text-gray-500">{b.customerPhone}</div>
+                                </td>
+                                <td>
+                                  <Badge>{b.stationName}</Badge>
+                                </td>
+                                <td>
+                                  {statusChip(b.status)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
         </div>
-      </main>
 
-      {/* Footer */}
-      <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center mb-4 md:mb-0">
-              <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria Logo" className="h-8 mr-3" />
-              <p className="text-gray-400 text-sm">© {new Date().getFullYear()} Cuephoria. All rights reserved.</p>
+        {/* Footer */}
+        <footer className="bg-black bg-opacity-70 py-6 px-4 w-full fixed bottom-0 text-center backdrop-blur-md text-sm text-gray-400">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+              <img src="/lovable-uploads/61f60f.png" alt="Cuephoria" className="h-8" />
+              <span>&copy; {new Date().getFullYear()} Cuephoria. All Rights Reserved.</span>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-gray-400 text-sm">
-                <Clock className="h-4 w-4 text-gray-400 mr-1.5" /><span>Book anytime, anywhere</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="flex flex-wrap justify-center md:justify-start gap-6">
-              <button onClick={() => setLegalDialogType('terms') || setShowLegalDialog(true)} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
+            <div className="flex gap-5">
+              <button className="hover:underline" onClick={() => { setLegalDialogType('terms'); setShowLegalDialog(true); }}>
                 Terms & Conditions
               </button>
-              <button onClick={() => setLegalDialogType('privacy') || setShowLegalDialog(true)} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
+              <button className="hover:underline" onClick={() => { setLegalDialogType('privacy'); setShowLegalDialog(true); }}>
                 Privacy Policy
               </button>
-              <button onClick={() => setLegalDialogType('contact') || setShowLegalDialog(true)} className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition">
+              <button className="hover:underline" onClick={() => { setLegalDialogType('contact'); setShowLegalDialog(true); }}>
                 Contact Us
               </button>
             </div>
-
-            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
-              <div className="flex items-center gap-1">
-                <Phone className="h-4 w-4" />
-                <a href="tel:+918637625155" className="hover:text-white transition-colors">+91 86376 25155</a>
-              </div>
-              <div className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">contact@cuephoria.in</a>
-              </div>
+            <div className="flex gap-4 items-center text-gray-400">
+              <Phone />
+              <a href="tel:+918637625155" className="text-gray-400 hover:text-white">+91 8637 625 155</a>
+              <Mail />
+              <a href="mailto:contact@cuephoria.in" className="text-gray-400 hover:text-white">contact@cuephoria.in</a>
             </div>
           </div>
-        </div>
-      </footer>
+        </footer>
 
-      {bookingConfirmationData && (
-        <BookingConfirmationDialog
-          isOpen={showConfirmationDialog}
-          onClose={() => setShowConfirmationDialog(false)}
-          bookingData={bookingConfirmationData}
+        {/* Dialogs */}
+        {bookingConfirmationData && (
+          <BookingConfirmationDialog 
+            isOpen={showConfirmationDialog}
+            onClose={() => setShowConfirmationDialog(false)}
+            bookingData={bookingConfirmationData}
+          />
+        )}
+
+        <LegalDialog 
+          isOpen={showLegalDialog}
+          onClose={() => setShowLegalDialog(false)}
+          type={legalDialogType}
         />
-      )}
-
-      <LegalDialog
-        isOpen={showLegalDialog}
-        onClose={() => setShowLegalDialog(false)}
-        type={legalDialogType}
-      />
-    </div>
+      </div>
+    </>
   );
 }
