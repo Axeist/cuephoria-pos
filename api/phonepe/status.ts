@@ -1,78 +1,91 @@
+// api/phonepe/status.ts
 export const config = { runtime: 'edge' };
 
-const AUTH_BASE = process.env.PHONEPE_AUTH_BASE!;
-const PG_BASE   = process.env.PHONEPE_BASE_URL!;
+const ENV = {
+  ENV: (process.env.PHONEPE_ENV || 'SANDBOX').toUpperCase(),
+  AUTH_BASE: process.env.PHONEPE_AUTH_BASE,
+  PG_BASE: process.env.PHONEPE_PG_BASE,
+  MID: process.env.PHONEPE_MERCHANT_ID,
+  CID: process.env.PHONEPE_CLIENT_ID,
+  CSEC: process.env.PHONEPE_CLIENT_SECRET,
+  CV: process.env.PHONEPE_CLIENT_VERSION,
+};
 
-const CLIENT_ID      = process.env.PHONEPE_CLIENT_ID!;
-const CLIENT_VERSION = process.env.PHONEPE_CLIENT_VERSION!;
-const CLIENT_SECRET  = process.env.PHONEPE_CLIENT_SECRET!;
+let cachedToken: { token: string; exp: number } | null = null;
 
-function json(status: number, obj: any) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-      'access-control-allow-origin': '*',
-    },
+async function getAccessToken(): Promise<string> {
+  const now = Date.now();
+  if (cachedToken && cachedToken.exp - 15_000 > now) return cachedToken.token;
+
+  const form = new URLSearchParams();
+  form.set('grant_type', 'client_credentials');
+  form.set('client_id', ENV.CID || '');
+  form.set('client_secret', ENV.CSEC || '');
+  form.set('client_version', ENV.CV || '1');
+
+  const res = await fetch(`${ENV.AUTH_BASE}/v1/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
   });
+
+  const text = await res.text();
+  let json: any = {};
+  try { json = JSON.parse(text); } catch {}
+
+  if (!res.ok) throw new Error(`oauth-failed [HTTP ${res.status}] ${text || 'no-body'}`);
+
+  const token = json.access_token || json.encrypted_access_token || '';
+  if (!token) throw new Error(`oauth-no-token ${text || 'no-body'}`);
+
+  const exp = typeof json.expires_at === 'number'
+    ? json.expires_at * 1000
+    : now + 50 * 60 * 1000;
+
+  cachedToken = { token, exp };
+  return token;
 }
 
-export default async function handler(req: Request) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'access-control-allow-origin': '*',
-        'access-control-allow-methods': 'GET, OPTIONS',
-        'access-control-allow-headers': 'content-type',
-      },
-    });
-  }
-  if (req.method !== 'GET') return json(405, { ok: false, error: 'Method not allowed' });
+function bad(status: number, obj: any) {
+  return new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } });
+}
+
+export default async function handler(req: Request): Promise<Response> {
+  if (req.method !== 'GET') return bad(405, { ok: false, error: 'Method not allowed' });
 
   const url = new URL(req.url);
-  const id = url.searchParams.get('merchantOrderId') || url.searchParams.get('merchantTransactionId');
-  if (!id) return json(400, { ok: false, error: 'Missing merchantOrderId (or merchantTransactionId)' });
+  const merchantOrderId = url.searchParams.get('merchantOrderId') || url.searchParams.get('merchantTransactionId');
+  if (!merchantOrderId) return bad(400, { ok: false, error: 'Missing merchantOrderId (or merchantTransactionId)' });
 
   try {
-    // ---- OAuth (lowercase grant_type: client_credentials) ----
-    const oauthBody = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      client_version: String(CLIENT_VERSION),
-    });
+    const token = await getAccessToken();
 
-    const authRes = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: oauthBody,
-    });
-
-    const authText = await authRes.text();
-    if (!authRes.ok) return json(502, { ok: false, step: 'oauth', status: authRes.status, body: tryParse(authText) });
-
-    const auth = tryParse(authText);
-    const token = auth?.access_token || auth?.encrypted_access_token || auth?.token;
-    const tokenType = auth?.token_type || 'O-Bearer';
-    if (!token) return json(502, { ok: false, step: 'oauth', error: 'No access_token in response', raw: auth });
-
-    // ---- Query order status ----
-    const sRes = await fetch(`${PG_BASE}/checkout/v2/order/${encodeURIComponent(id)}/status`, {
+    const res = await fetch(`${ENV.PG_BASE}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`, {
       method: 'GET',
-      headers: { authorization: `${tokenType} ${token}` },
+      headers: {
+        'authorization': `O-Bearer ${token}`,
+        'content-type': 'application/json',
+      },
     });
 
-    const sText = await sRes.text();
-    if (!sRes.ok) return json(502, { ok: false, step: 'status', http: sRes.status, body: tryParse(sText) });
+    const text = await res.text();
+    let json: any = {};
+    try { json = JSON.parse(text); } catch {}
 
-    const payload = tryParse(sText);
-    const state = payload?.state || payload?.data?.state; // COMPLETED / FAILED / PENDING
-    return json(200, { ok: true, state, raw: payload });
+    if (!res.ok) {
+      return bad(502, { ok: false, step: 'status', status: res.status, body: text || null });
+    }
+
+    // PhonePe recommends using the root-level "state"
+    const state = (json.state || json.data?.state || 'PENDING') as 'COMPLETED' | 'FAILED' | 'PENDING' | string;
+
+    return new Response(JSON.stringify({
+      ok: true,
+      state,
+      raw: json
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+
   } catch (e: any) {
-    return json(500, { ok: false, step: 'exception', error: String(e?.message || e) });
+    return bad(502, { ok: false, step: ('' + e?.message).startsWith('oauth') ? 'oauth' : 'exception', error: e?.message || e });
   }
 }
-
-function tryParse(x: string) { try { return JSON.parse(x); } catch { return x; } }
