@@ -1,47 +1,49 @@
-// api/phonepe/status.ts
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import crypto from 'crypto';
+// /api/phonepe/status.ts
+export const config = { runtime: "nodejs18.x" };
 
-const BASE_URL   = process.env.PHONEPE_BASE_URL!;
-const MERCHANT_ID= process.env.PHONEPE_MERCHANT_ID!;
-const SALT_KEY   = process.env.PHONEPE_SALT_KEY!;
-const SALT_INDEX = process.env.PHONEPE_SALT_INDEX!;
+import { createHash } from "crypto";
 
-// X-VERIFY for GET /pg/v1/status/... → SHA256(path + saltKey) + "###" + saltIndex
-function buildChecksumForPath(path: string) {
-  const toSign = path + SALT_KEY;
-  const sha256 = crypto.createHash('sha256').update(toSign).digest('hex');
-  return `${sha256}###${SALT_INDEX}`;
+const BASE_URL = process.env.PHONEPE_BASE_URL || "https://api-preprod.phonepe.com/apis/pg-sandbox";
+const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || "";
+const SALT_KEY = process.env.PHONEPE_SALT_KEY || "";
+const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || "1";
+
+function json(res: any, code: number, body: any) {
+  res.setHeader("Content-Type", "application/json");
+  res.status(code).end(JSON.stringify(body));
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
+  if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+
   try {
-    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+    const missing = ["PHONEPE_BASE_URL", "PHONEPE_MERCHANT_ID", "PHONEPE_SALT_KEY", "PHONEPE_SALT_INDEX"]
+      .filter((k) => !process.env[k]);
+    if (missing.length) return json(res, 500, { error: "Missing env", missing });
 
-    const txn = String(req.query.txn || '');
-    if (!txn) return res.status(400).json({ error: 'Missing txn' });
+    const { merchantTransactionId } = req.body || {};
+    if (!merchantTransactionId) return json(res, 400, { error: "merchantTransactionId required" });
 
-    const path = `/pg/v1/status/${MERCHANT_ID}/${txn}`;
-    const checksum = buildChecksumForPath(path);
+    const endpoint = `/pg/v1/status/${MERCHANT_ID}/${merchantTransactionId}`;
+    const stringToSign = endpoint + SALT_KEY;
+    const sha256 = createHash("sha256").update(stringToSign).digest("hex");
+    const xVerify = `${sha256}###${SALT_INDEX}`;
 
-    const resp = await fetch(`${BASE_URL}${path}`, {
-      method: 'GET',
+    const r = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
-        'X-VERIFY': checksum,
-        'X-MERCHANT-ID': MERCHANT_ID,
+        "Content-Type": "application/json",
+        "X-VERIFY": xVerify,
+        "X-MERCHANT-ID": MERCHANT_ID,
       },
     });
 
-    const data = await resp.json();
-    if (!resp.ok) {
-      return res.status(400).json({ error: data?.code || 'PHONEPE_STATUS_FAILED', details: data });
-    }
-
-    const success = data?.code === 'PAYMENT_SUCCESS' || data?.data?.state === 'COMPLETED';
-    res.status(200).json({ success, raw: data });
-  } catch (e) {
-    console.error('PhonePe status error:', e);
-    res.status(500).json({ error: 'SERVER_ERROR' });
+    const data = await r.json().catch(() => ({}));
+    const code = data?.code;
+    const success = code === "PAYMENT_SUCCESS";
+    return json(res, 200, { success, code, raw: data });
+  } catch (e: any) {
+    console.error("STATUS ERROR:", e);
+    return json(res, 500, { success: false, error: "status check failed", detail: String(e?.message || e) });
   }
 }
