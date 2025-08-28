@@ -2,120 +2,123 @@
 export const runtime = 'edge';
 
 type Env = {
-  PHONEPE_AUTH_BASE: string;
-  PHONEPE_BASE_URL: string;
+  PHONEPE_BASE_URL: string;          // https://api-preprod.phonepe.com/apis/pg-sandbox
+  PHONEPE_AUTH_BASE_URL?: string;    // optional; defaults below
   PHONEPE_MERCHANT_ID: string;
   PHONEPE_CLIENT_ID: string;
   PHONEPE_CLIENT_VERSION: string;
   PHONEPE_CLIENT_SECRET: string;
 };
 
-const env = (name: keyof Env) => {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'content-type',
 };
 
-// reuse same cache shape as pay.ts (Edge instance local)
-const tokenCache: { accessToken?: string; expiresAt?: number } = {};
-
-async function getAccessToken() {
-  const now = Date.now();
-  if (tokenCache.accessToken && tokenCache.expiresAt && tokenCache.expiresAt - 120_000 > now) {
-    return tokenCache.accessToken;
-  }
-
-  const authBase = env('PHONEPE_AUTH_BASE');
-
-  const form = new URLSearchParams();
-  form.set('client_id', env('PHONEPE_CLIENT_ID'));
-  form.set('client_secret', env('PHONEPE_CLIENT_SECRET'));
-  form.set('client_version', env('PHONEPE_CLIENT_VERSION'));
-
-  const r = await fetch(`${authBase}/v1/oauth/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
-    cache: 'no-store'
-  });
-
-  const text = await r.text();
-  if (!r.ok) throw new Error(`oauth-failed [${r.status}]: ${text}`);
-
-  let data: any = {};
-  try { data = JSON.parse(text); } catch {}
-
-  const accessToken: string | undefined =
-    data.access_token || data.accessToken;
-
-  if (!accessToken) throw new Error(`oauth-ok-missing-token: ${text}`);
-
-  const expirySec: number | undefined =
-    typeof data.expires_at === 'number'
-      ? data.expires_at
-      : typeof data.expires_in === 'number'
-      ? Math.floor(Date.now() / 1000) + data.expires_in
-      : undefined;
-
-  tokenCache.accessToken = accessToken;
-  tokenCache.expiresAt = expirySec ? expirySec * 1000 : Date.now() + 55 * 60 * 1000;
-
-  return accessToken;
-}
-
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
+const json = (status: number, data: unknown) =>
+  new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json' }
+    headers: { 'content-type': 'application/json', ...CORS },
   });
+
+function need(name: keyof Env, v?: string) {
+  if (!v || !v.trim()) throw new Error(`Missing env: ${name}`);
+  return v.trim();
 }
 
-export default async function handler(req: Request) {
-  if (req.method !== 'GET') {
-    return json(405, { ok: false, error: 'Method not allowed' });
-  }
+function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, ms = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort('timeout'), ms);
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
 
-  const { searchParams } = new URL(req.url);
-  // Either merchantOrderId OR merchantTransactionId (alias)
-  const merchantOrderId =
-    searchParams.get('merchantOrderId') ||
-    searchParams.get('merchantTransactionId');
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS });
+}
 
-  if (!merchantOrderId) {
-    return json(400, { ok: false, error: 'Missing query param: merchantOrderId (or merchantTransactionId)' });
-  }
-
+export async function GET(req: Request) {
   try {
-    const accessToken = await getAccessToken();
+    // ---- ENV
+    const env: Env = {
+      PHONEPE_BASE_URL: need('PHONEPE_BASE_URL', process.env.PHONEPE_BASE_URL),
+      PHONEPE_AUTH_BASE_URL:
+        process.env.PHONEPE_AUTH_BASE_URL?.trim() ||
+        'https://api-preprod.phonepe.com/apis/identity-manager',
+      PHONEPE_MERCHANT_ID: need('PHONEPE_MERCHANT_ID', process.env.PHONEPE_MERCHANT_ID),
+      PHONEPE_CLIENT_ID: need('PHONEPE_CLIENT_ID', process.env.PHONEPE_CLIENT_ID),
+      PHONEPE_CLIENT_VERSION: need('PHONEPE_CLIENT_VERSION', process.env.PHONEPE_CLIENT_VERSION),
+      PHONEPE_CLIENT_SECRET: need('PHONEPE_CLIENT_SECRET', process.env.PHONEPE_CLIENT_SECRET),
+    };
 
-    const base = env('PHONEPE_BASE_URL');
-    const merchantId = env('PHONEPE_MERCHANT_ID');
+    // ---- Query
+    const u = new URL(req.url);
+    const merchantOrderId = u.searchParams.get('merchantOrderId') || u.searchParams.get('merchantTransactionId');
+    if (!merchantOrderId) return json(400, { ok: false, error: 'Missing merchantOrderId (or merchantTransactionId)' });
 
-    const url = `${base}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status?merchantId=${encodeURIComponent(merchantId)}`;
+    // ---- OAuth again (simple; you can cache if you want)
+    const authRes = await fetchWithTimeout(
+      `${env.PHONEPE_AUTH_BASE_URL}/v1/oauth/token`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          client_id: env.PHONEPE_CLIENT_ID,
+          client_version: env.PHONEPE_CLIENT_VERSION,
+          client_secret: env.PHONEPE_CLIENT_SECRET,
+        }),
+      },
+      15000
+    );
 
-    const r = await fetch(url, {
-      method: 'GET',
-      headers: { authorization: `O-Bearer ${accessToken}` },
-      cache: 'no-store'
-    });
-
-    const text = await r.text();
-    let data: any = {};
-    try { data = JSON.parse(text); } catch {}
-
-    if (!r.ok) {
-      return json(r.status, { ok: false, error: 'status-failed', body: text });
+    const authText = await authRes.text();
+    if (!authRes.ok) {
+      return json(502, { ok: false, step: 'oauth', status: authRes.status, body: safeJson(authText) });
+    }
+    const authJson = safeJson(authText);
+    const accessToken = authJson?.access_token || authJson?.token || authJson?.encrypted_access_token;
+    if (!accessToken) {
+      return json(502, { ok: false, step: 'oauth-no-token', status: authRes.status, body: authJson });
     }
 
-    // Per checklist: use root-level `state`
-    const state: string | undefined = data?.state;
+    // ---- Status API
+    const statRes = await fetchWithTimeout(
+      `${env.PHONEPE_BASE_URL}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`,
+      {
+        method: 'GET',
+        headers: { 'Authorization': `O-Bearer ${accessToken}` },
+      },
+      15000
+    );
+
+    const statText = await statRes.text();
+    const statJson = safeJson(statText);
+
+    if (!statRes.ok) {
+      return json(502, { ok: false, step: 'status', status: statRes.status, body: statJson });
+    }
+
+    // IMPORTANT: rely on root `state`
+    // COMPLETED | FAILED | PENDING
+    const state = statJson?.state || statJson?.data?.state || 'UNKNOWN';
 
     return json(200, {
       ok: true,
-      state,            // COMPLETED / FAILED / PENDING
-      raw: data
+      step: 'status-ok',
+      state,
+      raw: statJson,
     });
-  } catch (e: any) {
-    return json(500, { ok: false, error: String(e?.message || e) });
+  } catch (err: any) {
+    const message = String(err?.message || err);
+    const aborted = /abort|timeout/i.test(message);
+    return json(502, { ok: false, step: aborted ? 'timeout' : 'exception', error: message });
+  }
+}
+
+function safeJson(s: any) {
+  try {
+    return typeof s === 'string' ? JSON.parse(s) : s;
+  } catch {
+    return { raw: s };
   }
 }
