@@ -1,102 +1,116 @@
-// /api/phonepe/status.ts
-export const runtime = "edge";
+// api/phonepe/status.ts
+export const config = { runtime: "edge" };
 
-function need(name: string, value?: string | null) {
-  if (!value) throw new Error(`Missing env: ${name}`);
-  return value;
-}
-let cachedToken: { token: string; exp: number } | null = null;
-
-async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | undefined, ms: number) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort("timeout"), ms);
-  try { return await fetch(input, { ...init, signal: controller.signal }); }
-  finally { clearTimeout(id); }
+function j(res: unknown, status = 200) {
+  return new Response(JSON.stringify(res), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      // avoid cached stale state while user is returning
+      "cache-control": "no-store, max-age=0",
+    },
+  });
 }
 
-async function getOAuthToken() {
-  const AUTH_BASE = need("PHONEPE_AUTH_BASE", process.env.PHONEPE_AUTH_BASE);
-  const CLIENT_ID = need("PHONEPE_CLIENT_ID", process.env.PHONEPE_CLIENT_ID);
-  const CLIENT_SECRET = need("PHONEPE_CLIENT_SECRET", process.env.PHONEPE_CLIENT_SECRET);
-  const CLIENT_VERSION = need("PHONEPE_CLIENT_VERSION", process.env.PHONEPE_CLIENT_VERSION);
+function need(name: string) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
 
-  if (cachedToken && Date.now() < cachedToken.exp - 30_000) return cachedToken.token;
+async function oauthToken() {
+  const AUTH_BASE = need("PHONEPE_AUTH_BASE");
+  const CLIENT_ID = need("PHONEPE_CLIENT_ID");
+  const CLIENT_SECRET = need("PHONEPE_CLIENT_SECRET");
+  const CLIENT_VERSION = need("PHONEPE_CLIENT_VERSION");
 
-  const body = new URLSearchParams();
-  body.set("grant_type", "client_credentials");
-  body.set("client_id", CLIENT_ID);
-  body.set("client_secret", CLIENT_SECRET);
-  body.set("client_version", CLIENT_VERSION);
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    client_version: CLIENT_VERSION,
+  });
 
-  const res = await fetchWithTimeout(`${AUTH_BASE}/v1/oauth/token`, {
+  const r = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
-  }, 12_000);
+  });
 
-  const text = await res.text(); let data: any = null; try { data = JSON.parse(text); } catch {}
-  if (!res.ok) {
-    return Promise.reject(
-      new Response(JSON.stringify({ ok: false, step: "oauth", status: res.status, body: data ?? text }), {
-        status: 502, headers: { "content-type": "application/json" },
-      })
+  const text = await r.text();
+  let data: any = {};
+  try { data = JSON.parse(text); } catch {}
+
+  if (!r.ok) {
+    throw new Error(
+      `oauth ${r.status}: ${typeof data === "object" ? JSON.stringify(data) : text}`
     );
   }
+
   const token = data?.access_token || data?.encrypted_access_token;
-  const ttl = data?.expires_in ?? 3600;
-  if (!token) {
-    return Promise.reject(
-      new Response(JSON.stringify({ ok: false, step: "oauth", status: 500, body: data }), {
-        status: 502, headers: { "content-type": "application/json" },
-      })
-    );
-  }
-  cachedToken = { token, exp: Date.now() + ttl * 1000 };
-  return token;
+  const type = data?.token_type || "O-Bearer";
+  if (!token) throw new Error(`oauth OK but no token in response: ${text}`);
+  return { authz: `${type} ${token}` };
 }
 
 export default async function handler(req: Request) {
+  if (req.method !== "GET") {
+    return j({ ok: false, error: "Method not allowed" }, 405);
+  }
+
   try {
-    if (req.method !== "GET") {
-      return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
-        status: 405, headers: { "content-type": "application/json" },
-      });
-    }
-
+    const BASE = need("PHONEPE_BASE_URL");
     const url = new URL(req.url);
-    const orderId = url.searchParams.get("merchantOrderId") ||
-                    url.searchParams.get("order") ||
-                    url.searchParams.get("merchantTransactionId");
-    if (!orderId) {
-      return new Response(JSON.stringify({ ok: false, error: "Missing merchantOrderId (or merchantTransactionId)" }), {
-        status: 400, headers: { "content-type": "application/json" },
-      });
+
+    // Accept several aliases for convenience
+    const merchantOrderId =
+      url.searchParams.get("merchantOrderId") ||
+      url.searchParams.get("merchantTransactionId") ||
+      url.searchParams.get("order"); // <-- used by /return
+
+    if (!merchantOrderId) {
+      return j(
+        { ok: false, error: "Missing merchantOrderId (or merchantTransactionId/order)" },
+        400
+      );
     }
 
-    const PG_BASE = need("PHONEPE_BASE_URL", process.env.PHONEPE_BASE_URL);
-    const token = await getOAuthToken();
+    const { authz } = await oauthToken();
 
-    const res = await fetchWithTimeout(
-      `${PG_BASE}/checkout/v2/order/${encodeURIComponent(orderId)}/status`,
-      { headers: { Authorization: `O-Bearer ${token}` } },
-      12_000
+    const r = await fetch(
+      `${BASE}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`,
+      { headers: { authorization: authz } }
     );
 
-    const txt = await res.text(); let data: any = null; try { data = JSON.parse(txt); } catch {}
-    if (!res.ok) {
-      return new Response(JSON.stringify({ ok: false, step: "status", status: res.status, body: data ?? txt }), {
-        status: 502, headers: { "content-type": "application/json" },
-      });
+    const text = await r.text();
+    let data: any = {};
+    try { data = JSON.parse(text); } catch {}
+
+    if (!r.ok) {
+      return j({ ok: false, status: r.status, body: data ?? text }, 502);
     }
 
-    const state = data?.state || data?.status || "UNKNOWN";
-    return new Response(JSON.stringify({ ok: true, state, raw: data }), {
-      status: 200, headers: { "content-type": "application/json" },
-    });
+    // Normalize
+    const state =
+      data?.state ||
+      data?.data?.state ||
+      data?.payload?.state ||
+      "UNKNOWN";
+
+    const code =
+      data?.code ||
+      data?.data?.code ||
+      data?.payload?.code ||
+      null;
+
+    const paymentInstrument =
+      data?.paymentInstrument ||
+      data?.data?.paymentInstrument ||
+      data?.payload?.paymentInstrument ||
+      null;
+
+    return j({ ok: true, state, code, paymentInstrument, raw: data });
   } catch (err: any) {
-    if (err instanceof Response) return err;
-    return new Response(JSON.stringify({ ok: false, step: "exception", error: err?.message || String(err) }), {
-      status: 500, headers: { "content-type": "application/json" },
-    });
+    return j({ ok: false, error: String(err?.message || err) }, 500);
   }
 }
