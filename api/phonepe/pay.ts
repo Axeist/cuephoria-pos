@@ -1,16 +1,13 @@
 // /api/phonepe/pay.ts
-// Force Node runtime so 'crypto' works
-export const config = { runtime: "nodejs18.x" };
+export const config = { runtime: "nodejs" };
 
 import { createHash } from "crypto";
 
-// Use env with safe fallbacks (we also sanity-check below)
 const BASE_URL = process.env.PHONEPE_BASE_URL || "https://api-preprod.phonepe.com/apis/pg-sandbox";
 const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || "";
 const SALT_KEY = process.env.PHONEPE_SALT_KEY || "";
 const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || "1";
 
-// Helper to send JSON
 function json(res: any, code: number, body: any) {
   res.setHeader("Content-Type", "application/json");
   res.status(code).end(JSON.stringify(body));
@@ -40,8 +37,8 @@ export default async function handler(req: any, res: any) {
       amount: amountPaise,
       merchantUserId: customerPhone,
       mobileNumber: customerPhone,
-      callbackUrl: successUrl,  // optional server callback; we rely on status check page
-      redirectUrl: successUrl,  // where PhonePe redirects after payment
+      callbackUrl: successUrl,
+      redirectUrl: successUrl,
       paymentInstrument: { type: "PAY_PAGE" },
     };
 
@@ -63,7 +60,6 @@ export default async function handler(req: any, res: any) {
 
     const data = await resp.json().catch(() => ({}));
 
-    // Expected: data.data.instrumentResponse.redirectInfo.url
     const url =
       data?.data?.instrumentResponse?.redirectInfo?.url ||
       data?.data?.redirectUrl ||
