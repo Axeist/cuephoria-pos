@@ -1,39 +1,50 @@
-export const runtime = 'edge';
+export const config = { runtime: 'edge' };
 
-function json(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
-  });
-}
+type Ok = { ok: true; runtime: 'edge'; env_present: string[]; env_missing: string[] }
+type Err = { ok: false; runtime: 'edge'; env_present: string[]; env_missing: string[] }
 
-export async function GET() {
-  const env_present = [
-    'PHONEPE_BASE_URL',
+export default async function handler() {
+  const env = process.env;
+
+  // Accept both styles
+  const PG_BASE =
+    env.PHONEPE_PG_BASE ||
+    env.PHONEPE_BASE_URL ||
+    env.PHONEPE_PG_BASE_URL ||
+    '';
+
+  const AUTH_BASE =
+    env.PHONEPE_AUTH_BASE ||
+    env.PHONEPE_AUTH_BASE_URL ||
+    '';
+
+  const present = [
+    PG_BASE && 'PHONEPE_PG_BASE/PHONEPE_BASE_URL',
+    AUTH_BASE && 'PHONEPE_AUTH_BASE',
+    env.PHONEPE_MERCHANT_ID && 'PHONEPE_MERCHANT_ID',
+    env.PHONEPE_CLIENT_ID && 'PHONEPE_CLIENT_ID',
+    env.PHONEPE_CLIENT_VERSION && 'PHONEPE_CLIENT_VERSION',
+    env.PHONEPE_CLIENT_SECRET && 'PHONEPE_CLIENT_SECRET',
+    env.NEXT_PUBLIC_SITE_URL && 'NEXT_PUBLIC_SITE_URL',
+  ].filter(Boolean) as string[];
+
+  const required = [
+    'PHONEPE_PG_BASE/PHONEPE_BASE_URL',
     'PHONEPE_AUTH_BASE',
     'PHONEPE_MERCHANT_ID',
     'PHONEPE_CLIENT_ID',
     'PHONEPE_CLIENT_VERSION',
     'PHONEPE_CLIENT_SECRET',
     'NEXT_PUBLIC_SITE_URL',
-  ].filter((k) => !!process.env[k as keyof typeof process.env]);
+  ];
 
-  const env_missing = [
-    'PHONEPE_BASE_URL',
-    'PHONEPE_AUTH_BASE',
-    'PHONEPE_MERCHANT_ID',
-    'PHONEPE_CLIENT_ID',
-    'PHONEPE_CLIENT_VERSION',
-    'PHONEPE_CLIENT_SECRET',
-  ].filter((k) => !process.env[k as keyof typeof process.env]);
+  const missing = required.filter((k) => !present.includes(k));
 
-  return json({
-    ok: env_missing.length === 0,
-    runtime: 'edge',
-    env_present,
-    env_missing,
+  const body: Ok | Err = missing.length
+    ? { ok: false, runtime: 'edge', env_present: present, env_missing: missing }
+    : { ok: true, runtime: 'edge', env_present: present, env_missing: [] };
+
+  return new Response(JSON.stringify(body), {
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   });
 }
-
-// fallback for other methods
-export const POST = () => json({ ok: false, error: 'Method not allowed' }, 405);
