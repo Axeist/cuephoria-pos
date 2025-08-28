@@ -1,118 +1,160 @@
-// /api/phonepe/pay.ts
-export const config = { runtime: "edge" };
+export const config = { runtime: 'edge' };
 
-/** utils */
-const toHex = (buf: ArrayBuffer) =>
-  [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-
-const sha256Hex = async (s: string) => {
-  const data = new TextEncoder().encode(s);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return toHex(digest);
+type PayRequest = {
+  amount: number;                     // INR, whole rupees
+  customerPhone?: string;
+  merchantTransactionId: string;      // your generated order id
+  successUrl: string;                 // where PhonePe should redirect on success
+  failedUrl: string;                  // where PhonePe should redirect on failure
 };
 
-const base64Utf8 = (s: string) => {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin); // Web API available in Edge runtime
+const json = (body: any, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+
+const need = (name: string) => {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
 };
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
+export default async function handler(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const {
-      amount,                      // in INR
-      customerPhone,
-      merchantTransactionId,
-      successUrl,
-      failedUrl,
-    } = body || {};
-
-    // ---- envs
-    const BASE = process.env.PHONEPE_BASE_URL!;
-    const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID!;
-    const SALT_KEY = process.env.PHONEPE_SALT_KEY!;
-    const SALT_INDEX = process.env.PHONEPE_SALT_INDEX!;
-    if (!BASE || !MERCHANT_ID || !SALT_KEY || !SALT_INDEX) {
-      return Response.json(
-        { error: "Missing PhonePe environment variables" },
-        { status: 500 }
-      );
+    if (req.method !== 'POST') {
+      return json({ ok: false, error: 'Method Not Allowed' }, 405);
     }
 
-    // ---- fallback redirect URLs
-    const origin = new URL(req.url).origin;
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || `${origin}/public/booking`;
-    const redirectSuccess = successUrl || `${siteUrl}?payStatus=success`;
-    const redirectFail = failedUrl || `${siteUrl}?payStatus=failed`;
+    const body: PayRequest = await req.json().catch(() => ({} as any));
 
-    // ---- payload (PhonePe v2 expects "merchantOrderId")
-    const txnId = merchantTransactionId || `ORDER_${Date.now()}`;
-    const userId = customerPhone || `USER_${Date.now()}`;
-    const paise = Math.max(100, Math.round(Number(amount || 0) * 100)); // >= 1 INR
+    if (!body || !body.merchantTransactionId || !body.successUrl || !body.failedUrl) {
+      return json({
+        ok: false,
+        error: 'Invalid payload. Need { amount, merchantTransactionId, successUrl, failedUrl }',
+      }, 400);
+    }
+    if (typeof body.amount !== 'number' || body.amount <= 0) {
+      return json({ ok: false, error: 'amount must be a positive number (INR)' }, 400);
+    }
 
-    const payload = {
-      merchantId: MERCHANT_ID,
-      merchantOrderId: txnId,
-      merchantUserId: userId,
-      amount: paise, // in paise
-      redirectUrl: redirectSuccess,
-      redirectMode: "REDIRECT",
-      callbackUrl: redirectFail,
-      paymentInstrument: { type: "PAY_PAGE" },
-    };
+    // —— ENV (update these in Vercel dashboard) ——
+    const BASE = need('PHONEPE_BASE_URL');                        // e.g. https://api-preprod.phonepe.com/apis/pg-sandbox
+    const MERCHANT_ID = need('PHONEPE_MERCHANT_ID');              // Your PhonePe merchant (MID)
+    const CLIENT_ID = need('PHONEPE_CLIENT_ID');                  // From PhonePe test console
+    const CLIENT_VERSION = need('PHONEPE_CLIENT_VERSION');        // e.g. "1"
+    const CLIENT_SECRET = need('PHONEPE_CLIENT_SECRET');          // From PhonePe test console
 
-    const payloadB64 = base64Utf8(JSON.stringify(payload));
-
-    // endpoint path (from docs)
-    const path = "/checkout/v2/pay";
-    const checksum = await sha256Hex(payloadB64 + path + SALT_KEY);
-    const xVerify = `${checksum}###${SALT_INDEX}`;
-
-    const upstream = await fetch(`${BASE}${path}`, {
-      method: "POST",
+    // 1) Get OAuth token (as per v2 docs)
+    const tokenUrl = `${BASE}/v1/oauth/token`;
+    const tokenResp = await fetch(tokenUrl, {
+      method: 'POST',
       headers: {
-        "content-type": "application/json",
-        "X-VERIFY": xVerify,
-        "X-MERCHANT-ID": MERCHANT_ID,
+        'content-type': 'application/json',
+        'x-client-id': CLIENT_ID,
+        'x-client-version': CLIENT_VERSION,
+        'x-client-secret': CLIENT_SECRET,
       },
-      body: JSON.stringify({ request: payloadB64 }),
+      body: JSON.stringify({ grantType: 'client_credentials' }),
     });
 
-    const data = await upstream.json().catch(() => ({}));
-
-    const url =
-      data?.data?.instrumentResponse?.redirectInfo?.url ||
-      data?.data?.redirectUrl ||
-      null;
-
-    if (!upstream.ok || !data?.success || !url) {
-      return Response.json(
+    const tokenText = await tokenResp.text();
+    if (!tokenResp.ok) {
+      return json(
         {
           ok: false,
-          message: "Failed to initiate payment with PhonePe",
-          upstreamStatus: upstream.status,
-          upstreamBody: data,
+          step: 'oauth',
+          status: tokenResp.status,
+          statusText: tokenResp.statusText,
+          headers: Object.fromEntries(tokenResp.headers.entries()),
+          body: tokenText,
         },
-        { status: 502 }
+        502
       );
     }
 
-    return Response.json({
+    let accessToken = '';
+    try {
+      const parsed = JSON.parse(tokenText);
+      accessToken = parsed?.accessToken || parsed?.access_token || '';
+    } catch {
+      // keep raw tokenText in diagnostics
+    }
+    if (!accessToken) {
+      return json(
+        { ok: false, step: 'oauth-parse', body: tokenText || 'No token in response' },
+        502
+      );
+    }
+
+    // 2) Create payment (v2 /checkout/v2/pay)
+    const payUrl = `${BASE}/checkout/v2/pay`;
+    const payPayload = {
+      merchantOrderId: body.merchantTransactionId, // naming per v2 docs
+      merchantId: MERCHANT_ID,
+      amount: Math.round(body.amount * 100),       // paise (v2 generally uses paise)
+      // optional customer data
+      customerMobile: body.customerPhone || undefined,
+      // return/redirect URLs
+      redirectUrl: body.successUrl,
+      redirectMode: 'POST',                        // or 'GET' depending on your config
+      failureRedirectUrl: body.failedUrl,
+    };
+
+    const payResp = await fetch(payUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payPayload),
+    });
+
+    const payText = await payResp.text();
+    if (!payResp.ok) {
+      return json(
+        {
+          ok: false,
+          step: 'create-payment',
+          status: payResp.status,
+          statusText: payResp.statusText,
+          headers: Object.fromEntries(payResp.headers.entries()),
+          body: payText,
+          request: payPayload, // helpful to see what we sent
+        },
+        502
+      );
+    }
+
+    // Try to extract the redirect URL field (name differs per integration)
+    let redirectUrl = '';
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(payText);
+      redirectUrl = parsed?.redirectUrl || parsed?.instrumentResponse?.redirectInfo?.url || '';
+    } catch {
+      // leave redirectUrl empty; expose raw body
+    }
+
+    if (!redirectUrl) {
+      return json(
+        {
+          ok: false,
+          step: 'parse-payment-response',
+          body: payText,
+          hint: 'Could not find redirect URL in response',
+        },
+        502
+      );
+    }
+
+    return json({
       ok: true,
-      orderId: txnId,
-      url,
+      orderId: body.merchantTransactionId,
+      url: redirectUrl,
+      raw: parsed ?? payText, // keep minimal raw for debugging now
     });
   } catch (err: any) {
-    console.error("PhonePe /pay error", err);
-    return Response.json({ error: "Internal error starting payment" }, { status: 500 });
+    return json({ ok: false, error: err?.message || String(err) }, 500);
   }
 }
