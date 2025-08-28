@@ -1,192 +1,198 @@
-// /api/phonepe/pay.ts
+// api/phonepe/pay.ts
+// Vercel Edge Function – PhonePe Standard Checkout (UAT)
+// Accepts POST { amount (₹), customerPhone, merchantOrderId, successUrl }
+// Returns { ok:true, url } or { ok:false, step, status, body|error }
+
 export const runtime = 'edge';
 
-type Env = {
-  PHONEPE_AUTH_BASE: string;
-  PHONEPE_BASE_URL: string;
-  PHONEPE_MERCHANT_ID: string;
-  PHONEPE_CLIENT_ID: string;
-  PHONEPE_CLIENT_VERSION: string;
-  PHONEPE_CLIENT_SECRET: string;
-};
-
-const env = (name: keyof Env) => {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
-};
-
-// very small in-memory cache (safe for one edge instance)
-const tokenCache: { accessToken?: string; expiresAt?: number } = {};
-
-async function getAccessToken() {
-  const now = Date.now();
-  if (tokenCache.accessToken && tokenCache.expiresAt && tokenCache.expiresAt - 120_000 > now) {
-    return tokenCache.accessToken;
-  }
-
-  const authBase = env('PHONEPE_AUTH_BASE');
-
-  // PhonePe expects form-encoded body
-  const form = new URLSearchParams();
-  form.set('client_id', env('PHONEPE_CLIENT_ID'));
-  form.set('client_secret', env('PHONEPE_CLIENT_SECRET'));
-  form.set('client_version', env('PHONEPE_CLIENT_VERSION'));
-
-  const r = await fetch(`${authBase}/v1/oauth/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
-    // Edge: keepalive for good measure
-    cache: 'no-store'
-  });
-
-  const text = await r.text();
-  if (!r.ok) {
-    throw new Error(`oauth-failed [${r.status}]: ${text}`);
-  }
-
-  // Response fields are snake_case per PhonePe docs
-  let data: any = {};
-  try { data = JSON.parse(text); } catch { /* leave as {} and error below if needed */ }
-
-  const accessToken: string | undefined =
-    data.access_token || data.accessToken; // be tolerant
-
-  if (!accessToken) {
-    throw new Error(`oauth-ok-missing-token: ${text}`);
-  }
-
-  // prefer expires_at (epoch seconds); fallback to now + expires_in
-  const expirySec: number | undefined =
-    typeof data.expires_at === 'number'
-      ? data.expires_at
-      : typeof data.expires_in === 'number'
-      ? Math.floor(Date.now() / 1000) + data.expires_in
-      : undefined;
-
-  tokenCache.accessToken = accessToken;
-  tokenCache.expiresAt = expirySec ? expirySec * 1000 : Date.now() + 55 * 60 * 1000; // ~55m
-
-  return accessToken;
-}
-
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
+/* ----------------------- helpers ----------------------- */
+function json(status: number, data: any) {
+  return new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json' }
+    headers: { 'content-type': 'application/json; charset=utf-8' },
   });
 }
 
-export default async function handler(req: Request) {
+// Edge-safe fetch with timeout
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit & { timeoutMs?: number } = {}
+) {
+  const { timeoutMs = 20000, ...rest } = init;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    // @ts-ignore
+    return await fetch(input, { ...rest, signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/* ----------------------- handler ----------------------- */
+export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
     return json(405, { ok: false, error: 'Method not allowed' });
   }
 
-  // Validate env early
-  try {
-    ['PHONEPE_AUTH_BASE', 'PHONEPE_BASE_URL', 'PHONEPE_MERCHANT_ID',
-     'PHONEPE_CLIENT_ID', 'PHONEPE_CLIENT_VERSION', 'PHONEPE_CLIENT_SECRET'
-    ].forEach(k => env(k as keyof Env));
-  } catch (e: any) {
-    return json(500, { ok: false, step: 'env', error: String(e?.message || e) });
+  // ---- env (UAT) ----
+  const AUTH_BASE =
+    process.env.PHONEPE_AUTH_BASE ??
+    'https://api-preprod.phonepe.com/apis/identity-manager';
+  const PG_BASE =
+    process.env.PHONEPE_BASE_URL ??
+    'https://api-preprod.phonepe.com/apis/pg-sandbox';
+
+  const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || '';
+  const CLIENT_ID = process.env.PHONEPE_CLIENT_ID || '';
+  const CLIENT_VER = process.env.PHONEPE_CLIENT_VERSION || '';
+  const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET || '';
+
+  if (!MERCHANT_ID || !CLIENT_ID || !CLIENT_VER || !CLIENT_SECRET) {
+    return json(500, {
+      ok: false,
+      step: 'env',
+      error:
+        'Missing PhonePe env vars. Set PHONEPE_MERCHANT_ID, PHONEPE_CLIENT_ID, PHONEPE_CLIENT_VERSION, PHONEPE_CLIENT_SECRET.',
+    });
   }
 
-  let payload: {
-    amount: number;                  // rupees (frontend); we’ll convert to paise
-    customerPhone?: string;
-    merchantTransactionId?: string;  // optional alias
-    merchantOrderId?: string;        // preferred
-    successUrl?: string;             // where PhonePe should return
-  };
-
+  // ---- input ----
+  let bodyIn: any = {};
   try {
-    payload = await req.json();
+    bodyIn = await req.json();
   } catch {
-    return json(400, { ok: false, step: 'parse', error: 'Invalid JSON' });
+    return json(400, { ok: false, step: 'parse', error: 'Invalid JSON body' });
   }
 
-  const rupees = Number(payload.amount || 0);
+  const rupees = Number(bodyIn?.amount);
+  const customerPhone = String(bodyIn?.customerPhone || '').trim();
+  const merchantOrderId = String(bodyIn?.merchantOrderId || '').trim();
+  const successUrl = String(bodyIn?.successUrl || '').trim(); // your page that will poll status
+
   if (!rupees || rupees <= 0) {
-    return json(400, { ok: false, step: 'input', error: 'amount must be > 0 (INR)' });
+    return json(400, { ok: false, step: 'validate', error: 'amount (₹) must be > 0' });
+  }
+  if (!merchantOrderId) {
+    return json(400, { ok: false, step: 'validate', error: 'merchantOrderId is required' });
+  }
+  if (!successUrl) {
+    return json(400, { ok: false, step: 'validate', error: 'successUrl is required' });
   }
 
+  // paise conversion
   const amountPaise = Math.round(rupees * 100);
-  const merchantOrderId =
-    payload.merchantOrderId || payload.merchantTransactionId || `CUE-${Date.now()}`;
-
-  const redirectUrl =
-    payload.successUrl ||
-    `${process.env.NEXT_PUBLIC_SITE_URL || ''}` ||
-    `${new URL(req.url).origin}/public/booking`;
 
   try {
-    const accessToken = await getAccessToken();
+    /* ========== 1) OAuth token ========== */
+    const form = new URLSearchParams();
+    form.set('client_id', CLIENT_ID);
+    form.set('client_secret', CLIENT_SECRET);
+    form.set('client_version', CLIENT_VER);
 
-    const base = env('PHONEPE_BASE_URL');
-    const merchantId = env('PHONEPE_MERCHANT_ID');
+    const oauthRes = await fetchWithTimeout(`${AUTH_BASE}/v1/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+      cache: 'no-store',
+      timeoutMs: 15000,
+    });
 
-    // Build Standard Checkout request
-    const body = {
-      merchantId,
+    const oauthText = await oauthRes.text();
+    let oauthJson: any = {};
+    try {
+      oauthJson = JSON.parse(oauthText);
+    } catch {
+      oauthJson = { raw: oauthText };
+    }
+
+    if (!oauthRes.ok) {
+      return json(502, {
+        ok: false,
+        step: 'oauth-failed',
+        status: oauthRes.status,
+        body: oauthJson,
+      });
+    }
+
+    // PhonePe returns token_type "O-Bearer" in UAT; prefer access_token else encrypted_access_token
+    const token =
+      oauthJson?.access_token || oauthJson?.encrypted_access_token || '';
+    const tokenType = oauthJson?.token_type || 'O-Bearer';
+
+    if (!token) {
+      return json(502, {
+        ok: false,
+        step: 'oauth-failed',
+        status: oauthRes.status,
+        body: oauthJson,
+        error: 'No access_token in OAuth response',
+      });
+    }
+
+    /* ========== 2) Create Standard Checkout order ========== */
+    // Minimal spec per PhonePe docs. Do not include merchantId here; the token represents the merchant.
+    const payBody = {
       merchantOrderId,
-      amount: amountPaise,
-      expireAfter: 900, // 15 min
+      amount: amountPaise, // paise
+      metaInfo: {
+        udf1: customerPhone || undefined,
+      },
       paymentFlow: {
         type: 'PG_CHECKOUT',
-        redirectUrl
+        redirectUrl: successUrl, // where user should be sent back to your app
       },
-      // Keep meta minimal; include only if needed
-      metaInfo: payload.customerPhone ? { customerPhone: payload.customerPhone } : undefined
+      deviceContext: { deviceOS: 'WEB' },
+      expireAfter: 900, // seconds (15 min). Adjust if needed
     };
 
-    const resp = await fetch(`${base}/checkout/v2/pay`, {
+    const payRes = await fetchWithTimeout(`${PG_BASE}/checkout/v2/pay`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: `O-Bearer ${accessToken}`
+        authorization: `${tokenType} ${token}`, // usually "O-Bearer <token>"
       },
-      body: JSON.stringify(body),
-      cache: 'no-store'
+      body: JSON.stringify(payBody),
+      cache: 'no-store',
+      timeoutMs: 20000,
     });
 
-    const text = await resp.text();
-    let data: any = {};
-    try { data = JSON.parse(text); } catch { /* best effort */ }
+    const payText = await payRes.text();
+    let payJson: any = {};
+    try {
+      payJson = JSON.parse(payText);
+    } catch {
+      payJson = { raw: payText };
+    }
 
-    if (!resp.ok) {
+    if (!payRes.ok) {
       return json(502, {
         ok: false,
         step: 'pay',
-        status: resp.status,
-        error: 'PhonePe pay failed',
-        body: text
+        status: payRes.status,
+        body: payJson,
       });
     }
 
-    const redirect = data?.redirectUrl;
-    const orderId = data?.orderId;
-
-    if (!redirect) {
+    // Expect redirectUrl in success payload
+    const redirectUrl = payJson?.redirectUrl;
+    if (!redirectUrl) {
       return json(502, {
         ok: false,
         step: 'pay',
-        error: 'Missing redirectUrl from PhonePe',
-        body: data
+        status: payRes.status,
+        body: payJson,
+        error: 'No redirectUrl in PhonePe response',
       });
     }
 
-    return json(200, {
-      ok: true,
-      url: redirect,
-      orderId,
-      merchantOrderId
-    });
+    return json(200, { ok: true, url: redirectUrl });
   } catch (e: any) {
+    // Timeouts or network will end here
     return json(500, {
       ok: false,
       step: 'exception',
-      error: String(e?.message || e)
+      error: String(e?.message || e),
     });
   }
 }
