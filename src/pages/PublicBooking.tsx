@@ -15,7 +15,7 @@ import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
 import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer,
-  Sparkles, Star, Zap, Percent, CheckCircle, AlertTriangle, Lock, X
+  Sparkles, Star, Zap, CheckCircle, AlertTriangle, Lock, X
 } from 'lucide-react';
 import { format, parse, getDay } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -68,7 +68,7 @@ export default function PublicBooking() {
 
   const [stationType, setStationType] = useState<'all' | 'ps5' | '8ball'>('all');
 
-  // Use object to hold multiple applied coupons per station type or all
+  // Multiple applied coupons per station type or all
   const [appliedCoupons, setAppliedCoupons] = useState<{ [key: string]: string }>({});
 
   const [couponCode, setCouponCode] = useState('');
@@ -79,16 +79,19 @@ export default function PublicBooking() {
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact'>('terms');
 
+  // Local Refund Policy modal
+  const [showRefundDialog, setShowRefundDialog] = useState(false);
+
   // Today's bookings
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
 
-  // Helper function: Check if slot is during Happy Hours (Mon-Fri, 11 AM - 4 PM)
+  // Helper: Happy Hours (Mon–Fri, 11 AM–4 PM)
   const isHappyHour = (date: Date, slot: TimeSlot | null) => {
     if (!slot) return false;
     const day = getDay(date);
-    const startHour = Number(slot.start_time.split(':')[0]);
-    return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16; // 11 AM inclusive to 4 PM exclusive
+    const startHour = Number(slot.start_time.split(':'));
+    return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
   };
 
   useEffect(() => {
@@ -97,12 +100,12 @@ export default function PublicBooking() {
   }, []);
 
   useEffect(() => {
-    // Auto-remove NIT99 coupon if not happy hour and notify user
+    // Auto-remove NIT99 if not happy hour
     if (appliedCoupons['8ball'] === 'NIT99' && !isHappyHour(selectedDate, selectedSlot)) {
       setAppliedCoupons((prev) => {
         const copy = { ...prev };
         delete copy['8ball'];
-        toast.error('NIT99 coupon removed: valid only Mon-Fri 11 AM–4 PM');
+        toast.error('NIT99 coupon removed: valid only Mon–Fri 11 AM–4 PM');
         return copy;
       });
     }
@@ -146,7 +149,7 @@ export default function PublicBooking() {
       if (selectedStations.length === 1) {
         const { data, error } = await supabase.rpc('get_available_slots', {
           p_date: dateStr,
-          p_station_id: selectedStations[0],
+          p_station_id: selectedStations,
           p_slot_duration: 60,
         });
         if (error) throw error;
@@ -158,10 +161,10 @@ export default function PublicBooking() {
           )
         );
 
-        const base = results.find(r => !r.error && Array.isArray(r.data))?.data as TimeSlot[] | undefined;
-        if (!base) {
-          const firstErr = results.find(r => r.error)?.error;
-          if (firstErr) throw firstErr;
+        const base = (results.find((r: any) => !r.error && Array.isArray(r.data))?.data || []) as TimeSlot[];
+        if (!base.length) {
+          const err = (results as any[]).find(r => r.error)?.error;
+          if (err) throw err;
           setAvailableSlots([]);
           return;
         }
@@ -169,8 +172,8 @@ export default function PublicBooking() {
         const unionMap = new Map<string, boolean>();
         const key = (slot: TimeSlot) => `${slot.start_time}-${slot.end_time}`;
         base.forEach(s => unionMap.set(key(s), Boolean(s.is_available)));
-        results.forEach(r => {
-          (r.data || []).forEach(s => {
+        results.forEach((r: any) => {
+          (r.data || []).forEach((s: TimeSlot) => {
             const k = key(s);
             unionMap.set(k, unionMap.get(k) || Boolean(s.is_available));
           });
@@ -228,7 +231,7 @@ export default function PublicBooking() {
       } else {
         setIsReturningCustomer(false);
         setCustomerInfo({ name: '', phone: customerNumber, email: '' });
-        toast.info('New customer! Please fill in your details below.');
+        toast.info('New customer! Please fill in details below.');
       }
       setHasSearched(true);
     } catch (error) {
@@ -274,7 +277,7 @@ export default function PublicBooking() {
         .map((s) => s.name)
         .join(', ');
       toast.message('Some stations aren’t free at this time', {
-        description: `Removed: ${removedNames}. You can proceed with the rest.`,
+        description: `Removed: ${removedNames}. Proceeding with the rest.`,
       });
     }
 
@@ -328,12 +331,12 @@ export default function PublicBooking() {
         return;
       }
       if (!isHappyHour(selectedDate, selectedSlot)) {
-        toast.error('NIT99 valid only Mon-Fri 11 AM to 4 PM');
+        toast.error('NIT99 valid only Mon–Fri 11 AM to 4 PM');
         return;
       }
       setAppliedCoupons((prev) => ({ ...prev, '8ball': 'NIT99' }));
       toast.success('NIT99 applied to 8-Ball stations');
-      toast.message('Hint: With NIT99, you may also apply NIT50 to get 50% off on PS5 stations if selected.');
+      toast.message('Hint: With NIT99, NIT50 can give 50% off on PS5 stations if selected.');
       return;
     }
 
@@ -381,8 +384,8 @@ export default function PublicBooking() {
 
   const calculateDiscount = () => {
     const original = calculateOriginalPrice();
-    if (original === 0) return { total: 0, breakdown: {} };
-    if (!Object.keys(appliedCoupons).length) return { total: 0, breakdown: {} };
+    if (original === 0) return { total: 0, breakdown: {} as Record<string, number> };
+    if (!Object.keys(appliedCoupons).length) return { total: 0, breakdown: {} as Record<string, number> };
 
     if (appliedCoupons['all']) {
       if (appliedCoupons['all'] === 'AXEIST') return { total: original, breakdown: { all: original } };
@@ -390,7 +393,7 @@ export default function PublicBooking() {
         const disc = original * 0.25;
         return { total: disc, breakdown: { all: disc } };
       }
-      return { total: 0, breakdown: {} };
+      return { total: 0, breakdown: {} as Record<string, number> };
     }
 
     let totalDiscount = 0;
@@ -498,7 +501,7 @@ export default function PublicBooking() {
 
       const stationObjects = stations.filter((s) => selectedStations.includes(s.id));
       setBookingConfirmationData({
-        bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
+        bookingId: insertedBookings.id.slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
         stationNames: stationObjects.map((s) => s.name),
         date: format(selectedDate, 'yyyy-MM-dd'),
@@ -610,8 +613,8 @@ export default function PublicBooking() {
       map.get(k)!.push(r);
     });
     const entries = Array.from(map.entries()).sort(([a], [b]) => {
-      const aStart = parse(a.split(' — ')[0], 'h:mm a', new Date()).getTime();
-      const bStart = parse(b.split(' — ')[0], 'h:mm a', new Date()).getTime();
+      const aStart = parse(a.split(' — '), 'h:mm a', new Date()).getTime();
+      const bStart = parse(b.split(' — '), 'h:mm a', new Date()).getTime();
       return aStart - bStart;
     });
     return entries;
@@ -650,7 +653,7 @@ export default function PublicBooking() {
         <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
       </div>
 
-      {/* Promo popup (kept existing, ALMA50 popup removed as requested) */}
+      {/* Promo popup */}
       <CouponPromotionalPopup onCouponSelect={handleCouponSelect} />
 
       {/* Header */}
@@ -676,6 +679,11 @@ export default function PublicBooking() {
             <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
               Reserve PlayStation 5 or Pool Table sessions at Cuephoria
             </p>
+
+            {/* LOB + INR clarity */}
+            <div className="mt-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-300">
+              <strong className="text-gray-100">Line of Business:</strong> Gaming Lounge & Entertainment Services (PS5 stations and 8‑Ball/Pool table bookings). All prices and payments are in Indian Rupees (INR).
+            </div>
 
             {/* Feature highlights */}
             <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -751,7 +759,7 @@ export default function PublicBooking() {
                         id="name"
                         value={customerInfo.name}
                         onChange={(e) => setCustomerInfo((prev) => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter your full name"
+                        placeholder="Enter full name"
                         className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
                         disabled={isReturningCustomer}
                       />
@@ -765,7 +773,7 @@ export default function PublicBooking() {
                         type="email"
                         value={customerInfo.email}
                         onChange={(e) => setCustomerInfo((prev) => ({ ...prev, email: e.target.value }))}
-                        placeholder="Enter your email address"
+                        placeholder="Enter email address"
                         className="mt-1 bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-cuephoria-purple/40 focus:border-cuephoria-purple/40 transition"
                         disabled={isReturningCustomer}
                       />
@@ -775,7 +783,7 @@ export default function PublicBooking() {
 
                 {isCustomerInfoComplete() && (
                   <div className="flex items-center gap-2 text-green-400 text-sm">
-                    <CheckCircle className="h-4 w-4" /> Customer information complete! You can now proceed to station selection.
+                    <CheckCircle className="h-4 w-4" /> Customer information complete! Proceed to station selection.
                   </div>
                 )}
               </CardContent>
@@ -787,7 +795,6 @@ export default function PublicBooking() {
                 <div className="absolute -top-24 -right-16 h-56 w-56 rounded-full bg-cuephoria-blue/40 blur-3xl" />
                 <div className="absolute bottom-[-60px] left-[-30px] h-48 w-48 rounded-full bg-cuephoria-purple/40 blur-3xl" />
               </div>
-
               <CardHeader className="relative pb-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -1005,7 +1012,7 @@ export default function PublicBooking() {
                   {/* Hint for NIT99 and NIT50 combo */}
                   {appliedCoupons['8ball'] === 'NIT99' && (
                     <p className="text-xs text-gray-400 italic mt-2">
-                      Hint: With NIT99 applied, you may also apply NIT50 to get 50% off on PS5 stations if selected during booking.
+                      Hint: With NIT99 applied, NIT50 can give 50% off on PS5 stations if selected during booking.
                     </p>
                   )}
 
@@ -1028,7 +1035,7 @@ export default function PublicBooking() {
                           textClass = 'text-amber-400';
                           borderClass = 'border-amber-500/30';
                         } else if (val === 'NIT99') {
-                          label = 'NIT99 - ₹99 for 8-Ball during happy hours';
+                          label = 'NIT99 - ₹99 (INR) for 8‑Ball during happy hours';
                           bgClass = 'bg-blue-900/20';
                           textClass = 'text-blue-300';
                           borderClass = 'border-blue-500/20';
@@ -1070,7 +1077,7 @@ export default function PublicBooking() {
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <Label className="text-sm text-gray-300">Subtotal</Label>
-                        <span className="text-sm text-gray-200">₹{originalPrice}</span>
+                        <span className="text-sm text-gray-200">₹{originalPrice.toFixed(2)} INR</span>
                       </div>
 
                       {discount > 0 && (
@@ -1080,14 +1087,14 @@ export default function PublicBooking() {
                             <ul className="list-disc ml-5 mt-1 text-sm">
                               {Object.entries(discountBreakdown).map(([key, val]) => (
                                 <li key={key}>
-                                  {key}: -₹{val.toFixed(2)}
+                                  {key}: -₹{val.toFixed(2)} INR
                                 </li>
                               ))}
                             </ul>
                           </div>
                           <div className="flex justify-between items-center">
                             <Label className="text-sm text-green-400">Total Discount</Label>
-                            <span className="text-sm text-green-400">-₹{discount.toFixed(2)}</span>
+                            <span className="text-sm text-green-400">-₹{discount.toFixed(2)} INR</span>
                           </div>
                         </>
                       )}
@@ -1097,9 +1104,13 @@ export default function PublicBooking() {
                       <div className="flex justify-between items-center">
                         <Label className="text-base font-semibold text-gray-100">Total Amount</Label>
                         <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
-                          ₹{finalPrice.toFixed(2)}
+                          ₹{finalPrice.toFixed(2)} INR
                         </span>
                       </div>
+
+                      <p className="text-[11px] text-gray-400">
+                        All prices and payments are displayed and processed in Indian Rupees (INR).
+                      </p>
                     </div>
                   </>
                 )}
@@ -1113,7 +1124,9 @@ export default function PublicBooking() {
                   {loading ? 'Creating Booking...' : 'Confirm Booking'}
                 </Button>
 
-                <p className="text-xs text-gray-400 text-center">Payment will be collected at the venue</p>
+                <p className="text-xs text-gray-400 text-center">
+                  Payment will be collected at the venue. All amounts are in INR.
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -1180,6 +1193,51 @@ export default function PublicBooking() {
             </CardContent>
           </Card>
         </div>
+
+        {/* About & Policies snapshot (clarity + compliance) */}
+        <div className="mt-10">
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl shadow-xl">
+            <CardHeader>
+              <CardTitle className="text-white">About Cuephoria & Policies</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-gray-300">
+              <div className="space-y-1">
+                <p className="text-gray-200 font-medium">Line of Business</p>
+                <p>
+                  Cuephoria operates as a gaming lounge and entertainment service, providing PlayStation 5 stations and 8‑Ball/Pool table session bookings at a physical venue. All services are in-person and subject to venue rules. All prices and payments are in Indian Rupees (INR).
+                </p>
+              </div>
+              <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="space-y-1">
+                <p className="text-gray-200 font-medium">Terms & Conditions (Summary)</p>
+                <ul className="list-disc ml-5 space-y-1">
+                  <li>Bookings reserve gaming time at the venue; late arrival may reduce available play time to keep schedules aligned.</li>
+                  <li>All prices displayed and charged are in INR; taxes or fees (if any) are shown before confirmation.</li>
+                  <li>Cancellations/refunds follow the Refund Policy; misuse, damage, or rule violations may lead to penalties or denial of service.</li>
+                  <li>Jurisdiction: Disputes subject to the local courts where the venue is located unless mandated otherwise by law.</li>
+                </ul>
+              </div>
+              <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="space-y-1">
+                <p className="text-gray-200 font-medium">Privacy Policy (Summary)</p>
+                <ul className="list-disc ml-5 space-y-1">
+                  <li>Data collected: name, phone, optional email, booking history, and activity logs required to manage bookings and support.</li>
+                  <li>Usage: to confirm bookings, send reminders, provide support, improve services; data is not sold to third parties.</li>
+                  <li>Sharing: limited to necessary processors (e.g., hosting, communications) under appropriate safeguards.</li>
+                  <li>Rights: request access, correction, or deletion by contacting contact@cuephoria.in; verification may be required.</li>
+                </ul>
+              </div>
+              <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="space-y-2">
+                <p className="text-gray-200 font-medium">Refund Policy (Quick View)</p>
+                <p>See full details via the Refund Policy link in the footer or open below.</p>
+                <Button variant="outline" className="border-white/15 text-gray-200" onClick={() => setShowRefundDialog(true)}>
+                  View Refund Policy
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </main>
 
       {/* Footer */}
@@ -1204,19 +1262,25 @@ export default function PublicBooking() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
               <button
-                onClick={() => setLegalDialogType('terms') || setShowLegalDialog(true)}
+                onClick={() => (setLegalDialogType('terms'), setShowLegalDialog(true))}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Terms & Conditions
               </button>
               <button
-                onClick={() => setLegalDialogType('privacy') || setShowLegalDialog(true)}
+                onClick={() => (setLegalDialogType('privacy'), setShowLegalDialog(true))}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Privacy Policy
               </button>
               <button
-                onClick={() => setLegalDialogType('contact') || setShowLegalDialog(true)}
+                onClick={() => setShowRefundDialog(true)}
+                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+              >
+                Refund Policy
+              </button>
+              <button
+                onClick={() => (setLegalDialogType('contact'), setShowLegalDialog(true))}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Contact Us
@@ -1255,6 +1319,59 @@ export default function PublicBooking() {
         onClose={() => setShowLegalDialog(false)}
         type={legalDialogType}
       />
-    </div>
-  );
+
+      {/* Refund Policy Modal (inline) */}
+      {showRefundDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setShowRefundDialog(false)} />
+          <div className="relative z-10 w-[92vw] max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0b0b12] p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xl font-semibold text-white">Refund Policy</h2>
+              <button
+                onClick={() => setShowRefundDialog(false)}
+                className="p-1 rounded-md hover:bg-white/10 text-gray-300"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <Separator className="bg-white/10 mb-4" />
+            <div className="space-y-3 text-sm text-gray-300">
+              <p>
+                This policy outlines how a booking for a gaming service made through the Platform can be canceled or refunded.
+              </p>
+              <ul className="list-disc ml-5 space-y-2">
+                <li>
+                  Cancellations will only be considered if the request is made within 1 day of placing the booking. However, cancellation requests may not be entertained if the service provider has already confirmed and scheduled the gaming session, or the session is about to commence. If the gaming session is not delivered as booked, participants can refuse or abstain from the session, and this must be reported immediately.
+                </li>
+                <li>
+                  Non-Cancellable Services: CUEPHORIA does not accept cancellation requests for time-sensitive or non-refundable bookings (such as tournaments, special events, or custom sessions). However, refunds or rescheduling may be considered if the gaming session was not provided as described or suffered from technical problems.
+                </li>
+                <li>
+                  Service Quality Issues: In case of issues like session interruptions, unsatisfactory experience, or technical errors, these must be reported to our customer service within 1 day of the scheduled session. After validation, a refund or rescheduling will be considered based on the service provider’s assessment.
+                </li>
+                <li>
+                  Misrepresentation: If a booked session is not as described on the site or does not meet the expected quality, contact customer service within 1 day of the experience. The team will assess and determine an appropriate resolution.
+                </li>
+                <li>
+                  Third-Party Services: For bookings involving partners or third-party venues, any warranties or service guarantees offered by those parties will apply, and claims should be directed to them.
+                </li>
+                <li>
+                  Refund Processing: If a refund is approved by CUEPHORIA, the amount will be processed within 3 days to the original payment method.
+                </li>
+              </ul>
+            </div>
+                          <div className="mt-5 flex justify-end">
+                <Button
+                  onClick={() => setShowRefundDialog(false)}
+                  className="rounded-xl bg-cuephoria-purple hover:bg-cuephoria-purple/90 text-white"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+);
 }
