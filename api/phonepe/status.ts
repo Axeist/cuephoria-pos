@@ -1,160 +1,147 @@
-export const config = { runtime: 'edge' };
+/* /api/phonepe/status.ts — Vercel Edge Function */
+export const config = { runtime: "edge" };
 
-type PayRequest = {
-  amount: number;                     // INR, whole rupees
-  customerPhone?: string;
-  merchantTransactionId: string;      // your generated order id
-  successUrl: string;                 // where PhonePe should redirect on success
-  failedUrl: string;                  // where PhonePe should redirect on failure
+type Env = {
+  PHONEPE_BASE_URL?: string;
+  PHONEPE_MERCHANT_ID?: string;
+  PHONEPE_CLIENT_ID?: string;
+  PHONEPE_CLIENT_VERSION?: string;
+  PHONEPE_CLIENT_SECRET?: string;
 };
 
-const json = (body: any, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
+function need(env: Env, key: keyof Env) {
+  const v = env[key];
+  if (!v || !v.trim()) throw new Error(`Missing env: ${key}`);
+  return v.trim();
+}
+
+async function readJsonSafe(res: Response) {
+  const raw = await res.text();
+  try {
+    return { raw, json: JSON.parse(raw) as any };
+  } catch {
+    return { raw, json: null as any };
+  }
+}
+
+async function getBearerToken(env: Env) {
+  const BASE = need(env, "PHONEPE_BASE_URL");
+  const CLIENT_ID = need(env, "PHONEPE_CLIENT_ID");
+  const CLIENT_SECRET = need(env, "PHONEPE_CLIENT_SECRET");
+  const CLIENT_VERSION = need(env, "PHONEPE_CLIENT_VERSION");
+
+  const url = `${BASE}/v1/oauth/token`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "X-CLIENT-ID": CLIENT_ID,
+      "X-CLIENT-SECRET": CLIENT_SECRET,
+      "X-CLIENT-VERSION": CLIENT_VERSION,
+    },
+    body: JSON.stringify({ grantType: "CLIENT_CREDENTIALS" }),
   });
 
-const need = (name: string) => {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
-};
+  const { raw, json } = await readJsonSafe(res);
+  if (!res.ok) {
+    throw new Error(
+      `Auth failed [${res.status}]. ${json?.error || json?.message || raw}`
+    );
+  }
 
-export default async function handler(req: Request) {
+  const token =
+    json?.accessToken ||
+    json?.data?.accessToken ||
+    json?.response?.accessToken;
+  if (!token) {
+    throw new Error(`Auth OK but no accessToken in response: ${raw}`);
+  }
+  return token as string;
+}
+
+export default async function handler(req: Request): Promise<Response> {
+  if (req.method !== "GET") {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Method not allowed" }),
+      { status: 405, headers: { "content-type": "application/json" } }
+    );
+  }
+
+  const env = process.env as Env;
+
   try {
-    if (req.method !== 'POST') {
-      return json({ ok: false, error: 'Method Not Allowed' }, 405);
+    const BASE = need(env, "PHONEPE_BASE_URL");
+    const MERCHANT_ID = need(env, "PHONEPE_MERCHANT_ID");
+
+    // You can pass either ?merchantOrderId=... (per docs) or ?merchantTransactionId=...
+    const urlObj = new URL(req.url);
+    const merchantOrderId =
+      urlObj.searchParams.get("merchantOrderId") ||
+      urlObj.searchParams.get("merchantTransactionId"); // allow both
+
+    if (!merchantOrderId) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error:
+            "Missing query param: merchantOrderId (or merchantTransactionId)",
+        }),
+        { status: 400, headers: { "content-type": "application/json" } }
+      );
     }
 
-    const body: PayRequest = await req.json().catch(() => ({} as any));
+    const token = await getBearerToken(env);
 
-    if (!body || !body.merchantTransactionId || !body.successUrl || !body.failedUrl) {
-      return json({
-        ok: false,
-        error: 'Invalid payload. Need { amount, merchantTransactionId, successUrl, failedUrl }',
-      }, 400);
-    }
-    if (typeof body.amount !== 'number' || body.amount <= 0) {
-      return json({ ok: false, error: 'amount must be a positive number (INR)' }, 400);
-    }
+    // Per docs: GET /checkout/v2/order/{merchantOrderId}/status
+    const statusUrl = `${BASE}/checkout/v2/order/${encodeURIComponent(
+      merchantOrderId
+    )}/status`;
 
-    // —— ENV (update these in Vercel dashboard) ——
-    const BASE = need('PHONEPE_BASE_URL');                        // e.g. https://api-preprod.phonepe.com/apis/pg-sandbox
-    const MERCHANT_ID = need('PHONEPE_MERCHANT_ID');              // Your PhonePe merchant (MID)
-    const CLIENT_ID = need('PHONEPE_CLIENT_ID');                  // From PhonePe test console
-    const CLIENT_VERSION = need('PHONEPE_CLIENT_VERSION');        // e.g. "1"
-    const CLIENT_SECRET = need('PHONEPE_CLIENT_SECRET');          // From PhonePe test console
-
-    // 1) Get OAuth token (as per v2 docs)
-    const tokenUrl = `${BASE}/v1/oauth/token`;
-    const tokenResp = await fetch(tokenUrl, {
-      method: 'POST',
+    const res = await fetch(statusUrl, {
+      method: "GET",
       headers: {
-        'content-type': 'application/json',
-        'x-client-id': CLIENT_ID,
-        'x-client-version': CLIENT_VERSION,
-        'x-client-secret': CLIENT_SECRET,
+        authorization: `Bearer ${token}`,
+        "x-merchant-id": MERCHANT_ID,
       },
-      body: JSON.stringify({ grantType: 'client_credentials' }),
     });
 
-    const tokenText = await tokenResp.text();
-    if (!tokenResp.ok) {
-      return json(
-        {
+    const { raw, json } = await readJsonSafe(res);
+
+    if (!res.ok) {
+      return new Response(
+        JSON.stringify({
           ok: false,
-          step: 'oauth',
-          status: tokenResp.status,
-          statusText: tokenResp.statusText,
-          headers: Object.fromEntries(tokenResp.headers.entries()),
-          body: tokenText,
-        },
-        502
+          status: res.status,
+          error: json?.error || json?.message || "Status check failed",
+          raw,
+        }),
+        { status: 500, headers: { "content-type": "application/json" } }
       );
     }
 
-    let accessToken = '';
-    try {
-      const parsed = JSON.parse(tokenText);
-      accessToken = parsed?.accessToken || parsed?.access_token || '';
-    } catch {
-      // keep raw tokenText in diagnostics
-    }
-    if (!accessToken) {
-      return json(
-        { ok: false, step: 'oauth-parse', body: tokenText || 'No token in response' },
-        502
-      );
-    }
-
-    // 2) Create payment (v2 /checkout/v2/pay)
-    const payUrl = `${BASE}/checkout/v2/pay`;
-    const payPayload = {
-      merchantOrderId: body.merchantTransactionId, // naming per v2 docs
-      merchantId: MERCHANT_ID,
-      amount: Math.round(body.amount * 100),       // paise (v2 generally uses paise)
-      // optional customer data
-      customerMobile: body.customerPhone || undefined,
-      // return/redirect URLs
-      redirectUrl: body.successUrl,
-      redirectMode: 'POST',                        // or 'GET' depending on your config
-      failureRedirectUrl: body.failedUrl,
+    // Normalize a minimal shape for the frontend; also return the raw JSON for debugging
+    const normalized = {
+      ok: true,
+      orderId: json?.data?.merchantOrderId ?? json?.merchantOrderId ?? merchantOrderId,
+      transactionId:
+        json?.data?.merchantTransactionId ?? json?.merchantTransactionId ?? null,
+      code: json?.code ?? json?.status ?? null,
+      message: json?.message ?? json?.responseMessage ?? null,
+      raw: json ?? raw,
     };
 
-    const payResp = await fetch(payUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payPayload),
+    return new Response(JSON.stringify(normalized), {
+      status: 200,
+      headers: { "content-type": "application/json" },
     });
-
-    const payText = await payResp.text();
-    if (!payResp.ok) {
-      return json(
-        {
-          ok: false,
-          step: 'create-payment',
-          status: payResp.status,
-          statusText: payResp.statusText,
-          headers: Object.fromEntries(payResp.headers.entries()),
-          body: payText,
-          request: payPayload, // helpful to see what we sent
-        },
-        502
-      );
-    }
-
-    // Try to extract the redirect URL field (name differs per integration)
-    let redirectUrl = '';
-    let parsed: any = null;
-    try {
-      parsed = JSON.parse(payText);
-      redirectUrl = parsed?.redirectUrl || parsed?.instrumentResponse?.redirectInfo?.url || '';
-    } catch {
-      // leave redirectUrl empty; expose raw body
-    }
-
-    if (!redirectUrl) {
-      return json(
-        {
-          ok: false,
-          step: 'parse-payment-response',
-          body: payText,
-          hint: 'Could not find redirect URL in response',
-        },
-        502
-      );
-    }
-
-    return json({
-      ok: true,
-      orderId: body.merchantTransactionId,
-      url: redirectUrl,
-      raw: parsed ?? payText, // keep minimal raw for debugging now
-    });
-  } catch (err: any) {
-    return json({ ok: false, error: err?.message || String(err) }, 500);
+  } catch (e: any) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: e?.message || String(e),
+      }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
   }
 }
