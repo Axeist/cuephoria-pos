@@ -1,4 +1,4 @@
-// /api/phonepe/pay.ts  (Edge Runtime, ESM)
+// /api/phonepe/pay.ts
 export const config = { runtime: "edge" };
 
 /** utils */
@@ -15,8 +15,7 @@ const base64Utf8 = (s: string) => {
   const bytes = new TextEncoder().encode(s);
   let bin = "";
   bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  // btoa is available on Edge (Web API)
-  return btoa(bin);
+  return btoa(bin); // Web API available in Edge runtime
 };
 
 export default async function handler(req: Request): Promise<Response> {
@@ -30,11 +29,11 @@ export default async function handler(req: Request): Promise<Response> {
   try {
     const body = await req.json().catch(() => ({}));
     const {
-      amount,                      // amount in INR (e.g. 225)
-      customerPhone,               // optional
-      merchantTransactionId,       // optional, we can generate if absent
-      successUrl,                  // optional, fallback to site url
-      failedUrl,                   // optional, fallback to site url
+      amount,                      // in INR
+      customerPhone,
+      merchantTransactionId,
+      successUrl,
+      failedUrl,
     } = body || {};
 
     // ---- envs
@@ -49,36 +48,35 @@ export default async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // ---- derive redirect URLs
+    // ---- fallback redirect URLs
     const origin = new URL(req.url).origin;
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || `${origin}/public/booking`;
     const redirectSuccess = successUrl || `${siteUrl}?payStatus=success`;
     const redirectFail = failedUrl || `${siteUrl}?payStatus=failed`;
 
-    // ---- payload
-    const txnId = merchantTransactionId || `TXN_${Date.now()}`;
-    const userId = customerPhone || `U_${Date.now()}`;
-    const paise = Math.max(1, Math.round(Number(amount || 0) * 100)); // must be >0
+    // ---- payload (PhonePe v2 expects "merchantOrderId")
+    const txnId = merchantTransactionId || `ORDER_${Date.now()}`;
+    const userId = customerPhone || `USER_${Date.now()}`;
+    const paise = Math.max(100, Math.round(Number(amount || 0) * 100)); // >= 1 INR
 
     const payload = {
       merchantId: MERCHANT_ID,
-      merchantTransactionId: txnId,
+      merchantOrderId: txnId,
       merchantUserId: userId,
       amount: paise, // in paise
-      redirectUrl: redirectSuccess,           // PhonePe will redirect here on success
-      redirectMode: "REDIRECT",               // UAT accepts 'REDIRECT' | 'POST'
-      callbackUrl: redirectFail,              // (optional) where PhonePe can notify failures
-      paymentInstrument: { type: "PAY_PAGE" } // PhonePe Hosted Pay Page
+      redirectUrl: redirectSuccess,
+      redirectMode: "REDIRECT",
+      callbackUrl: redirectFail,
+      paymentInstrument: { type: "PAY_PAGE" },
     };
 
     const payloadB64 = base64Utf8(JSON.stringify(payload));
 
-    // X-VERIFY = sha256( payloadB64 + "/pg/v1/pay" + SALT_KEY ) + "###" + SALT_INDEX
-    const path = "/pg/v1/pay";
+    // endpoint path (from docs)
+    const path = "/checkout/v2/pay";
     const checksum = await sha256Hex(payloadB64 + path + SALT_KEY);
     const xVerify = `${checksum}###${SALT_INDEX}`;
 
-    // ---- call PhonePe UAT
     const upstream = await fetch(`${BASE}${path}`, {
       method: "POST",
       headers: {
@@ -91,8 +89,6 @@ export default async function handler(req: Request): Promise<Response> {
 
     const data = await upstream.json().catch(() => ({}));
 
-    // Success shape (UAT):
-    // { success: true, code: "PAYMENT_INITIATED", data: { instrumentResponse: { redirectInfo: { url, method }}}}
     const url =
       data?.data?.instrumentResponse?.redirectInfo?.url ||
       data?.data?.redirectUrl ||
@@ -110,11 +106,10 @@ export default async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // Return just what the frontend needs
     return Response.json({
       ok: true,
-      transactionId: txnId,
-      url, // redirect here
+      orderId: txnId,
+      url,
     });
   } catch (err: any) {
     console.error("PhonePe /pay error", err);
