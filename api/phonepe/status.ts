@@ -1,85 +1,78 @@
 // /api/phonepe/status.ts
-export const runtime = "edge";
+export const runtime = 'edge';
 
-function env(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env ${name}`);
-  return v;
+const PG_BASE = process.env.PHONEPE_BASE_URL;
+const AUTH_BASE = process.env.PHONEPE_AUTH_BASE || 'https://api.phonepe.com/apis/identity-manager';
+const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID;
+const CLIENT_ID = process.env.PHONEPE_CLIENT_ID;
+const CLIENT_VER = process.env.PHONEPE_CLIENT_VERSION;
+const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET;
+
+type Tok = { access_token: string; expires_at: number };
+let TOK: Tok | null = null;
+
+function json(body: any, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
-async function fetchOAuth() {
-  const authBase = env("PHONEPE_AUTH_BASE_URL");
-  const clientId = env("PHONEPE_CLIENT_ID");
-  const clientSecret = env("PHONEPE_CLIENT_SECRET");
-  const clientVersion = env("PHONEPE_CLIENT_VERSION");
+function nowSec() {
+  return Math.floor(Date.now() / 1000);
+}
 
-  const res = await fetch(`${authBase}/v1/oauth/token`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+async function getAccessToken() {
+  if (TOK && TOK.expires_at - 60 > nowSec()) return TOK.access_token;
+
+  const r = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      clientId,
-      clientSecret,
-      clientVersion: Number(clientVersion),
+      client_id: CLIENT_ID,
+      client_version: CLIENT_VER,
+      client_secret: CLIENT_SECRET,
     }),
   });
 
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) return { ok: false, status: res.status, body: json };
+  const body = await r.json().catch(() => ({} as any));
+  if (!r.ok) throw new Error(`oauth-failed [${r.status}]: ${JSON.stringify(body)}`);
 
-  const token = json.access_token || json.encrypted_access_token;
-  const type  = json.token_type || "O-Bearer";
-  if (!token) return { ok: false, status: 500, body: json, note: "No access_token" };
-  return { ok: true, token, type };
+  const token = body.access_token || body.encrypted_access_token || body.token || body.accessToken;
+  const exp = body.expires_at || body.session_expires_at || (nowSec() + (body.expires_in || 3600));
+  if (!token) throw new Error(`oauth-ok-but-no-token: ${JSON.stringify(body)}`);
+
+  TOK = { access_token: token, expires_at: Number(exp) || nowSec() + 3600 };
+  return TOK.access_token;
 }
 
 export default async function handler(req: Request) {
-  const url = new URL(req.url);
-  const merchantOrderId = url.searchParams.get("merchantOrderId");
-  const merchantTransactionId = url.searchParams.get("merchantTransactionId");
+  if (req.method !== 'GET') return json({ ok: false, error: 'Method not allowed' }, 405);
 
-  if (!merchantOrderId && !merchantTransactionId) {
-    return new Response(JSON.stringify({ ok: false, error: "Missing merchantOrderId (or merchantTransactionId)" }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
+  try {
+    if (!PG_BASE || !MERCHANT_ID) return json({ ok: false, error: 'Missing PHONEPE_BASE_URL or PHONEPE_MERCHANT_ID' }, 500);
+
+    const url = new URL(req.url);
+    // accept either param name
+    const id =
+      url.searchParams.get('merchantOrderId') ||
+      url.searchParams.get('merchantTransactionId') ||
+      '';
+
+    if (!id) return json({ ok: false, error: 'Missing merchantOrderId (or merchantTransactionId)' }, 400);
+
+    const access = await getAccessToken();
+
+    const resp = await fetch(`${PG_BASE}/checkout/v2/order/${encodeURIComponent(id)}/status`, {
+      headers: { Authorization: `O-Bearer ${access}` },
     });
+
+    const data = await resp.json().catch(() => ({} as any));
+    if (!resp.ok) return json({ ok: false, status: resp.status, body: data }, 502);
+
+    // Return minimally necessary fields
+    return json({ ok: true, state: data?.state || data?.data?.state || 'UNKNOWN', raw: data });
+  } catch (e: any) {
+    return json({ ok: false, error: String(e?.message || e) }, 500);
   }
-
-  const oauth = await fetchOAuth();
-  if (!oauth.ok) {
-    return new Response(JSON.stringify({ ok: false, step: "oauth", ...oauth }), {
-      status: 502,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  const pgBase = env("PHONEPE_PG_BASE_URL");
-  const mid    = env("PHONEPE_MERCHANT_ID");
-
-  // Docs: GET /checkout/v2/order/{merchantOrderId}/status
-  const statusUrl = merchantOrderId
-    ? `${pgBase}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status?merchantId=${encodeURIComponent(mid)}`
-    : `${pgBase}/checkout/v2/order/${encodeURIComponent(merchantTransactionId!)}/status?merchantId=${encodeURIComponent(mid)}`;
-
-  const res = await fetch(statusUrl, {
-    method: "GET",
-    headers: { "authorization": `${oauth.type} ${oauth.token}` },
-  });
-
-  const txt = await res.text();
-  let json: any;
-  try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
-
-  if (!res.ok) {
-    return new Response(JSON.stringify({ ok: false, step: "status", status: res.status, body: json }), {
-      status: 502,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  // Use root-level "state": COMPLETED | FAILED | PENDING
-  const state = json.state || json.data?.state || "UNKNOWN";
-  return new Response(JSON.stringify({ ok: true, state, raw: json }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
 }
