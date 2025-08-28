@@ -1,150 +1,138 @@
-// /api/phonepe/pay.ts
-export const runtime = "edge";
+// api/phonepe/pay.ts
+export const config = { runtime: "edge" };
 
-type Json = Record<string, unknown>;
-
-function need(name: string, value?: string | null) {
-  if (!value) throw new Error(`Missing env: ${name}`);
-  return value;
-}
-function inrToPaise(r: number) { return Math.round(r * 100); }
-function genOrderId() {
-  return `ORD_${Date.now()}_${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+/** ---------- Utils ---------- */
+function j(res: unknown, status = 200) {
+  return new Response(JSON.stringify(res), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 }
 
-// region-local token cache
-let cachedToken: { token: string; exp: number } | null = null;
-
-// simple fetch with timeout
-async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | undefined, ms: number) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort("timeout"), ms);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(id);
-  }
+function need(name: string) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
 }
 
-async function getOAuthToken() {
-  const AUTH_BASE = need("PHONEPE_AUTH_BASE", process.env.PHONEPE_AUTH_BASE);
-  const CLIENT_ID = need("PHONEPE_CLIENT_ID", process.env.PHONEPE_CLIENT_ID);
-  const CLIENT_SECRET = need("PHONEPE_CLIENT_SECRET", process.env.PHONEPE_CLIENT_SECRET);
-  const CLIENT_VERSION = need("PHONEPE_CLIENT_VERSION", process.env.PHONEPE_CLIENT_VERSION);
+async function oauthToken() {
+  const AUTH_BASE = need("PHONEPE_AUTH_BASE"); // e.g. https://api-preprod.phonepe.com/apis/identity-manager
+  const CLIENT_ID = need("PHONEPE_CLIENT_ID");
+  const CLIENT_SECRET = need("PHONEPE_CLIENT_SECRET");
+  const CLIENT_VERSION = need("PHONEPE_CLIENT_VERSION"); // "1"
 
-  if (cachedToken && Date.now() < cachedToken.exp - 30_000) return cachedToken.token;
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    client_version: CLIENT_VERSION,
+  });
 
-  const body = new URLSearchParams();
-  body.set("grant_type", "client_credentials");
-  body.set("client_id", CLIENT_ID);
-  body.set("client_secret", CLIENT_SECRET);
-  body.set("client_version", CLIENT_VERSION);
-
-  const res = await fetchWithTimeout(`${AUTH_BASE}/v1/oauth/token`, {
+  const r = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
-  }, 12_000).catch((e) => {
-    throw new Response(JSON.stringify({ ok: false, step: "oauth-timeout", error: String(e) }), {
-      status: 502, headers: { "content-type": "application/json" },
-    });
   });
 
-  const text = await res.text();
-  let data: any = null; try { data = JSON.parse(text); } catch {}
+  const text = await r.text();
+  let data: any = {};
+  try { data = JSON.parse(text); } catch {}
 
-  if (!res.ok) {
-    throw new Response(JSON.stringify({ ok: false, step: "oauth", status: res.status, body: data ?? text }), {
-      status: 502, headers: { "content-type": "application/json" },
-    });
+  if (!r.ok) {
+    throw new Error(
+      `oauth ${r.status}: ${typeof data === "object" ? JSON.stringify(data) : text}`
+    );
   }
 
+  // PhonePe returns token_type "O-Bearer"
   const token = data?.access_token || data?.encrypted_access_token;
-  const ttl = data?.expires_in ?? 3600;
-  if (!token) {
-    throw new Response(JSON.stringify({ ok: false, step: "oauth", status: 500, body: data }), {
-      status: 502, headers: { "content-type": "application/json" },
-    });
-  }
-  cachedToken = { token, exp: Date.now() + ttl * 1000 };
-  return token;
+  const type = data?.token_type || "O-Bearer";
+  if (!token) throw new Error(`oauth OK but no token in response: ${text}`);
+  return { authz: `${type} ${token}` };
 }
 
+/** ---------- Handler ---------- */
 export default async function handler(req: Request) {
+  if (req.method !== "POST") {
+    return j({ ok: false, error: "Method not allowed" }, 405);
+  }
+
   try {
-    if (req.method !== "POST") {
-      return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
-        status: 405, headers: { "content-type": "application/json" },
-      });
+    const BASE = need("PHONEPE_BASE_URL"); // e.g. https://api-preprod.phonepe.com/apis/pg-sandbox
+    const MERCHANT_ID = need("PHONEPE_MERCHANT_ID");
+
+    const payload = await req.json().catch(() => ({} as any));
+    const { amount, customerPhone, merchantTransactionId, merchantOrderId } = payload || {};
+
+    if (!amount || Number(amount) <= 0) {
+      return j({ ok: false, step: "validate", error: "Amount must be > 0" }, 400);
     }
 
-    // Parse body
-    const { amount, customerPhone, merchantOrderId } = await req.json().catch(() => ({})) as {
-      amount?: number; customerPhone?: string; merchantOrderId?: string;
-    };
+    const orderId =
+      merchantOrderId ||
+      merchantTransactionId ||
+      `CUE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-    const PG_BASE = need("PHONEPE_BASE_URL", process.env.PHONEPE_BASE_URL);
-    const MERCHANT_ID = need("PHONEPE_MERCHANT_ID", process.env.PHONEPE_MERCHANT_ID);
-    const SITE_URL = need("NEXT_PUBLIC_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL);
+    // Compute site origin from env (preferred) or request
+    const siteOrigin =
+      (process.env.NEXT_PUBLIC_SITE_URL
+        ? new URL(process.env.NEXT_PUBLIC_SITE_URL).origin
+        : undefined) || new URL(req.url).origin;
 
-    if (!amount || amount <= 0) {
-      return new Response(JSON.stringify({ ok: false, error: "Invalid amount" }), {
-        status: 400, headers: { "content-type": "application/json" },
-      });
-    }
-
-    const orderId = merchantOrderId || genOrderId();
-    const origin = new URL(SITE_URL).origin;
-    const returnUrl = `${origin}/api/phonepe/return?order=${encodeURIComponent(orderId)}`;
+    // Server-side relay return (handles final redirect to SPA)
+    const successRedirect = `${siteOrigin}/api/phonepe/return?status=success&order=${encodeURIComponent(orderId)}`;
+    const failedRedirect  = `${siteOrigin}/api/phonepe/return?status=failed&order=${encodeURIComponent(orderId)}`;
 
     // 1) OAuth
-    const token = await getOAuthToken();
+    const { authz } = await oauthToken();
 
-    // 2) Create Payment
-    const payload: Json = {
+    // 2) Create payment
+    const createBody = {
+      merchantId: MERCHANT_ID,
       merchantOrderId: orderId,
-      amount: inrToPaise(amount),
-      expireAfter: 900,
-      paymentFlow: { type: "PG_CHECKOUT", redirectUrl: returnUrl },
-      metaInfo: { ...(customerPhone ? { customerPhone } : {}) },
+      amount: Math.round(Number(amount) * 100), // rupees -> paise
+      paymentFlow: {
+        type: "PG_CHECKOUT",
+        redirectUrl: successRedirect,
+        failureRedirectUrl: failedRedirect,
+      },
+      metaInfo: {
+        customerPhone: customerPhone || "",
+      },
+      expireAfter: 900, // 15 min
     };
 
-    const payRes = await fetchWithTimeout(`${PG_BASE}/checkout/v2/pay`, {
+    const r = await fetch(`${BASE}/checkout/v2/pay`, {
       method: "POST",
       headers: {
+        authorization: authz,
         "content-type": "application/json",
-        Authorization: `O-Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
-    }, 12_000).catch((e) => {
-      throw new Response(JSON.stringify({ ok: false, step: "pay-timeout", error: String(e) }), {
-        status: 502, headers: { "content-type": "application/json" },
-      });
+      body: JSON.stringify(createBody),
     });
 
-    const payText = await payRes.text();
-    let payData: any = null; try { payData = JSON.parse(payText); } catch {}
+    const text = await r.text();
+    let data: any = {};
+    try { data = JSON.parse(text); } catch {}
 
-    if (!payRes.ok) {
-      return new Response(JSON.stringify({ ok: false, step: "pay", status: payRes.status, body: payData ?? payText }), {
-        status: 502, headers: { "content-type": "application/json" },
-      });
+    if (!r.ok) {
+      return j(
+        { ok: false, step: "pay", status: r.status, body: data ?? text },
+        502
+      );
     }
 
-    const redirectUrl = payData?.redirectUrl;
-    if (!redirectUrl) {
-      return new Response(JSON.stringify({ ok: false, step: "pay", status: 500, body: payData }), {
-        status: 502, headers: { "content-type": "application/json" },
-      });
+    // Expect: { redirectUrl, orderId, ...}
+    const url = data?.redirectUrl || data?.data?.redirectUrl;
+    if (!url) {
+      return j(
+        { ok: false, step: "pay", status: r.status, body: data, error: "PhonePe pay response missing redirectUrl" },
+        502
+      );
     }
 
-    return new Response(JSON.stringify({ ok: true, url: redirectUrl, orderId }), {
-      status: 200, headers: { "content-type": "application/json" },
-    });
+    return j({ ok: true, url, orderId });
   } catch (err: any) {
-    if (err instanceof Response) return err;
-    return new Response(JSON.stringify({ ok: false, step: "exception", error: err?.message || String(err) }), {
-      status: 500, headers: { "content-type": "application/json" },
-    });
+    return j({ ok: false, step: "exception", error: String(err?.message || err) }, 500);
   }
 }
