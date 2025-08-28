@@ -90,6 +90,9 @@ export default function PublicBooking() {
   // Local refund policy modal
   const [showRefundDialog, setShowRefundDialog] = useState(false);
 
+  // NEW: payment method toggle
+  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'phonepe'>('venue');
+
   // Today's bookings
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
@@ -344,7 +347,7 @@ export default function PublicBooking() {
       }
       setAppliedCoupons((prev) => ({ ...prev, '8ball': 'NIT99' }));
       toast.success('NIT99 applied to 8-Ball stations');
-      toast.message('Hint: With NIT99, you may also apply NIT50 to get 50% off on PS5 stations if selected.');
+      toast.message('Hint: With NIT99 applied, you may also apply NIT50 to get 50% off on PS5 stations if selected.');
       return;
     }
 
@@ -442,6 +445,7 @@ export default function PublicBooking() {
   const isStationSelectionAvailable = () => isCustomerInfoComplete();
   const isTimeSelectionAvailable = () => isStationSelectionAvailable() && selectedStations.length > 0;
 
+  // ====== UPDATED: branched booking submit (venue vs phonepe) ======
   const handleBookingSubmit = async () => {
     if (!customerNumber.trim()) {
       toast.error('Please complete customer information first');
@@ -459,89 +463,152 @@ export default function PublicBooking() {
       toast.error('Please enter your name');
       return;
     }
-    setLoading(true);
-    try {
-      let customerId = customerInfo.id;
-      if (!customerId) {
-        const { data: newCustomer, error: customerError } = await supabase
-          .from('customers')
-          .insert({
-            name: customerInfo.name,
-            phone: customerInfo.phone,
-            email: customerInfo.email || null,
-            is_member: false,
-            loyalty_points: 0,
-            total_spent: 0,
-            total_play_time: 0,
-          })
-          .select('id')
-          .single();
-        if (customerError) throw customerError;
-        customerId = newCustomer.id;
+
+    // === Option A: Pay at Venue (original behavior) ===
+    if (paymentMethod === 'venue') {
+      setLoading(true);
+      try {
+        let customerId = customerInfo.id;
+        if (!customerId) {
+          const { data: newCustomer, error: customerError } = await supabase
+            .from('customers')
+            .insert({
+              name: customerInfo.name,
+              phone: customerInfo.phone,
+              email: customerInfo.email || null,
+              is_member: false,
+              loyalty_points: 0,
+              total_spent: 0,
+              total_play_time: 0,
+            })
+            .select('id')
+            .single();
+          if (customerError) throw customerError;
+          customerId = newCustomer.id;
+        }
+
+        const originalPrice = calculateOriginalPrice();
+        const discountResult = calculateDiscount();
+        const finalPrice = calculateFinalPrice();
+
+        const couponCodes = Object.values(appliedCoupons).join(',');
+
+        const bookings = selectedStations.map((stationId) => ({
+          station_id: stationId,
+          customer_id: customerId!,
+          booking_date: format(selectedDate, 'yyyy-MM-dd'),
+          start_time: selectedSlot!.start_time,
+          end_time: selectedSlot!.end_time,
+          duration: 60,
+          status: 'confirmed',
+          original_price: originalPrice,
+          discount_percentage: discountResult.total > 0 ? (discountResult.total / originalPrice) * 100 : null,
+          final_price: finalPrice,
+          coupon_code: couponCodes || null,
+          payment_mode: 'venue',
+        }));
+
+        const { data: insertedBookings, error: bookingError } = await supabase
+          .from('bookings')
+          .insert(bookings)
+          .select('id');
+
+        if (bookingError) throw bookingError;
+
+        const stationObjects = stations.filter((s) => selectedStations.includes(s.id));
+        setBookingConfirmationData({
+          bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
+          customerName: customerInfo.name,
+          stationNames: stationObjects.map((s) => s.name),
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          totalAmount: finalPrice,
+          couponCode: couponCodes || undefined,
+          discountAmount: discountResult.total > 0 ? discountResult.total : undefined,
+        });
+        setShowConfirmationDialog(true);
+
+        // reset form
+        setSelectedStations([]);
+        setSelectedSlot(null);
+        setCustomerNumber('');
+        setCustomerInfo({ name: '', phone: '', email: '' });
+        setIsReturningCustomer(false);
+        setHasSearched(false);
+        setCouponCode('');
+        setAppliedCoupons({});
+        setAvailableSlots([]);
+      } catch (error) {
+        console.error('Error creating booking:', error);
+        toast.error('Failed to create booking. Please try again.');
+      } finally {
+        setLoading(false);
       }
+      return;
+    }
+
+    // === Option B: Pay Online (PhonePe) ===
+    try {
+      setLoading(true);
 
       const originalPrice = calculateOriginalPrice();
       const discountResult = calculateDiscount();
       const finalPrice = calculateFinalPrice();
-
       const couponCodes = Object.values(appliedCoupons).join(',');
 
-      const bookings = selectedStations.map((stationId) => ({
-        station_id: stationId,
-        customer_id: customerId!,
-        booking_date: format(selectedDate, 'yyyy-MM-dd'),
+      // store for success page to finish booking AFTER payment
+      const pendingPayload = {
+        selectedStations,
+        selectedDateISO: format(selectedDate, 'yyyy-MM-dd'),
         start_time: selectedSlot!.start_time,
         end_time: selectedSlot!.end_time,
-        duration: 60,
-        status: 'confirmed',
-        original_price: originalPrice,
-        discount_percentage: discountResult.total > 0 ? (discountResult.total / originalPrice) * 100 : null,
-        final_price: finalPrice,
-        coupon_code: couponCodes || null,
-      }));
+        customer: { id: customerInfo.id, name: customerInfo.name, phone: customerInfo.phone, email: customerInfo.email },
+        pricing: { original: originalPrice, discount: discountResult.total, final: finalPrice, coupons: couponCodes },
+      };
+      localStorage.setItem('pendingBooking', JSON.stringify(pendingPayload));
 
-      const { data: insertedBookings, error: bookingError } = await supabase
-        .from('bookings')
-        .insert(bookings)
-        .select('id');
+      // unique ID per attempt
+      const merchantTransactionId = `CUE-${Date.now()}`;
 
-      if (bookingError) throw bookingError;
+      // build return URLs based on current host
+      const origin = window.location.origin;
+      const successUrl = `${origin}/public/payment/success?mtid=${encodeURIComponent(merchantTransactionId)}`;
+      const failedUrl = `${origin}/public/payment/failed?mtid=${encodeURIComponent(merchantTransactionId)}`;
 
-      const stationObjects = stations.filter((s) => selectedStations.includes(s.id));
-      setBookingConfirmationData({
-        bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
-        customerName: customerInfo.name,
-        stationNames: stationObjects.map((s) => s.name),
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
+      // ask our API route to create a PhonePe payment and give us the hosted URL
+      const resp = await fetch('/api/phonepe/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: finalPrice,                 // in rupees; server will convert to paise
+          customerPhone: customerInfo.phone,
+          customerName: customerInfo.name,
+          merchantTransactionId,
+          successUrl,
+          failedUrl,
         }),
-        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        }),
-        totalAmount: finalPrice,
-        couponCode: couponCodes || undefined,
-        discountAmount: discountResult.total > 0 ? discountResult.total : undefined,
-      });
-      setShowConfirmationDialog(true);
+      }).then(r => r.json());
 
-      setSelectedStations([]);
-      setSelectedSlot(null);
-      setCustomerNumber('');
-      setCustomerInfo({ name: '', phone: '', email: '' });
-      setIsReturningCustomer(false);
-      setHasSearched(false);
-      setCouponCode('');
-      setAppliedCoupons({});
-      setAvailableSlots([]);
-    } catch (error) {
-      console.error('Error creating booking:', error);
-      toast.error('Failed to create booking. Please try again.');
-    } finally {
+      if (!resp?.url) {
+        toast.error('Failed to initiate payment. Please try again or choose Pay at Venue.');
+        setLoading(false);
+        return;
+      }
+
+      // redirect to PhonePe checkout
+      window.location.href = resp.url;
+    } catch (e) {
+      console.error(e);
+      toast.error('Unable to start payment. Please try again.');
       setLoading(false);
     }
   };
@@ -1097,6 +1164,46 @@ export default function PublicBooking() {
                   )}
                 </div>
 
+                {/* NEW: Payment Method */}
+                <div className="rounded-xl border border-white/10 p-3">
+                  <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payment Method</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('venue')}
+                      className={cn(
+                        'rounded-lg border p-2 text-sm',
+                        paymentMethod === 'venue'
+                          ? 'border-cuephoria-purple/40 bg-cuephoria-purple/10 text-white'
+                          : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
+                      )}
+                    >
+                      Pay at Venue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('phonepe')}
+                      className={cn(
+                        'rounded-lg border p-2 text-sm',
+                        paymentMethod === 'phonepe'
+                          ? 'border-emerald-400/40 bg-emerald-400/10 text-white'
+                          : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
+                      )}
+                    >
+                      Pay Online (PhonePe)
+                    </button>
+                  </div>
+                  {paymentMethod === 'venue' ? (
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      We’ll confirm your booking now. Payment at the lounge in INR (₹).
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      You’ll be redirected to PhonePe. Booking is created only after payment success.
+                    </p>
+                  )}
+                </div>
+
                 {originalPrice > 0 && (
                   <>
                     <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -1146,11 +1253,13 @@ export default function PublicBooking() {
                   className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
                   size="lg"
                 >
-                  {loading ? 'Creating Booking...' : 'Confirm Booking'}
+                  {loading ? (paymentMethod === 'phonepe' ? 'Redirecting to PhonePe…' : 'Creating Booking...') : 'Confirm Booking'}
                 </Button>
 
                 <p className="text-xs text-gray-400 text-center">
-                  All prices are shown in <span className="font-semibold">INR (₹)</span>. Payment will be collected at the venue.
+                  {paymentMethod === 'venue'
+                    ? <>All prices are shown in <span className="font-semibold">INR (₹)</span>. Payment will be collected at the venue.</>
+                    : <>You’ll complete payment securely on PhonePe. All amounts shown here are in <span className="font-semibold">INR (₹)</span>.</>}
                 </p>
               </CardContent>
             </Card>
