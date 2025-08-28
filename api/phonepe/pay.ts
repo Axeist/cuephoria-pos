@@ -1,6 +1,16 @@
 // /api/phonepe/pay.ts
-// Runtime: Edge
-export const config = { runtime: "edge" };
+// Next.js App Router (Edge) – PhonePe: create payment (Standard Checkout)
+//
+// Expects POST JSON:
+// {
+//   amount: number,                // rupees (e.g., 299). We'll convert to paise.
+//   customerPhone: string,         // optional, used for prefill
+//   merchantTransactionId: string, // required (unique)
+//   successUrl: string,            // e.g., https://admin.cuephoria.in/public/booking?pp=success
+//   failedUrl: string              // e.g., https://admin.cuephoria.in/public/booking?pp=failed
+// }
+
+export const runtime = "edge";
 
 type Env = {
   PHONEPE_BASE_URL?: string;
@@ -12,35 +22,21 @@ type Env = {
 
 function need(env: Env, k: keyof Env): string {
   const v = env[k];
-  if (!v || !`${v}`.trim()) throw new Error(`Missing env: ${k}`);
-  return `${v}`.trim();
+  if (!v) throw new Error(`Missing env ${k}`);
+  return v;
 }
 
-function json(body: any, init?: number | ResponseInit) {
-  const initObj: ResponseInit =
-    typeof init === "number" ? { status: init } : init || {};
-  return new Response(JSON.stringify(body), {
-    ...initObj,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      ...(initObj.headers || {}),
-    },
-  });
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "POST,OPTIONS",
+    "access-control-allow-headers": "content-type",
+  };
 }
 
-async function readJSON<T = any>(req: Request): Promise<T> {
-  try {
-    const txt = await req.text();
-    return txt ? JSON.parse(txt) : ({} as T);
-  } catch {
-    return {} as T;
-  }
-}
-
-// ===== OAuth: send as x-www-form-urlencoded (per PhonePe spec) =====
 async function getBearerToken(env: Env) {
   const BASE = need(env, "PHONEPE_BASE_URL");
-  const CID = need(env, "PHONEPE_CLIENT_ID");
+  const CID  = need(env, "PHONEPE_CLIENT_ID");
   const CVER = need(env, "PHONEPE_CLIENT_VERSION");
   const CSEC = need(env, "PHONEPE_CLIENT_SECRET");
 
@@ -62,19 +58,19 @@ async function getBearerToken(env: Env) {
   });
 
   const raw = await res.text();
-  let jsonResp: any = null;
-  try { jsonResp = JSON.parse(raw); } catch {}
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
 
   if (!res.ok) {
-    throw new Error(
-      `Auth failed [${res.status}]. ${jsonResp?.error || jsonResp?.message || raw}`
-    );
+    throw new Error(`Auth failed [${res.status}]. ${json?.error || json?.message || raw}`);
   }
 
+  // IMPORTANT: UAT returns `access_token` (snake_case)
   const token =
-    jsonResp?.accessToken ||
-    jsonResp?.data?.accessToken ||
-    jsonResp?.response?.accessToken;
+    json?.access_token ||      // <= primary
+    json?.accessToken ||
+    json?.data?.accessToken ||
+    json?.response?.accessToken;
 
   if (!token) {
     throw new Error(`Auth OK but no accessToken in response: ${raw}`);
@@ -82,16 +78,15 @@ async function getBearerToken(env: Env) {
   return token as string;
 }
 
-export default async function handler(req: Request) {
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
+}
+
+export async function POST(req: Request) {
   try {
-    if (req.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "POST,OPTIONS", "access-control-allow-headers": "content-type" },
-      });
-    }
-    if (req.method !== "POST") {
-      return json({ ok: false, error: "Method not allowed" }, 405);
+    const method = req.method.toUpperCase();
+    if (method !== "POST") {
+      return Response.json({ ok: false, error: "Method not allowed" }, { status: 405, headers: corsHeaders() });
     }
 
     const env: Env = {
@@ -102,48 +97,52 @@ export default async function handler(req: Request) {
       PHONEPE_CLIENT_SECRET: process.env.PHONEPE_CLIENT_SECRET,
     };
 
-    // Body from frontend
-    const body = await readJSON<{
-      amount: number; // rupees
-      customerPhone: string;
-      merchantTransactionId: string;
-      successUrl: string;
-      failedUrl: string;
-    }>(req);
-
-    const { amount, customerPhone, merchantTransactionId, successUrl, failedUrl } = body || ({} as any);
-    if (!amount || amount <= 0) return json({ ok: false, step: "validate", error: "amount (INR) must be > 0" }, 400);
-    if (!customerPhone) return json({ ok: false, step: "validate", error: "customerPhone is required" }, 400);
-    if (!merchantTransactionId) return json({ ok: false, step: "validate", error: "merchantTransactionId is required" }, 400);
-    if (!successUrl || !failedUrl) return json({ ok: false, step: "validate", error: "successUrl and failedUrl are required" }, 400);
-
-    // Convert rupees to paise
-    const amountPaise = Math.round(amount * 100);
-
+    // Validate env early
     const BASE = need(env, "PHONEPE_BASE_URL");
-    const MID = need(env, "PHONEPE_MERCHANT_ID");
+    const MID  = need(env, "PHONEPE_MERCHANT_ID");
 
-    // 1) OAuth
+    const body = await req.json().catch(() => ({}));
+    const amountRupees = Number(body?.amount ?? 0);
+    const customerPhone = String(body?.customerPhone ?? "");
+    const merchantTransactionId = String(body?.merchantTransactionId ?? "");
+    const successUrl = String(body?.successUrl ?? "");
+    const failedUrl  = String(body?.failedUrl ?? "");
+
+    if (!merchantTransactionId) {
+      return Response.json({ ok: false, error: "Missing merchantTransactionId" }, { status: 400, headers: corsHeaders() });
+    }
+    if (!amountRupees || amountRupees <= 0) {
+      return Response.json({ ok: false, error: "Invalid amount" }, { status: 400, headers: corsHeaders() });
+    }
+    if (!successUrl || !failedUrl) {
+      return Response.json({ ok: false, error: "Missing successUrl/failedUrl" }, { status: 400, headers: corsHeaders() });
+    }
+
+    const amountPaise = Math.round(amountRupees * 100);
+
+    // 1) Get OAuth Bearer
     const bearer = await getBearerToken(env);
 
-    // 2) Create Payment (Standard Checkout v2)
-    const payUrl = `${BASE}/checkout/v2/pay`;
-    const payload = {
+    // 2) Create Payment (Standard Checkout / Hosted)
+    const url = `${BASE}/checkout/v2/pay`;
+
+    // Payload fields follow PhonePe Standard Checkout (UAT):
+    const payload: any = {
       merchantId: MID,
-      merchantOrderId: merchantTransactionId,         // using txnId as order id
-      merchantTransactionId,                          // also send txn id
-      merchantUserId: customerPhone,                  // tie to user
-      amount: amountPaise,                            // paise
-      currency: "INR",
-      callbackUrl: successUrl,                        // PhonePe will redirect after payment
-      deviceContext: { deviceOS: "WEB" },
-      paymentInstrument: { type: "PAY_PAGE" },
-      redirectUrl: successUrl,                        // some docs use redirectUrl
-      redirectMode: "POST",                           // or GET; UAT usually allows POST/GET
-      failureUrl: failedUrl,
+      merchantTransactionId,
+      amount: amountPaise,
+      instrumentType: "PAY_PAGE",
+      // Redirect back to your booking page (PhonePe will append their params).
+      redirectUrl: successUrl,
+      redirectMode: "GET",
+      // Meta is optional but helpful for prefill
+      meta: {
+        consumerMobileNumber: customerPhone || undefined,
+        merchantOrderId: merchantTransactionId, // keep same as txn for UAT simplicity
+      },
     };
 
-    const res = await fetch(payUrl, {
+    const payRes = await fetch(url, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -153,47 +152,37 @@ export default async function handler(req: Request) {
       body: JSON.stringify(payload),
     });
 
-    const raw = await res.text();
-    let j: any = null;
-    try { j = JSON.parse(raw); } catch {}
+    const payRaw = await payRes.text();
+    let payJson: any = null;
+    try { payJson = JSON.parse(payRaw); } catch {}
 
-    if (!res.ok) {
-      return json(
-        {
-          ok: false,
-          step: "createPayment",
-          status: res.status,
-          error: j?.error || j?.message || raw || "Failed to create payment",
-        },
-        500
+    if (!payRes.ok) {
+      return Response.json(
+        { ok: false, error: "PhonePe pay failed", status: payRes.status, raw: payRaw, step: "pay" },
+        { status: 502, headers: corsHeaders() }
       );
     }
 
-    // Standard Checkout usually returns a hosted page URL
-    const hostedUrl =
-      j?.data?.instrumentResponse?.redirectInfo?.url ||
-      j?.instrumentResponse?.redirectInfo?.url ||
-      j?.data?.redirectUrl ||
-      j?.redirectUrl ||
-      j?.url;
+    // Extract hosted page URL robustly
+    const redirectUrl =
+      payJson?.data?.instrumentResponse?.redirectInfo?.url ||
+      payJson?.instrumentResponse?.redirectInfo?.url ||
+      payJson?.redirectInfo?.url ||
+      payJson?.data?.url ||
+      payJson?.url;
 
-    if (!hostedUrl) {
-      return json(
-        {
-          ok: false,
-          step: "createPayment",
-          error: "No hosted payment URL returned by PhonePe",
-          raw: j || raw,
-        },
-        500
+    if (!redirectUrl) {
+      return Response.json(
+        { ok: false, error: "No redirect URL in PhonePe response", raw: payJson, step: "pay" },
+        { status: 502, headers: corsHeaders() }
       );
     }
 
-    return json({ ok: true, url: hostedUrl });
+    return Response.json({ ok: true, url: redirectUrl, step: "pay" }, { headers: corsHeaders() });
   } catch (err: any) {
-    return json(
-      { ok: false, step: "exception", error: err?.message || String(err) },
-      500
+    return Response.json(
+      { ok: false, error: `Could not start PhonePe payment (exception). ${err?.message || err}` },
+      { status: 500, headers: corsHeaders() }
     );
   }
 }
