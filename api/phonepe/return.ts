@@ -1,39 +1,55 @@
-// api/phonepe/return.ts
-export const config = { runtime: 'edge' };
+// /api/phonepe/return.ts
+export const runtime = "edge";
 
-function htmlRedirect(to: string) {
-  const safe = to.replace(/"/g, '&quot;');
-  const html = `<!doctype html>
-<meta http-equiv="refresh" content="0;url=${safe}">
-<title>Redirecting…</title>
-<script>location.replace(${JSON.stringify(safe)})</script>`;
-  return new Response(html, {
-    status: 200,
-    headers: { 'content-type': 'text/html; charset=UTF-8' },
-  });
+function need(name: string, value?: string | null) {
+  if (!value) throw new Error(`Missing env: ${name}`);
+  return value;
 }
 
 export default async function handler(req: Request) {
-  const url = new URL(req.url);
-
-  const status = (url.searchParams.get('status') || '').toLowerCase(); // success|failed|pending
-  const order  = url.searchParams.get('order') || '';
-
-  // Where your public booking page lives:
-  const site = process.env.NEXT_PUBLIC_SITE_URL || ''; // e.g. https://admin.cuephoria.in/public/booking
-  let base = site;
   try {
-    // ensure absolute https URL
-    const u = new URL(base);
-    if (u.protocol !== 'https:') u.protocol = 'https:';
-    base = u.toString();
-  } catch {
-    base = `${url.protocol}//${url.host}/public/booking`;
+    const url = new URL(req.url);
+    const orderId = url.searchParams.get("order");
+    if (!orderId) {
+      // If PhonePe doesn’t include order explicitly, show a helpful error.
+      return new Response("Missing 'order' in return URL", { status: 400 });
+    }
+
+    const SITE_URL = need("NEXT_PUBLIC_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL);
+    const origin = new URL(SITE_URL).origin;
+
+    // Call our own /status to decide where to send the customer
+    const statusRes = await fetch(`${origin}/api/phonepe/status?order=${encodeURIComponent(orderId)}`, {
+      // ensure no-cors issues in edge
+      headers: { "cache-control": "no-cache" },
+    }).catch(() => null);
+
+    let state: string | null = null;
+    if (statusRes && statusRes.ok) {
+      const j = await statusRes.json().catch(() => null);
+      state = j?.state || null;
+    }
+
+    // Decide terminal redirect
+    let pp = "pending";
+    if (state === "COMPLETED") pp = "success";
+    else if (state === "FAILED") pp = "failed";
+
+    const forward = new URL(SITE_URL);
+    forward.searchParams.set("pp", pp);
+    forward.searchParams.set("order", orderId);
+
+    return Response.redirect(forward.toString(), 302);
+  } catch (err: any) {
+    // If anything blows up, at least land them on booking with a failure flag
+    try {
+      const SITE_URL = need("NEXT_PUBLIC_SITE_URL", process.env.NEXT_PUBLIC_SITE_URL);
+      const f = new URL(SITE_URL);
+      f.searchParams.set("pp", "failed");
+      f.searchParams.set("msg", "return-handler-error");
+      return Response.redirect(f.toString(), 302);
+    } catch {
+      return new Response("Return handler error", { status: 500 });
+    }
   }
-
-  const dest = new URL(base);
-  if (status) dest.searchParams.set('pp', status);
-  if (order)  dest.searchParams.set('order', order);
-
-  return htmlRedirect(dest.toString());
 }
