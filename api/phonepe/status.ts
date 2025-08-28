@@ -1,7 +1,6 @@
-// /api/phonepe/status.ts  (Edge Runtime, ESM)
+// /api/phonepe/status.ts
 export const config = { runtime: "edge" };
 
-/** helpers */
 const toHex = (buf: ArrayBuffer) =>
   [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -21,33 +20,24 @@ export default async function handler(req: Request): Promise<Response> {
 
   try {
     const url = new URL(req.url);
-    const transactionId = url.searchParams.get("transactionId");
-    if (!transactionId) {
-      return Response.json({ error: "transactionId is required" }, { status: 400 });
+    const orderId = url.searchParams.get("orderId");
+    if (!orderId) {
+      return Response.json({ error: "orderId is required" }, { status: 400 });
     }
 
-    // envs
     const BASE = process.env.PHONEPE_BASE_URL!;
     const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID!;
     const SALT_KEY = process.env.PHONEPE_SALT_KEY!;
     const SALT_INDEX = process.env.PHONEPE_SALT_INDEX!;
-    if (!BASE || !MERCHANT_ID || !SALT_KEY || !SALT_INDEX) {
-      return Response.json(
-        { error: "Missing PhonePe environment variables" },
-        { status: 500 }
-      );
-    }
 
-    // X-VERIFY for status:
-    // sha256( "/pg/v1/status/{merchantId}/{transactionId}" + SALT_KEY ) + "###" + SALT_INDEX
-    const path = `/pg/v1/status/${MERCHANT_ID}/${transactionId}`;
+    const path = `/checkout/v2/order/${orderId}/status`;
     const checksum = await sha256Hex(path + SALT_KEY);
     const xVerify = `${checksum}###${SALT_INDEX}`;
 
     const upstream = await fetch(`${BASE}${path}`, {
       method: "GET",
       headers: {
-        "accept": "application/json",
+        accept: "application/json",
         "X-VERIFY": xVerify,
         "X-MERCHANT-ID": MERCHANT_ID,
       },
@@ -55,7 +45,6 @@ export default async function handler(req: Request): Promise<Response> {
 
     const data = await upstream.json().catch(() => ({}));
 
-    // Return upstream as-is so frontend can decide (expects code === "PAYMENT_SUCCESS")
     return Response.json(
       { ok: upstream.ok, ...data },
       { status: upstream.ok ? 200 : 502 }
