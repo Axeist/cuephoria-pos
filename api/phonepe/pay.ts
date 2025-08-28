@@ -1,157 +1,167 @@
-// api/phonepe/pay.ts
-export const runtime = 'edge';
+/* /api/phonepe/pay.ts — Vercel Edge Function */
+export const config = { runtime: "edge" };
 
-type PayBody = {
-  amount: number; // INR (rupees)
-  customerPhone?: string;
-  merchantTransactionId: string;
-  successUrl: string;
-  failedUrl: string;
+type Env = {
+  PHONEPE_BASE_URL?: string;
+  PHONEPE_MERCHANT_ID?: string;
+  PHONEPE_CLIENT_ID?: string;
+  PHONEPE_CLIENT_VERSION?: string;
+  PHONEPE_CLIENT_SECRET?: string;
 };
 
-function env(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env ${name}`);
-  return v;
+function need(env: Env, key: keyof Env) {
+  const v = env[key];
+  if (!v || !v.trim()) throw new Error(`Missing env: ${key}`);
+  return v.trim();
 }
 
-function json(status: number, body: any) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-export async function POST(req: Request) {
+async function readJsonSafe(res: Response) {
+  const raw = await res.text();
   try {
-    const {
-      amount,
-      customerPhone,
-      merchantTransactionId,
-      successUrl,
-      failedUrl,
-    } = (await req.json()) as PayBody;
+    return { raw, json: JSON.parse(raw) as any };
+  } catch {
+    return { raw, json: null as any };
+  }
+}
 
-    // ---- STEP 0: Validate body
-    if (!amount || amount <= 0) {
-      return json(400, {
-        ok: false,
-        step: 'validate',
-        error: 'Amount must be a positive integer (rupees).',
-      });
-    }
-    if (!merchantTransactionId) {
-      return json(400, {
-        ok: false,
-        step: 'validate',
-        error: 'merchantTransactionId is required.',
-      });
-    }
-    if (!successUrl || !failedUrl) {
-      return json(400, {
-        ok: false,
-        step: 'validate',
-        error: 'successUrl and failedUrl are required (https URLs).',
-      });
-    }
+async function getBearerToken(env: Env) {
+  const BASE = need(env, "PHONEPE_BASE_URL");
+  const CLIENT_ID = need(env, "PHONEPE_CLIENT_ID");
+  const CLIENT_SECRET = need(env, "PHONEPE_CLIENT_SECRET");
+  const CLIENT_VERSION = need(env, "PHONEPE_CLIENT_VERSION");
 
-    // ---- STEP 1: Read env
-    let BASE = '', CLIENT_ID = '', CLIENT_VERSION = '', CLIENT_SECRET = '';
-    try {
-      BASE = env('PHONEPE_BASE_URL');               // e.g. https://api-preprod.phonepe.com/apis/pg-sandbox
-      CLIENT_ID = env('PHONEPE_CLIENT_ID');         // TEST-... (from screenshot)
-      CLIENT_VERSION = env('PHONEPE_CLIENT_VERSION'); // "1"
-      CLIENT_SECRET = env('PHONEPE_CLIENT_SECRET'); // long secret (from screenshot)
-    } catch (e: any) {
-      return json(500, { ok: false, step: 'env', error: e.message });
-    }
+  const url = `${BASE}/v1/oauth/token`;
 
-    // ---- STEP 2: OAuth token
-    try {
-      const authRes = await fetch(`${BASE}/v1/oauth/token`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-client-id': CLIENT_ID,
-          'x-client-version': CLIENT_VERSION,
-          'x-client-secret': CLIENT_SECRET,
-        },
-        body: JSON.stringify({}), // body is empty per docs
-      });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "X-CLIENT-ID": CLIENT_ID,
+      "X-CLIENT-SECRET": CLIENT_SECRET,
+      "X-CLIENT-VERSION": CLIENT_VERSION,
+    },
+    body: JSON.stringify({ grantType: "CLIENT_CREDENTIALS" }),
+  });
 
-      const authText = await authRes.text();
-      let auth: any = null;
-      try { auth = JSON.parse(authText); } catch { /* ignore */ }
+  const { raw, json } = await readJsonSafe(res);
+  if (!res.ok) {
+    throw new Error(
+      `Auth failed [${res.status}]. ${json?.error || json?.message || raw}`
+    );
+  }
 
-      if (!authRes.ok || !auth?.accessToken) {
-        return json(authRes.status || 500, {
+  // Try a few common shapes (PhonePe docs/examples vary)
+  const token =
+    json?.accessToken ||
+    json?.data?.accessToken ||
+    json?.response?.accessToken;
+  if (!token) {
+    throw new Error(`Auth OK but no accessToken in response: ${raw}`);
+  }
+  return token as string;
+}
+
+export default async function handler(req: Request): Promise<Response> {
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Method not allowed" }),
+      { status: 405, headers: { "content-type": "application/json" } }
+    );
+  }
+
+  const env = process.env as Env;
+
+  try {
+    const MERCHANT_ID = need(env, "PHONEPE_MERCHANT_ID");
+    const BASE = need(env, "PHONEPE_BASE_URL");
+
+    // Body: { amount (rupees), customerPhone, merchantTransactionId, successUrl, failedUrl }
+    const body = await req.json().catch(() => ({} as any));
+    const rupees = Number(body?.amount ?? 0);
+    const paise = Math.round(rupees * 100);
+    const customerPhone = String(body?.customerPhone || "").trim();
+    const merchantTransactionId = String(body?.merchantTransactionId || "").trim();
+    const successUrl = String(body?.successUrl || "").trim();
+    const failedUrl = String(body?.failedUrl || "").trim();
+
+    if (!paise || paise <= 0)
+      return new Response(
+        JSON.stringify({ ok: false, step: "validate", error: "Invalid amount" }),
+        { status: 400, headers: { "content-type": "application/json" } }
+      );
+    if (!merchantTransactionId)
+      return new Response(
+        JSON.stringify({
           ok: false,
-          step: 'oauth',
-          status: authRes.status,
-          error:
-            auth?.error ||
-            auth?.message ||
-            (typeof authText === 'string' ? authText : 'OAuth failed'),
-          raw: auth ?? authText,
-        });
-      }
-
-      const accessToken = auth.accessToken as string;
-
-      // ---- STEP 3: Create Payment (amount in *paise*)
-      const paise = Math.round(amount * 100);
-
-      const createRes = await fetch(`${BASE}/checkout/v2/pay`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          merchantTransactionId,
-          amount: paise,
-          redirectUrl: successUrl,
-          redirectMode: 'REDIRECT',
-          failureRedirectUrl: failedUrl,
-          paymentInstrument: {
-            type: 'PAY_PAGE',
-          },
-          ...(customerPhone ? { mobileNumber: customerPhone } : {}),
+          step: "validate",
+          error: "Missing merchantTransactionId",
         }),
-      });
+        { status: 400, headers: { "content-type": "application/json" } }
+      );
 
-      const createText = await createRes.text();
-      let create: any = null;
-      try { create = JSON.parse(createText); } catch { /* ignore */ }
+    // 1) Get OAuth token
+    const token = await getBearerToken(env);
 
-      if (!createRes.ok || !(create?.redirectUrl || create?.url || create?.instrumentResponse?.redirectInfo?.url)) {
-        return json(createRes.status || 500, {
+    // 2) Create a Standard Checkout payment (Pay Page)
+    const payUrl = `${BASE}/checkout/v2/pay`;
+    const payload = {
+      merchantId: MERCHANT_ID,
+      merchantTransactionId,
+      merchantUserId: customerPhone || "guest",
+      amount: paise, // paise
+      redirectUrl: successUrl || failedUrl || "https://example.com/",
+      redirectMode: "REDIRECT",
+      paymentInstrument: { type: "PAY_PAGE" },
+    };
+
+    const res = await fetch(payUrl, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const { raw, json } = await readJsonSafe(res);
+
+    // A successful response should contain a URL to redirect the user
+    const redirectUrl =
+      json?.data?.instrumentResponse?.redirectInfo?.url ||
+      json?.instrumentResponse?.redirectInfo?.url ||
+      json?.redirectInfo?.url ||
+      json?.url;
+
+    if (!res.ok || !redirectUrl) {
+      const errMsg =
+        json?.error ||
+        json?.message ||
+        json?.responseMessage ||
+        "Create payment failed";
+      return new Response(
+        JSON.stringify({
           ok: false,
-          step: 'create-payment',
-          status: createRes.status,
-          error:
-            create?.error ||
-            create?.message ||
-            (typeof createText === 'string' ? createText : 'Create payment failed'),
-          raw: create ?? createText,
-        });
-      }
-
-      const redirectUrl =
-        create.redirectUrl ||
-        create.url ||
-        create.instrumentResponse?.redirectInfo?.url;
-
-      return json(200, { ok: true, url: redirectUrl, raw: create });
-    } catch (e: any) {
-      // Catch-all for network/parse errors
-      return json(500, {
-        ok: false,
-        step: 'exception',
-        error: e?.message || String(e),
-      });
+          step: "createPayment",
+          status: res.status,
+          error: errMsg,
+          raw,
+        }),
+        { status: 500, headers: { "content-type": "application/json" } }
+      );
     }
+
+    return new Response(
+      JSON.stringify({ ok: true, url: redirectUrl }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
   } catch (e: any) {
-    return json(400, { ok: false, step: 'bad-request', error: e?.message || String(e) });
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        step: "exception",
+        error: e?.message || String(e),
+      }),
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
   }
 }
