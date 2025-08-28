@@ -1,78 +1,83 @@
-// /api/phonepe/status.ts
 export const runtime = 'edge';
 
-const PG_BASE = process.env.PHONEPE_BASE_URL;
-const AUTH_BASE = process.env.PHONEPE_AUTH_BASE || 'https://api.phonepe.com/apis/identity-manager';
-const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID;
-const CLIENT_ID = process.env.PHONEPE_CLIENT_ID;
-const CLIENT_VER = process.env.PHONEPE_CLIENT_VERSION;
-const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET;
-
-type Tok = { access_token: string; expires_at: number };
-let TOK: Tok | null = null;
-
-function json(body: any, status = 200) {
-  return new Response(JSON.stringify(body), {
+function json(data: any, status = 200) {
+  return new Response(JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json; charset=utf-8' },
   });
 }
 
-function nowSec() {
-  return Math.floor(Date.now() / 1000);
+function requireEnv(keys: string[]) {
+  const missing = keys.filter((k) => !process.env[k as keyof typeof process.env]);
+  if (missing.length) throw new Error(`Missing env: ${missing.join(', ')}`);
 }
 
-async function getAccessToken() {
-  if (TOK && TOK.expires_at - 60 > nowSec()) return TOK.access_token;
-
-  const r = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      client_version: CLIENT_VER,
-      client_secret: CLIENT_SECRET,
-    }),
-  });
-
-  const body = await r.json().catch(() => ({} as any));
-  if (!r.ok) throw new Error(`oauth-failed [${r.status}]: ${JSON.stringify(body)}`);
-
-  const token = body.access_token || body.encrypted_access_token || body.token || body.accessToken;
-  const exp = body.expires_at || body.session_expires_at || (nowSec() + (body.expires_in || 3600));
-  if (!token) throw new Error(`oauth-ok-but-no-token: ${JSON.stringify(body)}`);
-
-  TOK = { access_token: token, expires_at: Number(exp) || nowSec() + 3600 };
-  return TOK.access_token;
-}
-
-export default async function handler(req: Request) {
-  if (req.method !== 'GET') return json({ ok: false, error: 'Method not allowed' }, 405);
-
+async function fetchJSON(url: string, init: RequestInit & { timeoutMs?: number } = {}) {
+  const { timeoutMs = 8000, ...rest } = init;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    if (!PG_BASE || !MERCHANT_ID) return json({ ok: false, error: 'Missing PHONEPE_BASE_URL or PHONEPE_MERCHANT_ID' }, 500);
-
-    const url = new URL(req.url);
-    // accept either param name
-    const id =
-      url.searchParams.get('merchantOrderId') ||
-      url.searchParams.get('merchantTransactionId') ||
-      '';
-
-    if (!id) return json({ ok: false, error: 'Missing merchantOrderId (or merchantTransactionId)' }, 400);
-
-    const access = await getAccessToken();
-
-    const resp = await fetch(`${PG_BASE}/checkout/v2/order/${encodeURIComponent(id)}/status`, {
-      headers: { Authorization: `O-Bearer ${access}` },
-    });
-
-    const data = await resp.json().catch(() => ({} as any));
-    if (!resp.ok) return json({ ok: false, status: resp.status, body: data }, 502);
-
-    // Return minimally necessary fields
-    return json({ ok: true, state: data?.state || data?.data?.state || 'UNKNOWN', raw: data });
-  } catch (e: any) {
-    return json({ ok: false, error: String(e?.message || e) }, 500);
+    const resp = await fetch(url, { ...rest, signal: ac.signal });
+    const text = await resp.text();
+    let body: any = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+    return { resp, body, text };
+  } finally {
+    clearTimeout(t);
   }
 }
+
+export async function GET(req: Request) {
+  try {
+    requireEnv([
+      'PHONEPE_BASE_URL',
+      'PHONEPE_AUTH_BASE',
+      'PHONEPE_CLIENT_ID',
+      'PHONEPE_CLIENT_VERSION',
+      'PHONEPE_CLIENT_SECRET',
+    ]);
+
+    const { searchParams } = new URL(req.url);
+    const merchantOrderId = searchParams.get('merchantOrderId') || searchParams.get('merchantTransactionId');
+    if (!merchantOrderId) {
+      return json({ ok: false, error: 'Missing merchantOrderId (or merchantTransactionId)' }, 400);
+    }
+
+    // OAuth
+    const authUrl = `${process.env.PHONEPE_AUTH_BASE}/v1/oauth/token`;
+    const payload = {
+      client_id: process.env.PHONEPE_CLIENT_ID,
+      client_version: Number(process.env.PHONEPE_CLIENT_VERSION || '1'),
+      client_secret: process.env.PHONEPE_CLIENT_SECRET,
+    };
+
+    const { resp: aResp, body: aBody } = await fetchJSON(authUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!aResp.ok || !aBody?.access_token) {
+      return json({ ok: false, step: 'oauth', status: aResp.status, body: aBody }, 502);
+    }
+    const token = aBody.access_token as string;
+
+    // Status
+    const statusUrl = `${process.env.PHONEPE_BASE_URL}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`;
+    const { resp: sResp, body: sBody } = await fetchJSON(statusUrl, {
+      method: 'GET',
+      headers: { 'authorization': `O-Bearer ${token}` },
+    });
+
+    if (!sResp.ok) {
+      return json({ ok: false, step: 'status', status: sResp.status, body: sBody }, 502);
+    }
+
+    return json({ ok: true, ...sBody });
+  } catch (e: any) {
+    return json({ ok: false, error: e?.message || String(e) }, 500);
+  }
+}
+
+// Guard
+export const POST = () => json({ ok: false, error: 'Method not allowed' }, 405);
+
