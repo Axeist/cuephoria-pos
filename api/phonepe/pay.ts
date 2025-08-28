@@ -1,153 +1,123 @@
 // /api/phonepe/pay.ts
-export const runtime = "edge";
+export const runtime = 'edge';
 
-type PayReq = {
-  amount: number;                    // rupees
-  customerPhone?: string;
-  merchantTransactionId?: string;    // optional: you can pass one in
-  successUrl: string;
-  failedUrl: string;
-};
+// ===== ENV =====
+const PG_BASE = process.env.PHONEPE_BASE_URL;               // e.g. https://api.phonepe.com/apis/pg  OR  https://api-preprod.phonepe.com/apis/pg-sandbox
+const AUTH_BASE = process.env.PHONEPE_AUTH_BASE || 'https://api.phonepe.com/apis/identity-manager';
+const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID;
+const CLIENT_ID = process.env.PHONEPE_CLIENT_ID;
+const CLIENT_VER = process.env.PHONEPE_CLIENT_VERSION;
+const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET;
 
-function env(name: string) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env ${name}`);
-  return v;
+// ===== token cache (Edge-safe globals) =====
+type Tok = { access_token: string; expires_at: number };
+let TOK: Tok | null = null;
+
+function json(body: any, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
-async function fetchOAuth() {
-  const authBase = env("PHONEPE_AUTH_BASE_URL");
-  const clientId = env("PHONEPE_CLIENT_ID");
-  const clientSecret = env("PHONEPE_CLIENT_SECRET");
-  const clientVersion = env("PHONEPE_CLIENT_VERSION");
+function nowSec() {
+  return Math.floor(Date.now() / 1000);
+}
 
-  const url = `${authBase}/v1/oauth/token`;
-  const body = JSON.stringify({
-    clientId,
-    clientSecret,
-    clientVersion: Number(clientVersion),
+async function getAccessToken() {
+  if (!CLIENT_ID || !CLIENT_VER || !CLIENT_SECRET) {
+    throw new Error('Missing OAuth env: PHONEPE_CLIENT_ID / PHONEPE_CLIENT_VERSION / PHONEPE_CLIENT_SECRET');
+  }
+  if (TOK && TOK.expires_at - 60 > nowSec()) return TOK.access_token; // reuse if > 60s left
+
+  const r = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      client_id: CLIENT_ID,
+      client_version: CLIENT_VER,
+      client_secret: CLIENT_SECRET,
+    }),
   });
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body,
-  });
-
-  const txt = await res.text();
-  let json: any;
-  try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
-
-  if (!res.ok) {
-    return { ok: false, status: res.status, body: json };
+  const body = await r.json().catch(() => ({} as any));
+  if (!r.ok) {
+    throw new Error(`oauth-failed [${r.status}]: ${JSON.stringify(body)}`);
   }
 
-  // PhonePe returns token_type: "O-Bearer" and access_token (or encrypted_access_token)
-  const token = json.access_token || json.encrypted_access_token;
-  const type  = json.token_type || "O-Bearer";
-  if (!token) {
-    return { ok: false, status: 500, body: json, note: "No access_token" };
-  }
-  return { ok: true, token, type };
+  const token = body.access_token || body.encrypted_access_token || body.token || body.accessToken;
+  const exp = body.expires_at || body.session_expires_at || (nowSec() + (body.expires_in || 3600));
+
+  if (!token) throw new Error(`oauth-ok-but-no-token: ${JSON.stringify(body)}`);
+
+  TOK = { access_token: token, expires_at: Number(exp) || nowSec() + 3600 };
+  return TOK.access_token;
 }
 
 export default async function handler(req: Request) {
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
-      status: 405,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  let payload: PayReq;
+  if (req.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405);
   try {
-    payload = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ ok: false, error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
+    if (!PG_BASE || !MERCHANT_ID) {
+      return json({ ok: false, error: 'Missing env: PHONEPE_BASE_URL or PHONEPE_MERCHANT_ID' }, 500);
+    }
+
+    const body = await req.json().catch(() => ({} as any));
+    // expected from frontend:
+    // { amount: number (rupees), customerPhone?: string, merchantOrderId?: string, successUrl: string, failedUrl: string }
+    const amountRupees = Number(body?.amount || 0);
+    const amountPaise = Math.round(amountRupees * 100);
+    const merchantOrderId =
+      body?.merchantOrderId ||
+      body?.merchantTransactionId ||
+      `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const successUrl = String(body?.successUrl || '');
+    const failedUrl = String(body?.failedUrl || '');
+
+    if (!amountPaise || amountPaise <= 0) return json({ ok: false, error: 'Invalid amount' }, 400);
+    if (!successUrl || !failedUrl) return json({ ok: false, error: 'Missing successUrl/failedUrl' }, 400);
+
+    const access = await getAccessToken();
+
+    // Standard Checkout v2 – create pay request
+    const payload = {
+      merchantId: MERCHANT_ID,
+      merchantOrderId,
+      amount: amountPaise, // in paise
+      paymentFlow: {
+        type: 'PG_CHECKOUT',
+        redirectUrl: successUrl, // user will return here after payment
+      },
+      metaInfo: {
+        // add anything you need; keep minimal in prod
+        source: 'web',
+        failedUrl, // keep for your own redirection handling
+      },
+    };
+
+    const resp = await fetch(`${PG_BASE}/checkout/v2/pay`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        // IMPORTANT: token_type in response is "O-Bearer"
+        Authorization: `O-Bearer ${access}`,
+      },
+      body: JSON.stringify(payload),
     });
+
+    const data = await resp.json().catch(() => ({} as any));
+
+    if (!resp.ok) {
+      return json({ ok: false, step: 'pay', status: resp.status, body: data }, 502);
+    }
+
+    // Expect: { orderId, redirectUrl, ... }
+    const redirectUrl = data?.redirectUrl || data?.data?.redirectUrl;
+    if (!redirectUrl) {
+      return json({ ok: false, step: 'pay-no-redirect', body: data }, 502);
+    }
+
+    return json({ ok: true, url: redirectUrl, merchantOrderId });
+  } catch (e: any) {
+    return json({ ok: false, error: String(e?.message || e) }, 500);
   }
-
-  const { amount, customerPhone, merchantTransactionId, successUrl, failedUrl } = payload;
-  if (!amount || !successUrl || !failedUrl) {
-    return new Response(JSON.stringify({ ok: false, error: "Missing required fields" }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  // 1) OAuth
-  const oauth = await fetchOAuth();
-  if (!oauth.ok) {
-    return new Response(JSON.stringify({ ok: false, step: "oauth", ...oauth }), {
-      status: 502,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  const pgBase = env("PHONEPE_PG_BASE_URL");
-  const mid    = env("PHONEPE_MERCHANT_ID");
-
-  // Use your own order/transaction id, or accept one from client
-  const merchantOrderId = merchantTransactionId || `CUE-${Date.now()}`;
-
-  // Build the Standard Checkout request
-  // Docs: /checkout/v2/pay
-  const payUrl = `${pgBase}/checkout/v2/pay`;
-  const amountPaise = Math.round(amount * 100);
-
-  const body = {
-    merchantId: mid,
-    merchantOrderId,
-    amount: amountPaise,
-    expireAfter: 1200, // 20 minutes (customize)
-    metaInfo: {},
-
-    paymentFlow: {
-      type: "PG_CHECKOUT",
-      redirectUrl: successUrl,  // PhonePe will redirect back here
-      // If you want a separate failure URL, keep successUrl and identify by status later,
-      // or include your own 'state' param in successUrl to distinguish.
-    },
-
-    // Optional: contact
-    deviceContext: {
-      phoneNumber: customerPhone || undefined,
-    },
-  };
-
-  const res = await fetch(payUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "authorization": `${oauth.type} ${oauth.token}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const txt = await res.text();
-  let json: any;
-  try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
-
-  if (!res.ok) {
-    return new Response(JSON.stringify({ ok: false, step: "pay", status: res.status, body: json }), {
-      status: 502,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  // Expect redirectUrl from PhonePe
-  const redirectUrl: string | undefined = json.redirectUrl || json.data?.redirectUrl;
-  if (!redirectUrl) {
-    return new Response(JSON.stringify({ ok: false, step: "pay", status: 500, body: json, error: "Missing redirectUrl" }), {
-      status: 502,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  return new Response(JSON.stringify({ ok: true, url: redirectUrl, merchantOrderId }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
 }
