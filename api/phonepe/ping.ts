@@ -1,21 +1,29 @@
-// /api/phonepe/ping.ts  (Edge Runtime, ESM)
-export const config = { runtime: "edge" };
+export const config = { runtime: 'edge' };
 
-export default async function handler(req: Request): Promise<Response> {
+const must = (name: string) => {
+  const v = process.env[name];
+  return v && v.length > 0 ? v : null;
+};
+
+export default async function handler() {
   const required = [
-    "PHONEPE_BASE_URL",
-    "PHONEPE_MERCHANT_ID",
-    "PHONEPE_SALT_KEY",
-    "PHONEPE_SALT_INDEX",
-  ] as const;
+    'PHONEPE_BASE_URL',
+    'PHONEPE_MERCHANT_ID',
+    'PHONEPE_CLIENT_ID',        // add these three for OAuth style creds
+    'PHONEPE_CLIENT_VERSION',
+    'PHONEPE_CLIENT_SECRET',
+  ];
 
-  const present = required.filter((k) => !!process.env[k]);
-  const missing = required.filter((k) => !process.env[k]);
+  const env_missing = required.filter((k) => !must(k));
+  const env_present = required.filter((k) => !!must(k));
 
-  return Response.json({
-    ok: true,
-    runtime: "edge",
-    env_present: present,
-    env_missing: missing,
-  });
+  return new Response(
+    JSON.stringify({
+      ok: env_missing.length === 0,
+      runtime: 'edge',
+      env_present,
+      env_missing,
+    }),
+    { headers: { 'content-type': 'application/json' } }
+  );
 }
