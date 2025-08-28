@@ -1,120 +1,73 @@
+// /api/phonepe/status.ts
 export const config = { runtime: 'edge' };
 
-const JSON_HEADERS = { 'content-type': 'application/json' };
-
-async function withTimeout<T>(p: Promise<T>, ms = 15000): Promise<T> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort('timeout'), ms);
-  try {
-    // @ts-ignore
-    return await p(ctrl.signal);
-  } finally {
-    clearTimeout(timer);
-  }
-}
+type Json = Record<string, unknown>;
+const ok = (b: Json, s = 200) =>
+  new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
 
 function readEnv() {
-  const env = process.env;
-
-  const PG_BASE =
-    env.PHONEPE_PG_BASE ||
-    env.PHONEPE_BASE_URL ||
-    env.PHONEPE_PG_BASE_URL;
-
-  const AUTH_BASE =
-    env.PHONEPE_AUTH_BASE ||
-    env.PHONEPE_AUTH_BASE_URL;
-
-  const v = (k?: string | null) => (k ?? '').trim() || null;
-
-  return {
-    PG_BASE: v(PG_BASE),
-    AUTH_BASE: v(AUTH_BASE),
-    MERCHANT_ID: v(env.PHONEPE_MERCHANT_ID),
-    CLIENT_ID: v(env.PHONEPE_CLIENT_ID),
-    CLIENT_VER: v(env.PHONEPE_CLIENT_VERSION),
-    CLIENT_SECRET: v(env.PHONEPE_CLIENT_SECRET),
+  const env = {
+    AUTH_BASE: process.env.PHONEPE_AUTH_BASE || '',
+    PG_BASE: process.env.PHONEPE_BASE_URL || '',
+    MERCHANT_ID: process.env.PHONEPE_MERCHANT_ID || '',
+    CLIENT_ID: process.env.PHONEPE_CLIENT_ID || '',
+    CLIENT_VERSION: process.env.PHONEPE_CLIENT_VERSION || '',
+    CLIENT_SECRET: process.env.PHONEPE_CLIENT_SECRET || '',
   };
-}
-
-async function getAccessToken(AUTH_BASE: string, CLIENT_ID: string, CLIENT_VER: string, CLIENT_SECRET: string) {
-  const form = new URLSearchParams();
-  form.set('grant_type', 'client_credentials');
-  form.set('client_id', CLIENT_ID);
-  form.set('client_version', CLIENT_VER);
-  form.set('client_secret', CLIENT_SECRET);
-
-  const res = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: form,
-    cache: 'no-store',
-  });
-
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) return { ok: false as const, status: res.status, body };
-
-  const token = body?.access_token ?? body?.encrypted_access_token ?? null;
-  const type = (body?.token_type || 'O-Bearer') as string;
-  if (!token) return { ok: false as const, status: res.status, body: { message: 'Auth OK but no token' } };
-
-  return { ok: true as const, token: `${type} ${token}` };
+  const miss = Object.entries(env).filter(([, v]) => !v).map(([k]) => k);
+  return { env, miss };
 }
 
 export default async function handler(req: Request) {
-  if (req.method !== 'GET') {
-    return new Response(JSON.stringify({ ok: false, error: 'Method not allowed' }), { status: 405, headers: JSON_HEADERS });
-  }
+  if (req.method !== 'GET') return ok({ ok: false, error: 'Method not allowed' }, 405);
+
+  const { env, miss } = readEnv();
+  if (miss.length) return ok({ ok: false, error: `Missing env: ${miss.join(', ')}` }, 500);
 
   const url = new URL(req.url);
-  const merchantOrderId = url.searchParams.get('merchantOrderId') || url.searchParams.get('id');
-  if (!merchantOrderId) {
-    return new Response(JSON.stringify({ ok: false, error: 'Missing merchantOrderId' }), { status: 400, headers: JSON_HEADERS });
-  }
+  const merchantOrderId = url.searchParams.get('merchantOrderId') || url.searchParams.get('order');
+  if (!merchantOrderId) return ok({ ok: false, error: 'Missing merchantOrderId' }, 400);
 
-  const env = readEnv();
-  const missing = Object.entries(env).filter(([_, v]) => !v).map(([k]) => k);
-  if (missing.length) {
-    return new Response(JSON.stringify({ ok: false, step: 'env', error: 'Missing env', missing }), {
-      status: 500,
-      headers: JSON_HEADERS,
-    });
-  }
-
-  const auth = await getAccessToken(env.AUTH_BASE!, env.CLIENT_ID!, env.CLIENT_VER!, env.CLIENT_SECRET!);
-  if (!auth.ok) {
-    return new Response(JSON.stringify({ ok: false, step: 'oauth', status: auth.status, body: auth.body }), {
-      status: 502,
-      headers: JSON_HEADERS,
-    });
-  }
-
-  const doStatus = (signal: AbortSignal) =>
-    fetch(`${env.PG_BASE}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`, {
-      method: 'GET',
-      headers: { authorization: auth.token },
-      cache: 'no-store',
-      signal,
-    });
-
+  // 1) OAuth
+  const oauthRes = await fetch(`${env.AUTH_BASE}/v1/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'client_credentials',
+      client_id: env.CLIENT_ID,
+      client_secret: env.CLIENT_SECRET,
+      client_version: env.CLIENT_VERSION,
+    }),
+  });
+  const oauthText = await oauthRes.text();
+  let oauth: any = {};
   try {
-    const res = await withTimeout(doStatus, 15000);
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return new Response(JSON.stringify({ ok: false, step: 'status', status: res.status, body }), {
-        status: 502,
-        headers: JSON_HEADERS,
-      });
-    }
-
-    // State is the single source of truth
-    const state = body?.state || body?.data?.state || 'UNKNOWN';
-
-    return new Response(JSON.stringify({ ok: true, state, raw: body }), { headers: JSON_HEADERS });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ ok: false, step: 'status-exception', message: String(e?.message || e) }), {
-      status: 502,
-      headers: JSON_HEADERS,
-    });
+    oauth = JSON.parse(oauthText);
+  } catch {}
+  if (!oauthRes.ok || !(oauth?.access_token || oauth?.accessToken)) {
+    return ok({ ok: false, step: 'oauth', status: oauthRes.status, body: oauthText }, 502);
   }
+  const token = oauth.access_token || oauth.accessToken;
+  const tokenType = oauth.token_type || oauth.tokenType || 'O-Bearer';
+
+  // 2) Status
+  const stRes = await fetch(`${env.PG_BASE}/checkout/v2/order/${merchantOrderId}/status`, {
+    method: 'GET',
+    headers: { authorization: `${tokenType} ${token}` },
+  });
+  const stText = await stRes.text();
+  let st: any = {};
+  try {
+    st = JSON.parse(stText);
+  } catch {}
+
+  if (!stRes.ok) return ok({ ok: false, step: 'status', status: stRes.status, body: stText }, 502);
+
+  // PhonePe returns root-level "state": COMPLETED | FAILED | PENDING
+  return ok({
+    ok: true,
+    orderId: merchantOrderId,
+    state: st?.state || st?.data?.state || 'UNKNOWN',
+    raw: st,
+  });
 }
