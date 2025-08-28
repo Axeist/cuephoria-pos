@@ -1,12 +1,9 @@
 // /api/phonepe/status.ts
-// Next.js App Router (Edge) – PhonePe: order/transaction status lookup
-//
-// Accepts GET query params:
-//   ?merchantOrderId=...   OR   ?merchantTransactionId=...
-//
-// Returns the raw status JSON from PhonePe.
+// Vercel Serverless Function (Node/ESM) — PhonePe: Order/Transaction Status
+// GET params:
+//   ?merchantOrderId=...    OR    ?merchantTransactionId=...
 
-export const runtime = "edge";
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 type Env = {
   PHONEPE_BASE_URL?: string;
@@ -16,39 +13,37 @@ type Env = {
   PHONEPE_CLIENT_SECRET?: string;
 };
 
+const corsHeaders = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET,OPTIONS',
+  'access-control-allow-headers': 'content-type',
+};
+
 function need(env: Env, k: keyof Env): string {
   const v = env[k];
   if (!v) throw new Error(`Missing env ${k}`);
   return v;
 }
 
-function corsHeaders() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,OPTIONS",
-    "access-control-allow-headers": "content-type",
-  };
-}
-
 async function getBearerToken(env: Env) {
-  const BASE = need(env, "PHONEPE_BASE_URL");
-  const CID  = need(env, "PHONEPE_CLIENT_ID");
-  const CVER = need(env, "PHONEPE_CLIENT_VERSION");
-  const CSEC = need(env, "PHONEPE_CLIENT_SECRET");
+  const BASE = need(env, 'PHONEPE_BASE_URL');
+  const CID  = need(env, 'PHONEPE_CLIENT_ID');
+  const CVER = need(env, 'PHONEPE_CLIENT_VERSION');
+  const CSEC = need(env, 'PHONEPE_CLIENT_SECRET');
 
   const url = `${BASE}/v1/oauth/token`;
 
   const form = new URLSearchParams();
-  form.set("grant_type", "CLIENT_CREDENTIALS");
-  form.set("client_id", CID);
-  form.set("client_secret", CSEC);
-  form.set("client_version", CVER);
+  form.set('grant_type', 'CLIENT_CREDENTIALS');
+  form.set('client_id', CID);
+  form.set('client_secret', CSEC);
+  form.set('client_version', CVER);
 
   const res = await fetch(url, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      accept: "application/json",
+      'content-type': 'application/x-www-form-urlencoded',
+      'accept': 'application/json',
     },
     body: form.toString(),
   });
@@ -61,25 +56,32 @@ async function getBearerToken(env: Env) {
     throw new Error(`Auth failed [${res.status}]. ${json?.error || json?.message || raw}`);
   }
 
-  // IMPORTANT: UAT returns `access_token` (snake_case)
   const token =
-    json?.access_token ||      // <= primary
+    json?.access_token ||
     json?.accessToken ||
     json?.data?.accessToken ||
     json?.response?.accessToken;
 
-  if (!token) {
-    throw new Error(`Auth OK but no accessToken in response: ${raw}`);
-  }
+  if (!token) throw new Error(`Auth OK but no accessToken in response: ${raw}`);
   return token as string;
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
-}
-
-export async function GET(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
+    if (req.method === 'OPTIONS') {
+      res.setHeader('access-control-allow-origin', corsHeaders['access-control-allow-origin']);
+      res.setHeader('access-control-allow-methods', corsHeaders['access-control-allow-methods']);
+      res.setHeader('access-control-allow-headers', corsHeaders['access-control-allow-headers']);
+      res.status(204).end();
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.setHeader('access-control-allow-origin', '*');
+      res.status(405).json({ ok: false, error: 'Method not allowed' });
+      return;
+    }
+
     const env: Env = {
       PHONEPE_BASE_URL: process.env.PHONEPE_BASE_URL,
       PHONEPE_MERCHANT_ID: process.env.PHONEPE_MERCHANT_ID,
@@ -88,56 +90,51 @@ export async function GET(req: Request) {
       PHONEPE_CLIENT_SECRET: process.env.PHONEPE_CLIENT_SECRET,
     };
 
-    const BASE = need(env, "PHONEPE_BASE_URL");
-    const MID  = need(env, "PHONEPE_MERCHANT_ID");
+    const BASE = need(env, 'PHONEPE_BASE_URL');
+    const MID  = need(env, 'PHONEPE_MERCHANT_ID');
 
-    const { searchParams } = new URL(req.url);
-    const merchantOrderId = searchParams.get("merchantOrderId") || "";
-    const merchantTransactionId = searchParams.get("merchantTransactionId") || "";
+    const merchantOrderId = String(req.query?.merchantOrderId ?? '');
+    const merchantTransactionId = String(req.query?.merchantTransactionId ?? '');
 
     if (!merchantOrderId && !merchantTransactionId) {
-      return Response.json(
-        { ok: false, error: "Missing query param: merchantOrderId (or merchantTransactionId)" },
-        { status: 400, headers: corsHeaders() }
-      );
+      res.setHeader('access-control-allow-origin', '*');
+      res.status(400).json({ ok: false, error: 'Missing query param: merchantOrderId (or merchantTransactionId)' });
+      return;
     }
 
     const bearer = await getBearerToken(env);
 
-    // Prefer the documented Order Status endpoint
-    let url = "";
+    let url = '';
     if (merchantOrderId) {
       url = `${BASE}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`;
     } else {
-      // Fallback: some UATs allow txn status by txn-id under /checkout/v2/merchant-transaction/{id}
+      // fallback for UAT by transaction id
       url = `${BASE}/checkout/v2/merchant-transaction/${encodeURIComponent(merchantTransactionId)}`;
     }
 
-    const res = await fetch(url, {
-      method: "GET",
+    const out = await fetch(url, {
+      method: 'GET',
       headers: {
-        accept: "application/json",
-        authorization: `Bearer ${bearer}`,
-        "x-merchant-id": MID,
+        'accept': 'application/json',
+        'authorization': `Bearer ${bearer}`,
+        'x-merchant-id': MID,
       },
     });
 
-    const raw = await res.text();
+    const raw = await out.text();
     let json: any = null;
     try { json = JSON.parse(raw); } catch {}
 
-    if (!res.ok) {
-      return Response.json(
-        { ok: false, error: "PhonePe status failed", status: res.status, raw },
-        { status: 502, headers: corsHeaders() }
-      );
+    if (!out.ok) {
+      res.setHeader('access-control-allow-origin', '*');
+      res.status(502).json({ ok: false, error: 'PhonePe status failed', status: out.status, raw });
+      return;
     }
 
-    return Response.json({ ok: true, status: json }, { headers: corsHeaders() });
+    res.setHeader('access-control-allow-origin', '*');
+    res.status(200).json({ ok: true, status: json });
   } catch (err: any) {
-    return Response.json(
-      { ok: false, error: `Could not fetch PhonePe status (exception). ${err?.message || err}` },
-      { status: 500, headers: corsHeaders() }
-    );
+    res.setHeader('access-control-allow-origin', '*');
+    res.status(500).json({ ok: false, error: `Could not fetch PhonePe status (exception). ${err?.message || err}` });
   }
 }
