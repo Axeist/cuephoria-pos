@@ -1,83 +1,120 @@
-export const runtime = 'edge';
+// /api/phonepe/status.ts
+export const config = { runtime: 'edge' };
 
-function json(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
+const AUTH_BASE = process.env.PHONEPE_AUTH_BASE!; // e.g. https://api.phonepe.com/apis/identity-manager
+const PG_BASE   = process.env.PHONEPE_BASE_URL!;  // e.g. https://api.phonepe.com/apis/pg
+
+const CLIENT_ID      = process.env.PHONEPE_CLIENT_ID!;
+const CLIENT_VERSION = process.env.PHONEPE_CLIENT_VERSION!;
+const CLIENT_SECRET  = process.env.PHONEPE_CLIENT_SECRET!;
+
+function json(status: number, obj: any) {
+  return new Response(JSON.stringify(obj), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
+    },
   });
 }
 
-function requireEnv(keys: string[]) {
-  const missing = keys.filter((k) => !process.env[k as keyof typeof process.env]);
-  if (missing.length) throw new Error(`Missing env: ${missing.join(', ')}`);
-}
-
-async function fetchJSON(url: string, init: RequestInit & { timeoutMs?: number } = {}) {
-  const { timeoutMs = 8000, ...rest } = init;
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    const resp = await fetch(url, { ...rest, signal: ac.signal });
-    const text = await resp.text();
-    let body: any = null;
-    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
-    return { resp, body, text };
-  } finally {
-    clearTimeout(t);
+export default async function handler(req: Request) {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET, OPTIONS',
+        'access-control-allow-headers': 'content-type',
+      },
+    });
   }
-}
 
-export async function GET(req: Request) {
+  if (req.method !== 'GET') {
+    return json(405, { ok: false, error: 'Method not allowed' });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const merchantOrderId = searchParams.get('merchantOrderId');
+  const merchantTransactionId = searchParams.get('merchantTransactionId');
+
+  const id = merchantOrderId || merchantTransactionId;
+  if (!id) {
+    return json(400, {
+      ok: false,
+      error: 'Missing merchantOrderId (or merchantTransactionId)',
+    });
+  }
+
   try {
-    requireEnv([
-      'PHONEPE_BASE_URL',
-      'PHONEPE_AUTH_BASE',
-      'PHONEPE_CLIENT_ID',
-      'PHONEPE_CLIENT_VERSION',
-      'PHONEPE_CLIENT_SECRET',
-    ]);
-
-    const { searchParams } = new URL(req.url);
-    const merchantOrderId = searchParams.get('merchantOrderId') || searchParams.get('merchantTransactionId');
-    if (!merchantOrderId) {
-      return json({ ok: false, error: 'Missing merchantOrderId (or merchantTransactionId)' }, 400);
-    }
-
-    // OAuth
-    const authUrl = `${process.env.PHONEPE_AUTH_BASE}/v1/oauth/token`;
-    const payload = {
-      client_id: process.env.PHONEPE_CLIENT_ID,
-      client_version: Number(process.env.PHONEPE_CLIENT_VERSION || '1'),
-      client_secret: process.env.PHONEPE_CLIENT_SECRET,
-    };
-
-    const { resp: aResp, body: aBody } = await fetchJSON(authUrl, {
+    // OAuth again (simple path; you can cache token)
+    const authRes = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        client_version: String(CLIENT_VERSION),
+      }),
     });
-    if (!aResp.ok || !aBody?.access_token) {
-      return json({ ok: false, step: 'oauth', status: aResp.status, body: aBody }, 502);
-    }
-    const token = aBody.access_token as string;
 
-    // Status
-    const statusUrl = `${process.env.PHONEPE_BASE_URL}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`;
-    const { resp: sResp, body: sBody } = await fetchJSON(statusUrl, {
+    const authText = await authRes.text();
+    if (!authRes.ok) {
+      return json(502, {
+        ok: false,
+        step: 'oauth',
+        status: authRes.status,
+        body: tryParse(authText),
+      });
+    }
+    const auth = tryParse(authText);
+    const accessToken =
+      auth?.access_token || auth?.encrypted_access_token || auth?.token;
+    const tokenType = auth?.token_type || 'O-Bearer';
+    if (!accessToken) {
+      return json(502, {
+        ok: false,
+        step: 'oauth',
+        error: 'No access_token in response',
+        raw: auth,
+      });
+    }
+
+    // Order Status
+    const statusRes = await fetch(`${PG_BASE}/checkout/v2/order/${encodeURIComponent(id)}/status`, {
       method: 'GET',
-      headers: { 'authorization': `O-Bearer ${token}` },
+      headers: {
+        authorization: `${tokenType} ${accessToken}`,
+      },
     });
 
-    if (!sResp.ok) {
-      return json({ ok: false, step: 'status', status: sResp.status, body: sBody }, 502);
+    const statusText = await statusRes.text();
+    if (!statusRes.ok) {
+      return json(502, {
+        ok: false,
+        step: 'status',
+        http: statusRes.status,
+        body: tryParse(statusText),
+      });
     }
 
-    return json({ ok: true, ...sBody });
+    const payload = tryParse(statusText);
+    // PhonePe recommends using root-level "state" for status
+    // COMPLETED / FAILED / PENDING
+    const state = payload?.state || payload?.data?.state;
+
+    return json(200, { ok: true, state, raw: payload });
   } catch (e: any) {
-    return json({ ok: false, error: e?.message || String(e) }, 500);
+    return json(500, { ok: false, step: 'exception', error: String(e?.message || e) });
   }
 }
 
-// Guard
-export const POST = () => json({ ok: false, error: 'Method not allowed' }, 405);
-
+function tryParse(s: string) {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return s;
+  }
+}
