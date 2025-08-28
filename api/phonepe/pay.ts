@@ -50,9 +50,9 @@ export default async function handler(req: Request) {
   }
 
   try {
-    // ---- OAuth (add grant_type!) ----
+    // ---- OAuth (lowercase grant_type: client_credentials) ----
     const oauthBody = new URLSearchParams({
-      grant_type: 'CLIENT_CREDENTIALS',
+      grant_type: 'client_credentials',
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
       client_version: String(CLIENT_VERSION),
