@@ -1,5 +1,5 @@
-// Force Node runtime (not Edge)
-export const config = { runtime: "nodejs18.x" };
+// /api/phonepe/ping.ts
+export const config = { runtime: "nodejs" };
 
 export default async function handler(_: any, res: any) {
   try {
@@ -8,7 +8,7 @@ export default async function handler(_: any, res: any) {
     res.setHeader("Content-Type", "application/json");
     res.status(200).end(JSON.stringify({
       ok: true,
-      runtime: "nodejs18.x",
+      runtime: "nodejs",
       env_present: present,
       env_missing: required.filter((k) => !present.includes(k)),
     }));
