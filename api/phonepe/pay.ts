@@ -20,7 +20,7 @@ async function readJsonSafe(res: Response) {
   try {
     return { raw, json: JSON.parse(raw) as any };
   } catch {
-    return { raw, json: null as any };
+    return { raw, json: null };
   }
 }
 
@@ -32,7 +32,8 @@ async function getBearerToken(env: Env) {
 
   const url = `${BASE}/v1/oauth/token`;
 
-  const res = await fetch(url, {
+  // Attempt 1: JSON
+  let res = await fetch(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -43,30 +44,45 @@ async function getBearerToken(env: Env) {
     body: JSON.stringify({ grantType: "CLIENT_CREDENTIALS" }),
   });
 
-  const { raw, json } = await readJsonSafe(res);
-  if (!res.ok) {
-    throw new Error(
-      `Auth failed [${res.status}]. ${json?.error || json?.message || raw}`
-    );
+  // Retry with form-encoded if 415
+  if (res.status === 415) {
+    const form = new URLSearchParams();
+    form.set("grant_type", "CLIENT_CREDENTIALS");
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "X-CLIENT-ID": CLIENT_ID,
+        "X-CLIENT-SECRET": CLIENT_SECRET,
+        "X-CLIENT-VERSION": CLIENT_VERSION,
+      },
+      body: form.toString(),
+    });
   }
 
-  // Try a few common shapes (PhonePe docs/examples vary)
+  const { raw, json } = await readJsonSafe(res);
+
+  if (!res.ok) {
+    throw new Error(`Auth failed [${res.status}]. ${json?.error || json?.message || raw}`);
+  }
+
   const token =
     json?.accessToken ||
     json?.data?.accessToken ||
     json?.response?.accessToken;
+
   if (!token) {
     throw new Error(`Auth OK but no accessToken in response: ${raw}`);
   }
-  return token as string;
+  return token;
 }
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Method not allowed" }),
-      { status: 405, headers: { "content-type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
+      status: 405,
+      headers: { "content-type": "application/json" },
+    });
   }
 
   const env = process.env as Env;
@@ -75,7 +91,6 @@ export default async function handler(req: Request): Promise<Response> {
     const MERCHANT_ID = need(env, "PHONEPE_MERCHANT_ID");
     const BASE = need(env, "PHONEPE_BASE_URL");
 
-    // Body: { amount (rupees), customerPhone, merchantTransactionId, successUrl, failedUrl }
     const body = await req.json().catch(() => ({} as any));
     const rupees = Number(body?.amount ?? 0);
     const paise = Math.round(rupees * 100);
@@ -84,31 +99,29 @@ export default async function handler(req: Request): Promise<Response> {
     const successUrl = String(body?.successUrl || "").trim();
     const failedUrl = String(body?.failedUrl || "").trim();
 
-    if (!paise || paise <= 0)
+    if (!paise || paise <= 0) {
       return new Response(
         JSON.stringify({ ok: false, step: "validate", error: "Invalid amount" }),
         { status: 400, headers: { "content-type": "application/json" } }
       );
-    if (!merchantTransactionId)
+    }
+    if (!merchantTransactionId) {
       return new Response(
-        JSON.stringify({
-          ok: false,
-          step: "validate",
-          error: "Missing merchantTransactionId",
-        }),
+        JSON.stringify({ ok: false, step: "validate", error: "Missing merchantTransactionId" }),
         { status: 400, headers: { "content-type": "application/json" } }
       );
+    }
 
     // 1) Get OAuth token
     const token = await getBearerToken(env);
 
-    // 2) Create a Standard Checkout payment (Pay Page)
+    // 2) Create payment
     const payUrl = `${BASE}/checkout/v2/pay`;
     const payload = {
       merchantId: MERCHANT_ID,
       merchantTransactionId,
       merchantUserId: customerPhone || "guest",
-      amount: paise, // paise
+      amount: paise,
       redirectUrl: successUrl || failedUrl || "https://example.com/",
       redirectMode: "REDIRECT",
       paymentInstrument: { type: "PAY_PAGE" },
@@ -125,7 +138,6 @@ export default async function handler(req: Request): Promise<Response> {
 
     const { raw, json } = await readJsonSafe(res);
 
-    // A successful response should contain a URL to redirect the user
     const redirectUrl =
       json?.data?.instrumentResponse?.redirectInfo?.url ||
       json?.instrumentResponse?.redirectInfo?.url ||
@@ -133,34 +145,25 @@ export default async function handler(req: Request): Promise<Response> {
       json?.url;
 
     if (!res.ok || !redirectUrl) {
-      const errMsg =
-        json?.error ||
-        json?.message ||
-        json?.responseMessage ||
-        "Create payment failed";
       return new Response(
         JSON.stringify({
           ok: false,
           step: "createPayment",
           status: res.status,
-          error: errMsg,
+          error: json?.error || json?.message || "Create payment failed",
           raw,
         }),
         { status: 500, headers: { "content-type": "application/json" } }
       );
     }
 
-    return new Response(
-      JSON.stringify({ ok: true, url: redirectUrl }),
-      { status: 200, headers: { "content-type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ ok: true, url: redirectUrl }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
   } catch (e: any) {
     return new Response(
-      JSON.stringify({
-        ok: false,
-        step: "exception",
-        error: e?.message || String(e),
-      }),
+      JSON.stringify({ ok: false, step: "exception", error: e?.message || String(e) }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }
