@@ -15,7 +15,7 @@ import BookingConfirmationDialog from '@/components/BookingConfirmationDialog';
 import LegalDialog from '@/components/dialog/LegalDialog';
 import {
   CalendarIcon, Clock, MapPin, Phone, Mail, User, Gamepad2, Timer,
-  Sparkles, Star, Zap, Percent, CheckCircle, AlertTriangle, Lock, X
+  Sparkles, Star, Zap, CheckCircle, AlertTriangle, Lock, X, CreditCard, Building
 } from 'lucide-react';
 import { format, parse, getDay } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -53,6 +53,8 @@ interface TodayBookingRow {
   customerPhone: string;
 }
 
+type PaymentMethod = 'venue' | 'online';
+
 // ===== INR currency formatter for compliance =====
 const formatINR = (n: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -60,6 +62,10 @@ const formatINR = (n: number) =>
     currency: 'INR',
     maximumFractionDigits: 2,
   }).format(n);
+
+// ===== Keys for localStorage during PhonePe redirect roundtrip =====
+const LS_PENDING = 'cuephoria_pending_booking';
+const LS_LAST_ORDER_ID = 'cuephoria_last_order_id';
 
 export default function PublicBooking() {
   const [stations, setStations] = useState<Station[]>([]);
@@ -87,11 +93,13 @@ export default function PublicBooking() {
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<'terms' | 'privacy' | 'contact' | 'refund'>('terms');
 
-  // Local refund policy modal
+  // Refund policy modal
   const [showRefundDialog, setShowRefundDialog] = useState(false);
 
-  // NEW: payment method toggle
-  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'phonepe'>('venue');
+  // Payment
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('venue');
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [payBanner, setPayBanner] = useState<{ type: 'success' | 'failed' | null; message?: string }>({ type: null });
 
   // Today's bookings
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
@@ -140,6 +148,69 @@ export default function PublicBooking() {
       setSelectedSlot(null);
     }
   }, [selectedStations, selectedDate]);
+
+  // ===== On return from PhonePe redirect: parse ?payStatus & ?orderId and verify =====
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const url = new URL(window.location.href);
+        const payStatus = url.searchParams.get('payStatus');
+        const orderIdFromUrl = url.searchParams.get('orderId');
+        if (!payStatus) return;
+
+        // Clean URL after handling (no flicker)
+        window.history.replaceState({}, document.title, url.pathname);
+
+        if (payStatus === 'failed') {
+          setPayBanner({ type: 'failed', message: 'Payment failed or cancelled. Please rebook or try again.' });
+          localStorage.removeItem(LS_PENDING);
+          localStorage.removeItem(LS_LAST_ORDER_ID);
+          return;
+        }
+
+        // payStatus === 'success' → verify with our /status API
+        const orderId = orderIdFromUrl || localStorage.getItem(LS_LAST_ORDER_ID) || '';
+        if (!orderId) {
+          setPayBanner({ type: 'failed', message: 'Missing order reference after payment. Please rebook.' });
+          return;
+        }
+
+        const statusRes = await fetch(`/api/phonepe/status?orderId=${encodeURIComponent(orderId)}`);
+        const statusJson = await statusRes.json().catch(() => ({}));
+        const code = statusJson?.code;
+
+        if (code !== 'PAYMENT_SUCCESS') {
+          setPayBanner({ type: 'failed', message: 'Payment not successful. Please rebook.' });
+          localStorage.removeItem(LS_PENDING);
+          localStorage.removeItem(LS_LAST_ORDER_ID);
+          return;
+        }
+
+        // Successful payment → finalize booking using saved payload
+        const pendingRaw = localStorage.getItem(LS_PENDING);
+        if (!pendingRaw) {
+          setPayBanner({ type: 'failed', message: 'Payment ok, but booking data was lost. Please rebook.' });
+          return;
+        }
+        const pending = JSON.parse(pendingRaw);
+
+        await finalizePaidBooking(pending);
+
+        // Cleanup local storage
+        localStorage.removeItem(LS_PENDING);
+        localStorage.removeItem(LS_LAST_ORDER_ID);
+        setPayBanner({ type: 'success', message: 'Payment successful. Booking confirmed!' });
+      } catch (e) {
+        console.error(e);
+        setPayBanner({ type: 'failed', message: 'Could not verify payment. Please contact support.' });
+      }
+    };
+    // Only run in browser
+    if (typeof window !== 'undefined') {
+      run();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchStations = async () => {
     try {
@@ -347,7 +418,7 @@ export default function PublicBooking() {
       }
       setAppliedCoupons((prev) => ({ ...prev, '8ball': 'NIT99' }));
       toast.success('NIT99 applied to 8-Ball stations');
-      toast.message('Hint: With NIT99 applied, you may also apply NIT50 to get 50% off on PS5 stations if selected.');
+      toast.message('Hint: With NIT99, you may also apply NIT50 to get 50% off on PS5 stations if selected.');
       return;
     }
 
@@ -445,172 +516,258 @@ export default function PublicBooking() {
   const isStationSelectionAvailable = () => isCustomerInfoComplete();
   const isTimeSelectionAvailable = () => isStationSelectionAvailable() && selectedStations.length > 0;
 
-  // ====== UPDATED: branched booking submit (venue vs phonepe) ======
-  const handleBookingSubmit = async () => {
-    if (!customerNumber.trim()) {
-      toast.error('Please complete customer information first');
-      return;
-    }
-    if (selectedStations.length === 0) {
-      toast.error('Please select at least one station');
-      return;
-    }
-    if (!selectedSlot) {
-      toast.error('Please select a time slot');
-      return;
-    }
-    if (!customerInfo.name.trim()) {
-      toast.error('Please enter your name');
-      return;
-    }
+  // ===== VENUE booking flow (same as before) =====
+  const handleBookingSubmitVenue = async () => {
+    if (!validateBeforeBooking()) return;
 
-    // === Option A: Pay at Venue (original behavior) ===
-    if (paymentMethod === 'venue') {
-      setLoading(true);
-      try {
-        let customerId = customerInfo.id;
-        if (!customerId) {
-          const { data: newCustomer, error: customerError } = await supabase
-            .from('customers')
-            .insert({
-              name: customerInfo.name,
-              phone: customerInfo.phone,
-              email: customerInfo.email || null,
-              is_member: false,
-              loyalty_points: 0,
-              total_spent: 0,
-              total_play_time: 0,
-            })
-            .select('id')
-            .single();
-          if (customerError) throw customerError;
-          customerId = newCustomer.id;
-        }
-
-        const originalPrice = calculateOriginalPrice();
-        const discountResult = calculateDiscount();
-        const finalPrice = calculateFinalPrice();
-
-        const couponCodes = Object.values(appliedCoupons).join(',');
-
-        const bookings = selectedStations.map((stationId) => ({
-          station_id: stationId,
-          customer_id: customerId!,
-          booking_date: format(selectedDate, 'yyyy-MM-dd'),
-          start_time: selectedSlot!.start_time,
-          end_time: selectedSlot!.end_time,
-          duration: 60,
-          status: 'confirmed',
-          original_price: originalPrice,
-          discount_percentage: discountResult.total > 0 ? (discountResult.total / originalPrice) * 100 : null,
-          final_price: finalPrice,
-          coupon_code: couponCodes || null,
-          payment_mode: 'venue',
-        }));
-
-        const { data: insertedBookings, error: bookingError } = await supabase
-          .from('bookings')
-          .insert(bookings)
-          .select('id');
-
-        if (bookingError) throw bookingError;
-
-        const stationObjects = stations.filter((s) => selectedStations.includes(s.id));
-        setBookingConfirmationData({
-          bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
-          customerName: customerInfo.name,
-          stationNames: stationObjects.map((s) => s.name),
-          date: format(selectedDate, 'yyyy-MM-dd'),
-          startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-          }),
-          endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-          }),
-          totalAmount: finalPrice,
-          couponCode: couponCodes || undefined,
-          discountAmount: discountResult.total > 0 ? discountResult.total : undefined,
-        });
-        setShowConfirmationDialog(true);
-
-        // reset form
-        setSelectedStations([]);
-        setSelectedSlot(null);
-        setCustomerNumber('');
-        setCustomerInfo({ name: '', phone: '', email: '' });
-        setIsReturningCustomer(false);
-        setHasSearched(false);
-        setCouponCode('');
-        setAppliedCoupons({});
-        setAvailableSlots([]);
-      } catch (error) {
-        console.error('Error creating booking:', error);
-        toast.error('Failed to create booking. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    // === Option B: Pay Online (PhonePe) ===
+    setLoading(true);
     try {
-      setLoading(true);
+      const customerId = await ensureCustomerId(customerInfo);
 
       const originalPrice = calculateOriginalPrice();
       const discountResult = calculateDiscount();
       const finalPrice = calculateFinalPrice();
       const couponCodes = Object.values(appliedCoupons).join(',');
 
-      // store for success page to finish booking AFTER payment
-      const pendingPayload = {
-        selectedStations,
-        selectedDateISO: format(selectedDate, 'yyyy-MM-dd'),
+      const bookings = selectedStations.map((stationId) => ({
+        station_id: stationId,
+        customer_id: customerId!,
+        booking_date: format(selectedDate, 'yyyy-MM-dd'),
         start_time: selectedSlot!.start_time,
         end_time: selectedSlot!.end_time,
-        customer: { id: customerInfo.id, name: customerInfo.name, phone: customerInfo.phone, email: customerInfo.email },
-        pricing: { original: originalPrice, discount: discountResult.total, final: finalPrice, coupons: couponCodes },
+        duration: 60,
+        status: 'confirmed',
+        original_price: originalPrice,
+        discount_percentage: discountResult.total > 0 ? (discountResult.total / originalPrice) * 100 : null,
+        final_price: finalPrice,
+        coupon_code: couponCodes || null,
+      }));
+
+      const { data: insertedBookings, error: bookingError } = await supabase
+        .from('bookings')
+        .insert(bookings)
+        .select('id');
+
+      if (bookingError) throw bookingError;
+
+      const stationObjects = stations.filter((s) => selectedStations.includes(s.id));
+      setBookingConfirmationData({
+        bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
+        customerName: customerInfo.name,
+        stationNames: stationObjects.map((s) => s.name),
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }),
+        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }),
+        totalAmount: finalPrice,
+        couponCode: couponCodes || undefined,
+        discountAmount: discountResult.total > 0 ? discountResult.total : undefined,
+      });
+      setShowConfirmationDialog(true);
+
+      resetFormState();
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      toast.error('Failed to create booking. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===== ONLINE (PhonePe) flow =====
+  const handleBookingSubmitOnline = async () => {
+    if (!validateBeforeBooking()) return;
+
+    setProcessingPayment(true);
+    try {
+      const originalPrice = calculateOriginalPrice();
+      const discountResult = calculateDiscount();
+      const finalPrice = calculateFinalPrice();
+      const couponCodes = Object.values(appliedCoupons).join(',');
+
+      // generate our order id for PhonePe v2
+      const orderId = `ORDER_${Date.now()}`;
+
+      // Save pending booking in localStorage for after we return from PhonePe
+      const pending = {
+        orderId,
+        customerInfo,
+        selectedStations,
+        selectedDate: format(selectedDate, 'yyyy-MM-dd'),
+        selectedSlot,
+        couponCodes,
+        originalPrice,
+        discount: discountResult.total,
+        finalPrice,
       };
-      localStorage.setItem('pendingBooking', JSON.stringify(pendingPayload));
+      localStorage.setItem(LS_PENDING, JSON.stringify(pending));
 
-      // unique ID per attempt
-      const merchantTransactionId = `CUE-${Date.now()}`;
+      const successUrl = `${window.location.origin}/public/booking?payStatus=success&orderId=${encodeURIComponent(orderId)}`;
+      const failedUrl = `${window.location.origin}/public/booking?payStatus=failed&orderId=${encodeURIComponent(orderId)}`;
 
-      // build return URLs based on current host
-      const origin = window.location.origin;
-      const successUrl = `${origin}/public/payment/success?mtid=${encodeURIComponent(merchantTransactionId)}`;
-      const failedUrl = `${origin}/public/payment/failed?mtid=${encodeURIComponent(merchantTransactionId)}`;
-
-      // ask our API route to create a PhonePe payment and give us the hosted URL
       const resp = await fetch('/api/phonepe/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: finalPrice,                 // in rupees; server will convert to paise
+          amount: finalPrice,
           customerPhone: customerInfo.phone,
-          customerName: customerInfo.name,
-          merchantTransactionId,
+          merchantTransactionId: orderId, // becomes merchantOrderId in backend payload
           successUrl,
           failedUrl,
         }),
       }).then(r => r.json());
 
-      if (!resp?.url) {
-        toast.error('Failed to initiate payment. Please try again or choose Pay at Venue.');
-        setLoading(false);
+      if (!resp?.ok || !resp?.url) {
+        console.error('PhonePe pay upstream', resp);
+        toast.error('Unable to start payment. Please try again.');
+        setProcessingPayment(false);
         return;
       }
 
-      // redirect to PhonePe checkout
+      // Keep last order id as a fallback
+      localStorage.setItem(LS_LAST_ORDER_ID, resp.orderId || orderId);
+
+      // Redirect to PhonePe sandbox page
       window.location.href = resp.url;
     } catch (e) {
       console.error(e);
-      toast.error('Unable to start payment. Please try again.');
+      toast.error('Could not start PhonePe payment.');
+      setProcessingPayment(false);
+    }
+  };
+
+  // After successful payment, create bookings based on saved payload
+  const finalizePaidBooking = async (pending: any) => {
+    setLoading(true);
+    try {
+      const customerId = await ensureCustomerId(pending.customerInfo);
+
+      const bookings = pending.selectedStations.map((stationId: string) => ({
+        station_id: stationId,
+        customer_id: customerId!,
+        booking_date: pending.selectedDate,
+        start_time: pending.selectedSlot.start_time,
+        end_time: pending.selectedSlot.end_time,
+        duration: 60,
+        status: 'confirmed',
+        original_price: pending.originalPrice,
+        discount_percentage: pending.discount > 0 ? (pending.discount / pending.originalPrice) * 100 : null,
+        final_price: pending.finalPrice,
+        coupon_code: pending.couponCodes || null,
+      }));
+
+      const { data: insertedBookings, error: bookingError } = await supabase
+        .from('bookings')
+        .insert(bookings)
+        .select('id');
+
+      if (bookingError) throw bookingError;
+
+      const stationObjects = stations.filter((s) => pending.selectedStations.includes(s.id));
+      setBookingConfirmationData({
+        bookingId: insertedBookings[0].id.slice(0, 8).toUpperCase(),
+        customerName: pending.customerInfo.name,
+        stationNames: stationObjects.map((s) => s.name),
+        date: pending.selectedDate,
+        startTime: new Date(`2000-01-01T${pending.selectedSlot.start_time}`).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }),
+        endTime: new Date(`2000-01-01T${pending.selectedSlot.end_time}`).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }),
+        totalAmount: pending.finalPrice,
+        couponCode: pending.couponCodes || undefined,
+        discountAmount: pending.discount > 0 ? pending.discount : undefined,
+      });
+      setShowConfirmationDialog(true);
+
+      // After success, also reset state on page
+      resetFormState();
+    } catch (e) {
+      console.error('Finalize paid booking failed', e);
+      toast.error('Payment captured, but booking failed. Please contact support.');
+    } finally {
       setLoading(false);
     }
+  };
+
+  // ===== Shared helpers =====
+  const ensureCustomerId = async (info: CustomerInfo) => {
+    if (info.id) return info.id;
+
+    // Try find by phone first
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('phone', info.phone)
+      .maybeSingle();
+
+    if (existing?.id) return existing.id;
+
+    const { data: newCustomer, error: customerError } = await supabase
+      .from('customers')
+      .insert({
+        name: info.name,
+        phone: info.phone,
+        email: info.email || null,
+        is_member: false,
+        loyalty_points: 0,
+        total_spent: 0,
+        total_play_time: 0,
+      })
+      .select('id')
+      .single();
+    if (customerError) throw customerError;
+    return newCustomer.id;
+  };
+
+  const validateBeforeBooking = () => {
+    if (!customerNumber.trim()) {
+      toast.error('Please complete customer information first');
+      return false;
+    }
+    if (selectedStations.length === 0) {
+      toast.error('Please select at least one station');
+      return false;
+    }
+    if (!selectedSlot) {
+      toast.error('Please select a time slot');
+      return false;
+    }
+    if (!customerInfo.name.trim()) {
+      toast.error('Please enter your name');
+      return false;
+    }
+    if (calculateFinalPrice() <= 0) {
+      toast.error('Amount must be greater than ₹0');
+      return false;
+    }
+    return true;
+  };
+
+  const resetFormState = () => {
+    setSelectedStations([]);
+    setSelectedSlot(null);
+    setCustomerNumber('');
+    setCustomerInfo({ name: '', phone: '', email: '' });
+    setIsReturningCustomer(false);
+    setHasSearched(false);
+    setCouponCode('');
+    setAppliedCoupons({});
+    setAvailableSlots([]);
+    setProcessingPayment(false);
+    setPaymentMethod('venue');
   };
 
   const maskPhone = (p?: string) => {
@@ -719,6 +876,14 @@ export default function PublicBooking() {
   const discountBreakdown = discountObj.breakdown;
   const finalPrice = calculateFinalPrice();
 
+  const onConfirmClick = () => {
+    if (paymentMethod === 'venue') {
+      handleBookingSubmitVenue();
+    } else {
+      handleBookingSubmitOnline();
+    }
+  };
+
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
       {/* Decorative glows */}
@@ -795,6 +960,18 @@ export default function PublicBooking() {
             <span className="ml-1 font-semibold">INR (₹)</span>.
           </p>
         </section>
+
+        {/* Payment result banner (after redirect) */}
+        {payBanner.type === 'success' && (
+          <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-300">
+            {payBanner.message || 'Payment successful.'}
+          </div>
+        )}
+        {payBanner.type === 'failed' && (
+          <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-rose-300">
+            {payBanner.message || 'Payment failed. Please try again.'}
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Form */}
@@ -1102,14 +1279,7 @@ export default function PublicBooking() {
 
                   <p className="mt-1 text-[11px] text-gray-400">All discounts and totals are calculated in INR (₹).</p>
 
-                  {/* Hint for NIT99 and NIT50 combo */}
-                  {appliedCoupons['8ball'] === 'NIT99' && (
-                    <p className="text-xs text-gray-400 italic mt-2">
-                      Hint: With NIT99 applied, you may also apply NIT50 to get 50% off on PS5 stations if selected during booking.
-                    </p>
-                  )}
-
-                  {/* Applied coupons and remove option */}
+                  {/* Applied coupons */}
                   {Object.entries(appliedCoupons).length > 0 && (
                     <div className="mt-2 space-y-2">
                       {Object.entries(appliedCoupons).map(([key, val]) => {
@@ -1164,46 +1334,7 @@ export default function PublicBooking() {
                   )}
                 </div>
 
-                {/* NEW: Payment Method */}
-                <div className="rounded-xl border border-white/10 p-3">
-                  <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payment Method</Label>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('venue')}
-                      className={cn(
-                        'rounded-lg border p-2 text-sm',
-                        paymentMethod === 'venue'
-                          ? 'border-cuephoria-purple/40 bg-cuephoria-purple/10 text-white'
-                          : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
-                      )}
-                    >
-                      Pay at Venue
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('phonepe')}
-                      className={cn(
-                        'rounded-lg border p-2 text-sm',
-                        paymentMethod === 'phonepe'
-                          ? 'border-emerald-400/40 bg-emerald-400/10 text-white'
-                          : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
-                      )}
-                    >
-                      Pay Online (PhonePe)
-                    </button>
-                  </div>
-                  {paymentMethod === 'venue' ? (
-                    <p className="mt-1 text-[11px] text-gray-400">
-                      We’ll confirm your booking now. Payment at the lounge in INR (₹).
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-gray-400">
-                      You’ll be redirected to PhonePe. Booking is created only after payment success.
-                    </p>
-                  )}
-                </div>
-
+                {/* Totals */}
                 {originalPrice > 0 && (
                   <>
                     <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -1247,19 +1378,67 @@ export default function PublicBooking() {
                   </>
                 )}
 
+                {/* Payment method toggle */}
+                <div className="mt-3">
+                  <Label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payment Method</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('venue')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm transition',
+                        paymentMethod === 'venue'
+                          ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+                          : 'border-white/10 bg-black/20 text-gray-300 hover:bg-white/5'
+                      )}
+                    >
+                      <Building className="h-4 w-4" />
+                      Pay at Venue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('online')}
+                      className={cn(
+                        'flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm transition',
+                        paymentMethod === 'online'
+                          ? 'border-cuephoria-lightpurple/30 bg-cuephoria-lightpurple/10 text-cuephoria-lightpurple'
+                          : 'border-white/10 bg-black/20 text-gray-300 hover:bg-white/5'
+                      )}
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Pay Online (PhonePe)
+                    </button>
+                  </div>
+                </div>
+
                 <Button
-                  onClick={handleBookingSubmit}
-                  disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
-                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl shadow-cuephoria-lightpurple/20"
+                  onClick={onConfirmClick}
+                  disabled={
+                    !selectedSlot ||
+                    selectedStations.length === 0 ||
+                    !customerNumber ||
+                    loading ||
+                    processingPayment
+                  }
+                  className={cn(
+                    'w-full rounded-xl text-white border-0 transition-all duration-150 active:scale-[.99] shadow-xl',
+                    paymentMethod === 'online'
+                      ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90 shadow-cuephoria-lightpurple/20'
+                      : 'bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 shadow-cuephoria-lightpurple/20'
+                  )}
                   size="lg"
                 >
-                  {loading ? (paymentMethod === 'phonepe' ? 'Redirecting to PhonePe…' : 'Creating Booking...') : 'Confirm Booking'}
+                  {loading || processingPayment
+                    ? paymentMethod === 'online'
+                      ? 'Starting PhonePe...'
+                      : 'Creating Booking...'
+                    : paymentMethod === 'online'
+                      ? 'Confirm & Pay (PhonePe)'
+                      : 'Confirm Booking (Pay at Venue)'}
                 </Button>
 
                 <p className="text-xs text-gray-400 text-center">
-                  {paymentMethod === 'venue'
-                    ? <>All prices are shown in <span className="font-semibold">INR (₹)</span>. Payment will be collected at the venue.</>
-                    : <>You’ll complete payment securely on PhonePe. All amounts shown here are in <span className="font-semibold">INR (₹)</span>.</>}
+                  All prices are shown in <span className="font-semibold">INR (₹)</span>. You can pay online via PhonePe or at the venue.
                 </p>
               </CardContent>
             </Card>
