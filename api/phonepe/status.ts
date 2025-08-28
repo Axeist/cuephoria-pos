@@ -20,7 +20,7 @@ async function readJsonSafe(res: Response) {
   try {
     return { raw, json: JSON.parse(raw) as any };
   } catch {
-    return { raw, json: null as any };
+    return { raw, json: null };
   }
 }
 
@@ -32,7 +32,7 @@ async function getBearerToken(env: Env) {
 
   const url = `${BASE}/v1/oauth/token`;
 
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -43,29 +43,43 @@ async function getBearerToken(env: Env) {
     body: JSON.stringify({ grantType: "CLIENT_CREDENTIALS" }),
   });
 
+  if (res.status === 415) {
+    const form = new URLSearchParams();
+    form.set("grant_type", "CLIENT_CREDENTIALS");
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "X-CLIENT-ID": CLIENT_ID,
+        "X-CLIENT-SECRET": CLIENT_SECRET,
+        "X-CLIENT-VERSION": CLIENT_VERSION,
+      },
+      body: form.toString(),
+    });
+  }
+
   const { raw, json } = await readJsonSafe(res);
   if (!res.ok) {
-    throw new Error(
-      `Auth failed [${res.status}]. ${json?.error || json?.message || raw}`
-    );
+    throw new Error(`Auth failed [${res.status}]. ${json?.error || json?.message || raw}`);
   }
 
   const token =
     json?.accessToken ||
     json?.data?.accessToken ||
     json?.response?.accessToken;
+
   if (!token) {
     throw new Error(`Auth OK but no accessToken in response: ${raw}`);
   }
-  return token as string;
+  return token;
 }
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "GET") {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Method not allowed" }),
-      { status: 405, headers: { "content-type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
+      status: 405,
+      headers: { "content-type": "application/json" },
+    });
   }
 
   const env = process.env as Env;
@@ -74,18 +88,16 @@ export default async function handler(req: Request): Promise<Response> {
     const BASE = need(env, "PHONEPE_BASE_URL");
     const MERCHANT_ID = need(env, "PHONEPE_MERCHANT_ID");
 
-    // You can pass either ?merchantOrderId=... (per docs) or ?merchantTransactionId=...
     const urlObj = new URL(req.url);
     const merchantOrderId =
       urlObj.searchParams.get("merchantOrderId") ||
-      urlObj.searchParams.get("merchantTransactionId"); // allow both
+      urlObj.searchParams.get("merchantTransactionId");
 
     if (!merchantOrderId) {
       return new Response(
         JSON.stringify({
           ok: false,
-          error:
-            "Missing query param: merchantOrderId (or merchantTransactionId)",
+          error: "Missing query param: merchantOrderId (or merchantTransactionId)",
         }),
         { status: 400, headers: { "content-type": "application/json" } }
       );
@@ -93,7 +105,6 @@ export default async function handler(req: Request): Promise<Response> {
 
     const token = await getBearerToken(env);
 
-    // Per docs: GET /checkout/v2/order/{merchantOrderId}/status
     const statusUrl = `${BASE}/checkout/v2/order/${encodeURIComponent(
       merchantOrderId
     )}/status`;
@@ -120,27 +131,21 @@ export default async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // Normalize a minimal shape for the frontend; also return the raw JSON for debugging
-    const normalized = {
-      ok: true,
-      orderId: json?.data?.merchantOrderId ?? json?.merchantOrderId ?? merchantOrderId,
-      transactionId:
-        json?.data?.merchantTransactionId ?? json?.merchantTransactionId ?? null,
-      code: json?.code ?? json?.status ?? null,
-      message: json?.message ?? json?.responseMessage ?? null,
-      raw: json ?? raw,
-    };
-
-    return new Response(JSON.stringify(normalized), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  } catch (e: any) {
     return new Response(
       JSON.stringify({
-        ok: false,
-        error: e?.message || String(e),
+        ok: true,
+        orderId: json?.data?.merchantOrderId ?? json?.merchantOrderId ?? merchantOrderId,
+        transactionId:
+          json?.data?.merchantTransactionId ?? json?.merchantTransactionId ?? null,
+        code: json?.code ?? json?.status ?? null,
+        message: json?.message ?? json?.responseMessage ?? null,
+        raw: json ?? raw,
       }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+  } catch (e: any) {
+    return new Response(
+      JSON.stringify({ ok: false, error: e?.message || String(e) }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }
