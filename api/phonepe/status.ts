@@ -1,5 +1,5 @@
 // /api/phonepe/status.ts
-export const config = { runtime: "nodejs18.x" };
+export const config = { runtime: "nodejs" };
 
 import { createHash } from "crypto";
 
