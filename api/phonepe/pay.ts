@@ -1,34 +1,58 @@
 // /api/phonepe/pay.ts
-export const config = { runtime: "nodejs" };
+export const config = { runtime: "edge" };
 
-import { createHash } from "crypto";
+const BASE_URL =
+  (process.env as any).PHONEPE_BASE_URL ||
+  "https://api-preprod.phonepe.com/apis/pg-sandbox";
+const MERCHANT_ID = (process.env as any).PHONEPE_MERCHANT_ID || "";
+const SALT_KEY = (process.env as any).PHONEPE_SALT_KEY || "";
+const SALT_INDEX = (process.env as any).PHONEPE_SALT_INDEX || "1";
 
-const BASE_URL = process.env.PHONEPE_BASE_URL || "https://api-preprod.phonepe.com/apis/pg-sandbox";
-const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || "";
-const SALT_KEY = process.env.PHONEPE_SALT_KEY || "";
-const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || "1";
-
-function json(res: any, code: number, body: any) {
-  res.setHeader("Content-Type", "application/json");
-  res.status(code).end(JSON.stringify(body));
+// helper: sha256 -> hex using Web Crypto (works on Edge runtime)
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(digest);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+export default async function handler(req: Request) {
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const missing = ["PHONEPE_BASE_URL", "PHONEPE_MERCHANT_ID", "PHONEPE_SALT_KEY", "PHONEPE_SALT_INDEX"]
-      .filter((k) => !process.env[k]);
-    if (missing.length) return json(res, 500, { error: "Missing env", missing });
+    const missing = [
+      "PHONEPE_BASE_URL",
+      "PHONEPE_MERCHANT_ID",
+      "PHONEPE_SALT_KEY",
+      "PHONEPE_SALT_INDEX",
+    ].filter((k) => !(process.env as any)[k]);
+    if (missing.length) return json({ error: "Missing env", missing }, 500);
 
-    const { amount, customerPhone, merchantTransactionId, successUrl, failedUrl } = req.body || {};
+    const { amount, customerPhone, merchantTransactionId, successUrl, failedUrl } =
+      await req.json();
+
     if (!amount || !customerPhone || !merchantTransactionId || !successUrl || !failedUrl) {
-      return json(res, 400, { error: "Missing required fields" });
+      return json(
+        {
+          error: "Missing required fields",
+          got: { amount, customerPhone, merchantTransactionId, successUrl, failedUrl },
+        },
+        400
+      );
     }
 
     const amountPaise = Math.round(Number(amount) * 100);
     if (!Number.isFinite(amountPaise) || amountPaise <= 0) {
-      return json(res, 400, { error: "PhonePe requires positive amount in INR" });
+      return json({ error: "PhonePe requires positive amount in INR" }, 400);
     }
 
     const payload = {
@@ -42,23 +66,29 @@ export default async function handler(req: any, res: any) {
       paymentInstrument: { type: "PAY_PAGE" },
     };
 
-    const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString("base64");
+    const payloadBase64 = btoa(JSON.stringify(payload));
     const endpoint = "/pg/v1/pay";
     const stringToSign = payloadBase64 + endpoint + SALT_KEY;
-    const sha256 = createHash("sha256").update(stringToSign).digest("hex");
+    const sha256 = await sha256Hex(stringToSign);
     const xVerify = `${sha256}###${SALT_INDEX}`;
 
     const resp = await fetch(`${BASE_URL}${endpoint}`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "content-type": "application/json",
         "X-VERIFY": xVerify,
         "X-MERCHANT-ID": MERCHANT_ID,
       },
       body: JSON.stringify({ request: payloadBase64 }),
     });
 
-    const data = await resp.json().catch(() => ({}));
+    const text = await resp.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
 
     const url =
       data?.data?.instrumentResponse?.redirectInfo?.url ||
@@ -66,11 +96,14 @@ export default async function handler(req: any, res: any) {
       null;
 
     if (!url) {
-      return json(res, 502, { error: "No redirect url from PhonePe", upstream: data });
+      return json(
+        { error: "No redirect url from PhonePe", upstream: data, status: resp.status },
+        502
+      );
     }
-    return json(res, 200, { url });
+
+    return json({ url });
   } catch (e: any) {
-    console.error("PAY ERROR:", e);
-    return json(res, 500, { error: "PhonePe init error", detail: String(e?.message || e) });
+    return json({ error: "PhonePe init error", detail: String(e?.message || e) }, 500);
   }
 }
