@@ -1,97 +1,80 @@
 // /api/phonepe/pay.ts
 export const runtime = 'edge';
 
-type PayBody = {
-  amount: number; // in rupees
-  customerPhone: string;
-  merchantTransactionId: string; // your unique order id
-  successUrl?: string; // where PhonePe should redirect after payment
-  failedUrl?: string;  // (optional) your failure page
+type Env = {
+  PHONEPE_AUTH_BASE: string;
+  PHONEPE_BASE_URL: string;
+  PHONEPE_MERCHANT_ID: string;
+  PHONEPE_CLIENT_ID: string;
+  PHONEPE_CLIENT_VERSION: string;
+  PHONEPE_CLIENT_SECRET: string;
 };
 
-/** ---------- Tiny in-memory OAuth cache (per edge instance) ---------- */
-let cachedToken: { accessToken: string; expiresAt: number } | null = null;
+const env = (name: keyof Env) => {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+};
 
-async function getEnv() {
-  const BASE = process.env.PHONEPE_BASE_URL;          // e.g. https://api-preprod.phonepe.com/apis/pg-sandbox
-  const MID  = process.env.PHONEPE_MERCHANT_ID;       // e.g. M236V4PJIYABI
-  const CID  = process.env.PHONEPE_CLIENT_ID;         // e.g. TEST-..._12345
-  const CVER = process.env.PHONEPE_CLIENT_VERSION;    // e.g. "1"
-  const CSEC = process.env.PHONEPE_CLIENT_SECRET;     // secret string
+// very small in-memory cache (safe for one edge instance)
+const tokenCache: { accessToken?: string; expiresAt?: number } = {};
 
-  // Choose OAuth base:
-  //  - If PHONEPE_AUTH_BASE is provided, use it.
-  //  - Else: use the preprod identity-manager for api-preprod, otherwise prod.
-  const AUTH_BASE =
-    process.env.PHONEPE_AUTH_BASE ||
-    (BASE?.includes('api-preprod')
-      ? 'https://api-preprod.phonepe.com/apis/identity-manager'
-      : 'https://api.phonepe.com/apis/identity-manager');
-
-  if (!BASE || !MID || !CID || !CVER || !CSEC) {
-    return {
-      ok: false as const,
-      error: 'Missing environment variables',
-      missing: {
-        PHONEPE_BASE_URL: !BASE,
-        PHONEPE_MERCHANT_ID: !MID,
-        PHONEPE_CLIENT_ID: !CID,
-        PHONEPE_CLIENT_VERSION: !CVER,
-        PHONEPE_CLIENT_SECRET: !CSEC,
-      },
-    };
-  }
-  return { ok: true as const, BASE, MID, CID, CVER, CSEC, AUTH_BASE };
-}
-
-async function fetchOAuthToken(AUTH_BASE: string, CID: string, CVER: string, CSEC: string) {
-  // Reuse if not expiring in next 30s
-  const now = Math.floor(Date.now() / 1000);
-  if (cachedToken && cachedToken.expiresAt - now > 30) {
-    return cachedToken.accessToken;
+async function getAccessToken() {
+  const now = Date.now();
+  if (tokenCache.accessToken && tokenCache.expiresAt && tokenCache.expiresAt - 120_000 > now) {
+    return tokenCache.accessToken;
   }
 
-  const url = `${AUTH_BASE}/v1/oauth/token`;
+  const authBase = env('PHONEPE_AUTH_BASE');
+
+  // PhonePe expects form-encoded body
   const form = new URLSearchParams();
-  form.set('client_id', CID);
-  form.set('client_version', String(CVER));
-  form.set('client_secret', CSEC);
+  form.set('client_id', env('PHONEPE_CLIENT_ID'));
+  form.set('client_secret', env('PHONEPE_CLIENT_SECRET'));
+  form.set('client_version', env('PHONEPE_CLIENT_VERSION'));
 
-  const r = await fetch(url, {
+  const r = await fetch(`${authBase}/v1/oauth/token`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: form.toString(),
+    // Edge: keepalive for good measure
+    cache: 'no-store'
   });
 
   const text = await r.text();
-  let j: any = null;
-  try { j = JSON.parse(text); } catch { /* keep raw */ }
-
   if (!r.ok) {
-    throw new Error(
-      `oauth-failed [HTTP ${r.status}]. ${text}`
-    );
+    throw new Error(`oauth-failed [${r.status}]: ${text}`);
   }
 
-  // PhonePe returns access_token + expires_at (epoch seconds)
-  const token = j?.access_token || j?.accessToken;
-  const expiresAt = j?.expires_at || j?.expiresAt;
+  // Response fields are snake_case per PhonePe docs
+  let data: any = {};
+  try { data = JSON.parse(text); } catch { /* leave as {} and error below if needed */ }
 
-  if (!token) {
-    throw new Error(`oauth-bad-response: no access_token in ${text}`);
+  const accessToken: string | undefined =
+    data.access_token || data.accessToken; // be tolerant
+
+  if (!accessToken) {
+    throw new Error(`oauth-ok-missing-token: ${text}`);
   }
 
-  // If expiresAt not present, default to 50 minutes from now
-  const exp = typeof expiresAt === 'number' ? Number(expiresAt) : (now + 3000);
+  // prefer expires_at (epoch seconds); fallback to now + expires_in
+  const expirySec: number | undefined =
+    typeof data.expires_at === 'number'
+      ? data.expires_at
+      : typeof data.expires_in === 'number'
+      ? Math.floor(Date.now() / 1000) + data.expires_in
+      : undefined;
 
-  cachedToken = { accessToken: token, expiresAt: exp };
-  return token;
+  tokenCache.accessToken = accessToken;
+  tokenCache.expiresAt = expirySec ? expirySec * 1000 : Date.now() + 55 * 60 * 1000; // ~55m
+
+  return accessToken;
 }
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json' }
   });
 }
 
@@ -100,102 +83,110 @@ export default async function handler(req: Request) {
     return json(405, { ok: false, error: 'Method not allowed' });
   }
 
-  const env = await getEnv();
-  if (!env.ok) {
-    return json(500, { step: 'env', ok: false, ...env });
-  }
-  const { BASE, MID, CID, CVER, CSEC, AUTH_BASE } = env;
-
-  let body: PayBody;
+  // Validate env early
   try {
-    body = await req.json();
+    ['PHONEPE_AUTH_BASE', 'PHONEPE_BASE_URL', 'PHONEPE_MERCHANT_ID',
+     'PHONEPE_CLIENT_ID', 'PHONEPE_CLIENT_VERSION', 'PHONEPE_CLIENT_SECRET'
+    ].forEach(k => env(k as keyof Env));
+  } catch (e: any) {
+    return json(500, { ok: false, step: 'env', error: String(e?.message || e) });
+  }
+
+  let payload: {
+    amount: number;                  // rupees (frontend); we’ll convert to paise
+    customerPhone?: string;
+    merchantTransactionId?: string;  // optional alias
+    merchantOrderId?: string;        // preferred
+    successUrl?: string;             // where PhonePe should return
+  };
+
+  try {
+    payload = await req.json();
   } catch {
-    return json(400, { ok: false, error: 'Invalid JSON body' });
+    return json(400, { ok: false, step: 'parse', error: 'Invalid JSON' });
   }
 
-  const rupees = Number(body.amount || 0);
+  const rupees = Number(payload.amount || 0);
   if (!rupees || rupees <= 0) {
-    return json(400, { ok: false, error: 'Amount must be > 0 (in rupees)' });
-  }
-  if (!body.customerPhone) {
-    return json(400, { ok: false, error: 'customerPhone is required' });
-  }
-  if (!body.merchantTransactionId) {
-    return json(400, { ok: false, error: 'merchantTransactionId is required' });
+    return json(400, { ok: false, step: 'input', error: 'amount must be > 0 (INR)' });
   }
 
-  // Per checklist → use merchantOrderId (rename from merchantTransactionId)
-  const merchantOrderId = body.merchantTransactionId;
   const amountPaise = Math.round(rupees * 100);
+  const merchantOrderId =
+    payload.merchantOrderId || payload.merchantTransactionId || `CUE-${Date.now()}`;
+
+  const redirectUrl =
+    payload.successUrl ||
+    `${process.env.NEXT_PUBLIC_SITE_URL || ''}` ||
+    `${new URL(req.url).origin}/public/booking`;
 
   try {
-    // 1) OAuth
-    const accessToken = await fetchOAuthToken(AUTH_BASE, CID, String(CVER), CSEC);
+    const accessToken = await getAccessToken();
 
-    // 2) Create payment
-    const payUrl = `${BASE}/checkout/v2/pay`;
-    const payload = {
-      merchantId: MID,
+    const base = env('PHONEPE_BASE_URL');
+    const merchantId = env('PHONEPE_MERCHANT_ID');
+
+    // Build Standard Checkout request
+    const body = {
+      merchantId,
       merchantOrderId,
       amount: amountPaise,
-      expireAfter: 900, // 15 minutes
+      expireAfter: 900, // 15 min
       paymentFlow: {
         type: 'PG_CHECKOUT',
-        redirectUrl: body.successUrl || '',
+        redirectUrl
       },
-      mobileNumber: body.customerPhone,
-      // metaInfo: {} // add UDFs if you need
+      // Keep meta minimal; include only if needed
+      metaInfo: payload.customerPhone ? { customerPhone: payload.customerPhone } : undefined
     };
 
-    const r = await fetch(payUrl, {
+    const resp = await fetch(`${base}/checkout/v2/pay`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        // Per OAuth: token_type in sandbox often "O-Bearer"
-        Authorization: `O-Bearer ${accessToken}`,
+        authorization: `O-Bearer ${accessToken}`
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
+      cache: 'no-store'
     });
 
-    const text = await r.text();
-    let j: any = null;
-    try { j = JSON.parse(text); } catch { /* keep raw */ }
+    const text = await resp.text();
+    let data: any = {};
+    try { data = JSON.parse(text); } catch { /* best effort */ }
 
-    if (!r.ok) {
+    if (!resp.ok) {
       return json(502, {
         ok: false,
         step: 'pay',
-        status: r.status,
+        status: resp.status,
         error: 'PhonePe pay failed',
-        body: text,
+        body: text
       });
     }
 
-    // Expect redirectUrl + orderId
-    const redirectUrl = j?.redirectUrl;
-    const orderId = j?.orderId;
-    if (!redirectUrl) {
+    const redirect = data?.redirectUrl;
+    const orderId = data?.orderId;
+
+    if (!redirect) {
       return json(502, {
         ok: false,
         step: 'pay',
-        status: r.status,
-        error: 'No redirectUrl returned by PhonePe',
-        body: j || text,
+        error: 'Missing redirectUrl from PhonePe',
+        body: data
       });
     }
 
     return json(200, {
       ok: true,
-      step: 'pay',
-      url: redirectUrl,
-      orderId: orderId || null,
-      merchantOrderId,
+      url: redirect,
+      orderId,
+      merchantOrderId
     });
   } catch (e: any) {
     return json(500, {
       ok: false,
       step: 'exception',
-      error: String(e?.message || e),
+      error: String(e?.message || e)
     });
   }
 }
