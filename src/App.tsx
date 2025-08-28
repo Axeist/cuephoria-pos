@@ -1,4 +1,3 @@
-
 import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -28,6 +27,12 @@ import PublicStations from "./pages/PublicStations";
 import PublicBooking from "./pages/PublicBooking";
 import BookingPage from "./pages/BookingPage";
 import BookingManagement from "./pages/BookingManagement";
+
+// 👇👇 ADD THESE TWO IMPORTS
+import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
+import PublicPaymentFailed from "./pages/PublicPaymentFailed";
+// ☝️☝️
+
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
@@ -110,6 +115,10 @@ const App = () => (
                   <Route path="/public/tournaments" element={<PublicTournaments />} />
                   <Route path="/public/stations" element={<PublicStations />} />
                   <Route path="/public/booking" element={<PublicBooking />} />
+                  {/* 👇👇 ADD THESE TWO ROUTES */}
+                  <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
+                  <Route path="/public/payment/failed" element={<PublicPaymentFailed />} />
+                  {/* ☝️☝️ */}
 
                   {/* Protected routes */}
                   <Route path="/dashboard" element={
@@ -173,4 +182,3 @@ const App = () => (
 );
 
 export default App;
-
