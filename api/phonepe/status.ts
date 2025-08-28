@@ -1,15 +1,20 @@
 // /api/phonepe/status.ts
 export const runtime = "edge";
 
-// same small helpers (duplicated for clarity/single-file paste)
 function need(name: string, value?: string | null) {
   if (!value) throw new Error(`Missing env: ${name}`);
   return value;
 }
-
 let cachedToken: { token: string; exp: number } | null = null;
 
-async function getOAuthToken(): Promise<string> {
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | undefined, ms: number) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort("timeout"), ms);
+  try { return await fetch(input, { ...init, signal: controller.signal }); }
+  finally { clearTimeout(id); }
+}
+
+async function getOAuthToken() {
   const AUTH_BASE = need("PHONEPE_AUTH_BASE", process.env.PHONEPE_AUTH_BASE);
   const CLIENT_ID = need("PHONEPE_CLIENT_ID", process.env.PHONEPE_CLIENT_ID);
   const CLIENT_SECRET = need("PHONEPE_CLIENT_SECRET", process.env.PHONEPE_CLIENT_SECRET);
@@ -23,16 +28,13 @@ async function getOAuthToken(): Promise<string> {
   body.set("client_secret", CLIENT_SECRET);
   body.set("client_version", CLIENT_VERSION);
 
-  const res = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
+  const res = await fetchWithTimeout(`${AUTH_BASE}/v1/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
-  });
+  }, 12_000);
 
-  const text = await res.text();
-  let data: any = null;
-  try { data = JSON.parse(text); } catch {}
-
+  const text = await res.text(); let data: any = null; try { data = JSON.parse(text); } catch {}
   if (!res.ok) {
     return Promise.reject(
       new Response(JSON.stringify({ ok: false, step: "oauth", status: res.status, body: data ?? text }), {
@@ -40,19 +42,17 @@ async function getOAuthToken(): Promise<string> {
       })
     );
   }
-
-  const access = data?.access_token || data?.encrypted_access_token;
-  const ttlSec: number = data?.expires_in ?? 3600;
-  if (!access) {
+  const token = data?.access_token || data?.encrypted_access_token;
+  const ttl = data?.expires_in ?? 3600;
+  if (!token) {
     return Promise.reject(
       new Response(JSON.stringify({ ok: false, step: "oauth", status: 500, body: data }), {
         status: 502, headers: { "content-type": "application/json" },
       })
     );
   }
-
-  cachedToken = { token: access, exp: Date.now() + ttlSec * 1000 };
-  return access;
+  cachedToken = { token, exp: Date.now() + ttl * 1000 };
+  return token;
 }
 
 export default async function handler(req: Request) {
@@ -64,11 +64,9 @@ export default async function handler(req: Request) {
     }
 
     const url = new URL(req.url);
-    const orderId =
-      url.searchParams.get("merchantOrderId") ||
-      url.searchParams.get("order") ||
-      url.searchParams.get("merchantTransactionId"); // fallback
-
+    const orderId = url.searchParams.get("merchantOrderId") ||
+                    url.searchParams.get("order") ||
+                    url.searchParams.get("merchantTransactionId");
     if (!orderId) {
       return new Response(JSON.stringify({ ok: false, error: "Missing merchantOrderId (or merchantTransactionId)" }), {
         status: 400, headers: { "content-type": "application/json" },
@@ -78,29 +76,26 @@ export default async function handler(req: Request) {
     const PG_BASE = need("PHONEPE_BASE_URL", process.env.PHONEPE_BASE_URL);
     const token = await getOAuthToken();
 
-    const resStatus = await fetch(
+    const res = await fetchWithTimeout(
       `${PG_BASE}/checkout/v2/order/${encodeURIComponent(orderId)}/status`,
-      { headers: { Authorization: `O-Bearer ${token}` } }
+      { headers: { Authorization: `O-Bearer ${token}` } },
+      12_000
     );
 
-    const text = await resStatus.text();
-    let data: any = null;
-    try { data = JSON.parse(text); } catch {}
-
-    if (!resStatus.ok) {
-      return new Response(JSON.stringify({ ok: false, step: "status", status: resStatus.status, body: data ?? text }), {
+    const txt = await res.text(); let data: any = null; try { data = JSON.parse(txt); } catch {}
+    if (!res.ok) {
+      return new Response(JSON.stringify({ ok: false, step: "status", status: res.status, body: data ?? txt }), {
         status: 502, headers: { "content-type": "application/json" },
       });
     }
 
-    // phonepe uses root-level "state": COMPLETED | FAILED | PENDING
     const state = data?.state || data?.status || "UNKNOWN";
     return new Response(JSON.stringify({ ok: true, state, raw: data }), {
       status: 200, headers: { "content-type": "application/json" },
     });
   } catch (err: any) {
     if (err instanceof Response) return err;
-    return new Response(JSON.stringify({ ok: false, error: err?.message || String(err) }), {
+    return new Response(JSON.stringify({ ok: false, step: "exception", error: err?.message || String(err) }), {
       status: 500, headers: { "content-type": "application/json" },
     });
   }
