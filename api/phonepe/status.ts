@@ -1,6 +1,12 @@
 // /api/phonepe/status.ts
-// Runtime: Edge
-export const config = { runtime: "edge" };
+// Next.js App Router (Edge) – PhonePe: order/transaction status lookup
+//
+// Accepts GET query params:
+//   ?merchantOrderId=...   OR   ?merchantTransactionId=...
+//
+// Returns the raw status JSON from PhonePe.
+
+export const runtime = "edge";
 
 type Env = {
   PHONEPE_BASE_URL?: string;
@@ -12,26 +18,21 @@ type Env = {
 
 function need(env: Env, k: keyof Env): string {
   const v = env[k];
-  if (!v || !`${v}`.trim()) throw new Error(`Missing env: ${k}`);
-  return `${v}`.trim();
+  if (!v) throw new Error(`Missing env ${k}`);
+  return v;
 }
 
-function json(body: any, init?: number | ResponseInit) {
-  const initObj: ResponseInit =
-    typeof init === "number" ? { status: init } : init || {};
-  return new Response(JSON.stringify(body), {
-    ...initObj,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      ...(initObj.headers || {}),
-    },
-  });
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,OPTIONS",
+    "access-control-allow-headers": "content-type",
+  };
 }
 
-// ===== OAuth: send as x-www-form-urlencoded (per PhonePe spec) =====
 async function getBearerToken(env: Env) {
   const BASE = need(env, "PHONEPE_BASE_URL");
-  const CID = need(env, "PHONEPE_CLIENT_ID");
+  const CID  = need(env, "PHONEPE_CLIENT_ID");
   const CVER = need(env, "PHONEPE_CLIENT_VERSION");
   const CSEC = need(env, "PHONEPE_CLIENT_SECRET");
 
@@ -53,19 +54,19 @@ async function getBearerToken(env: Env) {
   });
 
   const raw = await res.text();
-  let jsonResp: any = null;
-  try { jsonResp = JSON.parse(raw); } catch {}
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
 
   if (!res.ok) {
-    throw new Error(
-      `Auth failed [${res.status}]. ${jsonResp?.error || jsonResp?.message || raw}`
-    );
+    throw new Error(`Auth failed [${res.status}]. ${json?.error || json?.message || raw}`);
   }
 
+  // IMPORTANT: UAT returns `access_token` (snake_case)
   const token =
-    jsonResp?.accessToken ||
-    jsonResp?.data?.accessToken ||
-    jsonResp?.response?.accessToken;
+    json?.access_token ||      // <= primary
+    json?.accessToken ||
+    json?.data?.accessToken ||
+    json?.response?.accessToken;
 
   if (!token) {
     throw new Error(`Auth OK but no accessToken in response: ${raw}`);
@@ -73,32 +74,12 @@ async function getBearerToken(env: Env) {
   return token as string;
 }
 
-export default async function handler(req: Request) {
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders() });
+}
+
+export async function GET(req: Request) {
   try {
-    if (req.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,OPTIONS" },
-      });
-    }
-    if (req.method !== "GET") {
-      return json({ ok: false, error: "Method not allowed" }, 405);
-    }
-
-    const url = new URL(req.url);
-    const merchantOrderId = url.searchParams.get("merchantOrderId");
-    const merchantTransactionId =
-      url.searchParams.get("merchantTransactionId") ||
-      url.searchParams.get("merchantTxnId") ||
-      merchantOrderId; // we used same value in pay.ts
-
-    if (!merchantTransactionId && !merchantOrderId) {
-      return json(
-        { ok: false, error: "Missing query param: merchantOrderId (or merchantTransactionId)" },
-        400
-      );
-    }
-
     const env: Env = {
       PHONEPE_BASE_URL: process.env.PHONEPE_BASE_URL,
       PHONEPE_MERCHANT_ID: process.env.PHONEPE_MERCHANT_ID,
@@ -108,44 +89,55 @@ export default async function handler(req: Request) {
     };
 
     const BASE = need(env, "PHONEPE_BASE_URL");
-    const MID = need(env, "PHONEPE_MERCHANT_ID");
+    const MID  = need(env, "PHONEPE_MERCHANT_ID");
+
+    const { searchParams } = new URL(req.url);
+    const merchantOrderId = searchParams.get("merchantOrderId") || "";
+    const merchantTransactionId = searchParams.get("merchantTransactionId") || "";
+
+    if (!merchantOrderId && !merchantTransactionId) {
+      return Response.json(
+        { ok: false, error: "Missing query param: merchantOrderId (or merchantTransactionId)" },
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+
     const bearer = await getBearerToken(env);
 
-    // Standard Checkout v2 status endpoint (Order status by OrderId)
-    const idToQuery = merchantOrderId || merchantTransactionId!;
-    const statusUrl = `${BASE}/checkout/v2/order/${encodeURIComponent(idToQuery)}/status`;
+    // Prefer the documented Order Status endpoint
+    let url = "";
+    if (merchantOrderId) {
+      url = `${BASE}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`;
+    } else {
+      // Fallback: some UATs allow txn status by txn-id under /checkout/v2/merchant-transaction/{id}
+      url = `${BASE}/checkout/v2/merchant-transaction/${encodeURIComponent(merchantTransactionId)}`;
+    }
 
-    const res = await fetch(statusUrl, {
+    const res = await fetch(url, {
       method: "GET",
       headers: {
         accept: "application/json",
         authorization: `Bearer ${bearer}`,
+        "x-merchant-id": MID,
       },
     });
 
     const raw = await res.text();
-    let j: any = null;
-    try { j = JSON.parse(raw); } catch {}
+    let json: any = null;
+    try { json = JSON.parse(raw); } catch {}
 
     if (!res.ok) {
-      return json(
-        { ok: false, error: j?.error || j?.message || raw || "Failed to fetch status", status: res.status },
-        500
+      return Response.json(
+        { ok: false, error: "PhonePe status failed", status: res.status, raw },
+        { status: 502, headers: corsHeaders() }
       );
     }
 
-    // Try to normalize a status field
-    const paymentStatus =
-      j?.data?.state || j?.state || j?.status || j?.orderStatus || "UNKNOWN";
-
-    return json({
-      ok: true,
-      status: paymentStatus,
-      raw: j || raw,
-      merchantId: MID,
-      merchantOrderId: idToQuery,
-    });
+    return Response.json({ ok: true, status: json }, { headers: corsHeaders() });
   } catch (err: any) {
-    return json({ ok: false, error: err?.message || String(err) }, 500);
+    return Response.json(
+      { ok: false, error: `Could not fetch PhonePe status (exception). ${err?.message || err}` },
+      { status: 500, headers: corsHeaders() }
+    );
   }
 }
