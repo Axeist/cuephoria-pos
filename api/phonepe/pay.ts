@@ -26,7 +26,7 @@ async function oauthToken() {
     client_version: CLIENT_VERSION,
   });
 
-  console.log("Requesting OAuth token from:", `${AUTH_BASE}/v1/oauth/token`);
+  console.log("🔑 Requesting OAuth token from PhonePe");
 
   const r = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
     method: "POST",
@@ -38,9 +38,8 @@ async function oauthToken() {
   let data: any = {};
   try { data = JSON.parse(text); } catch {}
 
-  console.log("OAuth response:", { status: r.status, data });
-
   if (!r.ok) {
+    console.error("❌ OAuth failed:", { status: r.status, response: text });
     throw new Error(`oauth ${r.status}: ${typeof data === "object" ? JSON.stringify(data) : text}`);
   }
 
@@ -48,6 +47,7 @@ async function oauthToken() {
   const type = data?.token_type || "O-Bearer";
   if (!token) throw new Error(`oauth OK but no token in response: ${text}`);
   
+  console.log("✅ OAuth token obtained successfully");
   return { authz: `${type} ${token}` };
 }
 
@@ -64,7 +64,7 @@ export default async function handler(req: Request) {
     const payload = await req.json().catch(() => ({} as any));
     const { amount, customerPhone, merchantTransactionId } = payload || {};
 
-    console.log("Payment request received:", { amount, customerPhone, merchantTransactionId });
+    console.log("💳 Payment request received:", { amount, customerPhone, merchantTransactionId });
 
     if (!amount || Number(amount) <= 0) {
       return j({ ok: false, step: "validate", error: "Amount must be > 0" }, 400);
@@ -72,16 +72,16 @@ export default async function handler(req: Request) {
 
     const orderId = merchantTransactionId || `CUE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-    const successRedirect = `${SITE_URL}/api/phonepe/return?status=success&order=${encodeURIComponent(orderId)}`;
-    const failedRedirect = `${SITE_URL}/api/phonepe/return?status=failed&order=${encodeURIComponent(orderId)}`;
+    // Use return handler for both success and failure
+    const successRedirect = `${SITE_URL}/api/phonepe/return?order=${encodeURIComponent(orderId)}&status=success`;
+    const failedRedirect = `${SITE_URL}/api/phonepe/return?order=${encodeURIComponent(orderId)}&status=failed`;
 
-    console.log("Redirect URLs:", { successRedirect, failedRedirect });
+    console.log("🔗 Redirect URLs configured:", { successRedirect, failedRedirect });
 
-    // 1) OAuth
+    // Get OAuth token
     const { authz } = await oauthToken();
-    console.log("OAuth successful, got authorization");
 
-    // 2) Create payment
+    // Create payment request
     const createBody = {
       merchantId: MERCHANT_ID,
       merchantOrderId: orderId,
@@ -97,7 +97,7 @@ export default async function handler(req: Request) {
       expireAfter: 900, // 15 min
     };
 
-    console.log("Creating payment with body:", JSON.stringify(createBody, null, 2));
+    console.log("📤 Creating PhonePe payment:", { orderId, amount: createBody.amount });
 
     const r = await fetch(`${BASE}/checkout/v2/pay`, {
       method: "POST",
@@ -112,9 +112,10 @@ export default async function handler(req: Request) {
     let data: any = {};
     try { data = JSON.parse(text); } catch {}
 
-    console.log("PhonePe pay response:", { status: r.status, data });
+    console.log("📨 PhonePe payment response:", { status: r.status, success: r.ok });
 
     if (!r.ok) {
+      console.error("❌ Payment creation failed:", data);
       return j(
         { ok: false, step: "pay", status: r.status, body: data ?? text, error: "Payment creation failed" },
         502
@@ -123,17 +124,18 @@ export default async function handler(req: Request) {
 
     const url = data?.redirectUrl || data?.data?.redirectUrl;
     if (!url) {
+      console.error("❌ Missing redirect URL in response");
       return j(
-        { ok: false, step: "pay", status: r.status, body: data, error: "PhonePe pay response missing redirectUrl" },
+        { ok: false, step: "pay", status: r.status, body: data, error: "Missing redirect URL" },
         502
       );
     }
 
-    console.log("Payment created successfully, redirect URL:", url);
+    console.log("✅ Payment created successfully, redirect URL obtained");
     return j({ ok: true, url, orderId });
 
   } catch (err: any) {
-    console.error("Payment creation error:", err);
+    console.error("💥 Payment creation error:", err);
     return j({ ok: false, step: "exception", error: String(err?.message || err) }, 500);
   }
 }
