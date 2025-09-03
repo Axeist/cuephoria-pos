@@ -63,20 +63,20 @@ export default async function handler(req: Request) {
       url.searchParams.get("merchantTransactionId") ||
       url.searchParams.get("order");
 
-    console.log("🔍 Status check requested for order:", merchantOrderId);
+    console.log("🔍 Status check for order:", merchantOrderId);
 
     if (!merchantOrderId) {
-      return j(
-        { ok: false, error: "Missing merchantOrderId (or merchantTransactionId/order)" },
-        400
-      );
+      return j({ ok: false, error: "Missing order ID parameter" }, 400);
     }
 
     const { authz } = await oauthToken();
 
     const r = await fetch(
       `${BASE}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`,
-      { headers: { authorization: authz } }
+      { 
+        headers: { authorization: authz },
+        signal: AbortSignal.timeout(10000)
+      }
     );
 
     const text = await r.text();
@@ -87,14 +87,14 @@ export default async function handler(req: Request) {
 
     if (!r.ok) {
       console.error("❌ Status check failed:", data);
-      return j({ ok: false, status: r.status, body: data ?? text }, 502);
+      return j({ ok: false, status: r.status, body: data }, 502);
     }
 
     const state = data?.state || data?.data?.state || data?.payload?.state || "UNKNOWN";
     const code = data?.code || data?.data?.code || data?.payload?.code || null;
-    const paymentInstrument = data?.paymentInstrument || data?.data?.paymentInstrument || data?.payload?.paymentInstrument || null;
+    const paymentInstrument = data?.paymentInstrument || data?.data?.paymentInstrument || null;
 
-    console.log(`✅ Status retrieved: ${state} for order: ${merchantOrderId}`);
+    console.log(`✅ Status: ${state} for order: ${merchantOrderId}`);
 
     return j({ ok: true, state, code, paymentInstrument, raw: data });
 
