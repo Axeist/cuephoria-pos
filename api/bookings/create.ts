@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Remove edge runtime to allow Supabase client - DELETE THE BELOW LINE IF IT EXISTS:
-// export const config = { runtime: "edge" };
+// Remove edge runtime to allow Supabase client
+// export const config = { runtime: "edge" }; // DELETE THIS LINE IF IT EXISTS
 
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
@@ -74,6 +74,8 @@ export default async function handler(req: Request) {
       discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
       final_price: finalPrice || 0,
       coupon_code: couponCodes || null,
+      payment_mode: 'phonepe',
+      payment_txn_id: orderId,
     }));
 
     const { data: inserted, error: bookingError } = await supabase
