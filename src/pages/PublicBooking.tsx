@@ -613,7 +613,7 @@ export default function PublicBooking() {
   async function createVenueBooking() {
     setLoading(true);
     try {
-      // Prepare booking data for API call - same format as PhonePe
+      // Prepare booking data for API call
       const bookingData = {
         customerInfo,
         selectedStations,
@@ -623,18 +623,27 @@ export default function PublicBooking() {
         discount,
         finalPrice,
         appliedCoupons,
-        payment_mode: "venue", // Important: specify venue payment
+        payment_mode: "venue",
       };
 
       console.log("📝 Creating venue booking:", bookingData);
 
-      // Call the same API that PhonePe uses for consistency
+      // Call the API endpoint (NOT direct Supabase)
       const bookingRes = await fetch('/api/bookings/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingData),
       });
 
+      // Check if response is ok before parsing JSON
+      if (!bookingRes.ok) {
+        // Log the actual response for debugging
+        const errorText = await bookingRes.text();
+        console.error("❌ API Error Response:", errorText);
+        throw new Error(`API Error: ${bookingRes.status} - ${errorText}`);
+      }
+
+      // Parse JSON only if response is ok
       const bookingResult = await bookingRes.json();
       console.log("🎫 Venue booking result:", bookingResult);
 
@@ -672,7 +681,15 @@ export default function PublicBooking() {
 
     } catch (e: any) {
       console.error("💥 Venue booking error:", e);
-      toast.error(e.message || "Failed to create booking. Please try again.");
+      
+      // More specific error handling
+      if (e.message.includes('Failed to fetch')) {
+        toast.error("Network error. Please check your connection and try again.");
+      } else if (e.message.includes('API Error')) {
+        toast.error("Server error. Please try again or contact support.");
+      } else {
+        toast.error(e.message || "Failed to create booking. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -729,26 +746,27 @@ export default function PublicBooking() {
         }),
       });
 
-      const raw = await res.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(raw);
-      } catch {
-        console.error("Failed to parse response:", raw);
+      // Check if response is ok before parsing JSON
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("❌ PhonePe API Error:", errorText);
+        throw new Error(`Payment API Error: ${res.status}`);
       }
 
+      const data = await res.json();
       console.log("📨 PhonePe response:", { status: res.status, ok: res.ok });
 
-      if (res.ok && data?.ok && data?.url) {
+      if (data?.ok && data?.url) {
         console.log("✅ Redirecting to PhonePe payment page");
         window.location.href = data.url;
         return;
       }
 
-      // Handle errors
-      const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
+      // Handle API-level errors
+      const apiErr = data?.error || "Unknown error";
       toast.error(`Could not start PhonePe payment: ${apiErr}`);
       localStorage.removeItem('pendingBooking');
+      
     } catch (e: any) {
       console.error("💥 Payment initiation error:", e);
       toast.error(`Unable to start payment: ${e?.message || e}`);
