@@ -10,37 +10,21 @@ export default async function handler(req: Request) {
     
     console.log("📊 Return parameters:", { orderId, phonepeStatus });
     
-    // Get and validate base URL
-    const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
-    if (!SITE_URL) {
-      console.error("❌ NEXT_PUBLIC_SITE_URL not configured");
-      return new Response("Configuration error", { status: 500 });
+    // Use the complete booking page URL
+    const BOOKING_PAGE_URL = process.env.NEXT_PUBLIC_BOOKING_PAGE_URL;
+    if (!BOOKING_PAGE_URL) {
+      console.error("❌ NEXT_PUBLIC_BOOKING_PAGE_URL not configured");
+      return new Response("Configuration error: Missing booking page URL", { status: 500 });
     }
 
-    // Normalize base URL (remove trailing slashes)
-    const baseUrl = SITE_URL.replace(/\/+$/, '');
-    
-    // Test if base URL is valid
-    try {
-      new URL(baseUrl);
-    } catch (e) {
-      console.error("❌ Invalid NEXT_PUBLIC_SITE_URL:", baseUrl);
-      return new Response("Invalid site URL configuration", { status: 500 });
-    }
+    console.log("✅ Using booking page URL:", BOOKING_PAGE_URL);
 
-    // Construct redirect URL safely
-    const redirectPath = "/public/booking";
-    const fullRedirectUrl = `${baseUrl}${redirectPath}`;
+    // Create redirect URL by appending query parameters
+    const redirectUrl = new URL(BOOKING_PAGE_URL);
     
-    console.log("✅ Base URL validated:", baseUrl);
-    
-    const redirectUrl = new URL(fullRedirectUrl);
-    
-    // Add query parameters based on return status
     if (orderId) {
       redirectUrl.searchParams.set("order", orderId);
-      // Always set as success initially, frontend will verify
-      redirectUrl.searchParams.set("pp", "success");
+      redirectUrl.searchParams.set("pp", "success"); // Always set success, frontend will verify
     } else {
       redirectUrl.searchParams.set("pp", "failed");
       redirectUrl.searchParams.set("msg", "missing-order-id");
@@ -54,7 +38,7 @@ export default async function handler(req: Request) {
   } catch (error) {
     console.error("💥 Return handler error:", error);
     
-    // Emergency fallback
+    // Emergency fallback with full URL
     const fallbackUrl = "https://admin.cuephoria.in/public/booking?pp=failed&msg=handler-error";
     console.log("🚨 Emergency redirect to:", fallbackUrl);
     
