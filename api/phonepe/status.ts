@@ -63,9 +63,11 @@ export default async function handler(req: Request) {
     const queryString = urlParts[1] || '';
     const params = new URLSearchParams(queryString);
     
+    // Support both txn and order parameters for compatibility
     const merchantOrderId = params.get("merchantOrderId") ||
       params.get("merchantTransactionId") ||
-      params.get("order");
+      params.get("order") ||
+      params.get("txn");
 
     console.log("🔍 Status check for order:", merchantOrderId);
 
@@ -100,7 +102,15 @@ export default async function handler(req: Request) {
 
     console.log(`✅ Status: ${state} for order: ${merchantOrderId}`);
 
-    return j({ ok: true, state, code, paymentInstrument, raw: data });
+    // Return success in format your PublicPaymentSuccess expects
+    return j({ 
+      ok: true, 
+      success: state === 'COMPLETED',
+      state, 
+      code, 
+      paymentInstrument, 
+      raw: data 
+    });
 
   } catch (err: any) {
     console.error("❌ Status check error:", err);
