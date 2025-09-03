@@ -331,7 +331,7 @@ export default function PublicBooking() {
         .filter((s) => removed.includes(s.id))
         .map((s) => s.name)
         .join(", ");
-      toast.message("Some stations aren’t free at this time", {
+      toast.message("Some stations aren't free at this time", {
         description: `Removed: ${names}.`,
       });
     }
@@ -342,7 +342,7 @@ export default function PublicBooking() {
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
       if (filtered.length === 0) {
-        toast.error("That time isn’t available for the selected stations.");
+        toast.error("That time isn't available for the selected stations.");
         setSelectedSlot(null);
         return;
       }
@@ -355,7 +355,6 @@ export default function PublicBooking() {
      Coupons & Pricing
      ========================= */
 
-  // Allowed coupons including new code
   const allowedCoupons = [
     "CUEPHORIA25",
     "CUEPHORIA50",
@@ -365,7 +364,6 @@ export default function PublicBooking() {
     "AXEIST",
   ];
 
-  // Validate student ID confirmation for CUEPHORIA50
   function validateStudentID() {
     return window.confirm(
       "🎓 CUEPHORIA50 is for other college & school students ONLY.\nShow a valid student ID card during your visit for this discount. Apply?"
@@ -395,16 +393,17 @@ export default function PublicBooking() {
     );
     const happyHourActive = isHappyHour(selectedDate, selectedSlot);
 
-    // Handle coupons
+    // CUEPHORIA50
     if (code === "CUEPHORIA50") {
       if (!validateStudentID()) return;
       setAppliedCoupons({ all: "CUEPHORIA50" });
       toast.success(
-        "🎓 CUEPHORIA50 applied: 50% OFF for students with valid ID.\nShow your student ID when you visit! 🤝"
+        "📚 CUEPHORIA50 applied: 50% OFF for students with valid ID!\nShow your student ID when you visit! 🤝"
       );
       return;
     }
 
+    // AXEIST
     if (code === "AXEIST") {
       const ok = window.confirm(
         "🥷 AXEIST grants 100% OFF for close friends. Apply?"
@@ -415,12 +414,14 @@ export default function PublicBooking() {
       return;
     }
 
+    // CUEPHORIA25
     if (code === "CUEPHORIA25") {
       setAppliedCoupons({ all: "CUEPHORIA25" });
       toast.success("🎉 CUEPHORIA25 applied: 25% OFF! Book more, play more! 🕹️");
       return;
     }
 
+    // NIT99
     if (code === "NIT99") {
       if (!selectedHas8Ball) {
         toast.error("🎱 NIT99 applies only to 8-Ball stations.");
@@ -437,51 +438,33 @@ export default function PublicBooking() {
       return;
     }
 
+    // NIT50 logic — always 50% off on both during happy hours, unless NIT99 is also stacked, then only 50% on PS5, 8-ball at ₹99/hr
     if (code === "NIT50") {
-      if (happyHourActive) {
-        // During happy hours NIT50 only applies to PS5
-        if (selectedHasPS5) {
-          setAppliedCoupons((prev) => ({ ...prev, ps5: "NIT50" }));
-          if (
-            selectedHas8Ball &&
-            (!appliedCoupons["8ball"] || appliedCoupons["8ball"] !== "NIT99")
-          ) {
-            toast.info(
-              "💡 TIP: Apply NIT99 for your 8-Ball stations too — get those for ₹99/hour!"
-            );
-          }
-          toast.success(
-            "🔖 NIT50 applied on PS5! 50% OFF for PS5 (Happy Hours). 🎮"
-          );
-        } else {
-          toast.error(
-            "NIT50 can be used for PS5 only during Happy Hours.\nUse NIT99 for 8-Ball stations (₹99/hr)."
-          );
-        }
-        return;
-      } else {
-        // Outside happy hours, NIT50 applies to both types if present
-        if (!(selectedHas8Ball || selectedHasPS5)) {
-          toast.error(
-            "NIT50 can only be applied to PS5 or 8-Ball stations in your selection."
-          );
-          return;
-        }
-        setAppliedCoupons((prev) => {
-          let updated = { ...prev };
-          if (selectedHasPS5) updated["ps5"] = "NIT50";
-          if (selectedHas8Ball) updated["8ball"] = "NIT50";
-          return updated;
-        });
-        let msg = "🥳 NIT50 applied! 50% OFF for ";
-        if (selectedHasPS5 && selectedHas8Ball) msg += "PS5 & 8-Ball stations!";
-        else if (selectedHasPS5) msg += "PS5 stations!";
-        else msg += "8-Ball stations!";
-        toast.success(msg);
+      if (!(selectedHas8Ball || selectedHasPS5)) {
+        toast.error(
+          "NIT50 can only be applied to PS5 or 8-Ball stations in your selection."
+        );
         return;
       }
+      setAppliedCoupons((prev) => {
+        let updated = { ...prev };
+        if (selectedHasPS5) updated["ps5"] = "NIT50";
+        if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "NIT99" ? "NIT99" : "NIT50";
+        return updated;
+      });
+      let msg = "🎓 NIT50 applied! 50% OFF for ";
+      if (selectedHasPS5 && selectedHas8Ball) msg += "PS5 & 8-Ball stations!";
+      else if (selectedHasPS5) msg += "PS5 stations!";
+      else msg += "8-Ball stations!";
+      if (selectedHas8Ball && appliedCoupons["8ball"] === "NIT99" && happyHourActive) {
+        toast.info("💡 With both NIT50 and NIT99 applied: 8-Ball pool is just ₹99/hr (not 50% off), and PS5 remains at 50% OFF!");
+      } else {
+        toast.success(msg);
+      }
+      return;
     }
 
+    // ALMA50 always 50% off for both
     if (code === "ALMA50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
         toast.error(
@@ -539,36 +522,59 @@ export default function PublicBooking() {
     let totalDiscount = 0;
     const breakdown: Record<string, number> = {};
 
-    if (appliedCoupons["8ball"] === "NIT99") {
-      const eightBall = stations.filter(
+    // NIT99 stacked with NIT50: 8-ball at ₹99, PS5 at 50% off
+    if (
+      appliedCoupons["8ball"] === "NIT99" &&
+      appliedCoupons["ps5"] === "NIT50"
+    ) {
+      const eightBalls = stations.filter(
         (s) => selectedStations.includes(s.id) && s.type === "8ball"
       );
-      const sum = eightBall.reduce((x, s) => x + s.hourly_rate, 0);
-      const d = sum - eightBall.length * 99;
+      const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
+      const d = sum - eightBalls.length * 99;
       if (d > 0) {
         totalDiscount += d;
         breakdown["8-Ball (NIT99)"] = d;
       }
-    }
-
-    if (appliedCoupons["ps5"] === "NIT50" || appliedCoupons["ps5"] === "ALMA50") {
       const ps5s = stations.filter(
         (s) => selectedStations.includes(s.id) && s.type === "ps5"
       );
-      const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-      const d = sum * 0.5;
-      totalDiscount += d;
-      breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
-    }
+      const sum2 = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
+      const d2 = sum2 * 0.5;
+      totalDiscount += d2;
+      breakdown[`PS5 (NIT50)`] = d2;
+    } else {
+      if (appliedCoupons["8ball"] === "NIT99") {
+        const eightBalls = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "8ball"
+        );
+        const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = sum - eightBalls.length * 99;
+        if (d > 0) {
+          totalDiscount += d;
+          breakdown["8-Ball (NIT99)"] = d;
+        }
+      }
 
-    if (appliedCoupons["8ball"] === "NIT50" || appliedCoupons["8ball"] === "ALMA50") {
-      const balls = stations.filter(
-        (s) => selectedStations.includes(s.id) && s.type === "8ball"
-      );
-      const sum = balls.reduce((x, s) => x + s.hourly_rate, 0);
-      const d = sum * 0.5;
-      totalDiscount += d;
-      breakdown[`8-Ball (${appliedCoupons["8ball"]})`] = d;
+      if (appliedCoupons["8ball"] === "NIT50" || appliedCoupons["8ball"] === "ALMA50") {
+        const balls = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "8ball"
+        );
+        const sum = balls.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = sum * 0.5;
+        totalDiscount += d;
+        breakdown[`8-Ball (${appliedCoupons["8ball"]})`] = d;
+      }
+
+      if (appliedCoupons["ps5"] === "NIT50" || appliedCoupons["ps5"] === "ALMA50") {
+        const ps5s = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "ps5"
+        );
+        const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = sum * 0.5;
+        totalDiscount += d;
+        breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
+      }
     }
 
     return { total: totalDiscount, breakdown };
@@ -765,7 +771,7 @@ export default function PublicBooking() {
   }
 
   /* =========================
-     Today’s bookings
+     Today's bookings
      ========================= */
   function maskPhone(p?: string) {
     if (!p) return "";
@@ -821,7 +827,7 @@ export default function PublicBooking() {
       setTodayRows(rows);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to load today’s bookings");
+      toast.error("Failed to load today's bookings");
     } finally {
       setTodayLoading(false);
     }
@@ -1195,7 +1201,7 @@ export default function PublicBooking() {
                       <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
                     )}
                   </div>
-                  Step 3: Choose Date &amp; Time
+                  Step 3: Choose Date & Time
                   {isTimeSelectionAvailable() && selectedSlot && (
                     <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
                   )}
@@ -1346,20 +1352,42 @@ export default function PublicBooking() {
 
                   {Object.entries(appliedCoupons).length > 0 && (
                     <div className="mt-2 space-y-2">
-                      {Object.entries(appliedCoupons).map(([key, val]) => (
-                        <div
-                          key={key}
-                          className="bg-zinc-800/40 border border-zinc-700/50 rounded-lg flex items-center justify-between p-3 text-sm text-gray-200"
-                        >
-                          <div>{val}</div>
-                          <button
-                            onClick={() => removeCoupon(key)}
-                            className="ml-4 p-1 rounded-full hover:bg-white/20"
+                      {Object.entries(appliedCoupons).map(([key, val]) => {
+                        let emoji = "🏷️";
+                        if (val === "NIT99") emoji = "🎱";
+                        else if (val === "NIT50") emoji = "🎓";
+                        else if (val === "CUEPHORIA25") emoji = "🎉";
+                        else if (val === "CUEPHORIA50") emoji = "📚";
+                        else if (val === "ALMA50") emoji = "🏫";
+                        else if (val === "AXEIST") emoji = "🥷";
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center justify-between px-4 py-2 rounded-xl shadow-sm font-semibold"
+                            style={{
+                              background: "linear-gradient(90deg,#231743 10%,#181121 100%)",
+                              border: "1px solid #A37CFF",
+                              color: "#F7CBFF",
+                              letterSpacing: "1.5px"
+                            }}
                           >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">{emoji}</span>
+                              <span className="font-extrabold uppercase tracking-widest">{val}</span>
+                              <span className="ml-2 text-xs font-semibold text-green-400">
+                                Applied!
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => removeCoupon(key)}
+                              aria-label="Remove coupon"
+                              className="ml-2 p-1 hover:bg-[#3B2159] rounded-full"
+                            >
+                              <X className="h-4 w-4 text-purple-200" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1396,7 +1424,7 @@ export default function PublicBooking() {
                   </div>
                   {paymentMethod === "phonepe" && (
                     <p className="mt-2 text-[11px] text-gray-400">
-                      You’ll be redirected to PhonePe. Booking is created only after
+                      You'll be redirected to PhonePe. Booking is created only after
                       payment success.
                     </p>
                   )}
@@ -1523,13 +1551,13 @@ export default function PublicBooking() {
           </div>
         </section>
 
-        {/* Today’s bookings */}
+        {/* Today's bookings */}
         <div className="mt-10">
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-white flex items-center gap-2">
                 <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
-                Today’s Bookings
+                Today's Bookings
               </CardTitle>
               <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
                 {todayRows.length} total
@@ -1707,7 +1735,7 @@ export default function PublicBooking() {
               <h4 className="mt-4 text-white">Non-Cancellable Services</h4>
               <ul className="ml-5 list-disc">
                 <li>No cancellations for time-sensitive or non-refundable bookings.</li>
-                <li>Refunds/rescheduling may be considered if the session wasn’t provided as described.</li>
+                <li>Refunds/rescheduling may be considered if the session wasn't provided as described.</li>
               </ul>
 
               <h4 className="mt-4 text-white">Service Quality Issues</h4>
