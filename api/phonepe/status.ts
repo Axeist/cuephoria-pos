@@ -57,11 +57,15 @@ export default async function handler(req: Request) {
 
   try {
     const BASE = need("PHONEPE_BASE_URL");
-    const url = new URL(req.url);
     
-    const merchantOrderId = url.searchParams.get("merchantOrderId") ||
-      url.searchParams.get("merchantTransactionId") ||
-      url.searchParams.get("order");
+    // Extract query parameters safely without URL constructor
+    const urlParts = req.url.split('?');
+    const queryString = urlParts[1] || '';
+    const params = new URLSearchParams(queryString);
+    
+    const merchantOrderId = params.get("merchantOrderId") ||
+      params.get("merchantTransactionId") ||
+      params.get("order");
 
     console.log("🔍 Status check for order:", merchantOrderId);
 
