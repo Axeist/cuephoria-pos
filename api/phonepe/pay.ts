@@ -59,7 +59,6 @@ export default async function handler(req: Request) {
   try {
     const BASE = need("PHONEPE_BASE_URL");
     const MERCHANT_ID = need("PHONEPE_MERCHANT_ID");
-    const SITE_URL = need("NEXT_PUBLIC_SITE_URL");
     
     const payload = await req.json().catch(() => ({} as any));
     const { amount, customerPhone, merchantTransactionId } = payload || {};
@@ -72,10 +71,8 @@ export default async function handler(req: Request) {
 
     const orderId = merchantTransactionId || `CUE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-    // Construct redirect URLs properly
-    const baseUrl = SITE_URL.replace(/\/+$/, ''); // Remove trailing slashes
-    const returnEndpoint = `${baseUrl}/api/phonepe/return`;
-    
+    // Use string concatenation for redirect URLs - no URL constructor
+    const returnEndpoint = "https://admin.cuephoria.in/api/phonepe/return";
     const successRedirect = `${returnEndpoint}?order=${encodeURIComponent(orderId)}&status=success`;
     const failedRedirect = `${returnEndpoint}?order=${encodeURIComponent(orderId)}&status=failed`;
 
