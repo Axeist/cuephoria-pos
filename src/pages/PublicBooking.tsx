@@ -175,98 +175,97 @@ export default function PublicBooking() {
 
   // Enhanced PhonePe return handler
   useEffect(() => {
-    const handlePhonePeReturn = async () => {
+    const handlePaymentResult = async () => {
       const urlParams = new URLSearchParams(window.location.search);
-      const ppStatus = urlParams.get('pp');
+      const pp = urlParams.get('pp');
       const orderId = urlParams.get('order');
       const msg = urlParams.get('msg');
 
-      if (ppStatus && orderId) {
-        console.log("🎯 PhonePe return detected:", { ppStatus, orderId, msg });
-        setLoading(true);
+      // Only proceed if we have payment result parameters
+      if (!pp || !orderId) return;
+
+      console.log("🎯 Processing payment result:", { pp, orderId, msg });
+
+      setLoading(true);
+      toast.loading("Verifying payment status...", { id: 'payment-verify' });
+
+      try {
+        // Step 1: Always verify actual payment status from PhonePe
+        console.log("🔍 Verifying payment with PhonePe...");
         
-        if (ppStatus === 'success') {
-          toast.loading("Verifying payment...", { id: 'payment-verify' });
+        const statusRes = await fetch(`/api/phonepe/status?order=${encodeURIComponent(orderId)}`, {
+          headers: { "cache-control": "no-cache" }
+        });
+        
+        const statusData = await statusRes.json();
+        console.log("💳 Payment verification result:", statusData);
+        
+        toast.dismiss('payment-verify');
+        
+        if (statusData.ok && statusData.state === 'COMPLETED') {
+          // Step 2: Payment confirmed successful - create booking
+          toast.success("✅ Payment verified! Creating your booking...");
           
-          try {
-            // Double-verify payment status
-            const statusRes = await fetch(`/api/phonepe/status?order=${encodeURIComponent(orderId)}`);
-            const statusData = await statusRes.json();
-            
-            console.log("💳 Payment verification result:", statusData);
-            
-            if (statusData.ok && statusData.state === 'COMPLETED') {
-              toast.dismiss('payment-verify');
-              toast.success("Payment verified! Creating your booking...");
-              
-              const bookingDataStr = sessionStorage.getItem('pendingBookingData');
-              if (bookingDataStr) {
-                const bookingData = JSON.parse(bookingDataStr);
-                
-                const bookingRes = await fetch('/api/bookings/create', {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ ...bookingData, orderId })
-                });
-                
-                const bookingResult = await bookingRes.json();
-                
-                if (bookingResult.ok) {
-                  // Success! Show confirmation
-                  toast.success("🎉 Booking confirmed! Payment successful.");
-                  
-                  setBookingConfirmationData({
-                    bookingId: bookingResult.bookingId.slice(0, 8).toUpperCase(),
-                    customerName: bookingData.customerInfo.name,
-                    stationNames: stations
-                      .filter(s => bookingData.selectedStations.includes(s.id))
-                      .map(s => s.name),
-                    date: bookingData.selectedDate,
-                    startTime: new Date(`2000-01-01T${bookingData.selectedSlot.start_time}`).toLocaleTimeString(
-                      "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
-                    ),
-                    endTime: new Date(`2000-01-01T${bookingData.selectedSlot.end_time}`).toLocaleTimeString(
-                      "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
-                    ),
-                    totalAmount: bookingData.finalPrice,
-                    couponCode: Object.values(bookingData.appliedCoupons).join(",") || undefined,
-                    discountAmount: bookingData.discount > 0 ? bookingData.discount : undefined,
-                  });
-                  setShowConfirmationDialog(true);
-                  
-                  sessionStorage.removeItem('pendingBookingData');
-                  resetForm();
-                } else {
-                  throw new Error(bookingResult.error || "Booking creation failed");
-                }
-              } else {
-                throw new Error("No booking data found in session");
-              }
-            } else {
-              throw new Error(`Payment not completed: ${statusData.state || 'Unknown state'}`);
-            }
-          } catch (error: any) {
-            console.error("❌ Payment success handling error:", error);
-            toast.dismiss('payment-verify');
-            toast.error(`Payment verification failed: ${error.message}. Contact support with Order ID: ${orderId}`);
+          const bookingDataStr = sessionStorage.getItem('pendingBookingData');
+          if (!bookingDataStr) {
+            throw new Error("No booking data found. Please try booking again.");
           }
           
-        } else if (ppStatus === 'failed') {
-          // Handle failed/cancelled payments
-          let errorMessage = "Payment was cancelled or failed.";
+          const bookingData = JSON.parse(bookingDataStr);
+          console.log("📝 Creating booking with data:", bookingData);
           
-          if (msg === "missing-order-id") {
-            errorMessage = "Payment session expired. Please try booking again.";
-          } else if (msg === "return-error") {
-            errorMessage = "Payment processing error. If amount was debited, contact support.";
+          const bookingRes = await fetch('/api/bookings/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              ...bookingData, 
+              orderId: orderId 
+            }),
+          });
+          
+          const bookingResult = await bookingRes.json();
+          console.log("🎫 Booking creation result:", bookingResult);
+          
+          if (bookingResult.ok) {
+            // Step 3: Booking created successfully
+            toast.success("🎉 Booking confirmed! Payment successful.");
+            
+            // Show confirmation dialog
+            setBookingConfirmationData({
+              bookingId: bookingResult.bookingId.slice(0, 8).toUpperCase(),
+              customerName: bookingData.customerInfo.name,
+              stationNames: stations
+                .filter(s => bookingData.selectedStations.includes(s.id))
+                .map(s => s.name),
+              date: bookingData.selectedDate,
+              startTime: new Date(`2000-01-01T${bookingData.selectedSlot.start_time}`).toLocaleTimeString(
+                "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
+              ),
+              endTime: new Date(`2000-01-01T${bookingData.selectedSlot.end_time}`).toLocaleTimeString(
+                "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
+              ),
+              totalAmount: bookingData.finalPrice,
+              couponCode: Object.values(bookingData.appliedCoupons || {}).join(",") || undefined,
+              discountAmount: bookingData.discount > 0 ? bookingData.discount : undefined,
+            });
+            setShowConfirmationDialog(true);
+            
+            // Clean up
+            sessionStorage.removeItem('pendingBookingData');
+            resetForm();
+            
+          } else {
+            throw new Error(bookingResult.error || "Failed to create booking");
           }
           
-          toast.error(errorMessage);
+        } else if (statusData.state === 'FAILED') {
+          // Payment failed
+          toast.error("❌ Payment failed. Please try booking again.");
           sessionStorage.removeItem('pendingBookingData');
           
-          // Show retry option
+          // Show retry options
           setTimeout(() => {
-            toast.info("💡 You can try booking again or use 'Pay at Venue' option.", {
+            toast.info("💡 You can try again or choose 'Pay at Venue' option.", {
               duration: 5000,
               action: {
                 label: "Try Again",
@@ -275,14 +274,20 @@ export default function PublicBooking() {
             });
           }, 2000);
           
-        } else if (ppStatus === 'pending') {
-          toast.warning("⏳ Payment status is pending. We'll confirm once processed.");
+        } else if (statusData.state === 'PENDING') {
+          // Payment still processing
+          toast.warning("⏳ Payment is still processing. We'll update you once confirmed.");
           
-          setTimeout(() => {
-            toast.info("Check your email/SMS for payment confirmation or contact support.");
-          }, 3000);
+        } else {
+          // Unknown status
+          toast.error(`Payment status unclear: ${statusData.state || 'Unknown'}. Contact support with Order ID: ${orderId}`);
         }
         
+      } catch (error: any) {
+        console.error("❌ Payment verification error:", error);
+        toast.dismiss('payment-verify');
+        toast.error(`Payment verification failed: ${error.message}. Contact support with Order ID: ${orderId}`);
+      } finally {
         setLoading(false);
         
         // Clean up URL parameters
@@ -290,7 +295,8 @@ export default function PublicBooking() {
       }
     };
 
-    handlePhonePeReturn();
+    // Run payment verification when component loads
+    handlePaymentResult();
   }, [stations]);
 
   /* =========================
