@@ -1,8 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Remove edge runtime to allow Supabase client
-// export const config = { runtime: "edge" }; // DELETE THIS LINE IF IT EXISTS
-
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
     status,
@@ -17,6 +14,8 @@ export default async function handler(req: Request) {
 
   try {
     const payload = await req.json();
+    console.log("📝 Received booking payload:", payload);
+
     const { 
       customerInfo, 
       selectedStations, 
@@ -26,38 +25,63 @@ export default async function handler(req: Request) {
       discount, 
       finalPrice, 
       appliedCoupons,
-      orderId
+      orderId,
+      payment_mode = "venue"
     } = payload;
 
-    console.log("📝 Creating booking for order:", orderId);
-
+    // Validate required fields
     if (!customerInfo || !selectedStations || !selectedDate || !selectedSlot) {
+      console.error("❌ Missing required booking data:", {
+        hasCustomerInfo: !!customerInfo,
+        hasSelectedStations: !!selectedStations,
+        hasSelectedDate: !!selectedDate,
+        hasSelectedSlot: !!selectedSlot
+      });
       return j({ ok: false, error: "Missing required booking data" }, 400);
     }
 
     // Create customer if new
     let customerId = customerInfo.id;
     if (!customerId) {
-      const { data: newCustomer, error: customerError } = await supabase
+      console.log("🔍 Searching for existing customer with phone:", customerInfo.phone);
+      
+      const { data: existingCustomer, error: searchError } = await supabase
         .from("customers")
-        .insert({
-          name: customerInfo.name,
-          phone: customerInfo.phone,
-          email: customerInfo.email || null,
-          is_member: false,
-          loyalty_points: 0,
-          total_spent: 0,
-          total_play_time: 0,
-        })
         .select("id")
+        .eq("phone", customerInfo.phone)
         .single();
       
-      if (customerError) {
-        console.error("❌ Customer creation failed:", customerError);
-        throw customerError;
+      if (searchError && searchError.code !== "PGRST116") {
+        console.error("❌ Customer search error:", searchError);
+        return j({ ok: false, error: "Customer search failed" }, 500);
       }
-      customerId = newCustomer.id;
-      console.log("✅ New customer created:", customerId);
+
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+        console.log("✅ Found existing customer:", customerId);
+      } else {
+        console.log("👤 Creating new customer");
+        const { data: newCustomer, error: customerError } = await supabase
+          .from("customers")
+          .insert({
+            name: customerInfo.name,
+            phone: customerInfo.phone,
+            email: customerInfo.email || null,
+            is_member: false,
+            loyalty_points: 0,
+            total_spent: 0,
+            total_play_time: 0,
+          })
+          .select("id")
+          .single();
+        
+        if (customerError) {
+          console.error("❌ Customer creation failed:", customerError);
+          return j({ ok: false, error: "Failed to create customer" }, 500);
+        }
+        customerId = newCustomer.id;
+        console.log("✅ New customer created:", customerId);
+      }
     }
 
     // Create booking records
@@ -66,17 +90,19 @@ export default async function handler(req: Request) {
       station_id: stationId,
       customer_id: customerId,
       booking_date: selectedDate,
-      start_time: selectedSlot.start_time,
-      end_time: selectedSlot.end_time,
+      start_time: selectedSlot.start_time, // Fixed field name
+      end_time: selectedSlot.end_time, // Fixed field name
       duration: 60,
       status: "confirmed",
       original_price: originalPrice || 0,
       discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
       final_price: finalPrice || 0,
       coupon_code: couponCodes || null,
-      payment_mode: 'phonepe',
-      payment_txn_id: orderId,
+      payment_mode: payment_mode,
+      payment_txn_id: orderId || null,
     }));
+
+    console.log("💾 Inserting booking records:", rows.length, "records");
 
     const { data: inserted, error: bookingError } = await supabase
       .from("bookings")
@@ -85,7 +111,7 @@ export default async function handler(req: Request) {
 
     if (bookingError) {
       console.error("❌ Booking creation failed:", bookingError);
-      throw bookingError;
+      return j({ ok: false, error: "Failed to create booking", details: bookingError.message }, 500);
     }
 
     console.log("✅ Booking created successfully:", inserted.length, "records");
@@ -97,10 +123,11 @@ export default async function handler(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("💥 Booking creation error:", error);
+    console.error("💥 Unexpected booking creation error:", error);
     return j({ 
       ok: false, 
-      error: error.message || "Failed to create booking" 
+      error: "Unexpected error occurred",
+      details: error.message
     }, 500);
   }
 }
