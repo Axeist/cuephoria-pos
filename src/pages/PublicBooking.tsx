@@ -173,132 +173,6 @@ export default function PublicBooking() {
     }
   }, [selectedStations, selectedDate]);
 
-  // Enhanced PhonePe return handler
-  useEffect(() => {
-    const handlePaymentResult = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const pp = urlParams.get('pp');
-      const orderId = urlParams.get('order');
-      const msg = urlParams.get('msg');
-
-      // Only proceed if we have payment result parameters
-      if (!pp || !orderId) return;
-
-      console.log("🎯 Processing payment result:", { pp, orderId, msg });
-
-      setLoading(true);
-      toast.loading("Verifying payment status...", { id: 'payment-verify' });
-
-      try {
-        // Step 1: Always verify actual payment status from PhonePe
-        console.log("🔍 Verifying payment with PhonePe...");
-        
-        const statusRes = await fetch(`/api/phonepe/status?order=${encodeURIComponent(orderId)}`, {
-          headers: { "cache-control": "no-cache" }
-        });
-        
-        const statusData = await statusRes.json();
-        console.log("💳 Payment verification result:", statusData);
-        
-        toast.dismiss('payment-verify');
-        
-        if (statusData.ok && statusData.state === 'COMPLETED') {
-          // Step 2: Payment confirmed successful - create booking
-          toast.success("✅ Payment verified! Creating your booking...");
-          
-          const bookingDataStr = sessionStorage.getItem('pendingBookingData');
-          if (!bookingDataStr) {
-            throw new Error("No booking data found. Please try booking again.");
-          }
-          
-          const bookingData = JSON.parse(bookingDataStr);
-          console.log("📝 Creating booking with data:", bookingData);
-          
-          const bookingRes = await fetch('/api/bookings/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              ...bookingData, 
-              orderId: orderId 
-            }),
-          });
-          
-          const bookingResult = await bookingRes.json();
-          console.log("🎫 Booking creation result:", bookingResult);
-          
-          if (bookingResult.ok) {
-            // Step 3: Booking created successfully
-            toast.success("🎉 Booking confirmed! Payment successful.");
-            
-            // Show confirmation dialog
-            setBookingConfirmationData({
-              bookingId: bookingResult.bookingId.slice(0, 8).toUpperCase(),
-              customerName: bookingData.customerInfo.name,
-              stationNames: stations
-                .filter(s => bookingData.selectedStations.includes(s.id))
-                .map(s => s.name),
-              date: bookingData.selectedDate,
-              startTime: new Date(`2000-01-01T${bookingData.selectedSlot.start_time}`).toLocaleTimeString(
-                "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
-              ),
-              endTime: new Date(`2000-01-01T${bookingData.selectedSlot.end_time}`).toLocaleTimeString(
-                "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
-              ),
-              totalAmount: bookingData.finalPrice,
-              couponCode: Object.values(bookingData.appliedCoupons || {}).join(",") || undefined,
-              discountAmount: bookingData.discount > 0 ? bookingData.discount : undefined,
-            });
-            setShowConfirmationDialog(true);
-            
-            // Clean up
-            sessionStorage.removeItem('pendingBookingData');
-            resetForm();
-            
-          } else {
-            throw new Error(bookingResult.error || "Failed to create booking");
-          }
-          
-        } else if (statusData.state === 'FAILED') {
-          // Payment failed
-          toast.error("❌ Payment failed. Please try booking again.");
-          sessionStorage.removeItem('pendingBookingData');
-          
-          // Show retry options
-          setTimeout(() => {
-            toast.info("💡 You can try again or choose 'Pay at Venue' option.", {
-              duration: 5000,
-              action: {
-                label: "Try Again",
-                onClick: () => resetForm()
-              }
-            });
-          }, 2000);
-          
-        } else if (statusData.state === 'PENDING') {
-          // Payment still processing
-          toast.warning("⏳ Payment is still processing. We'll update you once confirmed.");
-          
-        } else {
-          // Unknown status
-          toast.error(`Payment status unclear: ${statusData.state || 'Unknown'}. Contact support with Order ID: ${orderId}`);
-        }
-        
-      } catch (error: any) {
-        console.error("❌ Payment verification error:", error);
-        toast.dismiss('payment-verify');
-        toast.error(`Payment verification failed: ${error.message}. Contact support with Order ID: ${orderId}`);
-      } finally {
-        setLoading(false);
-        
-        // Clean up URL parameters
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    };
-
-    // Run payment verification when component loads
-    handlePaymentResult();
-  }, [stations]);
-
   /* =========================
      Helper Functions
      ========================= */
@@ -771,6 +645,7 @@ export default function PublicBooking() {
         discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
         final_price: finalPrice,
         coupon_code: couponCodes || null,
+        payment_mode: 'venue',
       }));
 
       const { data: inserted, error: bookingError } = await supabase
@@ -812,7 +687,7 @@ export default function PublicBooking() {
   }
 
   /* =========================
-     PhonePe payment
+     PhonePe payment (Updated for your success/failure pages)
      ========================= */
   const initiatePhonePe = async () => {
     if (finalPrice <= 0) {
@@ -824,18 +699,27 @@ export default function PublicBooking() {
       return;
     }
 
-    // Store booking data in sessionStorage before payment
+    // Store booking data in localStorage (matching your PublicPaymentSuccess format)
     const bookingData = {
-      customerInfo,
       selectedStations,
-      selectedDate: format(selectedDate, "yyyy-MM-dd"),
-      selectedSlot,
-      originalPrice,
-      discount,
-      finalPrice,
-      appliedCoupons,
+      selectedDateISO: format(selectedDate, "yyyy-MM-dd"), // Match your success page format
+      start_time: selectedSlot!.start_time,
+      end_time: selectedSlot!.end_time,
+      customer: {
+        id: customerInfo.id,
+        name: customerInfo.name,
+        phone: customerInfo.phone,
+        email: customerInfo.email,
+      },
+      pricing: {
+        original: originalPrice,
+        discount: discount,
+        final: finalPrice,
+        coupons: Object.values(appliedCoupons).join(","),
+      }
     };
-    sessionStorage.setItem('pendingBookingData', JSON.stringify(bookingData));
+    
+    localStorage.setItem('pendingBooking', JSON.stringify(bookingData));
 
     const txnId = genTxnId();
     setLoading(true);
@@ -872,9 +756,11 @@ export default function PublicBooking() {
       // Handle errors
       const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
       toast.error(`Could not start PhonePe payment: ${apiErr}`);
+      localStorage.removeItem('pendingBooking');
     } catch (e: any) {
       console.error("💥 Payment initiation error:", e);
       toast.error(`Unable to start payment: ${e?.message || e}`);
+      localStorage.removeItem('pendingBooking');
     } finally {
       setLoading(false);
     }
@@ -914,13 +800,12 @@ export default function PublicBooking() {
     
     setManualCheckLoading(true);
     try {
-      const statusRes = await fetch(`/api/phonepe/status?order=${encodeURIComponent(orderId.trim())}`);
+      const statusRes = await fetch(`/api/phonepe/status?txn=${encodeURIComponent(orderId.trim())}`);
       const statusData = await statusRes.json();
       
       if (statusData.ok) {
         if (statusData.state === 'COMPLETED') {
-          toast.success("✅ Payment found and completed! Processing booking...");
-          // You could trigger the booking creation flow here if needed
+          toast.success("✅ Payment found and completed!");
         } else if (statusData.state === 'FAILED') {
           toast.error("❌ Payment failed or was cancelled.");
         } else {
@@ -1590,8 +1475,7 @@ export default function PublicBooking() {
                   </div>
                   {paymentMethod === "phonepe" && (
                     <p className="mt-2 text-[11px] text-gray-400">
-                      You'll be redirected to PhonePe. Booking is created only after
-                      payment success.
+                      You'll be redirected to PhonePe then to a success/failure page.
                     </p>
                   )}
                 </div>
