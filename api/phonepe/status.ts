@@ -63,7 +63,7 @@ export default async function handler(req: Request) {
       url.searchParams.get("merchantTransactionId") ||
       url.searchParams.get("order");
 
-    console.log("Status check for order:", merchantOrderId);
+    console.log("🔍 Status check requested for order:", merchantOrderId);
 
     if (!merchantOrderId) {
       return j(
@@ -83,9 +83,10 @@ export default async function handler(req: Request) {
     let data: any = {};
     try { data = JSON.parse(text); } catch {}
 
-    console.log("Status response:", { status: r.status, data });
+    console.log("📊 Status response:", { status: r.status, orderId: merchantOrderId });
 
     if (!r.ok) {
+      console.error("❌ Status check failed:", data);
       return j({ ok: false, status: r.status, body: data ?? text }, 502);
     }
 
@@ -93,10 +94,12 @@ export default async function handler(req: Request) {
     const code = data?.code || data?.data?.code || data?.payload?.code || null;
     const paymentInstrument = data?.paymentInstrument || data?.data?.paymentInstrument || data?.payload?.paymentInstrument || null;
 
+    console.log(`✅ Status retrieved: ${state} for order: ${merchantOrderId}`);
+
     return j({ ok: true, state, code, paymentInstrument, raw: data });
 
   } catch (err: any) {
-    console.error("Status check error:", err);
+    console.error("❌ Status check error:", err);
     return j({ ok: false, error: String(err?.message || err) }, 500);
   }
 }
