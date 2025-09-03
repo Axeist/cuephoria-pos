@@ -608,57 +608,47 @@ export default function PublicBooking() {
     isStationSelectionAvailable() && selectedStations.length > 0;
 
   /* =========================
-     Create booking (Pay at venue)
+     Create booking (Pay at venue) - FIXED VERSION
      ========================= */
   async function createVenueBooking() {
     setLoading(true);
     try {
-      let customerId = customerInfo.id;
-      if (!customerId) {
-        const { data: newCustomer, error: customerError } = await supabase
-          .from("customers")
-          .insert({
-            name: customerInfo.name,
-            phone: customerInfo.phone,
-            email: customerInfo.email || null,
-            is_member: false,
-            loyalty_points: 0,
-            total_spent: 0,
-            total_play_time: 0,
-          })
-          .select("id")
-          .single();
-        if (customerError) throw customerError;
-        customerId = newCustomer.id;
+      // Prepare booking data for API call - same format as PhonePe
+      const bookingData = {
+        customerInfo,
+        selectedStations,
+        selectedDate: format(selectedDate, "yyyy-MM-dd"),
+        selectedSlot, // This contains start_time and end_time
+        originalPrice,
+        discount,
+        finalPrice,
+        appliedCoupons,
+        payment_mode: "venue", // Important: specify venue payment
+      };
+
+      console.log("📝 Creating venue booking:", bookingData);
+
+      // Call the same API that PhonePe uses for consistency
+      const bookingRes = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookingData),
+      });
+
+      const bookingResult = await bookingRes.json();
+      console.log("🎫 Venue booking result:", bookingResult);
+
+      if (!bookingResult.ok) {
+        throw new Error(bookingResult.error || "Failed to create booking");
       }
 
-      const couponCodes = Object.values(appliedCoupons).join(",");
-      const rows = selectedStations.map((stationId) => ({
-        station_id: stationId,
-        customer_id: customerId!,
-        booking_date: format(selectedDate, "yyyy-MM-dd"),
-        start_time: selectedSlot!.start_time,
-        end_time: selectedSlot!.end_time,
-        duration: 60,
-        status: "confirmed",
-        original_price: originalPrice,
-        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-        final_price: finalPrice,
-        coupon_code: couponCodes || null,
-        payment_mode: 'venue',
-      }));
-
-      const { data: inserted, error: bookingError } = await supabase
-        .from("bookings")
-        .insert(rows)
-        .select("id");
-      if (bookingError) throw bookingError;
-
+      // Show success confirmation
       const stationObjects = stations.filter((s) =>
         selectedStations.includes(s.id)
       );
+
       setBookingConfirmationData({
-        bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
+        bookingId: bookingResult.bookingId.slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
         stationNames: stationObjects.map((s) => s.name),
         date: format(selectedDate, "yyyy-MM-dd"),
@@ -671,16 +661,18 @@ export default function PublicBooking() {
           { hour: "numeric", minute: "2-digit", hour12: true }
         ),
         totalAmount: finalPrice,
-        couponCode: couponCodes || undefined,
+        couponCode: Object.values(appliedCoupons).join(",") || undefined,
         discountAmount: discount > 0 ? discount : undefined,
       });
       setShowConfirmationDialog(true);
 
       // Reset form
       resetForm();
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to create booking. Please try again.");
+      toast.success("🎉 Booking confirmed! Payment will be collected at venue.");
+
+    } catch (e: any) {
+      console.error("💥 Venue booking error:", e);
+      toast.error(e.message || "Failed to create booking. Please try again.");
     } finally {
       setLoading(false);
     }
