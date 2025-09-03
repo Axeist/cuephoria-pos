@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Remove edge runtime to allow Supabase client
+// Use Node.js runtime for Supabase compatibility
 // export const config = { runtime: "edge" }; // DELETE THIS LINE
 
 function j(res: unknown, status = 200) {
@@ -29,7 +29,11 @@ export default async function handler(req: Request) {
       orderId
     } = payload;
 
-    console.log("📝 Creating booking for PhonePe order:", orderId);
+    console.log("📝 Creating booking for order:", orderId);
+
+    if (!customerInfo || !selectedStations || !selectedDate || !selectedSlot) {
+      return j({ ok: false, error: "Missing required booking data" }, 400);
+    }
 
     // Create customer if new
     let customerId = customerInfo.id;
@@ -57,7 +61,7 @@ export default async function handler(req: Request) {
     }
 
     // Create booking records
-    const couponCodes = Object.values(appliedCoupons).join(",");
+    const couponCodes = appliedCoupons ? Object.values(appliedCoupons).join(",") : "";
     const rows = selectedStations.map((stationId: string) => ({
       station_id: stationId,
       customer_id: customerId,
@@ -66,9 +70,9 @@ export default async function handler(req: Request) {
       end_time: selectedSlot.end_time,
       duration: 60,
       status: "confirmed",
-      original_price: originalPrice,
+      original_price: originalPrice || 0,
       discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-      final_price: finalPrice,
+      final_price: finalPrice || 0,
       coupon_code: couponCodes || null,
     }));
 
