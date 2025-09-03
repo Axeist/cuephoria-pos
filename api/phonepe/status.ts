@@ -1,41 +1,119 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '../../src/integrations/supabase/client';
+export const config = { runtime: "edge" };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+function j(res: unknown, status = 200) {
+  return new Response(JSON.stringify(res), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store, max-age=0",
+    },
+  });
+}
+
+function need(name: string) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
+
+async function oauthToken() {
+  const AUTH_BASE = need("PHONEPE_AUTH_BASE");
+  const CLIENT_ID = need("PHONEPE_CLIENT_ID");
+  const CLIENT_SECRET = need("PHONEPE_CLIENT_SECRET");
+  const CLIENT_VERSION = need("PHONEPE_CLIENT_VERSION");
+  
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    client_version: CLIENT_VERSION,
+  });
+
+  const r = await fetch(`${AUTH_BASE}/v1/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+
+  const text = await r.text();
+  let data: any = {};
+  try { data = JSON.parse(text); } catch {}
+
+  if (!r.ok) {
+    throw new Error(`oauth ${r.status}: ${typeof data === "object" ? JSON.stringify(data) : text}`);
   }
 
-  const { txn } = req.query;
-  if (!txn || typeof txn !== 'string') {
-    return res.status(400).json({ ok: false, error: 'Transaction ID is required' });
+  const token = data?.access_token || data?.encrypted_access_token;
+  const type = data?.token_type || "O-Bearer";
+  if (!token) throw new Error(`oauth OK but no token in response: ${text}`);
+  
+  return { authz: `${type} ${token}` };
+}
+
+export default async function handler(req: Request) {
+  if (req.method !== "GET") {
+    return j({ ok: false, error: "Method not allowed" }, 405);
   }
 
   try {
-    console.log('🔍 Checking payment status for transaction:', txn);
+    const BASE = need("PHONEPE_BASE_URL");
+    
+    // Extract query parameters safely without URL constructor
+    const urlParts = req.url.split('?');
+    const queryString = urlParts[1] || '';
+    const params = new URLSearchParams(queryString);
+    
+    // Support both txn and order parameters for compatibility
+    const merchantOrderId = params.get("merchantOrderId") ||
+      params.get("merchantTransactionId") ||
+      params.get("order") ||
+      params.get("txn");
 
-    // Query payment status from database
-    const { data, error } = await supabase
-      .from('payments')
-      .select('status, amount, created_at')
-      .eq('transaction_id', txn)
-      .single();
+    console.log("🔍 Status check for order:", merchantOrderId);
 
-    if (error) {
-      console.error('Database query error:', error);
-      return res.status(404).json({ ok: false, error: 'Transaction not found' });
+    if (!merchantOrderId) {
+      return j({ ok: false, error: "Missing order ID parameter" }, 400);
     }
 
-    const state = data?.status || 'UNKNOWN';
-    
-    res.status(200).json({ 
+    const { authz } = await oauthToken();
+
+    const r = await fetch(
+      `${BASE}/checkout/v2/order/${encodeURIComponent(merchantOrderId)}/status`,
+      { 
+        headers: { authorization: authz },
+        signal: AbortSignal.timeout(10000)
+      }
+    );
+
+    const text = await r.text();
+    let data: any = {};
+    try { data = JSON.parse(text); } catch {}
+
+    console.log("📊 Status response:", { status: r.status, orderId: merchantOrderId });
+
+    if (!r.ok) {
+      console.error("❌ Status check failed:", data);
+      return j({ ok: false, status: r.status, body: data }, 502);
+    }
+
+    const state = data?.state || data?.data?.state || data?.payload?.state || "UNKNOWN";
+    const code = data?.code || data?.data?.code || data?.payload?.code || null;
+    const paymentInstrument = data?.paymentInstrument || data?.data?.paymentInstrument || null;
+
+    console.log(`✅ Status: ${state} for order: ${merchantOrderId}`);
+
+    // Return success in format your PublicPaymentSuccess expects
+    return j({ 
       ok: true, 
-      state,
-      amount: data.amount,
-      created_at: data.created_at
+      success: state === 'COMPLETED',
+      state, 
+      code, 
+      paymentInstrument, 
+      raw: data 
     });
-  } catch (error) {
-    console.error('❌ Payment status check error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to get payment status' });
+
+  } catch (err: any) {
+    console.error("❌ Status check error:", err);
+    return j({ ok: false, error: String(err?.message || err) }, 500);
   }
 }

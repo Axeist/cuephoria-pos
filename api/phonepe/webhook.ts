@@ -1,71 +1,90 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { buffer } from 'micro';
-import { supabase } from '../../src/integrations/supabase/client';
-
-// IMPORTANT: Disable body parser to read raw body
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+export default async function handler(req: Request) {
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
   }
 
   try {
-    console.log('📥 PhonePe webhook received:', {
+    console.log("📥 PhonePe webhook received:", {
       method: req.method,
       timestamp: new Date().toISOString(),
-      url: req.url
+      url: req.url,
     });
 
-    console.log('🔐 Headers:', req.headers);
-    console.log('🔐 Authorization header:', req.headers.authorization);
-
-    // Validate authorization header (optional but recommended)
-    const authHeader = req.headers.authorization;
-    const expectedAuth = process.env.PHONEPE_WEBHOOK_SECRET;
+    // Handle headers properly - works for both Headers object and plain object
+    let headersObj: Record<string, string> = {};
     
-    if (expectedAuth && authHeader !== expectedAuth) {
-      console.error('❌ Unauthorized webhook call');
-      return res.status(401).json({ error: 'Unauthorized' });
+    if (req.headers && typeof req.headers.forEach === 'function') {
+      // Headers instance (Edge Runtime)
+      req.headers.forEach((value, key) => {
+        headersObj[key] = value;
+      });
+    } else if (req.headers && typeof req.headers === 'object') {
+      // Plain object (Node.js)
+      headersObj = { ...req.headers as any };
+    }
+    
+    console.log("🔐 Headers:", headersObj);
+
+    // Get Authorization header
+    const authHeader = headersObj['authorization'] || headersObj['Authorization'] || req.headers.get?.('authorization');
+    console.log("🔐 Authorization header:", authHeader);
+
+    const body = await req.text();
+    console.log("📄 Webhook payload:", body);
+
+    let webhookData: any = null;
+    try {
+      webhookData = JSON.parse(body);
+      console.log("✅ Parsed webhook:", JSON.stringify(webhookData, null, 2));
+    } catch (e) {
+      console.error("❌ Failed to parse webhook body:", e);
     }
 
-    // Get raw body using buffer from micro
-    const rawBody = await buffer(req);
-    const bodyText = rawBody.toString('utf8');
-    
-    console.log('📦 Raw body:', bodyText);
-
-    // Parse JSON from raw body
-    const webhookData = JSON.parse(bodyText);
-    console.log('🎯 Parsed webhook data:', webhookData);
-
-    // TODO: Process webhook data based on PhonePe's webhook structure
-    // Example webhook processing:
-    /*
-    if (webhookData.event === 'checkout.order.completed') {
-      const transactionId = webhookData.payload.merchantTransactionId;
-      const status = webhookData.payload.state; // SUCCESS, FAILED, etc.
+    if (webhookData) {
+      const event = webhookData.event;
+      const payload = webhookData.payload;
       
-      // Update payment status in database
-      const { error } = await supabase
-        .from('payments')
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq('transaction_id', transactionId);
-      
-      if (error) {
-        console.error('Failed to update payment status:', error);
+      if (payload) {
+        const orderId = payload.merchantOrderId || payload.orderId;
+        const state = payload.state;
+        const amount = payload.amount;
+        
+        console.log(`💳 Webhook Event: ${event} | Order: ${orderId} | State: ${state} | Amount: ${amount}`);
+        
+        // Log different event types
+        switch (event) {
+          case 'checkout.order.completed':
+            console.log("✅ Payment completed successfully");
+            break;
+          case 'checkout.order.failed':
+            console.log("❌ Payment failed or cancelled");
+            break;
+          case 'pg.refund.accepted':
+            console.log("💰 Refund request accepted");
+            break;
+          case 'pg.refund.completed':
+            console.log("✅ Refund completed");
+            break;
+          case 'pg.refund.failed':
+            console.log("❌ Refund failed");
+            break;
+          default:
+            console.log("ℹ️ Unknown event type:", event);
+        }
       }
     }
-    */
 
-    res.status(200).json({ success: true, received: true });
+    // Always respond 200 OK quickly
+    return new Response("OK", { 
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain'
+      }
+    });
 
   } catch (error) {
-    console.error('❌ Webhook error:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
+    console.error("❌ Webhook error:", error);
+    // Still return 200 to prevent PhonePe retries
+    return new Response("OK", { status: 200 });
   }
 }
