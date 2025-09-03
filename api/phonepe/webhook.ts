@@ -7,7 +7,12 @@ export default async function handler(req: Request) {
     console.log("📥 PhonePe webhook received:", {
       method: req.method,
       headers: Object.fromEntries(req.headers.entries()),
+      timestamp: new Date().toISOString(),
     });
+
+    // Get Authorization header for validation
+    const authHeader = req.headers.get('authorization');
+    console.log("🔐 Authorization header:", authHeader);
 
     const body = await req.text();
     console.log("📄 Webhook payload:", body);
@@ -29,15 +34,42 @@ export default async function handler(req: Request) {
         const state = payload.state;
         const amount = payload.amount;
         
-        console.log(`💳 Webhook: ${event} | Order: ${orderId} | State: ${state} | Amount: ${amount}`);
+        console.log(`💳 Webhook Event: ${event} | Order: ${orderId} | State: ${state} | Amount: ${amount}`);
+        
+        // Log different event types
+        switch (event) {
+          case 'checkout.order.completed':
+            console.log("✅ Payment completed successfully");
+            break;
+          case 'checkout.order.failed':
+            console.log("❌ Payment failed or cancelled");
+            break;
+          case 'pg.refund.accepted':
+            console.log("💰 Refund request accepted");
+            break;
+          case 'pg.refund.completed':
+            console.log("✅ Refund completed");
+            break;
+          case 'pg.refund.failed':
+            console.log("❌ Refund failed");
+            break;
+          default:
+            console.log("ℹ️ Unknown event type:", event);
+        }
       }
     }
 
     // Always respond 200 OK quickly
-    return new Response("OK", { status: 200 });
+    return new Response("OK", { 
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain'
+      }
+    });
 
   } catch (error) {
     console.error("❌ Webhook error:", error);
+    // Still return 200 to prevent PhonePe retries
     return new Response("OK", { status: 200 });
   }
 }
