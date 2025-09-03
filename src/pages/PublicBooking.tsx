@@ -172,6 +172,91 @@ export default function PublicBooking() {
     }
   }, [selectedStations, selectedDate]);
 
+  // PhonePe return handler
+  useEffect(() => {
+    const handlePhonePeReturn = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ppStatus = urlParams.get('pp');
+      const orderId = urlParams.get('order');
+
+      if (ppStatus && orderId) {
+        console.log("PhonePe return detected:", { ppStatus, orderId });
+        
+        if (ppStatus === 'success') {
+          try {
+            // Verify payment status
+            const statusRes = await fetch(`/api/phonepe/status?order=${encodeURIComponent(orderId)}`);
+            const statusData = await statusRes.json();
+            
+            console.log("Payment verification:", statusData);
+            
+            if (statusData.ok && statusData.state === 'COMPLETED') {
+              // Get stored booking data
+              const bookingDataStr = sessionStorage.getItem('pendingBookingData');
+              if (bookingDataStr) {
+                const bookingData = JSON.parse(bookingDataStr);
+                
+                // Create booking via API
+                const bookingRes = await fetch('/api/bookings/create', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ ...bookingData, orderId })
+                });
+                
+                const bookingResult = await bookingRes.json();
+                
+                if (bookingResult.ok) {
+                  toast.success("🎉 Payment successful! Your booking has been confirmed.");
+                  
+                  // Show confirmation dialog
+                  setBookingConfirmationData({
+                    bookingId: bookingResult.bookingId.slice(0, 8).toUpperCase(),
+                    customerName: bookingData.customerInfo.name,
+                    stationNames: stations
+                      .filter(s => bookingData.selectedStations.includes(s.id))
+                      .map(s => s.name),
+                    date: bookingData.selectedDate,
+                    startTime: new Date(`2000-01-01T${bookingData.selectedSlot.start_time}`).toLocaleTimeString(
+                      "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
+                    ),
+                    endTime: new Date(`2000-01-01T${bookingData.selectedSlot.end_time}`).toLocaleTimeString(
+                      "en-US", { hour: "numeric", minute: "2-digit", hour12: true }
+                    ),
+                    totalAmount: bookingData.finalPrice,
+                    couponCode: Object.values(bookingData.appliedCoupons).join(",") || undefined,
+                    discountAmount: bookingData.discount > 0 ? bookingData.discount : undefined,
+                  });
+                  setShowConfirmationDialog(true);
+                  
+                  // Clean up and reset form
+                  sessionStorage.removeItem('pendingBookingData');
+                  resetForm();
+                } else {
+                  toast.error("Booking creation failed. Please contact support with order ID: " + orderId);
+                }
+              } else {
+                toast.error("Booking data not found. Please contact support with order ID: " + orderId);
+              }
+            } else {
+              toast.error("Payment verification failed. Please contact support.");
+            }
+          } catch (error) {
+            console.error("Payment verification error:", error);
+            toast.error("Payment verification failed. Please contact support.");
+          }
+        } else if (ppStatus === 'failed') {
+          toast.error("Payment was cancelled or failed. Please try again.");
+          sessionStorage.removeItem('pendingBookingData');
+        }
+        
+        // Clean up URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+
+    handlePhonePeReturn();
+  }, [stations]);
+
   /* =========================
      Queries
      ========================= */
@@ -592,6 +677,19 @@ export default function PublicBooking() {
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
 
+  // Helper function to reset form
+  const resetForm = () => {
+    setSelectedStations([]);
+    setSelectedSlot(null);
+    setCustomerNumber("");
+    setCustomerInfo({ name: "", phone: "", email: "" });
+    setIsReturningCustomer(false);
+    setHasSearched(false);
+    setCouponCode("");
+    setAppliedCoupons({});
+    setAvailableSlots([]);
+  };
+
   /* =========================
      Create booking (Pay at venue)
      ========================= */
@@ -661,15 +759,7 @@ export default function PublicBooking() {
       setShowConfirmationDialog(true);
 
       // Reset form
-      setSelectedStations([]);
-      setSelectedSlot(null);
-      setCustomerNumber("");
-      setCustomerInfo({ name: "", phone: "", email: "" });
-      setIsReturningCustomer(false);
-      setHasSearched(false);
-      setCouponCode("");
-      setAppliedCoupons({});
-      setAvailableSlots([]);
+      resetForm();
     } catch (e) {
       console.error(e);
       toast.error("Failed to create booking. Please try again.");
@@ -691,55 +781,58 @@ export default function PublicBooking() {
       return;
     }
 
-    const txnId = genTxnId();
-    const origin = window.location.origin;
-    const successUrl = `${origin}/public/booking?pp=success`;
-    const failedUrl = `${origin}/public/booking?pp=failed`;
+    // Store booking data in sessionStorage before payment
+    const bookingData = {
+      customerInfo,
+      selectedStations,
+      selectedDate: format(selectedDate, "yyyy-MM-dd"),
+      selectedSlot,
+      originalPrice,
+      discount,
+      finalPrice,
+      appliedCoupons,
+    };
+    sessionStorage.setItem('pendingBookingData', JSON.stringify(bookingData));
 
+    const txnId = genTxnId();
     setLoading(true);
+    
     try {
+      console.log("Initiating PhonePe payment:", { finalPrice, customerPhone: customerInfo.phone, txnId });
+      
       const res = await fetch("/api/phonepe/pay", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          amount: finalPrice, // rupees; server converts to paise
+          amount: finalPrice,
           customerPhone: customerInfo.phone,
           merchantTransactionId: txnId,
-          successUrl,
-          failedUrl,
         }),
       });
 
-      // IMPORTANT: read as text first (backend may return HTML/plain text on errors)
       const raw = await res.text();
       let data: any = null;
       try {
         data = JSON.parse(raw);
       } catch {
-        // Not JSON – that's OK; we'll use raw
+        console.error("Failed to parse response:", raw);
       }
 
-      // Log everything once for debugging
-      console.log("PhonePe pay upstream →", {
-        status: res.status,
-        ok: res.ok,
-        raw,
-        json: data,
-      });
+      console.log("PhonePe pay response:", { status: res.status, data });
 
       if (res.ok && data?.ok && data?.url) {
+        console.log("Redirecting to PhonePe:", data.url);
         // Redirect to PhonePe hosted page
         window.location.href = data.url;
         return;
       }
 
-      // Nice error toasts that include API details when possible
+      // Handle errors
       const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
-      const step = data?.step ? ` (${data.step})` : "";
-      const status = res.status ? ` [HTTP ${res.status}]` : "";
-      toast.error(`Could not start PhonePe payment${step}${status}. ${apiErr}`);
+      toast.error(`Could not start PhonePe payment. ${apiErr}`);
     } catch (e: any) {
-      toast.error(`Unable to start payment (network). ${e?.message || e}`);
+      console.error("Payment initiation error:", e);
+      toast.error(`Unable to start payment: ${e?.message || e}`);
     } finally {
       setLoading(false);
     }
