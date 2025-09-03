@@ -6,39 +6,41 @@ export default async function handler(req: Request) {
   try {
     const url = new URL(req.url);
     const orderId = url.searchParams.get("order");
+    const phonepeStatus = url.searchParams.get("status");
     
-    console.log("📊 Processing return for order:", orderId);
+    console.log("📊 Return parameters:", { orderId, phonepeStatus });
     
     // Get and validate base URL
     const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
     if (!SITE_URL) {
-      console.error("❌ NEXT_PUBLIC_SITE_URL is not set");
-      return new Response("Configuration error: Missing site URL", { status: 500 });
+      console.error("❌ NEXT_PUBLIC_SITE_URL not configured");
+      return new Response("Configuration error", { status: 500 });
     }
 
     // Normalize base URL (remove trailing slashes)
     const baseUrl = SITE_URL.replace(/\/+$/, '');
     
-    // Validate base URL format
+    // Test if base URL is valid
     try {
-      new URL(baseUrl); // Test if valid URL
+      new URL(baseUrl);
     } catch (e) {
-      console.error("❌ Invalid NEXT_PUBLIC_SITE_URL format:", baseUrl);
-      return new Response("Configuration error: Invalid site URL", { status: 500 });
+      console.error("❌ Invalid NEXT_PUBLIC_SITE_URL:", baseUrl);
+      return new Response("Invalid site URL configuration", { status: 500 });
     }
-
-    console.log("✅ Using base URL:", baseUrl);
 
     // Construct redirect URL safely
     const redirectPath = "/public/booking";
     const fullRedirectUrl = `${baseUrl}${redirectPath}`;
     
+    console.log("✅ Base URL validated:", baseUrl);
+    
     const redirectUrl = new URL(fullRedirectUrl);
     
-    // Add query parameters
+    // Add query parameters based on return status
     if (orderId) {
-      redirectUrl.searchParams.set("pp", "success");
       redirectUrl.searchParams.set("order", orderId);
+      // Always set as success initially, frontend will verify
+      redirectUrl.searchParams.set("pp", "success");
     } else {
       redirectUrl.searchParams.set("pp", "failed");
       redirectUrl.searchParams.set("msg", "missing-order-id");
@@ -52,14 +54,15 @@ export default async function handler(req: Request) {
   } catch (error) {
     console.error("💥 Return handler error:", error);
     
-    // Emergency fallback redirect
+    // Emergency fallback
+    const fallbackUrl = "https://admin.cuephoria.in/public/booking?pp=failed&msg=handler-error";
+    console.log("🚨 Emergency redirect to:", fallbackUrl);
+    
     try {
-      const fallbackUrl = "https://admin.cuephoria.in/public/booking?pp=failed&msg=handler-error";
-      console.log("🚨 Emergency redirect to:", fallbackUrl);
       return Response.redirect(fallbackUrl, 302);
     } catch (fallbackError) {
-      console.error("💥 Even fallback failed:", fallbackError);
-      return new Response(`Redirect failed: ${error.message}`, { status: 500 });
+      console.error("💥 Fallback also failed:", fallbackError);
+      return new Response(`Critical error: ${error}`, { status: 500 });
     }
   }
 }
