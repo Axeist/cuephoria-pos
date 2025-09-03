@@ -6,9 +6,17 @@ export default async function handler(req: Request) {
   try {
     console.log("📥 PhonePe webhook received:", {
       method: req.method,
-      headers: Object.fromEntries(req.headers.entries()),
       timestamp: new Date().toISOString(),
+      url: req.url,
     });
+
+    // Get headers safely in Edge Runtime
+    const headersObj: Record<string, string> = {};
+    req.headers.forEach((value, key) => {
+      headersObj[key] = value;
+    });
+    
+    console.log("🔐 Headers:", headersObj);
 
     // Get Authorization header for validation
     const authHeader = req.headers.get('authorization');
