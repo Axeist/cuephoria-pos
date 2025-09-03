@@ -607,93 +607,85 @@ export default function PublicBooking() {
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
 
-  /* =========================
-     Create booking (Pay at venue) - FIXED VERSION
-     ========================= */
-  async function createVenueBooking() {
-    setLoading(true);
-    try {
-      // Prepare booking data for API call
-      const bookingData = {
-        customerInfo,
-        selectedStations,
-        selectedDate: format(selectedDate, "yyyy-MM-dd"),
-        selectedSlot, // This contains start_time and end_time
-        originalPrice,
-        discount,
-        finalPrice,
-        appliedCoupons,
-        payment_mode: "venue",
-      };
-
-      console.log("📝 Creating venue booking:", bookingData);
-
-      // Call the API endpoint (NOT direct Supabase)
-      const bookingRes = await fetch('/api/bookings/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingData),
-      });
-
-      // Check if response is ok before parsing JSON
-      if (!bookingRes.ok) {
-        // Log the actual response for debugging
-        const errorText = await bookingRes.text();
-        console.error("❌ API Error Response:", errorText);
-        throw new Error(`API Error: ${bookingRes.status} - ${errorText}`);
-      }
-
-      // Parse JSON only if response is ok
-      const bookingResult = await bookingRes.json();
-      console.log("🎫 Venue booking result:", bookingResult);
-
-      if (!bookingResult.ok) {
-        throw new Error(bookingResult.error || "Failed to create booking");
-      }
-
-      // Show success confirmation
-      const stationObjects = stations.filter((s) =>
-        selectedStations.includes(s.id)
-      );
-
-      setBookingConfirmationData({
-        bookingId: bookingResult.bookingId.slice(0, 8).toUpperCase(),
-        customerName: customerInfo.name,
-        stationNames: stationObjects.map((s) => s.name),
-        date: format(selectedDate, "yyyy-MM-dd"),
-        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString(
-          "en-US",
-          { hour: "numeric", minute: "2-digit", hour12: true }
-        ),
-        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString(
-          "en-US",
-          { hour: "numeric", minute: "2-digit", hour12: true }
-        ),
-        totalAmount: finalPrice,
-        couponCode: Object.values(appliedCoupons).join(",") || undefined,
-        discountAmount: discount > 0 ? discount : undefined,
-      });
-      setShowConfirmationDialog(true);
-
-      // Reset form
-      resetForm();
-      toast.success("🎉 Booking confirmed! Payment will be collected at venue.");
-
-    } catch (e: any) {
-      console.error("💥 Venue booking error:", e);
-      
-      // More specific error handling
-      if (e.message.includes('Failed to fetch')) {
-        toast.error("Network error. Please check your connection and try again.");
-      } else if (e.message.includes('API Error')) {
-        toast.error("Server error. Please try again or contact support.");
-      } else {
-        toast.error(e.message || "Failed to create booking. Please try again.");
-      }
-    } finally {
-      setLoading(false);
+ /* =========================
+   Create booking (Pay at venue) - RESTORED DIRECT SUPABASE VERSION
+   ========================= */
+async function createVenueBooking() {
+  setLoading(true);
+  try {
+    let customerId = customerInfo.id;
+    if (!customerId) {
+      const { data: newCustomer, error: customerError } = await supabase
+        .from("customers")
+        .insert({
+          name: customerInfo.name,
+          phone: customerInfo.phone,
+          email: customerInfo.email || null,
+          is_member: false,
+          loyalty_points: 0,
+          total_spent: 0,
+          total_play_time: 0,
+        })
+        .select("id")
+        .single();
+      if (customerError) throw customerError;
+      customerId = newCustomer.id;
     }
+
+    const couponCodes = Object.values(appliedCoupons).join(",");
+    const rows = selectedStations.map((stationId) => ({
+      station_id: stationId,
+      customer_id: customerId!,
+      booking_date: format(selectedDate, "yyyy-MM-dd"),
+      start_time: selectedSlot!.start_time,
+      end_time: selectedSlot!.end_time,
+      duration: 60,
+      status: "confirmed",
+      original_price: originalPrice,
+      discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+      final_price: finalPrice,
+      coupon_code: couponCodes || null,
+      payment_mode: 'venue',
+    }));
+
+    const { data: inserted, error: bookingError } = await supabase
+      .from("bookings")
+      .insert(rows)
+      .select("id");
+    if (bookingError) throw bookingError;
+
+    const stationObjects = stations.filter((s) =>
+      selectedStations.includes(s.id)
+    );
+    setBookingConfirmationData({
+      bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
+      customerName: customerInfo.name,
+      stationNames: stationObjects.map((s) => s.name),
+      date: format(selectedDate, "yyyy-MM-dd"),
+      startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString(
+        "en-US",
+        { hour: "numeric", minute: "2-digit", hour12: true }
+      ),
+      endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString(
+        "en-US",
+        { hour: "numeric", minute: "2-digit", hour12: true }
+      ),
+      totalAmount: finalPrice,
+      couponCode: couponCodes || undefined,
+      discountAmount: discount > 0 ? discount : undefined,
+    });
+    setShowConfirmationDialog(true);
+
+    // Reset form
+    resetForm();
+    toast.success("🎉 Booking confirmed! Payment will be collected at venue.");
+  } catch (e) {
+    console.error(e);
+    toast.error("Failed to create booking. Please try again.");
+  } finally {
+    setLoading(false);
   }
+}
 
   /* =========================
      PhonePe payment (Updated for your success/failure pages)
