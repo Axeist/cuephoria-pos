@@ -116,6 +116,7 @@ export default function PublicBooking() {
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<"venue" | "phonepe">("venue");
   const [loading, setLoading] = useState(false);
+  const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
   // Misc
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -172,31 +173,36 @@ export default function PublicBooking() {
     }
   }, [selectedStations, selectedDate]);
 
-  // PhonePe return handler
+  // Enhanced PhonePe return handler
   useEffect(() => {
     const handlePhonePeReturn = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const ppStatus = urlParams.get('pp');
       const orderId = urlParams.get('order');
+      const msg = urlParams.get('msg');
 
       if (ppStatus && orderId) {
-        console.log("PhonePe return detected:", { ppStatus, orderId });
+        console.log("🎯 PhonePe return detected:", { ppStatus, orderId, msg });
+        setLoading(true);
         
         if (ppStatus === 'success') {
+          toast.loading("Verifying payment...", { id: 'payment-verify' });
+          
           try {
-            // Verify payment status
+            // Double-verify payment status
             const statusRes = await fetch(`/api/phonepe/status?order=${encodeURIComponent(orderId)}`);
             const statusData = await statusRes.json();
             
-            console.log("Payment verification:", statusData);
+            console.log("💳 Payment verification result:", statusData);
             
             if (statusData.ok && statusData.state === 'COMPLETED') {
-              // Get stored booking data
+              toast.dismiss('payment-verify');
+              toast.success("Payment verified! Creating your booking...");
+              
               const bookingDataStr = sessionStorage.getItem('pendingBookingData');
               if (bookingDataStr) {
                 const bookingData = JSON.parse(bookingDataStr);
                 
-                // Create booking via API
                 const bookingRes = await fetch('/api/bookings/create', {
                   method: 'POST',
                   headers: { 'content-type': 'application/json' },
@@ -206,9 +212,9 @@ export default function PublicBooking() {
                 const bookingResult = await bookingRes.json();
                 
                 if (bookingResult.ok) {
-                  toast.success("🎉 Payment successful! Your booking has been confirmed.");
+                  // Success! Show confirmation
+                  toast.success("🎉 Booking confirmed! Payment successful.");
                   
-                  // Show confirmation dialog
                   setBookingConfirmationData({
                     bookingId: bookingResult.bookingId.slice(0, 8).toUpperCase(),
                     customerName: bookingData.customerInfo.name,
@@ -228,26 +234,56 @@ export default function PublicBooking() {
                   });
                   setShowConfirmationDialog(true);
                   
-                  // Clean up and reset form
                   sessionStorage.removeItem('pendingBookingData');
                   resetForm();
                 } else {
-                  toast.error("Booking creation failed. Please contact support with order ID: " + orderId);
+                  throw new Error(bookingResult.error || "Booking creation failed");
                 }
               } else {
-                toast.error("Booking data not found. Please contact support with order ID: " + orderId);
+                throw new Error("No booking data found in session");
               }
             } else {
-              toast.error("Payment verification failed. Please contact support.");
+              throw new Error(`Payment not completed: ${statusData.state || 'Unknown state'}`);
             }
-          } catch (error) {
-            console.error("Payment verification error:", error);
-            toast.error("Payment verification failed. Please contact support.");
+          } catch (error: any) {
+            console.error("❌ Payment success handling error:", error);
+            toast.dismiss('payment-verify');
+            toast.error(`Payment verification failed: ${error.message}. Contact support with Order ID: ${orderId}`);
           }
+          
         } else if (ppStatus === 'failed') {
-          toast.error("Payment was cancelled or failed. Please try again.");
+          // Handle failed/cancelled payments
+          let errorMessage = "Payment was cancelled or failed.";
+          
+          if (msg === "missing-order-id") {
+            errorMessage = "Payment session expired. Please try booking again.";
+          } else if (msg === "return-error") {
+            errorMessage = "Payment processing error. If amount was debited, contact support.";
+          }
+          
+          toast.error(errorMessage);
           sessionStorage.removeItem('pendingBookingData');
+          
+          // Show retry option
+          setTimeout(() => {
+            toast.info("💡 You can try booking again or use 'Pay at Venue' option.", {
+              duration: 5000,
+              action: {
+                label: "Try Again",
+                onClick: () => resetForm()
+              }
+            });
+          }, 2000);
+          
+        } else if (ppStatus === 'pending') {
+          toast.warning("⏳ Payment status is pending. We'll confirm once processed.");
+          
+          setTimeout(() => {
+            toast.info("Check your email/SMS for payment confirmation or contact support.");
+          }, 3000);
         }
+        
+        setLoading(false);
         
         // Clean up URL parameters
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -256,6 +292,21 @@ export default function PublicBooking() {
 
     handlePhonePeReturn();
   }, [stations]);
+
+  /* =========================
+     Helper Functions
+     ========================= */
+  const resetForm = () => {
+    setSelectedStations([]);
+    setSelectedSlot(null);
+    setCustomerNumber("");
+    setCustomerInfo({ name: "", phone: "", email: "" });
+    setIsReturningCustomer(false);
+    setHasSearched(false);
+    setCouponCode("");
+    setAppliedCoupons({});
+    setAvailableSlots([]);
+  };
 
   /* =========================
      Queries
@@ -439,7 +490,6 @@ export default function PublicBooking() {
   /* =========================
      Coupons & Pricing
      ========================= */
-
   const allowedCoupons = [
     "CUEPHORIA25",
     "CUEPHORIA50",
@@ -523,7 +573,7 @@ export default function PublicBooking() {
       return;
     }
 
-    // NIT50 logic — always 50% off on both during happy hours, unless NIT99 is also stacked, then only 50% on PS5, 8-ball at ₹99/hr
+    // NIT50 logic
     if (code === "NIT50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
         toast.error(
@@ -549,7 +599,7 @@ export default function PublicBooking() {
       return;
     }
 
-    // ALMA50 always 50% off for both
+    // ALMA50
     if (code === "ALMA50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
         toast.error(
@@ -607,7 +657,7 @@ export default function PublicBooking() {
     let totalDiscount = 0;
     const breakdown: Record<string, number> = {};
 
-    // NIT99 stacked with NIT50: 8-ball at ₹99, PS5 at 50% off
+    // NIT99 stacked with NIT50
     if (
       appliedCoupons["8ball"] === "NIT99" &&
       appliedCoupons["ps5"] === "NIT50"
@@ -676,19 +726,6 @@ export default function PublicBooking() {
   const isStationSelectionAvailable = () => isCustomerInfoComplete();
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
-
-  // Helper function to reset form
-  const resetForm = () => {
-    setSelectedStations([]);
-    setSelectedSlot(null);
-    setCustomerNumber("");
-    setCustomerInfo({ name: "", phone: "", email: "" });
-    setIsReturningCustomer(false);
-    setHasSearched(false);
-    setCouponCode("");
-    setAppliedCoupons({});
-    setAvailableSlots([]);
-  };
 
   /* =========================
      Create booking (Pay at venue)
@@ -769,7 +806,7 @@ export default function PublicBooking() {
   }
 
   /* =========================
-     PhonePe payment (robust)
+     PhonePe payment
      ========================= */
   const initiatePhonePe = async () => {
     if (finalPrice <= 0) {
@@ -798,7 +835,7 @@ export default function PublicBooking() {
     setLoading(true);
     
     try {
-      console.log("Initiating PhonePe payment:", { finalPrice, customerPhone: customerInfo.phone, txnId });
+      console.log("🚀 Initiating PhonePe payment:", { finalPrice, txnId });
       
       const res = await fetch("/api/phonepe/pay", {
         method: "POST",
@@ -818,20 +855,19 @@ export default function PublicBooking() {
         console.error("Failed to parse response:", raw);
       }
 
-      console.log("PhonePe pay response:", { status: res.status, data });
+      console.log("📨 PhonePe response:", { status: res.status, ok: res.ok });
 
       if (res.ok && data?.ok && data?.url) {
-        console.log("Redirecting to PhonePe:", data.url);
-        // Redirect to PhonePe hosted page
+        console.log("✅ Redirecting to PhonePe payment page");
         window.location.href = data.url;
         return;
       }
 
       // Handle errors
       const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
-      toast.error(`Could not start PhonePe payment. ${apiErr}`);
+      toast.error(`Could not start PhonePe payment: ${apiErr}`);
     } catch (e: any) {
-      console.error("Payment initiation error:", e);
+      console.error("💥 Payment initiation error:", e);
       toast.error(`Unable to start payment: ${e?.message || e}`);
     } finally {
       setLoading(false);
@@ -862,6 +898,37 @@ export default function PublicBooking() {
       await initiatePhonePe();
     }
   }
+
+  /* =========================
+     Manual Payment Status Check
+     ========================= */
+  const handleManualStatusCheck = async () => {
+    const orderId = prompt("If you have an order ID from a previous payment attempt, enter it here to check status:");
+    if (!orderId?.trim()) return;
+    
+    setManualCheckLoading(true);
+    try {
+      const statusRes = await fetch(`/api/phonepe/status?order=${encodeURIComponent(orderId.trim())}`);
+      const statusData = await statusRes.json();
+      
+      if (statusData.ok) {
+        if (statusData.state === 'COMPLETED') {
+          toast.success("✅ Payment found and completed! Processing booking...");
+          // You could trigger the booking creation flow here if needed
+        } else if (statusData.state === 'FAILED') {
+          toast.error("❌ Payment failed or was cancelled.");
+        } else {
+          toast.info(`ℹ️ Payment status: ${statusData.state}`);
+        }
+      } else {
+        toast.error("Order not found or invalid order ID.");
+      }
+    } catch (error) {
+      toast.error("Unable to check payment status. Please try again or contact support.");
+    } finally {
+      setManualCheckLoading(false);
+    }
+  };
 
   /* =========================
      Today's bookings
@@ -1589,6 +1656,17 @@ export default function PublicBooking() {
                     : "Confirm Booking"}
                 </Button>
 
+                {/* Manual status check button */}
+                <Button
+                  onClick={handleManualStatusCheck}
+                  disabled={manualCheckLoading}
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-2 rounded-xl border-white/20 text-gray-300 hover:bg-white/5"
+                >
+                  {manualCheckLoading ? "Checking..." : "Check Payment Status"}
+                </Button>
+
                 <p className="text-xs text-gray-400 text-center">
                   All prices are shown in <span className="font-semibold">INR (₹)</span>.{" "}
                   {paymentMethod === "phonepe"
@@ -1780,7 +1858,7 @@ export default function PublicBooking() {
         </div>
       </footer>
 
-      {/* Booking confirmation (venue only) */}
+      {/* Booking confirmation dialog */}
       {bookingConfirmationData && (
         <BookingConfirmationDialog
           isOpen={showConfirmationDialog}
