@@ -182,7 +182,7 @@ export default function PublicBooking() {
         .select("id, name, type, hourly_rate")
         .order("name");
       if (error) throw error;
-      setStations(data || []);
+      setStations((data || []) as Station[]);
     } catch (e) {
       console.error(e);
       toast.error("Failed to load stations");

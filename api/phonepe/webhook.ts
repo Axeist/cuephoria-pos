@@ -1,3 +1,6 @@
+// Force Edge Runtime
+export const runtime = 'edge';
+
 export default async function handler(req: Request) {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -10,7 +13,7 @@ export default async function handler(req: Request) {
       url: req.url,
     });
 
-    // Handle headers properly - works for both Headers object and plain object
+    // Handle headers properly for Edge Runtime
     let headersObj: Record<string, string> = {};
     
     if (req.headers && typeof req.headers.forEach === 'function') {
@@ -18,15 +21,12 @@ export default async function handler(req: Request) {
       req.headers.forEach((value, key) => {
         headersObj[key] = value;
       });
-    } else if (req.headers && typeof req.headers === 'object') {
-      // Plain object (Node.js)
-      headersObj = { ...req.headers as any };
     }
     
     console.log("🔐 Headers:", headersObj);
 
     // Get Authorization header
-    const authHeader = headersObj['authorization'] || headersObj['Authorization'] || req.headers.get?.('authorization');
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
     console.log("🔐 Authorization header:", authHeader);
 
     const body = await req.text();
