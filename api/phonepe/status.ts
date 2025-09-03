@@ -1,4 +1,3 @@
-// api/phonepe/status.ts
 export const config = { runtime: "edge" };
 
 function j(res: unknown, status = 200) {
@@ -6,7 +5,6 @@ function j(res: unknown, status = 200) {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      // avoid cached stale state while user is returning
       "cache-control": "no-store, max-age=0",
     },
   });
@@ -23,7 +21,7 @@ async function oauthToken() {
   const CLIENT_ID = need("PHONEPE_CLIENT_ID");
   const CLIENT_SECRET = need("PHONEPE_CLIENT_SECRET");
   const CLIENT_VERSION = need("PHONEPE_CLIENT_VERSION");
-
+  
   const body = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: CLIENT_ID,
@@ -42,14 +40,13 @@ async function oauthToken() {
   try { data = JSON.parse(text); } catch {}
 
   if (!r.ok) {
-    throw new Error(
-      `oauth ${r.status}: ${typeof data === "object" ? JSON.stringify(data) : text}`
-    );
+    throw new Error(`oauth ${r.status}: ${typeof data === "object" ? JSON.stringify(data) : text}`);
   }
 
   const token = data?.access_token || data?.encrypted_access_token;
   const type = data?.token_type || "O-Bearer";
   if (!token) throw new Error(`oauth OK but no token in response: ${text}`);
+  
   return { authz: `${type} ${token}` };
 }
 
@@ -61,12 +58,12 @@ export default async function handler(req: Request) {
   try {
     const BASE = need("PHONEPE_BASE_URL");
     const url = new URL(req.url);
-
-    // Accept several aliases for convenience
-    const merchantOrderId =
-      url.searchParams.get("merchantOrderId") ||
+    
+    const merchantOrderId = url.searchParams.get("merchantOrderId") ||
       url.searchParams.get("merchantTransactionId") ||
-      url.searchParams.get("order"); // <-- used by /return
+      url.searchParams.get("order");
+
+    console.log("Status check for order:", merchantOrderId);
 
     if (!merchantOrderId) {
       return j(
@@ -86,31 +83,20 @@ export default async function handler(req: Request) {
     let data: any = {};
     try { data = JSON.parse(text); } catch {}
 
+    console.log("Status response:", { status: r.status, data });
+
     if (!r.ok) {
       return j({ ok: false, status: r.status, body: data ?? text }, 502);
     }
 
-    // Normalize
-    const state =
-      data?.state ||
-      data?.data?.state ||
-      data?.payload?.state ||
-      "UNKNOWN";
-
-    const code =
-      data?.code ||
-      data?.data?.code ||
-      data?.payload?.code ||
-      null;
-
-    const paymentInstrument =
-      data?.paymentInstrument ||
-      data?.data?.paymentInstrument ||
-      data?.payload?.paymentInstrument ||
-      null;
+    const state = data?.state || data?.data?.state || data?.payload?.state || "UNKNOWN";
+    const code = data?.code || data?.data?.code || data?.payload?.code || null;
+    const paymentInstrument = data?.paymentInstrument || data?.data?.paymentInstrument || data?.payload?.paymentInstrument || null;
 
     return j({ ok: true, state, code, paymentInstrument, raw: data });
+
   } catch (err: any) {
+    console.error("Status check error:", err);
     return j({ ok: false, error: String(err?.message || err) }, 500);
   }
 }
