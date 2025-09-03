@@ -1,6 +1,8 @@
+// api/bookings/create.ts
 import { supabase } from "@/integrations/supabase/client";
 
-export const config = { runtime: "edge" };
+// Remove the edge runtime config - use default Node.js runtime instead
+// export const config = { runtime: "edge" }; // <-- DELETE THIS LINE
 
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
