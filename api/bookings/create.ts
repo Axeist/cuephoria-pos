@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '../../src/integrations/supabase/client';
+import { supabase } from '../src/integrations/supabase/client';
 import { format } from 'date-fns';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
