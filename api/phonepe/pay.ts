@@ -71,10 +71,10 @@ export default async function handler(req: Request) {
 
     const orderId = merchantTransactionId || `CUE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-    // Use string concatenation for redirect URLs - no URL constructor
+    // Use return handler that redirects to your success/failure pages
     const returnEndpoint = "https://admin.cuephoria.in/api/phonepe/return";
-    const successRedirect = `${returnEndpoint}?order=${encodeURIComponent(orderId)}&status=success`;
-    const failedRedirect = `${returnEndpoint}?order=${encodeURIComponent(orderId)}&status=failed`;
+    const successRedirect = `${returnEndpoint}?txn=${encodeURIComponent(orderId)}&status=success`;
+    const failedRedirect = `${returnEndpoint}?txn=${encodeURIComponent(orderId)}&status=failed`;
 
     console.log("🔗 Redirect URLs:", { successRedirect, failedRedirect });
 
