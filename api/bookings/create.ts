@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Use Node.js runtime for Supabase compatibility
-// export const config = { runtime: "edge" }; // DELETE THIS LINE
+// Remove edge runtime to allow Supabase client - DELETE THE BELOW LINE IF IT EXISTS:
+// export const config = { runtime: "edge" };
 
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
