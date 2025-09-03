@@ -1,90 +1,107 @@
-export default async function handler(req: Request) {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+import type { NextApiRequest, NextApiResponse } from 'next';
+import type { Readable } from 'node:stream';
+
+// Disable Next.js body parsing to get raw body
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+// Function to read raw body
+async function getRawBody(readable: Readable): Promise<Buffer> {
+  const chunks = [];
+  for await (const chunk of readable) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log('📥 PhonePe webhook received:', {
+    method: req.method,
+    timestamp: new Date().toISOString(),
+    url: req.url,
+  });
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    console.log("📥 PhonePe webhook received:", {
-      method: req.method,
-      timestamp: new Date().toISOString(),
-      url: req.url,
-    });
-
-    // Handle headers properly - works for both Headers object and plain object
-    let headersObj: Record<string, string> = {};
+    // Get raw body for signature verification
+    const rawBody = await getRawBody(req);
+    const bodyString = rawBody.toString('utf8');
     
-    if (req.headers && typeof req.headers.forEach === 'function') {
-      // Headers instance (Edge Runtime)
-      req.headers.forEach((value, key) => {
-        headersObj[key] = value;
-      });
-    } else if (req.headers && typeof req.headers === 'object') {
-      // Plain object (Node.js)
-      headersObj = { ...req.headers as any };
-    }
+    console.log('🔐 Raw body length:', rawBody.length);
     
-    console.log("🔐 Headers:", headersObj);
+    // Parse JSON data
+    const data = JSON.parse(bodyString);
+    console.log('📊 Webhook data:', data);
 
-    // Get Authorization header
-    const authHeader = headersObj['authorization'] || headersObj['Authorization'] || req.headers.get?.('authorization');
-    console.log("🔐 Authorization header:", authHeader);
-
-    const body = await req.text();
-    console.log("📄 Webhook payload:", body);
-
-    let webhookData: any = null;
-    try {
-      webhookData = JSON.parse(body);
-      console.log("✅ Parsed webhook:", JSON.stringify(webhookData, null, 2));
-    } catch (e) {
-      console.error("❌ Failed to parse webhook body:", e);
+    // Verify PhonePe signature (implement your verification logic)
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      console.error('❌ Missing authorization header');
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (webhookData) {
-      const event = webhookData.event;
-      const payload = webhookData.payload;
-      
-      if (payload) {
-        const orderId = payload.merchantOrderId || payload.orderId;
-        const state = payload.state;
-        const amount = payload.amount;
-        
-        console.log(`💳 Webhook Event: ${event} | Order: ${orderId} | State: ${state} | Amount: ${amount}`);
-        
-        // Log different event types
-        switch (event) {
-          case 'checkout.order.completed':
-            console.log("✅ Payment completed successfully");
-            break;
-          case 'checkout.order.failed':
-            console.log("❌ Payment failed or cancelled");
-            break;
-          case 'pg.refund.accepted':
-            console.log("💰 Refund request accepted");
-            break;
-          case 'pg.refund.completed':
-            console.log("✅ Refund completed");
-            break;
-          case 'pg.refund.failed':
-            console.log("❌ Refund failed");
-            break;
-          default:
-            console.log("ℹ️ Unknown event type:", event);
-        }
-      }
-    }
+    // TODO: Implement your PhonePe signature verification here
+    // const isValid = verifyPhonePeSignature(rawBody, authHeader);
+    // if (!isValid) {
+    //   return res.status(401).json({ error: 'Invalid signature' });
+    // }
 
-    // Always respond 200 OK quickly
-    return new Response("OK", { 
-      status: 200,
-      headers: {
-        'Content-Type': 'text/plain'
-      }
+    // Process the webhook data
+    await processPhonePeWebhook(data);
+
+    // Respond quickly to avoid timeout
+    res.status(200).json({ 
+      success: true, 
+      message: 'Webhook processed successfully' 
     });
 
   } catch (error) {
-    console.error("❌ Webhook error:", error);
-    // Still return 200 to prevent PhonePe retries
-    return new Response("OK", { status: 200 });
+    console.error('❌ Webhook error:', error);
+    res.status(500).json({ 
+      error: 'Webhook processing failed',
+      message: error.message 
+    });
+  }
+}
+
+// Your webhook processing logic
+async function processPhonePeWebhook(data: any) {
+  try {
+    // Extract transaction details
+    const { transactionId, merchantTransactionId, state, responseCode } = data;
+    
+    console.log('🔄 Processing webhook:', {
+      transactionId,
+      merchantTransactionId,
+      state,
+      responseCode
+    });
+
+    // Handle payment success/failure
+    if (state === 'COMPLETED' && responseCode === 'SUCCESS') {
+      // Payment successful - create booking, update database, etc.
+      console.log('✅ Payment successful:', merchantTransactionId);
+      
+      // Get booking data from localStorage backup or database
+      // const bookingData = await getBookingData(merchantTransactionId);
+      // await createBookingFromWebhook(bookingData);
+      
+    } else if (state === 'FAILED') {
+      // Payment failed - clean up, notify user, etc.
+      console.log('❌ Payment failed:', merchantTransactionId);
+      
+    } else {
+      console.log('ℹ️ Other payment state:', state);
+    }
+
+  } catch (error) {
+    console.error('💥 Webhook processing error:', error);
+    throw error;
   }
 }
