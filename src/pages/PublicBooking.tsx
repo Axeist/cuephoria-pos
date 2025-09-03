@@ -110,21 +110,17 @@ export default function PublicBooking() {
   const [hasSearched, setHasSearched] = useState(false);
 
   // Coupons
-  const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>(
-    {}
-  );
+  const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>({});
   const [couponCode, setCouponCode] = useState("");
 
   // Payment
-  const [paymentMethod, setPaymentMethod] =
-    useState<"venue" | "phonepe">("venue");
+  const [paymentMethod, setPaymentMethod] = useState<"venue" | "phonepe">("venue");
   const [loading, setLoading] = useState(false);
 
   // Misc
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
-  const [bookingConfirmationData, setBookingConfirmationData] =
-    useState<any>(null);
+  const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<
     "terms" | "privacy" | "contact" | "refund"
@@ -147,7 +143,7 @@ export default function PublicBooking() {
       setAppliedCoupons((prev) => {
         const copy = { ...prev };
         delete copy["8ball"];
-        toast.error("NIT99 removed: valid only Mon–Fri 11 AM–4 PM");
+        toast.error("❌ NIT99 removed: valid only Mon–Fri 11 AM–4 PM");
         return copy;
       });
     }
@@ -358,6 +354,24 @@ export default function PublicBooking() {
   /* =========================
      Coupons & Pricing
      ========================= */
+
+  // Allowed coupons including new code
+  const allowedCoupons = [
+    "CUEPHORIA25",
+    "CUEPHORIA50",
+    "NIT99",
+    "NIT50",
+    "ALMA50",
+    "AXEIST",
+  ];
+
+  // Validate student ID confirmation for CUEPHORIA50
+  function validateStudentID() {
+    return window.confirm(
+      "🎓 CUEPHORIA50 is for other college & school students ONLY.\nShow a valid student ID card during your visit for this discount. Apply?"
+    );
+  }
+
   function removeCoupon(key: string) {
     setAppliedCoupons((prev) => {
       const c = { ...prev };
@@ -368,48 +382,124 @@ export default function PublicBooking() {
 
   function applyCoupon(raw: string) {
     const code = (raw || "").toUpperCase().trim();
-    const allowed = ["CUEPHORIA25", "NIT99", "NIT50", "ALMA50", "AXEIST"];
-    if (!allowed.includes(code)) {
-      toast.error("Invalid coupon code");
+    if (!allowedCoupons.includes(code)) {
+      toast.error("🚫 Invalid coupon code. Please re-check and try again!");
       return;
     }
+
+    const selectedHas8Ball = selectedStations.some(
+      (id) => stations.find((s) => s.id === id && s.type === "8ball")
+    );
+    const selectedHasPS5 = selectedStations.some(
+      (id) => stations.find((s) => s.id === id && s.type === "ps5")
+    );
+    const happyHourActive = isHappyHour(selectedDate, selectedSlot);
+
+    // Handle coupons
+    if (code === "CUEPHORIA50") {
+      if (!validateStudentID()) return;
+      setAppliedCoupons({ all: "CUEPHORIA50" });
+      toast.success(
+        "🎓 CUEPHORIA50 applied: 50% OFF for students with valid ID.\nShow your student ID when you visit! 🤝"
+      );
+      return;
+    }
+
     if (code === "AXEIST") {
       const ok = window.confirm(
         "🥷 AXEIST grants 100% OFF for close friends. Apply?"
       );
       if (!ok) return;
+      setAppliedCoupons({ all: "AXEIST" });
+      toast.success("🥷 AXEIST applied! 100% OFF — Loyalty matters.");
+      return;
     }
+
+    if (code === "CUEPHORIA25") {
+      setAppliedCoupons({ all: "CUEPHORIA25" });
+      toast.success("🎉 CUEPHORIA25 applied: 25% OFF! Book more, play more! 🕹️");
+      return;
+    }
+
     if (code === "NIT99") {
-      if (
-        !selectedStations.some((id) =>
-          stations.find((s) => s.id === id && s.type === "8ball")
-        )
-      ) {
-        toast.error("NIT99 applies only to 8-Ball stations");
+      if (!selectedHas8Ball) {
+        toast.error("🎱 NIT99 applies only to 8-Ball stations.");
         return;
       }
-      if (!isHappyHour(selectedDate, selectedSlot)) {
-        toast.error("NIT99 valid only Mon–Fri 11 AM to 4 PM");
+      if (!happyHourActive) {
+        toast.error("🕒 NIT99 valid only Mon–Fri 11 AM to 4 PM (Happy Hours).");
         return;
       }
       setAppliedCoupons((prev) => ({ ...prev, ["8ball"]: "NIT99" }));
-      toast.success("NIT99 applied to 8-Ball");
+      toast.success(
+        "🎱 NIT99 applied! All 8-Ball stations at ₹99/hour during Happy Hours! ✨"
+      );
       return;
     }
-    if (code === "NIT50" || code === "ALMA50") {
-      setAppliedCoupons((prev) => {
-        if (prev["ps5"] && prev["ps5"] !== code) {
-          toast.error("Only one PS5 coupon can be applied.");
-          return prev;
+
+    if (code === "NIT50") {
+      if (happyHourActive) {
+        // During happy hours NIT50 only applies to PS5
+        if (selectedHasPS5) {
+          setAppliedCoupons((prev) => ({ ...prev, ps5: "NIT50" }));
+          if (
+            selectedHas8Ball &&
+            (!appliedCoupons["8ball"] || appliedCoupons["8ball"] !== "NIT99")
+          ) {
+            toast.info(
+              "💡 TIP: Apply NIT99 for your 8-Ball stations too — get those for ₹99/hour!"
+            );
+          }
+          toast.success(
+            "🔖 NIT50 applied on PS5! 50% OFF for PS5 (Happy Hours). 🎮"
+          );
+        } else {
+          toast.error(
+            "NIT50 can be used for PS5 only during Happy Hours.\nUse NIT99 for 8-Ball stations (₹99/hr)."
+          );
         }
-        return { ...prev, ps5: code };
-      });
-      toast.success(`${code} applied`);
-      return;
+        return;
+      } else {
+        // Outside happy hours, NIT50 applies to both types if present
+        if (!(selectedHas8Ball || selectedHasPS5)) {
+          toast.error(
+            "NIT50 can only be applied to PS5 or 8-Ball stations in your selection."
+          );
+          return;
+        }
+        setAppliedCoupons((prev) => {
+          let updated = { ...prev };
+          if (selectedHasPS5) updated["ps5"] = "NIT50";
+          if (selectedHas8Ball) updated["8ball"] = "NIT50";
+          return updated;
+        });
+        let msg = "🥳 NIT50 applied! 50% OFF for ";
+        if (selectedHasPS5 && selectedHas8Ball) msg += "PS5 & 8-Ball stations!";
+        else if (selectedHasPS5) msg += "PS5 stations!";
+        else msg += "8-Ball stations!";
+        toast.success(msg);
+        return;
+      }
     }
-    if (code === "CUEPHORIA25" || code === "AXEIST") {
-      setAppliedCoupons({ all: code });
-      toast.success(`${code} applied globally.`);
+
+    if (code === "ALMA50") {
+      if (!(selectedHas8Ball || selectedHasPS5)) {
+        toast.error(
+          "ALMA50 can only be applied to PS5 or 8-Ball stations in your selection."
+        );
+        return;
+      }
+      setAppliedCoupons((prev) => {
+        let updated = { ...prev };
+        if (selectedHasPS5) updated["ps5"] = "ALMA50";
+        if (selectedHas8Ball) updated["8ball"] = "ALMA50";
+        return updated;
+      });
+      let msg = "🏫 ALMA50 applied! 50% OFF for ";
+      if (selectedHasPS5 && selectedHas8Ball) msg += "PS5 & 8-Ball stations!";
+      else if (selectedHasPS5) msg += "PS5 stations!";
+      else msg += "8-Ball stations!";
+      toast.success(msg);
       return;
     }
   }
@@ -439,6 +529,10 @@ export default function PublicBooking() {
         const disc = original * 0.25;
         return { total: disc, breakdown: { all: disc } };
       }
+      if (appliedCoupons["all"] === "CUEPHORIA50") {
+        const disc = original * 0.5;
+        return { total: disc, breakdown: { all: disc } };
+      }
       return { total: 0, breakdown: {} as Record<string, number> };
     }
 
@@ -465,6 +559,16 @@ export default function PublicBooking() {
       const d = sum * 0.5;
       totalDiscount += d;
       breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
+    }
+
+    if (appliedCoupons["8ball"] === "NIT50" || appliedCoupons["8ball"] === "ALMA50") {
+      const balls = stations.filter(
+        (s) => selectedStations.includes(s.id) && s.type === "8ball"
+      );
+      const sum = balls.reduce((x, s) => x + s.hourly_rate, 0);
+      const d = sum * 0.5;
+      totalDiscount += d;
+      breakdown[`8-Ball (${appliedCoupons["8ball"]})`] = d;
     }
 
     return { total: totalDiscount, breakdown };
@@ -1091,7 +1195,7 @@ export default function PublicBooking() {
                       <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
                     )}
                   </div>
-                  Step 3: Choose Date & Time
+                  Step 3: Choose Date &amp; Time
                   {isTimeSelectionAvailable() && selectedSlot && (
                     <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
                   )}
@@ -1232,6 +1336,13 @@ export default function PublicBooking() {
                   <p className="mt-1 text-[11px] text-gray-400">
                     All discounts and totals are calculated in INR (₹).
                   </p>
+                  <p className="mt-2 text-xs text-cuephoria-lightpurple">
+                    📝 Coupon rules:<br />
+                    NIT50/ALMA50: 50% off for NIT Trichy students;<br />
+                    NIT99: 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM;<br />
+                    CUEPHORIA50: 50% off for students (ID required);<br />
+                    CUEPHORIA25: 25% off for everyone!
+                  </p>
 
                   {Object.entries(appliedCoupons).length > 0 && (
                     <div className="mt-2 space-y-2">
@@ -1321,9 +1432,7 @@ export default function PublicBooking() {
                             <Label className="text-sm text-green-400">
                               Total Discount
                             </Label>
-                            <span className="text-sm text-green-400">
-                              -{INR(discount)}
-                            </span>
+                            <span className="text-sm text-green-400">-{INR(discount)}</span>
                           </div>
                         </>
                       )}
