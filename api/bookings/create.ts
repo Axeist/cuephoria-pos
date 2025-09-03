@@ -1,8 +1,7 @@
-// api/bookings/create.ts
 import { supabase } from "@/integrations/supabase/client";
 
-// Remove the edge runtime config - use default Node.js runtime instead
-// export const config = { runtime: "edge" }; // <-- DELETE THIS LINE
+// Remove edge runtime to allow Supabase client
+// export const config = { runtime: "edge" }; // DELETE THIS LINE
 
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
@@ -30,7 +29,7 @@ export default async function handler(req: Request) {
       orderId
     } = payload;
 
-    console.log("Creating booking for order:", orderId);
+    console.log("📝 Creating booking for PhonePe order:", orderId);
 
     // Create customer if new
     let customerId = customerInfo.id;
@@ -50,10 +49,11 @@ export default async function handler(req: Request) {
         .single();
       
       if (customerError) {
-        console.error("Customer creation error:", customerError);
+        console.error("❌ Customer creation failed:", customerError);
         throw customerError;
       }
       customerId = newCustomer.id;
+      console.log("✅ New customer created:", customerId);
     }
 
     // Create booking records
@@ -78,11 +78,11 @@ export default async function handler(req: Request) {
       .select("id");
 
     if (bookingError) {
-      console.error("Booking creation error:", bookingError);
+      console.error("❌ Booking creation failed:", bookingError);
       throw bookingError;
     }
 
-    console.log("Booking created successfully:", inserted);
+    console.log("✅ Booking created successfully:", inserted.length, "records");
 
     return j({ 
       ok: true, 
@@ -91,7 +91,7 @@ export default async function handler(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("Booking creation error:", error);
+    console.error("💥 Booking creation error:", error);
     return j({ 
       ok: false, 
       error: error.message || "Failed to create booking" 
