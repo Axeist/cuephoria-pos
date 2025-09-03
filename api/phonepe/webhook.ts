@@ -10,16 +10,23 @@ export default async function handler(req: Request) {
       url: req.url,
     });
 
-    // Get headers safely in Edge Runtime
-    const headersObj: Record<string, string> = {};
-    req.headers.forEach((value, key) => {
-      headersObj[key] = value;
-    });
+    // Handle headers properly - works for both Headers object and plain object
+    let headersObj: Record<string, string> = {};
+    
+    if (req.headers && typeof req.headers.forEach === 'function') {
+      // Headers instance (Edge Runtime)
+      req.headers.forEach((value, key) => {
+        headersObj[key] = value;
+      });
+    } else if (req.headers && typeof req.headers === 'object') {
+      // Plain object (Node.js)
+      headersObj = { ...req.headers as any };
+    }
     
     console.log("🔐 Headers:", headersObj);
 
-    // Get Authorization header for validation
-    const authHeader = req.headers.get('authorization');
+    // Get Authorization header
+    const authHeader = headersObj['authorization'] || headersObj['Authorization'] || req.headers.get?.('authorization');
     console.log("🔐 Authorization header:", authHeader);
 
     const body = await req.text();
