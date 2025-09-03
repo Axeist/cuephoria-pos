@@ -116,7 +116,6 @@ export default function PublicBooking() {
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<"venue" | "phonepe">("venue");
   const [loading, setLoading] = useState(false);
-  const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
   // Misc
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -172,21 +171,6 @@ export default function PublicBooking() {
       setSelectedSlot(null);
     }
   }, [selectedStations, selectedDate]);
-
-  /* =========================
-     Helper Functions
-     ========================= */
-  const resetForm = () => {
-    setSelectedStations([]);
-    setSelectedSlot(null);
-    setCustomerNumber("");
-    setCustomerInfo({ name: "", phone: "", email: "" });
-    setIsReturningCustomer(false);
-    setHasSearched(false);
-    setCouponCode("");
-    setAppliedCoupons({});
-    setAvailableSlots([]);
-  };
 
   /* =========================
      Queries
@@ -370,6 +354,7 @@ export default function PublicBooking() {
   /* =========================
      Coupons & Pricing
      ========================= */
+
   const allowedCoupons = [
     "CUEPHORIA25",
     "CUEPHORIA50",
@@ -453,7 +438,7 @@ export default function PublicBooking() {
       return;
     }
 
-    // NIT50 logic
+    // NIT50 logic — always 50% off on both during happy hours, unless NIT99 is also stacked, then only 50% on PS5, 8-ball at ₹99/hr
     if (code === "NIT50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
         toast.error(
@@ -479,7 +464,7 @@ export default function PublicBooking() {
       return;
     }
 
-    // ALMA50
+    // ALMA50 always 50% off for both
     if (code === "ALMA50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
         toast.error(
@@ -537,7 +522,7 @@ export default function PublicBooking() {
     let totalDiscount = 0;
     const breakdown: Record<string, number> = {};
 
-    // NIT99 stacked with NIT50
+    // NIT99 stacked with NIT50: 8-ball at ₹99, PS5 at 50% off
     if (
       appliedCoupons["8ball"] === "NIT99" &&
       appliedCoupons["ps5"] === "NIT50"
@@ -607,88 +592,94 @@ export default function PublicBooking() {
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
 
- /* =========================
-   Create booking (Pay at venue) - RESTORED DIRECT SUPABASE VERSION
-   ========================= */
-async function createVenueBooking() {
-  setLoading(true);
-  try {
-    let customerId = customerInfo.id;
-    if (!customerId) {
-      const { data: newCustomer, error: customerError } = await supabase
-        .from("customers")
-        .insert({
-          name: customerInfo.name,
-          phone: customerInfo.phone,
-          email: customerInfo.email || null,
-          is_member: false,
-          loyalty_points: 0,
-          total_spent: 0,
-          total_play_time: 0,
-        })
-        .select("id")
-        .single();
-      if (customerError) throw customerError;
-      customerId = newCustomer.id;
+  /* =========================
+     Create booking (Pay at venue)
+     ========================= */
+  async function createVenueBooking() {
+    setLoading(true);
+    try {
+      let customerId = customerInfo.id;
+      if (!customerId) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from("customers")
+          .insert({
+            name: customerInfo.name,
+            phone: customerInfo.phone,
+            email: customerInfo.email || null,
+            is_member: false,
+            loyalty_points: 0,
+            total_spent: 0,
+            total_play_time: 0,
+          })
+          .select("id")
+          .single();
+        if (customerError) throw customerError;
+        customerId = newCustomer.id;
+      }
+
+      const couponCodes = Object.values(appliedCoupons).join(",");
+      const rows = selectedStations.map((stationId) => ({
+        station_id: stationId,
+        customer_id: customerId!,
+        booking_date: format(selectedDate, "yyyy-MM-dd"),
+        start_time: selectedSlot!.start_time,
+        end_time: selectedSlot!.end_time,
+        duration: 60,
+        status: "confirmed",
+        original_price: originalPrice,
+        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+        final_price: finalPrice,
+        coupon_code: couponCodes || null,
+      }));
+
+      const { data: inserted, error: bookingError } = await supabase
+        .from("bookings")
+        .insert(rows)
+        .select("id");
+      if (bookingError) throw bookingError;
+
+      const stationObjects = stations.filter((s) =>
+        selectedStations.includes(s.id)
+      );
+      setBookingConfirmationData({
+        bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
+        customerName: customerInfo.name,
+        stationNames: stationObjects.map((s) => s.name),
+        date: format(selectedDate, "yyyy-MM-dd"),
+        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString(
+          "en-US",
+          { hour: "numeric", minute: "2-digit", hour12: true }
+        ),
+        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString(
+          "en-US",
+          { hour: "numeric", minute: "2-digit", hour12: true }
+        ),
+        totalAmount: finalPrice,
+        couponCode: couponCodes || undefined,
+        discountAmount: discount > 0 ? discount : undefined,
+      });
+      setShowConfirmationDialog(true);
+
+      // Reset form
+      setSelectedStations([]);
+      setSelectedSlot(null);
+      setCustomerNumber("");
+      setCustomerInfo({ name: "", phone: "", email: "" });
+      setIsReturningCustomer(false);
+      setHasSearched(false);
+      setCouponCode("");
+      setAppliedCoupons({});
+      setAvailableSlots([]);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to create booking. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    const couponCodes = Object.values(appliedCoupons).join(",");
-    const rows = selectedStations.map((stationId) => ({
-      station_id: stationId,
-      customer_id: customerId!,
-      booking_date: format(selectedDate, "yyyy-MM-dd"),
-      start_time: selectedSlot!.start_time,
-      end_time: selectedSlot!.end_time,
-      duration: 60,
-      status: "confirmed",
-      original_price: originalPrice,
-      discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-      final_price: finalPrice,
-      coupon_code: couponCodes || null,
-      payment_mode: 'venue',
-    }));
-
-    const { data: inserted, error: bookingError } = await supabase
-      .from("bookings")
-      .insert(rows)
-      .select("id");
-    if (bookingError) throw bookingError;
-
-    const stationObjects = stations.filter((s) =>
-      selectedStations.includes(s.id)
-    );
-    setBookingConfirmationData({
-      bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
-      customerName: customerInfo.name,
-      stationNames: stationObjects.map((s) => s.name),
-      date: format(selectedDate, "yyyy-MM-dd"),
-      startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString(
-        "en-US",
-        { hour: "numeric", minute: "2-digit", hour12: true }
-      ),
-      endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString(
-        "en-US",
-        { hour: "numeric", minute: "2-digit", hour12: true }
-      ),
-      totalAmount: finalPrice,
-      couponCode: couponCodes || undefined,
-      discountAmount: discount > 0 ? discount : undefined,
-    });
-    setShowConfirmationDialog(true);
-
-    // Reset form
-    resetForm();
-    toast.success("🎉 Booking confirmed! Payment will be collected at venue.");
-  } catch (e) {
-    console.error(e);
-    toast.error("Failed to create booking. Please try again.");
-  } finally {
-    setLoading(false);
   }
-}
 
   /* =========================
-     PhonePe payment (Updated for your success/failure pages)
+     PhonePe payment (robust)
      ========================= */
   const initiatePhonePe = async () => {
     if (finalPrice <= 0) {
@@ -700,69 +691,55 @@ async function createVenueBooking() {
       return;
     }
 
-    // Store booking data in localStorage (matching your PublicPaymentSuccess format)
-    const bookingData = {
-      selectedStations,
-      selectedDateISO: format(selectedDate, "yyyy-MM-dd"), // Match your success page format
-      start_time: selectedSlot!.start_time,
-      end_time: selectedSlot!.end_time,
-      customer: {
-        id: customerInfo.id,
-        name: customerInfo.name,
-        phone: customerInfo.phone,
-        email: customerInfo.email,
-      },
-      pricing: {
-        original: originalPrice,
-        discount: discount,
-        final: finalPrice,
-        coupons: Object.values(appliedCoupons).join(","),
-      }
-    };
-    
-    localStorage.setItem('pendingBooking', JSON.stringify(bookingData));
-
     const txnId = genTxnId();
+    const origin = window.location.origin;
+    const successUrl = `${origin}/public/booking?pp=success`;
+    const failedUrl = `${origin}/public/booking?pp=failed`;
+
     setLoading(true);
-    
     try {
-      console.log("🚀 Initiating PhonePe payment:", { finalPrice, txnId });
-      
       const res = await fetch("/api/phonepe/pay", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          amount: finalPrice,
+          amount: finalPrice, // rupees; server converts to paise
           customerPhone: customerInfo.phone,
           merchantTransactionId: txnId,
+          successUrl,
+          failedUrl,
         }),
       });
 
-      // Check if response is ok before parsing JSON
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error("❌ PhonePe API Error:", errorText);
-        throw new Error(`Payment API Error: ${res.status}`);
+      // IMPORTANT: read as text first (backend may return HTML/plain text on errors)
+      const raw = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        // Not JSON – that's OK; we'll use raw
       }
 
-      const data = await res.json();
-      console.log("📨 PhonePe response:", { status: res.status, ok: res.ok });
+      // Log everything once for debugging
+      console.log("PhonePe pay upstream →", {
+        status: res.status,
+        ok: res.ok,
+        raw,
+        json: data,
+      });
 
-      if (data?.ok && data?.url) {
-        console.log("✅ Redirecting to PhonePe payment page");
+      if (res.ok && data?.ok && data?.url) {
+        // Redirect to PhonePe hosted page
         window.location.href = data.url;
         return;
       }
 
-      // Handle API-level errors
-      const apiErr = data?.error || "Unknown error";
-      toast.error(`Could not start PhonePe payment: ${apiErr}`);
-      localStorage.removeItem('pendingBooking');
-      
+      // Nice error toasts that include API details when possible
+      const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
+      const step = data?.step ? ` (${data.step})` : "";
+      const status = res.status ? ` [HTTP ${res.status}]` : "";
+      toast.error(`Could not start PhonePe payment${step}${status}. ${apiErr}`);
     } catch (e: any) {
-      console.error("💥 Payment initiation error:", e);
-      toast.error(`Unable to start payment: ${e?.message || e}`);
-      localStorage.removeItem('pendingBooking');
+      toast.error(`Unable to start payment (network). ${e?.message || e}`);
     } finally {
       setLoading(false);
     }
@@ -792,36 +769,6 @@ async function createVenueBooking() {
       await initiatePhonePe();
     }
   }
-
-  /* =========================
-     Manual Payment Status Check
-     ========================= */
-  const handleManualStatusCheck = async () => {
-    const orderId = prompt("If you have an order ID from a previous payment attempt, enter it here to check status:");
-    if (!orderId?.trim()) return;
-    
-    setManualCheckLoading(true);
-    try {
-      const statusRes = await fetch(`/api/phonepe/status?txn=${encodeURIComponent(orderId.trim())}`);
-      const statusData = await statusRes.json();
-      
-      if (statusData.ok) {
-        if (statusData.state === 'COMPLETED') {
-          toast.success("✅ Payment found and completed!");
-        } else if (statusData.state === 'FAILED') {
-          toast.error("❌ Payment failed or was cancelled.");
-        } else {
-          toast.info(`ℹ️ Payment status: ${statusData.state}`);
-        }
-      } else {
-        toast.error("Order not found or invalid order ID.");
-      }
-    } catch (error) {
-      toast.error("Unable to check payment status. Please try again or contact support.");
-    } finally {
-      setManualCheckLoading(false);
-    }
-  };
 
   /* =========================
      Today's bookings
@@ -1477,7 +1424,8 @@ async function createVenueBooking() {
                   </div>
                   {paymentMethod === "phonepe" && (
                     <p className="mt-2 text-[11px] text-gray-400">
-                      You'll be redirected to PhonePe then to a success/failure page.
+                      You'll be redirected to PhonePe. Booking is created only after
+                      payment success.
                     </p>
                   )}
                 </div>
@@ -1546,17 +1494,6 @@ async function createVenueBooking() {
                     : paymentMethod === "phonepe"
                     ? "Confirm & Pay (PhonePe)"
                     : "Confirm Booking"}
-                </Button>
-
-                {/* Manual status check button */}
-                <Button
-                  onClick={handleManualStatusCheck}
-                  disabled={manualCheckLoading}
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-2 rounded-xl border-white/20 text-gray-300 hover:bg-white/5"
-                >
-                  {manualCheckLoading ? "Checking..." : "Check Payment Status"}
                 </Button>
 
                 <p className="text-xs text-gray-400 text-center">
@@ -1750,7 +1687,7 @@ async function createVenueBooking() {
         </div>
       </footer>
 
-      {/* Booking confirmation dialog */}
+      {/* Booking confirmation (venue only) */}
       {bookingConfirmationData && (
         <BookingConfirmationDialog
           isOpen={showConfirmationDialog}
