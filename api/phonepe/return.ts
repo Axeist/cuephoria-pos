@@ -17,10 +17,10 @@ export default async function handler(req: Request) {
     
     if (txnId && phonepeStatus !== 'failed') {
       // Redirect to your success page with transaction ID
-      redirectUrl = `https://admin.cuephoria.in/public/payment-success?txn=${encodeURIComponent(txnId)}`;
+      redirectUrl = `https://admin.cuephoria.in/public/payment/success?txn=${encodeURIComponent(txnId)}`;
     } else {
       // Redirect to your failure page
-      redirectUrl = `https://admin.cuephoria.in/public/payment-failed`;
+      redirectUrl = `https://admin.cuephoria.in/public/payment/failed`;
     }
     
     console.log("⚡ Redirecting to:", redirectUrl);
@@ -28,6 +28,6 @@ export default async function handler(req: Request) {
     
   } catch (error) {
     console.error("💥 Return handler error:", error);
-    return Response.redirect("https://admin.cuephoria.in/public/payment-failed", 302);
+    return Response.redirect("https://admin.cuephoria.in/public/payment/failed", 302);
   }
 }

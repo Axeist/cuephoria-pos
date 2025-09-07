@@ -30,7 +30,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, parse, getDay } from "date-fns";
+import { format, parse, getDay, addMinutes } from "date-fns";
 
 /* =========================
    Types
@@ -161,7 +161,9 @@ export default function PublicBooking() {
         }
       )
       .subscribe();
-    return () => supabase.removeChannel(ch);
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [selectedStations, selectedDate]);
 
   useEffect(() => {
@@ -182,7 +184,10 @@ export default function PublicBooking() {
         .select("id, name, type, hourly_rate")
         .order("name");
       if (error) throw error;
-      setStations(data || []);
+      setStations((data || []).map(station => ({
+        ...station,
+        type: station.type as StationType
+      })));
     } catch (e) {
       console.error(e);
       toast.error("Failed to load stations");
@@ -691,10 +696,26 @@ export default function PublicBooking() {
       return;
     }
 
+    // Store booking data in localStorage before payment
+    const pendingBooking = {
+      selectedStations,
+      selectedDateISO: selectedDate,
+      start_time: selectedSlot!.start_time,
+      end_time: selectedSlot!.end_time,
+      customer: customerInfo,
+      pricing: {
+        original: originalPrice,
+        discount: discount,
+        final: finalPrice,
+        coupons: Object.values(appliedCoupons).join(",") || ""
+      }
+    };
+    localStorage.setItem('pendingBooking', JSON.stringify(pendingBooking));
+
     const txnId = genTxnId();
     const origin = window.location.origin;
-    const successUrl = `${origin}/public/booking?pp=success`;
-    const failedUrl = `${origin}/public/booking?pp=failed`;
+    const successUrl = `${origin}/api/phonepe/return?status=success`;
+    const failedUrl = `${origin}/api/phonepe/return?status=failed`;
 
     setLoading(true);
     try {
@@ -1700,7 +1721,7 @@ export default function PublicBooking() {
       <LegalDialog
         isOpen={showLegalDialog}
         onClose={() => setShowLegalDialog(false)}
-        type={legalDialogType}
+        type={legalDialogType as "terms" | "privacy" | "contact"}
       />
 
       {/* Refund policy modal */}
