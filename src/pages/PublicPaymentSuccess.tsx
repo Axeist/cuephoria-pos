@@ -1,4 +1,3 @@
-// src/pages/PublicPaymentSuccess.tsx
 import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,19 +122,16 @@ export default function PublicPaymentSuccess() {
   }, [txn]);
 
   const title =
-    status === "done" ? "Payment Success" :
-    status === "failed" ? "Payment Issue" :
-    "Processing…";
+    status === "done" ? "Payment Success"
+    : status === "failed" ? "Payment Issue"
+    : "Processing…";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black text-gray-200 p-6">
       <div className="max-w-md w-full rounded-xl border border-white/10 bg-white/5 p-6 text-center">
         <h1 className="text-xl font-bold mb-2">{title}</h1>
         <p className="text-sm mb-6">{msg}</p>
-        <Link
-          to="/public/booking"
-          className="inline-flex rounded-md bg-cuephoria-purple/80 hover:bg-cuephoria-purple px-4 py-2 text-white"
-        >
+        <Link to="/public/booking" className="inline-flex rounded-md bg-cuephoria-purple/80 hover:bg-cuephoria-purple px-4 py-2 text-white">
           Back to Booking
         </Link>
       </div>
