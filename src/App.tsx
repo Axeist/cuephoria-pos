@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -28,10 +29,9 @@ import PublicBooking from "./pages/PublicBooking";
 import BookingPage from "./pages/BookingPage";
 import BookingManagement from "./pages/BookingManagement";
 
-// 👇👇 ADD THESE TWO IMPORTS
+// Payment routes
 import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
 import PublicPaymentFailed from "./pages/PublicPaymentFailed";
-// ☝️☝️
 
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
@@ -63,21 +63,23 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
   const location = useLocation();
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
-      <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
-    </div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark">
+        <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-cuephoria-lightpurple border-t-transparent"></div>
+      </div>
+    );
   }
-  
+
   if (!user) {
     // Redirect to login page while preserving the intended destination
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
-  
+
   // If route requires admin access and user is not admin, redirect to dashboard
   if (requireAdmin && !user.isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full overflow-x-hidden">
@@ -115,60 +117,95 @@ const App = () => (
                   <Route path="/public/tournaments" element={<PublicTournaments />} />
                   <Route path="/public/stations" element={<PublicStations />} />
                   <Route path="/public/booking" element={<PublicBooking />} />
-                  {/* 👇👇 ADD THESE TWO ROUTES */}
+
+                  {/* Payment routes */}
                   <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
                   <Route path="/public/payment/failed" element={<PublicPaymentFailed />} />
-                  {/* ☝️☝️ */}
 
                   {/* Protected routes */}
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/pos" element={
-                    <ProtectedRoute>
-                      <POS />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/stations" element={
-                    <ProtectedRoute>
-                      <Stations />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/products" element={
-                    <ProtectedRoute>
-                      <Products />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/customers" element={
-                    <ProtectedRoute>
-                      <Customers />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/reports" element={
-                    <ProtectedRoute>
-                      <Reports />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/booking-management" element={
-                    <ProtectedRoute>
-                      <BookingManagement />
-                    </ProtectedRoute>
-                  } />
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <Dashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/pos"
+                    element={
+                      <ProtectedRoute>
+                        <POS />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/stations"
+                    element={
+                      <ProtectedRoute>
+                        <Stations />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/products"
+                    element={
+                      <ProtectedRoute>
+                        <Products />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/customers"
+                    element={
+                      <ProtectedRoute>
+                        <Customers />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports"
+                    element={
+                      <ProtectedRoute>
+                        <Reports />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/booking-management"
+                    element={
+                      <ProtectedRoute>
+                        <BookingManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
                   {/* How to Use page, protected */}
-                  <Route path="/how-to-use" element={
-                    <ProtectedRoute>
-                      <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-                        <HowToUsePage />
-                      </Suspense>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  } />
+                  <Route
+                    path="/how-to-use"
+                    element={
+                      <ProtectedRoute>
+                        <Suspense
+                          fallback={
+                            <div className="min-h-screen flex items-center justify-center">
+                              Loading...
+                            </div>
+                          }
+                        >
+                          <HowToUsePage />
+                        </Suspense>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/settings"
+                    element={
+                      <ProtectedRoute>
+                        <Settings />
+                      </ProtectedRoute>
+                    }
+                  />
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>
