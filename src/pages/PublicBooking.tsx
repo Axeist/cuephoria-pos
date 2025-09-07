@@ -1,4 +1,3 @@
-// src/pages/PublicBooking.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,7 +82,7 @@ const genTxnId = () =>
 const isHappyHour = (date: Date, slot: TimeSlot | null) => {
   if (!slot) return false;
   const day = getDay(date); // 0 Sun .. 6 Sat
-  const startHour = Number(slot.start_time.split(":"));
+  const startHour = Number(slot.start_time.split(":")[0]);
   return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16; // Mon-Fri, 11:00–15:59
 };
 
@@ -123,7 +122,9 @@ export default function PublicBooking() {
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
   const [showLegalDialog, setShowLegalDialog] = useState(false);
-  const [legalDialogType, setLegalDialogType] = useState<"terms" | "privacy" | "contact">("terms");
+  const [legalDialogType, setLegalDialogType] = useState<
+    "terms" | "privacy" | "contact" | "refund"
+  >("terms");
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
@@ -196,7 +197,7 @@ export default function PublicBooking() {
       if (selectedStations.length === 1) {
         const { data, error } = await supabase.rpc("get_available_slots", {
           p_date: dateStr,
-          p_station_id: selectedStations,
+          p_station_id: selectedStations[0],
           p_slot_duration: 60,
         });
         if (error) throw error;
@@ -256,9 +257,6 @@ export default function PublicBooking() {
     }
   }
 
-  /* =========================
-     Customer search
-     ========================= */
   async function searchCustomer() {
     if (!customerNumber.trim()) {
       toast.error("Please enter a customer number");
@@ -343,13 +341,12 @@ export default function PublicBooking() {
   async function handleSlotSelect(slot: TimeSlot) {
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
-      if ((filtered as string[]).length === 0) {
+      if (filtered.length === 0) {
         toast.error("That time isn't available for the selected stations.");
         setSelectedSlot(null);
         return;
       }
-      if ((filtered as string[]).length !== selectedStations.length)
-        setSelectedStations(filtered as string[]);
+      if (filtered.length !== selectedStations.length) setSelectedStations(filtered);
     }
     setSelectedSlot(slot);
   }
@@ -357,7 +354,15 @@ export default function PublicBooking() {
   /* =========================
      Coupons & Pricing
      ========================= */
-  const allowedCoupons = ["CUEPHORIA25", "CUEPHORIA50", "NIT99", "NIT50", "ALMA50", "AXEIST"];
+
+  const allowedCoupons = [
+    "CUEPHORIA25",
+    "CUEPHORIA50",
+    "NIT99",
+    "NIT50",
+    "ALMA50",
+    "AXEIST",
+  ];
 
   function validateStudentID() {
     return window.confirm(
@@ -400,7 +405,9 @@ export default function PublicBooking() {
 
     // AXEIST
     if (code === "AXEIST") {
-      const ok = window.confirm("🥷 AXEIST grants 100% OFF for close friends. Apply?");
+      const ok = window.confirm(
+        "🥷 AXEIST grants 100% OFF for close friends. Apply?"
+      );
       if (!ok) return;
       setAppliedCoupons({ all: "AXEIST" });
       toast.success("🥷 AXEIST applied! 100% OFF — Loyalty matters.");
@@ -425,14 +432,18 @@ export default function PublicBooking() {
         return;
       }
       setAppliedCoupons((prev) => ({ ...prev, ["8ball"]: "NIT99" }));
-      toast.success("🎱 NIT99 applied! All 8-Ball stations at ₹99/hour during Happy Hours! ✨");
+      toast.success(
+        "🎱 NIT99 applied! All 8-Ball stations at ₹99/hour during Happy Hours! ✨"
+      );
       return;
     }
 
-    // NIT50 logic — 50% off on both; if stacked with NIT99 then 8-ball at ₹99/hr, PS5 at 50% off
+    // NIT50 logic — always 50% off on both during happy hours, unless NIT99 is also stacked, then only 50% on PS5, 8-ball at ₹99/hr
     if (code === "NIT50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
-        toast.error("NIT50 can only be applied to PS5 or 8-Ball stations in your selection.");
+        toast.error(
+          "NIT50 can only be applied to PS5 or 8-Ball stations in your selection."
+        );
         return;
       }
       setAppliedCoupons((prev) => {
@@ -446,9 +457,7 @@ export default function PublicBooking() {
       else if (selectedHasPS5) msg += "PS5 stations!";
       else msg += "8-Ball stations!";
       if (selectedHas8Ball && appliedCoupons["8ball"] === "NIT99" && happyHourActive) {
-        toast.info(
-          "💡 With both NIT50 and NIT99 applied: 8-Ball pool is just ₹99/hr (not 50% off), and PS5 remains at 50% OFF!"
-        );
+        toast.info("💡 With both NIT50 and NIT99 applied: 8-Ball pool is just ₹99/hr (not 50% off), and PS5 remains at 50% OFF!");
       } else {
         toast.success(msg);
       }
@@ -458,7 +467,9 @@ export default function PublicBooking() {
     // ALMA50 always 50% off for both
     if (code === "ALMA50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
-        toast.error("ALMA50 can only be applied to PS5 or 8-Ball stations in your selection.");
+        toast.error(
+          "ALMA50 can only be applied to PS5 or 8-Ball stations in your selection."
+        );
         return;
       }
       setAppliedCoupons((prev) => {
@@ -512,22 +523,31 @@ export default function PublicBooking() {
     const breakdown: Record<string, number> = {};
 
     // NIT99 stacked with NIT50: 8-ball at ₹99, PS5 at 50% off
-    if (appliedCoupons["8ball"] === "NIT99" && appliedCoupons["ps5"] === "NIT50") {
-      const eightBalls = stations.filter((s) => selectedStations.includes(s.id) && s.type === "8ball");
+    if (
+      appliedCoupons["8ball"] === "NIT99" &&
+      appliedCoupons["ps5"] === "NIT50"
+    ) {
+      const eightBalls = stations.filter(
+        (s) => selectedStations.includes(s.id) && s.type === "8ball"
+      );
       const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
       const d = sum - eightBalls.length * 99;
       if (d > 0) {
         totalDiscount += d;
         breakdown["8-Ball (NIT99)"] = d;
       }
-      const ps5s = stations.filter((s) => selectedStations.includes(s.id) && s.type === "ps5");
+      const ps5s = stations.filter(
+        (s) => selectedStations.includes(s.id) && s.type === "ps5"
+      );
       const sum2 = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
       const d2 = sum2 * 0.5;
       totalDiscount += d2;
       breakdown[`PS5 (NIT50)`] = d2;
     } else {
       if (appliedCoupons["8ball"] === "NIT99") {
-        const eightBalls = stations.filter((s) => selectedStations.includes(s.id) && s.type === "8ball");
+        const eightBalls = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "8ball"
+        );
         const sum = eightBalls.reduce((x, s) => x + s.hourly_rate, 0);
         const d = sum - eightBalls.length * 99;
         if (d > 0) {
@@ -537,7 +557,9 @@ export default function PublicBooking() {
       }
 
       if (appliedCoupons["8ball"] === "NIT50" || appliedCoupons["8ball"] === "ALMA50") {
-        const balls = stations.filter((s) => selectedStations.includes(s.id) && s.type === "8ball");
+        const balls = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "8ball"
+        );
         const sum = balls.reduce((x, s) => x + s.hourly_rate, 0);
         const d = sum * 0.5;
         totalDiscount += d;
@@ -545,7 +567,9 @@ export default function PublicBooking() {
       }
 
       if (appliedCoupons["ps5"] === "NIT50" || appliedCoupons["ps5"] === "ALMA50") {
-        const ps5s = stations.filter((s) => selectedStations.includes(s.id) && s.type === "ps5");
+        const ps5s = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "ps5"
+        );
         const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
         const d = sum * 0.5;
         totalDiscount += d;
@@ -590,7 +614,7 @@ export default function PublicBooking() {
           .select("id")
           .single();
         if (customerError) throw customerError;
-        customerId = newCustomer!.id;
+        customerId = newCustomer.id;
       }
 
       const couponCodes = Object.values(appliedCoupons).join(",");
@@ -614,22 +638,22 @@ export default function PublicBooking() {
         .select("id");
       if (bookingError) throw bookingError;
 
-      const stationObjects = stations.filter((s) => selectedStations.includes(s.id));
+      const stationObjects = stations.filter((s) =>
+        selectedStations.includes(s.id)
+      );
       setBookingConfirmationData({
-        bookingId: inserted!.id.slice(0, 8).toUpperCase(),
+        bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
         stationNames: stationObjects.map((s) => s.name),
         date: format(selectedDate, "yyyy-MM-dd"),
-        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        }),
-        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        }),
+        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString(
+          "en-US",
+          { hour: "numeric", minute: "2-digit", hour12: true }
+        ),
+        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString(
+          "en-US",
+          { hour: "numeric", minute: "2-digit", hour12: true }
+        ),
         totalAmount: finalPrice,
         couponCode: couponCodes || undefined,
         discountAmount: discount > 0 ? discount : undefined,
@@ -666,42 +690,11 @@ export default function PublicBooking() {
       toast.error("Customer phone is required for payment.");
       return;
     }
-    if (!selectedSlot || selectedStations.length === 0) {
-      toast.error("Please select stations and a time slot.");
-      return;
-    }
 
-    // 1) Persist the booking payload for success page
-    const couponCodes = Object.values(appliedCoupons).join(",");
-    const pendingBooking = {
-      selectedStations: [...selectedStations],
-      selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
-      start_time: selectedSlot.start_time,
-      end_time: selectedSlot.end_time,
-      customer: {
-        id: customerInfo.id,
-        name: customerInfo.name,
-        phone: customerInfo.phone,
-        email: customerInfo.email || undefined,
-      },
-      pricing: {
-        original: calculateOriginalPrice(),
-        discount,
-        final: finalPrice,
-        coupons: couponCodes,
-      },
-    };
-    try {
-      localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
-    } catch {
-      // still proceed
-    }
-
-    // 2) Generate transaction id and set return URLs to the server return handler
     const txnId = genTxnId();
     const origin = window.location.origin;
-    const successUrl = `${origin}/api/phonepe/return`;
-    const failedUrl = `${origin}/api/phonepe/return`;
+    const successUrl = `${origin}/public/booking?pp=success`;
+    const failedUrl = `${origin}/public/booking?pp=failed`;
 
     setLoading(true);
     try {
@@ -723,9 +716,10 @@ export default function PublicBooking() {
       try {
         data = JSON.parse(raw);
       } catch {
-        // Not JSON – that's OK
+        // Not JSON – that's OK; we'll use raw
       }
 
+      // Log everything once for debugging
       console.log("PhonePe pay upstream →", {
         status: res.status,
         ok: res.ok,
@@ -739,6 +733,7 @@ export default function PublicBooking() {
         return;
       }
 
+      // Nice error toasts that include API details when possible
       const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
       const step = data?.step ? ` (${data.step})` : "";
       const status = res.status ? ` [HTTP ${res.status}]` : "";
@@ -791,7 +786,9 @@ export default function PublicBooking() {
       const todayStr = format(new Date(), "yyyy-MM-dd");
       const { data: bookingsData, error } = await supabase
         .from("bookings")
-        .select("id, booking_date, start_time, end_time, status, station_id, customer_id")
+        .select(
+          "id, booking_date, start_time, end_time, status, station_id, customer_id"
+        )
         .eq("booking_date", todayStr)
         .order("start_time", { ascending: true });
 
@@ -856,8 +853,8 @@ export default function PublicBooking() {
       map.get(k)!.push(r);
     });
     const entries = Array.from(map.entries()).sort(([a], [b]) => {
-      const aStart = parse(a.split(" — "), "h:mm a", new Date()).getTime();
-      const bStart = parse(b.split(" — "), "h:mm a", new Date()).getTime();
+      const aStart = parse(a.split(" — ")[0], "h:mm a", new Date()).getTime();
+      const bStart = parse(b.split(" — ")[0], "h:mm a", new Date()).getTime();
       return aStart - bStart;
     });
     return entries;
@@ -868,39 +865,67 @@ export default function PublicBooking() {
     switch (s) {
       case "confirmed":
         return (
-          <span className={cn(base, "bg-blue-500/15 text-blue-300 border border-blue-400/20")}>
+          <span
+            className={cn(
+              base,
+              "bg-blue-500/15 text-blue-300 border border-blue-400/20"
+            )}
+          >
             confirmed
           </span>
         );
       case "in-progress":
         return (
-          <span className={cn(base, "bg-amber-500/15 text-amber-300 border border-amber-400/20")}>
+          <span
+            className={cn(
+              base,
+              "bg-amber-500/15 text-amber-300 border border-amber-400/20"
+            )}
+          >
             in-progress
           </span>
         );
       case "completed":
         return (
           <span
-            className={cn(base, "bg-emerald-500/15 text-emerald-300 border border-emerald-400/20")}
+            className={cn(
+              base,
+              "bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
+            )}
           >
             completed
           </span>
         );
       case "cancelled":
         return (
-          <span className={cn(base, "bg-rose-500/15 text-rose-300 border border-rose-400/20")}>
+          <span
+            className={cn(
+              base,
+              "bg-rose-500/15 text-rose-300 border border-rose-400/20"
+            )}
+          >
             cancelled
           </span>
         );
       case "no-show":
         return (
-          <span className={cn(base, "bg-zinc-500/15 text-zinc-300 border border-zinc-400/20")}>
+          <span
+            className={cn(
+              base,
+              "bg-zinc-500/15 text-zinc-300 border border-zinc-400/20"
+            )}
+          >
             no-show
           </span>
         );
       default:
         return (
-          <span className={cn(base, "bg-zinc-500/15 text-zinc-300 border border-zinc-400/20")}>
+          <span
+            className={cn(
+              base,
+              "bg-zinc-500/15 text-zinc-300 border border-zinc-400/20"
+            )}
+          >
             {s}
           </span>
         );
@@ -948,7 +973,9 @@ export default function PublicBooking() {
             {/* LOB badge */}
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-gray-300 backdrop-blur-md">
               <span className="font-semibold tracking-wide">Line of Business:</span>
-              <span>Amusement & Gaming Lounge Services (time-based PS5 & 8-Ball rentals)</span>
+              <span>
+                Amusement & Gaming Lounge Services (time-based PS5 & 8-Ball rentals)
+              </span>
             </div>
           </div>
         </div>
@@ -961,8 +988,8 @@ export default function PublicBooking() {
           <h2 className="mb-1 text-base font-semibold text-white">About Cuephoria</h2>
           <p>
             Cuephoria offers <span className="font-medium">time-based rentals</span> of
-            PlayStation 5 stations and 8-Ball pool tables. Book 60-minute sessions for single or
-            multiple stations.
+            PlayStation 5 stations and 8-Ball pool tables. Book 60-minute sessions
+            for single or multiple stations.
           </p>
           <p className="mt-2 text-gray-400">
             <span className="font-medium text-gray-200">Pricing:</span> All prices are
@@ -989,8 +1016,8 @@ export default function PublicBooking() {
               <CardContent className="space-y-4">
                 <div className="bg-cuephoria-purple/10 border border-cuephoria-purple/20 rounded-xl p-3">
                   <p className="text-sm text-cuephoria-purple/90 font-medium flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" /> Please complete customer information to
-                    proceed with booking
+                    <AlertTriangle className="h-4 w-4" /> Please complete customer
+                    information to proceed with booking
                   </p>
                 </div>
 
@@ -1060,8 +1087,8 @@ export default function PublicBooking() {
 
                 {isCustomerInfoComplete() && (
                   <div className="flex items-center gap-2 text-green-400 text-sm">
-                    <CheckCircle className="h-4 w-4" /> Customer information complete! You can now
-                    proceed to station selection.
+                    <CheckCircle className="h-4 w-4" /> Customer information complete!
+                    You can now proceed to station selection.
                   </div>
                 )}
               </CardContent>
@@ -1079,7 +1106,9 @@ export default function PublicBooking() {
                         <MapPin className="h-4 w-4 text-cuephoria-blue" />
                       )}
                     </div>
-                    <CardTitle className="m-0 p-0 text-white">Step 2: Select Gaming Stations</CardTitle>
+                    <CardTitle className="m-0 p-0 text-white">
+                      Step 2: Select Gaming Stations
+                    </CardTitle>
                   </div>
                   {isStationSelectionAvailable() && selectedStations.length > 0 && (
                     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
@@ -1103,7 +1132,9 @@ export default function PublicBooking() {
                     onClick={() => setStationType("all")}
                     className={cn(
                       "h-9 rounded-full border-white/15 text-[12px]",
-                      stationType === "all" ? "bg-white/12 text-gray-100" : "bg-transparent text-gray-300"
+                      stationType === "all"
+                        ? "bg-white/12 text-gray-100"
+                        : "bg-transparent text-gray-300"
                     )}
                   >
                     All
@@ -1139,12 +1170,18 @@ export default function PublicBooking() {
                 {!isStationSelectionAvailable() ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Complete customer information to unlock station selection</p>
+                    <p className="text-gray-400">
+                      Complete customer information to unlock station selection
+                    </p>
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6">
                     <StationSelector
-                      stations={stationType === "all" ? stations : stations.filter((s) => s.type === stationType)}
+                      stations={
+                        stationType === "all"
+                          ? stations
+                          : stations.filter((s) => s.type === stationType)
+                      }
                       selectedStations={selectedStations}
                       onStationToggle={handleStationToggle}
                     />
@@ -1174,25 +1211,33 @@ export default function PublicBooking() {
                 {!isTimeSelectionAvailable() ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">Select stations to unlock date and time selection</p>
+                    <p className="text-gray-400">
+                      Select stations to unlock date and time selection
+                    </p>
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <Label className="text-base font-medium text-gray-200">Choose Date</Label>
+                      <Label className="text-base font-medium text-gray-200">
+                        Choose Date
+                      </Label>
                       <div className="mt-2">
                         <Calendar
                           mode="single"
                           selected={selectedDate}
                           onSelect={(date) => date && setSelectedDate(date)}
                           disabled={(date) => date < new Date()}
-                          className={cn("rounded-xl border bg-black/30 border-white/10 pointer-events-auto")}
+                          className={cn(
+                            "rounded-xl border bg-black/30 border-white/10 pointer-events-auto"
+                          )}
                         />
                       </div>
                     </div>
                     {selectedStations.length > 0 && (
                       <div>
-                        <Label className="text-base font-medium text-gray-200">Available Time Slots</Label>
+                        <Label className="text-base font-medium text-gray-200">
+                          Available Time Slots
+                        </Label>
                         <div className="mt-2">
                           <TimeSlotPicker
                             slots={availableSlots}
@@ -1218,7 +1263,9 @@ export default function PublicBooking() {
               <CardContent className="space-y-4">
                 {selectedStations.length > 0 && (
                   <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase">Selected Stations</Label>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Selected Stations
+                    </Label>
                     <div className="mt-2 space-y-1">
                       {selectedStations.map((id) => {
                         const s = stations.find((x) => x.id === id);
@@ -1244,7 +1291,9 @@ export default function PublicBooking() {
 
                 {selectedDate && (
                   <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase">Date</Label>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Date
+                    </Label>
                     <p className="mt-1 text-sm text-gray-200">
                       {format(selectedDate, "EEEE, MMMM d, yyyy")}
                     </p>
@@ -1253,26 +1302,28 @@ export default function PublicBooking() {
 
                 {selectedSlot && (
                   <div>
-                    <Label className="text-xs font-semibold text-gray-400 uppercase">Time</Label>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Time
+                    </Label>
                     <p className="mt-1 text-sm text-gray-200">
-                      {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                      })}{" "}
+                      {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString(
+                        "en-US",
+                        { hour: "numeric", minute: "2-digit", hour12: true }
+                      )}{" "}
                       —{" "}
-                      {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                      })}
+                      {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString(
+                        "en-US",
+                        { hour: "numeric", minute: "2-digit", hour12: true }
+                      )}
                     </p>
                   </div>
                 )}
 
                 {/* Coupon */}
                 <div>
-                  <Label className="text-xs font-semibold text-gray-400 uppercase">Coupon Code</Label>
+                  <Label className="text-xs font-semibold text-gray-400 uppercase">
+                    Coupon Code
+                  </Label>
                   <div className="flex gap-2 mt-1">
                     <Input
                       value={couponCode}
@@ -1280,11 +1331,17 @@ export default function PublicBooking() {
                       placeholder="Enter coupon code"
                       className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl flex-1"
                     />
-                    <Button onClick={handleCouponApply} size="sm" className="rounded-xl bg-green-600 hover:bg-green-700">
+                    <Button
+                      onClick={handleCouponApply}
+                      size="sm"
+                      className="rounded-xl bg-green-600 hover:bg-green-700"
+                    >
                       Apply
                     </Button>
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-400">All discounts and totals are calculated in INR (₹).</p>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    All discounts and totals are calculated in INR (₹).
+                  </p>
                   <p className="mt-2 text-xs text-cuephoria-lightpurple">
                     📝 Coupon rules:<br />
                     NIT50/ALMA50: 50% off for NIT Trichy students;<br />
@@ -1311,13 +1368,15 @@ export default function PublicBooking() {
                               background: "linear-gradient(90deg,#231743 10%,#181121 100%)",
                               border: "1px solid #A37CFF",
                               color: "#F7CBFF",
-                              letterSpacing: "1.5px",
+                              letterSpacing: "1.5px"
                             }}
                           >
                             <div className="flex items-center gap-2">
                               <span className="text-xl">{emoji}</span>
                               <span className="font-extrabold uppercase tracking-widest">{val}</span>
-                              <span className="ml-2 text-xs font-semibold text-green-400">Applied!</span>
+                              <span className="ml-2 text-xs font-semibold text-green-400">
+                                Applied!
+                              </span>
                             </div>
                             <button
                               onClick={() => removeCoupon(key)}
@@ -1335,7 +1394,9 @@ export default function PublicBooking() {
 
                 {/* Payment method */}
                 <div className="mt-2">
-                  <Label className="text-xs font-semibold text-gray-400 uppercase">Payment Method</Label>
+                  <Label className="text-xs font-semibold text-gray-400 uppercase">
+                    Payment Method
+                  </Label>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setPaymentMethod("venue")}
@@ -1363,7 +1424,8 @@ export default function PublicBooking() {
                   </div>
                   {paymentMethod === "phonepe" && (
                     <p className="mt-2 text-[11px] text-gray-400">
-                      You'll be redirected to PhonePe. Booking is created only after payment success.
+                      You'll be redirected to PhonePe. Booking is created only after
+                      payment success.
                     </p>
                   )}
                 </div>
@@ -1375,13 +1437,17 @@ export default function PublicBooking() {
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <Label className="text-sm text-gray-300">Subtotal</Label>
-                        <span className="text-sm text-gray-200">{INR(originalPrice)}</span>
+                        <span className="text-sm text-gray-200">
+                          {INR(originalPrice)}
+                        </span>
                       </div>
 
                       {discount > 0 && (
                         <>
                           <div className="border p-2 rounded bg-black/10 text-green-400">
-                            <Label className="font-semibold text-xs uppercase">Discount Breakdown</Label>
+                            <Label className="font-semibold text-xs uppercase">
+                              Discount Breakdown
+                            </Label>
                             <ul className="list-disc ml-5 mt-1 text-sm">
                               {Object.entries(discountBreakdown).map(([k, v]) => (
                                 <li key={k}>
@@ -1391,7 +1457,9 @@ export default function PublicBooking() {
                             </ul>
                           </div>
                           <div className="flex justify-between items-center">
-                            <Label className="text-sm text-green-400">Total Discount</Label>
+                            <Label className="text-sm text-green-400">
+                              Total Discount
+                            </Label>
                             <span className="text-sm text-green-400">-{INR(discount)}</span>
                           </div>
                         </>
@@ -1400,7 +1468,9 @@ export default function PublicBooking() {
                       <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
                       <div className="flex justify-between items-center">
-                        <Label className="text-base font-semibold text-gray-100">Total Amount</Label>
+                        <Label className="text-base font-semibold text-gray-100">
+                          Total Amount
+                        </Label>
                         <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
                           {INR(finalPrice)}
                         </span>
@@ -1411,7 +1481,9 @@ export default function PublicBooking() {
 
                 <Button
                   onClick={handleConfirm}
-                  disabled={!selectedSlot || selectedStations.length === 0 || !customerNumber || loading}
+                  disabled={
+                    !selectedSlot || selectedStations.length === 0 || !customerNumber || loading
+                  }
                   className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
                   size="lg"
                 >
@@ -1438,15 +1510,15 @@ export default function PublicBooking() {
         {/* Policy summaries */}
         <section className="mt-10 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-white font-semibold mb-2">Terms & Conditions (Summary)</h3>
+            <h3 className="text-white font-semibold mb-2">
+              Terms & Conditions (Summary)
+            </h3>
             <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
               <li>Bookings are for 60-minute time slots; extensions subject to availability.</li>
               <li>Arrive on time; late arrivals may reduce play time without fee adjustment.</li>
               <li>Damage to equipment may incur charges as per in-store policy.</li>
               <li>Management may refuse service in cases of misconduct or safety concerns.</li>
-              <li>
-                All prices are in <strong>INR (₹)</strong>.
-              </li>
+              <li>All prices are in <strong>INR (₹)</strong>.</li>
             </ul>
             <button
               onClick={() => {
@@ -1556,7 +1628,9 @@ export default function PublicBooking() {
                 alt="Cuephoria Logo"
                 className="h-8 mr-3"
               />
-              <p className="text-gray-400 text-sm">© {new Date().getFullYear()} Cuephoria. All rights reserved.</p>
+              <p className="text-gray-400 text-sm">
+                © {new Date().getFullYear()} Cuephoria. All rights reserved.
+              </p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center text-gray-400 text-sm">
@@ -1601,7 +1675,10 @@ export default function PublicBooking() {
               </div>
               <div className="flex items-center gap-1">
                 <Mail className="h-4 w-4" />
-                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
+                <a
+                  href="mailto:contact@cuephoria.in"
+                  className="hover:text-white transition-colors"
+                >
                   contact@cuephoria.in
                 </a>
               </div>
@@ -1620,14 +1697,20 @@ export default function PublicBooking() {
       )}
 
       {/* Legal dialog */}
-      <LegalDialog isOpen={showLegalDialog} onClose={() => setShowLegalDialog(false)} type={legalDialogType} />
+      <LegalDialog
+        isOpen={showLegalDialog}
+        onClose={() => setShowLegalDialog(false)}
+        type={legalDialogType}
+      />
 
       {/* Refund policy modal */}
       {showRefundDialog && (
-        <div className="fixed inset-0 z- flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
           <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Refund & Cancellation Policy</h3>
+              <h3 className="text-lg font-semibold text-white">
+                Refund & Cancellation Policy
+              </h3>
               <button
                 aria-label="Close refund policy"
                 onClick={() => setShowRefundDialog(false)}
@@ -1639,7 +1722,8 @@ export default function PublicBooking() {
 
             <div className="prose prose-invert max-w-none text-sm text-gray-300">
               <p className="text-gray-400">
-                This policy outlines how a booking for a gaming service made through the Platform can be canceled or refunded.
+                This policy outlines how a booking for a gaming service made through the
+                Platform can be canceled or refunded.
               </p>
 
               <h4 className="mt-4 text-white">Cancellations</h4>
@@ -1665,8 +1749,18 @@ export default function PublicBooking() {
               </ul>
 
               <p className="mt-4 text-xs text-gray-400">
-                Need help? Call <a className="underline hover:text-white" href="tel:+918637625155">+91 86376 25155</a>{" "}
-                or email <a className="ml-1 underline hover:text-white" href="mailto:contact@cuephoria.in">contact@cuephoria.in</a>.
+                Need help? Call{" "}
+                <a className="underline hover:text-white" href="tel:+918637625155">
+                  +91 86376 25155
+                </a>{" "}
+                or email{" "}
+                <a
+                  className="ml-1 underline hover:text-white"
+                  href="mailto:contact@cuephoria.in"
+                >
+                  contact@cuephoria.in
+                </a>
+                .
               </p>
             </div>
           </div>
