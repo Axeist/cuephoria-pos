@@ -12,11 +12,11 @@ export default async function handler(req: Request) {
     const ok = Boolean(txnId) && !["failed", "failure"].includes(status);
 
     const redirectUrl = ok
-      ? `${base}/public/payment/success?txn=${encodeURIComponent(txnId as string)}`
-      : `${base}/public/payment/failed`;
+      ? `${base}/public/booking?pp=success&txn=${encodeURIComponent(txnId as string)}`
+      : `${base}/public/booking?pp=failed&txn=${encodeURIComponent(txnId || 'unknown')}`;
 
     return Response.redirect(redirectUrl, 302);
   } catch {
-    return Response.redirect("https://admin.cuephoria.in/public/payment/failed", 302);
+    return Response.redirect("https://admin.cuephoria.in/public/booking?pp=failed", 302);
   }
 }

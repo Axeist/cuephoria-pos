@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,11 +124,127 @@ export default function PublicBooking() {
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<
-    "terms" | "privacy" | "contact" | "refund"
+    "terms" | "privacy" | "contact"
   >("terms");
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
+  
+  // Payment callback handling
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
+
+  // Handle payment callbacks from PhonePe
+  useEffect(() => {
+    const pp = searchParams.get("pp");
+    const txn = searchParams.get("txn");
+    
+    if (pp && txn) {
+      setPaymentStatus("processing");
+      
+      if (pp === "success") {
+        handlePaymentSuccess(txn);
+      } else if (pp === "failed") {
+        setPaymentStatus("failed");
+        toast.error("Payment failed. Please try again or choose 'Pay at Venue'.");
+      }
+      
+      // Clean up URL parameters
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
+
+  const handlePaymentSuccess = async (txnId: string) => {
+    try {
+      // Verify payment status
+      const statusResponse = await fetch(`/api/phonepe/status?txn=${encodeURIComponent(txnId)}`);
+      const statusData = await statusResponse.json();
+      
+      if (!statusData?.success) {
+        throw new Error("Payment verification failed");
+      }
+      
+      // Get pending booking data
+      const pendingBookingData = localStorage.getItem("pendingBooking");
+      if (!pendingBookingData) {
+        throw new Error("No pending booking found");
+      }
+      
+      const pendingBooking = JSON.parse(pendingBookingData);
+      
+      // Create customer if needed
+      let customerId = pendingBooking.customer.id;
+      if (!customerId) {
+        const { data: existingCustomer } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("phone", pendingBooking.customer.phone)
+          .maybeSingle();
+        
+        if (existingCustomer?.id) {
+          customerId = existingCustomer.id;
+        } else {
+          const { data: newCustomer, error } = await supabase
+            .from("customers")
+            .insert({
+              name: pendingBooking.customer.name,
+              phone: pendingBooking.customer.phone,
+              email: pendingBooking.customer.email || null,
+              is_member: false,
+              loyalty_points: 0,
+              total_spent: 0,
+              total_play_time: 0,
+            })
+            .select("id")
+            .single();
+          
+          if (error) throw error;
+          customerId = newCustomer.id;
+        }
+      }
+      
+      // Create booking records
+      const bookingRows = pendingBooking.selectedStations.map((stationId: string) => ({
+        station_id: stationId,
+        customer_id: customerId,
+        booking_date: pendingBooking.selectedDateISO,
+        start_time: pendingBooking.start_time,
+        end_time: pendingBooking.end_time,
+        duration: 60,
+        status: "confirmed",
+        original_price: pendingBooking.pricing.original,
+        discount_percentage: pendingBooking.pricing.discount > 0 
+          ? (pendingBooking.pricing.discount / pendingBooking.pricing.original) * 100 
+          : null,
+        final_price: pendingBooking.pricing.final,
+        coupon_code: pendingBooking.pricing.coupons || null,
+        payment_mode: "phonepe",
+        payment_txn_id: txnId,
+      }));
+      
+      const { error: bookingError } = await supabase
+        .from("bookings")
+        .insert(bookingRows);
+      
+      if (bookingError) throw bookingError;
+      
+      // Clean up and show success
+      localStorage.removeItem("pendingBooking");
+      setPaymentStatus("success");
+      toast.success("🎉 Payment successful! Your booking is confirmed.");
+      
+      // Refresh data
+      fetchTodaysBookings();
+      if (selectedStations.length > 0 && selectedDate) {
+        fetchAvailableSlots();
+      }
+      
+    } catch (error) {
+      console.error("Payment success handling error:", error);
+      setPaymentStatus("failed");
+      toast.error("Payment was successful but booking creation failed. Please contact support.");
+    }
+  };
 
   /* =========================
      Effects
@@ -161,7 +278,9 @@ export default function PublicBooking() {
         }
       )
       .subscribe();
-    return () => supabase.removeChannel(ch);
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [selectedStations, selectedDate]);
 
   useEffect(() => {
@@ -182,7 +301,10 @@ export default function PublicBooking() {
         .select("id, name, type, hourly_rate")
         .order("name");
       if (error) throw error;
-      setStations(data || []);
+      setStations((data || []).map(station => ({
+        ...station,
+        type: station.type as StationType
+      })));
     } catch (e) {
       console.error(e);
       toast.error("Failed to load stations");

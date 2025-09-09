@@ -10,8 +10,11 @@ function j(res: unknown, status = 200) {
   });
 }
 
+// Edge-safe env getter (Deno for Edge, process.env for Node fallback)
 function need(name: string) {
-  const v = process.env[name];
+  const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
+  const fromProcess = typeof process !== "undefined" ? (process.env as any)?.[name] : undefined;
+  const v = fromDeno ?? fromProcess;
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
 }

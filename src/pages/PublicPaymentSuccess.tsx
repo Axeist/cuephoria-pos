@@ -12,8 +12,8 @@ type PendingBooking = {
 };
 
 export default function PublicPaymentSuccess() {
-  const params = useSearchParams();
-  const txn = params.get("txn") || "";
+  const [searchParams] = useSearchParams();
+  const txn = searchParams.get("txn") || "";
   const [status, setStatus] = useState<"checking" | "creating" | "done" | "failed">("checking");
   const [msg, setMsg] = useState("Verifying your payment…");
 
