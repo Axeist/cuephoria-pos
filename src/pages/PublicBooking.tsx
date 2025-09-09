@@ -157,7 +157,7 @@ export default function PublicBooking() {
   const handlePaymentSuccess = async (txnId: string) => {
     try {
       // Verify payment status
-      const statusResponse = await fetch(`/api/phonepe/status?txn=${encodeURIComponent(txnId)}`);
+      const statusResponse = await fetch(`https://admin.cuephoria.in/api/phonepe/status?txn=${encodeURIComponent(txnId)}`);
       const statusData = await statusResponse.json();
       
       if (!statusData?.success) {
