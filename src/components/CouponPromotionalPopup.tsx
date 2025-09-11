@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, Clock, Percent, GraduationCap, Sparkles } from 'lucide-react';
+import { Star, Clock, Percent, GraduationCap, Sparkles, Trophy, AlertCircle } from 'lucide-react';
 
 interface CouponPromotionalPopupProps {
   onCouponSelect?: (coupon: string) => void;
@@ -11,7 +11,7 @@ interface CouponPromotionalPopupProps {
 const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCouponSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCount, setShowCount] = useState(0);
-  const [currentPopup, setCurrentPopup] = useState<1 | 2>(1);
+  const [currentPopup, setCurrentPopup] = useState<1 | 2 | 3>(1);
 
   useEffect(() => {
     // First popup after 30 seconds
@@ -34,6 +34,19 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
       }, 30000);
 
       return () => clearTimeout(secondTimeout);
+    }
+  }, [showCount]);
+
+  useEffect(() => {
+    // Third popup after 30 seconds from the second one
+    if (showCount === 2) {
+      const thirdTimeout = setTimeout(() => {
+        setIsOpen(true);
+        setShowCount(3);
+        setCurrentPopup(3);
+      }, 30000);
+
+      return () => clearTimeout(thirdTimeout);
     }
   }, [showCount]);
 
@@ -66,7 +79,23 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
     icon: GraduationCap
   };
 
-  const currentContent = currentPopup === 1 ? popup1Content : popup2Content;
+  // Check if current time is during happy hours (11 AM - 4 PM)
+  const now = new Date();
+  const currentHour = now.getHours();
+  const isHappyHour = currentHour >= 11 && currentHour < 16;
+
+  const popup3Content = {
+    title: "HAPPY HOUR SPECIAL! ⏰",
+    discountText: "₹99/HR",
+    description: `Get PS5 & 8-Ball stations at just ₹99/hour during Happy Hours (11 AM - 4 PM)! Can be stacked with NIT50 for even better deals!`,
+    couponCode: "HH99",
+    bgColor: "from-green-400 to-teal-500",
+    iconColor: "text-green-400",
+    icon: Trophy,
+    isHappyHour
+  };
+
+  const currentContent = currentPopup === 1 ? popup1Content : currentPopup === 2 ? popup2Content : popup3Content;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -89,6 +118,35 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
             <p className="text-lg font-semibold text-yellow-200">
               {currentContent.description}
             </p>
+            
+            {/* Happy Hour Indicator for HH99 */}
+            {currentPopup === 3 && (
+              <div className={`mt-2 p-3 rounded-lg border ${
+                isHappyHour 
+                  ? 'bg-green-900/40 border-green-400/50 text-green-200' 
+                  : 'bg-orange-900/40 border-orange-400/50 text-orange-200'
+              }`}>
+                <div className="flex items-center justify-center gap-2">
+                  {isHappyHour ? (
+                    <>
+                      <Clock className="h-4 w-4 text-green-400" />
+                      <span className="font-semibold">✅ Happy Hours Active!</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-4 w-4 text-orange-400" />
+                      <span className="font-semibold">⏰ Outside Happy Hours (11 AM - 4 PM)</span>
+                    </>
+                  )}
+                </div>
+                <p className="text-sm mt-1">
+                  {isHappyHour 
+                    ? "Perfect timing! Apply this coupon now." 
+                    : "You can still apply this coupon, but it will only work during Happy Hours."
+                  }
+                </p>
+              </div>
+            )}
             
             <div className="mt-4 p-4 bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-lg border border-purple-400/30">
               <p className="text-sm text-purple-200 font-medium mb-2">
