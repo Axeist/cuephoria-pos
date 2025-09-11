@@ -11,26 +11,26 @@ interface CouponPromotionalPopupProps {
 const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCouponSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCount, setShowCount] = useState(0);
-  const [currentPopup, setCurrentPopup] = useState<1 | 2 | 3>(1);
+  const [currentPopup, setCurrentPopup] = useState<1 | 2 | 3>(3);
 
   useEffect(() => {
-    // First popup after 30 seconds
+    // First popup (HH99) after 30 seconds
     const firstTimeout = setTimeout(() => {
       setIsOpen(true);
       setShowCount(1);
-      setCurrentPopup(1);
+      setCurrentPopup(3); // HH99 popup first
     }, 30000);
 
     return () => clearTimeout(firstTimeout);
   }, []);
 
   useEffect(() => {
-    // Second popup after 30 seconds from the first one
+    // Second popup (CUEPHORIA25) after 30 seconds from the first one
     if (showCount === 1) {
       const secondTimeout = setTimeout(() => {
         setIsOpen(true);
         setShowCount(2);
-        setCurrentPopup(2);
+        setCurrentPopup(1); // CUEPHORIA25 popup second
       }, 30000);
 
       return () => clearTimeout(secondTimeout);
@@ -38,12 +38,12 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
   }, [showCount]);
 
   useEffect(() => {
-    // Third popup after 30 seconds from the second one
+    // Third popup (NIT50) after 30 seconds from the second one
     if (showCount === 2) {
       const thirdTimeout = setTimeout(() => {
         setIsOpen(true);
         setShowCount(3);
-        setCurrentPopup(3);
+        setCurrentPopup(2); // NIT50 popup third
       }, 30000);
 
       return () => clearTimeout(thirdTimeout);
