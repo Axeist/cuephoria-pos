@@ -255,12 +255,20 @@ export default function PublicBooking() {
   }, []);
 
   useEffect(() => {
-    // Remove NIT99 if happy hour condition breaks
-    if (appliedCoupons["8ball"] === "NIT99" && !isHappyHour(selectedDate, selectedSlot)) {
+    // Remove HH99 if happy hour condition breaks
+    if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
       setAppliedCoupons((prev) => {
         const copy = { ...prev };
         delete copy["8ball"];
-        toast.error("❌ NIT99 removed: valid only Mon–Fri 11 AM–4 PM");
+        toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
+        return copy;
+      });
+    }
+    if (appliedCoupons["ps5"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
+      setAppliedCoupons((prev) => {
+        const copy = { ...prev };
+        delete copy["ps5"];
+        toast.error("❌ HH99 removed: valid only Mon–Fri 11 AM–4 PM");
         return copy;
       });
     }
@@ -480,7 +488,7 @@ export default function PublicBooking() {
   const allowedCoupons = [
     "CUEPHORIA25",
     "CUEPHORIA50",
-    "NIT99",
+    "HH99",
     "NIT50",
     "ALMA50",
     "AXEIST",
@@ -543,24 +551,29 @@ export default function PublicBooking() {
       return;
     }
 
-    // NIT99
-    if (code === "NIT99") {
-      if (!selectedHas8Ball) {
-        toast.error("🎱 NIT99 applies only to 8-Ball stations.");
+    // HH99
+    if (code === "HH99") {
+      if (!(selectedHas8Ball || selectedHasPS5)) {
+        toast.error("🎱 HH99 applies to both PS5 and 8-Ball stations during Happy Hours.");
         return;
       }
       if (!happyHourActive) {
-        toast.error("🕒 NIT99 valid only Mon–Fri 11 AM to 4 PM (Happy Hours).");
+        toast.error("🕒 HH99 valid only Mon–Fri 11 AM to 4 PM (Happy Hours).");
         return;
       }
-      setAppliedCoupons((prev) => ({ ...prev, ["8ball"]: "NIT99" }));
+      setAppliedCoupons((prev) => {
+        let updated = { ...prev };
+        if (selectedHas8Ball) updated["8ball"] = "HH99";
+        if (selectedHasPS5) updated["ps5"] = "HH99";
+        return updated;
+      });
       toast.success(
-        "🎱 NIT99 applied! All 8-Ball stations at ₹99/hour during Happy Hours! ✨"
+        "🎉 HH99 applied! All PS5 & 8-Ball stations at ₹99/hour during Happy Hours! ✨"
       );
       return;
     }
 
-    // NIT50 logic — always 50% off on both during happy hours, unless NIT99 is also stacked, then only 50% on PS5, 8-ball at ₹99/hr
+    // NIT50 logic — always 50% off on both during happy hours, unless HH99 is also stacked
     if (code === "NIT50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
         toast.error(
@@ -571,15 +584,15 @@ export default function PublicBooking() {
       setAppliedCoupons((prev) => {
         let updated = { ...prev };
         if (selectedHasPS5) updated["ps5"] = "NIT50";
-        if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "NIT99" ? "NIT99" : "NIT50";
+        if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "HH99" ? "HH99" : "NIT50";
         return updated;
       });
       let msg = "🎓 NIT50 applied! 50% OFF for ";
       if (selectedHasPS5 && selectedHas8Ball) msg += "PS5 & 8-Ball stations!";
       else if (selectedHasPS5) msg += "PS5 stations!";
       else msg += "8-Ball stations!";
-      if (selectedHas8Ball && appliedCoupons["8ball"] === "NIT99" && happyHourActive) {
-        toast.info("💡 With both NIT50 and NIT99 applied: 8-Ball pool is just ₹99/hr (not 50% off), and PS5 remains at 50% OFF!");
+      if (selectedHas8Ball && appliedCoupons["8ball"] === "HH99" && happyHourActive) {
+        toast.info("💡 With both NIT50 and HH99 applied: 8-Ball pool remains at ₹99/hr, and PS5 gets special pricing at ₹75/hr!");
       } else {
         toast.success(msg);
       }
@@ -644,9 +657,9 @@ export default function PublicBooking() {
     let totalDiscount = 0;
     const breakdown: Record<string, number> = {};
 
-    // NIT99 stacked with NIT50: 8-ball at ₹99, PS5 at 50% off
+    // HH99 stacked with NIT50: 8-ball at ₹99, PS5 at ₹75
     if (
-      appliedCoupons["8ball"] === "NIT99" &&
+      appliedCoupons["8ball"] === "HH99" &&
       appliedCoupons["ps5"] === "NIT50"
     ) {
       const eightBalls = stations.filter(
@@ -656,17 +669,17 @@ export default function PublicBooking() {
       const d = sum - eightBalls.length * 99;
       if (d > 0) {
         totalDiscount += d;
-        breakdown["8-Ball (NIT99)"] = d;
+        breakdown["8-Ball (HH99)"] = d;
       }
       const ps5s = stations.filter(
         (s) => selectedStations.includes(s.id) && s.type === "ps5"
       );
       const sum2 = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-      const d2 = sum2 * 0.5;
+      const d2 = sum2 - ps5s.length * 75; // Special stacked price ₹75
       totalDiscount += d2;
-      breakdown[`PS5 (NIT50)`] = d2;
+      breakdown["PS5 (HH99+NIT50)"] = d2;
     } else {
-      if (appliedCoupons["8ball"] === "NIT99") {
+      if (appliedCoupons["8ball"] === "HH99") {
         const eightBalls = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "8ball"
         );
@@ -674,7 +687,19 @@ export default function PublicBooking() {
         const d = sum - eightBalls.length * 99;
         if (d > 0) {
           totalDiscount += d;
-          breakdown["8-Ball (NIT99)"] = d;
+          breakdown["8-Ball (HH99)"] = d;
+        }
+      }
+
+      if (appliedCoupons["ps5"] === "HH99") {
+        const ps5s = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "ps5"
+        );
+        const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
+        const d = sum - ps5s.length * 99;
+        if (d > 0) {
+          totalDiscount += d;
+          breakdown["PS5 (HH99)"] = d;
         }
       }
 
@@ -1467,7 +1492,7 @@ export default function PublicBooking() {
                   <p className="mt-2 text-xs text-cuephoria-lightpurple">
                     📝 Coupon rules:<br />
                     NIT50/ALMA50: 50% off for NIT Trichy students;<br />
-                    NIT99: 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM;<br />
+                    HH99: PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM;<br />
                     CUEPHORIA50: 50% off for students (ID required);<br />
                     CUEPHORIA25: 25% off for everyone!
                   </p>
@@ -1476,7 +1501,7 @@ export default function PublicBooking() {
                     <div className="mt-2 space-y-2">
                       {Object.entries(appliedCoupons).map(([key, val]) => {
                         let emoji = "🏷️";
-                        if (val === "NIT99") emoji = "🎱";
+                        if (val === "HH99") emoji = "⏰";
                         else if (val === "NIT50") emoji = "🎓";
                         else if (val === "CUEPHORIA25") emoji = "🎉";
                         else if (val === "CUEPHORIA50") emoji = "📚";
