@@ -554,7 +554,7 @@ export default function PublicBooking() {
     // HH99
     if (code === "HH99") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
-        toast.error("🎱 HH99 applies to both PS5 and 8-Ball stations during Happy Hours.");
+        toast.error("⏰ HH99 applies to both PS5 and 8-Ball stations during Happy Hours.");
         return;
       }
       if (!happyHourActive) {
@@ -568,12 +568,12 @@ export default function PublicBooking() {
         return updated;
       });
       toast.success(
-        "🎉 HH99 applied! All PS5 & 8-Ball stations at ₹99/hour during Happy Hours! ✨"
+        "⏰ HH99 applied! All PS5 & 8-Ball stations at ₹99/hour during Happy Hours! ✨"
       );
       return;
     }
 
-    // NIT50 logic — always 50% off on both during happy hours, unless HH99 is also stacked
+    // NIT50 logic — always 50% off on both during happy hours, unless HH99 is also stacked, then only 50% on PS5, 8-ball at ₹99/hr
     if (code === "NIT50") {
       if (!(selectedHas8Ball || selectedHasPS5)) {
         toast.error(
@@ -592,7 +592,7 @@ export default function PublicBooking() {
       else if (selectedHasPS5) msg += "PS5 stations!";
       else msg += "8-Ball stations!";
       if (selectedHas8Ball && appliedCoupons["8ball"] === "HH99" && happyHourActive) {
-        toast.info("💡 With both NIT50 and HH99 applied: 8-Ball pool remains at ₹99/hr, and PS5 gets special pricing at ₹75/hr!");
+        toast.info("💡 With both NIT50 and HH99 applied: 8-Ball pool is just ₹99/hr (not 50% off), and PS5 becomes ₹75/hr!");
       } else {
         toast.success(msg);
       }
