@@ -1866,6 +1866,7 @@ export default function BookingManagement() {
                               </span>
                             </div>
                           </div>
+                        </div>
                       );
                     })}
                 </div>
@@ -2099,4 +2100,3 @@ export default function BookingManagement() {
     </div>
   );
 }
-
