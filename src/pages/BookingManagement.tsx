@@ -15,11 +15,19 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
-  CalendarDays, Target, UserCheck, Edit2, Trash2
+  CalendarDays, Target, UserCheck, Edit2, Trash2, Hash, BarChart3, Building2
 } from 'lucide-react';
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, isToday, isYesterday, isTomorrow
 } from 'date-fns';
+
+interface BookingView {
+  id: string;
+  booking_id: string;
+  access_code: string;
+  created_at: string;
+  last_accessed_at?: string;
+}
 
 interface Booking {
   id: string;
@@ -29,9 +37,13 @@ interface Booking {
   duration: number;
   status: 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
   notes?: string;
+  original_price?: number | null;
   final_price?: number | null;
   discount_percentage?: number | null;
   coupon_code?: string | null;
+  booking_group_id?: string | null;
+  status_updated_at?: string | null;
+  status_updated_by?: string | null;
   station: {
     name: string;
     type: string;
@@ -42,6 +54,7 @@ interface Booking {
     email?: string | null;
     created_at?: string;
   };
+  booking_views?: BookingView[];
   created_at?: string;
 }
 
@@ -52,6 +65,7 @@ interface Filters {
   status: string;
   stationType: string;
   search: string;
+  bookingId: string;
   coupon: string;
   priceRange: string;
   duration: string;
@@ -113,58 +127,28 @@ const getDateRangeFromPreset = (preset: string) => {
   
   switch (preset) {
     case 'today':
-      return {
-        from: format(now, 'yyyy-MM-dd'),
-        to: format(now, 'yyyy-MM-dd')
-      };
+      return { from: format(now, 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
     case 'yesterday':
       const yesterday = subDays(now, 1);
-      return {
-        from: format(yesterday, 'yyyy-MM-dd'),
-        to: format(yesterday, 'yyyy-MM-dd')
-      };
+      return { from: format(yesterday, 'yyyy-MM-dd'), to: format(yesterday, 'yyyy-MM-dd') };
     case 'last7days':
-      return {
-        from: format(subDays(now, 6), 'yyyy-MM-dd'),
-        to: format(now, 'yyyy-MM-dd')
-      };
+      return { from: format(subDays(now, 6), 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
     case 'last30days':
-      return {
-        from: format(subDays(now, 29), 'yyyy-MM-dd'),
-        to: format(now, 'yyyy-MM-dd')
-      };
+      return { from: format(subDays(now, 29), 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
     case 'thismonth':
-      return {
-        from: format(startOfMonth(now), 'yyyy-MM-dd'),
-        to: format(endOfMonth(now), 'yyyy-MM-dd')
-      };
+      return { from: format(startOfMonth(now), 'yyyy-MM-dd'), to: format(endOfMonth(now), 'yyyy-MM-dd') };
     case 'lastmonth':
       const lastMonth = subMonths(now, 1);
-      return {
-        from: format(startOfMonth(lastMonth), 'yyyy-MM-dd'),
-        to: format(endOfMonth(lastMonth), 'yyyy-MM-dd')
-      };
+      return { from: format(startOfMonth(lastMonth), 'yyyy-MM-dd'), to: format(endOfMonth(lastMonth), 'yyyy-MM-dd') };
     case 'last3months':
-      return {
-        from: format(subMonths(now, 2), 'yyyy-MM-dd'),
-        to: format(now, 'yyyy-MM-dd')
-      };
+      return { from: format(subMonths(now, 2), 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
     case 'thisyear':
-      return {
-        from: format(startOfYear(now), 'yyyy-MM-dd'),
-        to: format(endOfYear(now), 'yyyy-MM-dd')
-      };
+      return { from: format(startOfYear(now), 'yyyy-MM-dd'), to: format(endOfYear(now), 'yyyy-MM-dd') };
     case 'lastyear':
       const lastYear = subYears(now, 1);
-      return {
-        from: format(startOfYear(lastYear), 'yyyy-MM-dd'),
-        to: format(endOfYear(lastYear), 'yyyy-MM-dd')
-      };
+      return { from: format(startOfYear(lastYear), 'yyyy-MM-dd'), to: format(endOfYear(lastYear), 'yyyy-MM-dd') };
     case 'alltime':
-      return {
-        from: '2020-01-01',
-        to: format(now, 'yyyy-MM-dd')
-      };
+      return { from: '2020-01-01', to: format(now, 'yyyy-MM-dd') };
     default:
       return null;
   }
@@ -182,6 +166,7 @@ export default function BookingManagement() {
     status: 'all',
     stationType: 'all',
     search: '',
+    bookingId: '',
     coupon: 'all',
     priceRange: 'all',
     duration: 'all',
@@ -195,12 +180,8 @@ export default function BookingManagement() {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
-  // Extract individual coupon codes from comma-separated strings
   const extractCouponCodes = (coupon_code: string) =>
-    coupon_code
-      .split(',')
-      .map(c => c.trim().toUpperCase())
-      .filter(Boolean);
+    coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
 
   useEffect(() => {
     fetchBookings();
@@ -275,12 +256,23 @@ export default function BookingManagement() {
           duration,
           status,
           notes,
+          original_price,
           final_price,
           discount_percentage,
           coupon_code,
+          booking_group_id,
+          status_updated_at,
+          status_updated_by,
           station_id,
           customer_id,
-          created_at
+          created_at,
+          booking_views!booking_id (
+            id,
+            booking_id,
+            access_code,
+            created_at,
+            last_accessed_at
+          )
         `)
         .gte('booking_date', analyticsFromDate)
         .order('booking_date', { ascending: false })
@@ -319,10 +311,15 @@ export default function BookingManagement() {
           duration: b.duration,
           status: b.status,
           notes: b.notes ?? undefined,
+          original_price: b.original_price ?? null,
           final_price: b.final_price ?? null,
           discount_percentage: b.discount_percentage ?? null,
           coupon_code: b.coupon_code ?? null,
+          booking_group_id: b.booking_group_id ?? null,
+          status_updated_at: b.status_updated_at ?? null,
+          status_updated_by: b.status_updated_by ?? null,
           created_at: b.created_at,
+          booking_views: b.booking_views || [],
           station: { name: station?.name || 'Unknown', type: station?.type || 'unknown' },
           customer: { 
             name: customer?.name || 'Unknown', 
@@ -330,14 +327,13 @@ export default function BookingManagement() {
             email: customer?.email ?? null,
             created_at: customer?.created_at
           }
-        } as Booking & { created_at: string; customer: Booking['customer'] & { created_at?: string } };
+        } as Booking;
       });
 
       setAllBookings(transformed);
       const filtered = applyFilters(transformed);
       setBookings(filtered);
 
-      // Extract all unique individual coupon codes for filter options
       const presentCodes = Array.from(
         new Set(
           transformed.flatMap(t => 
@@ -381,7 +377,16 @@ export default function BookingManagement() {
         b.customer.name.toLowerCase().includes(q) ||
         b.customer.phone.includes(filters.search) ||
         (b.customer.email && b.customer.email.toLowerCase().includes(q)) ||
-        b.station.name.toLowerCase().includes(q)
+        b.station.name.toLowerCase().includes(q) ||
+        b.id.toLowerCase().includes(q) ||
+        (b.booking_views && b.booking_views.some(bv => bv.access_code.toLowerCase().includes(q)))
+      );
+    }
+
+    if (filters.bookingId) {
+      filtered = filtered.filter(b => 
+        b.id.toLowerCase().includes(filters.bookingId.toLowerCase()) ||
+        (b.booking_views && b.booking_views.some(bv => bv.id.toLowerCase().includes(filters.bookingId.toLowerCase())))
       );
     }
 
@@ -390,9 +395,7 @@ export default function BookingManagement() {
         filtered = filtered.filter(b => !b.coupon_code);
       } else {
         filtered = filtered.filter(b => {
-          const codes = (b.coupon_code || '')
-            .split(',')
-            .map(c => c.trim().toUpperCase());
+          const codes = (b.coupon_code || '').split(',').map(c => c.trim().toUpperCase());
           return codes.includes(filters.coupon.toUpperCase());
         });
       }
@@ -435,7 +438,6 @@ export default function BookingManagement() {
     setBookings(filtered);
   }, [filters, allBookings]);
 
-  // Enhanced Analytics with fixed customer counting and coupon grouping
   const analytics = useMemo((): Analytics => {
     const currentPeriodData = bookings;
     const previousPeriodStart = format(subDays(new Date(filters.dateFrom), 
@@ -445,18 +447,13 @@ export default function BookingManagement() {
       b.booking_date >= previousPeriodStart && b.booking_date < filters.dateFrom
     );
 
-    // FIXED: Create customer first booking map from ALL bookings
     const customerFirstBooking: Record<string, string> = {};
     allBookings.forEach(b => {
-      if (
-        !customerFirstBooking[b.customer.name] || 
-        b.booking_date < customerFirstBooking[b.customer.name]
-      ) {
+      if (!customerFirstBooking[b.customer.name] || b.booking_date < customerFirstBooking[b.customer.name]) {
         customerFirstBooking[b.customer.name] = b.booking_date;
       }
     });
 
-    // FIXED: Calculate correct customer counts
     const uniqueCustomersSet = new Set(currentPeriodData.map(b => b.customer.name));
     const totalCustomers = uniqueCustomersSet.size;
 
@@ -470,7 +467,6 @@ export default function BookingManagement() {
     const returningCustomers = totalCustomers - newCustomersCount;
     const retentionRate = totalCustomers ? (returningCustomers / totalCustomers) * 100 : 0;
 
-    // Revenue Analytics
     const currentRevenue = currentPeriodData.reduce((sum, b) => sum + (b.final_price || 0), 0);
     const previousRevenue = previousPeriodData.reduce((sum, b) => sum + (b.final_price || 0), 0);
     const revenueTrend = previousRevenue ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
@@ -484,7 +480,6 @@ export default function BookingManagement() {
     const completionRate = currentBookingCount ? (completedBookings / currentBookingCount) * 100 : 0;
     const noShowRate = currentBookingCount ? (noShowBookings / currentBookingCount) * 100 : 0;
 
-    // Station Analytics
     const stationStats: Record<string, { bookings: number; revenue: number; avgDuration: number }> = {};
     const hourlyStats: Record<string, number> = {};
 
@@ -508,7 +503,6 @@ export default function BookingManagement() {
       }
     });
 
-    // FIXED: Enhanced Coupon Analytics with proper grouping
     const couponStats: Record<string, {
       usageCount: number;
       totalRevenue: number;
@@ -558,7 +552,6 @@ export default function BookingManagement() {
 
     const couponConversionRate = currentBookingCount > 0 ? (totalCouponsUsed / currentBookingCount) * 100 : 0;
 
-    // Calculate new/returning customers with coupons
     const newCustomersWithCoupons = Object.values(couponStats)
       .reduce((set, stat) => {
         stat.uniqueCustomers.forEach(customer => {
@@ -581,7 +574,6 @@ export default function BookingManagement() {
         return set;
       }, new Set<string>()).size;
 
-    // Top performing coupons
     const topPerformingCoupons = Object.entries(couponStats)
       .map(([code, stat]) => ({
         code,
@@ -596,7 +588,6 @@ export default function BookingManagement() {
       }))
       .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
-    // Coupon trends by date
     const couponTrends: Record<string, number> = {};
     currentPeriodData.forEach(b => {
       if (b.coupon_code) {
@@ -681,15 +672,17 @@ export default function BookingManagement() {
 
   const exportBookings = () => {
     const csvContent = [
-      ['Date', 'Start', 'End', 'Duration', 'Station', 'Station Type', 'Customer', 'Phone', 'Email', 'Status', 'Final Price', 'Original Price', 'Discount%', 'Discount Amount', 'Coupon', 'Notes'].join(','),
+      ['Date', 'Booking ID', 'View Access Code', 'Start', 'End', 'Duration', 'Station', 'Station Type', 'Customer', 'Phone', 'Email', 'Status', 'Original Price', 'Final Price', 'Discount%', 'Discount Amount', 'Coupon', 'Notes'].join(','),
       ...bookings.map(b => {
         const discountAmount = (b.discount_percentage && b.final_price) 
           ? (b.final_price * b.discount_percentage) / (100 - b.discount_percentage)
           : 0;
-        const originalPrice = (b.final_price || 0) + discountAmount;
+        const accessCode = b.booking_views?.[0]?.access_code || '';
         
         return [
           b.booking_date,
+          b.id,
+          accessCode,
           b.start_time,
           b.end_time,
           b.duration,
@@ -699,8 +692,8 @@ export default function BookingManagement() {
           b.customer.phone,
           b.customer.email || '',
           b.status,
+          b.original_price ?? 0,
           b.final_price ?? 0,
-          Math.round(originalPrice),
           b.discount_percentage ?? 0,
           Math.round(discountAmount),
           b.coupon_code || '',
@@ -727,6 +720,7 @@ export default function BookingManagement() {
       status: 'all',
       stationType: 'all',
       search: '',
+      bookingId: '',
       coupon: 'all',
       priceRange: 'all',
       duration: 'all',
@@ -780,9 +774,6 @@ export default function BookingManagement() {
     .sort((a, b) => b[1].revenue - a[1].revenue)
     .slice(0, 5);
 
-  const peakHour = Object.entries(analytics.stations.peakHours)
-    .sort((a, b) => b[1] - a[1])[0];
-
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
@@ -813,160 +804,117 @@ export default function BookingManagement() {
         </div>
       </div>
 
-      {/* Enhanced Filters with Date Presets */}
-      <Card>
-        <CardHeader>
+      {/* Enhanced Advanced Filters */}
+      <Card className="shadow-lg border-0 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-gray-900 dark:to-slate-900">
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-xl font-semibold">
+              <Filter className="h-5 w-5 text-blue-600" />
               Advanced Filters
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={resetFilters}>
+            <Button variant="outline" size="sm" onClick={resetFilters} className="hover:bg-red-50 hover:border-red-200 hover:text-red-600">
               Reset All
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            {/* Enhanced Date Range Section */}
-            <div className="md:col-span-3">
-              <Label htmlFor="date-preset">Date Range</Label>
-              <div className="space-y-2">
+        <CardContent className="space-y-6">
+          {/* Date Range Section */}
+          <div>
+            <Label className="text-sm font-semibold text-gray-700 mb-3 block">Date Range</Label>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div>
                 <Select value={filters.datePreset} onValueChange={handleDatePresetChange}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
                     <SelectValue placeholder="Select date range" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="today">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Today
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="yesterday">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Yesterday
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="last7days">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Last 7 Days
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="last30days">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Last 30 Days
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="thismonth">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        This Month
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="lastmonth">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Last Month
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="last3months">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Last 3 Months
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="thisyear">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        This Year
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="lastyear">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Last Year
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="alltime">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        All Time
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="custom">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        Custom Range
-                      </div>
-                    </SelectItem>
+                    <SelectItem value="today">🌅 Today</SelectItem>
+                    <SelectItem value="yesterday">🌄 Yesterday</SelectItem>
+                    <SelectItem value="last7days">📅 Last 7 Days</SelectItem>
+                    <SelectItem value="last30days">📊 Last 30 Days</SelectItem>
+                    <SelectItem value="thismonth">🗓️ This Month</SelectItem>
+                    <SelectItem value="lastmonth">📋 Last Month</SelectItem>
+                    <SelectItem value="last3months">📈 Last 3 Months</SelectItem>
+                    <SelectItem value="thisyear">🎯 This Year</SelectItem>
+                    <SelectItem value="lastyear">📜 Last Year</SelectItem>
+                    <SelectItem value="alltime">🌍 All Time</SelectItem>
+                    <SelectItem value="custom">🎛️ Custom Range</SelectItem>
                   </SelectContent>
                 </Select>
-                
-                <div className="flex gap-2">
-                  <Input
-                    type="date"
-                    value={filters.dateFrom}
-                    onChange={(e) => handleManualDateChange('dateFrom', e.target.value)}
-                    disabled={filters.datePreset !== 'custom'}
-                    className={filters.datePreset !== 'custom' ? 'opacity-60' : ''}
-                  />
-                  <Input
-                    type="date"
-                    value={filters.dateTo}
-                    onChange={(e) => handleManualDateChange('dateTo', e.target.value)}
-                    disabled={filters.datePreset !== 'custom'}
-                    className={filters.datePreset !== 'custom' ? 'opacity-60' : ''}
-                  />
-                </div>
-                
-                <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => handleManualDateChange('dateFrom', e.target.value)}
+                  disabled={filters.datePreset !== 'custom'}
+                  className={`h-11 border-2 transition-colors ${filters.datePreset !== 'custom' ? 'opacity-60 bg-gray-100' : 'border-gray-200 focus:border-blue-400'}`}
+                />
+                <Input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => handleManualDateChange('dateTo', e.target.value)}
+                  disabled={filters.datePreset !== 'custom'}
+                  className={`h-11 border-2 transition-colors ${filters.datePreset !== 'custom' ? 'opacity-60 bg-gray-100' : 'border-gray-200 focus:border-blue-400'}`}
+                />
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center">
+                <Calendar className="h-4 w-4 text-blue-600 mr-2" />
+                <span className="text-sm font-medium text-blue-800">
                   {getDateRangeLabel()}
-                </div>
+                </span>
               </div>
             </div>
+          </div>
 
-            <div>
-              <Label>Status</Label>
+          {/* Filter Controls Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Status</Label>
               <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="no-show">No Show</SelectItem>
+                  <SelectItem value="confirmed">✅ Confirmed</SelectItem>
+                  <SelectItem value="in-progress">⏳ In Progress</SelectItem>
+                  <SelectItem value="completed">✅ Completed</SelectItem>
+                  <SelectItem value="cancelled">❌ Cancelled</SelectItem>
+                  <SelectItem value="no-show">⚠️ No Show</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Label>Station Type</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Station Type</Label>
               <Select value={filters.stationType} onValueChange={(value) => setFilters(prev => ({ ...prev, stationType: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="ps5">PlayStation 5</SelectItem>
-                  <SelectItem value="8ball">8-Ball Pool</SelectItem>
+                  <SelectItem value="ps5">🎮 PlayStation 5</SelectItem>
+                  <SelectItem value="8ball">🎱 8-Ball Pool</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Label>Coupon Code</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Coupon Code</Label>
               <Select value={filters.coupon} onValueChange={(value) => setFilters(prev => ({ ...prev, coupon: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Coupons</SelectItem>
-                  <SelectItem value="none">No Coupon Used</SelectItem>
+                  <SelectItem value="none">🚫 No Coupon Used</SelectItem>
                   {couponOptions.map(code => (
                     <SelectItem key={code} value={code}>
                       <div className="flex items-center gap-2">
-                        <Gift className="h-3 w-3" />
+                        <Gift className="h-3 w-3 text-purple-500" />
                         {code}
                       </div>
                     </SelectItem>
@@ -975,43 +923,80 @@ export default function BookingManagement() {
               </Select>
             </div>
 
-            <div>
-              <Label>Price Range</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Price Range</Label>
               <Select value={filters.priceRange} onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Prices</SelectItem>
-                  <SelectItem value="0-100">₹0 - ₹100</SelectItem>
-                  <SelectItem value="101-300">₹101 - ₹300</SelectItem>
-                  <SelectItem value="301-500">₹301 - ₹500</SelectItem>
-                  <SelectItem value="500">₹500+</SelectItem>
+                  <SelectItem value="0-100">💰 ₹0 - ₹100</SelectItem>
+                  <SelectItem value="101-300">💰 ₹101 - ₹300</SelectItem>
+                  <SelectItem value="301-500">💰 ₹301 - ₹500</SelectItem>
+                  <SelectItem value="500">💰 ₹500+</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Label>Customer Type</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Customer Type</Label>
               <Select value={filters.customerType} onValueChange={(value) => setFilters(prev => ({ ...prev, customerType: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Customers</SelectItem>
-                  <SelectItem value="new">New Customers</SelectItem>
-                  <SelectItem value="returning">Returning</SelectItem>
+                  <SelectItem value="new">🆕 New Customers</SelectItem>
+                  <SelectItem value="returning">🔄 Returning</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="md:col-span-2 lg:col-span-1">
-              <Label htmlFor="search-filter">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search-filter"
-                  placeholder="Search..."
-                  value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="pl-10"
-                />
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Duration</Label>
+              <Select value={filters.duration} onValueChange={(value) => setFilters(prev => ({ ...prev, duration: value }))}>
+                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Duration</SelectItem>
+                  <SelectItem value="0-60">⏱️ 0-60 mins</SelectItem>
+                  <SelectItem value="61-120">⏱️ 61-120 mins</SelectItem>
+                  <SelectItem value="121-180">⏱️ 121-180 mins</SelectItem>
+                  <SelectItem value="180">⏱️ 180+ mins</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Enhanced Search Section */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">General Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    placeholder="Search by Customer Name, Phone, Email, Station, Booking ID, or Access Code..."
+                    value={filters.search}
+                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                    className="h-12 pl-12 border-2 border-gray-200 focus:border-blue-400 transition-colors text-base"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Booking ID Search</Label>
+                <div className="relative">
+                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    placeholder="Enter specific Booking ID or View ID..."
+                    value={filters.bookingId}
+                    onChange={(e) => setFilters(prev => ({ ...prev, bookingId: e.target.value }))}
+                    className="h-12 pl-12 border-2 border-gray-200 focus:border-blue-400 transition-colors text-base"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1471,30 +1456,44 @@ export default function BookingManagement() {
 
         <TabsContent value="stations" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Station Performance</CardTitle>
+            {/* Enhanced Station Performance Card */}
+            <Card className="shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Building2 className="h-5 w-5 text-blue-600" />
+                  Station Performance
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(analytics.stations.utilization).map(([station, stats]) => (
-                    <div key={station} className="space-y-2">
+              <CardContent className="p-6">
+                <div className="space-y-6">
+                  {Object.entries(analytics.stations.utilization).map(([station, stats], index) => (
+                    <div key={station} className="space-y-3 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border-l-4 border-blue-400">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium">{station}</span>
-                        <Badge variant="outline">{stats.bookings} bookings</Badge>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
+                            ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-amber-600' : 'bg-blue-600'}`}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-lg text-gray-800">{station}</span>
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              {stats.bookings} bookings
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Revenue</p>
-                          <p className="font-semibold">₹{stats.revenue.toLocaleString()}</p>
+                      <div className="grid grid-cols-3 gap-6">
+                        <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Revenue</p>
+                          <p className="text-xl font-bold text-green-600">₹{stats.revenue.toLocaleString()}</p>
                         </div>
-                        <div>
-                          <p className="text-muted-foreground">Avg Duration</p>
-                          <p className="font-semibold">{stats.avgDuration}min</p>
+                        <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Avg Duration</p>
+                          <p className="text-xl font-bold text-blue-600">{stats.avgDuration}min</p>
                         </div>
-                        <div>
-                          <p className="text-muted-foreground">Avg/Booking</p>
-                          <p className="font-semibold">₹{Math.round(stats.revenue / stats.bookings) || 0}</p>
+                        <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Avg/Booking</p>
+                          <p className="text-xl font-bold text-purple-600">₹{Math.round(stats.revenue / stats.bookings) || 0}</p>
                         </div>
                       </div>
                     </div>
@@ -1503,31 +1502,66 @@ export default function BookingManagement() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Hourly Distribution</CardTitle>
+            {/* Enhanced Hourly Distribution Card */}
+            <Card className="shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-t-lg">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BarChart3 className="h-5 w-5 text-orange-600" />
+                  Hourly Distribution
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
+              <CardContent className="p-6">
+                <div className="space-y-3">
                   {Object.entries(analytics.stations.peakHours)
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 12)
-                    .map(([hour, count]) => (
-                      <div key={hour} className="flex items-center justify-between">
-                        <span className="text-sm">{hour}:00 - {hour}:59</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-blue-500 rounded-full"
-                              style={{ 
-                                width: `${(count / Math.max(...Object.values(analytics.stations.peakHours))) * 100}%` 
-                              }}
-                            />
+                    .map(([hour, count], index) => {
+                      const maxCount = Math.max(...Object.values(analytics.stations.peakHours));
+                      const percentage = (count / maxCount) * 100;
+                      const isPeak = index < 3;
+                      
+                      return (
+                        <div key={hour} className="group hover:bg-gray-50 rounded-lg p-3 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold
+                                ${isPeak ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}>
+                                {hour}
+                              </div>
+                              <span className="text-sm font-medium text-gray-700">
+                                {parseInt(hour) === 0 ? '12:00 AM' : 
+                                 parseInt(hour) < 12 ? `${hour}:00 AM` : 
+                                 parseInt(hour) === 12 ? '12:00 PM' : 
+                                 `${parseInt(hour) - 12}:00 PM`}
+                              </span>
+                              {isPeak && (
+                                <Badge variant="destructive" className="text-xs px-2 py-1">
+                                  Peak Hour
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <span className="text-lg font-bold text-gray-800">{count}</span>
+                              <span className="text-xs text-gray-500 ml-1">bookings</span>
+                            </div>
                           </div>
-                          <span className="text-sm font-medium w-8 text-right">{count}</span>
+                          <div className="relative">
+                            <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-500 ease-in-out 
+                                  ${isPeak ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-blue-400 to-blue-600'}`}
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-xs font-medium text-white drop-shadow">
+                                {percentage.toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>
@@ -1535,7 +1569,7 @@ export default function BookingManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* Enhanced Bookings List with Coupon Visibility */}
+      {/* Enhanced Bookings List with Booking ID Display */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1618,9 +1652,26 @@ export default function BookingManagement() {
                                       {bookingsForCustomer
                                         .sort((a, b) => a.start_time.localeCompare(b.start_time))
                                         .map(booking => (
-                                        <div key={booking.id} className={`p-3 border rounded-lg bg-card ${booking.coupon_code ? 'ring-2 ring-purple-200' : ''}`}>
+                                        <div key={booking.id} className={`p-4 border rounded-lg bg-card shadow-sm ${booking.coupon_code ? 'ring-2 ring-purple-200 bg-purple-50/30' : ''}`}>
                                           <div className="flex items-center justify-between">
-                                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 flex-1">
+                                            <div className="grid grid-cols-1 md:grid-cols-7 gap-4 flex-1">
+                                              {/* Booking ID and Access Code Section */}
+                                              <div>
+                                                <div className="text-sm text-muted-foreground">Booking Details</div>
+                                                <div className="space-y-1">
+                                                  <div className="font-medium flex items-center gap-1 text-blue-600">
+                                                    <Hash className="h-3 w-3" />
+                                                    ID: {booking.id.substring(0, 8)}...
+                                                  </div>
+                                                  {booking.booking_views && booking.booking_views.length > 0 && (
+                                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                      <Tag className="h-2 w-2" />
+                                                      Access: {booking.booking_views[0].access_code}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Time</div>
                                                 <div className="font-medium flex items-center gap-1">
@@ -1631,6 +1682,7 @@ export default function BookingManagement() {
                                                   {booking.duration}min
                                                 </div>
                                               </div>
+                                              
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Station</div>
                                                 <div className="font-medium flex items-center gap-1">
@@ -1641,6 +1693,7 @@ export default function BookingManagement() {
                                                   {getStationTypeLabel(booking.station.type)}
                                                 </Badge>
                                               </div>
+                                              
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Contact</div>
                                                 <div className="text-sm flex items-center gap-1">
@@ -1654,35 +1707,40 @@ export default function BookingManagement() {
                                                   </div>
                                                 )}
                                               </div>
+                                              
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Status</div>
                                                 <BookingStatusBadge status={booking.status} />
                                               </div>
+                                              
                                               <div>
-                                                <div className="text-sm text-muted-foreground">Price & Discount</div>
-                                                <div className="flex items-center gap-2">
-                                                  {typeof booking.final_price === 'number' && (
-                                                    <span className="text-sm font-medium">₹{booking.final_price}</span>
+                                                <div className="text-sm text-muted-foreground">Pricing</div>
+                                                <div className="space-y-1">
+                                                  {booking.original_price && booking.original_price !== booking.final_price && (
+                                                    <div className="text-xs text-gray-500 line-through">
+                                                      ₹{booking.original_price}
+                                                    </div>
                                                   )}
-                                                  {!!booking.discount_percentage && (
-                                                    <Badge variant="destructive" className="text-xs">
-                                                      {Math.round(booking.discount_percentage)}% OFF
+                                                  <div className="flex items-center gap-2">
+                                                    {typeof booking.final_price === 'number' && (
+                                                      <span className="text-sm font-medium">₹{booking.final_price}</span>
+                                                    )}
+                                                    {!!booking.discount_percentage && (
+                                                      <Badge variant="destructive" className="text-xs">
+                                                        {Math.round(booking.discount_percentage)}% OFF
+                                                      </Badge>
+                                                    )}
+                                                  </div>
+                                                  {booking.coupon_code && (
+                                                    <Badge variant="secondary" className="text-xs mt-1 flex items-center gap-1 w-fit">
+                                                      <Gift className="h-2 w-2" />
+                                                      {booking.coupon_code}
                                                     </Badge>
                                                   )}
                                                 </div>
-                                                {booking.coupon_code && (
-                                                  <Badge variant="secondary" className="text-xs mt-1 flex items-center gap-1 w-fit">
-                                                    <Gift className="h-2 w-2" />
-                                                    {booking.coupon_code}
-                                                  </Badge>
-                                                )}
-                                                {booking.discount_percentage && booking.final_price && (
-                                                  <div className="text-xs text-muted-foreground mt-1">
-                                                    Saved ₹{Math.round((booking.final_price * booking.discount_percentage) / (100 - booking.discount_percentage))}
-                                                  </div>
-                                                )}
                                               </div>
                                             </div>
+                                            
                                             <div className="flex gap-1 ml-4">
                                               <Button size="sm" variant="outline" onClick={() => handleEditBooking(booking)}>
                                                 <Edit2 className="h-3 w-3" />
@@ -1692,8 +1750,9 @@ export default function BookingManagement() {
                                               </Button>
                                             </div>
                                           </div>
+                                          
                                           {booking.notes && (
-                                            <div className="mt-2 p-2 bg-muted/50 rounded text-sm">
+                                            <div className="mt-3 p-2 bg-muted/50 rounded text-sm">
                                               <span className="text-muted-foreground">Notes: </span>
                                               {booking.notes}
                                             </div>
