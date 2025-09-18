@@ -83,7 +83,7 @@ interface Filters {
   status: string;
   stationType: string;
   search: string;
-  accessCode: string; // Changed from bookingId
+  accessCode: string;
   coupon: string;
   priceRange: string;
   duration: string;
@@ -184,7 +184,7 @@ export default function BookingManagement() {
     status: 'all',
     stationType: 'all',
     search: '',
-    accessCode: '', // Changed from bookingId
+    accessCode: '',
     coupon: 'all',
     priceRange: 'all',
     duration: 'all',
@@ -216,7 +216,6 @@ export default function BookingManagement() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Fixed: Custom date range functionality
   const handleDatePresetChange = (preset: string) => {
     if (preset === 'custom') {
       setFilters(prev => ({ ...prev, datePreset: 'custom' }));
@@ -234,7 +233,6 @@ export default function BookingManagement() {
     }
   };
 
-  // Fixed: Manual date change handlers
   const handleManualDateChange = (field: 'dateFrom' | 'dateTo', value: string) => {
     setFilters(prev => ({
       ...prev,
@@ -407,7 +405,6 @@ export default function BookingManagement() {
       );
     }
 
-    // Updated: Access Code filter instead of Booking ID
     if (filters.accessCode) {
       filtered = filtered.filter(b => 
         (b.booking_views && b.booking_views.some(bv => bv.access_code.toLowerCase().includes(filters.accessCode.toLowerCase())))
@@ -462,7 +459,6 @@ export default function BookingManagement() {
     setBookings(filtered);
   }, [filters, allBookings]);
 
-  // Enhanced Customer Insights calculation
   const customerInsights = useMemo((): CustomerInsight[] => {
     const customerMap = new Map<string, CustomerInsight>();
 
@@ -498,16 +494,13 @@ export default function BookingManagement() {
       }
     });
 
-    // Calculate derived metrics for each customer
     customerMap.forEach((customer, customerId) => {
       customer.averageBookingDuration = Math.round(customer.totalDuration / customer.totalBookings);
       
-      // Calculate completion rate
       const customerBookings = bookings.filter(b => b.customer.name === customerId);
       const completedBookings = customerBookings.filter(b => b.status === 'completed').length;
       customer.completionRate = Math.round((completedBookings / customer.totalBookings) * 100);
       
-      // Find preferred time (most common hour)
       const timeMap = new Map<number, number>();
       customerBookings.forEach(b => {
         const hour = new Date(`2000-01-01T${b.start_time}`).getHours();
@@ -522,7 +515,6 @@ export default function BookingManagement() {
                                 `${hour - 12}:00 PM`;
       }
       
-      // Find preferred station
       const stationMap = new Map<string, number>();
       customerBookings.forEach(b => {
         stationMap.set(b.station.name, (stationMap.get(b.station.name) || 0) + 1);
@@ -532,7 +524,6 @@ export default function BookingManagement() {
         customer.preferredStation = mostCommonStation[0];
       }
       
-      // Find favorite station type
       const typeMap = new Map<string, number>();
       customerBookings.forEach(b => {
         typeMap.set(b.station.type, (typeMap.get(b.station.type) || 0) + 1);
@@ -542,7 +533,6 @@ export default function BookingManagement() {
         customer.favoriteStationType = mostCommonType[0];
       }
       
-      // Find most used coupon
       const couponMap = new Map<string, number>();
       customerBookings.forEach(b => {
         if (b.coupon_code) {
@@ -557,7 +547,6 @@ export default function BookingManagement() {
         customer.mostUsedCoupon = mostUsedCoupon[0];
       }
       
-      // Determine booking frequency
       const daysSinceFirst = Math.ceil((new Date().getTime() - new Date(customer.lastBookingDate).getTime()) / (1000 * 60 * 60 * 24));
       const bookingsPerWeek = (customer.totalBookings / daysSinceFirst) * 7;
       
@@ -851,7 +840,7 @@ export default function BookingManagement() {
       status: 'all',
       stationType: 'all',
       search: '',
-      accessCode: '', // Changed from bookingId
+      accessCode: '',
       coupon: 'all',
       priceRange: 'all',
       duration: 'all',
@@ -935,7 +924,7 @@ export default function BookingManagement() {
         </div>
       </div>
 
-      {/* FIXED: Transparent Advanced Filters with Dark Mode Support */}
+      {/* Advanced Filters */}
       <Card className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-border/50">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -979,13 +968,13 @@ export default function BookingManagement() {
                   type="date"
                   value={filters.dateFrom}
                   onChange={(e) => handleManualDateChange('dateFrom', e.target.value)}
-                  className={`h-11 border-2 transition-colors border-border focus:border-blue-400`}
+                  className="h-11 border-2 transition-colors border-border focus:border-blue-400"
                 />
                 <Input
                   type="date"
                   value={filters.dateTo}
                   onChange={(e) => handleManualDateChange('dateTo', e.target.value)}
-                  className={`h-11 border-2 transition-colors border-border focus:border-blue-400`}
+                  className="h-11 border-2 transition-colors border-border focus:border-blue-400"
                 />
               </div>
               
@@ -1099,7 +1088,7 @@ export default function BookingManagement() {
             </div>
           </div>
 
-          {/* Enhanced Search Section */}
+          {/* Search Section */}
           <div className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1115,7 +1104,6 @@ export default function BookingManagement() {
                 </div>
               </div>
               
-              {/* UPDATED: Access Code Search instead of Booking ID */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-foreground">Access Code Search</Label>
                 <div className="relative">
@@ -1144,7 +1132,6 @@ export default function BookingManagement() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -1213,7 +1200,6 @@ export default function BookingManagement() {
             </Card>
           </div>
 
-          {/* Marketing Impact Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -1269,7 +1255,6 @@ export default function BookingManagement() {
         </TabsContent>
 
         <TabsContent value="coupons" className="space-y-6">
-          {/* Coupon Performance Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -1325,7 +1310,6 @@ export default function BookingManagement() {
             </Card>
           </div>
 
-          {/* Top Performing Coupons */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1374,7 +1358,6 @@ export default function BookingManagement() {
             </CardContent>
           </Card>
 
-          {/* Customer Segmentation with Coupons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -1521,7 +1504,6 @@ export default function BookingManagement() {
             </Card>
           </div>
 
-          {/* Top Stations by Revenue */}
           <Card>
             <CardHeader>
               <CardTitle>Top Stations by Revenue</CardTitle>
@@ -1551,9 +1533,7 @@ export default function BookingManagement() {
           </Card>
         </TabsContent>
 
-        {/* ENHANCED: Customer Insights Tab */}
         <TabsContent value="customers" className="space-y-6">
-          {/* Customer Overview Widgets */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -1615,7 +1595,6 @@ export default function BookingManagement() {
             </Card>
           </div>
 
-          {/* Customer Frequency Distribution */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -1654,7 +1633,6 @@ export default function BookingManagement() {
             </Card>
           </div>
 
-          {/* Detailed Customer List */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1667,7 +1645,6 @@ export default function BookingManagement() {
                 {customerInsights.slice(0, 20).map((customer, index) => (
                   <div key={customer.name} className="p-4 border rounded-lg bg-card hover:shadow-md transition-shadow">
                     <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
-                      {/* Customer Info */}
                       <div className="lg:col-span-2">
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
@@ -1690,7 +1667,6 @@ export default function BookingManagement() {
                         </div>
                       </div>
 
-                      {/* Booking Stats */}
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Bookings</p>
                         <p className="text-2xl font-bold text-blue-600">{customer.totalBookings}</p>
@@ -1699,7 +1675,6 @@ export default function BookingManagement() {
                         </Badge>
                       </div>
 
-                      {/* Financial Stats */}
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue</p>
                         <p className="text-xl font-bold text-green-600">₹{customer.totalSpent.toLocaleString()}</p>
@@ -1708,7 +1683,6 @@ export default function BookingManagement() {
                         </p>
                       </div>
 
-                      {/* Time Preferences */}
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Preferences</p>
                         <div className="flex items-center gap-1 text-sm">
@@ -1721,7 +1695,6 @@ export default function BookingManagement() {
                         </div>
                       </div>
 
-                      {/* Duration & Performance */}
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Usage</p>
                         <div className="flex items-center gap-1 text-sm">
@@ -1737,7 +1710,6 @@ export default function BookingManagement() {
                         </div>
                       </div>
 
-                      {/* Coupon Usage */}
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Marketing</p>
                         {customer.mostUsedCoupon ? (
@@ -1760,10 +1732,8 @@ export default function BookingManagement() {
           </Card>
         </TabsContent>
 
-        {/* FIXED: Station Tab UI to Match Page Theme */}
         <TabsContent value="stations" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Enhanced Station Performance Card with Better UI */}
             <Card className="bg-background border-border">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-t-lg border-b border-border">
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -1809,7 +1779,6 @@ export default function BookingManagement() {
               </CardContent>
             </Card>
 
-            {/* Enhanced Hourly Distribution Card with Better UI */}
             <Card className="bg-background border-border">
               <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 rounded-t-lg border-b border-border">
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -1876,7 +1845,7 @@ export default function BookingManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* FIXED: Enhanced Bookings List with Scrollbar */}
+      {/* FIXED: Bookings List with Scrollbar and proper JSX syntax */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1907,7 +1876,6 @@ export default function BookingManagement() {
               <p>Try adjusting your filters or date range</p>
             </div>
           ) : (
-            {/* FIXED: Added Scrollbar Container */}
             <div className="max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-background space-y-2 pr-2">
               {Object.entries(groupedBookings)
                 .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
@@ -1963,7 +1931,6 @@ export default function BookingManagement() {
                                         <div key={booking.id} className={`p-4 border rounded-lg bg-card shadow-sm ${booking.coupon_code ? 'ring-2 ring-purple-200 bg-purple-50/30 dark:bg-purple-950/30' : ''}`}>
                                           <div className="flex items-center justify-between">
                                             <div className="grid grid-cols-1 md:grid-cols-7 gap-4 flex-1">
-                                              {/* ENHANCED: Booking ID and Access Code Section */}
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Booking Details</div>
                                                 <div className="space-y-1">
