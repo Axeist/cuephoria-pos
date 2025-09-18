@@ -15,7 +15,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
-  CalendarDays, Target, UserCheck, Edit2, Trash2, Hash, BarChart3, Building2
+  CalendarDays, Target, UserCheck, Edit2, Trash2, Hash, BarChart3, Building2, Eye, Timer, Star, 
+  GamepadIcon, TrendingUp as TrendingUpIcon
 } from 'lucide-react';
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, isToday, isYesterday, isTomorrow
@@ -58,6 +59,23 @@ interface Booking {
   created_at?: string;
 }
 
+interface CustomerInsight {
+  name: string;
+  phone: string;
+  email?: string | null;
+  totalBookings: number;
+  totalDuration: number;
+  totalSpent: number;
+  averageBookingDuration: number;
+  preferredTime: string;
+  preferredStation: string;
+  mostUsedCoupon: string | null;
+  lastBookingDate: string;
+  completionRate: number;
+  favoriteStationType: string;
+  bookingFrequency: 'High' | 'Medium' | 'Low';
+}
+
 interface Filters {
   datePreset: string;
   dateFrom: string;
@@ -65,7 +83,7 @@ interface Filters {
   status: string;
   stationType: string;
   search: string;
-  bookingId: string;
+  accessCode: string; // Changed from bookingId
   coupon: string;
   priceRange: string;
   duration: string;
@@ -166,7 +184,7 @@ export default function BookingManagement() {
     status: 'all',
     stationType: 'all',
     search: '',
-    bookingId: '',
+    accessCode: '', // Changed from bookingId
     coupon: 'all',
     priceRange: 'all',
     duration: 'all',
@@ -198,7 +216,13 @@ export default function BookingManagement() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // Fixed: Custom date range functionality
   const handleDatePresetChange = (preset: string) => {
+    if (preset === 'custom') {
+      setFilters(prev => ({ ...prev, datePreset: 'custom' }));
+      return;
+    }
+    
     const dateRange = getDateRangeFromPreset(preset);
     if (dateRange) {
       setFilters(prev => ({
@@ -210,6 +234,7 @@ export default function BookingManagement() {
     }
   };
 
+  // Fixed: Manual date change handlers
   const handleManualDateChange = (field: 'dateFrom' | 'dateTo', value: string) => {
     setFilters(prev => ({
       ...prev,
@@ -378,15 +403,14 @@ export default function BookingManagement() {
         b.customer.phone.includes(filters.search) ||
         (b.customer.email && b.customer.email.toLowerCase().includes(q)) ||
         b.station.name.toLowerCase().includes(q) ||
-        b.id.toLowerCase().includes(q) ||
-        (b.booking_views && b.booking_views.some(bv => bv.access_code.toLowerCase().includes(q)))
+        b.id.toLowerCase().includes(q)
       );
     }
 
-    if (filters.bookingId) {
+    // Updated: Access Code filter instead of Booking ID
+    if (filters.accessCode) {
       filtered = filtered.filter(b => 
-        b.id.toLowerCase().includes(filters.bookingId.toLowerCase()) ||
-        (b.booking_views && b.booking_views.some(bv => bv.id.toLowerCase().includes(filters.bookingId.toLowerCase())))
+        (b.booking_views && b.booking_views.some(bv => bv.access_code.toLowerCase().includes(filters.accessCode.toLowerCase())))
       );
     }
 
@@ -437,6 +461,113 @@ export default function BookingManagement() {
     const filtered = applyFilters(allBookings);
     setBookings(filtered);
   }, [filters, allBookings]);
+
+  // Enhanced Customer Insights calculation
+  const customerInsights = useMemo((): CustomerInsight[] => {
+    const customerMap = new Map<string, CustomerInsight>();
+
+    bookings.forEach(booking => {
+      const customerId = booking.customer.name;
+      
+      if (!customerMap.has(customerId)) {
+        customerMap.set(customerId, {
+          name: booking.customer.name,
+          phone: booking.customer.phone,
+          email: booking.customer.email,
+          totalBookings: 0,
+          totalDuration: 0,
+          totalSpent: 0,
+          averageBookingDuration: 0,
+          preferredTime: '',
+          preferredStation: '',
+          mostUsedCoupon: null,
+          lastBookingDate: '',
+          completionRate: 0,
+          favoriteStationType: '',
+          bookingFrequency: 'Low'
+        });
+      }
+
+      const customer = customerMap.get(customerId)!;
+      customer.totalBookings++;
+      customer.totalDuration += booking.duration;
+      customer.totalSpent += booking.final_price || 0;
+      
+      if (!customer.lastBookingDate || booking.booking_date > customer.lastBookingDate) {
+        customer.lastBookingDate = booking.booking_date;
+      }
+    });
+
+    // Calculate derived metrics for each customer
+    customerMap.forEach((customer, customerId) => {
+      customer.averageBookingDuration = Math.round(customer.totalDuration / customer.totalBookings);
+      
+      // Calculate completion rate
+      const customerBookings = bookings.filter(b => b.customer.name === customerId);
+      const completedBookings = customerBookings.filter(b => b.status === 'completed').length;
+      customer.completionRate = Math.round((completedBookings / customer.totalBookings) * 100);
+      
+      // Find preferred time (most common hour)
+      const timeMap = new Map<number, number>();
+      customerBookings.forEach(b => {
+        const hour = new Date(`2000-01-01T${b.start_time}`).getHours();
+        timeMap.set(hour, (timeMap.get(hour) || 0) + 1);
+      });
+      const mostCommonHour = Array.from(timeMap.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (mostCommonHour) {
+        const hour = mostCommonHour[0];
+        customer.preferredTime = hour === 0 ? '12:00 AM' : 
+                                hour < 12 ? `${hour}:00 AM` : 
+                                hour === 12 ? '12:00 PM' : 
+                                `${hour - 12}:00 PM`;
+      }
+      
+      // Find preferred station
+      const stationMap = new Map<string, number>();
+      customerBookings.forEach(b => {
+        stationMap.set(b.station.name, (stationMap.get(b.station.name) || 0) + 1);
+      });
+      const mostCommonStation = Array.from(stationMap.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (mostCommonStation) {
+        customer.preferredStation = mostCommonStation[0];
+      }
+      
+      // Find favorite station type
+      const typeMap = new Map<string, number>();
+      customerBookings.forEach(b => {
+        typeMap.set(b.station.type, (typeMap.get(b.station.type) || 0) + 1);
+      });
+      const mostCommonType = Array.from(typeMap.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (mostCommonType) {
+        customer.favoriteStationType = mostCommonType[0];
+      }
+      
+      // Find most used coupon
+      const couponMap = new Map<string, number>();
+      customerBookings.forEach(b => {
+        if (b.coupon_code) {
+          const codes = extractCouponCodes(b.coupon_code);
+          codes.forEach(code => {
+            couponMap.set(code, (couponMap.get(code) || 0) + 1);
+          });
+        }
+      });
+      const mostUsedCoupon = Array.from(couponMap.entries()).sort((a, b) => b[1] - a[1])[0];
+      if (mostUsedCoupon) {
+        customer.mostUsedCoupon = mostUsedCoupon[0];
+      }
+      
+      // Determine booking frequency
+      const daysSinceFirst = Math.ceil((new Date().getTime() - new Date(customer.lastBookingDate).getTime()) / (1000 * 60 * 60 * 24));
+      const bookingsPerWeek = (customer.totalBookings / daysSinceFirst) * 7;
+      
+      if (bookingsPerWeek >= 2) customer.bookingFrequency = 'High';
+      else if (bookingsPerWeek >= 0.5) customer.bookingFrequency = 'Medium';
+      else customer.bookingFrequency = 'Low';
+    });
+
+    return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
+  }, [bookings]);
 
   const analytics = useMemo((): Analytics => {
     const currentPeriodData = bookings;
@@ -720,7 +851,7 @@ export default function BookingManagement() {
       status: 'all',
       stationType: 'all',
       search: '',
-      bookingId: '',
+      accessCode: '', // Changed from bookingId
       coupon: 'all',
       priceRange: 'all',
       duration: 'all',
@@ -804,8 +935,8 @@ export default function BookingManagement() {
         </div>
       </div>
 
-      {/* Enhanced Advanced Filters */}
-      <Card className="shadow-lg border-0 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-gray-900 dark:to-slate-900">
+      {/* FIXED: Transparent Advanced Filters with Dark Mode Support */}
+      <Card className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-border/50">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-xl font-semibold">
@@ -820,11 +951,11 @@ export default function BookingManagement() {
         <CardContent className="space-y-6">
           {/* Date Range Section */}
           <div>
-            <Label className="text-sm font-semibold text-gray-700 mb-3 block">Date Range</Label>
+            <Label className="text-sm font-semibold text-foreground mb-3 block">Date Range</Label>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div>
                 <Select value={filters.datePreset} onValueChange={handleDatePresetChange}>
-                  <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                  <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
                     <SelectValue placeholder="Select date range" />
                   </SelectTrigger>
                   <SelectContent>
@@ -848,21 +979,19 @@ export default function BookingManagement() {
                   type="date"
                   value={filters.dateFrom}
                   onChange={(e) => handleManualDateChange('dateFrom', e.target.value)}
-                  disabled={filters.datePreset !== 'custom'}
-                  className={`h-11 border-2 transition-colors ${filters.datePreset !== 'custom' ? 'opacity-60 bg-gray-100' : 'border-gray-200 focus:border-blue-400'}`}
+                  className={`h-11 border-2 transition-colors border-border focus:border-blue-400`}
                 />
                 <Input
                   type="date"
                   value={filters.dateTo}
                   onChange={(e) => handleManualDateChange('dateTo', e.target.value)}
-                  disabled={filters.datePreset !== 'custom'}
-                  className={`h-11 border-2 transition-colors ${filters.datePreset !== 'custom' ? 'opacity-60 bg-gray-100' : 'border-gray-200 focus:border-blue-400'}`}
+                  className={`h-11 border-2 transition-colors border-border focus:border-blue-400`}
                 />
               </div>
               
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center">
+              <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 flex items-center">
                 <Calendar className="h-4 w-4 text-blue-600 mr-2" />
-                <span className="text-sm font-medium text-blue-800">
+                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
                   {getDateRangeLabel()}
                 </span>
               </div>
@@ -872,9 +1001,9 @@ export default function BookingManagement() {
           {/* Filter Controls Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Status</Label>
+              <Label className="text-sm font-medium text-foreground">Status</Label>
               <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
-                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -889,9 +1018,9 @@ export default function BookingManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Station Type</Label>
+              <Label className="text-sm font-medium text-foreground">Station Type</Label>
               <Select value={filters.stationType} onValueChange={(value) => setFilters(prev => ({ ...prev, stationType: value }))}>
-                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -903,9 +1032,9 @@ export default function BookingManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Coupon Code</Label>
+              <Label className="text-sm font-medium text-foreground">Coupon Code</Label>
               <Select value={filters.coupon} onValueChange={(value) => setFilters(prev => ({ ...prev, coupon: value }))}>
-                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -924,9 +1053,9 @@ export default function BookingManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Price Range</Label>
+              <Label className="text-sm font-medium text-foreground">Price Range</Label>
               <Select value={filters.priceRange} onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}>
-                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -940,9 +1069,9 @@ export default function BookingManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Customer Type</Label>
+              <Label className="text-sm font-medium text-foreground">Customer Type</Label>
               <Select value={filters.customerType} onValueChange={(value) => setFilters(prev => ({ ...prev, customerType: value }))}>
-                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -954,9 +1083,9 @@ export default function BookingManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Duration</Label>
+              <Label className="text-sm font-medium text-foreground">Duration</Label>
               <Select value={filters.duration} onValueChange={(value) => setFilters(prev => ({ ...prev, duration: value }))}>
-                <SelectTrigger className="h-11 border-2 border-gray-200 focus:border-blue-400 transition-colors">
+                <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -974,27 +1103,28 @@ export default function BookingManagement() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">General Search</Label>
+                <Label className="text-sm font-medium text-foreground">General Search</Label>
                 <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
-                    placeholder="Search by Customer Name, Phone, Email, Station, Booking ID, or Access Code..."
+                    placeholder="Search by Customer Name, Phone, Email, Station, or Booking ID..."
                     value={filters.search}
                     onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                    className="h-12 pl-12 border-2 border-gray-200 focus:border-blue-400 transition-colors text-base"
+                    className="h-12 pl-12 border-2 border-border focus:border-blue-400 transition-colors text-base"
                   />
                 </div>
               </div>
               
+              {/* UPDATED: Access Code Search instead of Booking ID */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Booking ID Search</Label>
+                <Label className="text-sm font-medium text-foreground">Access Code Search</Label>
                 <div className="relative">
-                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Eye className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
-                    placeholder="Enter specific Booking ID or View ID..."
-                    value={filters.bookingId}
-                    onChange={(e) => setFilters(prev => ({ ...prev, bookingId: e.target.value }))}
-                    className="h-12 pl-12 border-2 border-gray-200 focus:border-blue-400 transition-colors text-base"
+                    placeholder="Enter Access Code from booking views..."
+                    value={filters.accessCode}
+                    onChange={(e) => setFilters(prev => ({ ...prev, accessCode: e.target.value }))}
+                    className="h-12 pl-12 border-2 border-border focus:border-blue-400 transition-colors text-base"
                   />
                 </div>
               </div>
@@ -1255,7 +1385,7 @@ export default function BookingManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/50 rounded-lg">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-green-500"></div>
                       <span className="font-medium">New Customers with Coupons</span>
@@ -1273,7 +1403,7 @@ export default function BookingManagement() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-blue-500"></div>
                       <span className="font-medium">Returning Customers with Coupons</span>
@@ -1303,7 +1433,7 @@ export default function BookingManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="p-3 bg-purple-50 rounded-lg">
+                  <div className="p-3 bg-purple-50 dark:bg-purple-950/50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">Coupon Adoption Rate</span>
                       <span className="text-2xl font-bold text-purple-600">
@@ -1315,7 +1445,7 @@ export default function BookingManagement() {
                     </p>
                   </div>
 
-                  <div className="p-3 bg-orange-50 rounded-lg">
+                  <div className="p-3 bg-orange-50 dark:bg-orange-950/50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">Average Discount Impact</span>
                       <span className="text-2xl font-bold text-orange-600">
@@ -1327,7 +1457,7 @@ export default function BookingManagement() {
                     </p>
                   </div>
 
-                  <div className="p-3 bg-teal-50 rounded-lg">
+                  <div className="p-3 bg-teal-50 dark:bg-teal-950/50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">Revenue Efficiency</span>
                       <span className="text-2xl font-bold text-teal-600">
@@ -1421,53 +1551,230 @@ export default function BookingManagement() {
           </Card>
         </TabsContent>
 
+        {/* ENHANCED: Customer Insights Tab */}
         <TabsContent value="customers" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Customer Overview Widgets */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
-                <div className="text-center">
-                  <p className="text-sm font-medium text-muted-foreground">Total Customers</p>
-                  <p className="text-3xl font-bold">{analytics.customers.total}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Customers</p>
+                    <p className="text-3xl font-bold">{analytics.customers.total}</p>
+                  </div>
+                  <Users className="h-8 w-8 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="p-6">
-                <div className="text-center">
-                  <p className="text-sm font-medium text-muted-foreground">New Customers</p>
-                  <p className="text-3xl font-bold text-green-600">{analytics.customers.new}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">New Customers</p>
+                    <p className="text-3xl font-bold text-green-600">{analytics.customers.new}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {((analytics.customers.new / analytics.customers.total) * 100).toFixed(1)}% of total
+                    </p>
+                  </div>
+                  <UserCheck className="h-8 w-8 text-green-600" />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="p-6">
-                <div className="text-center">
-                  <p className="text-sm font-medium text-muted-foreground">Retention Rate</p>
-                  <p className="text-3xl font-bold text-blue-600">
-                    {analytics.customers.retentionRate.toFixed(1)}%
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Avg Spend/Customer</p>
+                    <p className="text-3xl font-bold text-blue-600">₹{analytics.revenue.avgPerCustomer}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Per customer lifetime
+                    </p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Retention Rate</p>
+                    <p className="text-3xl font-bold text-purple-600">
+                      {analytics.customers.retentionRate.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Returning customers
+                    </p>
+                  </div>
+                  <TrendingUpIcon className="h-8 w-8 text-purple-600" />
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* Customer Frequency Distribution */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-muted-foreground">High Frequency</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {customerInsights.filter(c => c.bookingFrequency === 'High').length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">2+ bookings/week</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-muted-foreground">Medium Frequency</p>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {customerInsights.filter(c => c.bookingFrequency === 'Medium').length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">0.5-2 bookings/week</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-muted-foreground">Low Frequency</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {customerInsights.filter(c => c.bookingFrequency === 'Low').length}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">&lt;0.5 bookings/week</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Detailed Customer List */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Customer Insights & Analytics
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {customerInsights.slice(0, 20).map((customer, index) => (
+                  <div key={customer.name} className="p-4 border rounded-lg bg-card hover:shadow-md transition-shadow">
+                    <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
+                      {/* Customer Info */}
+                      <div className="lg:col-span-2">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
+                            ${index < 3 ? 'bg-yellow-500' : index < 10 ? 'bg-blue-500' : 'bg-gray-500'}`}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-lg">{customer.name}</h4>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <Phone className="h-3 w-3" />
+                              {customer.phone}
+                            </div>
+                            {customer.email && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Mail className="h-3 w-3" />
+                                {customer.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Booking Stats */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Bookings</p>
+                        <p className="text-2xl font-bold text-blue-600">{customer.totalBookings}</p>
+                        <Badge variant={customer.bookingFrequency === 'High' ? 'default' : customer.bookingFrequency === 'Medium' ? 'secondary' : 'destructive'} className="text-xs">
+                          {customer.bookingFrequency} Frequency
+                        </Badge>
+                      </div>
+
+                      {/* Financial Stats */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue</p>
+                        <p className="text-xl font-bold text-green-600">₹{customer.totalSpent.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">
+                          ₹{Math.round(customer.totalSpent / customer.totalBookings)}/booking
+                        </p>
+                      </div>
+
+                      {/* Time Preferences */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Preferences</p>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Clock className="h-3 w-3" />
+                          {customer.preferredTime || 'Various'}
+                        </div>
+                        <div className="flex items-center gap-1 text-sm">
+                          <GamepadIcon className="h-3 w-3" />
+                          {getStationTypeLabel(customer.favoriteStationType)}
+                        </div>
+                      </div>
+
+                      {/* Duration & Performance */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Usage</p>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Timer className="h-3 w-3" />
+                          {Math.round(customer.totalDuration / 60)}h total
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {customer.averageBookingDuration}min avg
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <Star className="h-3 w-3 text-yellow-500" />
+                          <span className="text-sm">{customer.completionRate}% completion</span>
+                        </div>
+                      </div>
+
+                      {/* Coupon Usage */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Marketing</p>
+                        {customer.mostUsedCoupon ? (
+                          <Badge variant="outline" className="text-xs">
+                            <Gift className="h-2 w-2 mr-1" />
+                            {customer.mostUsedCoupon}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No coupons used</span>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Last visit: {format(new Date(customer.lastBookingDate), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
+        {/* FIXED: Station Tab UI to Match Page Theme */}
         <TabsContent value="stations" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Enhanced Station Performance Card */}
-            <Card className="shadow-lg">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
+            {/* Enhanced Station Performance Card with Better UI */}
+            <Card className="bg-background border-border">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-t-lg border-b border-border">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Building2 className="h-5 w-5 text-blue-600" />
-                  Station Performance
+                  Station Performance Analytics
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-6">
                   {Object.entries(analytics.stations.utilization).map(([station, stats], index) => (
-                    <div key={station} className="space-y-3 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border-l-4 border-blue-400">
+                    <div key={station} className="space-y-3 p-4 bg-muted/20 rounded-lg border border-border">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
@@ -1475,7 +1782,7 @@ export default function BookingManagement() {
                             {index + 1}
                           </div>
                           <div>
-                            <span className="font-semibold text-lg text-gray-800">{station}</span>
+                            <span className="font-semibold text-lg text-foreground">{station}</span>
                             <Badge variant="outline" className="ml-2 text-xs">
                               {stats.bookings} bookings
                             </Badge>
@@ -1483,16 +1790,16 @@ export default function BookingManagement() {
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-6">
-                        <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Revenue</p>
+                        <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Revenue</p>
                           <p className="text-xl font-bold text-green-600">₹{stats.revenue.toLocaleString()}</p>
                         </div>
-                        <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Avg Duration</p>
+                        <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Avg Duration</p>
                           <p className="text-xl font-bold text-blue-600">{stats.avgDuration}min</p>
                         </div>
-                        <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                          <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Avg/Booking</p>
+                        <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Avg/Booking</p>
                           <p className="text-xl font-bold text-purple-600">₹{Math.round(stats.revenue / stats.bookings) || 0}</p>
                         </div>
                       </div>
@@ -1502,12 +1809,12 @@ export default function BookingManagement() {
               </CardContent>
             </Card>
 
-            {/* Enhanced Hourly Distribution Card */}
-            <Card className="shadow-lg">
-              <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-t-lg">
+            {/* Enhanced Hourly Distribution Card with Better UI */}
+            <Card className="bg-background border-border">
+              <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 rounded-t-lg border-b border-border">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <BarChart3 className="h-5 w-5 text-orange-600" />
-                  Hourly Distribution
+                  Hourly Distribution Analytics
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
@@ -1521,14 +1828,14 @@ export default function BookingManagement() {
                       const isPeak = index < 3;
                       
                       return (
-                        <div key={hour} className="group hover:bg-gray-50 rounded-lg p-3 transition-colors">
+                        <div key={hour} className="group hover:bg-muted/50 rounded-lg p-3 transition-colors border border-transparent hover:border-border">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3">
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold
                                 ${isPeak ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}>
                                 {hour}
                               </div>
-                              <span className="text-sm font-medium text-gray-700">
+                              <span className="text-sm font-medium text-foreground">
                                 {parseInt(hour) === 0 ? '12:00 AM' : 
                                  parseInt(hour) < 12 ? `${hour}:00 AM` : 
                                  parseInt(hour) === 12 ? '12:00 PM' : 
@@ -1541,12 +1848,12 @@ export default function BookingManagement() {
                               )}
                             </div>
                             <div className="text-right">
-                              <span className="text-lg font-bold text-gray-800">{count}</span>
-                              <span className="text-xs text-gray-500 ml-1">bookings</span>
+                              <span className="text-lg font-bold text-foreground">{count}</span>
+                              <span className="text-xs text-muted-foreground ml-1">bookings</span>
                             </div>
                           </div>
                           <div className="relative">
-                            <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="w-full h-3 bg-muted rounded-full overflow-hidden border border-border">
                               <div 
                                 className={`h-full rounded-full transition-all duration-500 ease-in-out 
                                   ${isPeak ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-blue-400 to-blue-600'}`}
@@ -1569,7 +1876,7 @@ export default function BookingManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* Enhanced Bookings List with Booking ID Display */}
+      {/* FIXED: Enhanced Bookings List with Scrollbar */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -1600,7 +1907,8 @@ export default function BookingManagement() {
               <p>Try adjusting your filters or date range</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            {/* FIXED: Added Scrollbar Container */}
+            <div className="max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-background space-y-2 pr-2">
               {Object.entries(groupedBookings)
                 .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
                 .map(([date, customerBookings]) => (
@@ -1652,10 +1960,10 @@ export default function BookingManagement() {
                                       {bookingsForCustomer
                                         .sort((a, b) => a.start_time.localeCompare(b.start_time))
                                         .map(booking => (
-                                        <div key={booking.id} className={`p-4 border rounded-lg bg-card shadow-sm ${booking.coupon_code ? 'ring-2 ring-purple-200 bg-purple-50/30' : ''}`}>
+                                        <div key={booking.id} className={`p-4 border rounded-lg bg-card shadow-sm ${booking.coupon_code ? 'ring-2 ring-purple-200 bg-purple-50/30 dark:bg-purple-950/30' : ''}`}>
                                           <div className="flex items-center justify-between">
                                             <div className="grid grid-cols-1 md:grid-cols-7 gap-4 flex-1">
-                                              {/* Booking ID and Access Code Section */}
+                                              {/* ENHANCED: Booking ID and Access Code Section */}
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Booking Details</div>
                                                 <div className="space-y-1">
@@ -1665,7 +1973,7 @@ export default function BookingManagement() {
                                                   </div>
                                                   {booking.booking_views && booking.booking_views.length > 0 && (
                                                     <div className="text-xs text-gray-500 flex items-center gap-1">
-                                                      <Tag className="h-2 w-2" />
+                                                      <Eye className="h-2 w-2" />
                                                       Access: {booking.booking_views[0].access_code}
                                                     </div>
                                                   )}
@@ -1792,3 +2100,4 @@ export default function BookingManagement() {
     </div>
   );
 }
+
