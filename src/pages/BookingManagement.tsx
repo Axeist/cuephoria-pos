@@ -13,27 +13,12 @@ import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
-  Calendar, Search, Filter, Download, Phone, Mail, Clock, MapPin, Plus,
-  Edit2, Trash2, ChevronDown, ChevronRight, Users, CalendarDays, TrendingUp,
-  Percent, Ticket, DollarSign, Target, AlertCircle, BarChart3, PieChart,
-  Activity, Timer, UserCheck, RefreshCw, ArrowUpDown, TrendingDown,
-  Gift, Tag, Megaphone, Zap, Trophy, Star, ArrowUp, ArrowDown
+  Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
+  Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
+  CalendarDays, Target, UserCheck, Edit2, Trash2
 } from 'lucide-react';
-import { 
-  format, 
-  isToday, 
-  isYesterday, 
-  isTomorrow, 
-  subDays, 
-  startOfDay, 
-  endOfDay, 
-  isWithinInterval,
-  startOfMonth,
-  endOfMonth,
-  startOfYear,
-  endOfYear,
-  subMonths,
-  subYears
+import {
+  format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, isToday, isYesterday, isTomorrow
 } from 'date-fns';
 
 interface Booking {
@@ -55,7 +40,9 @@ interface Booking {
     name: string;
     phone: string;
     email?: string | null;
+    created_at?: string;
   };
+  created_at?: string;
 }
 
 interface Filters {
@@ -121,7 +108,6 @@ interface Analytics {
   coupons: CouponAnalytics;
 }
 
-// Date preset options with their corresponding date ranges
 const getDateRangeFromPreset = (preset: string) => {
   const now = new Date();
   
@@ -209,6 +195,13 @@ export default function BookingManagement() {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
+  // Extract individual coupon codes from comma-separated strings
+  const extractCouponCodes = (coupon_code: string) =>
+    coupon_code
+      .split(',')
+      .map(c => c.trim().toUpperCase())
+      .filter(Boolean);
+
   useEffect(() => {
     fetchBookings();
   }, []);
@@ -224,7 +217,6 @@ export default function BookingManagement() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Handle date preset changes
   const handleDatePresetChange = (preset: string) => {
     const dateRange = getDateRangeFromPreset(preset);
     if (dateRange) {
@@ -237,7 +229,6 @@ export default function BookingManagement() {
     }
   };
 
-  // Handle manual date changes (sets preset to 'custom')
   const handleManualDateChange = (field: 'dateFrom' | 'dateTo', value: string) => {
     setFilters(prev => ({
       ...prev,
@@ -246,7 +237,6 @@ export default function BookingManagement() {
     }));
   };
 
-  // Get the display label for the current date range
   const getDateRangeLabel = () => {
     if (filters.datePreset === 'custom') {
       return `${filters.dateFrom} to ${filters.dateTo}`;
@@ -347,8 +337,16 @@ export default function BookingManagement() {
       const filtered = applyFilters(transformed);
       setBookings(filtered);
 
+      // Extract all unique individual coupon codes for filter options
       const presentCodes = Array.from(
-        new Set(transformed.map(t => (t.coupon_code || '').trim()).filter(Boolean))
+        new Set(
+          transformed.flatMap(t => 
+            (t.coupon_code || '')
+              .split(',')
+              .map(c => c.trim().toUpperCase())
+              .filter(Boolean)
+          )
+        )
       ) as string[];
       setCouponOptions(presentCodes.sort());
 
@@ -391,7 +389,12 @@ export default function BookingManagement() {
       if (filters.coupon === 'none') {
         filtered = filtered.filter(b => !b.coupon_code);
       } else {
-        filtered = filtered.filter(b => (b.coupon_code || '').toUpperCase() === filters.coupon.toUpperCase());
+        filtered = filtered.filter(b => {
+          const codes = (b.coupon_code || '')
+            .split(',')
+            .map(c => c.trim().toUpperCase());
+          return codes.includes(filters.coupon.toUpperCase());
+        });
       }
     }
 
@@ -432,7 +435,7 @@ export default function BookingManagement() {
     setBookings(filtered);
   }, [filters, allBookings]);
 
-  // Enhanced Analytics with detailed coupon tracking
+  // Enhanced Analytics with fixed customer counting and coupon grouping
   const analytics = useMemo((): Analytics => {
     const currentPeriodData = bookings;
     const previousPeriodStart = format(subDays(new Date(filters.dateFrom), 
@@ -442,12 +445,36 @@ export default function BookingManagement() {
       b.booking_date >= previousPeriodStart && b.booking_date < filters.dateFrom
     );
 
+    // FIXED: Create customer first booking map from ALL bookings
+    const customerFirstBooking: Record<string, string> = {};
+    allBookings.forEach(b => {
+      if (
+        !customerFirstBooking[b.customer.name] || 
+        b.booking_date < customerFirstBooking[b.customer.name]
+      ) {
+        customerFirstBooking[b.customer.name] = b.booking_date;
+      }
+    });
+
+    // FIXED: Calculate correct customer counts
+    const uniqueCustomersSet = new Set(currentPeriodData.map(b => b.customer.name));
+    const totalCustomers = uniqueCustomersSet.size;
+
+    const newCustomersCount = Array.from(uniqueCustomersSet).filter(
+      name => {
+        const firstBookingDate = customerFirstBooking[name];
+        return firstBookingDate >= filters.dateFrom && firstBookingDate <= filters.dateTo;
+      }
+    ).length;
+
+    const returningCustomers = totalCustomers - newCustomersCount;
+    const retentionRate = totalCustomers ? (returningCustomers / totalCustomers) * 100 : 0;
+
     // Revenue Analytics
     const currentRevenue = currentPeriodData.reduce((sum, b) => sum + (b.final_price || 0), 0);
     const previousRevenue = previousPeriodData.reduce((sum, b) => sum + (b.final_price || 0), 0);
     const revenueTrend = previousRevenue ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
 
-    // Booking Analytics
     const currentBookingCount = currentPeriodData.length;
     const previousBookingCount = previousPeriodData.length;
     const bookingTrend = previousBookingCount ? ((currentBookingCount - previousBookingCount) / previousBookingCount) * 100 : 0;
@@ -456,17 +483,6 @@ export default function BookingManagement() {
     const noShowBookings = currentPeriodData.filter(b => b.status === 'no-show').length;
     const completionRate = currentBookingCount ? (completedBookings / currentBookingCount) * 100 : 0;
     const noShowRate = currentBookingCount ? (noShowBookings / currentBookingCount) * 100 : 0;
-
-    // Customer Analytics
-    const uniqueCustomers = new Set(currentPeriodData.map(b => b.customer.name)).size;
-    const thirtyDaysAgo = subDays(new Date(), 30);
-    const newCustomers = currentPeriodData.filter(b => {
-      const customerCreated = new Date((b.customer as any).created_at || b.created_at);
-      return customerCreated > thirtyDaysAgo;
-    }).length;
-    
-    const returningCustomers = uniqueCustomers - newCustomers;
-    const retentionRate = uniqueCustomers ? (returningCustomers / uniqueCustomers) * 100 : 0;
 
     // Station Analytics
     const stationStats: Record<string, { bookings: number; revenue: number; avgDuration: number }> = {};
@@ -492,95 +508,101 @@ export default function BookingManagement() {
       }
     });
 
-    // ENHANCED COUPON ANALYTICS
-    const bookingsWithCoupons = currentPeriodData.filter(b => b.coupon_code && b.coupon_code.trim());
-    const bookingsWithoutCoupons = currentPeriodData.filter(b => !b.coupon_code || !b.coupon_code.trim());
+    // FIXED: Enhanced Coupon Analytics with proper grouping
+    const couponStats: Record<string, {
+      usageCount: number;
+      totalRevenue: number;
+      totalDiscount: number;
+      uniqueCustomers: Set<string>;
+      bookings: Booking[];
+    }> = {};
 
-    const totalCouponsUsed = bookingsWithCoupons.length;
-    const uniqueCoupons = new Set(bookingsWithCoupons.map(b => b.coupon_code!.toUpperCase())).size;
-    
-    const revenueWithCoupons = bookingsWithCoupons.reduce((sum, b) => sum + (b.final_price || 0), 0);
-    const revenueWithoutCoupons = bookingsWithoutCoupons.reduce((sum, b) => sum + (b.final_price || 0), 0);
-    
-    const totalDiscountGiven = bookingsWithCoupons.reduce((sum, b) => {
-      if (b.discount_percentage && b.final_price) {
-        const discountAmount = (b.final_price * b.discount_percentage) / (100 - b.discount_percentage);
-        return sum + discountAmount;
-      }
-      return sum;
-    }, 0);
+    currentPeriodData.forEach(b => {
+      if (!b.coupon_code) return;
+      const codes = extractCouponCodes(b.coupon_code);
+      codes.forEach(code => {
+        if (!couponStats[code]) {
+          couponStats[code] = {
+            usageCount: 0,
+            totalRevenue: 0,
+            totalDiscount: 0,
+            uniqueCustomers: new Set(),
+            bookings: []
+          };
+        }
+        couponStats[code].usageCount += 1;
+        couponStats[code].totalRevenue += b.final_price || 0;
+        couponStats[code].uniqueCustomers.add(b.customer.name);
+        couponStats[code].bookings.push(b);
+        if (b.discount_percentage && b.final_price) {
+          const discountAmount = (b.final_price * b.discount_percentage) / (100 - b.discount_percentage);
+          couponStats[code].totalDiscount += discountAmount;
+        }
+      });
+    });
 
-    const averageDiscountPercentage = bookingsWithCoupons.length > 0 
-      ? bookingsWithCoupons.reduce((sum, b) => sum + (b.discount_percentage || 0), 0) / bookingsWithCoupons.length
+    const totalCouponsUsed = Object.values(couponStats).reduce((sum, stat) => sum + stat.usageCount, 0);
+    const uniqueCoupons = Object.keys(couponStats).length;
+    const revenueWithCoupons = Object.values(couponStats).reduce((sum, stat) => sum + stat.totalRevenue, 0);
+    const revenueWithoutCoupons = currentRevenue - revenueWithCoupons;
+    const totalDiscountGiven = Object.values(couponStats).reduce((sum, stat) => sum + stat.totalDiscount, 0);
+    
+    const averageDiscountPercentage = totalCouponsUsed > 0
+      ? Object.values(couponStats).reduce((sum, stat) => {
+        const avgForThisCoupon = stat.bookings.length > 0 
+          ? stat.bookings.reduce((s, b) => s + (b.discount_percentage || 0), 0) / stat.bookings.length
+          : 0;
+        return sum + (avgForThisCoupon * stat.usageCount);
+      }, 0) / totalCouponsUsed
       : 0;
 
     const couponConversionRate = currentBookingCount > 0 ? (totalCouponsUsed / currentBookingCount) * 100 : 0;
 
-    // Detailed coupon performance analysis
-    const couponPerformanceMap = new Map<string, {
-      code: string;
-      usageCount: number;
-      totalRevenue: number;
-      totalDiscount: number;
-      avgDiscountPercent: number;
-      uniqueCustomers: Set<string>;
-      bookings: Booking[];
-    }>();
-
-    bookingsWithCoupons.forEach(b => {
-      const code = b.coupon_code!.toUpperCase();
-      if (!couponPerformanceMap.has(code)) {
-        couponPerformanceMap.set(code, {
-          code,
-          usageCount: 0,
-          totalRevenue: 0,
-          totalDiscount: 0,
-          avgDiscountPercent: 0,
-          uniqueCustomers: new Set(),
-          bookings: []
+    // Calculate new/returning customers with coupons
+    const newCustomersWithCoupons = Object.values(couponStats)
+      .reduce((set, stat) => {
+        stat.uniqueCustomers.forEach(customer => {
+          const firstBooking = customerFirstBooking[customer];
+          if (firstBooking >= filters.dateFrom && firstBooking <= filters.dateTo) {
+            set.add(customer);
+          }
         });
-      }
+        return set;
+      }, new Set<string>()).size;
 
-      const stats = couponPerformanceMap.get(code)!;
-      stats.usageCount += 1;
-      stats.totalRevenue += b.final_price || 0;
-      stats.uniqueCustomers.add(b.customer.name);
-      stats.bookings.push(b);
-      
-      if (b.discount_percentage && b.final_price) {
-        const discountAmount = (b.final_price * b.discount_percentage) / (100 - b.discount_percentage);
-        stats.totalDiscount += discountAmount;
-      }
-    });
+    const returningCustomersWithCoupons = Object.values(couponStats)
+      .reduce((set, stat) => {
+        stat.uniqueCustomers.forEach(customer => {
+          const firstBooking = customerFirstBooking[customer];
+          if (firstBooking < filters.dateFrom) {
+            set.add(customer);
+          }
+        });
+        return set;
+      }, new Set<string>()).size;
 
-    const topPerformingCoupons = Array.from(couponPerformanceMap.values())
-      .map(stats => ({
-        code: stats.code,
-        usageCount: stats.usageCount,
-        totalRevenue: stats.totalRevenue,
-        totalDiscount: stats.totalDiscount,
-        avgDiscountPercent: stats.usageCount > 0 
-          ? stats.bookings.reduce((sum, b) => sum + (b.discount_percentage || 0), 0) / stats.usageCount
+    // Top performing coupons
+    const topPerformingCoupons = Object.entries(couponStats)
+      .map(([code, stat]) => ({
+        code,
+        usageCount: stat.usageCount,
+        totalRevenue: stat.totalRevenue,
+        totalDiscount: stat.totalDiscount,
+        avgDiscountPercent: stat.bookings.length > 0 
+          ? stat.bookings.reduce((sum, b) => sum + (b.discount_percentage || 0), 0) / stat.bookings.length
           : 0,
-        uniqueCustomers: stats.uniqueCustomers.size,
-        conversionRate: stats.uniqueCustomers.size > 0 
-          ? (stats.usageCount / stats.uniqueCustomers.size) * 100 
-          : 0
+        uniqueCustomers: stat.uniqueCustomers.size,
+        conversionRate: stat.uniqueCustomers.size > 0 ? (stat.usageCount / stat.uniqueCustomers.size) * 100 : 0
       }))
       .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
+    // Coupon trends by date
     const couponTrends: Record<string, number> = {};
-    bookingsWithCoupons.forEach(b => {
-      const date = b.booking_date;
-      couponTrends[date] = (couponTrends[date] || 0) + 1;
+    currentPeriodData.forEach(b => {
+      if (b.coupon_code) {
+        couponTrends[b.booking_date] = (couponTrends[b.booking_date] || 0) + 1;
+      }
     });
-
-    const newCustomersWithCoupons = bookingsWithCoupons.filter(b => {
-      const customerCreated = new Date((b.customer as any).created_at || b.created_at);
-      return customerCreated > thirtyDaysAgo;
-    }).length;
-
-    const returningCustomersWithCoupons = totalCouponsUsed - newCustomersWithCoupons;
 
     const couponAnalytics: CouponAnalytics = {
       totalCouponsUsed,
@@ -603,7 +625,7 @@ export default function BookingManagement() {
         total: currentRevenue,
         trend: revenueTrend,
         avgPerBooking: currentBookingCount ? Math.round(currentRevenue / currentBookingCount) : 0,
-        avgPerCustomer: uniqueCustomers ? Math.round(currentRevenue / uniqueCustomers) : 0,
+        avgPerCustomer: totalCustomers ? Math.round(currentRevenue / totalCustomers) : 0,
       },
       bookings: {
         total: currentBookingCount,
@@ -612,8 +634,8 @@ export default function BookingManagement() {
         noShowRate,
       },
       customers: {
-        total: uniqueCustomers,
-        new: newCustomers,
+        total: totalCustomers,
+        new: newCustomersCount,
         returning: returningCustomers,
         retentionRate,
       },
@@ -810,7 +832,6 @@ export default function BookingManagement() {
             <div className="md:col-span-3">
               <Label htmlFor="date-preset">Date Range</Label>
               <div className="space-y-2">
-                {/* Date Preset Dropdown */}
                 <Select value={filters.datePreset} onValueChange={handleDatePresetChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select date range" />
@@ -885,7 +906,6 @@ export default function BookingManagement() {
                   </SelectContent>
                 </Select>
                 
-                {/* Custom Date Inputs */}
                 <div className="flex gap-2">
                   <Input
                     type="date"
@@ -903,7 +923,6 @@ export default function BookingManagement() {
                   />
                 </div>
                 
-                {/* Current Range Display */}
                 <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
                   {getDateRangeLabel()}
                 </div>
@@ -1387,91 +1406,34 @@ export default function BookingManagement() {
             </Card>
           </div>
 
-          {/* Revenue Impact Analysis */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Revenue Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                      <span className="font-medium">Revenue with Coupons</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-bold text-green-600">
-                        ₹{analytics.coupons.revenueWithCoupons.toLocaleString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {analytics.coupons.totalCouponsUsed} bookings
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-blue-500"></div>
-                      <span className="font-medium">Revenue without Coupons</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-bold text-blue-600">
-                        ₹{analytics.coupons.revenueWithoutCoupons.toLocaleString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {analytics.bookings.total - analytics.coupons.totalCouponsUsed} bookings
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-red-500"></div>
-                      <span className="font-medium">Total Discounts Given</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-bold text-red-600">
-                        -₹{Math.round(analytics.coupons.totalDiscountGiven).toLocaleString()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Marketing investment
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Top Stations by Revenue */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Stations by Revenue</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topStations.map(([station, stats], index) => (
-                    <div key={station} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm
-                          ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-amber-600' : 'bg-gray-600'}`}>
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium">{station}</p>
-                          <p className="text-sm text-muted-foreground">{stats.bookings} bookings</p>
-                        </div>
+          {/* Top Stations by Revenue */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Stations by Revenue</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {topStations.map(([station, stats], index) => (
+                  <div key={station} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm
+                        ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-amber-600' : 'bg-gray-600'}`}>
+                        {index + 1}
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold">₹{stats.revenue.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">{stats.avgDuration}min avg</p>
+                      <div>
+                        <p className="font-medium">{station}</p>
+                        <p className="text-sm text-muted-foreground">{stats.bookings} bookings</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                    <div className="text-right">
+                      <p className="font-bold">₹{stats.revenue.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">{stats.avgDuration}min avg</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="customers" className="space-y-6">
