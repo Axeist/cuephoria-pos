@@ -16,9 +16,25 @@ import {
   Calendar, Search, Filter, Download, Phone, Mail, Clock, MapPin, Plus,
   Edit2, Trash2, ChevronDown, ChevronRight, Users, CalendarDays, TrendingUp,
   Percent, Ticket, DollarSign, Target, AlertCircle, BarChart3, PieChart,
-  Activity, Timer, UserCheck, RefreshCw, ArrowUpDown, TrendingDown
+  Activity, Timer, UserCheck, RefreshCw, ArrowUpDown, TrendingDown,
+  Gift, Tag, Megaphone, Zap, Trophy, Star, ArrowUp, ArrowDown
 } from 'lucide-react';
-import { format, isToday, isYesterday, isTomorrow, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { 
+  format, 
+  isToday, 
+  isYesterday, 
+  isTomorrow, 
+  subDays, 
+  startOfDay, 
+  endOfDay, 
+  isWithinInterval,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
+  endOfYear,
+  subMonths,
+  subYears
+} from 'date-fns';
 
 interface Booking {
   id: string;
@@ -43,6 +59,7 @@ interface Booking {
 }
 
 interface Filters {
+  datePreset: string;
   dateFrom: string;
   dateTo: string;
   status: string;
@@ -51,13 +68,37 @@ interface Filters {
   coupon: string;
   priceRange: string;
   duration: string;
-  customerType: string; // 'all' | 'new' | 'returning'
+  customerType: string;
+}
+
+interface CouponAnalytics {
+  totalCouponsUsed: number;
+  uniqueCoupons: number;
+  totalDiscountGiven: number;
+  revenueWithCoupons: number;
+  revenueWithoutCoupons: number;
+  averageDiscountPercentage: number;
+  couponConversionRate: number;
+  topPerformingCoupons: Array<{
+    code: string;
+    usageCount: number;
+    totalRevenue: number;
+    totalDiscount: number;
+    avgDiscountPercent: number;
+    uniqueCustomers: number;
+    conversionRate: number;
+  }>;
+  couponTrends: Record<string, number>;
+  customerSegmentation: {
+    newCustomersWithCoupons: number;
+    returningCustomersWithCoupons: number;
+  };
 }
 
 interface Analytics {
   revenue: {
     total: number;
-    trend: number; // % change from previous period
+    trend: number;
     avgPerBooking: number;
     avgPerCustomer: number;
   };
@@ -77,15 +118,80 @@ interface Analytics {
     utilization: Record<string, { bookings: number; revenue: number; avgDuration: number }>;
     peakHours: Record<string, number>;
   };
+  coupons: CouponAnalytics;
 }
+
+// Date preset options with their corresponding date ranges
+const getDateRangeFromPreset = (preset: string) => {
+  const now = new Date();
+  
+  switch (preset) {
+    case 'today':
+      return {
+        from: format(now, 'yyyy-MM-dd'),
+        to: format(now, 'yyyy-MM-dd')
+      };
+    case 'yesterday':
+      const yesterday = subDays(now, 1);
+      return {
+        from: format(yesterday, 'yyyy-MM-dd'),
+        to: format(yesterday, 'yyyy-MM-dd')
+      };
+    case 'last7days':
+      return {
+        from: format(subDays(now, 6), 'yyyy-MM-dd'),
+        to: format(now, 'yyyy-MM-dd')
+      };
+    case 'last30days':
+      return {
+        from: format(subDays(now, 29), 'yyyy-MM-dd'),
+        to: format(now, 'yyyy-MM-dd')
+      };
+    case 'thismonth':
+      return {
+        from: format(startOfMonth(now), 'yyyy-MM-dd'),
+        to: format(endOfMonth(now), 'yyyy-MM-dd')
+      };
+    case 'lastmonth':
+      const lastMonth = subMonths(now, 1);
+      return {
+        from: format(startOfMonth(lastMonth), 'yyyy-MM-dd'),
+        to: format(endOfMonth(lastMonth), 'yyyy-MM-dd')
+      };
+    case 'last3months':
+      return {
+        from: format(subMonths(now, 2), 'yyyy-MM-dd'),
+        to: format(now, 'yyyy-MM-dd')
+      };
+    case 'thisyear':
+      return {
+        from: format(startOfYear(now), 'yyyy-MM-dd'),
+        to: format(endOfYear(now), 'yyyy-MM-dd')
+      };
+    case 'lastyear':
+      const lastYear = subYears(now, 1);
+      return {
+        from: format(startOfYear(lastYear), 'yyyy-MM-dd'),
+        to: format(endOfYear(lastYear), 'yyyy-MM-dd')
+      };
+    case 'alltime':
+      return {
+        from: '2020-01-01',
+        to: format(now, 'yyyy-MM-dd')
+      };
+    default:
+      return null;
+  }
+};
 
 export default function BookingManagement() {
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [allBookings, setAllBookings] = useState<Booking[]>([]); // For analytics
+  const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [filters, setFilters] = useState<Filters>({
-    dateFrom: format(subDays(new Date(), 7), 'yyyy-MM-dd'), // Last 7 days default
+    datePreset: 'last7days',
+    dateFrom: format(subDays(new Date(), 6), 'yyyy-MM-dd'),
     dateTo: format(new Date(), 'yyyy-MM-dd'),
     status: 'all',
     stationType: 'all',
@@ -107,7 +213,6 @@ export default function BookingManagement() {
     fetchBookings();
   }, []);
 
-  // Real-time updates
   useEffect(() => {
     const channel = supabase
       .channel('booking-management-changes')
@@ -119,11 +224,56 @@ export default function BookingManagement() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // Handle date preset changes
+  const handleDatePresetChange = (preset: string) => {
+    const dateRange = getDateRangeFromPreset(preset);
+    if (dateRange) {
+      setFilters(prev => ({
+        ...prev,
+        datePreset: preset,
+        dateFrom: dateRange.from,
+        dateTo: dateRange.to
+      }));
+    }
+  };
+
+  // Handle manual date changes (sets preset to 'custom')
+  const handleManualDateChange = (field: 'dateFrom' | 'dateTo', value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      datePreset: 'custom',
+      [field]: value
+    }));
+  };
+
+  // Get the display label for the current date range
+  const getDateRangeLabel = () => {
+    if (filters.datePreset === 'custom') {
+      return `${filters.dateFrom} to ${filters.dateTo}`;
+    }
+    
+    const presetLabels: Record<string, string> = {
+      today: 'Today',
+      yesterday: 'Yesterday',
+      last7days: 'Last 7 Days',
+      last30days: 'Last 30 Days',
+      thismonth: 'This Month',
+      lastmonth: 'Last Month',
+      last3months: 'Last 3 Months',
+      thisyear: 'This Year',
+      lastyear: 'Last Year',
+      alltime: 'All Time'
+    };
+    
+    return presetLabels[filters.datePreset] || `${filters.dateFrom} to ${filters.dateTo}`;
+  };
+
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      // Fetch broader dataset for analytics (last 30 days)
-      const analyticsFromDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+      const analyticsFromDate = filters.datePreset === 'alltime' 
+        ? '2020-01-01' 
+        : format(subDays(new Date(), 60), 'yyyy-MM-dd');
       
       let query = supabase
         .from('bookings')
@@ -194,12 +344,9 @@ export default function BookingManagement() {
       });
 
       setAllBookings(transformed);
-
-      // Apply filters for display
       const filtered = applyFilters(transformed);
       setBookings(filtered);
 
-      // Update coupon options
       const presentCodes = Array.from(
         new Set(transformed.map(t => (t.coupon_code || '').trim()).filter(Boolean))
       ) as string[];
@@ -216,14 +363,12 @@ export default function BookingManagement() {
   const applyFilters = (data: Booking[]) => {
     let filtered = data;
 
-    // Date range filter
     if (filters.dateFrom && filters.dateTo) {
       filtered = filtered.filter(b => 
         b.booking_date >= filters.dateFrom && b.booking_date <= filters.dateTo
       );
     }
 
-    // Other filters
     if (filters.status !== 'all') {
       filtered = filtered.filter(b => b.status === filters.status);
     }
@@ -250,26 +395,23 @@ export default function BookingManagement() {
       }
     }
 
-    // Price range filter
     if (filters.priceRange !== 'all') {
       const [min, max] = filters.priceRange.split('-').map(Number);
       filtered = filtered.filter(b => {
         const price = b.final_price || 0;
         if (max) return price >= min && price <= max;
-        return price >= min; // 500+ case
+        return price >= min;
       });
     }
 
-    // Duration filter
     if (filters.duration !== 'all') {
       const [minDur, maxDur] = filters.duration.split('-').map(Number);
       filtered = filtered.filter(b => {
         if (maxDur) return b.duration >= minDur && b.duration <= maxDur;
-        return b.duration >= minDur; // 180+ case
+        return b.duration >= minDur;
       });
     }
 
-    // Customer type filter
     if (filters.customerType !== 'all') {
       const thirtyDaysAgo = subDays(new Date(), 30);
       filtered = filtered.filter(b => {
@@ -285,13 +427,12 @@ export default function BookingManagement() {
     return filtered;
   };
 
-  // Apply filters when they change
   useEffect(() => {
     const filtered = applyFilters(allBookings);
     setBookings(filtered);
   }, [filters, allBookings]);
 
-  // Enhanced Analytics
+  // Enhanced Analytics with detailed coupon tracking
   const analytics = useMemo((): Analytics => {
     const currentPeriodData = bookings;
     const previousPeriodStart = format(subDays(new Date(filters.dateFrom), 
@@ -341,17 +482,121 @@ export default function BookingManagement() {
       stationStats[stationKey].revenue += b.final_price || 0;
       stationStats[stationKey].avgDuration += b.duration;
 
-      // Peak hours analysis
       const hour = new Date(`2000-01-01T${b.start_time}`).getHours();
       hourlyStats[hour] = (hourlyStats[hour] || 0) + 1;
     });
 
-    // Calculate averages
     Object.keys(stationStats).forEach(key => {
       if (stationStats[key].bookings > 0) {
         stationStats[key].avgDuration = Math.round(stationStats[key].avgDuration / stationStats[key].bookings);
       }
     });
+
+    // ENHANCED COUPON ANALYTICS
+    const bookingsWithCoupons = currentPeriodData.filter(b => b.coupon_code && b.coupon_code.trim());
+    const bookingsWithoutCoupons = currentPeriodData.filter(b => !b.coupon_code || !b.coupon_code.trim());
+
+    const totalCouponsUsed = bookingsWithCoupons.length;
+    const uniqueCoupons = new Set(bookingsWithCoupons.map(b => b.coupon_code!.toUpperCase())).size;
+    
+    const revenueWithCoupons = bookingsWithCoupons.reduce((sum, b) => sum + (b.final_price || 0), 0);
+    const revenueWithoutCoupons = bookingsWithoutCoupons.reduce((sum, b) => sum + (b.final_price || 0), 0);
+    
+    const totalDiscountGiven = bookingsWithCoupons.reduce((sum, b) => {
+      if (b.discount_percentage && b.final_price) {
+        const discountAmount = (b.final_price * b.discount_percentage) / (100 - b.discount_percentage);
+        return sum + discountAmount;
+      }
+      return sum;
+    }, 0);
+
+    const averageDiscountPercentage = bookingsWithCoupons.length > 0 
+      ? bookingsWithCoupons.reduce((sum, b) => sum + (b.discount_percentage || 0), 0) / bookingsWithCoupons.length
+      : 0;
+
+    const couponConversionRate = currentBookingCount > 0 ? (totalCouponsUsed / currentBookingCount) * 100 : 0;
+
+    // Detailed coupon performance analysis
+    const couponPerformanceMap = new Map<string, {
+      code: string;
+      usageCount: number;
+      totalRevenue: number;
+      totalDiscount: number;
+      avgDiscountPercent: number;
+      uniqueCustomers: Set<string>;
+      bookings: Booking[];
+    }>();
+
+    bookingsWithCoupons.forEach(b => {
+      const code = b.coupon_code!.toUpperCase();
+      if (!couponPerformanceMap.has(code)) {
+        couponPerformanceMap.set(code, {
+          code,
+          usageCount: 0,
+          totalRevenue: 0,
+          totalDiscount: 0,
+          avgDiscountPercent: 0,
+          uniqueCustomers: new Set(),
+          bookings: []
+        });
+      }
+
+      const stats = couponPerformanceMap.get(code)!;
+      stats.usageCount += 1;
+      stats.totalRevenue += b.final_price || 0;
+      stats.uniqueCustomers.add(b.customer.name);
+      stats.bookings.push(b);
+      
+      if (b.discount_percentage && b.final_price) {
+        const discountAmount = (b.final_price * b.discount_percentage) / (100 - b.discount_percentage);
+        stats.totalDiscount += discountAmount;
+      }
+    });
+
+    const topPerformingCoupons = Array.from(couponPerformanceMap.values())
+      .map(stats => ({
+        code: stats.code,
+        usageCount: stats.usageCount,
+        totalRevenue: stats.totalRevenue,
+        totalDiscount: stats.totalDiscount,
+        avgDiscountPercent: stats.usageCount > 0 
+          ? stats.bookings.reduce((sum, b) => sum + (b.discount_percentage || 0), 0) / stats.usageCount
+          : 0,
+        uniqueCustomers: stats.uniqueCustomers.size,
+        conversionRate: stats.uniqueCustomers.size > 0 
+          ? (stats.usageCount / stats.uniqueCustomers.size) * 100 
+          : 0
+      }))
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    const couponTrends: Record<string, number> = {};
+    bookingsWithCoupons.forEach(b => {
+      const date = b.booking_date;
+      couponTrends[date] = (couponTrends[date] || 0) + 1;
+    });
+
+    const newCustomersWithCoupons = bookingsWithCoupons.filter(b => {
+      const customerCreated = new Date((b.customer as any).created_at || b.created_at);
+      return customerCreated > thirtyDaysAgo;
+    }).length;
+
+    const returningCustomersWithCoupons = totalCouponsUsed - newCustomersWithCoupons;
+
+    const couponAnalytics: CouponAnalytics = {
+      totalCouponsUsed,
+      uniqueCoupons,
+      totalDiscountGiven,
+      revenueWithCoupons,
+      revenueWithoutCoupons,
+      averageDiscountPercentage,
+      couponConversionRate,
+      topPerformingCoupons,
+      couponTrends,
+      customerSegmentation: {
+        newCustomersWithCoupons,
+        returningCustomersWithCoupons
+      }
+    };
 
     return {
       revenue: {
@@ -375,7 +620,8 @@ export default function BookingManagement() {
       stations: {
         utilization: stationStats,
         peakHours: hourlyStats,
-      }
+      },
+      coupons: couponAnalytics
     };
   }, [bookings, allBookings, filters]);
 
@@ -413,38 +659,49 @@ export default function BookingManagement() {
 
   const exportBookings = () => {
     const csvContent = [
-      ['Date', 'Start', 'End', 'Duration', 'Station', 'Station Type', 'Customer', 'Phone', 'Email', 'Status', 'Price', 'Discount%', 'Coupon', 'Notes'].join(','),
-      ...bookings.map(b => [
-        b.booking_date,
-        b.start_time,
-        b.end_time,
-        b.duration,
-        b.station.name.replace(/,/g, ' '),
-        b.station.type,
-        b.customer.name.replace(/,/g, ' '),
-        b.customer.phone,
-        b.customer.email || '',
-        b.status,
-        b.final_price ?? 0,
-        b.discount_percentage ?? 0,
-        b.coupon_code || '',
-        (b.notes || '').replace(/,/g, ' ')
-      ].join(','))
+      ['Date', 'Start', 'End', 'Duration', 'Station', 'Station Type', 'Customer', 'Phone', 'Email', 'Status', 'Final Price', 'Original Price', 'Discount%', 'Discount Amount', 'Coupon', 'Notes'].join(','),
+      ...bookings.map(b => {
+        const discountAmount = (b.discount_percentage && b.final_price) 
+          ? (b.final_price * b.discount_percentage) / (100 - b.discount_percentage)
+          : 0;
+        const originalPrice = (b.final_price || 0) + discountAmount;
+        
+        return [
+          b.booking_date,
+          b.start_time,
+          b.end_time,
+          b.duration,
+          b.station.name.replace(/,/g, ' '),
+          b.station.type,
+          b.customer.name.replace(/,/g, ' '),
+          b.customer.phone,
+          b.customer.email || '',
+          b.status,
+          b.final_price ?? 0,
+          Math.round(originalPrice),
+          b.discount_percentage ?? 0,
+          Math.round(discountAmount),
+          b.coupon_code || '',
+          (b.notes || '').replace(/,/g, ' ')
+        ].join(',');
+      })
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cuephoria-bookings-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`;
+    a.download = `cuephoria-bookings-${getDateRangeLabel().replace(/[^a-zA-Z0-9]/g, '-')}-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
 
   const resetFilters = () => {
+    const defaultDateRange = getDateRangeFromPreset('last7days')!;
     setFilters({
-      dateFrom: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-      dateTo: format(new Date(), 'yyyy-MM-dd'),
+      datePreset: 'last7days',
+      dateFrom: defaultDateRange.from,
+      dateTo: defaultDateRange.to,
       status: 'all',
       stationType: 'all',
       search: '',
@@ -485,7 +742,6 @@ export default function BookingManagement() {
     return 'text-gray-600';
   };
 
-  // Group bookings by date and customer for display
   const groupedBookings = useMemo(() => {
     const byDate: Record<string, Record<string, Booking[]>> = {};
     bookings.forEach(b => {
@@ -514,7 +770,7 @@ export default function BookingManagement() {
             Booking Management
           </h1>
           <p className="text-muted-foreground">
-            Comprehensive booking analytics and management dashboard
+            Comprehensive booking analytics and marketing campaign insights
           </p>
         </div>
         <div className="flex gap-2">
@@ -535,7 +791,7 @@ export default function BookingManagement() {
         </div>
       </div>
 
-      {/* Enhanced Filters */}
+      {/* Enhanced Filters with Date Presets */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -550,20 +806,107 @@ export default function BookingManagement() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            <div className="md:col-span-2">
-              <Label htmlFor="date-from">Date Range</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="date-from"
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
-                />
-                <Input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
-                />
+            {/* Enhanced Date Range Section */}
+            <div className="md:col-span-3">
+              <Label htmlFor="date-preset">Date Range</Label>
+              <div className="space-y-2">
+                {/* Date Preset Dropdown */}
+                <Select value={filters.datePreset} onValueChange={handleDatePresetChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Today
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="yesterday">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Yesterday
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="last7days">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Last 7 Days
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="last30days">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Last 30 Days
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="thismonth">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        This Month
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="lastmonth">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Last Month
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="last3months">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Last 3 Months
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="thisyear">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        This Year
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="lastyear">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Last Year
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="alltime">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        All Time
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="custom">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Custom Range
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {/* Custom Date Inputs */}
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) => handleManualDateChange('dateFrom', e.target.value)}
+                    disabled={filters.datePreset !== 'custom'}
+                    className={filters.datePreset !== 'custom' ? 'opacity-60' : ''}
+                  />
+                  <Input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(e) => handleManualDateChange('dateTo', e.target.value)}
+                    disabled={filters.datePreset !== 'custom'}
+                    className={filters.datePreset !== 'custom' ? 'opacity-60' : ''}
+                  />
+                </div>
+                
+                {/* Current Range Display */}
+                <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                  {getDateRangeLabel()}
+                </div>
               </div>
             </div>
 
@@ -595,6 +938,25 @@ export default function BookingManagement() {
             </div>
 
             <div>
+              <Label>Coupon Code</Label>
+              <Select value={filters.coupon} onValueChange={(value) => setFilters(prev => ({ ...prev, coupon: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Coupons</SelectItem>
+                  <SelectItem value="none">No Coupon Used</SelectItem>
+                  {couponOptions.map(code => (
+                    <SelectItem key={code} value={code}>
+                      <div className="flex items-center gap-2">
+                        <Gift className="h-3 w-3" />
+                        {code}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <Label>Price Range</Label>
               <Select value={filters.priceRange} onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -604,20 +966,6 @@ export default function BookingManagement() {
                   <SelectItem value="101-300">₹101 - ₹300</SelectItem>
                   <SelectItem value="301-500">₹301 - ₹500</SelectItem>
                   <SelectItem value="500">₹500+</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Duration</Label>
-              <Select value={filters.duration} onValueChange={(value) => setFilters(prev => ({ ...prev, duration: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Duration</SelectItem>
-                  <SelectItem value="0-60">0-60 min</SelectItem>
-                  <SelectItem value="61-120">61-120 min</SelectItem>
-                  <SelectItem value="121-180">121-180 min</SelectItem>
-                  <SelectItem value="180">180+ min</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -653,10 +1001,11 @@ export default function BookingManagement() {
 
       {/* Analytics Dashboard */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
+          <TabsTrigger value="coupons">Coupons & Marketing</TabsTrigger>
           <TabsTrigger value="stations">Stations</TabsTrigger>
         </TabsList>
 
@@ -699,6 +1048,23 @@ export default function BookingManagement() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
+                    <p className="text-sm font-medium text-muted-foreground">Coupon Usage</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {analytics.coupons.couponConversionRate.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {analytics.coupons.totalCouponsUsed} of {analytics.bookings.total} bookings
+                    </p>
+                  </div>
+                  <Gift className="h-8 w-8 text-purple-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
                     <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
                     <p className="text-2xl font-bold text-green-600">
                       {analytics.bookings.completionRate.toFixed(1)}%
@@ -708,6 +1074,33 @@ export default function BookingManagement() {
                     </p>
                   </div>
                   <Target className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Marketing Impact Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Revenue with Coupons</p>
+                    <p className="text-2xl font-bold text-purple-600">₹{analytics.coupons.revenueWithCoupons.toLocaleString()}</p>
+                  </div>
+                  <Megaphone className="h-8 w-8 text-purple-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Discount Given</p>
+                    <p className="text-2xl font-bold text-orange-600">₹{Math.round(analytics.coupons.totalDiscountGiven).toLocaleString()}</p>
+                  </div>
+                  <Percent className="h-8 w-8 text-orange-600" />
                 </div>
               </CardContent>
             </Card>
@@ -726,49 +1119,224 @@ export default function BookingManagement() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Active Coupons</p>
+                    <p className="text-2xl font-bold text-blue-600">{analytics.coupons.uniqueCoupons}</p>
+                  </div>
+                  <Tag className="h-8 w-8 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="coupons" className="space-y-6">
+          {/* Coupon Performance Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-muted-foreground">Total Coupons Used</p>
+                  <p className="text-3xl font-bold text-purple-600">{analytics.coupons.totalCouponsUsed}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {analytics.coupons.couponConversionRate.toFixed(1)}% of all bookings
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-muted-foreground">Total Discount Given</p>
+                  <p className="text-3xl font-bold text-orange-600">₹{Math.round(analytics.coupons.totalDiscountGiven).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Avg {analytics.coupons.averageDiscountPercentage.toFixed(1)}% per coupon
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-muted-foreground">Revenue with Coupons</p>
+                  <p className="text-3xl font-bold text-green-600">₹{analytics.coupons.revenueWithCoupons.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {((analytics.coupons.revenueWithCoupons / analytics.revenue.total) * 100).toFixed(1)}% of total revenue
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-muted-foreground">Campaign ROI Impact</p>
+                  <p className="text-3xl font-bold text-blue-600">
+                    {analytics.coupons.totalDiscountGiven > 0 
+                      ? ((analytics.coupons.revenueWithCoupons / analytics.coupons.totalDiscountGiven)).toFixed(1)
+                      : '0'
+                    }x
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Revenue per ₹1 discount
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Quick Insights */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Avg Order Value</p>
-                    <p className="text-2xl font-bold">₹{analytics.revenue.avgPerBooking}</p>
+          {/* Top Performing Coupons */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Top Performing Coupon Campaigns
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {analytics.coupons.topPerformingCoupons.slice(0, 10).map((coupon, index) => (
+                  <div key={coupon.code} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold
+                        ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-amber-600' : 'bg-gray-600'}`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-lg">{coupon.code}</p>
+                          <Badge variant="secondary" className="text-xs">
+                            {coupon.usageCount} uses
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            {coupon.uniqueCustomers} customers
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Percent className="h-3 w-3" />
+                            {coupon.avgDiscountPercent.toFixed(1)}% avg discount
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-green-600">₹{coupon.totalRevenue.toLocaleString()}</p>
+                      <p className="text-sm text-red-600">-₹{Math.round(coupon.totalDiscount).toLocaleString()} discount</p>
+                      <p className="text-xs text-muted-foreground">
+                        {coupon.conversionRate.toFixed(1)}% repeat usage
+                      </p>
+                    </div>
                   </div>
-                  <Ticket className="h-8 w-8 text-muted-foreground" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Customer Segmentation with Coupons */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5" />
+                  Customer Acquisition via Coupons
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <span className="font-medium">New Customers with Coupons</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-green-600">
+                        {analytics.coupons.customerSegmentation.newCustomersWithCoupons}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {analytics.coupons.totalCouponsUsed > 0 
+                          ? ((analytics.coupons.customerSegmentation.newCustomersWithCoupons / analytics.coupons.totalCouponsUsed) * 100).toFixed(1)
+                          : 0
+                        }% of coupon usage
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                      <span className="font-medium">Returning Customers with Coupons</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-blue-600">
+                        {analytics.coupons.customerSegmentation.returningCustomersWithCoupons}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {analytics.coupons.totalCouponsUsed > 0 
+                          ? ((analytics.coupons.customerSegmentation.returningCustomersWithCoupons / analytics.coupons.totalCouponsUsed) * 100).toFixed(1)
+                          : 0
+                        }% of coupon usage
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Customer Retention</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {analytics.customers.retentionRate.toFixed(1)}%
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Marketing Campaign Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="p-3 bg-purple-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Coupon Adoption Rate</span>
+                      <span className="text-2xl font-bold text-purple-600">
+                        {analytics.coupons.couponConversionRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Customers using coupons vs total bookings
                     </p>
                   </div>
-                  <UserCheck className="h-8 w-8 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Peak Hour</p>
-                    <p className="text-2xl font-bold">
-                      {peakHour ? `${peakHour[0]}:00` : 'N/A'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {peakHour ? `${peakHour[1]} bookings` : 'No data'}
+                  <div className="p-3 bg-orange-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Average Discount Impact</span>
+                      <span className="text-2xl font-bold text-orange-600">
+                        {analytics.coupons.averageDiscountPercentage.toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Average discount percentage across all coupons
                     </p>
                   </div>
-                  <Clock className="h-8 w-8 text-muted-foreground" />
+
+                  <div className="p-3 bg-teal-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Revenue Efficiency</span>
+                      <span className="text-2xl font-bold text-teal-600">
+                        ₹{analytics.coupons.totalCouponsUsed > 0 
+                          ? Math.round(analytics.coupons.revenueWithCoupons / analytics.coupons.totalCouponsUsed)
+                          : 0
+                        }
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Average revenue per coupon redemption
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -789,8 +1357,11 @@ export default function BookingManagement() {
             <Card>
               <CardContent className="p-6">
                 <div className="text-center">
-                  <p className="text-sm font-medium text-muted-foreground">Avg per Booking</p>
-                  <p className="text-3xl font-bold">₹{analytics.revenue.avgPerBooking}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Revenue with Coupons</p>
+                  <p className="text-3xl font-bold text-purple-600">₹{analytics.coupons.revenueWithCoupons.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {((analytics.coupons.revenueWithCoupons / analytics.revenue.total) * 100).toFixed(1)}% of total
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -798,8 +1369,8 @@ export default function BookingManagement() {
             <Card>
               <CardContent className="p-6">
                 <div className="text-center">
-                  <p className="text-sm font-medium text-muted-foreground">Avg per Customer</p>
-                  <p className="text-3xl font-bold">₹{analytics.revenue.avgPerCustomer}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Avg per Booking</p>
+                  <p className="text-3xl font-bold">₹{analytics.revenue.avgPerBooking}</p>
                 </div>
               </CardContent>
             </Card>
@@ -816,34 +1387,91 @@ export default function BookingManagement() {
             </Card>
           </div>
 
-          {/* Top Performing Stations by Revenue */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Stations by Revenue</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {topStations.map(([station, stats], index) => (
-                  <div key={station} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm
-                        ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-amber-600' : 'bg-gray-600'}`}>
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium">{station}</p>
-                        <p className="text-sm text-muted-foreground">{stats.bookings} bookings</p>
-                      </div>
+          {/* Revenue Impact Analysis */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                      <span className="font-medium">Revenue with Coupons</span>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">₹{stats.revenue.toLocaleString()}</p>
-                      <p className="text-sm text-muted-foreground">{stats.avgDuration}min avg</p>
+                      <p className="text-xl font-bold text-green-600">
+                        ₹{analytics.coupons.revenueWithCoupons.toLocaleString()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {analytics.coupons.totalCouponsUsed} bookings
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+                      <span className="font-medium">Revenue without Coupons</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-bold text-blue-600">
+                        ₹{analytics.coupons.revenueWithoutCoupons.toLocaleString()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {analytics.bookings.total - analytics.coupons.totalCouponsUsed} bookings
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-red-500"></div>
+                      <span className="font-medium">Total Discounts Given</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-bold text-red-600">
+                        -₹{Math.round(analytics.coupons.totalDiscountGiven).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Marketing investment
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Stations by Revenue */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Stations by Revenue</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {topStations.map(([station, stats], index) => (
+                    <div key={station} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm
+                          ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-amber-600' : 'bg-gray-600'}`}>
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium">{station}</p>
+                          <p className="text-sm text-muted-foreground">{stats.bookings} bookings</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold">₹{stats.revenue.toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">{stats.avgDuration}min avg</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="customers" className="space-y-6">
@@ -881,7 +1509,6 @@ export default function BookingManagement() {
 
         <TabsContent value="stations" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Station Performance */}
             <Card>
               <CardHeader>
                 <CardTitle>Station Performance</CardTitle>
@@ -914,7 +1541,6 @@ export default function BookingManagement() {
               </CardContent>
             </Card>
 
-            {/* Peak Hours */}
             <Card>
               <CardHeader>
                 <CardTitle>Hourly Distribution</CardTitle>
@@ -947,14 +1573,20 @@ export default function BookingManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* Bookings List */}
+      {/* Enhanced Bookings List with Coupon Visibility */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Bookings ({bookings.length})</CardTitle>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              {filters.dateFrom} to {filters.dateTo}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Gift className="h-4 w-4" />
+                {analytics.coupons.totalCouponsUsed} with coupons
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                {getDateRangeLabel()}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -987,12 +1619,16 @@ export default function BookingManagement() {
                       <Badge variant="outline" className="ml-auto">
                         {Object.values(customerBookings).flat().length} bookings
                       </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {Object.values(customerBookings).flat().filter(b => b.coupon_code).length} with coupons
+                      </Badge>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       {expandedDates.has(date) && (
                         <div className="ml-6 mt-2 space-y-2">
                           {Object.entries(customerBookings).map(([customerName, bookingsForCustomer]) => {
                             const key = `${date}::${customerName}`;
+                            const couponBookings = bookingsForCustomer.filter(b => b.coupon_code);
                             return (
                               <Collapsible key={key}>
                                 <CollapsibleTrigger
@@ -1002,9 +1638,17 @@ export default function BookingManagement() {
                                   {expandedCustomers.has(key) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                                   <Users className="h-3 w-3" />
                                   <span className="font-medium">{customerName}</span>
-                                  <Badge variant="secondary" className="ml-auto text-xs">
-                                    {bookingsForCustomer.length} booking{bookingsForCustomer.length !== 1 ? 's' : ''}
-                                  </Badge>
+                                  <div className="ml-auto flex items-center gap-2">
+                                    <Badge variant="secondary" className="text-xs">
+                                      {bookingsForCustomer.length} booking{bookingsForCustomer.length !== 1 ? 's' : ''}
+                                    </Badge>
+                                    {couponBookings.length > 0 && (
+                                      <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                        <Gift className="h-2 w-2" />
+                                        {couponBookings.length} coupon{couponBookings.length !== 1 ? 's' : ''}
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </CollapsibleTrigger>
                                 <CollapsibleContent>
                                   {expandedCustomers.has(key) && (
@@ -1012,7 +1656,7 @@ export default function BookingManagement() {
                                       {bookingsForCustomer
                                         .sort((a, b) => a.start_time.localeCompare(b.start_time))
                                         .map(booking => (
-                                        <div key={booking.id} className="p-3 border rounded-lg bg-card">
+                                        <div key={booking.id} className={`p-3 border rounded-lg bg-card ${booking.coupon_code ? 'ring-2 ring-purple-200' : ''}`}>
                                           <div className="flex items-center justify-between">
                                             <div className="grid grid-cols-1 md:grid-cols-6 gap-4 flex-1">
                                               <div>
@@ -1059,15 +1703,21 @@ export default function BookingManagement() {
                                                     <span className="text-sm font-medium">₹{booking.final_price}</span>
                                                   )}
                                                   {!!booking.discount_percentage && (
-                                                    <Badge variant="outline" className="text-xs">
-                                                      {Math.round(booking.discount_percentage)}% off
+                                                    <Badge variant="destructive" className="text-xs">
+                                                      {Math.round(booking.discount_percentage)}% OFF
                                                     </Badge>
                                                   )}
                                                 </div>
                                                 {booking.coupon_code && (
-                                                  <Badge variant="secondary" className="text-xs mt-1">
+                                                  <Badge variant="secondary" className="text-xs mt-1 flex items-center gap-1 w-fit">
+                                                    <Gift className="h-2 w-2" />
                                                     {booking.coupon_code}
                                                   </Badge>
+                                                )}
+                                                {booking.discount_percentage && booking.final_price && (
+                                                  <div className="text-xs text-muted-foreground mt-1">
+                                                    Saved ₹{Math.round((booking.final_price * booking.discount_percentage) / (100 - booking.discount_percentage))}
+                                                  </div>
                                                 )}
                                               </div>
                                             </div>
