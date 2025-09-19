@@ -2196,3 +2196,144 @@ export default function PublicBooking() {
                 alt="Cuephoria Logo"
                 className="h-8 mr-3"
               />
+              <p className="text-gray-400 text-sm">
+                © {new Date().getFullYear()} Cuephoria. All rights reserved.
+              </p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center text-gray-400 text-sm">
+                <Clock className="h-4 w-4 text-gray-400 mr-1.5" />
+                <span>Book anytime, anywhere</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <div className="flex flex-wrap justify-center md:justify-start gap-6">
+              <button
+                onClick={() => (setLegalDialogType("terms"), setShowLegalDialog(true))}
+                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+              >
+                Terms & Conditions
+              </button>
+              <button
+                onClick={() => (setLegalDialogType("privacy"), setShowLegalDialog(true))}
+                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+              >
+                Privacy Policy
+              </button>
+              <button
+                onClick={() => (setLegalDialogType("contact"), setShowLegalDialog(true))}
+                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+              >
+                Contact Us
+              </button>
+              <button
+                onClick={() => setShowRefundDialog(true)}
+                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+              >
+                Refund Policy
+              </button>
+            </div>
+            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
+              <div className="flex items-center gap-1">
+                <Phone className="h-4 w-4" />
+                <a href="tel:+918637625155" className="hover:text-white transition-colors">
+                  +91 86376 25155
+                </a>
+              </div>
+              <div className="flex items-center gap-1">
+                <Mail className="h-4 w-4" />
+                <a
+                  href="mailto:contact@cuephoria.in"
+                  className="hover:text-white transition-colors"
+                >
+                  contact@cuephoria.in
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* Booking confirmation (venue only) */}
+      {bookingConfirmationData && (
+        <BookingConfirmationDialog
+          isOpen={showConfirmationDialog}
+          onClose={() => setShowConfirmationDialog(false)}
+          bookingData={bookingConfirmationData}
+        />
+      )}
+
+      {/* Legal dialog */}
+      <LegalDialog
+        isOpen={showLegalDialog}
+        onClose={() => setShowLegalDialog(false)}
+        type={legalDialogType}
+      />
+
+      {/* Refund policy modal */}
+      {showRefundDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">
+                Refund & Cancellation Policy
+              </h3>
+              <button
+                aria-label="Close refund policy"
+                onClick={() => setShowRefundDialog(false)}
+                className="rounded-md p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="prose prose-invert max-w-none text-sm text-gray-300">
+              <p className="text-gray-400">
+                This policy outlines how a booking for a gaming service made through the
+                Platform can be canceled or refunded.
+              </p>
+
+              <h4 className="mt-4 text-white">Cancellations</h4>
+              <ul className="ml-5 list-disc">
+                <li>Requests must be made within <strong>1 day</strong> of placing the booking.</li>
+                <li>Cancellation may not be possible if the session is already confirmed or about to commence.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Non-Cancellable Services</h4>
+              <ul className="ml-5 list-disc">
+                <li>No cancellations for time-sensitive or non-refundable bookings.</li>
+                <li>Refunds/rescheduling may be considered if the session wasn't provided as described.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Service Quality Issues</h4>
+              <ul className="ml-5 list-disc">
+                <li>Report issues within <strong>1 day</strong> of the scheduled session.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Refund Processing</h4>
+              <ul className="ml-5 list-disc">
+                <li>If approved, refunds are processed within <strong>3 days</strong> to the original payment method.</li>
+              </ul>
+
+              <p className="mt-4 text-xs text-gray-400">
+                Need help? Call{" "}
+                <a className="underline hover:text-white" href="tel:+918637625155">
+                  +91 86376 25155
+                </a>{" "}
+                or email{" "}
+                <a
+                  className="ml-1 underline hover:text-white"
+                  href="mailto:contact@cuephoria.in"
+                >
+                  contact@cuephoria.in
+                </a>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
