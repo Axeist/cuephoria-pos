@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
   CalendarDays, Target, UserCheck, Edit2, Trash2, Hash, BarChart3, Building2, Eye, Timer, Star, 
-  GamepadIcon, TrendingUp as TrendingUpIcon
+  GamepadIcon, TrendingUp as TrendingUpIcon, Bell, BellRing, Volume2
 } from 'lucide-react';
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, isToday, isYesterday, isTomorrow
@@ -140,9 +140,18 @@ interface Analytics {
   coupons: CouponAnalytics;
 }
 
+interface RealtimeNotification {
+  id: string;
+  type: 'new_booking' | 'status_change' | 'cancellation';
+  booking: Booking;
+  message: string;
+  timestamp: Date;
+  acknowledged: boolean;
+}
+
 const getDateRangeFromPreset = (preset: string) => {
   const now = new Date();
-  
+
   switch (preset) {
     case 'today':
       return { from: format(now, 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') };
@@ -198,30 +207,105 @@ export default function BookingManagement() {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
+  // Real-time notification states
+  const [notifications, setNotifications] = useState<RealtimeNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+
+  // Notification sound function
+  const playNotificationSound = useCallback(() => {
+    if (soundEnabled) {
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBzGH0fPTgC4FKH3L8deKOQgYXbPD3pRJEw1Mm9/yuWIcBQdKnTRIBv2kLFv8u3iJXWWgLKr4QD1kVjRKVWBAMEqOQgdw');
+      audio.volume = 0.3;
+      audio.play().catch(() => {}); // Ignore errors if audio can't play
+    }
+  }, [soundEnabled]);
+
+  // Real-time notification handler
+  const handleRealtimeEvent = useCallback((payload: any) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+
+    let notificationType: 'new_booking' | 'status_change' | 'cancellation';
+    let message: string;
+    let relevantBooking: any = newRecord || oldRecord;
+
+    switch (eventType) {
+      case 'INSERT':
+        notificationType = 'new_booking';
+        message = `New booking created for ${relevantBooking.customer?.name || 'Unknown Customer'}`;
+        break;
+      case 'UPDATE':
+        if (oldRecord.status !== newRecord.status) {
+          notificationType = 'status_change';
+          message = `Booking status changed from ${oldRecord.status} to ${newRecord.status}`;
+          if (newRecord.status === 'cancelled') {
+            notificationType = 'cancellation';
+          }
+        } else {
+          return; // Don't notify for non-status updates
+        }
+        break;
+      case 'DELETE':
+        notificationType = 'cancellation';
+        message = `Booking deleted for ${relevantBooking.customer?.name || 'Unknown Customer'}`;
+        break;
+      default:
+        return;
+    }
+
+    const notification: RealtimeNotification = {
+      id: `${Date.now()}-${Math.random()}`,
+      type: notificationType,
+      booking: relevantBooking,
+      message,
+      timestamp: new Date(),
+      acknowledged: false
+    };
+
+    setNotifications(prev => [notification, ...prev.slice(0, 19)]); // Keep last 20 notifications
+    setUnreadCount(prev => prev + 1);
+    playNotificationSound();
+
+    // Show toast notification
+    toast.success(`🔔 ${message}`, {
+      description: `Time: ${format(new Date(), 'HH:mm:ss')}`,
+      duration: 4000,
+    });
+
+    // Auto-refresh bookings data
+    fetchBookings();
+  }, [playNotificationSound]);
 
   useEffect(() => {
     fetchBookings();
   }, []);
 
   useEffect(() => {
+    // Set up real-time subscription for bookings table
     const channel = supabase
-      .channel('booking-management-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetchBookings();
-      })
+      .channel('booking-management-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings'
+      }, handleRealtimeEvent)
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [handleRealtimeEvent]);
 
   const handleDatePresetChange = (preset: string) => {
     if (preset === 'custom') {
       setFilters(prev => ({ ...prev, datePreset: 'custom' }));
       return;
     }
-    
+
     const dateRange = getDateRangeFromPreset(preset);
     if (dateRange) {
       setFilters(prev => ({
@@ -245,7 +329,7 @@ export default function BookingManagement() {
     if (filters.datePreset === 'custom') {
       return `${filters.dateFrom} to ${filters.dateTo}`;
     }
-    
+
     const presetLabels: Record<string, string> = {
       today: 'Today',
       yesterday: 'Yesterday',
@@ -258,7 +342,7 @@ export default function BookingManagement() {
       lastyear: 'Last Year',
       alltime: 'All Time'
     };
-    
+
     return presetLabels[filters.datePreset] || `${filters.dateFrom} to ${filters.dateTo}`;
   };
 
@@ -268,7 +352,7 @@ export default function BookingManagement() {
       const analyticsFromDate = filters.datePreset === 'alltime' 
         ? '2020-01-01' 
         : format(subDays(new Date(), 60), 'yyyy-MM-dd');
-      
+
       let query = supabase
         .from('bookings')
         .select(`
@@ -308,6 +392,7 @@ export default function BookingManagement() {
         setBookings([]);
         setAllBookings([]);
         setCouponOptions([]);
+        setLastSyncTime(new Date());
         return;
       }
 
@@ -368,6 +453,7 @@ export default function BookingManagement() {
         )
       ) as string[];
       setCouponOptions(presentCodes.sort());
+      setLastSyncTime(new Date());
 
     } catch (err) {
       console.error('Error fetching bookings:', err);
@@ -375,6 +461,18 @@ export default function BookingManagement() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Function to acknowledge all notifications
+  const acknowledgeAllNotifications = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, acknowledged: true })));
+    setUnreadCount(0);
+  };
+
+  // Function to toggle sound
+  const toggleSound = () => {
+    setSoundEnabled(prev => !prev);
+    toast.info(`Notification sound ${!soundEnabled ? 'enabled' : 'disabled'}`);
   };
 
   const applyFilters = (data: Booking[]) => {
@@ -444,7 +542,7 @@ export default function BookingManagement() {
       filtered = filtered.filter(b => {
         const customerCreated = new Date((b.customer as any).created_at || b.created_at);
         const isNewCustomer = customerCreated > thirtyDaysAgo;
-        
+
         if (filters.customerType === 'new') return isNewCustomer;
         if (filters.customerType === 'returning') return !isNewCustomer;
         return true;
@@ -464,7 +562,7 @@ export default function BookingManagement() {
 
     bookings.forEach(booking => {
       const customerId = booking.customer.name;
-      
+
       if (!customerMap.has(customerId)) {
         customerMap.set(customerId, {
           name: booking.customer.name,
@@ -488,7 +586,7 @@ export default function BookingManagement() {
       customer.totalBookings++;
       customer.totalDuration += booking.duration;
       customer.totalSpent += booking.final_price || 0;
-      
+
       if (!customer.lastBookingDate || booking.booking_date > customer.lastBookingDate) {
         customer.lastBookingDate = booking.booking_date;
       }
@@ -496,11 +594,11 @@ export default function BookingManagement() {
 
     customerMap.forEach((customer, customerId) => {
       customer.averageBookingDuration = Math.round(customer.totalDuration / customer.totalBookings);
-      
+
       const customerBookings = bookings.filter(b => b.customer.name === customerId);
       const completedBookings = customerBookings.filter(b => b.status === 'completed').length;
       customer.completionRate = Math.round((completedBookings / customer.totalBookings) * 100);
-      
+
       const timeMap = new Map<number, number>();
       customerBookings.forEach(b => {
         const hour = new Date(`2000-01-01T${b.start_time}`).getHours();
@@ -514,7 +612,7 @@ export default function BookingManagement() {
                                 hour === 12 ? '12:00 PM' : 
                                 `${hour - 12}:00 PM`;
       }
-      
+
       const stationMap = new Map<string, number>();
       customerBookings.forEach(b => {
         stationMap.set(b.station.name, (stationMap.get(b.station.name) || 0) + 1);
@@ -523,7 +621,7 @@ export default function BookingManagement() {
       if (mostCommonStation) {
         customer.preferredStation = mostCommonStation[0];
       }
-      
+
       const typeMap = new Map<string, number>();
       customerBookings.forEach(b => {
         typeMap.set(b.station.type, (typeMap.get(b.station.type) || 0) + 1);
@@ -532,7 +630,7 @@ export default function BookingManagement() {
       if (mostCommonType) {
         customer.favoriteStationType = mostCommonType[0];
       }
-      
+
       const couponMap = new Map<string, number>();
       customerBookings.forEach(b => {
         if (b.coupon_code) {
@@ -546,10 +644,10 @@ export default function BookingManagement() {
       if (mostUsedCoupon) {
         customer.mostUsedCoupon = mostUsedCoupon[0];
       }
-      
+
       const daysSinceFirst = Math.ceil((new Date().getTime() - new Date(customer.lastBookingDate).getTime()) / (1000 * 60 * 60 * 24));
       const bookingsPerWeek = (customer.totalBookings / daysSinceFirst) * 7;
-      
+
       if (bookingsPerWeek >= 2) customer.bookingFrequency = 'High';
       else if (bookingsPerWeek >= 0.5) customer.bookingFrequency = 'Medium';
       else customer.bookingFrequency = 'Low';
@@ -562,7 +660,7 @@ export default function BookingManagement() {
     const currentPeriodData = bookings;
     const previousPeriodStart = format(subDays(new Date(filters.dateFrom), 
       Math.max(1, Math.ceil((new Date(filters.dateTo).getTime() - new Date(filters.dateFrom).getTime()) / (1000 * 60 * 60 * 24)))), 'yyyy-MM-dd');
-    
+
     const previousPeriodData = allBookings.filter(b => 
       b.booking_date >= previousPeriodStart && b.booking_date < filters.dateFrom
     );
@@ -608,7 +706,7 @@ export default function BookingManagement() {
       if (!stationStats[stationKey]) {
         stationStats[stationKey] = { bookings: 0, revenue: 0, avgDuration: 0 };
       }
-      
+
       stationStats[stationKey].bookings += 1;
       stationStats[stationKey].revenue += b.final_price || 0;
       stationStats[stationKey].avgDuration += b.duration;
@@ -660,7 +758,7 @@ export default function BookingManagement() {
     const revenueWithCoupons = Object.values(couponStats).reduce((sum, stat) => sum + stat.totalRevenue, 0);
     const revenueWithoutCoupons = currentRevenue - revenueWithCoupons;
     const totalDiscountGiven = Object.values(couponStats).reduce((sum, stat) => sum + stat.totalDiscount, 0);
-    
+
     const averageDiscountPercentage = totalCouponsUsed > 0
       ? Object.values(couponStats).reduce((sum, stat) => {
         const avgForThisCoupon = stat.bookings.length > 0 
@@ -798,7 +896,7 @@ export default function BookingManagement() {
           ? (b.final_price * b.discount_percentage) / (100 - b.discount_percentage)
           : 0;
         const accessCode = b.booking_views?.[0]?.access_code || '';
-        
+
         return [
           b.booking_date,
           b.id,
@@ -896,7 +994,7 @@ export default function BookingManagement() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
-      {/* Header */}
+      {/* Header with Real-time Status */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight gradient-text font-heading">
@@ -905,8 +1003,43 @@ export default function BookingManagement() {
           <p className="text-muted-foreground">
             Comprehensive booking analytics and marketing campaign insights
           </p>
+          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Real-time sync active</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>Last sync: {format(lastSyncTime, 'HH:mm:ss')}</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2">
+          {/* Real-time Notification Controls */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={toggleSound}
+              className={`p-1 h-8 w-8 ${soundEnabled ? 'text-blue-600' : 'text-gray-400'}`}
+            >
+              <Volume2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={acknowledgeAllNotifications}
+              className="relative p-1 h-8 w-8"
+            >
+              {unreadCount > 0 ? <BellRing className="h-4 w-4 text-orange-600" /> : <Bell className="h-4 w-4" />}
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Button>
+          </div>
+
           <Button onClick={exportBookings} variant="outline" className="flex items-center gap-2">
             <Download className="h-4 w-4" />
             Export CSV
@@ -924,7 +1057,49 @@ export default function BookingManagement() {
         </div>
       </div>
 
-      {/* Advanced Filters */}
+      {/* Real-time Notifications Panel */}
+      {notifications.length > 0 && (
+        <Card className="bg-blue-50/50 border-blue-200">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <BellRing className="h-4 w-4 text-blue-600" />
+                Recent Notifications ({notifications.length})
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setNotifications([])}
+                className="text-xs"
+              >
+                Clear All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {notifications.slice(0, 5).map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`flex items-center gap-3 text-sm p-2 rounded-lg ${
+                    notification.acknowledged ? 'bg-gray-100 text-gray-600' : 'bg-white border border-blue-200'
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${
+                    notification.type === 'new_booking' ? 'bg-green-500' :
+                    notification.type === 'status_change' ? 'bg-blue-500' : 'bg-red-500'
+                  }`} />
+                  <span className="flex-1">{notification.message}</span>
+                  <span className="text-xs text-gray-500">
+                    {format(notification.timestamp, 'HH:mm:ss')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      /* Advanced Filters - keeping the existing filter system intact */
       <Card className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-border/50">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -962,7 +1137,7 @@ export default function BookingManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   type="date"
@@ -977,7 +1152,7 @@ export default function BookingManagement() {
                   className="h-11 border-2 transition-colors border-border focus:border-blue-400"
                 />
               </div>
-              
+
               <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 flex items-center">
                 <Calendar className="h-4 w-4 text-blue-600 mr-2" />
                 <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
@@ -1103,7 +1278,7 @@ export default function BookingManagement() {
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-foreground">Access Code Search</Label>
                 <div className="relative">
@@ -1121,7 +1296,7 @@ export default function BookingManagement() {
         </CardContent>
       </Card>
 
-      {/* Analytics Dashboard */}
+      {/* Analytics Dashboard - keeping all existing analytics tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -1385,7 +1560,7 @@ export default function BookingManagement() {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-blue-500"></div>
@@ -1795,7 +1970,7 @@ export default function BookingManagement() {
                       const maxCount = Math.max(...Object.values(analytics.stations.peakHours));
                       const percentage = (count / maxCount) * 100;
                       const isPeak = index < 3;
-                      
+
                       return (
                         <div key={hour} className="group hover:bg-muted/50 rounded-lg p-3 transition-colors border border-transparent hover:border-border">
                           <div className="flex items-center justify-between mb-2">
@@ -1957,7 +2132,7 @@ export default function BookingManagement() {
                                                   {booking.duration}min
                                                 </div>
                                               </div>
-                                              
+
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Station</div>
                                                 <div className="font-medium flex items-center gap-1">
@@ -1968,7 +2143,7 @@ export default function BookingManagement() {
                                                   {getStationTypeLabel(booking.station.type)}
                                                 </Badge>
                                               </div>
-                                              
+
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Contact</div>
                                                 <div className="text-sm flex items-center gap-1">
@@ -1982,12 +2157,12 @@ export default function BookingManagement() {
                                                   </div>
                                                 )}
                                               </div>
-                                              
+
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Status</div>
                                                 <BookingStatusBadge status={booking.status} />
                                               </div>
-                                              
+
                                               <div>
                                                 <div className="text-sm text-muted-foreground">Pricing</div>
                                                 <div className="space-y-1">
@@ -2015,7 +2190,7 @@ export default function BookingManagement() {
                                                 </div>
                                               </div>
                                             </div>
-                                            
+
                                             <div className="flex gap-1 ml-4">
                                               <Button size="sm" variant="outline" onClick={() => handleEditBooking(booking)}>
                                                 <Edit2 className="h-3 w-3" />
@@ -2025,7 +2200,7 @@ export default function BookingManagement() {
                                               </Button>
                                             </div>
                                           </div>
-                                          
+
                                           {booking.notes && (
                                             <div className="mt-3 p-2 bg-muted/50 rounded text-sm">
                                               <span className="text-muted-foreground">Notes: </span>
