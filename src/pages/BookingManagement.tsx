@@ -11,6 +11,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
+import { BookingNotification } from '@/components/booking/BookingNotification';
+import { RealtimeStatus } from '@/components/booking/RealtimeStatus';
+import { NotificationCenter } from '@/components/booking/NotificationCenter';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
@@ -197,9 +200,167 @@ export default function BookingManagement() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
+  
+  // Real-time and notification states
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [newBookingsCount, setNewBookingsCount] = useState(0);
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    type: 'new_booking' | 'booking_update' | 'booking_cancel';
+    title: string;
+    message: string;
+    timestamp: Date;
+    booking?: any;
+    read: boolean;
+  }>>([]);
+  const [activeNotifications, setActiveNotifications] = useState<Array<{
+    id: string;
+    type: 'new_booking' | 'booking_update' | 'booking_cancel';
+    title: string;
+    message: string;
+    timestamp: Date;
+    booking?: any;
+    read: boolean;
+  }>>([]);
 
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+
+  // Real-time event handlers
+  const handleNewBooking = async (newBookingData: any) => {
+    try {
+      // Fetch additional data for the notification
+      const [stationResponse, customerResponse] = await Promise.all([
+        supabase.from('stations').select('name').eq('id', newBookingData.station_id).single(),
+        supabase.from('customers').select('name, phone').eq('id', newBookingData.customer_id).single()
+      ]);
+
+      const notification = {
+        id: `new-booking-${newBookingData.id}`,
+        type: 'new_booking' as const,
+        title: '🎉 New Booking Received!',
+        message: `New booking from ${customerResponse.data?.name || 'Unknown Customer'}`,
+        timestamp: new Date(),
+        booking: {
+          id: newBookingData.id,
+          customer_name: customerResponse.data?.name || 'Unknown',
+          customer_phone: customerResponse.data?.phone || '',
+          station_name: stationResponse.data?.name || 'Unknown Station',
+          booking_date: newBookingData.booking_date,
+          start_time: newBookingData.start_time,
+          end_time: newBookingData.end_time,
+          status: newBookingData.status,
+          final_price: newBookingData.final_price
+        },
+        read: false
+      };
+
+      setNotifications(prev => [notification, ...prev.slice(0, 49)]); // Keep last 50
+      setActiveNotifications(prev => [notification, ...prev]);
+      
+      // Refresh booking data
+      fetchBookings();
+    } catch (error) {
+      console.error('Error handling new booking:', error);
+    }
+  };
+
+  const handleBookingUpdate = async (updatedBooking: any, oldBooking: any) => {
+    try {
+      const [stationResponse, customerResponse] = await Promise.all([
+        supabase.from('stations').select('name').eq('id', updatedBooking.station_id).single(),
+        supabase.from('customers').select('name, phone').eq('id', updatedBooking.customer_id).single()
+      ]);
+
+      const notification = {
+        id: `update-booking-${updatedBooking.id}-${Date.now()}`,
+        type: 'booking_update' as const,
+        title: '📝 Booking Updated',
+        message: `Booking for ${customerResponse.data?.name || 'Unknown Customer'} has been updated`,
+        timestamp: new Date(),
+        booking: {
+          id: updatedBooking.id,
+          customer_name: customerResponse.data?.name || 'Unknown',
+          customer_phone: customerResponse.data?.phone || '',
+          station_name: stationResponse.data?.name || 'Unknown Station',
+          booking_date: updatedBooking.booking_date,
+          start_time: updatedBooking.start_time,
+          end_time: updatedBooking.end_time,
+          status: updatedBooking.status,
+          final_price: updatedBooking.final_price
+        },
+        read: false
+      };
+
+      setNotifications(prev => [notification, ...prev.slice(0, 49)]);
+      
+      // Refresh booking data
+      fetchBookings();
+    } catch (error) {
+      console.error('Error handling booking update:', error);
+    }
+  };
+
+  const handleBookingDelete = async (deletedBooking: any) => {
+    try {
+      const notification = {
+        id: `delete-booking-${deletedBooking.id}-${Date.now()}`,
+        type: 'booking_cancel' as const,
+        title: '❌ Booking Cancelled',
+        message: 'A booking has been cancelled',
+        timestamp: new Date(),
+        read: false
+      };
+
+      setNotifications(prev => [notification, ...prev.slice(0, 49)]);
+      
+      // Refresh booking data
+      fetchBookings();
+    } catch (error) {
+      console.error('Error handling booking deletion:', error);
+    }
+  };
+
+  // Notification handlers
+  const handleNotificationDismiss = (id: string) => {
+    setActiveNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setActiveNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    
+    // Decrease new bookings count if this was a new booking notification
+    const notification = notifications.find(n => n.id === id);
+    if (notification && notification.type === 'new_booking' && !notification.read) {
+      setNewBookingsCount(prev => Math.max(0, prev - 1));
+    }
+  };
+
+  const handleMarkAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setActiveNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNewBookingsCount(0);
+  };
+
+  const handleClearAllNotifications = () => {
+    setNotifications([]);
+    setActiveNotifications([]);
+    setNewBookingsCount(0);
+  };
+
+  const handleRemoveNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    setActiveNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handleManualRefresh = () => {
+    fetchBookings();
+    setLastUpdate(new Date());
+    setNewBookingsCount(0); // Reset counter on manual refresh
+    toast.success('Data refreshed');
+  };
 
   useEffect(() => {
     fetchBookings();
@@ -208,12 +369,49 @@ export default function BookingManagement() {
   useEffect(() => {
     const channel = supabase
       .channel('booking-management-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetchBookings();
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'bookings' 
+      }, (payload) => {
+        handleNewBooking(payload.new);
+        setLastUpdate(new Date());
+        setNewBookingsCount(prev => prev + 1);
       })
-      .subscribe();
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'bookings' 
+      }, (payload) => {
+        handleBookingUpdate(payload.new, payload.old);
+        setLastUpdate(new Date());
+      })
+      .on('postgres_changes', { 
+        event: 'DELETE', 
+        schema: 'public', 
+        table: 'bookings' 
+      }, (payload) => {
+        handleBookingDelete(payload.old);
+        setLastUpdate(new Date());
+      })
+      .subscribe((status) => {
+        setIsRealtimeConnected(status === 'SUBSCRIBED');
+        if (status === 'SUBSCRIBED') {
+          console.log('Real-time connection established');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Real-time connection error');
+          setIsRealtimeConnected(false);
+        }
+      });
 
-    return () => { supabase.removeChannel(channel); };
+    // Set initial connection status
+    setIsRealtimeConnected(true);
+    setLastUpdate(new Date());
+
+    return () => { 
+      supabase.removeChannel(channel);
+      setIsRealtimeConnected(false);
+    };
   }, []);
 
   const handleDatePresetChange = (preset: string) => {
@@ -896,17 +1094,43 @@ export default function BookingManagement() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
+      
+      {/* Active Notifications Overlay */}
+      {activeNotifications.map((notification) => (
+        <BookingNotification
+          key={notification.id}
+          notification={notification}
+          onDismiss={handleNotificationDismiss}
+          onMarkAsRead={handleMarkAsRead}
+          autoHide={notification.type === 'new_booking' ? 10000 : 8000}
+        />
+      ))}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight gradient-text font-heading">
             Booking Management
           </h1>
-          <p className="text-muted-foreground">
-            Comprehensive booking analytics and marketing campaign insights
-          </p>
+          <div className="flex items-center gap-4 mt-2">
+            <p className="text-muted-foreground">
+              Comprehensive booking analytics and marketing campaign insights
+            </p>
+            <RealtimeStatus
+              isConnected={isRealtimeConnected}
+              lastUpdate={lastUpdate}
+              newBookingsCount={newBookingsCount}
+              onRefresh={handleManualRefresh}
+            />
+          </div>
         </div>
         <div className="flex gap-2">
+          <NotificationCenter
+            notifications={notifications}
+            onMarkAsRead={handleMarkAsRead}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onClearAll={handleClearAllNotifications}
+            onRemove={handleRemoveNotification}
+          />
           <Button onClick={exportBookings} variant="outline" className="flex items-center gap-2">
             <Download className="h-4 w-4" />
             Export CSV
