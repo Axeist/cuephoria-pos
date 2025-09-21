@@ -47,6 +47,7 @@ interface TimeSlot {
   start_time: string;
   end_time: string;
   is_available: boolean;
+  status?: 'available' | 'booked' | 'elapsed';
 }
 interface CustomerInfo {
   id?: string;
@@ -324,6 +325,8 @@ export default function PublicBooking() {
     setSlotsLoading(true);
     try {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
+      
       if (selectedStations.length === 1) {
         const { data, error } = await supabase.rpc("get_available_slots", {
           p_date: dateStr,
@@ -331,7 +334,34 @@ export default function PublicBooking() {
           p_slot_duration: 60,
         });
         if (error) throw error;
-        setAvailableSlots(data || []);
+        
+        let slotsToSet = data || [];
+        
+        // Mark past slots as elapsed if today
+        if (isToday) {
+          const now = new Date();
+          const currentHour = now.getHours();
+          const currentMinute = now.getMinutes();
+          
+          slotsToSet = slotsToSet.map((slot: TimeSlot) => {
+            const [slotHour, slotMinute] = slot.start_time.split(':').map(Number);
+            
+            // Check if slot time has passed
+            const isPast = (slotHour < currentHour) || 
+                          (slotHour === currentHour && slotMinute <= currentMinute);
+            
+            if (isPast) {
+              return {
+                ...slot,
+                is_available: false,
+                status: 'elapsed' as const
+              };
+            }
+            return slot;
+          });
+        }
+        
+        setAvailableSlots(slotsToSet);
       } else {
         // Merge available slots across selected stations
         const results = await Promise.all(
@@ -360,14 +390,38 @@ export default function PublicBooking() {
             union.set(k, union.get(k) || Boolean(s.is_available));
           });
         });
-        const merged = base.map((s) => ({
+        let merged = base.map((s) => ({
           ...s,
           is_available: union.get(key(s)) ?? false,
         }));
+        
+        // Mark past slots as elapsed if today
+        if (isToday) {
+          const now = new Date();
+          const currentHour = now.getHours();
+          const currentMinute = now.getMinutes();
+          
+          merged = merged.map((slot) => {
+            const [slotHour, slotMinute] = slot.start_time.split(':').map(Number);
+            
+            const isPast = (slotHour < currentHour) || 
+                          (slotHour === currentHour && slotMinute <= currentMinute);
+            
+            if (isPast) {
+              return {
+                ...slot,
+                is_available: false,
+                status: 'elapsed' as const
+              };
+            }
+            return slot;
+          });
+        }
+        
         setAvailableSlots(merged);
       }
 
-      // Deselect slot if it became unavailable
+      // Deselect slot if it became unavailable or is in the past
       if (
         selectedSlot &&
         !availableSlots.some(
@@ -469,6 +523,12 @@ export default function PublicBooking() {
   }
 
   async function handleSlotSelect(slot: TimeSlot) {
+    // Prevent selection of elapsed slots
+    if (slot.status === 'elapsed') {
+      toast.error("Cannot select a time slot that has already passed.");
+      return;
+    }
+    
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
       if (filtered.length === 0) {
@@ -1373,7 +1433,14 @@ export default function PublicBooking() {
                           mode="single"
                           selected={selectedDate}
                           onSelect={(date) => date && setSelectedDate(date)}
-                          disabled={(date) => date < new Date()}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0); // Reset time to start of day
+                            const compareDate = new Date(date);
+                            compareDate.setHours(0, 0, 0, 0); // Reset time to start of day
+                            
+                            return compareDate < today; // Only disable dates before today
+                          }}
                           className={cn(
                             "rounded-xl border bg-black/30 border-white/10 pointer-events-auto"
                           )}
