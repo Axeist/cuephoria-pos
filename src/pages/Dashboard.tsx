@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
+import { useVault } from '@/hooks/useVault';
 import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
@@ -33,20 +34,23 @@ import { useToast } from '@/hooks/use-toast';
 import { normalizeBills, isBetween } from '@/lib/date';
 import { Edit2, Trash2, TrendingUp, TrendingDown, Wallet, PiggyBank } from 'lucide-react';
 
-interface CashTransaction {
-  id: string;
-  type: 'in' | 'out';
-  amount: number;
-  source: string;
-  purpose: string;
-  notes: string;
-  timestamp: string;
-}
-
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
   const { expenses, businessSummary } = useExpenses();
   const { toast } = useToast();
+
+  // Use the vault hook
+  const {
+    currentCash,
+    transactions,
+    openingBalance,
+    loading: vaultLoading,
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+    setOpeningBalanceForToday,
+    refreshData: refreshVault
+  } = useVault();
 
   // Normalize bills once; createdAtDate is safe UTC Date
   const billsN = useMemo(() => normalizeBills(bills), [bills]);
@@ -64,18 +68,12 @@ const Dashboard = () => {
     lowStockItems: [] as any[]
   });
 
-  // Vault States
-  const [currentCash, setCurrentCash] = useState(0);
-  const [openingBalance, setOpeningBalance] = useState(0);
-  const [transactions, setTransactions] = useState<CashTransaction[]>([]);
+  // Vault form states
   const [showAddTransaction, setShowAddTransaction] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<CashTransaction | null>(null);
-  
-  // Form states
+  const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [transactionType, setTransactionType] = useState<'in' | 'out'>('in');
   const [amount, setAmount] = useState('');
-  const [source, setSource] = useState('');
-  const [purpose, setPurpose] = useState('');
+  const [personName, setPersonName] = useState('');
   const [notes, setNotes] = useState('');
 
   // Memoized stats
@@ -91,24 +89,6 @@ const Dashboard = () => {
     const today = new Date(); today.setHours(0,0,0,0);
     return customers.filter(c => new Date(c.createdAt) >= today).length;
   }, [customers]);
-
-  // Load vault data from localStorage on component mount
-  useEffect(() => {
-    const savedCash = localStorage.getItem('vaultCurrentCash');
-    const savedOpening = localStorage.getItem('vaultOpeningBalance');
-    const savedTransactions = localStorage.getItem('vaultTransactions');
-    
-    if (savedCash) setCurrentCash(parseFloat(savedCash));
-    if (savedOpening) setOpeningBalance(parseFloat(savedOpening));
-    if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
-  }, []);
-
-  // Save vault data to localStorage whenever state changes
-  useEffect(() => {
-    localStorage.setItem('vaultCurrentCash', currentCash.toString());
-    localStorage.setItem('vaultOpeningBalance', openingBalance.toString());
-    localStorage.setItem('vaultTransactions', JSON.stringify(transactions));
-  }, [currentCash, openingBalance, transactions]);
 
   // Expenses date filter
   const filteredExpenses = useMemo(() => {
@@ -155,125 +135,92 @@ const Dashboard = () => {
     }
   };
 
-  // Vault Functions
-  const handleAddTransaction = () => {
+  // Vault form handlers
+  const handleAddTransaction = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast({ title: "Invalid Amount", description: "Please enter a valid amount", variant: "destructive" });
       return;
     }
 
-    const transactionData = {
-      id: editingTransaction?.id || Date.now().toString(),
-      type: transactionType,
-      amount: parseFloat(amount),
-      source: source || (transactionType === 'in' ? 'Cash In' : 'Cash Out'),
-      purpose: purpose || 'General',
-      notes: notes || '',
-      timestamp: editingTransaction?.timestamp || new Date().toISOString()
-    };
-
-    if (editingTransaction) {
-      // Update existing transaction
-      const oldAmount = editingTransaction.amount;
-      const oldType = editingTransaction.type;
-      
-      // Reverse old transaction effect
-      if (oldType === 'in') {
-        setCurrentCash(prev => prev - oldAmount);
+    try {
+      if (editingTransaction) {
+        await updateTransaction(
+          editingTransaction.id,
+          transactionType,
+          parseFloat(amount),
+          personName,
+          notes
+        );
       } else {
-        setCurrentCash(prev => prev + oldAmount);
+        await addTransaction(
+          transactionType,
+          parseFloat(amount),
+          personName,
+          notes
+        );
       }
-      
-      // Apply new transaction effect
-      if (transactionType === 'in') {
-        setCurrentCash(prev => prev + parseFloat(amount));
-      } else {
-        setCurrentCash(prev => prev - parseFloat(amount));
-      }
-
-      setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? transactionData : t));
-      toast({ title: "Transaction Updated", description: "Transaction has been updated successfully" });
-    } else {
-      // Add new transaction
-      setTransactions(prev => [transactionData, ...prev]);
-      
-      if (transactionType === 'in') {
-        setCurrentCash(prev => prev + parseFloat(amount));
-      } else {
-        setCurrentCash(prev => prev - parseFloat(amount));
-      }
-      toast({ title: "Transaction Added", description: `₹${amount} ${transactionType === 'in' ? 'added to' : 'removed from'} vault` });
+      resetForm();
+    } catch (error) {
+      // Error handling is done in the hook
     }
+  };
 
-    // Reset form
-    resetForm();
+  const handleEditTransaction = (transaction: any) => {
+    setEditingTransaction(transaction);
+    setTransactionType(transaction.transaction_type);
+    setAmount(transaction.amount.toString());
+    setPersonName(transaction.person_name || '');
+    setNotes(transaction.notes || '');
+    setShowAddTransaction(true);
+  };
+
+  const handleDeleteTransaction = async (transaction: any) => {
+    try {
+      await deleteTransaction(transaction.id);
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
   const resetForm = () => {
     setAmount('');
-    setSource('');
-    setPurpose('');
+    setPersonName('');
     setNotes('');
     setEditingTransaction(null);
     setShowAddTransaction(false);
   };
 
-  const handleEditTransaction = (transaction: CashTransaction) => {
-    setEditingTransaction(transaction);
-    setTransactionType(transaction.type);
-    setAmount(transaction.amount.toString());
-    setSource(transaction.source);
-    setPurpose(transaction.purpose);
-    setNotes(transaction.notes);
-    setShowAddTransaction(true);
-  };
-
-  const handleDeleteTransaction = (transaction: CashTransaction) => {
-    // Reverse transaction effect on current cash
-    if (transaction.type === 'in') {
-      setCurrentCash(prev => prev - transaction.amount);
-    } else {
-      setCurrentCash(prev => prev + transaction.amount);
-    }
-
-    setTransactions(prev => prev.filter(t => t.id !== transaction.id));
-    toast({ title: "Transaction Deleted", description: "Transaction has been removed" });
-  };
-
-  const handleSetOpeningBalance = () => {
-    setOpeningBalance(currentCash);
-    toast({ title: "Opening Balance Set", description: `Opening balance set to ₹${currentCash}` });
-  };
-
-  // Vault Analytics
+  // Vault analytics
   const todayTransactions = transactions.filter(t => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const transactionDate = format(new Date(t.timestamp), 'yyyy-MM-dd');
+    const transactionDate = format(new Date(t.created_at), 'yyyy-MM-dd');
     return today === transactionDate;
   });
 
   const weekTransactions = transactions.filter(t => {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    return new Date(t.timestamp) >= weekAgo;
+    return new Date(t.created_at) >= weekAgo;
   });
 
-  const todayCashIn = todayTransactions.filter(t => t.type === 'in').reduce((sum, t) => sum + t.amount, 0);
-  const todayCashOut = todayTransactions.filter(t => t.type === 'out').reduce((sum, t) => sum + t.amount, 0);
-  const weekCashIn = weekTransactions.filter(t => t.type === 'in').reduce((sum, t) => sum + t.amount, 0);
-  const weekCashOut = weekTransactions.filter(t => t.type === 'out').reduce((sum, t) => sum + t.amount, 0);
+  const todayCashIn = todayTransactions.filter(t => t.transaction_type === 'in').reduce((sum, t) => sum + t.amount, 0);
+  const todayCashOut = todayTransactions.filter(t => t.transaction_type === 'out').reduce((sum, t) => sum + t.amount, 0);
+  const weekCashIn = weekTransactions.filter(t => t.transaction_type === 'in').reduce((sum, t) => sum + t.amount, 0);
+  const weekCashOut = weekTransactions.filter(t => t.transaction_type === 'out').reduce((sum, t) => sum + t.amount, 0);
 
   const mostCommonSource = transactions
-    .filter(t => t.type === 'in')
+    .filter(t => t.transaction_type === 'in')
     .reduce((acc: any, t) => {
-      acc[t.source] = (acc[t.source] || 0) + 1;
+      const key = t.notes || 'Cash In';
+      acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
   const mostCommonPurpose = transactions
-    .filter(t => t.type === 'out')
+    .filter(t => t.transaction_type === 'out')
     .reduce((acc: any, t) => {
-      acc[t.purpose] = (acc[t.purpose] || 0) + 1;
+      const key = t.notes || 'Cash Out';
+      acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
 
@@ -568,35 +515,12 @@ const Dashboard = () => {
                       </div>
                       
                       <div>
-                        <label className="text-sm font-medium">
-                          {transactionType === 'in' ? 'Source' : 'Purpose'}
-                        </label>
-                        <Select 
-                          value={transactionType === 'in' ? source : purpose} 
-                          onValueChange={(value) => transactionType === 'in' ? setSource(value) : setPurpose(value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={`Select ${transactionType === 'in' ? 'source' : 'purpose'}`} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {transactionType === 'in' ? (
-                              <>
-                                <SelectItem value="Customer Payment">Customer Payment</SelectItem>
-                                <SelectItem value="Bank Withdrawal">Bank Withdrawal</SelectItem>
-                                <SelectItem value="Other Income">Other Income</SelectItem>
-                                <SelectItem value="Change Fund">Change Fund</SelectItem>
-                              </>
-                            ) : (
-                              <>
-                                <SelectItem value="Bank Deposit">Bank Deposit</SelectItem>
-                                <SelectItem value="Expenses">Expenses</SelectItem>
-                                <SelectItem value="Petty Cash">Petty Cash</SelectItem>
-                                <SelectItem value="Supplies">Supplies</SelectItem>
-                                <SelectItem value="Utilities">Utilities</SelectItem>
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
+                        <label className="text-sm font-medium">Person Name</label>
+                        <Input
+                          placeholder="Staff name or person"
+                          value={personName}
+                          onChange={(e) => setPersonName(e.target.value)}
+                        />
                       </div>
 
                       <div>
@@ -610,7 +534,7 @@ const Dashboard = () => {
                       </div>
 
                       <div className="flex space-x-2">
-                        <Button onClick={handleAddTransaction} className="flex-1">
+                        <Button onClick={handleAddTransaction} className="flex-1" disabled={vaultLoading}>
                           {editingTransaction ? 'Update' : 'Add'} Transaction
                         </Button>
                         <Button variant="outline" onClick={resetForm}>
@@ -626,26 +550,26 @@ const Dashboard = () => {
               <div className="grid gap-3 md:grid-cols-4">
                 <Button variant="outline" onClick={() => {
                   setTransactionType('in');
-                  setSource('Customer Payment');
+                  setNotes('Customer Payment');
                   setShowAddTransaction(true);
                 }}>
                   Cash In
                 </Button>
                 <Button variant="outline" onClick={() => {
                   setTransactionType('out');
-                  setPurpose('Bank Deposit');
+                  setNotes('Bank Deposit');
                   setShowAddTransaction(true);
                 }}>
                   Bank Deposit
                 </Button>
                 <Button variant="outline" onClick={() => {
                   setTransactionType('out');
-                  setPurpose('Expenses');
+                  setNotes('Expenses');
                   setShowAddTransaction(true);
                 }}>
                   Expense
                 </Button>
-                <Button variant="outline" onClick={handleSetOpeningBalance}>
+                <Button variant="outline" onClick={setOpeningBalanceForToday} disabled={vaultLoading}>
                   Set Opening Balance
                 </Button>
               </div>
@@ -660,7 +584,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Most Common Cash Source:</span>
+                  <span className="text-sm text-muted-foreground">Most Common Source:</span>
                   <Badge variant="outline">{topSource}</Badge>
                 </div>
                 <div className="flex justify-between items-center">
@@ -739,35 +663,36 @@ const Dashboard = () => {
                     <div key={transaction.id} className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
-                          <Badge variant={transaction.type === 'in' ? 'default' : 'secondary'}>
-                            {transaction.type === 'in' ? 'IN' : 'OUT'}
+                          <Badge variant={transaction.transaction_type === 'in' ? 'default' : 'secondary'}>
+                            {transaction.transaction_type === 'in' ? 'IN' : 'OUT'}
                           </Badge>
                           <span className="font-medium">
-                            {transaction.type === 'in' ? transaction.source : transaction.purpose}
+                            {transaction.person_name}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {format(new Date(transaction.timestamp), 'dd MMM yyyy, hh:mm a')}
+                          {format(new Date(transaction.created_at), 'dd MMM yyyy, hh:mm a')}
                         </p>
                         {transaction.notes && (
                           <p className="text-sm text-muted-foreground mt-1">{transaction.notes}</p>
                         )}
                       </div>
                       <div className="flex items-center space-x-2">
-                        <div className={`text-lg font-semibold ${transaction.type === 'in' ? 'text-green-500' : 'text-red-500'}`}>
-                          {transaction.type === 'in' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                        <div className={`text-lg font-semibold ${transaction.transaction_type === 'in' ? 'text-green-500' : 'text-red-500'}`}>
+                          {transaction.transaction_type === 'in' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
                         </div>
                         <div className="flex space-x-1">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleEditTransaction(transaction)}
+                            disabled={vaultLoading}
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" disabled={vaultLoading}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
