@@ -1,7 +1,8 @@
+// Dashboard.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
-import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear, startOfWeek, endOfWeek } from 'date-fns';
+import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
 import SalesChart from '@/components/dashboard/SalesChart';
@@ -26,14 +27,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Edit2, Trash2, TrendingUp, TrendingDown, DollarSign, PiggyBank } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeBills, isBetween } from '@/lib/date';
-import { cn } from '@/lib/utils';
+import { Edit2, Trash2, TrendingUp, TrendingDown, Wallet, PiggyBank } from 'lucide-react';
 
 interface CashTransaction {
   id: string;
@@ -66,19 +64,14 @@ const Dashboard = () => {
     lowStockItems: [] as any[]
   });
 
-  // Expense filter states
-  const [expenseCategory, setExpenseCategory] = useState<string>('all');
-  const [expenseDateStart, setExpenseDateStart] = useState<Date | null>(null);
-  const [expenseDateEnd, setExpenseDateEnd] = useState<Date | null>(null);
-
-  // Vault states
+  // Vault States
   const [currentCash, setCurrentCash] = useState(0);
   const [openingBalance, setOpeningBalance] = useState(0);
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<CashTransaction | null>(null);
   
-  // Vault form states
+  // Form states
   const [transactionType, setTransactionType] = useState<'in' | 'out'>('in');
   const [amount, setAmount] = useState('');
   const [source, setSource] = useState('');
@@ -99,27 +92,7 @@ const Dashboard = () => {
     return customers.filter(c => new Date(c.createdAt) >= today).length;
   }, [customers]);
 
-  // Enhanced expenses filter with category and date
-  const filteredExpenses = useMemo(() => {
-    let filtered = [...expenses];
-    
-    // Category filter
-    if (expenseCategory !== 'all') {
-      filtered = filtered.filter(expense => expense.category === expenseCategory);
-    }
-    
-    // Date range filter
-    if (expenseDateStart && expenseDateEnd) {
-      filtered = filtered.filter(expense => {
-        const expenseDate = new Date(expense.date);
-        return isWithinInterval(expenseDate, { start: expenseDateStart, end: expenseDateEnd });
-      });
-    }
-    
-    return filtered;
-  }, [expenses, expenseCategory, expenseDateStart, expenseDateEnd]);
-
-  // Load vault data from localStorage
+  // Load vault data from localStorage on component mount
   useEffect(() => {
     const savedCash = localStorage.getItem('vaultCurrentCash');
     const savedOpening = localStorage.getItem('vaultOpeningBalance');
@@ -130,21 +103,30 @@ const Dashboard = () => {
     if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
   }, []);
 
-  // Save vault data to localStorage
+  // Save vault data to localStorage whenever state changes
   useEffect(() => {
     localStorage.setItem('vaultCurrentCash', currentCash.toString());
     localStorage.setItem('vaultOpeningBalance', openingBalance.toString());
     localStorage.setItem('vaultTransactions', JSON.stringify(transactions));
   }, [currentCash, openingBalance, transactions]);
 
+  // Expenses date filter
+  const filteredExpenses = useMemo(() => {
+    if (!dateRange) return expenses;
+    return expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
+    });
+  }, [expenses, dateRange]);
+
   const handleDateRangeChange = (startDate: Date, endDate: Date) => {
     setDateRange({ start: startDate, end: endDate });
   };
 
-  const handleExpenseExport = () => {
+  const handleExport = () => {
     try {
       if (filteredExpenses.length === 0) {
-        toast({ title: 'No Data to Export', description: 'There are no expenses matching the filters to export.', variant: 'destructive' });
+        toast({ title: 'No Data to Export', description: 'There are no expenses in the selected date range to export.', variant: 'destructive' });
         return;
       }
       const exportData = filteredExpenses.map(expense => ({
@@ -160,7 +142,9 @@ const Dashboard = () => {
       const workbook = XLSX.utils.book_new();
       worksheet['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
-      const filename = `expenses_filtered_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+      const filename = dateRange
+        ? `expenses_${format(dateRange.start, 'yyyy-MM-dd')}_to_${format(dateRange.end, 'yyyy-MM-dd')}.xlsx`
+        : `expenses_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
       const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       saveAs(blob, filename);
@@ -171,71 +155,67 @@ const Dashboard = () => {
     }
   };
 
-  // Vault transaction handlers
+  // Vault Functions
   const handleAddTransaction = () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast({ title: "Invalid Amount", description: "Please enter a valid amount", variant: "destructive" });
       return;
     }
 
+    const transactionData = {
+      id: editingTransaction?.id || Date.now().toString(),
+      type: transactionType,
+      amount: parseFloat(amount),
+      source: source || (transactionType === 'in' ? 'Cash In' : 'Cash Out'),
+      purpose: purpose || 'General',
+      notes: notes || '',
+      timestamp: editingTransaction?.timestamp || new Date().toISOString()
+    };
+
     if (editingTransaction) {
       // Update existing transaction
-      const oldTransaction = editingTransaction;
-      const updatedTransaction: CashTransaction = {
-        ...oldTransaction,
-        type: transactionType,
-        amount: parseFloat(amount),
-        source: source || (transactionType === 'in' ? 'Cash In' : 'Cash Out'),
-        purpose: purpose || 'General',
-        notes: notes || '',
-      };
-
+      const oldAmount = editingTransaction.amount;
+      const oldType = editingTransaction.type;
+      
       // Reverse old transaction effect
-      if (oldTransaction.type === 'in') {
-        setCurrentCash(currentCash - oldTransaction.amount);
+      if (oldType === 'in') {
+        setCurrentCash(prev => prev - oldAmount);
       } else {
-        setCurrentCash(currentCash + oldTransaction.amount);
+        setCurrentCash(prev => prev + oldAmount);
       }
-
+      
       // Apply new transaction effect
       if (transactionType === 'in') {
-        setCurrentCash(currentCash - oldTransaction.amount + parseFloat(amount));
+        setCurrentCash(prev => prev + parseFloat(amount));
       } else {
-        setCurrentCash(currentCash + oldTransaction.amount - parseFloat(amount));
+        setCurrentCash(prev => prev - parseFloat(amount));
       }
 
-      setTransactions(transactions.map(t => t.id === oldTransaction.id ? updatedTransaction : t));
-      toast({ title: "Transaction Updated", description: "Transaction updated successfully" });
+      setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? transactionData : t));
+      toast({ title: "Transaction Updated", description: "Transaction has been updated successfully" });
     } else {
       // Add new transaction
-      const newTransaction: CashTransaction = {
-        id: Date.now().toString(),
-        type: transactionType,
-        amount: parseFloat(amount),
-        source: source || (transactionType === 'in' ? 'Cash In' : 'Cash Out'),
-        purpose: purpose || 'General',
-        notes: notes || '',
-        timestamp: new Date().toISOString()
-      };
-
-      setTransactions([newTransaction, ...transactions]);
+      setTransactions(prev => [transactionData, ...prev]);
       
       if (transactionType === 'in') {
-        setCurrentCash(currentCash + parseFloat(amount));
+        setCurrentCash(prev => prev + parseFloat(amount));
       } else {
-        setCurrentCash(currentCash - parseFloat(amount));
+        setCurrentCash(prev => prev - parseFloat(amount));
       }
-
       toast({ title: "Transaction Added", description: `₹${amount} ${transactionType === 'in' ? 'added to' : 'removed from'} vault` });
     }
 
     // Reset form
+    resetForm();
+  };
+
+  const resetForm = () => {
     setAmount('');
     setSource('');
     setPurpose('');
     setNotes('');
-    setShowAddTransaction(false);
     setEditingTransaction(null);
+    setShowAddTransaction(false);
   };
 
   const handleEditTransaction = (transaction: CashTransaction) => {
@@ -251,25 +231,21 @@ const Dashboard = () => {
   const handleDeleteTransaction = (transaction: CashTransaction) => {
     // Reverse transaction effect on current cash
     if (transaction.type === 'in') {
-      setCurrentCash(currentCash - transaction.amount);
+      setCurrentCash(prev => prev - transaction.amount);
     } else {
-      setCurrentCash(currentCash + transaction.amount);
+      setCurrentCash(prev => prev + transaction.amount);
     }
 
-    setTransactions(transactions.filter(t => t.id !== transaction.id));
-    toast({ title: "Transaction Deleted", description: "Transaction removed from vault" });
+    setTransactions(prev => prev.filter(t => t.id !== transaction.id));
+    toast({ title: "Transaction Deleted", description: "Transaction has been removed" });
   };
 
-  const resetForm = () => {
-    setAmount('');
-    setSource('');
-    setPurpose('');
-    setNotes('');
-    setEditingTransaction(null);
-    setTransactionType('in');
+  const handleSetOpeningBalance = () => {
+    setOpeningBalance(currentCash);
+    toast({ title: "Opening Balance Set", description: `Opening balance set to ₹${currentCash}` });
   };
 
-  // Vault insights calculations
+  // Vault Analytics
   const todayTransactions = transactions.filter(t => {
     const today = format(new Date(), 'yyyy-MM-dd');
     const transactionDate = format(new Date(t.timestamp), 'yyyy-MM-dd');
@@ -277,27 +253,37 @@ const Dashboard = () => {
   });
 
   const weekTransactions = transactions.filter(t => {
-    const weekStart = startOfWeek(new Date());
-    const weekEnd = endOfWeek(new Date());
-    const transactionDate = new Date(t.timestamp);
-    return isWithinInterval(transactionDate, { start: weekStart, end: weekEnd });
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return new Date(t.timestamp) >= weekAgo;
   });
 
-  const monthTransactions = transactions.filter(t => {
-    const monthStart = startOfMonth(new Date());
-    const monthEnd = endOfMonth(new Date());
-    const transactionDate = new Date(t.timestamp);
-    return isWithinInterval(transactionDate, { start: monthStart, end: monthEnd });
-  });
+  const todayCashIn = todayTransactions.filter(t => t.type === 'in').reduce((sum, t) => sum + t.amount, 0);
+  const todayCashOut = todayTransactions.filter(t => t.type === 'out').reduce((sum, t) => sum + t.amount, 0);
+  const weekCashIn = weekTransactions.filter(t => t.type === 'in').reduce((sum, t) => sum + t.amount, 0);
+  const weekCashOut = weekTransactions.filter(t => t.type === 'out').reduce((sum, t) => sum + t.amount, 0);
 
-  const calculatePeriodTotals = (periodTransactions: CashTransaction[]) => ({
-    cashIn: periodTransactions.filter(t => t.type === 'in').reduce((sum, t) => sum + t.amount, 0),
-    cashOut: periodTransactions.filter(t => t.type === 'out').reduce((sum, t) => sum + t.amount, 0),
-  });
+  const mostCommonSource = transactions
+    .filter(t => t.type === 'in')
+    .reduce((acc: any, t) => {
+      acc[t.source] = (acc[t.source] || 0) + 1;
+      return acc;
+    }, {});
 
-  const todayTotals = calculatePeriodTotals(todayTransactions);
-  const weekTotals = calculatePeriodTotals(weekTransactions);
-  const monthTotals = calculatePeriodTotals(monthTransactions);
+  const mostCommonPurpose = transactions
+    .filter(t => t.type === 'out')
+    .reduce((acc: any, t) => {
+      acc[t.purpose] = (acc[t.purpose] || 0) + 1;
+      return acc;
+    }, {});
+
+  const topSource = Object.keys(mostCommonSource).length > 0 
+    ? Object.keys(mostCommonSource).reduce((a, b) => mostCommonSource[a] > mostCommonSource[b] ? a : b)
+    : 'No data';
+
+  const topPurpose = Object.keys(mostCommonPurpose).length > 0
+    ? Object.keys(mostCommonPurpose).reduce((a, b) => mostCommonPurpose[a] > mostCommonPurpose[b] ? a : b)
+    : 'No data';
 
   // Recompute charts/stats
   useEffect(() => {
@@ -431,11 +417,6 @@ const Dashboard = () => {
     return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% from last period`;
   };
 
-  const getExpenseCategories = () => {
-    const categories = new Set(expenses.map(expense => expense.category));
-    return Array.from(categories);
-  };
-
   return (
     <div className="flex-1 space-y-6 p-6 text-white bg-inherit">
       <div className="flex items-center justify-between">
@@ -450,69 +431,8 @@ const Dashboard = () => {
             <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
             <TabsTrigger value="vault" className="flex-1">Vault</TabsTrigger>
           </TabsList>
-
-          {/* Enhanced Expense Filters */}
           {currentDashboardTab === 'expenses' && (
-            <div className="flex items-center space-x-4">
-              <Select value={expenseCategory} onValueChange={setExpenseCategory}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {getExpenseCategories().map(category => (
-                    <SelectItem key={category} value={category}>
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-40">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {expenseDateStart && expenseDateEnd 
-                      ? `${format(expenseDateStart, 'MMM dd')} - ${format(expenseDateEnd, 'MMM dd')}`
-                      : "Date Range"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <div className="p-4 space-y-4">
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">Start Date</label>
-                      <Calendar
-                        mode="single"
-                        selected={expenseDateStart}
-                        onSelect={setExpenseDateStart}
-                        className="rounded-md border"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">End Date</label>
-                      <Calendar
-                        mode="single"
-                        selected={expenseDateEnd}
-                        onSelect={setExpenseDateEnd}
-                        className="rounded-md border"
-                      />
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button size="sm" onClick={() => {
-                        setExpenseDateStart(null);
-                        setExpenseDateEnd(null);
-                      }}>
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <Button onClick={handleExpenseExport}>
-                Export Filtered
-              </Button>
-            </div>
+            <ExpenseDateFilter onDateRangeChange={handleDateRangeChange} onExport={handleExport} />
           )}
         </div>
 
@@ -549,31 +469,16 @@ const Dashboard = () => {
 
         <TabsContent value="expenses" className="space-y-6">
           <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={dateRange} />
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">
-                Filtered Expenses ({filteredExpenses.length})
-              </h3>
-              <div className="text-sm text-muted-foreground">
-                {expenseCategory !== 'all' && `Category: ${expenseCategory} • `}
-                {expenseDateStart && expenseDateEnd && `${format(expenseDateStart, 'MMM dd')} - ${format(expenseDateEnd, 'MMM dd')}`}
-              </div>
-            </div>
-            {filteredExpenses.length > 0 ? (
-              <FilteredExpenseList expenses={filteredExpenses} />
-            ) : (
-              <ExpenseList />
-            )}
-          </div>
+          {dateRange ? <FilteredExpenseList startDate={dateRange.start} endDate={dateRange.end} /> : <ExpenseList />}
         </TabsContent>
 
         <TabsContent value="vault" className="space-y-6">
           {/* Vault Insights Widgets */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Current Cash</CardTitle>
-                <PiggyBank className="h-4 w-4 text-muted-foreground" />
+                <Wallet className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-500">₹{currentCash.toFixed(2)}</div>
@@ -583,61 +488,59 @@ const Dashboard = () => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Today</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Today's Net</CardTitle>
+                {(todayCashIn - todayCashOut) >= 0 ? 
+                  <TrendingUp className="h-4 w-4 text-green-500" /> : 
+                  <TrendingDown className="h-4 w-4 text-red-500" />
+                }
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${(todayTotals.cashIn - todayTotals.cashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  ₹{(todayTotals.cashIn - todayTotals.cashOut).toFixed(2)}
+                <div className={`text-2xl font-bold ${(todayCashIn - todayCashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  ₹{(todayCashIn - todayCashOut).toFixed(2)}
                 </div>
-                <p className="text-xs text-muted-foreground">Net change today</p>
+                <p className="text-xs text-muted-foreground">
+                  In: ₹{todayCashIn} | Out: ₹{todayCashOut}
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">This Week</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Week Total</CardTitle>
+                <PiggyBank className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${(weekTotals.cashIn - weekTotals.cashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  ₹{(weekTotals.cashIn - weekTotals.cashOut).toFixed(2)}
-                </div>
-                <p className="text-xs text-muted-foreground">Net change this week</p>
+                <div className="text-2xl font-bold text-blue-500">₹{(weekCashIn - weekCashOut).toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground">7-day net change</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">This Month</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Transactions</CardTitle>
+                <Badge variant="secondary">{todayTransactions.length}</Badge>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${(monthTotals.cashIn - monthTotals.cashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  ₹{(monthTotals.cashIn - monthTotals.cashOut).toFixed(2)}
-                </div>
-                <p className="text-xs text-muted-foreground">Net change this month</p>
+                <div className="text-2xl font-bold">{transactions.length}</div>
+                <p className="text-xs text-muted-foreground">Total recorded</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Simple Cash Actions */}
+          {/* Quick Actions */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 Quick Actions
-                <Dialog open={showAddTransaction} onOpenChange={(open) => {
-                  setShowAddTransaction(open);
-                  if (!open) resetForm();
-                }}>
+                <Dialog open={showAddTransaction} onOpenChange={setShowAddTransaction}>
                   <DialogTrigger asChild>
-                    <Button>Add Transaction</Button>
+                    <Button onClick={() => {setEditingTransaction(null); resetForm();}}>
+                      Add Transaction
+                    </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>
-                        {editingTransaction ? 'Edit Transaction' : 'Add Cash Transaction'}
-                      </DialogTitle>
+                      <DialogTitle>{editingTransaction ? 'Edit' : 'Add'} Cash Transaction</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
@@ -668,8 +571,10 @@ const Dashboard = () => {
                         <label className="text-sm font-medium">
                           {transactionType === 'in' ? 'Source' : 'Purpose'}
                         </label>
-                        <Select value={transactionType === 'in' ? source : purpose} 
-                               onValueChange={(value) => transactionType === 'in' ? setSource(value) : setPurpose(value)}>
+                        <Select 
+                          value={transactionType === 'in' ? source : purpose} 
+                          onValueChange={(value) => transactionType === 'in' ? setSource(value) : setPurpose(value)}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder={`Select ${transactionType === 'in' ? 'source' : 'purpose'}`} />
                           </SelectTrigger>
@@ -706,12 +611,9 @@ const Dashboard = () => {
 
                       <div className="flex space-x-2">
                         <Button onClick={handleAddTransaction} className="flex-1">
-                          {editingTransaction ? 'Update Transaction' : 'Add Transaction'}
+                          {editingTransaction ? 'Update' : 'Add'} Transaction
                         </Button>
-                        <Button variant="outline" onClick={() => {
-                          setShowAddTransaction(false);
-                          resetForm();
-                        }}>
+                        <Button variant="outline" onClick={resetForm}>
                           Cancel
                         </Button>
                       </div>
@@ -722,6 +624,13 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 md:grid-cols-4">
+                <Button variant="outline" onClick={() => {
+                  setTransactionType('in');
+                  setSource('Customer Payment');
+                  setShowAddTransaction(true);
+                }}>
+                  Cash In
+                </Button>
                 <Button variant="outline" onClick={() => {
                   setTransactionType('out');
                   setPurpose('Bank Deposit');
@@ -734,29 +643,92 @@ const Dashboard = () => {
                   setPurpose('Expenses');
                   setShowAddTransaction(true);
                 }}>
-                  Cash Out
+                  Expense
                 </Button>
-                <Button variant="outline" onClick={() => {
-                  setTransactionType('in');
-                  setSource('Customer Payment');
-                  setShowAddTransaction(true);
-                }}>
-                  Cash In
-                </Button>
-                <Button variant="outline" onClick={() => {
-                  setOpeningBalance(currentCash);
-                  toast({ title: "Opening Balance Set", description: `Set to ₹${currentCash}` });
-                }}>
-                  Set Opening
+                <Button variant="outline" onClick={handleSetOpeningBalance}>
+                  Set Opening Balance
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Transaction History with Edit/Delete */}
+          {/* Insights */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cash Flow Insights</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Most Common Cash Source:</span>
+                  <Badge variant="outline">{topSource}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Most Common Purpose:</span>
+                  <Badge variant="outline">{topPurpose}</Badge>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Opening Balance:</span>
+                    <span className="text-sm font-medium">₹{openingBalance.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Current Balance:</span>
+                    <span className="text-sm font-medium">₹{currentCash.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Net Change:</span>
+                    <span className={`text-sm font-medium ${(currentCash - openingBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      ₹{(currentCash - openingBalance).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Weekly Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-green-500">₹{weekCashIn.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">Cash In</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-red-500">₹{weekCashOut.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">Cash Out</p>
+                  </div>
+                </div>
+                <Separator />
+                <div className="text-center">
+                  <p className={`text-xl font-bold ${(weekCashIn - weekCashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    ₹{(weekCashIn - weekCashOut).toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Net Weekly Change</p>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-500 h-2 rounded-full"
+                    style={{
+                      width: `${Math.min((weekCashIn / (weekCashIn + weekCashOut)) * 100, 100)}%`
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  In: {((weekCashIn / (weekCashIn + weekCashOut)) * 100 || 0).toFixed(1)}% | 
+                  Out: {((weekCashOut / (weekCashIn + weekCashOut)) * 100 || 0).toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Transaction History */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Transactions</CardTitle>
+              <CardTitle>Transaction History</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -764,7 +736,7 @@ const Dashboard = () => {
                   <p className="text-center text-muted-foreground py-8">No transactions recorded</p>
                 ) : (
                   transactions.slice(0, 20).map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div key={transaction.id} className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
                           <Badge variant={transaction.type === 'in' ? 'default' : 'secondary'}>
@@ -781,21 +753,21 @@ const Dashboard = () => {
                           <p className="text-sm text-muted-foreground mt-1">{transaction.notes}</p>
                         )}
                       </div>
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2">
                         <div className={`text-lg font-semibold ${transaction.type === 'in' ? 'text-green-500' : 'text-red-500'}`}>
                           {transaction.type === 'in' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
                         </div>
-                        <div className="flex items-center space-x-1">
+                        <div className="flex space-x-1">
                           <Button
-                            size="sm"
                             variant="ghost"
+                            size="sm"
                             onClick={() => handleEditTransaction(transaction)}
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="ghost" className="text-red-500">
+                              <Button variant="ghost" size="sm">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
@@ -822,87 +794,6 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Period Summaries */}
-          <div className="grid gap-6 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Today's Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-green-500">Cash In:</span>
-                    <span className="font-semibold">₹{todayTotals.cashIn.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-red-500">Cash Out:</span>
-                    <span className="font-semibold">₹{todayTotals.cashOut.toFixed(2)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between font-bold">
-                    <span>Net:</span>
-                    <span className={`${(todayTotals.cashIn - todayTotals.cashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      ₹{(todayTotals.cashIn - todayTotals.cashOut).toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{todayTransactions.length} transactions</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>This Week</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-green-500">Cash In:</span>
-                    <span className="font-semibold">₹{weekTotals.cashIn.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-red-500">Cash Out:</span>
-                    <span className="font-semibold">₹{weekTotals.cashOut.toFixed(2)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between font-bold">
-                    <span>Net:</span>
-                    <span className={`${(weekTotals.cashIn - weekTotals.cashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      ₹{(weekTotals.cashIn - weekTotals.cashOut).toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{weekTransactions.length} transactions</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>This Month</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-green-500">Cash In:</span>
-                    <span className="font-semibold">₹{monthTotals.cashIn.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-red-500">Cash Out:</span>
-                    <span className="font-semibold">₹{monthTotals.cashOut.toFixed(2)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between font-bold">
-                    <span>Net:</span>
-                    <span className={`${(monthTotals.cashIn - monthTotals.cashOut) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      ₹{(monthTotals.cashIn - monthTotals.cashOut).toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{monthTransactions.length} transactions</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
       </Tabs>
     </div>
