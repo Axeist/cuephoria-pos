@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
-import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear, subMonths, subDays } from 'date-fns';
+import { isWithinInterval, format, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
 import SalesChart from '@/components/dashboard/SalesChart';
@@ -26,8 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, TrendingUp, TrendingDown, DollarSign, PiggyBank, ArrowUpCircle, ArrowDownCircle, Filter, BarChart3, PieChart, Target, AlertTriangle } from 'lucide-react';
-import { Progress } from "@/components/ui/progress";
+import { Calendar, TrendingUp, TrendingDown, DollarSign, PiggyBank, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -43,14 +42,6 @@ interface CashTransaction {
   timestamp: string;
 }
 
-interface ExpenseFilters {
-  dateRange: { start: Date; end: Date } | null;
-  categories: string[];
-  amountRange: { min: number | null; max: number | null };
-  recurringOnly: boolean | null;
-  searchTerm: string;
-}
-
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
   const { expenses, businessSummary } = useExpenses();
@@ -61,6 +52,7 @@ const Dashboard = () => {
 
   const [activeTab, setActiveTab] = useState('daily');
   const [chartData, setChartData] = useState<any[]>([]);
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
   const [dashboardStats, setDashboardStats] = useState({
     totalSales: 0,
@@ -84,17 +76,6 @@ const Dashboard = () => {
   const [source, setSource] = useState('');
   const [purpose, setPurpose] = useState('');
   const [notes, setNotes] = useState('');
-
-  // Expense States
-  const [expenseActiveTab, setExpenseActiveTab] = useState('overview');
-  const [expenseFilters, setExpenseFilters] = useState<ExpenseFilters>({
-    dateRange: null,
-    categories: [],
-    amountRange: { min: null, max: null },
-    recurringOnly: null,
-    searchTerm: ''
-  });
-  const [showExpenseFilters, setShowExpenseFilters] = useState(false);
 
   // Memoized stats
   const lowStockItems = useMemo(
@@ -154,130 +135,23 @@ const Dashboard = () => {
   const monthCashIn = monthTransactions.filter(t => t.type === 'in').reduce((sum, t) => sum + t.amount, 0);
   const monthCashOut = monthTransactions.filter(t => t.type === 'out').reduce((sum, t) => sum + t.amount, 0);
 
-  // Enhanced Expense filtering and analytics
+  // Expenses date filter
   const filteredExpenses = useMemo(() => {
-    let filtered = [...expenses];
-    
-    // Date range filter
-    if (expenseFilters.dateRange) {
-      filtered = filtered.filter(expense => {
-        const expenseDate = new Date(expense.date);
-        return isWithinInterval(expenseDate, { 
-          start: expenseFilters.dateRange!.start, 
-          end: expenseFilters.dateRange!.end 
-        });
-      });
-    }
-    
-    // Category filter
-    if (expenseFilters.categories.length > 0) {
-      filtered = filtered.filter(expense => 
-        expenseFilters.categories.includes(expense.category)
-      );
-    }
-    
-    // Amount range filter
-    if (expenseFilters.amountRange.min !== null) {
-      filtered = filtered.filter(expense => expense.amount >= expenseFilters.amountRange.min!);
-    }
-    if (expenseFilters.amountRange.max !== null) {
-      filtered = filtered.filter(expense => expense.amount <= expenseFilters.amountRange.max!);
-    }
-    
-    // Recurring filter
-    if (expenseFilters.recurringOnly !== null) {
-      filtered = filtered.filter(expense => expense.isRecurring === expenseFilters.recurringOnly);
-    }
-    
-    // Search term filter
-    if (expenseFilters.searchTerm) {
-      filtered = filtered.filter(expense => 
-        expense.name.toLowerCase().includes(expenseFilters.searchTerm.toLowerCase()) ||
-        (expense.notes && expense.notes.toLowerCase().includes(expenseFilters.searchTerm.toLowerCase()))
-      );
-    }
-    
-    return filtered;
-  }, [expenses, expenseFilters]);
-
-  // Expense Analytics
-  const expenseAnalytics = useMemo(() => {
-    const totalAmount = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const categories = Array.from(new Set(expenses.map(exp => exp.category)));
-    
-    const categoryBreakdown = categories.map(category => {
-      const categoryExpenses = filteredExpenses.filter(exp => exp.category === category);
-      const amount = categoryExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-      return {
-        category: category.charAt(0).toUpperCase() + category.slice(1),
-        amount,
-        count: categoryExpenses.length,
-        percentage: totalAmount > 0 ? (amount / totalAmount * 100) : 0
-      };
-    }).sort((a, b) => b.amount - a.amount);
-
-    // Monthly trends
-    const monthlyTrends = [];
-    for (let i = 5; i >= 0; i--) {
-      const date = subMonths(new Date(), i);
-      const monthExpenses = expenses.filter(exp => {
-        const expDate = new Date(exp.date);
-        return expDate.getMonth() === date.getMonth() && expDate.getFullYear() === date.getFullYear();
-      });
-      monthlyTrends.push({
-        month: format(date, 'MMM yyyy'),
-        amount: monthExpenses.reduce((sum, exp) => sum + exp.amount, 0),
-        count: monthExpenses.length
-      });
-    }
-
-    // Budget vs Actual (assuming a monthly budget)
-    const monthlyBudget = businessSummary?.budget || 50000; // Default budget
-    const currentMonthExpenses = expenses.filter(exp => {
-      const expDate = new Date(exp.date);
-      const now = new Date();
-      return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
-    }).reduce((sum, exp) => sum + exp.amount, 0);
-
-    const budgetUsage = monthlyBudget > 0 ? (currentMonthExpenses / monthlyBudget * 100) : 0;
-
-    // Top spenders and high-value expenses
-    const highValueExpenses = filteredExpenses
-      .filter(exp => exp.amount > 1000)
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 10);
-
-    // Recurring vs One-time
-    const recurringExpenses = filteredExpenses.filter(exp => exp.isRecurring);
-    const oneTimeExpenses = filteredExpenses.filter(exp => !exp.isRecurring);
-    const recurringTotal = recurringExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const oneTimeTotal = oneTimeExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-
-    return {
-      totalAmount,
-      categoryBreakdown,
-      monthlyTrends,
-      budgetUsage,
-      monthlyBudget,
-      currentMonthExpenses,
-      highValueExpenses,
-      recurringTotal,
-      oneTimeTotal,
-      averageExpense: filteredExpenses.length > 0 ? totalAmount / filteredExpenses.length : 0
-    };
-  }, [filteredExpenses, expenses, businessSummary]);
+    if (!dateRange) return expenses;
+    return expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
+    });
+  }, [expenses, dateRange]);
 
   const handleDateRangeChange = (startDate: Date, endDate: Date) => {
-    setExpenseFilters(prev => ({
-      ...prev,
-      dateRange: { start: startDate, end: endDate }
-    }));
+    setDateRange({ start: startDate, end: endDate });
   };
 
   const handleExport = () => {
     try {
       if (filteredExpenses.length === 0) {
-        toast({ title: 'No Data to Export', description: 'There are no expenses in the selected filters to export.', variant: 'destructive' });
+        toast({ title: 'No Data to Export', description: 'There are no expenses in the selected date range to export.', variant: 'destructive' });
         return;
       }
       const exportData = filteredExpenses.map(expense => ({
@@ -293,9 +167,9 @@ const Dashboard = () => {
       const workbook = XLSX.utils.book_new();
       worksheet['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
-      const filename = expenseFilters.dateRange
-        ? `expenses_${format(expenseFilters.dateRange.start, 'yyyy-MM-dd')}_to_${format(expenseFilters.dateRange.end, 'yyyy-MM-dd')}.xlsx`
-        : `expenses_filtered_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+      const filename = dateRange
+        ? `expenses_${format(dateRange.start, 'yyyy-MM-dd')}_to_${format(dateRange.end, 'yyyy-MM-dd')}.xlsx`
+        : `expenses_all_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
       const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       saveAs(blob, filename);
@@ -344,16 +218,6 @@ const Dashboard = () => {
   const handleSetOpeningBalance = () => {
     setOpeningBalance(currentCash);
     toast({ title: "Opening Balance Set", description: `Opening balance set to ₹${currentCash}` });
-  };
-
-  const clearExpenseFilters = () => {
-    setExpenseFilters({
-      dateRange: null,
-      categories: [],
-      amountRange: { min: null, max: null },
-      recurringOnly: null,
-      searchTerm: ''
-    });
   };
 
   // Recompute charts/stats
@@ -527,6 +391,9 @@ const Dashboard = () => {
             <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
             <TabsTrigger value="vault" className="flex-1">Vault</TabsTrigger>
           </TabsList>
+          {currentDashboardTab === 'expenses' && (
+            <ExpenseDateFilter onDateRangeChange={handleDateRangeChange} onExport={handleExport} />
+          )}
         </div>
 
         <TabsContent value="overview" className="space-y-6">
@@ -561,392 +428,8 @@ const Dashboard = () => {
         </TabsContent>
 
         <TabsContent value="expenses" className="space-y-6">
-          {/* Enhanced Expense Dashboard */}
-          <Tabs defaultValue="overview" value={expenseActiveTab} onValueChange={setExpenseActiveTab} className="w-full">
-            <div className="flex items-center justify-between mb-6">
-              <TabsList className="w-auto">
-                <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-                <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-                <TabsTrigger value="transactions" className="flex-1">Transactions</TabsTrigger>
-              </TabsList>
-              <div className="flex space-x-2">
-                <Dialog open={showExpenseFilters} onOpenChange={setShowExpenseFilters}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline">
-                      <Filter className="h-4 w-4 mr-2" />
-                      Filters
-                      {(expenseFilters.categories.length > 0 || 
-                        expenseFilters.dateRange || 
-                        expenseFilters.amountRange.min || 
-                        expenseFilters.amountRange.max || 
-                        expenseFilters.recurringOnly !== null ||
-                        expenseFilters.searchTerm) && (
-                        <Badge className="ml-2 h-2 w-2 p-0" />
-                      )}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Expense Filters</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium">Search</label>
-                        <Input
-                          placeholder="Search expenses..."
-                          value={expenseFilters.searchTerm}
-                          onChange={(e) => setExpenseFilters(prev => ({
-                            ...prev,
-                            searchTerm: e.target.value
-                          }))}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium">Categories</label>
-                        <Select 
-                          value={expenseFilters.categories.join(',')}
-                          onValueChange={(value) => {
-                            const categories = value ? value.split(',') : [];
-                            setExpenseFilters(prev => ({
-                              ...prev,
-                              categories
-                            }));
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select categories" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from(new Set(expenses.map(exp => exp.category))).map(category => (
-                              <SelectItem key={category} value={category}>
-                                {category.charAt(0).toUpperCase() + category.slice(1)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-sm font-medium">Min Amount</label>
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={expenseFilters.amountRange.min || ''}
-                            onChange={(e) => setExpenseFilters(prev => ({
-                              ...prev,
-                              amountRange: {
-                                ...prev.amountRange,
-                                min: e.target.value ? parseFloat(e.target.value) : null
-                              }
-                            }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Max Amount</label>
-                          <Input
-                            type="number"
-                            placeholder="∞"
-                            value={expenseFilters.amountRange.max || ''}
-                            onChange={(e) => setExpenseFilters(prev => ({
-                              ...prev,
-                              amountRange: {
-                                ...prev.amountRange,
-                                max: e.target.value ? parseFloat(e.target.value) : null
-                              }
-                            }))}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium">Type</label>
-                        <Select 
-                          value={expenseFilters.recurringOnly === null ? 'all' : expenseFilters.recurringOnly ? 'recurring' : 'one-time'}
-                          onValueChange={(value) => {
-                            let recurringOnly = null;
-                            if (value === 'recurring') recurringOnly = true;
-                            if (value === 'one-time') recurringOnly = false;
-                            setExpenseFilters(prev => ({
-                              ...prev,
-                              recurringOnly
-                            }));
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Expenses</SelectItem>
-                            <SelectItem value="recurring">Recurring Only</SelectItem>
-                            <SelectItem value="one-time">One-time Only</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex space-x-2">
-                        <Button onClick={() => setShowExpenseFilters(false)} className="flex-1">
-                          Apply Filters
-                        </Button>
-                        <Button variant="outline" onClick={clearExpenseFilters}>
-                          Clear
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <Button onClick={handleExport}>
-                  Export
-                </Button>
-              </div>
-            </div>
-
-            <TabsContent value="overview" className="space-y-6">
-              {/* Expense Overview Stats */}
-              <div className="grid gap-6 md:grid-cols-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">₹{expenseAnalytics.totalAmount.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">{filteredExpenses.length} expenses</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Budget Usage</CardTitle>
-                    <Target className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{expenseAnalytics.budgetUsage.toFixed(1)}%</div>
-                    <div className="w-full bg-secondary rounded-full h-2 mt-2">
-                      <div 
-                        className={`h-2 rounded-full ${
-                          expenseAnalytics.budgetUsage > 90 ? 'bg-red-500' :
-                          expenseAnalytics.budgetUsage > 70 ? 'bg-yellow-500' : 'bg-green-500'
-                        }`}
-                        style={{ width: `${Math.min(expenseAnalytics.budgetUsage, 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ₹{expenseAnalytics.currentMonthExpenses.toFixed(0)} / ₹{expenseAnalytics.monthlyBudget.toFixed(0)}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Average Expense</CardTitle>
-                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">₹{expenseAnalytics.averageExpense.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">Per transaction</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">High-Value Expenses</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{expenseAnalytics.highValueExpenses.length}</div>
-                    <p className="text-xs text-muted-foreground">Above ₹1,000</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Category Breakdown */}
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <PieChart className="h-4 w-4" />
-                      <span>Expense Categories</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {expenseAnalytics.categoryBreakdown.slice(0, 5).map((category, index) => (
-                        <div key={index} className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm font-medium">{category.category}</span>
-                            <span className="text-sm">₹{category.amount.toFixed(2)} ({category.percentage.toFixed(1)}%)</span>
-                          </div>
-                          <Progress value={category.percentage} className="h-2" />
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recurring vs One-time</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-blue-500">Recurring Expenses</span>
-                          <span className="text-sm">₹{expenseAnalytics.recurringTotal.toFixed(2)}</span>
-                        </div>
-                        <Progress 
-                          value={expenseAnalytics.totalAmount > 0 ? (expenseAnalytics.recurringTotal / expenseAnalytics.totalAmount * 100) : 0} 
-                          className="h-2" 
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium text-green-500">One-time Expenses</span>
-                          <span className="text-sm">₹{expenseAnalytics.oneTimeTotal.toFixed(2)}</span>
-                        </div>
-                        <Progress 
-                          value={expenseAnalytics.totalAmount > 0 ? (expenseAnalytics.oneTimeTotal / expenseAnalytics.totalAmount * 100) : 0} 
-                          className="h-2" 
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Recent High-Value Expenses */}
-              {expenseAnalytics.highValueExpenses.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>High-Value Expenses (Above ₹1,000)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {expenseAnalytics.highValueExpenses.slice(0, 5).map((expense, index) => (
-                        <div key={index} className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                          <div>
-                            <div className="font-medium">{expense.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)} • 
-                              {format(new Date(expense.date), 'dd MMM yyyy')}
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-lg">
-                            ₹{expense.amount.toFixed(2)}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="analytics" className="space-y-6">
-              {/* Monthly Trends */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Monthly Expense Trends</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {expenseAnalytics.monthlyTrends.map((month, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium">{month.month}</span>
-                          <span className="text-sm">₹{month.amount.toFixed(2)} ({month.count} expenses)</span>
-                        </div>
-                        <Progress 
-                          value={Math.max(...expenseAnalytics.monthlyTrends.map(m => m.amount)) > 0 ? 
-                            (month.amount / Math.max(...expenseAnalytics.monthlyTrends.map(m => m.amount)) * 100) : 0
-                          } 
-                          className="h-2" 
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Detailed Category Analysis */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Complete Category Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {expenseAnalytics.categoryBreakdown.map((category, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <span className="font-medium">{category.category}</span>
-                            <span className="text-sm text-muted-foreground ml-2">
-                              ({category.count} expenses)
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold">₹{category.amount.toFixed(2)}</div>
-                            <div className="text-xs text-muted-foreground">{category.percentage.toFixed(1)}%</div>
-                          </div>
-                        </div>
-                        <Progress value={category.percentage} className="h-2" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="transactions" className="space-y-6">
-              <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={expenseFilters.dateRange} />
-              
-              {/* Filtered Expenses List */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-center">
-                    Filtered Expenses 
-                    <Badge variant="outline">{filteredExpenses.length} results</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {filteredExpenses.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">No expenses match the current filters</p>
-                    ) : (
-                      filteredExpenses.map((expense) => (
-                        <div key={expense.id} className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">{expense.name}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {expense.category.charAt(0).toUpperCase() + expense.category.slice(1)}
-                              </Badge>
-                              {expense.isRecurring && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Recurring
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {format(new Date(expense.date), 'dd MMM yyyy')}
-                            </p>
-                            {expense.notes && (
-                              <p className="text-sm text-muted-foreground mt-1">{expense.notes}</p>
-                            )}
-                          </div>
-                          <div className="text-lg font-semibold text-red-500">
-                            ₹{expense.amount.toFixed(2)}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={dateRange} />
+          {dateRange ? <FilteredExpenseList startDate={dateRange.start} endDate={dateRange.end} /> : <ExpenseList />}
         </TabsContent>
 
         <TabsContent value="vault" className="space-y-6">
