@@ -13,15 +13,15 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
 import { generateId } from '@/utils/pos.utils';
 
-// Updated schema to include 'vr'
+// Create a schema for station validation - Updated to include 'vr'
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
   type: z.enum(['ps5', '8ball', 'vr'], { 
     required_error: 'Please select a station type.' 
   }),
   hourlyRate: z.coerce.number()
-    .min(10, { message: 'Hourly rate must be at least ₹10.' })
-    .max(5000, { message: 'Hourly rate cannot exceed ₹5000.' })
+    .min(10, { message: 'Rate must be at least ₹10.' })
+    .max(5000, { message: 'Rate cannot exceed ₹5000.' })
 });
 
 type StationFormValues = z.infer<typeof stationSchema>;
@@ -45,6 +45,9 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
       hourlyRate: 100,
     },
   });
+
+  // Watch the type field to conditionally change the label and pricing
+  const selectedType = form.watch('type');
 
   const onSubmit = async (values: StationFormValues) => {
     setIsSubmitting(true);
@@ -160,7 +163,9 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
               name="hourlyRate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hourly Rate (₹)</FormLabel>
+                  <FormLabel>
+                    {selectedType === 'vr' ? '15 Min Rate (₹)' : 'Hourly Rate (₹)'}
+                  </FormLabel>
                   <FormControl>
                     <Input type="number" min="10" step="10" {...field} />
                   </FormControl>
