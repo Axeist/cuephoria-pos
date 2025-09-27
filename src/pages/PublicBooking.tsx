@@ -761,9 +761,9 @@ export default function PublicBooking() {
     return stations
       .filter((s) => selectedStations.includes(s.id))
       .reduce((sum, s) => {
-        const hourlyRate = s.hourly_rate;
-        // For VR stations, calculate 15-minute rate (quarter of hourly)
-        const sessionRate = s.type === 'vr' ? hourlyRate / 4 : hourlyRate;
+        // For VR stations, the rate is already for 15 minutes, don't divide
+        // For other stations, the rate is hourly
+        const sessionRate = s.type === 'vr' ? s.hourly_rate : s.hourly_rate;
         return sum + sessionRate;
       }, 0);
   };
@@ -861,7 +861,8 @@ export default function PublicBooking() {
         const vrStations = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "vr"
         );
-        const sum = vrStations.reduce((x, s) => x + (s.hourly_rate / 4), 0); // VR 15-min rate
+        // VR rate is already for 15 mins, don't divide by 4
+        const sum = vrStations.reduce((x, s) => x + s.hourly_rate, 0);
         const d = sum * 0.5;
         totalDiscount += d;
         breakdown[`VR (${appliedCoupons["vr"]})`] = d;
@@ -1963,7 +1964,7 @@ export default function PublicBooking() {
       </main>
 
       {/* Footer */}
-      <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
+           <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-4 md:mb-0">
@@ -1986,47 +1987,59 @@ export default function PublicBooking() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
               <button
-                onClick={() => (setLegalDialogType("terms"), setShowLegalDialog(true))}
+                onClick={() => {
+                  setLegalDialogType("terms");
+                  setShowLegalDialog(true);
+                }}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Terms & Conditions
               </button>
               <button
-                onClick={() => (setLegalDialogType("privacy"), setShowLegalDialog(true))}
+                onClick={() => {
+                  setLegalDialogType("privacy");
+                  setShowLegalDialog(true);
+                }}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Privacy Policy
               </button>
               <button
-                onClick={() => (setLegalDialogType("contact"), setShowLegalDialog(true))}
+                onClick={() => {
+                  setLegalDialogType("contact");
+                  setShowLegalDialog(true);
+                }}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Contact Us
               </button>
-              <button
-                onClick={() => setShowRefundDialog(true)}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
-              >
-                Refund Policy
-              </button>
             </div>
-            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
-              <div className="flex items-center gap-1">
-                <Phone className="h-4 w-4" />
-                <a href="tel:+918637625155" className="hover:text-white transition-colors">
-                  +91 86376 25155
-                </a>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center text-gray-400 text-sm">
+                <MapPin className="h-4 w-4 text-gray-400 mr-1.5" />
+                <span>Tiruchirappalli, Tamil Nadu</span>
               </div>
-              <div className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
-                  contact@cuephoria.in
-                </a>
+              <div className="flex items-center text-gray-400 text-sm">
+                <Phone className="h-4 w-4 text-gray-400 mr-1.5" />
+                <span>+91 73586 79988</span>
               </div>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* Dialogs */}
+      <BookingConfirmationDialog
+        open={showConfirmationDialog}
+        onOpenChange={setShowConfirmationDialog}
+        bookingData={bookingConfirmationData}
+      />
+
+      <LegalDialog
+        open={showLegalDialog}
+        onOpenChange={setShowLegalDialog}
+        type={legalDialogType}
+      />
     </div>
   );
 }
