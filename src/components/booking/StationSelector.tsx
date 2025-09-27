@@ -1,12 +1,12 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Monitor, GamepadIcon } from 'lucide-react';
+import { Monitor, GamepadIcon, Headset } from 'lucide-react';
 
 interface Station {
   id: string;
   name: string;
-  type: 'ps5' | '8ball';
+  type: 'ps5' | '8ball' | 'vr';
   hourly_rate: number;
 }
 
@@ -24,11 +24,42 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
   loading = false
 }) => {
   const getStationIcon = (type: string) => {
-    return type === 'ps5' ? Monitor : GamepadIcon;
+    switch (type) {
+      case 'ps5':
+        return Monitor;
+      case 'vr':
+        return Headset;
+      default:
+        return GamepadIcon;
+    }
   };
 
   const getStationTypeLabel = (type: string) => {
-    return type === 'ps5' ? 'PlayStation 5' : '8-Ball Pool';
+    switch (type) {
+      case 'ps5':
+        return 'PlayStation 5';
+      case 'vr':
+        return 'VR Gaming';
+      default:
+        return '8-Ball Pool';
+    }
+  };
+
+  const getStationTypeBadgeColor = (type: string) => {
+    switch (type) {
+      case 'ps5':
+        return 'bg-cuephoria-purple/15 text-cuephoria-purple border-cuephoria-purple/20';
+      case 'vr':
+        return 'bg-blue-400/15 text-blue-300 border-blue-400/20';
+      default:
+        return 'bg-emerald-400/15 text-emerald-300 border-emerald-400/20';
+    }
+  };
+
+  const getPriceDisplay = (station: Station) => {
+    return station.type === 'vr' 
+      ? `₹${station.hourly_rate}/15mins`
+      : `₹${station.hourly_rate}/hour`;
   };
 
   if (loading) {
@@ -50,21 +81,21 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
         return (
           <Card
             key={station.id}
-            className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+            className={`cursor-pointer transition-all duration-200 hover:shadow-md border-white/10 bg-white/5 backdrop-blur-sm ${
               isSelected 
-                ? 'ring-2 ring-primary bg-primary/5' 
-                : 'hover:bg-muted/50'
+                ? 'ring-2 ring-cuephoria-purple bg-cuephoria-purple/10' 
+                : 'hover:bg-white/10'
             }`}
             onClick={() => onStationToggle(station.id)}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-base flex items-center gap-2 text-white">
                   <Icon className="h-5 w-5" />
                   {station.name}
                 </CardTitle>
                 {isSelected && (
-                  <Badge variant="default" className="text-xs">
+                  <Badge variant="default" className="text-xs bg-cuephoria-purple text-white">
                     Selected
                   </Badge>
                 )}
@@ -72,11 +103,14 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-2">
-                <Badge variant="secondary" className="text-xs">
+                <Badge 
+                  variant="secondary" 
+                  className={`text-xs border ${getStationTypeBadgeColor(station.type)}`}
+                >
                   {getStationTypeLabel(station.type)}
                 </Badge>
-                <div className="text-sm font-medium text-primary">
-                  ₹{station.hourly_rate}/hour
+                <div className="text-sm font-medium text-cuephoria-lightpurple">
+                  {getPriceDisplay(station)}
                 </div>
               </div>
             </CardContent>
