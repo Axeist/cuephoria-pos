@@ -1874,7 +1874,6 @@ export default function PublicBooking() {
             >
               View full Terms & Conditions
             </button>
-          </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <h3 className="text-white font-semibold mb-2">Privacy Policy (Summary)</h3>
             <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
@@ -2019,7 +2018,10 @@ export default function PublicBooking() {
               </div>
               <div className="flex items-center gap-1">
                 <Mail className="h-4 w-4" />
-                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
+                <a
+                  href="mailto:contact@cuephoria.in"
+                  className="hover:text-white transition-colors"
+                >
                   contact@cuephoria.in
                 </a>
               </div>
@@ -2027,6 +2029,86 @@ export default function PublicBooking() {
           </div>
         </div>
       </footer>
+
+      {/* Booking confirmation (venue only) */}
+      {bookingConfirmationData && (
+        <BookingConfirmationDialog
+          isOpen={showConfirmationDialog}
+          onClose={() => setShowConfirmationDialog(false)}
+          bookingData={bookingConfirmationData}
+        />
+      )}
+
+      {/* Legal dialog */}
+      <LegalDialog
+        isOpen={showLegalDialog}
+        onClose={() => setShowLegalDialog(false)}
+        type={legalDialogType}
+      />
+
+      {/* Refund policy modal */}
+      {showRefundDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">
+                Refund & Cancellation Policy
+              </h3>
+              <button
+                aria-label="Close refund policy"
+                onClick={() => setShowRefundDialog(false)}
+                className="rounded-md p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="prose prose-invert max-w-none text-sm text-gray-300">
+              <p className="text-gray-400">
+                This policy outlines how a booking for a gaming service made through the
+                Platform can be canceled or refunded.
+              </p>
+
+              <h4 className="mt-4 text-white">Cancellations</h4>
+              <ul className="ml-5 list-disc">
+                <li>Requests must be made within <strong>1 day</strong> of placing the booking.</li>
+                <li>Cancellation may not be possible if the session is already confirmed or about to commence.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Non-Cancellable Services</h4>
+              <ul className="ml-5 list-disc">
+                <li>No cancellations for time-sensitive or non-refundable bookings.</li>
+                <li>Refunds/rescheduling may be considered if the session wasn't provided as described.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Service Quality Issues</h4>
+              <ul className="ml-5 list-disc">
+                <li>Report issues within <strong>1 day</strong> of the scheduled session.</li>
+              </ul>
+
+              <h4 className="mt-4 text-white">Refund Processing</h4>
+              <ul className="ml-5 list-disc">
+                <li>If approved, refunds are processed within <strong>3 days</strong> to the original payment method.</li>
+              </ul>
+
+              <p className="mt-4 text-xs text-gray-400">
+                Need help? Call{" "}
+                <a className="underline hover:text-white" href="tel:+918637625155">
+                  +91 86376 25155
+                </a>{" "}
+                or email{" "}
+                <a
+                  className="ml-1 underline hover:text-white"
+                  href="mailto:contact@cuephoria.in"
+                >
+                  contact@cuephoria.in
+                </a>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
