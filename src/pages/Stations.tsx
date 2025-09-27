@@ -78,7 +78,7 @@ const AddStationDialog = ({ open, onOpenChange }) => {
       case '8ball':
         return '150';
       case 'vr':
-        return '300'; // VR typically has higher hourly rates
+        return '300'; // VR typically has higher rates
       default:
         return '';
     }
@@ -89,16 +89,8 @@ const AddStationDialog = ({ open, onOpenChange }) => {
     setHourlyRate(getDefaultRateByType(value));
   };
 
-  const handleClose = () => {
-    // Reset form when closing
-    setStationName('');
-    setStationType('');
-    setHourlyRate('');
-    onOpenChange(false);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-gray-900 border-gray-800">
         <DialogHeader>
           <DialogTitle className="text-white">Add New Station</DialogTitle>
@@ -116,13 +108,12 @@ const AddStationDialog = ({ open, onOpenChange }) => {
               onChange={(e) => setStationName(e.target.value)}
               placeholder="Enter station name"
               className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-              disabled={isLoading}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="stationType" className="text-white">Station Type</Label>
-            <Select value={stationType} onValueChange={handleTypeChange} disabled={isLoading}>
+            <Select value={stationType} onValueChange={handleTypeChange}>
               <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
                 <SelectValue placeholder="Select station type" />
               </SelectTrigger>
@@ -154,7 +145,7 @@ const AddStationDialog = ({ open, onOpenChange }) => {
               Hourly Rate (₹)
               {stationType === 'vr' && (
                 <span className="text-sm text-gray-400 ml-2">
-                  (Billed per 15-minute session)
+                  (For 15-minute sessions)
                 </span>
               )}
             </Label>
@@ -167,18 +158,10 @@ const AddStationDialog = ({ open, onOpenChange }) => {
               min="0"
               step="1"
               className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-              disabled={isLoading}
             />
             {stationType === 'vr' && hourlyRate && (
               <p className="text-xs text-gray-500">
-                Per 15-min session: ₹{Math.round(Number(hourlyRate) / 4)}
-              </p>
-            )}
-            {stationType && hourlyRate && (
-              <p className="text-xs text-blue-400">
-                {stationType === 'ps5' && 'Recommended: ₹150-300/hour for PS5 consoles'}
-                {stationType === '8ball' && 'Recommended: ₹100-200/hour for pool tables'}
-                {stationType === 'vr' && 'Recommended: ₹200-400/hour for VR headsets'}
+                Per 15-min session: ₹{(Number(hourlyRate) / 4).toFixed(0)}
               </p>
             )}
           </div>
@@ -187,7 +170,7 @@ const AddStationDialog = ({ open, onOpenChange }) => {
             <Button
               type="button"
               variant="outline"
-              onClick={handleClose}
+              onClick={() => onOpenChange(false)}
               className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-800"
               disabled={isLoading}
             >
