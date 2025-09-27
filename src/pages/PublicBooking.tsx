@@ -961,6 +961,8 @@ export default function PublicBooking() {
       });
       setShowConfirmationDialog(true);
 
+      toast.success("🎉 Booking confirmed! Get ready to game! 🎮");
+
       // Reset form
       setSelectedStations([]);
       setSelectedSlot(null);
@@ -1874,6 +1876,7 @@ export default function PublicBooking() {
             >
               View full Terms & Conditions
             </button>
+          </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <h3 className="text-white font-semibold mb-2">Privacy Policy (Summary)</h3>
             <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
@@ -1961,7 +1964,7 @@ export default function PublicBooking() {
         </div>
       </main>
 
-      {/* Footer */}
+            {/* Footer */}
       <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
@@ -1982,46 +1985,54 @@ export default function PublicBooking() {
               </div>
             </div>
           </div>
+
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
               <button
-                onClick={() => (setLegalDialogType("terms"), setShowLegalDialog(true))}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+                onClick={() => {
+                  setLegalDialogType("terms");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
               >
                 Terms & Conditions
               </button>
               <button
-                onClick={() => (setLegalDialogType("privacy"), setShowLegalDialog(true))}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+                onClick={() => {
+                  setLegalDialogType("privacy");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
               >
                 Privacy Policy
               </button>
               <button
-                onClick={() => (setLegalDialogType("contact"), setShowLegalDialog(true))}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+                onClick={() => {
+                  setLegalDialogType("contact");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
               >
                 Contact Us
               </button>
               <button
                 onClick={() => setShowRefundDialog(true)}
-                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
               >
                 Refund Policy
               </button>
             </div>
+
             <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
               <div className="flex items-center gap-1">
                 <Phone className="h-4 w-4" />
-                <a href="tel:+918637625155" className="hover:text-white transition-colors">
+                <a href="tel:918637625155" className="hover:text-white transition-colors">
                   +91 86376 25155
                 </a>
               </div>
               <div className="flex items-center gap-1">
                 <Mail className="h-4 w-4" />
-                <a
-                  href="mailto:contact@cuephoria.in"
-                  className="hover:text-white transition-colors"
-                >
+                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
                   contact@cuephoria.in
                 </a>
               </div>
@@ -2032,7 +2043,7 @@ export default function PublicBooking() {
 
       {/* Booking confirmation (venue only) */}
       {bookingConfirmationData && (
-        <BookingConfirmationDialog
+        <BookingConfirmationDialog 
           isOpen={showConfirmationDialog}
           onClose={() => setShowConfirmationDialog(false)}
           bookingData={bookingConfirmationData}
@@ -2040,7 +2051,7 @@ export default function PublicBooking() {
       )}
 
       {/* Legal dialog */}
-      <LegalDialog
+      <LegalDialog 
         isOpen={showLegalDialog}
         onClose={() => setShowLegalDialog(false)}
         type={legalDialogType}
@@ -2048,12 +2059,10 @@ export default function PublicBooking() {
 
       {/* Refund policy modal */}
       {showRefundDialog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4">
           <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
-                Refund & Cancellation Policy
-              </h3>
+              <h3 className="text-lg font-semibold text-white">Refund & Cancellation Policy</h3>
               <button
                 aria-label="Close refund policy"
                 onClick={() => setShowRefundDialog(false)}
@@ -2062,13 +2071,11 @@ export default function PublicBooking() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-
             <div className="prose prose-invert max-w-none text-sm text-gray-300">
               <p className="text-gray-400">
-                This policy outlines how a booking for a gaming service made through the
-                Platform can be canceled or refunded.
+                This policy outlines how a booking for a gaming service made through the Platform can be canceled or refunded.
               </p>
-
+              
               <h4 className="mt-4 text-white">Cancellations</h4>
               <ul className="ml-5 list-disc">
                 <li>Requests must be made within <strong>1 day</strong> of placing the booking.</li>
@@ -2092,15 +2099,12 @@ export default function PublicBooking() {
               </ul>
 
               <p className="mt-4 text-xs text-gray-400">
-                Need help? Call{" "}
-                <a className="underline hover:text-white" href="tel:+918637625155">
+                Need help? Call{' '}
+                <a className="underline hover:text-white" href="tel:918637625155">
                   +91 86376 25155
-                </a>{" "}
-                or email{" "}
-                <a
-                  className="ml-1 underline hover:text-white"
-                  href="mailto:contact@cuephoria.in"
-                >
+                </a>{' '}
+                or email{' '}
+                <a className="ml-1 underline hover:text-white" href="mailto:contact@cuephoria.in">
                   contact@cuephoria.in
                 </a>
                 .
