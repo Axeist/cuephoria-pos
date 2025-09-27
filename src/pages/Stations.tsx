@@ -1,193 +1,182 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import { usePOS } from '@/context/POSContext';
+import StationCard from '@/components/StationCard';
+import { Card, CardContent } from '@/components/ui/card';
+import { Gamepad2, Plus, Table2, Headset } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import AddStationDialog from '@/components/AddStationDialog';
+import PinVerificationDialog from '@/components/PinVerificationDialog';
 
-const AddStationDialog = ({ open, onOpenChange }) => {
-  const { fetchStations } = usePOS();
-  const [stationName, setStationName] = useState('');
-  const [stationType, setStationType] = useState('');
-  const [hourlyRate, setHourlyRate] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+const Stations = () => {
+  const { stations } = usePOS();
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openPinDialog, setOpenPinDialog] = useState(false);
+  
+  // Separate stations by type
+  const ps5Stations = stations.filter(station => station.type === 'ps5');
+  const ballStations = stations.filter(station => station.type === '8ball');
+  const vrStations = stations.filter(station => station.type === 'vr');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!stationName.trim()) {
-      toast.error('Station name is required');
-      return;
-    }
-    
-    if (!stationType) {
-      toast.error('Station type is required');
-      return;
-    }
-    
-    if (!hourlyRate || isNaN(hourlyRate) || Number(hourlyRate) <= 0) {
-      toast.error('Valid hourly rate is required');
-      return;
-    }
+  // Count active stations
+  const activePs5 = ps5Stations.filter(s => s.isOccupied).length;
+  const activeBall = ballStations.filter(s => s.isOccupied).length;
+  const activeVr = vrStations.filter(s => s.isOccupied).length;
 
-    setIsLoading(true);
-
-    try {
-      const { error } = await supabase
-        .from('stations')
-        .insert([
-          {
-            name: stationName.trim(),
-            type: stationType,
-            hourly_rate: Number(hourlyRate),
-            is_occupied: false,
-            current_session_id: null
-          }
-        ]);
-
-      if (error) throw error;
-
-      toast.success(`${stationName} added successfully!`);
-      
-      // Reset form
-      setStationName('');
-      setStationType('');
-      setHourlyRate('');
-      
-      // Refresh stations list
-      await fetchStations();
-      
-      // Close dialog
-      onOpenChange(false);
-      
-    } catch (error) {
-      console.error('Error adding station:', error);
-      toast.error('Failed to add station. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleAddStationClick = () => {
+    setOpenPinDialog(true);
   };
 
-  const getDefaultRateByType = (type) => {
-    switch (type) {
-      case 'ps5':
-        return '200';
-      case '8ball':
-        return '150';
-      case 'vr':
-        return '300'; // VR typically has higher rates
-      default:
-        return '';
-    }
-  };
-
-  const handleTypeChange = (value) => {
-    setStationType(value);
-    setHourlyRate(getDefaultRateByType(value));
+  const handlePinSuccess = () => {
+    setOpenAddDialog(true);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] bg-gray-900 border-gray-800">
-        <DialogHeader>
-          <DialogTitle className="text-white">Add New Station</DialogTitle>
-          <DialogDescription className="text-gray-400">
-            Create a new gaming station for your venue.
-          </DialogDescription>
-        </DialogHeader>
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center justify-between animate-slide-down">
+        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Gaming Stations</h2>
+        <div className="flex space-x-2">
+          <Button 
+            className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+            onClick={handleAddStationClick}
+          >
+            <Plus className="mr-2 h-4 w-4" /> Add Station
+          </Button>
+        </div>
+      </div>
+
+      {/* PIN Verification Dialog */}
+      <PinVerificationDialog 
+        open={openPinDialog} 
+        onOpenChange={setOpenPinDialog}
+        onSuccess={handlePinSuccess}
+        title="Admin Access Required"
+        description="Enter the admin PIN to add a new game station"
+      />
+
+      {/* Add Station Dialog */}
+      <AddStationDialog 
+        open={openAddDialog} 
+        onOpenChange={setOpenAddDialog} 
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-slide-up">
+        <Card className="bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-cuephoria-purple/30 border animate-fade-in">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">PlayStation 5</p>
+              <p className="text-2xl font-bold">{activePs5} / {ps5Stations.length} Active</p>
+            </div>
+            <div className="rounded-full bg-cuephoria-purple/20 p-3">
+              <Gamepad2 className="h-6 w-6 text-cuephoria-lightpurple" />
+            </div>
+          </CardContent>
+        </Card>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="stationName" className="text-white">Station Name</Label>
-            <Input
-              id="stationName"
-              value={stationName}
-              onChange={(e) => setStationName(e.target.value)}
-              placeholder="Enter station name"
-              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-            />
-          </div>
+        <Card className="bg-gradient-to-r from-green-900/20 to-green-700/10 border-green-500/30 border animate-fade-in delay-100">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">8-Ball Tables</p>
+              <p className="text-2xl font-bold">{activeBall} / {ballStations.length} Active</p>
+            </div>
+            <div className="rounded-full bg-green-900/30 p-3">
+              <Table2 className="h-6 w-6 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
 
-          <div className="space-y-2">
-            <Label htmlFor="stationType" className="text-white">Station Type</Label>
-            <Select value={stationType} onValueChange={handleTypeChange}>
-              <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                <SelectValue placeholder="Select station type" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700">
-                <SelectItem value="ps5" className="text-white hover:bg-gray-700">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    PlayStation 5
-                  </div>
-                </SelectItem>
-                <SelectItem value="8ball" className="text-white hover:bg-gray-700">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    8-Ball Table
-                  </div>
-                </SelectItem>
-                <SelectItem value="vr" className="text-white hover:bg-gray-700">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    VR Gaming
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <Card className="bg-gradient-to-r from-blue-900/20 to-blue-700/10 border-blue-500/30 border animate-fade-in delay-200">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">VR Gaming</p>
+              <p className="text-2xl font-bold">{activeVr} / {vrStations.length} Active</p>
+            </div>
+            <div className="rounded-full bg-blue-900/30 p-3">
+              <Headset className="h-6 w-6 text-blue-400" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="hourlyRate" className="text-white">
-              Hourly Rate (₹)
-              {stationType === 'vr' && (
-                <span className="text-sm text-gray-400 ml-2">
-                  (For 15-minute sessions)
-                </span>
-              )}
-            </Label>
-            <Input
-              id="hourlyRate"
-              type="number"
-              value={hourlyRate}
-              onChange={(e) => setHourlyRate(e.target.value)}
-              placeholder="Enter hourly rate"
-              min="0"
-              step="1"
-              className="bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-            />
-            {stationType === 'vr' && hourlyRate && (
-              <p className="text-xs text-gray-500">
-                Per 15-min session: ₹{(Number(hourlyRate) / 4).toFixed(0)}
-              </p>
-            )}
+      <div className="space-y-6">
+        <div className="animate-slide-up delay-200">
+          <div className="flex items-center mb-4">
+            <Gamepad2 className="h-5 w-5 text-cuephoria-lightpurple mr-2" />
+            <h3 className="text-xl font-semibold font-heading">PlayStation 5 Consoles</h3>
+            <span className="ml-2 bg-cuephoria-purple/20 text-cuephoria-lightpurple text-xs px-2 py-1 rounded-full">
+              {activePs5} active
+            </span>
           </div>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {ps5Stations
+              .sort((a, b) => {
+                // Extract numbers from station names (e.g., "Console 1" -> 1)
+                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                return numA - numB;
+              })
+              .map((station, index) => (
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
+                  <StationCard station={station} />
+                </div>
+              ))
+            }
+          </div>
+        </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="bg-transparent border-gray-600 text-gray-300 hover:bg-gray-800"
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Adding...' : 'Add Station'}
-            </Button>
+        <div className="animate-slide-up delay-300">
+          <div className="flex items-center mb-4">
+            <Table2 className="h-5 w-5 text-green-500 mr-2" />
+            <h3 className="text-xl font-semibold font-heading">8-Ball Tables</h3>
+            <span className="ml-2 bg-green-800/30 text-green-400 text-xs px-2 py-1 rounded-full">
+              {activeBall} active
+            </span>
           </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            {ballStations
+              .sort((a, b) => {
+                // Extract numbers from station names (e.g., "Table 1" -> 1)
+                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                return numA - numB;
+              })
+              .map((station, index) => (
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
+                  <StationCard station={station} />
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <div className="animate-slide-up delay-400">
+          <div className="flex items-center mb-4">
+            <Headset className="h-5 w-5 text-blue-400 mr-2" />
+            <h3 className="text-xl font-semibold font-heading">VR Gaming Stations</h3>
+            <span className="ml-2 bg-blue-800/30 text-blue-400 text-xs px-2 py-1 rounded-full">
+              {activeVr} active
+            </span>
+          </div>
+          
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {vrStations
+              .sort((a, b) => {
+                // Extract numbers from station names (e.g., "VR Station 1" -> 1)
+                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                return numA - numB;
+              })
+              .map((station, index) => (
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
+                  <StationCard station={station} />
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
-export default AddStationDialog;
+export default Stations;
