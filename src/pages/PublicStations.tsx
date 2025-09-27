@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Monitor, Clock, Timer, Wifi, Gamepad2, RefreshCcw } from 'lucide-react';
+import { Monitor, Clock, Timer, Wifi, Gamepad2, RefreshCcw, Headset } from 'lucide-react';
 import { Station, Session } from '@/types/pos.types';
 import Logo from '@/components/Logo';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -46,11 +46,11 @@ const PublicStations = () => {
         
         console.log('Fetched data:', { stations: stationsData?.length, sessions: sessionsData?.length });
         
-        // Transform data to match our types
+        // Transform data to match our types - Updated to include VR
         const transformedStations: Station[] = stationsData?.map(item => ({
           id: item.id,
           name: item.name,
-          type: item.type as 'ps5' | '8ball',
+          type: item.type as 'ps5' | '8ball' | 'vr', // Added VR type
           hourlyRate: item.hourly_rate,
           isOccupied: item.is_occupied,
           currentSession: null
@@ -127,9 +127,10 @@ const PublicStations = () => {
     return `${hours}h ${mins}m`;
   };
 
-  // Separate stations by type
+  // Separate stations by type - Added VR stations
   const ps5Stations = stations.filter(station => station.type === 'ps5');
   const ballStations = stations.filter(station => station.type === '8ball');
+  const vrStations = stations.filter(station => station.type === 'vr');
 
   if (loading) {
     return <ImprovedLoadingView error={loadingError} />;
@@ -178,8 +179,8 @@ const PublicStations = () => {
             </div>
           </div>
           
-          {/* Stats summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-4 max-w-4xl mx-auto mb-10">
+          {/* Stats summary - Updated to include VR */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 max-w-6xl mx-auto mb-10">
             <div className="bg-gradient-to-br from-cuephoria-purple/30 to-cuephoria-purple/5 backdrop-blur-md p-4 rounded-xl border border-cuephoria-purple/20 animate-scale-in" style={{animationDelay: '100ms'}}>
               <div className="text-sm text-gray-400">PS5 Consoles</div>
               <div className="text-2xl font-bold text-white mt-1">{ps5Stations.length}</div>
@@ -191,6 +192,11 @@ const PublicStations = () => {
               <div className="text-xs text-green-400 mt-1">{ballStations.filter(s => !s.isOccupied).length} available</div>
             </div>
             <div className="bg-gradient-to-br from-blue-900/30 to-blue-900/5 backdrop-blur-md p-4 rounded-xl border border-blue-800/20 animate-scale-in" style={{animationDelay: '300ms'}}>
+              <div className="text-sm text-gray-400">VR Gaming</div>
+              <div className="text-2xl font-bold text-white mt-1">{vrStations.length}</div>
+              <div className="text-xs text-green-400 mt-1">{vrStations.filter(s => !s.isOccupied).length} available</div>
+            </div>
+            <div className="bg-gradient-to-br from-orange-900/30 to-orange-900/5 backdrop-blur-md p-4 rounded-xl border border-orange-800/20 animate-scale-in" style={{animationDelay: '400ms'}}>
               <div className="text-sm text-gray-400">In Use</div>
               <div className="text-2xl font-bold text-white mt-1">
                 {stations.filter(s => s.isOccupied).length}
@@ -199,7 +205,7 @@ const PublicStations = () => {
                 {Math.round(stations.filter(s => s.isOccupied).length / stations.length * 100)}% occupancy
               </div>
             </div>
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-800/10 backdrop-blur-md p-4 rounded-xl border border-gray-700/30 animate-scale-in" style={{animationDelay: '400ms'}}>
+            <div className="bg-gradient-to-br from-gray-800/50 to-gray-800/10 backdrop-blur-md p-4 rounded-xl border border-gray-700/30 animate-scale-in" style={{animationDelay: '500ms'}}>
               <div className="text-sm text-gray-400">Network Status</div>
               <div className="text-md font-bold text-white mt-1 flex items-center">
                 <Wifi className="h-4 w-4 text-green-400 mr-1.5 animate-pulse-soft" /> Online
@@ -243,7 +249,7 @@ const PublicStations = () => {
         </section>
         
         {/* Pool Tables Section */}
-        <section className="animate-slide-up" style={{ animationDelay: '300ms' }}>
+        <section className="mb-12 animate-slide-up" style={{ animationDelay: '300ms' }}>
           <div className="flex items-center mb-6">
             <div className="w-10 h-10 rounded-xl bg-green-900/30 flex items-center justify-center mr-3 animate-pulse-soft">
               <Timer className="h-5 w-5 text-green-500" />
@@ -260,6 +266,32 @@ const PublicStations = () => {
                   key={station.id} 
                   className="animate-scale-in"
                   style={{ animationDelay: `${(index + ps5Stations.length) * 100}ms` }}
+                >
+                  <PublicStationCard station={station} />
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* VR Gaming Section - NEW SECTION */}
+        <section className="animate-slide-up" style={{ animationDelay: '600ms' }}>
+          <div className="flex items-center mb-6">
+            <div className="w-10 h-10 rounded-xl bg-blue-900/30 flex items-center justify-center mr-3 animate-pulse-soft">
+              <Headset className="h-5 w-5 text-blue-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-white">VR Gaming Stations</h2>
+          </div>
+          
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {vrStations.length === 0 ? (
+              <p className="text-gray-400 col-span-full text-center py-10">No VR gaming stations available at this location</p>
+            ) : (
+              vrStations.map((station, index) => (
+                <div 
+                  key={station.id} 
+                  className="animate-scale-in"
+                  style={{ animationDelay: `${(index + ps5Stations.length + ballStations.length) * 100}ms` }}
                 >
                   <PublicStationCard station={station} />
                 </div>
@@ -394,9 +426,10 @@ const NoStationsView = ({ error }: { error: string | null }) => {
   );
 };
 
-// Station Card Component with enhanced animations
+// Station Card Component with enhanced animations - Updated for VR support
 const PublicStationCard = ({ station }: { station: Station }) => {
   const isPoolTable = station.type === '8ball';
+  const isVRStation = station.type === 'vr';
   const sessionStartTime = station.currentSession?.startTime;
   
   const calculateDuration = () => {
@@ -430,15 +463,43 @@ const PublicStationCard = ({ station }: { station: Station }) => {
     
     return () => clearInterval(timer);
   }, [station.isOccupied, sessionStartTime]);
+
+  // Get colors and styles based on station type
+  const getStationStyles = () => {
+    if (isVRStation) {
+      return {
+        gradient: 'bg-gradient-to-br from-blue-900/40 to-black border-blue-800/50',
+        iconBg: 'bg-blue-900/50',
+        textColor: 'text-blue-400',
+        hoverShadow: 'hover:shadow-blue-900/30',
+        progressBar: 'bg-blue-400'
+      };
+    } else if (isPoolTable) {
+      return {
+        gradient: 'bg-gradient-to-br from-green-900/40 to-black border-green-800/50',
+        iconBg: 'bg-green-900/50',
+        textColor: 'text-green-400',
+        hoverShadow: 'hover:shadow-green-900/30',
+        progressBar: 'bg-green-500'
+      };
+    } else {
+      return {
+        gradient: 'bg-gradient-to-br from-cuephoria-purple/30 to-black border-cuephoria-purple/40',
+        iconBg: 'bg-cuephoria-purple/40',
+        textColor: 'text-cuephoria-lightpurple',
+        hoverShadow: 'hover:shadow-cuephoria-purple/20',
+        progressBar: 'bg-cuephoria-lightpurple'
+      };
+    }
+  };
+
+  const styles = getStationStyles();
   
   return (
     <div className={`
       relative overflow-hidden rounded-xl border group transition-all duration-500
-      ${isPoolTable 
-        ? 'bg-gradient-to-br from-green-900/40 to-black border-green-800/50'
-        : 'bg-gradient-to-br from-cuephoria-purple/30 to-black border-cuephoria-purple/40'
-      }
-      hover:shadow-lg ${isPoolTable ? 'hover:shadow-green-900/30' : 'hover:shadow-cuephoria-purple/20'}
+      ${styles.gradient}
+      hover:shadow-lg ${styles.hoverShadow}
       hover:-translate-y-1 hover:scale-[1.02]
     `}>
       {/* Animated glow effect for available stations */}
@@ -464,13 +525,15 @@ const PublicStationCard = ({ station }: { station: Station }) => {
         <div className="flex items-center mb-4 mt-2">
           <div className={`
             w-10 h-10 rounded-lg flex items-center justify-center mr-3
-            ${isPoolTable ? 'bg-green-900/50' : 'bg-cuephoria-purple/40'}
+            ${styles.iconBg}
             group-hover:scale-110 transition-transform duration-300
           `}>
-            {isPoolTable ? (
-              <Timer className="h-6 w-6 text-green-400" />
+            {isVRStation ? (
+              <Headset className={`h-6 w-6 ${styles.textColor}`} />
+            ) : isPoolTable ? (
+              <Timer className={`h-6 w-6 ${styles.textColor}`} />
             ) : (
-              <Monitor className="h-6 w-6 text-cuephoria-lightpurple" />
+              <Monitor className={`h-6 w-6 ${styles.textColor}`} />
             )}
           </div>
           <h3 className="text-xl font-semibold text-white">{station.name}</h3>
@@ -480,23 +543,23 @@ const PublicStationCard = ({ station }: { station: Station }) => {
         {station.isOccupied && duration && (
           <div className="mt-4">
             <div className="flex items-center mb-2">
-              <Clock className={`h-4 w-4 ${isPoolTable ? 'text-green-400' : 'text-cuephoria-lightpurple'} mr-2`} />
+              <Clock className={`h-4 w-4 ${styles.textColor} mr-2`} />
               <span className="text-gray-300 text-sm">Time in use</span>
             </div>
             <div className={`
               font-mono text-xl bg-black/50 px-3 py-2 rounded-md text-center
-              ${isPoolTable ? 'text-green-400' : 'text-cuephoria-lightpurple'}
+              ${styles.textColor}
               border border-gray-800/50 backdrop-blur-sm
             `}>
               {duration.formatted}
             </div>
             
-            {/* Visual progress bar */}
+            {/* Visual progress bar - Different max time for VR (15 min vs 60 min for others) */}
             <div className="mt-3 h-1 bg-gray-800/70 rounded-full overflow-hidden">
               <div 
-                className={`h-full ${isPoolTable ? 'bg-green-500' : 'bg-cuephoria-lightpurple'} rounded-full`}
+                className={`h-full ${styles.progressBar} rounded-full`}
                 style={{ 
-                  width: `${Math.min(((duration.hours * 60 + duration.minutes) / 240) * 100, 100)}%`,
+                  width: `${Math.min((duration.minutes / (isVRStation ? 15 : 60)) * 100, 100)}%`,
                   transition: 'width 1s linear'
                 }}
               ></div>
@@ -509,9 +572,9 @@ const PublicStationCard = ({ station }: { station: Station }) => {
           <div className="mt-4 py-3 px-2 text-center bg-gradient-to-r from-transparent via-white/5 to-transparent rounded-lg">
             <p className={`
               text-sm font-medium animate-pulse-soft
-              ${isPoolTable ? 'text-green-400' : 'text-cuephoria-lightpurple'}
+              ${styles.textColor}
             `}>
-              Ready for next player!
+              {isVRStation ? "Ready for VR experience!" : "Ready for next player!"}
             </p>
             
             {/* Availability indicator dots */}
@@ -519,7 +582,7 @@ const PublicStationCard = ({ station }: { station: Station }) => {
               {[...Array(3)].map((_, i) => (
                 <div 
                   key={i}
-                  className={`w-1.5 h-1.5 rounded-full ${isPoolTable ? 'bg-green-400' : 'bg-cuephoria-lightpurple'}`}
+                  className={`w-1.5 h-1.5 rounded-full ${styles.textColor.replace('text-', 'bg-')}`}
                   style={{ 
                     animationDelay: `${i * 200}ms`,
                     animation: 'pulse 1.5s infinite ease-in-out'
