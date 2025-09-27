@@ -1,3 +1,6 @@
+Here's the updated public booking page with VR gaming support and 15-minute intervals:
+
+```jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +32,7 @@ import {
   Lock,
   X,
   CreditCard,
+  Headset,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parse, getDay } from "date-fns";
@@ -36,7 +40,7 @@ import { format, parse, getDay } from "date-fns";
 /* =========================
    Types
    ========================= */
-type StationType = "ps5" | "8ball";
+type StationType = "ps5" | "8ball" | "vr";
 interface Station {
   id: string;
   name: string;
@@ -86,6 +90,19 @@ const isHappyHour = (date: Date, slot: TimeSlot | null) => {
   const day = getDay(date); // 0 Sun .. 6 Sat
   const startHour = Number(slot.start_time.split(":")[0]);
   return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16; // Mon-Fri, 11:00–15:59
+};
+
+// Get slot duration by station type
+const getSlotDuration = (stationType: StationType) => {
+  return stationType === 'vr' ? 15 : 60;
+};
+
+// Get booking duration based on selected station types
+const getBookingDuration = (stationIds: string[], stations: Station[]) => {
+  const hasVR = stationIds.some(id => 
+    stations.find(s => s.id === id && s.type === 'vr')
+  );
+  return hasVR ? 15 : 60;
 };
 
 /* =========================
@@ -204,14 +221,15 @@ export default function PublicBooking() {
         }
       }
       
-      // Create booking records
+      // Create booking records with dynamic duration
+      const bookingDuration = getBookingDuration(pendingBooking.selectedStations, stations);
       const bookingRows = pendingBooking.selectedStations.map((stationId: string) => ({
         station_id: stationId,
         customer_id: customerId,
         booking_date: pendingBooking.selectedDateISO,
         start_time: pendingBooking.start_time,
         end_time: pendingBooking.end_time,
-        duration: 60,
+        duration: bookingDuration,
         status: "confirmed",
         original_price: pendingBooking.pricing.original,
         discount_percentage: pendingBooking.pricing.discount > 0 
@@ -327,11 +345,31 @@ export default function PublicBooking() {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
       
+      // Check if we have mixed station types
+      const hasVR = selectedStations.some(id => 
+        stations.find(s => s.id === id && s.type === 'vr')
+      );
+      const hasNonVR = selectedStations.some(id => 
+        stations.find(s => s.id === id && s.type !== 'vr')
+      );
+      
+      // Prevent mixing VR with non-VR due to different time intervals
+      if (hasVR && hasNonVR) {
+        toast.error("VR sessions cannot be booked with other station types due to different time intervals (VR: 15 min, Others: 60 min)");
+        setSelectedStations(selectedStations.filter(id => 
+          stations.find(s => s.id === id && s.type === 'vr')
+        ));
+        return;
+      }
+      
+      // Get appropriate slot duration
+      const slotDuration = hasVR ? 15 : 60;
+      
       if (selectedStations.length === 1) {
         const { data, error } = await supabase.rpc("get_available_slots", {
           p_date: dateStr,
           p_station_id: selectedStations[0],
-          p_slot_duration: 60,
+          p_slot_duration: slotDuration,
         });
         if (error) throw error;
         
@@ -369,7 +407,7 @@ export default function PublicBooking() {
             supabase.rpc("get_available_slots", {
               p_date: dateStr,
               p_station_id: id,
-              p_slot_duration: 60,
+              p_slot_duration: slotDuration,
             })
           )
         );
@@ -482,6 +520,24 @@ export default function PublicBooking() {
      Selection helpers
      ========================= */
   const handleStationToggle = (id: string) => {
+    const station = stations.find(s => s.id === id);
+    if (!station) return;
+    
+    // Check for mixed station types when adding
+    if (!selectedStations.includes(id)) {
+      const hasVR = selectedStations.some(stationId => 
+        stations.find(s => s.id === stationId && s.type === 'vr')
+      );
+      const hasNonVR = selectedStations.some(stationId => 
+        stations.find(s => s.id === stationId && s.type !== 'vr')
+      );
+      
+      if ((station.type === 'vr' && hasNonVR) || (station.type !== 'vr' && hasVR)) {
+        toast.error("Cannot mix VR stations with other types due to different time intervals");
+        return;
+      }
+    }
+    
     setSelectedStations((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
@@ -491,12 +547,19 @@ export default function PublicBooking() {
   async function filterStationsForSlot(slot: TimeSlot) {
     if (selectedStations.length === 0) return selectedStations;
     const dateStr = format(selectedDate, "yyyy-MM-dd");
+    
+    // Get slot duration based on selected stations
+    const hasVR = selectedStations.some(id => 
+      stations.find(s => s.id === id && s.type === 'vr')
+    );
+    const slotDuration = hasVR ? 15 : 60;
+    
     const checks = await Promise.all(
       selectedStations.map(async (stationId) => {
         const { data, error } = await supabase.rpc("get_available_slots", {
           p_date: dateStr,
           p_station_id: stationId,
-          p_slot_duration: 60,
+          p_slot_duration: slotDuration,
         });
         if (error) return { stationId, available: false };
         const match = (data || []).find(
@@ -581,6 +644,9 @@ export default function PublicBooking() {
     const selectedHasPS5 = selectedStations.some(
       (id) => stations.find((s) => s.id === id && s.type === "ps5")
     );
+    const selectedHasVR = selectedStations.some(
+      (id) => stations.find((s) => s.id === id && s.type === "vr")
+    );
     const happyHourActive = isHappyHour(selectedDate, selectedSlot);
 
     // CUEPHORIA50
@@ -611,10 +677,14 @@ export default function PublicBooking() {
       return;
     }
 
-    // HH99
+    // HH99 - Only for PS5 and 8-Ball, not VR
     if (code === "HH99") {
+      if (selectedHasVR) {
+        toast.error("⏰ HH99 is not applicable to VR gaming stations.");
+        return;
+      }
       if (!(selectedHas8Ball || selectedHasPS5)) {
-        toast.error("⏰ HH99 applies to both PS5 and 8-Ball stations during Happy Hours.");
+        toast.error("⏰ HH99 applies to PS5 and 8-Ball stations during Happy Hours.");
         return;
       }
       if (!happyHourActive) {
@@ -628,16 +698,16 @@ export default function PublicBooking() {
         return updated;
       });
       toast.success(
-        "⏰ HH99 applied! All PS5 & 8-Ball stations at ₹99/hour during Happy Hours! ✨"
+        "⏰ HH99 applied! PS5 & 8-Ball stations at ₹99/hour during Happy Hours! ✨"
       );
       return;
     }
 
-    // NIT50 logic — always 50% off on both during happy hours, unless HH99 is also stacked, then only 50% on PS5, 8-ball at ₹99/hr
+    // NIT50 logic
     if (code === "NIT50") {
-      if (!(selectedHas8Ball || selectedHasPS5)) {
+      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
         toast.error(
-          "NIT50 can only be applied to PS5 or 8-Ball stations in your selection."
+          "NIT50 can be applied to PS5, 8-Ball, or VR stations in your selection."
         );
         return;
       }
@@ -645,25 +715,24 @@ export default function PublicBooking() {
         let updated = { ...prev };
         if (selectedHasPS5) updated["ps5"] = "NIT50";
         if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "HH99" ? "HH99" : "NIT50";
+        if (selectedHasVR) updated["vr"] = "NIT50";
         return updated;
       });
       let msg = "🎓 NIT50 applied! 50% OFF for ";
-      if (selectedHasPS5 && selectedHas8Ball) msg += "PS5 & 8-Ball stations!";
-      else if (selectedHasPS5) msg += "PS5 stations!";
-      else msg += "8-Ball stations!";
-      if (selectedHas8Ball && appliedCoupons["8ball"] === "HH99" && happyHourActive) {
-        toast.info("💡 With both NIT50 and HH99 applied: 8-Ball pool is just ₹99/hr (not 50% off), and PS5 becomes ₹75/hr!");
-      } else {
-        toast.success(msg);
-      }
+      const types = [];
+      if (selectedHasPS5) types.push("PS5");
+      if (selectedHas8Ball) types.push("8-Ball");
+      if (selectedHasVR) types.push("VR");
+      msg += types.join(" & ") + " stations!";
+      toast.success(msg);
       return;
     }
 
-    // ALMA50 always 50% off for both
+    // ALMA50
     if (code === "ALMA50") {
-      if (!(selectedHas8Ball || selectedHasPS5)) {
+      if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
         toast.error(
-          "ALMA50 can only be applied to PS5 or 8-Ball stations in your selection."
+          "ALMA50 can be applied to PS5, 8-Ball, or VR stations in your selection."
         );
         return;
       }
@@ -671,12 +740,15 @@ export default function PublicBooking() {
         let updated = { ...prev };
         if (selectedHasPS5) updated["ps5"] = "ALMA50";
         if (selectedHas8Ball) updated["8ball"] = "ALMA50";
+        if (selectedHasVR) updated["vr"] = "ALMA50";
         return updated;
       });
       let msg = "🏫 ALMA50 applied! 50% OFF for ";
-      if (selectedHasPS5 && selectedHas8Ball) msg += "PS5 & 8-Ball stations!";
-      else if (selectedHasPS5) msg += "PS5 stations!";
-      else msg += "8-Ball stations!";
+      const types = [];
+      if (selectedHasPS5) types.push("PS5");
+      if (selectedHas8Ball) types.push("8-Ball");
+      if (selectedHasVR) types.push("VR");
+      msg += types.join(" & ") + " stations!";
       toast.success(msg);
       return;
     }
@@ -691,7 +763,12 @@ export default function PublicBooking() {
     if (selectedStations.length === 0 || !selectedSlot) return 0;
     return stations
       .filter((s) => selectedStations.includes(s.id))
-      .reduce((sum, s) => sum + s.hourly_rate, 0);
+      .reduce((sum, s) => {
+        const hourlyRate = s.hourly_rate;
+        // For VR stations, calculate 15-minute rate (quarter of hourly)
+        const sessionRate = s.type === 'vr' ? hourlyRate / 4 : hourlyRate;
+        return sum + sessionRate;
+      }, 0);
   };
 
   const calculateDiscount = () => {
@@ -782,6 +859,16 @@ export default function PublicBooking() {
         totalDiscount += d;
         breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
       }
+
+      if (appliedCoupons["vr"] === "NIT50" || appliedCoupons["vr"] === "ALMA50") {
+        const vrStations = stations.filter(
+          (s) => selectedStations.includes(s.id) && s.type === "vr"
+        );
+        const sum = vrStations.reduce((x, s) => x + (s.hourly_rate / 4), 0); // VR 15-min rate
+        const d = sum * 0.5;
+        totalDiscount += d;
+        breakdown[`VR (${appliedCoupons["vr"]})`] = d;
+      }
     }
 
     return { total: totalDiscount, breakdown };
@@ -825,13 +912,14 @@ export default function PublicBooking() {
       }
 
       const couponCodes = Object.values(appliedCoupons).join(",");
+      const bookingDuration = getBookingDuration(selectedStations, stations);
       const rows = selectedStations.map((stationId) => ({
         station_id: stationId,
         customer_id: customerId!,
         booking_date: format(selectedDate, "yyyy-MM-dd"),
         start_time: selectedSlot!.start_time,
         end_time: selectedSlot!.end_time,
-        duration: 60,
+        duration: bookingDuration,
         status: "confirmed",
         original_price: originalPrice,
         discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
@@ -848,6 +936,13 @@ export default function PublicBooking() {
       const stationObjects = stations.filter((s) =>
         selectedStations.includes(s.id)
       );
+      
+      // Get session duration for display
+      const hasVR = selectedStations.some(id => 
+        stations.find(s => s.id === id && s.type === 'vr')
+      );
+      const sessionDuration = hasVR ? "15 minutes" : "60 minutes";
+      
       setBookingConfirmationData({
         bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
@@ -864,6 +959,7 @@ export default function PublicBooking() {
         totalAmount: finalPrice,
         couponCode: couponCodes || undefined,
         discountAmount: discount > 0 ? discount : undefined,
+        sessionDuration: sessionDuration,
       });
       setShowConfirmationDialog(true);
 
@@ -905,6 +1001,24 @@ export default function PublicBooking() {
 
     setLoading(true);
     try {
+      // Store pending booking data for after payment
+      const bookingDuration = getBookingDuration(selectedStations, stations);
+      const pendingBooking = {
+        selectedStations,
+        selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
+        start_time: selectedSlot!.start_time,
+        end_time: selectedSlot!.end_time,
+        duration: bookingDuration,
+        customer: customerInfo,
+        pricing: {
+          original: originalPrice,
+          discount: discount,
+          final: finalPrice,
+          coupons: Object.values(appliedCoupons).join(","),
+        },
+      };
+      localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
+
       const res = await fetch("/api/phonepe/pay", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1174,14 +1288,14 @@ export default function PublicBooking() {
               Book Your Gaming Session
             </h1>
             <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
-              Reserve PlayStation 5 or Pool Table sessions at Cuephoria
+              Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria
             </p>
 
             {/* LOB badge */}
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-gray-300 backdrop-blur-md">
               <span className="font-semibold tracking-wide">Line of Business:</span>
               <span>
-                Amusement & Gaming Lounge Services (time-based PS5 & 8-Ball rentals)
+                Amusement & Gaming Lounge Services (time-based PS5, 8-Ball & VR rentals)
               </span>
             </div>
           </div>
@@ -1195,8 +1309,8 @@ export default function PublicBooking() {
           <h2 className="mb-1 text-base font-semibold text-white">About Cuephoria</h2>
           <p>
             Cuephoria offers <span className="font-medium">time-based rentals</span> of
-            PlayStation 5 stations and 8-Ball pool tables. Book 60-minute sessions
-            for single or multiple stations.
+            PlayStation 5 stations, 8-Ball pool tables, and VR Gaming stations. Book 
+            60-minute sessions for PS5/Pool or 15-minute sessions for VR Gaming.
           </p>
           <p className="mt-2 text-gray-400">
             <span className="font-medium text-gray-200">Pricing:</span> All prices are
@@ -1329,7 +1443,7 @@ export default function PublicBooking() {
               <CardContent className="relative pt-3">
                 <div
                   className={cn(
-                    "grid grid-cols-3 gap-2 sm:gap-3 mb-4",
+                    "grid grid-cols-4 gap-2 sm:gap-3 mb-4",
                     !isStationSelectionAvailable() && "pointer-events-none"
                   )}
                 >
@@ -1371,6 +1485,19 @@ export default function PublicBooking() {
                     )}
                   >
                     8-Ball
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType("vr")}
+                    className={cn(
+                      "h-9 rounded-full border-white/15 text-[12px]",
+                      stationType === "vr"
+                        ? "bg-blue-400/15 text-blue-300"
+                        : "bg-transparent text-blue-300"
+                    )}
+                  >
+                    VR
                   </Button>
                 </div>
 
@@ -1489,6 +1616,8 @@ export default function PublicBooking() {
                             <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
                               {s.type === "ps5" ? (
                                 <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" />
+                              ) : s.type === "vr" ? (
+                                <Headset className="h-3.5 w-3.5 text-blue-400" />
                               ) : (
                                 <Timer className="h-3.5 w-3.5 text-green-400" />
                               )}
@@ -1517,9 +1646,13 @@ export default function PublicBooking() {
                 {selectedSlot && (
                   <div>
                     <Label className="text-xs font-semibold text-gray-400 uppercase">
-                      Time
+                      Session Duration & Time
                     </Label>
                     <p className="mt-1 text-sm text-gray-200">
+                      {selectedStations.some(id => stations.find(s => s.id === id && s.type === 'vr')) 
+                        ? '15 minutes' : '60 minutes'}
+                    </p>
+                    <p className="text-sm text-gray-200">
                       {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString(
                         "en-US",
                         { hour: "numeric", minute: "2-digit", hour12: true }
@@ -1558,8 +1691,8 @@ export default function PublicBooking() {
                   </p>
                   <p className="mt-2 text-xs text-cuephoria-lightpurple">
                     📝 Coupon rules:<br />
-                    NIT50/ALMA50: 50% off for NIT Trichy students;<br />
-                    HH99: PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM;<br />
+                    NIT50/ALMA50: 50% off for students;<br />
+                    HH99: PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM (not VR);<br />
                     CUEPHORIA50: 50% off for students (ID required);<br />
                     CUEPHORIA25: 25% off for everyone!
                   </p>
@@ -1728,7 +1861,7 @@ export default function PublicBooking() {
               Terms & Conditions (Summary)
             </h3>
             <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
-              <li>Bookings are for 60-minute time slots; extensions subject to availability.</li>
+              <li>Bookings are for specified time slots (60 min for PS5/Pool, 15 min for VR); extensions subject to availability.</li>
               <li>Arrive on time; late arrivals may reduce play time without fee adjustment.</li>
               <li>Damage to equipment may incur charges as per in-store policy.</li>
               <li>Management may refuse service in cases of misconduct or safety concerns.</li>
@@ -1889,10 +2022,7 @@ export default function PublicBooking() {
               </div>
               <div className="flex items-center gap-1">
                 <Mail className="h-4 w-4" />
-                <a
-                  href="mailto:contact@cuephoria.in"
-                  className="hover:text-white transition-colors"
-                >
+                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
                   contact@cuephoria.in
                 </a>
               </div>
@@ -1900,86 +2030,6 @@ export default function PublicBooking() {
           </div>
         </div>
       </footer>
-
-      {/* Booking confirmation (venue only) */}
-      {bookingConfirmationData && (
-        <BookingConfirmationDialog
-          isOpen={showConfirmationDialog}
-          onClose={() => setShowConfirmationDialog(false)}
-          bookingData={bookingConfirmationData}
-        />
-      )}
-
-      {/* Legal dialog */}
-      <LegalDialog
-        isOpen={showLegalDialog}
-        onClose={() => setShowLegalDialog(false)}
-        type={legalDialogType}
-      />
-
-      {/* Refund policy modal */}
-      {showRefundDialog && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
-                Refund & Cancellation Policy
-              </h3>
-              <button
-                aria-label="Close refund policy"
-                onClick={() => setShowRefundDialog(false)}
-                className="rounded-md p-1 text-gray-400 hover:bg-white/10 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="prose prose-invert max-w-none text-sm text-gray-300">
-              <p className="text-gray-400">
-                This policy outlines how a booking for a gaming service made through the
-                Platform can be canceled or refunded.
-              </p>
-
-              <h4 className="mt-4 text-white">Cancellations</h4>
-              <ul className="ml-5 list-disc">
-                <li>Requests must be made within <strong>1 day</strong> of placing the booking.</li>
-                <li>Cancellation may not be possible if the session is already confirmed or about to commence.</li>
-              </ul>
-
-              <h4 className="mt-4 text-white">Non-Cancellable Services</h4>
-              <ul className="ml-5 list-disc">
-                <li>No cancellations for time-sensitive or non-refundable bookings.</li>
-                <li>Refunds/rescheduling may be considered if the session wasn't provided as described.</li>
-              </ul>
-
-              <h4 className="mt-4 text-white">Service Quality Issues</h4>
-              <ul className="ml-5 list-disc">
-                <li>Report issues within <strong>1 day</strong> of the scheduled session.</li>
-              </ul>
-
-              <h4 className="mt-4 text-white">Refund Processing</h4>
-              <ul className="ml-5 list-disc">
-                <li>If approved, refunds are processed within <strong>3 days</strong> to the original payment method.</li>
-              </ul>
-
-              <p className="mt-4 text-xs text-gray-400">
-                Need help? Call{" "}
-                <a className="underline hover:text-white" href="tel:+918637625155">
-                  +91 86376 25155
-                </a>{" "}
-                or email{" "}
-                <a
-                  className="ml-1 underline hover:text-white"
-                  href="mailto:contact@cuephoria.in"
-                >
-                  contact@cuephoria.in
-                </a>
-                .
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
