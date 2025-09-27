@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -14,10 +13,10 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
 import { generateId } from '@/utils/pos.utils';
 
-// Create a schema for station validation
+// Updated schema to include 'vr'
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
-  type: z.enum(['ps5', '8ball'], { 
+  type: z.enum(['ps5', '8ball', 'vr'], { 
     required_error: 'Please select a station type.' 
   }),
   hourlyRate: z.coerce.number()
@@ -148,6 +147,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                     <SelectContent>
                       <SelectItem value="ps5">PlayStation 5</SelectItem>
                       <SelectItem value="8ball">8-Ball Table</SelectItem>
+                      <SelectItem value="vr">VR Gaming</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
