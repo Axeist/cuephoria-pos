@@ -1875,7 +1875,6 @@ export default function PublicBooking() {
               View full Terms & Conditions
             </button>
           </div>
-
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <h3 className="text-white font-semibold mb-2">Privacy Policy (Summary)</h3>
             <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
@@ -1964,7 +1963,7 @@ export default function PublicBooking() {
       </main>
 
       {/* Footer */}
-           <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
+      <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-4 md:mb-0">
@@ -1987,59 +1986,47 @@ export default function PublicBooking() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-wrap justify-center md:justify-start gap-6">
               <button
-                onClick={() => {
-                  setLegalDialogType("terms");
-                  setShowLegalDialog(true);
-                }}
+                onClick={() => (setLegalDialogType("terms"), setShowLegalDialog(true))}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Terms & Conditions
               </button>
               <button
-                onClick={() => {
-                  setLegalDialogType("privacy");
-                  setShowLegalDialog(true);
-                }}
+                onClick={() => (setLegalDialogType("privacy"), setShowLegalDialog(true))}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Privacy Policy
               </button>
               <button
-                onClick={() => {
-                  setLegalDialogType("contact");
-                  setShowLegalDialog(true);
-                }}
+                onClick={() => (setLegalDialogType("contact"), setShowLegalDialog(true))}
                 className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
               >
                 Contact Us
               </button>
+              <button
+                onClick={() => setShowRefundDialog(true)}
+                className="text-gray-400 hover:text-white hover:underline/20 text-sm flex items-center gap-1 transition"
+              >
+                Refund Policy
+              </button>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-gray-400 text-sm">
-                <MapPin className="h-4 w-4 text-gray-400 mr-1.5" />
-                <span>Tiruchirappalli, Tamil Nadu</span>
+            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
+              <div className="flex items-center gap-1">
+                <Phone className="h-4 w-4" />
+                <a href="tel:+918637625155" className="hover:text-white transition-colors">
+                  +91 86376 25155
+                </a>
               </div>
-              <div className="flex items-center text-gray-400 text-sm">
-                <Phone className="h-4 w-4 text-gray-400 mr-1.5" />
-                <span>+91 73586 79988</span>
+              <div className="flex items-center gap-1">
+                <Mail className="h-4 w-4" />
+                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
+                  contact@cuephoria.in
+                </a>
               </div>
             </div>
           </div>
         </div>
       </footer>
-
-      {/* Dialogs */}
-      <BookingConfirmationDialog
-        open={showConfirmationDialog}
-        onOpenChange={setShowConfirmationDialog}
-        bookingData={bookingConfirmationData}
-      />
-
-      <LegalDialog
-        open={showLegalDialog}
-        onOpenChange={setShowLegalDialog}
-        type={legalDialogType}
-      />
     </div>
   );
 }
