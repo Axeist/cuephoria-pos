@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
@@ -16,7 +17,7 @@ import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
   CalendarDays, Target, UserCheck, Edit2, Trash2, Hash, BarChart3, Building2, Eye, Timer, Star, 
-  GamepadIcon, TrendingUp as TrendingUpIcon, CalendarIcon, Expand, Minimize2
+  GamepadIcon, TrendingUp as TrendingUpIcon, CalendarIcon, Expand, Minimize2, Info
 } from 'lucide-react';
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, isToday, isYesterday, isTomorrow
@@ -140,14 +141,19 @@ interface Analytics {
   coupons: CouponAnalytics;
 }
 
-// Add new interface for calendar booking
-interface CalendarBooking extends Booking {
-  startHour: number;
-  endHour: number;
-  startMinute: number;
-  endMinute: number;
-  heightPercentage: number;
+// NEW: Merged booking interface for calendar
+interface MergedCalendarBooking {
+  customerName: string;
+  timeSlot: string;
+  startTime: string;
+  endTime: string;
+  bookings: Booking[];
+  totalDuration: number;
+  totalPrice: number;
+  hasCouplonsBooking: boolean;
   topPercentage: number;
+  heightPercentage: number;
+  stationCount: number;
 }
 
 const getDateRangeFromPreset = (preset: string) => {
@@ -208,10 +214,11 @@ export default function BookingManagement() {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
 
-  // NEW: Calendar view state
+  // Calendar view state
   const [calendarView, setCalendarView] = useState(false);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [expandedCalendarBookings, setExpandedCalendarBookings] = useState<Set<string>>(new Set());
+  const [selectedBookingGroup, setSelectedBookingGroup] = useState<MergedCalendarBooking | null>(null);
+  const [bookingPopupOpen, setBookingPopupOpen] = useState(false);
 
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
@@ -490,20 +497,42 @@ export default function BookingManagement() {
     return slots;
   };
 
-  // NEW: Process bookings for calendar view
-  const calendarBookings = useMemo((): CalendarBooking[] => {
+  // NEW: Process and merge bookings for calendar view
+  const mergedCalendarBookings = useMemo((): MergedCalendarBooking[] => {
     const dayBookings = allBookings.filter(b => b.booking_date === selectedCalendarDate);
     
-    return dayBookings.map(booking => {
+    // Group bookings by customer and time slot
+    const bookingGroups: Record<string, Booking[]> = {};
+    
+    dayBookings.forEach(booking => {
       const startTime = new Date(`2000-01-01T${booking.start_time}`);
       const endTime = new Date(`2000-01-01T${booking.end_time}`);
       
       const startHour = startTime.getHours();
       const endHour = endTime.getHours();
-      const startMinute = startTime.getMinutes();
-      const endMinute = endTime.getMinutes();
       
-      // Calculate position and height as percentage of the calendar view (11 AM to 11 PM = 12 hours)
+      // Only show bookings within 11 AM to 11 PM
+      if (startHour >= 11 && startHour <= 23) {
+        const key = `${booking.customer.name}::${booking.start_time}::${booking.end_time}`;
+        if (!bookingGroups[key]) {
+          bookingGroups[key] = [];
+        }
+        bookingGroups[key].push(booking);
+      }
+    });
+
+    // Convert groups to merged bookings
+    return Object.entries(bookingGroups).map(([key, bookings]) => {
+      const [customerName, startTime, endTime] = key.split('::');
+      const start = new Date(`2000-01-01T${startTime}`);
+      const end = new Date(`2000-01-01T${endTime}`);
+      
+      const startHour = start.getHours();
+      const startMinute = start.getMinutes();
+      const endHour = end.getHours();
+      const endMinute = end.getMinutes();
+      
+      // Calculate position and height as percentage
       const startMinutesFromEleven = (startHour - 11) * 60 + startMinute;
       const endMinutesFromEleven = (endHour - 11) * 60 + endMinute;
       const totalMinutesInView = 12 * 60; // 11 AM to 11 PM
@@ -511,34 +540,39 @@ export default function BookingManagement() {
       const topPercentage = Math.max(0, (startMinutesFromEleven / totalMinutesInView) * 100);
       const heightPercentage = Math.min(100 - topPercentage, ((endMinutesFromEleven - startMinutesFromEleven) / totalMinutesInView) * 100);
       
+      const totalDuration = bookings.reduce((sum, b) => sum + b.duration, 0);
+      const totalPrice = bookings.reduce((sum, b) => sum + (b.final_price || 0), 0);
+      const hasCouplonsBooking = bookings.some(b => b.coupon_code);
+      
       return {
-        ...booking,
-        startHour,
-        endHour,
-        startMinute,
-        endMinute,
+        customerName,
+        timeSlot: `${formatTime(startTime)} - ${formatTime(endTime)}`,
+        startTime,
+        endTime,
+        bookings,
+        totalDuration,
+        totalPrice,
+        hasCouplonsBooking,
         topPercentage,
-        heightPercentage
+        heightPercentage,
+        stationCount: bookings.length
       };
-    }).filter(booking => booking.startHour >= 11 && booking.startHour <= 23);
+    }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [allBookings, selectedCalendarDate]);
 
-  const toggleCalendarBookingExpansion = (bookingId: string) => {
-    setExpandedCalendarBookings(prev => {
-      const next = new Set(prev);
-      if (next.has(bookingId)) next.delete(bookingId);
-      else next.add(bookingId);
-      return next;
-    });
+  const handleBookingClick = (mergedBooking: MergedCalendarBooking) => {
+    setSelectedBookingGroup(mergedBooking);
+    setBookingPopupOpen(true);
   };
 
   // NEW: Enhanced calendar day view component
   const CalendarDayView = () => {
     const timeSlots = generateTimeSlots();
-    const totalBookings = calendarBookings.length;
-    const completedBookings = calendarBookings.filter(b => b.status === 'completed').length;
-    const couponBookings = calendarBookings.filter(b => b.coupon_code).length;
-    const totalRevenue = calendarBookings.reduce((sum, b) => sum + (b.final_price || 0), 0);
+    const totalBookings = mergedCalendarBookings.reduce((sum, mb) => sum + mb.stationCount, 0);
+    const completedBookings = mergedCalendarBookings.reduce((sum, mb) => 
+      sum + mb.bookings.filter(b => b.status === 'completed').length, 0);
+    const couponBookings = mergedCalendarBookings.filter(mb => mb.hasCouplonsBooking).length;
+    const totalRevenue = mergedCalendarBookings.reduce((sum, mb) => sum + mb.totalPrice, 0);
 
     return (
       <Card className="bg-background border-border shadow-lg">
@@ -578,9 +612,9 @@ export default function BookingManagement() {
               <p className="text-xs text-muted-foreground">{totalBookings ? Math.round((completedBookings/totalBookings)*100) : 0}%</p>
             </div>
             <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-              <p className="text-sm text-muted-foreground">With Coupons</p>
-              <p className="text-2xl font-bold text-purple-600">{couponBookings}</p>
-              <p className="text-xs text-muted-foreground">{totalBookings ? Math.round((couponBookings/totalBookings)*100) : 0}%</p>
+              <p className="text-sm text-muted-foreground">Customer Groups</p>
+              <p className="text-2xl font-bold text-purple-600">{mergedCalendarBookings.length}</p>
+              <p className="text-xs text-muted-foreground">{couponBookings} with coupons</p>
             </div>
             <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
               <p className="text-sm text-muted-foreground">Revenue</p>
@@ -590,7 +624,7 @@ export default function BookingManagement() {
         </CardHeader>
         
         <CardContent className="p-0">
-          {totalBookings === 0 ? (
+          {mergedCalendarBookings.length === 0 ? (
             <div className="text-center py-20 text-muted-foreground">
               <CalendarIcon className="h-16 w-16 mx-auto mb-4 opacity-30" />
               <p className="text-xl font-medium">No bookings for this day</p>
@@ -645,119 +679,50 @@ export default function BookingManagement() {
                   return null;
                 })()}
                 
-                {/* Bookings */}
+                {/* Merged Bookings */}
                 <div className="relative" style={{ paddingTop: '3rem', height: `${12 * 4}rem` }}>
-                  {calendarBookings.map((booking, index) => {
-                    const isExpanded = expandedCalendarBookings.has(booking.id);
-                    const overlappingBookings = calendarBookings.filter(b => 
-                      b.id !== booking.id &&
-                      ((b.startHour < booking.endHour && b.endHour > booking.startHour) ||
-                       (booking.startHour < b.endHour && booking.endHour > b.startHour))
-                    );
-                    
-                    const overlapCount = overlappingBookings.length;
-                    const width = overlapCount > 0 ? `${90 / (overlapCount + 1)}%` : '90%';
-                    const left = overlapCount > 0 ? `${(index % (overlapCount + 1)) * (90 / (overlapCount + 1)) + 5}%` : '5%';
-                    
+                  {mergedCalendarBookings.map((mergedBooking, index) => {
                     return (
                       <div
-                        key={booking.id}
-                        className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 ${
-                          booking.coupon_code 
+                        key={`${mergedBooking.customerName}-${mergedBooking.startTime}`}
+                        className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 hover:shadow-lg hover:z-30 ${
+                          mergedBooking.hasCouplonsBooking 
                             ? 'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-300 shadow-purple-100' 
                             : 'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-300 shadow-blue-100'
-                        } ${isExpanded ? 'shadow-lg z-30' : 'shadow-sm hover:shadow-md'}`}
+                        } shadow-sm`}
                         style={{
-                          top: `${booking.topPercentage}%`,
-                          height: `${Math.max(booking.heightPercentage, 8)}%`, // Minimum height for visibility
-                          left,
-                          width
+                          top: `${mergedBooking.topPercentage}%`,
+                          height: `${Math.max(mergedBooking.heightPercentage, 12)}%`, // Minimum height for visibility
+                          left: '2%',
+                          width: '96%'
                         }}
-                        onClick={() => toggleCalendarBookingExpansion(booking.id)}
+                        onClick={() => handleBookingClick(mergedBooking)}
                       >
-                        <div className="p-2 h-full overflow-hidden">
-                          {/* Compact View */}
-                          {!isExpanded && (
-                            <div className="h-full flex flex-col justify-between">
-                              <div>
-                                <div className={`text-sm font-semibold truncate ${
-                                  booking.coupon_code ? 'text-purple-800' : 'text-blue-800'
-                                }`}>
-                                  {booking.customer.name}
-                                </div>
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {booking.station.name}
-                                </div>
-                                <div className="text-xs font-medium flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <BookingStatusBadge status={booking.status} />
-                                {booking.coupon_code && (
-                                  <Gift className="h-3 w-3 text-purple-600" />
-                                )}
-                              </div>
+                        <div className="p-3 h-full flex flex-col justify-between">
+                          <div>
+                            <div className={`text-base font-bold ${
+                              mergedBooking.hasCouplonsBooking ? 'text-purple-800' : 'text-blue-800'
+                            }`}>
+                              {mergedBooking.customerName}
                             </div>
-                          )}
+                            <div className="text-sm font-medium flex items-center gap-1 mt-1">
+                              <Clock className="h-3 w-3" />
+                              {mergedBooking.timeSlot}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {mergedBooking.stationCount} station{mergedBooking.stationCount !== 1 ? 's' : ''} • ₹{mergedBooking.totalPrice.toLocaleString()}
+                            </div>
+                          </div>
                           
-                          {/* Expanded View */}
-                          {isExpanded && (
-                            <div className="space-y-3 text-sm overflow-y-auto max-h-full">
-                              <div className="flex items-center justify-between">
-                                <div className={`font-bold text-lg ${
-                                  booking.coupon_code ? 'text-purple-800' : 'text-blue-800'
-                                }`}>
-                                  {booking.customer.name}
-                                </div>
-                                <div className="flex gap-1">
-                                  <Button size="sm" variant="outline" onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditBooking(booking);
-                                  }}>
-                                    <Edit2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                  <span className="text-muted-foreground">Phone:</span>
-                                  <div className="font-medium">{booking.customer.phone}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Station:</span>
-                                  <div className="font-medium">{booking.station.name}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Duration:</span>
-                                  <div className="font-medium">{booking.duration} min</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Price:</span>
-                                  <div className="font-medium">₹{booking.final_price}</div>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center justify-between">
-                                <BookingStatusBadge status={booking.status} />
-                                {booking.coupon_code && (
-                                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                    <Gift className="h-2 w-2" />
-                                    {booking.coupon_code}
-                                  </Badge>
-                                )}
-                              </div>
-                              
-                              {booking.notes && (
-                                <div className="p-2 bg-muted/50 rounded text-xs">
-                                  <span className="text-muted-foreground">Notes: </span>
-                                  {booking.notes}
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          <div className="flex items-center justify-between mt-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {mergedBooking.totalDuration}min total
+                            </Badge>
+                            {mergedBooking.hasCouplonsBooking && (
+                              <Gift className="h-4 w-4 text-purple-600" />
+                            )}
+                            <Info className="h-3 w-3 text-muted-foreground" />
+                          </div>
                         </div>
                       </div>
                     );
@@ -767,6 +732,113 @@ export default function BookingManagement() {
             </div>
           )}
         </CardContent>
+        
+        {/* Booking Details Popup */}
+        <Dialog open={bookingPopupOpen} onOpenChange={setBookingPopupOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                {selectedBookingGroup?.customerName} - {selectedBookingGroup?.timeSlot}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedBookingGroup && (
+              <div className="space-y-4">
+                {/* Summary */}
+                <div className="grid grid-cols-3 gap-4 p-4 bg-muted/20 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{selectedBookingGroup.stationCount}</p>
+                    <p className="text-sm text-muted-foreground">Stations Booked</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-600">₹{selectedBookingGroup.totalPrice.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">Total Amount</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-purple-600">{selectedBookingGroup.totalDuration}</p>
+                    <p className="text-sm text-muted-foreground">Total Minutes</p>
+                  </div>
+                </div>
+
+                {/* Customer Info */}
+                <div className="p-4 border rounded-lg">
+                  <h3 className="font-semibold mb-2">Customer Information</h3>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span>{selectedBookingGroup.bookings[0].customer.phone}</span>
+                    </div>
+                    {selectedBookingGroup.bookings[0].customer.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <span>{selectedBookingGroup.bookings[0].customer.email}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Station Details */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold">Station Bookings</h3>
+                  {selectedBookingGroup.bookings.map((booking, index) => (
+                    <div key={booking.id} className="p-4 border rounded-lg bg-card">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Station</p>
+                          <p className="font-medium">{booking.station.name}</p>
+                          <Badge variant="outline" className="text-xs mt-1">
+                            {getStationTypeLabel(booking.station.type)}
+                          </Badge>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm text-muted-foreground">Duration</p>
+                          <p className="font-medium">{booking.duration} minutes</p>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm text-muted-foreground">Price</p>
+                          <div className="space-y-1">
+                            {booking.original_price && booking.original_price !== booking.final_price && (
+                              <div className="text-xs text-gray-500 line-through">
+                                ₹{booking.original_price}
+                              </div>
+                            )}
+                            <p className="font-medium">₹{booking.final_price}</p>
+                            {booking.discount_percentage && (
+                              <Badge variant="destructive" className="text-xs">
+                                {Math.round(booking.discount_percentage)}% OFF
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm text-muted-foreground">Status</p>
+                          <BookingStatusBadge status={booking.status} />
+                          {booking.coupon_code && (
+                            <Badge variant="secondary" className="text-xs mt-1 flex items-center gap-1 w-fit">
+                              <Gift className="h-2 w-2" />
+                              {booking.coupon_code}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {booking.notes && (
+                        <div className="mt-3 p-2 bg-muted/50 rounded text-sm">
+                          <span className="text-muted-foreground">Notes: </span>
+                          {booking.notes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </Card>
     );
   };
@@ -1250,6 +1322,9 @@ export default function BookingManagement() {
       {/* Show existing content only when not in calendar view */}
       {!calendarView && (
         <>
+          {/* ... Rest of the existing content (filters, analytics, bookings list) ... */}
+          {/* I'll continue with the rest of the component as it was, keeping all existing functionality */}
+
           {/* Advanced Filters */}
           <Card className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-border/50">
             <CardHeader className="pb-4">
@@ -1580,6 +1655,7 @@ export default function BookingManagement() {
               </div>
             </TabsContent>
 
+            {/* Additional tabs content continues here exactly as before... */}
             <TabsContent value="coupons" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
@@ -1639,7 +1715,7 @@ export default function BookingManagement() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5" />
+                  <Trophy className="h-5 w-5" />
                     Top Performing Coupon Campaigns
                   </CardTitle>
                 </CardHeader>
@@ -2395,4 +2471,3 @@ export default function BookingManagement() {
     </div>
   );
 }
-
