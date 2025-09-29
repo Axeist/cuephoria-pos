@@ -148,9 +148,16 @@ interface CalendarBookingGroup {
   bookings: Booking[];
   topPercentage: number;
   heightPercentage: number;
+  topPixels: number;
+  heightPixels: number;
   totalPrice: number;
   hasMultiple: boolean;
   stationCount: number;
+  // NEW: Properties for multiple customers in same time slot
+  widthPercentage?: number;
+  leftPercentage?: number;
+  customerIndex?: number;
+  totalCustomersInSlot?: number;
 }
 
 const getDateRangeFromPreset = (preset: string) => {
@@ -183,6 +190,19 @@ const getDateRangeFromPreset = (preset: string) => {
     default:
       return null;
   }
+};
+
+// Helper function to get different colors for multiple customers
+const getCustomerColor = (index: number) => {
+  const colors = [
+    'from-blue-100 to-blue-50 border-blue-300',
+    'from-green-100 to-green-50 border-green-300',
+    'from-orange-100 to-orange-50 border-orange-300',
+    'from-cyan-100 to-cyan-50 border-cyan-300',
+    'from-pink-100 to-pink-50 border-pink-300',
+    'from-indigo-100 to-indigo-50 border-indigo-300',
+  ];
+  return colors[index % colors.length];
 };
 
 export default function BookingManagement() {
@@ -493,40 +513,42 @@ export default function BookingManagement() {
     return slots;
   };
 
-  // NEW: Process bookings for grouped calendar view
+  // UPDATED: Process bookings for grouped calendar view - MULTIPLE CUSTOMERS per time slot
   const groupedCalendarBookings = useMemo((): CalendarBookingGroup[] => {
     const dayBookings = allBookings.filter(b => b.booking_date === selectedCalendarDate);
     
-    // Group bookings by customer and overlapping time periods
+    // Group bookings by customer and time slot SEPARATELY (don't merge different customers)
     const groups: Map<string, CalendarBookingGroup> = new Map();
 
     dayBookings.forEach(booking => {
       const customerName = booking.customer.name;
+      // Use customer + time as unique key (not just time)
       const timeSlotKey = `${customerName}-${booking.start_time}-${booking.end_time}`;
       
       if (groups.has(timeSlotKey)) {
+        // Same customer, same time slot - combine their stations
         const existing = groups.get(timeSlotKey)!;
         existing.bookings.push(booking);
         existing.totalPrice += booking.final_price || 0;
         existing.hasMultiple = true;
         existing.stationCount = existing.bookings.length;
       } else {
-        // Calculate position and height
+        // Calculate position and height using FIXED heights (64px per hour slot)
         const startTime = new Date(`2000-01-01T${booking.start_time}`);
         const endTime = new Date(`2000-01-01T${booking.end_time}`);
         
         const startHour = startTime.getHours();
-        const endHour = endTime.getHours();
         const startMinute = startTime.getMinutes();
+        const endHour = endTime.getHours();
         const endMinute = endTime.getMinutes();
         
-        // Calculate position as percentage (11 AM to 11 PM = 12 hours)
+        // Calculate PIXEL position
         const startMinutesFromEleven = (startHour - 11) * 60 + startMinute;
         const endMinutesFromEleven = (endHour - 11) * 60 + endMinute;
-        const totalMinutesInView = 12 * 60; // 11 AM to 11 PM
         
-        const topPercentage = Math.max(0, (startMinutesFromEleven / totalMinutesInView) * 100);
-        const heightPercentage = Math.min(100 - topPercentage, ((endMinutesFromEleven - startMinutesFromEleven) / totalMinutesInView) * 100);
+        const pixelsPerMinute = 64 / 60;
+        const topPixels = startMinutesFromEleven * pixelsPerMinute;
+        const heightPixels = (endMinutesFromEleven - startMinutesFromEleven) * pixelsPerMinute;
         
         if (startHour >= 11 && startHour <= 23) {
           groups.set(timeSlotKey, {
@@ -534,8 +556,10 @@ export default function BookingManagement() {
             startTime: booking.start_time,
             endTime: booking.end_time,
             bookings: [booking],
-            topPercentage,
-            heightPercentage,
+            topPercentage: 0,
+            heightPercentage: 0,
+            topPixels: Math.max(0, topPixels),
+            heightPixels: Math.max(32, heightPixels),
             totalPrice: booking.final_price || 0,
             hasMultiple: false,
             stationCount: 1
@@ -544,7 +568,39 @@ export default function BookingManagement() {
       }
     });
 
-    return Array.from(groups.values());
+    // Now group by time slot to arrange multiple customers side by side
+    const timeSlotGroups: Record<string, CalendarBookingGroup[]> = {};
+    
+    groups.forEach(group => {
+      const timeKey = `${group.startTime}-${group.endTime}`;
+      if (!timeSlotGroups[timeKey]) {
+        timeSlotGroups[timeKey] = [];
+      }
+      timeSlotGroups[timeKey].push(group);
+    });
+
+    // Calculate positioning for multiple customers in same time slot
+    const finalGroups: CalendarBookingGroup[] = [];
+    
+    Object.values(timeSlotGroups).forEach(customersInSlot => {
+      const customerCount = customersInSlot.length;
+      
+      customersInSlot.forEach((group, index) => {
+        // Calculate width and left position for side-by-side layout
+        const widthPercentage = 94 / customerCount; // 94% total width divided by number of customers
+        const leftPercentage = 2 + (index * (94 / customerCount)); // Start at 2% + spacing
+        
+        finalGroups.push({
+          ...group,
+          widthPercentage,
+          leftPercentage,
+          customerIndex: index,
+          totalCustomersInSlot: customerCount
+        });
+      });
+    });
+
+    return finalGroups;
   }, [allBookings, selectedCalendarDate]);
 
   const toggleCalendarBookingExpansion = (groupKey: string) => {
@@ -556,7 +612,7 @@ export default function BookingManagement() {
     });
   };
 
-  // NEW: Enhanced calendar day view component with grouped bookings
+  // UPDATED: Enhanced calendar day view component with grouped bookings
   const CalendarDayView = () => {
     const timeSlots = generateTimeSlots();
     const totalBookings = groupedCalendarBookings.reduce((sum, group) => sum + group.bookings.length, 0);
@@ -646,7 +702,7 @@ export default function BookingManagement() {
                   ))}
                 </div>
                 
-                {/* Current Time Indicator */}
+                {/* Current Time Indicator - Fixed positioning */}
                 {selectedCalendarDate === format(new Date(), 'yyyy-MM-dd') && (() => {
                   const now = new Date();
                   const currentHour = now.getHours();
@@ -654,12 +710,12 @@ export default function BookingManagement() {
                   
                   if (currentHour >= 11 && currentHour <= 23) {
                     const minutesFromEleven = (currentHour - 11) * 60 + currentMinute;
-                    const topPosition = (minutesFromEleven / (12 * 60)) * 100;
+                    const pixelsFromTop = minutesFromEleven * (64 / 60); // 64px per hour
                     
                     return (
                       <div 
                         className="absolute left-0 right-0 h-0.5 bg-red-500 z-30 shadow-sm"
-                        style={{ top: `${topPosition}%` }}
+                        style={{ top: `${pixelsFromTop}px` }}
                       >
                         <div className="absolute -left-2 -top-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>
                         <div className="absolute left-2 -top-6 bg-red-500 text-white text-xs px-2 py-1 rounded shadow-lg">
@@ -671,52 +727,63 @@ export default function BookingManagement() {
                   return null;
                 })()}
                 
-                {/* Grouped Bookings */}
+                {/* Grouped Bookings - Multiple customers per time slot */}
                 <div className="relative h-full" style={{ height: `${12 * 64}px` }}>
                   {groupedCalendarBookings.map((group, index) => {
                     const groupKey = `${group.customer}-${group.startTime}-${group.endTime}`;
                     const isExpanded = expandedCalendarBookings.has(groupKey);
                     
+                    // Determine tile color based on customer and stations
+                    const tileColorClass = group.bookings.some(b => b.coupon_code) 
+                      ? 'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-300 shadow-purple-100'
+                      : group.totalCustomersInSlot && group.totalCustomersInSlot > 1
+                        ? `bg-gradient-to-r ${getCustomerColor(group.customerIndex || 0)} shadow-blue-100`
+                        : 'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-300 shadow-blue-100';
+                    
                     return (
                       <div
                         key={groupKey}
-                        className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 ${
-                          group.bookings.some(b => b.coupon_code) 
-                            ? 'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-300 shadow-purple-100' 
-                            : 'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-300 shadow-blue-100'
-                        } ${isExpanded ? 'shadow-lg z-30 border-4' : 'shadow-sm hover:shadow-md hover:z-25'}`}
+                        className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 ${tileColorClass} ${
+                          isExpanded ? 'shadow-lg z-30 border-4' : 'shadow-sm hover:shadow-md hover:z-25'
+                        }`}
                         style={{
-                          top: `${group.topPercentage}%`,
-                          height: `${Math.max(group.heightPercentage, 12)}%`,
-                          left: '2%',
-                          width: '96%'
+                          top: `${group.topPixels}px`,
+                          height: `${group.heightPixels}px`,
+                          left: `${group.leftPercentage || 2}%`,
+                          width: `${group.widthPercentage || 96}%`
                         }}
                         onClick={() => toggleCalendarBookingExpansion(groupKey)}
                       >
-                        <div className="p-3 h-full">
+                        <div className="p-2 h-full"> {/* Reduced padding for multiple tiles */}
                           {/* Compact View */}
                           {!isExpanded && (
-                            <div className="h-full flex items-center justify-between">
+                            <div className="h-full flex flex-col justify-between">
                               <div className="flex-1">
-                                <div className="font-bold text-lg truncate">
+                                <div className={`font-bold truncate ${
+                                  group.totalCustomersInSlot && group.totalCustomersInSlot > 2 ? 'text-sm' : 'text-base'
+                                }`}>
                                   {group.customer}
                                 </div>
-                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <div className={`text-muted-foreground flex items-center gap-1 ${
+                                  group.totalCustomersInSlot && group.totalCustomersInSlot > 2 ? 'text-xs' : 'text-sm'
+                                }`}>
                                   <Clock className="h-3 w-3" />
                                   {formatTime(group.startTime)} - {formatTime(group.endTime)}
                                 </div>
                               </div>
                               
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-between">
                                 {group.hasMultiple && (
                                   <Badge variant="secondary" className="text-xs font-bold">
-                                    {group.stationCount} stations
+                                    {group.stationCount}
                                   </Badge>
                                 )}
                                 <div className="text-right">
-                                  <div className="text-sm font-bold">₹{group.totalPrice}</div>
+                                  <div className={`font-bold ${
+                                    group.totalCustomersInSlot && group.totalCustomersInSlot > 2 ? 'text-xs' : 'text-sm'
+                                  }`}>₹{group.totalPrice}</div>
                                   {group.bookings.some(b => b.coupon_code) && (
-                                    <Gift className="h-4 w-4 text-purple-600 mx-auto" />
+                                    <Gift className="h-3 w-3 text-purple-600 mx-auto" />
                                   )}
                                 </div>
                               </div>
@@ -725,30 +792,28 @@ export default function BookingManagement() {
                           
                           {/* Expanded View */}
                           {isExpanded && (
-                            <div className="space-y-3 text-sm max-h-full overflow-y-auto">
-                              <div className="flex items-center justify-between border-b pb-2">
-                                <div className="font-bold text-lg">{group.customer}</div>
-                                <Badge variant="outline">
+                            <div className="space-y-2 text-sm max-h-full overflow-y-auto">
+                              <div className="flex items-center justify-between border-b pb-1">
+                                <div className="font-bold text-base">{group.customer}</div>
+                                <Badge variant="outline" className="text-xs">
                                   {group.bookings.length} booking{group.bookings.length > 1 ? 's' : ''}
                                 </Badge>
                               </div>
                               
                               {/* Station Details */}
-                              <div className="space-y-2">
+                              <div className="space-y-1">
                                 {group.bookings.map((booking, idx) => (
                                   <div key={booking.id} className="p-2 bg-background/80 rounded border">
-                                    <div className="grid grid-cols-3 gap-2 text-xs">
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
                                       <div>
                                         <span className="font-medium">{booking.station.name}</span>
                                         <div className="text-muted-foreground">
                                           {getStationTypeLabel(booking.station.type)}
                                         </div>
                                       </div>
-                                      <div className="text-center">
-                                        <BookingStatusBadge status={booking.status} />
-                                      </div>
                                       <div className="text-right">
-                                        <div className="font-medium">₹{booking.final_price}</div>
+                                        <BookingStatusBadge status={booking.status} />
+                                        <div className="font-medium mt-1">₹{booking.final_price}</div>
                                         {booking.coupon_code && (
                                           <Badge variant="secondary" className="text-xs mt-1">
                                             {booking.coupon_code}
@@ -760,11 +825,11 @@ export default function BookingManagement() {
                                 ))}
                               </div>
                               
-                              <div className="flex items-center justify-between pt-2 border-t">
+                              <div className="flex items-center justify-between pt-1 border-t">
                                 <div className="text-xs text-muted-foreground">
-                                  Duration: {group.bookings[0]?.duration} min
+                                  {group.bookings[0]?.duration} min
                                 </div>
-                                <div className="font-bold">
+                                <div className="font-bold text-xs">
                                   Total: ₹{group.totalPrice}
                                 </div>
                               </div>
@@ -783,7 +848,7 @@ export default function BookingManagement() {
     );
   };
 
-  // Rest of the component functions remain the same...
+  // Continue with rest of the component logic...
   const customerInsights = useMemo((): CustomerInsight[] => {
     const customerMap = new Map<string, CustomerInsight>();
 
@@ -2168,7 +2233,7 @@ export default function BookingManagement() {
             </TabsContent>
           </Tabs>
 
-          {/* Booking List - Only show when not in calendar view */}
+          {/* FIXED: Booking List - Only show when not in calendar view */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
