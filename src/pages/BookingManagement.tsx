@@ -140,14 +140,17 @@ interface Analytics {
   coupons: CouponAnalytics;
 }
 
-// Add new interface for calendar booking
-interface CalendarBooking extends Booking {
-  startHour: number;
-  endHour: number;
-  startMinute: number;
-  endMinute: number;
-  heightPercentage: number;
+// Enhanced interface for calendar booking groups
+interface CalendarBookingGroup {
+  customer: string;
+  startTime: string;
+  endTime: string;
+  bookings: Booking[];
   topPercentage: number;
+  heightPercentage: number;
+  totalPrice: number;
+  hasMultiple: boolean;
+  stationCount: number;
 }
 
 const getDateRangeFromPreset = (preset: string) => {
@@ -474,7 +477,7 @@ export default function BookingManagement() {
     setBookings(filtered);
   }, [filters, allBookings]);
 
-  // NEW: Function to generate calendar time slots
+  // Generate calendar time slots
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 11; hour <= 23; hour++) {
@@ -490,55 +493,78 @@ export default function BookingManagement() {
     return slots;
   };
 
-  // NEW: Process bookings for calendar view
-  const calendarBookings = useMemo((): CalendarBooking[] => {
+  // NEW: Process bookings for grouped calendar view
+  const groupedCalendarBookings = useMemo((): CalendarBookingGroup[] => {
     const dayBookings = allBookings.filter(b => b.booking_date === selectedCalendarDate);
     
-    return dayBookings.map(booking => {
-      const startTime = new Date(`2000-01-01T${booking.start_time}`);
-      const endTime = new Date(`2000-01-01T${booking.end_time}`);
+    // Group bookings by customer and overlapping time periods
+    const groups: Map<string, CalendarBookingGroup> = new Map();
+
+    dayBookings.forEach(booking => {
+      const customerName = booking.customer.name;
+      const timeSlotKey = `${customerName}-${booking.start_time}-${booking.end_time}`;
       
-      const startHour = startTime.getHours();
-      const endHour = endTime.getHours();
-      const startMinute = startTime.getMinutes();
-      const endMinute = endTime.getMinutes();
-      
-      // Calculate position and height as percentage of the calendar view (11 AM to 11 PM = 12 hours)
-      const startMinutesFromEleven = (startHour - 11) * 60 + startMinute;
-      const endMinutesFromEleven = (endHour - 11) * 60 + endMinute;
-      const totalMinutesInView = 12 * 60; // 11 AM to 11 PM
-      
-      const topPercentage = Math.max(0, (startMinutesFromEleven / totalMinutesInView) * 100);
-      const heightPercentage = Math.min(100 - topPercentage, ((endMinutesFromEleven - startMinutesFromEleven) / totalMinutesInView) * 100);
-      
-      return {
-        ...booking,
-        startHour,
-        endHour,
-        startMinute,
-        endMinute,
-        topPercentage,
-        heightPercentage
-      };
-    }).filter(booking => booking.startHour >= 11 && booking.startHour <= 23);
+      if (groups.has(timeSlotKey)) {
+        const existing = groups.get(timeSlotKey)!;
+        existing.bookings.push(booking);
+        existing.totalPrice += booking.final_price || 0;
+        existing.hasMultiple = true;
+        existing.stationCount = existing.bookings.length;
+      } else {
+        // Calculate position and height
+        const startTime = new Date(`2000-01-01T${booking.start_time}`);
+        const endTime = new Date(`2000-01-01T${booking.end_time}`);
+        
+        const startHour = startTime.getHours();
+        const endHour = endTime.getHours();
+        const startMinute = startTime.getMinutes();
+        const endMinute = endTime.getMinutes();
+        
+        // Calculate position as percentage (11 AM to 11 PM = 12 hours)
+        const startMinutesFromEleven = (startHour - 11) * 60 + startMinute;
+        const endMinutesFromEleven = (endHour - 11) * 60 + endMinute;
+        const totalMinutesInView = 12 * 60; // 11 AM to 11 PM
+        
+        const topPercentage = Math.max(0, (startMinutesFromEleven / totalMinutesInView) * 100);
+        const heightPercentage = Math.min(100 - topPercentage, ((endMinutesFromEleven - startMinutesFromEleven) / totalMinutesInView) * 100);
+        
+        if (startHour >= 11 && startHour <= 23) {
+          groups.set(timeSlotKey, {
+            customer: customerName,
+            startTime: booking.start_time,
+            endTime: booking.end_time,
+            bookings: [booking],
+            topPercentage,
+            heightPercentage,
+            totalPrice: booking.final_price || 0,
+            hasMultiple: false,
+            stationCount: 1
+          });
+        }
+      }
+    });
+
+    return Array.from(groups.values());
   }, [allBookings, selectedCalendarDate]);
 
-  const toggleCalendarBookingExpansion = (bookingId: string) => {
+  const toggleCalendarBookingExpansion = (groupKey: string) => {
     setExpandedCalendarBookings(prev => {
       const next = new Set(prev);
-      if (next.has(bookingId)) next.delete(bookingId);
-      else next.add(bookingId);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
       return next;
     });
   };
 
-  // NEW: Enhanced calendar day view component
+  // NEW: Enhanced calendar day view component with grouped bookings
   const CalendarDayView = () => {
     const timeSlots = generateTimeSlots();
-    const totalBookings = calendarBookings.length;
-    const completedBookings = calendarBookings.filter(b => b.status === 'completed').length;
-    const couponBookings = calendarBookings.filter(b => b.coupon_code).length;
-    const totalRevenue = calendarBookings.reduce((sum, b) => sum + (b.final_price || 0), 0);
+    const totalBookings = groupedCalendarBookings.reduce((sum, group) => sum + group.bookings.length, 0);
+    const completedBookings = groupedCalendarBookings.reduce((sum, group) => 
+      sum + group.bookings.filter(b => b.status === 'completed').length, 0);
+    const couponBookings = groupedCalendarBookings.reduce((sum, group) => 
+      sum + group.bookings.filter(b => b.coupon_code).length, 0);
+    const totalRevenue = groupedCalendarBookings.reduce((sum, group) => sum + group.totalPrice, 0);
 
     return (
       <Card className="bg-background border-border shadow-lg">
@@ -600,9 +626,8 @@ export default function BookingManagement() {
             <div className="flex">
               {/* Time Labels */}
               <div className="w-20 border-r border-border bg-muted/20">
-                <div className="h-12 border-b border-border"></div> {/* Header spacer */}
                 {timeSlots.map(slot => (
-                  <div key={slot.hour} className="h-16 border-b border-border flex items-start justify-end pr-3 pt-1">
+                  <div key={slot.hour} className="h-16 border-b border-border flex items-center justify-end pr-3">
                     <span className="text-sm font-medium text-muted-foreground">
                       {slot.label}
                     </span>
@@ -614,9 +639,10 @@ export default function BookingManagement() {
               <div className="flex-1 relative">
                 {/* Hour Grid Lines */}
                 <div className="absolute inset-0 pointer-events-none">
-                  <div className="h-12 border-b border-border bg-muted/10"></div> {/* Header spacer */}
-                  {timeSlots.map(slot => (
-                    <div key={slot.hour} className="h-16 border-b border-border"></div>
+                  {timeSlots.map((slot, index) => (
+                    <div key={slot.hour} className="h-16 border-b border-border" 
+                         style={{ top: `${index * 64}px` }}>
+                    </div>
                   ))}
                 </div>
                 
@@ -628,7 +654,7 @@ export default function BookingManagement() {
                   
                   if (currentHour >= 11 && currentHour <= 23) {
                     const minutesFromEleven = (currentHour - 11) * 60 + currentMinute;
-                    const topPosition = ((minutesFromEleven / (12 * 60)) * 100) + 3; // +3 for header offset
+                    const topPosition = (minutesFromEleven / (12 * 60)) * 100;
                     
                     return (
                       <div 
@@ -645,117 +671,103 @@ export default function BookingManagement() {
                   return null;
                 })()}
                 
-                {/* Bookings */}
-                <div className="relative" style={{ paddingTop: '3rem', height: `${12 * 4}rem` }}>
-                  {calendarBookings.map((booking, index) => {
-                    const isExpanded = expandedCalendarBookings.has(booking.id);
-                    const overlappingBookings = calendarBookings.filter(b => 
-                      b.id !== booking.id &&
-                      ((b.startHour < booking.endHour && b.endHour > booking.startHour) ||
-                       (booking.startHour < b.endHour && booking.endHour > b.startHour))
-                    );
-                    
-                    const overlapCount = overlappingBookings.length;
-                    const width = overlapCount > 0 ? `${90 / (overlapCount + 1)}%` : '90%';
-                    const left = overlapCount > 0 ? `${(index % (overlapCount + 1)) * (90 / (overlapCount + 1)) + 5}%` : '5%';
+                {/* Grouped Bookings */}
+                <div className="relative h-full" style={{ height: `${12 * 64}px` }}>
+                  {groupedCalendarBookings.map((group, index) => {
+                    const groupKey = `${group.customer}-${group.startTime}-${group.endTime}`;
+                    const isExpanded = expandedCalendarBookings.has(groupKey);
                     
                     return (
                       <div
-                        key={booking.id}
+                        key={groupKey}
                         className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 ${
-                          booking.coupon_code 
+                          group.bookings.some(b => b.coupon_code) 
                             ? 'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-300 shadow-purple-100' 
                             : 'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-300 shadow-blue-100'
-                        } ${isExpanded ? 'shadow-lg z-30' : 'shadow-sm hover:shadow-md'}`}
+                        } ${isExpanded ? 'shadow-lg z-30 border-4' : 'shadow-sm hover:shadow-md hover:z-25'}`}
                         style={{
-                          top: `${booking.topPercentage}%`,
-                          height: `${Math.max(booking.heightPercentage, 8)}%`, // Minimum height for visibility
-                          left,
-                          width
+                          top: `${group.topPercentage}%`,
+                          height: `${Math.max(group.heightPercentage, 12)}%`,
+                          left: '2%',
+                          width: '96%'
                         }}
-                        onClick={() => toggleCalendarBookingExpansion(booking.id)}
+                        onClick={() => toggleCalendarBookingExpansion(groupKey)}
                       >
-                        <div className="p-2 h-full overflow-hidden">
+                        <div className="p-3 h-full">
                           {/* Compact View */}
                           {!isExpanded && (
-                            <div className="h-full flex flex-col justify-between">
-                              <div>
-                                <div className={`text-sm font-semibold truncate ${
-                                  booking.coupon_code ? 'text-purple-800' : 'text-blue-800'
-                                }`}>
-                                  {booking.customer.name}
+                            <div className="h-full flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-bold text-lg truncate">
+                                  {group.customer}
                                 </div>
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {booking.station.name}
-                                </div>
-                                <div className="text-xs font-medium flex items-center gap-1">
+                                <div className="text-sm text-muted-foreground flex items-center gap-2">
                                   <Clock className="h-3 w-3" />
-                                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                                  {formatTime(group.startTime)} - {formatTime(group.endTime)}
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between">
-                                <BookingStatusBadge status={booking.status} />
-                                {booking.coupon_code && (
-                                  <Gift className="h-3 w-3 text-purple-600" />
+                              
+                              <div className="flex items-center gap-2">
+                                {group.hasMultiple && (
+                                  <Badge variant="secondary" className="text-xs font-bold">
+                                    {group.stationCount} stations
+                                  </Badge>
                                 )}
+                                <div className="text-right">
+                                  <div className="text-sm font-bold">₹{group.totalPrice}</div>
+                                  {group.bookings.some(b => b.coupon_code) && (
+                                    <Gift className="h-4 w-4 text-purple-600 mx-auto" />
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}
                           
                           {/* Expanded View */}
                           {isExpanded && (
-                            <div className="space-y-3 text-sm overflow-y-auto max-h-full">
-                              <div className="flex items-center justify-between">
-                                <div className={`font-bold text-lg ${
-                                  booking.coupon_code ? 'text-purple-800' : 'text-blue-800'
-                                }`}>
-                                  {booking.customer.name}
-                                </div>
-                                <div className="flex gap-1">
-                                  <Button size="sm" variant="outline" onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditBooking(booking);
-                                  }}>
-                                    <Edit2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                            <div className="space-y-3 text-sm max-h-full overflow-y-auto">
+                              <div className="flex items-center justify-between border-b pb-2">
+                                <div className="font-bold text-lg">{group.customer}</div>
+                                <Badge variant="outline">
+                                  {group.bookings.length} booking{group.bookings.length > 1 ? 's' : ''}
+                                </Badge>
                               </div>
                               
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                  <span className="text-muted-foreground">Phone:</span>
-                                  <div className="font-medium">{booking.customer.phone}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Station:</span>
-                                  <div className="font-medium">{booking.station.name}</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Duration:</span>
-                                  <div className="font-medium">{booking.duration} min</div>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Price:</span>
-                                  <div className="font-medium">₹{booking.final_price}</div>
-                                </div>
+                              {/* Station Details */}
+                              <div className="space-y-2">
+                                {group.bookings.map((booking, idx) => (
+                                  <div key={booking.id} className="p-2 bg-background/80 rounded border">
+                                    <div className="grid grid-cols-3 gap-2 text-xs">
+                                      <div>
+                                        <span className="font-medium">{booking.station.name}</span>
+                                        <div className="text-muted-foreground">
+                                          {getStationTypeLabel(booking.station.type)}
+                                        </div>
+                                      </div>
+                                      <div className="text-center">
+                                        <BookingStatusBadge status={booking.status} />
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="font-medium">₹{booking.final_price}</div>
+                                        {booking.coupon_code && (
+                                          <Badge variant="secondary" className="text-xs mt-1">
+                                            {booking.coupon_code}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                               
-                              <div className="flex items-center justify-between">
-                                <BookingStatusBadge status={booking.status} />
-                                {booking.coupon_code && (
-                                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                    <Gift className="h-2 w-2" />
-                                    {booking.coupon_code}
-                                  </Badge>
-                                )}
-                              </div>
-                              
-                              {booking.notes && (
-                                <div className="p-2 bg-muted/50 rounded text-xs">
-                                  <span className="text-muted-foreground">Notes: </span>
-                                  {booking.notes}
+                              <div className="flex items-center justify-between pt-2 border-t">
+                                <div className="text-xs text-muted-foreground">
+                                  Duration: {group.bookings[0]?.duration} min
                                 </div>
-                              )}
+                                <div className="font-bold">
+                                  Total: ₹{group.totalPrice}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -771,6 +783,7 @@ export default function BookingManagement() {
     );
   };
 
+  // Rest of the component functions remain the same...
   const customerInsights = useMemo((): CustomerInsight[] => {
     const customerMap = new Map<string, CustomerInsight>();
 
@@ -2155,239 +2168,241 @@ export default function BookingManagement() {
             </TabsContent>
           </Tabs>
 
-          {/* Bookings List */}
+          {/* Booking List - Only show when not in calendar view */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Bookings ({bookings.length})</CardTitle>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Gift className="h-4 w-4" />
-                    {analytics.coupons.totalCouponsUsed} with coupons
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    {getDateRangeLabel()}
-                  </div>
-                </div>
-              </div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Detailed Booking Records ({bookings.length} bookings)
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-16 bg-muted/50 rounded animate-pulse" />
-                  ))}
+              {loading && (
+                <div className="text-center py-8">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">Loading bookings...</p>
                 </div>
-              ) : bookings.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">No bookings found</p>
+              )}
+
+              {!loading && bookings.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                  <p className="text-xl font-medium">No bookings found</p>
                   <p>Try adjusting your filters or date range</p>
                 </div>
-              ) : (
-                <div className="max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-background space-y-2 pr-2">
+              )}
+
+              {!loading && bookings.length > 0 && (
+                <div className="space-y-4">
                   {Object.entries(groupedBookings)
                     .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
                     .map(([date, customerBookings]) => (
-                      <Collapsible key={date}>
-                        <CollapsibleTrigger 
-                          onClick={() => toggleDateExpansion(date)}
-                          className="flex items-center gap-2 w-full p-3 text-left bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                      <div key={date}>
+                        <Collapsible
+                          open={expandedDates.has(date)}
+                          onOpenChange={() => toggleDateExpansion(date)}
                         >
-                          {expandedDates.has(date) ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                          <Calendar className="h-4 w-4" />
-                          <span className="font-semibold">{getDateLabel(date)}</span>
-                          <Badge variant="outline" className="ml-auto">
-                            {Object.values(customerBookings).flat().length} bookings
-                          </Badge>
-                          <Badge variant="secondary" className="text-xs">
-                            {Object.values(customerBookings).flat().filter(b => b.coupon_code).length} with coupons
-                          </Badge>
-                        </CollapsibleTrigger>
-                        
-                        <CollapsibleContent>
-                          {expandedDates.has(date) && (
-                            <div className="ml-6 mt-2 space-y-2">
-                              {Object.entries(customerBookings).map(([customerName, bookingsForCustomer]) => {
-                                const key = `${date}::${customerName}`;
-                                const couponBookings = bookingsForCustomer.filter(b => b.coupon_code);
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-between p-4 h-auto bg-muted/30 hover:bg-muted/50 border border-border rounded-lg"
+                            >
+                              <div className="flex items-center gap-3">
+                                {expandedDates.has(date) ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                                <CalendarDays className="h-5 w-5 text-blue-600" />
+                                <span className="font-semibold text-lg">{getDateLabel(date)}</span>
+                                <Badge variant="secondary" className="ml-2">
+                                  {Object.values(customerBookings).reduce((sum, bookings) => sum + bookings.length, 0)} bookings
+                                </Badge>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-lg text-green-600">
+                                  ₹{Object.values(customerBookings)
+                                    .flat()
+                                    .reduce((sum, b) => sum + (b.final_price || 0), 0)
+                                    .toLocaleString()}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {Object.keys(customerBookings).length} customers
+                                </p>
+                              </div>
+                            </Button>
+                          </CollapsibleTrigger>
+                          
+                          <CollapsibleContent className="space-y-3 mt-3">
+                            {Object.entries(customerBookings)
+                              .sort((a, b) => b[1].reduce((sum, booking) => sum + (booking.final_price || 0), 0) - 
+                                             a[1].reduce((sum, booking) => sum + (booking.final_price || 0), 0))
+                              .map(([customerName, customerBookingsList]) => {
+                                const dateCustomerKey = `${date}::${customerName}`;
+                                const customerTotal = customerBookingsList.reduce((sum, b) => sum + (b.final_price || 0), 0);
                                 
                                 return (
-                                  <Collapsible key={key}>
-                                    <CollapsibleTrigger 
-                                      onClick={() => toggleCustomerExpansion(key)}
-                                      className="flex items-center gap-2 w-full p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors"
+                                  <div key={dateCustomerKey} className="ml-8">
+                                    <Collapsible
+                                      open={expandedCustomers.has(dateCustomerKey)}
+                                      onOpenChange={() => toggleCustomerExpansion(dateCustomerKey)}
                                     >
-                                      {expandedCustomers.has(key) ? (
-                                        <ChevronDown className="h-3 w-3" />
-                                      ) : (
-                                        <ChevronRight className="h-3 w-3" />
-                                      )}
-                                      <Users className="h-3 w-3" />
-                                      <span className="font-medium">{customerName}</span>
-                                      <div className="ml-auto flex items-center gap-2">
-                                        <Badge variant="secondary" className="text-xs">
-                                          {bookingsForCustomer.length} booking{bookingsForCustomer.length !== 1 ? 's' : ''}
-                                        </Badge>
-                                        {couponBookings.length > 0 && (
-                                          <Badge variant="outline" className="text-xs flex items-center gap-1">
-                                            <Gift className="h-2 w-2" />
-                                            {couponBookings.length} coupon{couponBookings.length !== 1 ? 's' : ''}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </CollapsibleTrigger>
-                                    
-                                    <CollapsibleContent>
-                                      {expandedCustomers.has(key) && (
-                                        <div className="ml-6 mt-2 space-y-2">
-                                          {bookingsForCustomer
-                                            .sort((a, b) => a.start_time.localeCompare(b.start_time))
-                                            .map(booking => (
-                                              <div 
-                                                key={booking.id} 
-                                                className={`p-4 border rounded-lg bg-card shadow-sm ${
-                                                  booking.coupon_code 
-                                                    ? 'ring-2 ring-purple-200 bg-purple-50/30 dark:bg-purple-950/30' 
-                                                    : ''
-                                                }`}
-                                              >
-                                                <div className="flex items-center justify-between">
-                                                  <div className="grid grid-cols-1 md:grid-cols-7 gap-4 flex-1">
-                                                    <div>
-                                                      <div className="text-sm text-muted-foreground">Booking Details</div>
-                                                      <div className="space-y-1">
-                                                        <div className="font-medium flex items-center gap-1 text-blue-600">
-                                                          <Hash className="h-3 w-3" />
-                                                          ID: {booking.id.substring(0, 8)}...
-                                                        </div>
-                                                        {booking.booking_views && booking.booking_views.length > 0 && (
-                                                          <div className="text-xs text-gray-500 flex items-center gap-1">
-                                                            <Eye className="h-2 w-2" />
-                                                            Access: {booking.booking_views[0].access_code}
-                                                          </div>
-                                                        )}
-                                                      </div>
+                                      <CollapsibleTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          className="w-full justify-between p-3 h-auto bg-background hover:bg-muted/30 border border-border rounded-lg"
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            {expandedCustomers.has(dateCustomerKey) ? (
+                                              <ChevronDown className="h-3 w-3" />
+                                            ) : (
+                                              <ChevronRight className="h-3 w-3" />
+                                            )}
+                                            <Users className="h-4 w-4 text-blue-500" />
+                                            <span className="font-medium">{customerName}</span>
+                                            <Badge variant="outline" className="text-xs">
+                                              {customerBookingsList.length} booking{customerBookingsList.length > 1 ? 's' : ''}
+                                            </Badge>
+                                            {customerBookingsList.some(b => b.coupon_code) && (
+                                              <Gift className="h-4 w-4 text-purple-500" />
+                                            )}
+                                          </div>
+                                          <div className="text-right">
+                                            <p className="font-bold text-green-600">₹{customerTotal.toLocaleString()}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {customerBookingsList[0]?.customer.phone}
+                                            </p>
+                                          </div>
+                                        </Button>
+                                      </CollapsibleTrigger>
+                                      
+                                      <CollapsibleContent className="space-y-2 mt-2">
+                                        {customerBookingsList
+                                          .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                                          .map((booking) => (
+                                            <div
+                                              key={booking.id}
+                                              className="ml-8 p-4 bg-card border border-border rounded-lg hover:shadow-sm transition-shadow"
+                                            >
+                                              <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 items-center">
+                                                <div className="lg:col-span-2">
+                                                  <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                                                      <Hash className="h-4 w-4 text-blue-600" />
                                                     </div>
-                                                    
                                                     <div>
-                                                      <div className="text-sm text-muted-foreground">Time</div>
-                                                      <div className="font-medium flex items-center gap-1">
-                                                        <Clock className="h-3 w-3" />
-                                                        {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-                                                      </div>
-                                                      <div className="text-xs text-muted-foreground">{booking.duration}min</div>
-                                                    </div>
-                                                    
-                                                    <div>
-                                                      <div className="text-sm text-muted-foreground">Station</div>
-                                                      <div className="font-medium flex items-center gap-1">
-                                                        <MapPin className="h-3 w-3" />
-                                                        {booking.station.name}
-                                                      </div>
-                                                      <Badge variant="outline" className="text-xs mt-1">
-                                                        {getStationTypeLabel(booking.station.type)}
-                                                      </Badge>
-                                                    </div>
-                                                    
-                                                    <div>
-                                                      <div className="text-sm text-muted-foreground">Contact</div>
-                                                      <div className="text-sm flex items-center gap-1">
-                                                        <Phone className="h-3 w-3" />
-                                                        {booking.customer.phone}
-                                                      </div>
-                                                      {booking.customer.email && (
-                                                        <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                                          <Mail className="h-3 w-3" />
-                                                          {booking.customer.email}
-                                                        </div>
+                                                      <p className="font-mono text-sm text-muted-foreground">{booking.id.slice(-8)}</p>
+                                                      {booking.booking_views && booking.booking_views.length > 0 && (
+                                                        <p className="text-xs text-blue-600 flex items-center gap-1">
+                                                          <Eye className="h-3 w-3" />
+                                                          {booking.booking_views[0].access_code}
+                                                        </p>
                                                       )}
-                                                    </div>
-                                                    
-                                                    <div>
-                                                      <div className="text-sm text-muted-foreground">Status</div>
-                                                      <BookingStatusBadge status={booking.status} />
-                                                    </div>
-                                                    
-                                                    <div>
-                                                      <div className="text-sm text-muted-foreground">Pricing</div>
-                                                      <div className="space-y-1">
-                                                        {booking.original_price && booking.original_price !== booking.final_price && (
-                                                          <div className="text-xs text-gray-500 line-through">
-                                                            ₹{booking.original_price}
-                                                          </div>
-                                                        )}
-                                                        <div className="flex items-center gap-2">
-                                                          {typeof booking.final_price === 'number' && (
-                                                            <span className="text-sm font-medium">₹{booking.final_price}</span>
-                                                          )}
-                                                          {!!booking.discount_percentage && (
-                                                            <Badge variant="destructive" className="text-xs">
-                                                              {Math.round(booking.discount_percentage)}% OFF
-                                                            </Badge>
-                                                          )}
-                                                        </div>
-                                                        {booking.coupon_code && (
-                                                          <Badge variant="secondary" className="text-xs mt-1 flex items-center gap-1 w-fit">
-                                                            <Gift className="h-2 w-2" />
-                                                            {booking.coupon_code}
-                                                          </Badge>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                    
-                                                    <div className="flex gap-1 ml-4">
-                                                      <Button size="sm" variant="outline" onClick={() => handleEditBooking(booking)}>
-                                                        <Edit2 className="h-3 w-3" />
-                                                      </Button>
-                                                      <Button size="sm" variant="outline" onClick={() => handleDeleteBooking(booking)}>
-                                                        <Trash2 className="h-3 w-3" />
-                                                      </Button>
                                                     </div>
                                                   </div>
                                                 </div>
-                                                
-                                                {booking.notes && (
-                                                  <div className="mt-3 p-2 bg-muted/50 rounded text-sm">
-                                                    <span className="text-muted-foreground">Notes: </span>
-                                                    {booking.notes}
+
+                                                <div>
+                                                  <div className="flex items-center gap-2 mb-1">
+                                                    <Clock className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="font-medium">
+                                                      {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                                                    </span>
                                                   </div>
-                                                )}
+                                                  <div className="flex items-center gap-2">
+                                                    <Timer className="h-3 w-3 text-muted-foreground" />
+                                                    <span className="text-sm text-muted-foreground">{booking.duration} min</span>
+                                                  </div>
+                                                </div>
+
+                                                <div>
+                                                  <div className="flex items-center gap-2 mb-1">
+                                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="font-medium">{booking.station.name}</span>
+                                                  </div>
+                                                  <Badge variant="outline" className="text-xs">
+                                                    {getStationTypeLabel(booking.station.type)}
+                                                  </Badge>
+                                                </div>
+
+                                                <div className="text-center">
+                                                  <BookingStatusBadge status={booking.status} />
+                                                </div>
+
+                                                <div className="text-center">
+                                                  <p className="font-bold text-lg text-green-600">₹{booking.final_price || 0}</p>
+                                                  {booking.discount_percentage && (
+                                                    <div className="flex items-center justify-center gap-1 text-xs text-orange-600">
+                                                      <Percent className="h-3 w-3" />
+                                                      {booking.discount_percentage}% off
+                                                    </div>
+                                                  )}
+                                                  {booking.coupon_code && (
+                                                    <Badge variant="secondary" className="text-xs mt-1">
+                                                      <Gift className="h-2 w-2 mr-1" />
+                                                      {booking.coupon_code}
+                                                    </Badge>
+                                                  )}
+                                                </div>
+
+                                                <div className="flex gap-2 justify-end">
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleEditBooking(booking)}
+                                                    className="h-8 w-8 p-0"
+                                                  >
+                                                    <Edit2 className="h-3 w-3" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteBooking(booking)}
+                                                    className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200"
+                                                  >
+                                                    <Trash2 className="h-3 w-3" />
+                                                  </Button>
+                                                </div>
                                               </div>
-                                            ))}
-                                        </div>
-                                      )}
-                                    </CollapsibleContent>
-                                  </Collapsible>
+
+                                              {booking.notes && (
+                                                <div className="mt-3 p-2 bg-muted/50 rounded border">
+                                                  <p className="text-sm text-muted-foreground">
+                                                    <strong>Notes:</strong> {booking.notes}
+                                                  </p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                      </CollapsibleContent>
+                                    </Collapsible>
+                                  </div>
                                 );
                               })}
-                            </div>
-                          )}
-                        </CollapsibleContent>
-                      </Collapsible>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
                     ))}
                 </div>
               )}
             </CardContent>
           </Card>
+        </>
+      )}
 
-          {/* Dialogs */}
+      {/* Edit and Delete Dialogs */}
+      {selectedBooking && (
+        <>
           <BookingEditDialog
+            booking={selectedBooking}
             open={editDialogOpen}
             onOpenChange={setEditDialogOpen}
-            booking={selectedBooking}
             onBookingUpdated={fetchBookings}
           />
-
           <BookingDeleteDialog
+            booking={selectedBooking}
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            booking={selectedBooking}
             onBookingDeleted={fetchBookings}
           />
         </>
@@ -2395,4 +2410,3 @@ export default function BookingManagement() {
     </div>
   );
 }
-
