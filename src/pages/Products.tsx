@@ -20,6 +20,9 @@ import StockExport from '@/components/product/StockExport';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAuth } from '@/context/AuthContext';
+import AdvancedFilters from '@/components/product/AdvancedFilters';
+import { FilterOptions } from '@/types/stockLog.types';
+import { createStockLog, saveStockLog } from '@/utils/stockLogger';
 import {
   Sheet,
   SheetContent,
@@ -45,17 +48,56 @@ const ProductsPage: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showZeroStockOnly, setShowZeroStockOnly] = useState<boolean>(false);
+  
+  // NEW: Advanced filters state
+  const [advancedFilters, setAdvancedFilters] = useState<FilterOptions>({
+    stockStatus: 'all',
+  });
 
-  // Filter and sort products based on search term, active tab, and zero stock filter
+  // Filter and sort products based on search term, active tab, zero stock filter, and advanced filters
   const getFilteredAndSortedProducts = () => {
     let filtered = products.filter(product => {
+      // Search filter
       const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.category.toLowerCase().includes(searchTerm.toLowerCase());
       
+      // Zero stock filter
       const matchesZeroStock = !showZeroStockOnly || 
         (product.category !== 'membership' && product.stock === 0);
       
-      return matchesSearch && matchesZeroStock;
+      // NEW: Advanced stock status filter
+      let matchesStockStatus = true;
+      if (advancedFilters.stockStatus !== 'all') {
+        switch (advancedFilters.stockStatus) {
+          case 'in-stock':
+            matchesStockStatus = product.stock > 10;
+            break;
+          case 'low-stock':
+            matchesStockStatus = product.stock > 0 && product.stock <= 10;
+            break;
+          case 'out-of-stock':
+            matchesStockStatus = product.stock === 0 && product.category !== 'membership';
+            break;
+        }
+      }
+
+      // NEW: Price range filter
+      let matchesPriceRange = true;
+      if (advancedFilters.priceRange) {
+        const { min, max } = advancedFilters.priceRange;
+        matchesPriceRange = product.price >= min && product.price <= max;
+      }
+
+      // NEW: Profit margin filter
+      let matchesProfitMargin = true;
+      if (advancedFilters.profitMargin && product.buyingPrice && product.sellingPrice) {
+        const profitMargin = ((product.sellingPrice - product.buyingPrice) / product.buyingPrice) * 100;
+        const { min, max } = advancedFilters.profitMargin;
+        matchesProfitMargin = profitMargin >= min && profitMargin <= max;
+      }
+      
+      return matchesSearch && matchesZeroStock && matchesStockStatus && 
+             matchesPriceRange && matchesProfitMargin;
     });
 
     // Sort by category when "All" tab is selected
@@ -160,6 +202,19 @@ const ProductsPage: React.FC = () => {
       console.log('Submitting product data:', productData);
       
       if (isEditMode && selectedProduct) {
+        // NEW: Log stock changes
+        if (selectedProduct.stock !== Number(stock)) {
+          const stockLog = createStockLog(
+            { ...selectedProduct, ...productData, id: selectedProduct.id },
+            selectedProduct.stock,
+            Number(stock),
+            Number(stock) > selectedProduct.stock ? 'addition' : 'deduction',
+            user?.name || user?.email || 'Unknown User',
+            'Stock updated via product edit'
+          );
+          saveStockLog(stockLog);
+        }
+
         await updateProduct({ ...productData, id: selectedProduct.id });
         toast({
           title: 'Product Updated',
@@ -167,7 +222,21 @@ const ProductsPage: React.FC = () => {
         });
         setIsDialogOpen(false);
       } else {
-        await addProduct(productData);
+        const newProduct = await addProduct(productData);
+        
+        // NEW: Log initial stock
+        if (newProduct && Number(stock) > 0) {
+          const stockLog = createStockLog(
+            newProduct as Product,
+            0,
+            Number(stock),
+            'initial',
+            user?.name || user?.email || 'Unknown User',
+            'Initial stock added'
+          );
+          saveStockLog(stockLog);
+        }
+
         toast({
           title: 'Product Added',
           description: 'The product has been added successfully.',
@@ -270,13 +339,22 @@ const ProductsPage: React.FC = () => {
       </div>
       
       <div className="bg-card rounded-lg shadow-sm p-4">
-        {/* Search Bar and Zero Stock Filter */}
+        {/* Search Bar, Advanced Filters, and Zero Stock Filter */}
         <div className="mb-6 space-y-4">
-          <ProductSearch
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            placeholder="Search products by name or category..."
-          />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <ProductSearch
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                placeholder="Search products by name or category..."
+              />
+            </div>
+            {/* NEW: Advanced Filters Component */}
+            <AdvancedFilters
+              currentFilters={advancedFilters}
+              onFilterChange={setAdvancedFilters}
+            />
+          </div>
           
           {zeroStockCount > 0 && (
             <ZeroStockFilter
