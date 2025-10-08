@@ -1,95 +1,39 @@
-
 import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { TableCell, TableRow } from '@/components/ui/table';
+import { TableRow, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { ChevronDown, ChevronRight, Gift } from 'lucide-react';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 
-interface BillItem {
-  id: string;
-  name: string;
-  quantity: number;
-  total: number;
-  type: 'product' | 'session';
-}
-
-interface Bill {
-  id: string;
-  customerId: string;
-  items: BillItem[];
-  subtotal: number;
-  discountValue?: number;
-  loyaltyPointsUsed?: number;
-  total: number;
-  paymentMethod: string;
-  isSplitPayment?: boolean;
-  cashAmount?: number;
-  upiAmount?: number;
-  createdAt: Date | string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  email?: string;
-}
-
 interface ExpandableBillRowProps {
-  bill: Bill;
+  bill: any;
   getCustomerName: (customerId: string) => string;
-  getCustomerPhone?: (customerId: string) => string;
-  searchTerm?: string;
 }
 
-const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({ 
-  bill, 
-  getCustomerName, 
-  getCustomerPhone,
-  searchTerm = ''
-}) => {
+const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({ bill, getCustomerName }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  
-  const billDate = new Date(bill.createdAt);
-  const firstItemName = bill.items.length > 0 ? bill.items[0].name : '';
-  const itemCount = bill.items.length;
-  const customerName = getCustomerName(bill.customerId);
-  const customerPhone = getCustomerPhone ? getCustomerPhone(bill.customerId) : '';
-
-  // Check if this bill matches the search term
-  const matchesSearch = !searchTerm || 
-    customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customerPhone.includes(searchTerm) ||
-    bill.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    bill.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
-  if (!matchesSearch) {
-    return null;
-  }
+  const isComplimentary = bill.paymentMethod?.toLowerCase() === 'complimentary';
+  const isSplit = bill.splitPayment && bill.splitPayment.length > 0;
 
   return (
     <>
-      <TableRow>
-        <TableCell className="text-white">
-          <div>{format(billDate, 'd MMM yyyy')}</div>
-          <div className="text-gray-400">{format(billDate, 'HH:mm')}</div>
-        </TableCell>
-        <TableCell className="text-white font-mono text-xs">{bill.id.substring(0, 30)}</TableCell>
-        <TableCell className="text-white">
-          <div>{customerName}</div>
-          {customerPhone && (
-            <div className="text-gray-400 text-xs">{customerPhone}</div>
-          )}
-        </TableCell>
+      <TableRow 
+        className={`cursor-pointer hover:bg-gray-800/50 ${
+          isComplimentary ? 'bg-amber-950/20 hover:bg-amber-950/30' : ''
+        }`}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <TableCell className="text-white">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="h-6 w-6 p-0 hover:bg-gray-700"
+              className="h-6 w-6 p-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
             >
               {isExpanded ? (
                 <ChevronDown className="h-4 w-4" />
@@ -98,13 +42,33 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
               )}
             </Button>
             <div>
-              <div>{itemCount} item{itemCount !== 1 ? 's' : ''}</div>
-              {!isExpanded && bill.items.length > 0 && (
-                <div className="text-gray-400 text-xs">{firstItemName}</div>
-              )}
+              <div>{format(new Date(bill.createdAt), 'MMM dd, yyyy')}</div>
+              <div className="text-xs text-gray-400">
+                {format(new Date(bill.createdAt), 'hh:mm a')}
+              </div>
             </div>
           </div>
         </TableCell>
+        <TableCell className="text-white font-mono text-xs">
+          {bill.id.substring(0, 8)}...
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <span className="text-white">{getCustomerName(bill.customerId)}</span>
+            {isComplimentary && (
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/50 text-xs px-1.5 py-0">
+                <Gift className="h-3 w-3 mr-1" />
+                Comp
+              </Badge>
+            )}
+          </div>
+          {isComplimentary && bill.compNote && (
+            <p className="text-xs text-amber-400/80 mt-1 italic">
+              {bill.compNote}
+            </p>
+          )}
+        </TableCell>
+        <TableCell className="text-white">{bill.items.length}</TableCell>
         <TableCell className="text-white">
           <CurrencyDisplay amount={bill.subtotal} />
         </TableCell>
@@ -112,69 +76,134 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
           <CurrencyDisplay amount={bill.discountValue || 0} />
         </TableCell>
         <TableCell className="text-white">{bill.loyaltyPointsUsed || 0}</TableCell>
-        <TableCell className="text-white font-semibold">
+        <TableCell className={`font-semibold ${isComplimentary ? 'text-amber-400' : 'text-white'}`}>
           <CurrencyDisplay amount={bill.total} />
         </TableCell>
         <TableCell>
-          <Badge variant="outline" className={
-            bill.paymentMethod === 'upi'
-              ? "bg-blue-900/30 text-blue-400 border-blue-800"
-              : bill.paymentMethod === 'credit'
-              ? "bg-orange-900/30 text-orange-400 border-orange-800"
-              : bill.paymentMethod === 'split'
-              ? "bg-purple-900/30 text-purple-400 border-purple-800"
-              : "bg-green-900/30 text-green-400 border-green-800"
-          }>
-            {bill.paymentMethod === 'upi' 
-              ? 'UPI' 
-              : bill.paymentMethod === 'credit'
-              ? 'Credit'
-              : bill.paymentMethod === 'split'
-              ? 'Split'
-              : 'Cash'}
-          </Badge>
+          {isComplimentary ? (
+            <Badge className="bg-amber-900/30 text-amber-400 border-amber-700">
+              <Gift className="h-3 w-3 mr-1" />
+              Complimentary
+            </Badge>
+          ) : isSplit ? (
+            <Badge variant="outline" className="bg-blue-900/30 text-blue-400 border-blue-800">
+              Split
+            </Badge>
+          ) : (
+            <Badge
+              variant={
+                bill.paymentMethod === 'cash'
+                  ? 'default'
+                  : bill.paymentMethod === 'upi'
+                  ? 'secondary'
+                  : bill.paymentMethod === 'credit'
+                  ? 'destructive'
+                  : 'outline'
+              }
+              className={
+                bill.paymentMethod === 'cash'
+                  ? 'bg-green-900/30 text-green-400 border-green-800'
+                  : bill.paymentMethod === 'upi'
+                  ? 'bg-blue-900/30 text-blue-400 border-blue-800'
+                  : bill.paymentMethod === 'credit'
+                  ? 'bg-red-900/30 text-red-400 border-red-800'
+                  : ''
+              }
+            >
+              {bill.paymentMethod || 'N/A'}
+            </Badge>
+          )}
         </TableCell>
-        <TableCell>
-          {bill.isSplitPayment && (
-            <div className="text-xs">
-              <div className="text-green-400">
-                Cash: <CurrencyDisplay amount={bill.cashAmount || 0} />
+        <TableCell className="text-white">
+          {isSplit && !isComplimentary ? (
+            <div className="text-xs space-y-1">
+              <div className="flex items-center gap-1">
+                <span className="text-green-400">Cash:</span>
+                <CurrencyDisplay amount={bill.cashAmount || 0} />
               </div>
-              <div className="text-blue-400 mt-1">
-                UPI: <CurrencyDisplay amount={bill.upiAmount || 0} />
+              <div className="flex items-center gap-1">
+                <span className="text-blue-400">UPI:</span>
+                <CurrencyDisplay amount={bill.upiAmount || 0} />
               </div>
             </div>
+          ) : (
+            '-'
           )}
         </TableCell>
       </TableRow>
-      
-      {/* Expanded row showing item details */}
+
+      {/* Expanded row showing items */}
       {isExpanded && (
-        <TableRow className="bg-gray-800/30">
+        <TableRow className={isComplimentary ? 'bg-amber-950/10' : 'bg-gray-800/30'}>
           <TableCell colSpan={10} className="p-4">
             <div className="space-y-3">
-              <h4 className="text-sm font-medium text-white mb-2">Items in this bill:</h4>
+              <h4 className="font-semibold text-white text-sm">Items in this transaction:</h4>
               <div className="grid gap-2">
-                {bill.items.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between bg-gray-800/50 rounded-lg p-3">
+                {bill.items.map((item: any, index: number) => (
+                  <div
+                    key={index}
+                    className={`flex justify-between items-center p-3 rounded-md ${
+                      isComplimentary ? 'bg-amber-950/20 border border-amber-800/30' : 'bg-gray-900 border border-gray-700'
+                    }`}
+                  >
                     <div className="flex items-center gap-3">
-                      <Badge variant="outline" className={
-                        item.type === 'session' 
-                          ? "bg-blue-900/30 text-blue-400 border-blue-800" 
-                          : "bg-green-900/30 text-green-400 border-green-800"
-                      }>
-                        {item.type === 'session' ? 'Session' : 'Product'}
+                      <Badge
+                        variant="outline"
+                        className={
+                          item.type === 'product'
+                            ? 'bg-purple-900/30 text-purple-400 border-purple-800'
+                            : 'bg-blue-900/30 text-blue-400 border-blue-800'
+                        }
+                      >
+                        {item.type === 'product' ? 'Product' : 'Session'}
                       </Badge>
-                      <span className="text-white font-medium">{item.name}</span>
+                      <div>
+                        <p className="text-white font-medium">{item.name}</p>
+                        <p className="text-xs text-gray-400">
+                          <CurrencyDisplay amount={item.price} /> × {item.quantity}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="text-gray-400">Qty: {item.quantity}</span>
-                      <span className="text-white font-semibold">
-                        <CurrencyDisplay amount={item.total} />
-                      </span>
+                    <div className={`font-semibold ${isComplimentary ? 'text-amber-400' : 'text-white'}`}>
+                      <CurrencyDisplay amount={item.total} />
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Show complimentary note in expanded section if available */}
+              {isComplimentary && bill.compNote && (
+                <div className="mt-3 p-3 bg-amber-950/30 border border-amber-800/50 rounded-md">
+                  <p className="text-xs text-gray-400 mb-1">Complimentary Reason:</p>
+                  <p className="text-sm text-amber-400 italic">{bill.compNote}</p>
+                </div>
+              )}
+
+              {/* Summary */}
+              <div className="border-t border-gray-700 pt-3 mt-3 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Subtotal:</span>
+                  <CurrencyDisplay amount={bill.subtotal} className="text-white" />
+                </div>
+                {bill.discountValue > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Discount:</span>
+                    <CurrencyDisplay amount={bill.discountValue} className="text-purple-400" />
+                  </div>
+                )}
+                {bill.loyaltyPointsUsed > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Loyalty Points Used:</span>
+                    <span className="text-orange-400">{bill.loyaltyPointsUsed}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-bold border-t border-gray-700 pt-2 mt-2">
+                  <span className={isComplimentary ? 'text-amber-400' : 'text-white'}>Total:</span>
+                  <CurrencyDisplay 
+                    amount={bill.total} 
+                    className={isComplimentary ? 'text-amber-400' : 'text-white'} 
+                  />
+                </div>
               </div>
             </div>
           </TableCell>
