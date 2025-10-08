@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -8,8 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { CalendarIcon, Download, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { CalendarIcon, Download, AlertTriangle, TrendingUp, TrendingDown, Database } from 'lucide-react';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -21,7 +22,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getStockLogs } from '@/utils/stockLogger';
+import { getStockLogs, createStockLog, saveStockLog } from '@/utils/stockLogger';
+import { useToast } from '@/hooks/use-toast';
 
 interface ReconciliationData {
   productId: string;
@@ -37,12 +39,76 @@ interface ReconciliationData {
   actualClosingStock: number;
   variance: number;
   varianceValue: number;
-  buyingPrice: number;
+  pricePerUnit: number;
+  hasBuyingPrice: boolean;
 }
 
 const StockReconciliationReport: React.FC = () => {
   const { products, transactions } = usePOS();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Initialize stock logs for all products
+  const initializeStockSnapshot = () => {
+    try {
+      let count = 0;
+      const snapshotDate = subDays(selectedDate, 1); // Create snapshot for yesterday
+      
+      products.forEach(product => {
+        const category = product.category.toLowerCase();
+        if (category === 'food' || category === 'drinks') {
+          // Check if there's already a log for this product before selected date
+          const existingLogs = getStockLogs(product.id);
+          const logsBeforeDate = existingLogs.filter(log => 
+            new Date(log.timestamp) < startOfDay(selectedDate)
+          );
+          
+          if (logsBeforeDate.length === 0 && product.stock > 0) {
+            // Create initial stock log with yesterday's date
+            const stockLog = createStockLog(
+              product,
+              0,
+              product.stock,
+              'initial',
+              user?.name || user?.email || 'System',
+              `Initial stock snapshot created for reconciliation`
+            );
+            
+            // Manually set the timestamp to yesterday
+            stockLog.timestamp = snapshotDate;
+            
+            saveStockLog(stockLog);
+            count++;
+          }
+        }
+      });
+
+      if (count > 0) {
+        toast({
+          title: 'Stock Snapshot Created',
+          description: `Created initial stock logs for ${count} products dated ${format(snapshotDate, 'dd/MM/yyyy')}. Refreshing page...`,
+        });
+
+        // Force re-render after a short delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        toast({
+          title: 'No Action Needed',
+          description: 'All products already have stock logs before the selected date.',
+        });
+      }
+    } catch (error) {
+      console.error('Error creating stock snapshot:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create stock snapshot',
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Get stock logs for the selected date
   const getStockLogsForDate = (productId: string, date: Date) => {
@@ -91,22 +157,31 @@ const StockReconciliationReport: React.FC = () => {
   // Calculate reconciliation data
   const reconciliationData = useMemo((): ReconciliationData[] => {
     try {
+      // Get all food and drinks products
       const foodAndDrinks = products.filter(p => {
         const category = p.category.toLowerCase();
-        return (category === 'food' || category === 'drinks') && p.buyingPrice;
+        return category === 'food' || category === 'drinks';
       });
 
+      console.log('Found food/drinks products:', foodAndDrinks.length);
+
       return foodAndDrinks.map(product => {
+        // Use buying price if available, otherwise use selling price or regular price
+        const pricePerUnit = product.buyingPrice || product.sellingPrice || product.price;
+        const hasBuyingPrice = !!product.buyingPrice;
+
         // Get opening stock
         const openingStock = getOpeningStock(product.id, selectedDate);
-        const openingValue = openingStock * (product.buyingPrice || 0);
+        const openingValue = openingStock * pricePerUnit;
+
+        console.log(`${product.name}: Opening=${openingStock}, Price=${pricePerUnit}`);
 
         // Get stock additions for the day
         const logsForDate = getStockLogsForDate(product.id, selectedDate);
         const additions = logsForDate
           .filter(log => log.changeType === 'addition' || log.changeType === 'initial')
           .reduce((sum, log) => sum + log.quantityChanged, 0);
-        const additionsValue = additions * (product.buyingPrice || 0);
+        const additionsValue = additions * pricePerUnit;
 
         // Get sales for the day
         const startOfSelectedDay = startOfDay(selectedDate);
@@ -124,13 +199,15 @@ const StockReconciliationReport: React.FC = () => {
           return sum + (productInTransaction?.quantity || 0);
         }, 0);
 
-        const salesValue = salesQuantity * (product.buyingPrice || 0);
+        const salesValue = salesQuantity * pricePerUnit;
+
+        console.log(`${product.name}: Sales=${salesQuantity}, Additions=${additions}`);
 
         // Calculate expected vs actual closing stock
         const expectedClosingStock = openingStock + additions - salesQuantity;
         const actualClosingStock = product.stock;
         const variance = actualClosingStock - expectedClosingStock;
-        const varianceValue = variance * (product.buyingPrice || 0);
+        const varianceValue = variance * pricePerUnit;
 
         return {
           productId: product.id,
@@ -146,7 +223,8 @@ const StockReconciliationReport: React.FC = () => {
           actualClosingStock,
           variance,
           varianceValue,
-          buyingPrice: product.buyingPrice || 0,
+          pricePerUnit,
+          hasBuyingPrice,
         };
       });
     } catch (error) {
@@ -162,8 +240,8 @@ const StockReconciliationReport: React.FC = () => {
         openingValue: acc.openingValue + item.openingValue,
         additionsValue: acc.additionsValue + item.additionsValue,
         salesValue: acc.salesValue + item.salesValue,
-        expectedClosingValue: acc.expectedClosingValue + (item.expectedClosingStock * item.buyingPrice),
-        actualClosingValue: acc.actualClosingValue + (item.actualClosingStock * item.buyingPrice),
+        expectedClosingValue: acc.expectedClosingValue + (item.expectedClosingStock * item.pricePerUnit),
+        actualClosingValue: acc.actualClosingValue + (item.actualClosingStock * item.pricePerUnit),
         varianceValue: acc.varianceValue + item.varianceValue,
       }),
       {
@@ -181,6 +259,10 @@ const StockReconciliationReport: React.FC = () => {
   const itemsWithVariance = reconciliationData.filter(item => item.variance !== 0);
   const missingItems = reconciliationData.filter(item => item.variance < 0);
   const excessItems = reconciliationData.filter(item => item.variance > 0);
+  const itemsWithoutBuyingPrice = reconciliationData.filter(item => !item.hasBuyingPrice);
+
+  // Check if snapshot is needed
+  const needsSnapshot = reconciliationData.every(item => item.openingStock === 0) && reconciliationData.length > 0;
 
   // Export to CSV
   const exportToCSV = () => {
@@ -197,6 +279,7 @@ const StockReconciliationReport: React.FC = () => {
       'Actual Closing',
       'Variance Qty',
       'Variance Value',
+      'Has Buying Price',
     ];
 
     const rows = reconciliationData.map(item => [
@@ -212,11 +295,13 @@ const StockReconciliationReport: React.FC = () => {
       item.actualClosingStock,
       item.variance,
       item.varianceValue.toFixed(2),
+      item.hasBuyingPrice ? 'Yes' : 'No',
     ]);
 
     const csvContent = [
       ['Stock Reconciliation Report'],
       [`Date: ${format(selectedDate, 'dd/MM/yyyy')}`],
+      ['Generated: ' + format(new Date(), 'dd/MM/yyyy HH:mm:ss')],
       [],
       headers,
       ...rows,
@@ -250,7 +335,7 @@ const StockReconciliationReport: React.FC = () => {
             Track opening stock, sales, and closing stock to identify missing inventory
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -273,12 +358,55 @@ const StockReconciliationReport: React.FC = () => {
               />
             </PopoverContent>
           </Popover>
+          
+          {/* Initialize Stock Snapshot Button */}
+          {needsSnapshot && (
+            <Button 
+              onClick={initializeStockSnapshot} 
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Database className="h-4 w-4 mr-2" />
+              Create Stock Snapshot
+            </Button>
+          )}
+          
           <Button onClick={exportToCSV} variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
         </div>
+        
+        {/* Info Box for first-time users */}
+        {needsSnapshot && (
+          <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+            <CardContent className="pt-4">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>📸 First time using reconciliation?</strong> Click "Create Stock Snapshot" to record your current stock levels as opening stock for yesterday ({format(subDays(selectedDate, 1), 'dd MMM yyyy')}). 
+                This will enable tracking of stock changes from today onwards.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {/* Warning for products without buying price */}
+      {itemsWithoutBuyingPrice.length > 0 && (
+        <Card className="border-yellow-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Warning: Missing Buying Prices
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {itemsWithoutBuyingPrice.length} products are using selling price or regular price instead of buying price.
+              For accurate cost-based reconciliation, please add buying prices to all food and drinks products.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -290,6 +418,9 @@ const StockReconciliationReport: React.FC = () => {
             <div className="text-2xl font-bold">
               ₹{totals.openingValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Stock value at start of {format(selectedDate, 'dd MMM yyyy')}
+            </p>
           </CardContent>
         </Card>
 
@@ -301,6 +432,9 @@ const StockReconciliationReport: React.FC = () => {
             <div className="text-2xl font-bold">
               ₹{totals.salesValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Food & drinks sold on this date
+            </p>
           </CardContent>
         </Card>
 
@@ -317,12 +451,16 @@ const StockReconciliationReport: React.FC = () => {
             <div className={cn(
               'text-2xl font-bold',
               totals.varianceValue < 0 && 'text-red-500',
-              totals.varianceValue > 0 && 'text-green-500'
+              totals.varianceValue > 0 && 'text-green-500',
+              totals.varianceValue === 0 && 'text-muted-foreground'
             )}>
               ₹{Math.abs(totals.varianceValue).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               {totals.varianceValue < 0 && ' (Missing)'}
               {totals.varianceValue > 0 && ' (Excess)'}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Difference between expected and actual
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -369,8 +507,8 @@ const StockReconciliationReport: React.FC = () => {
         <CardContent>
           {reconciliationData.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No food or drinks products with buying price found.</p>
-              <p className="text-sm mt-2">Add buying prices to products to see reconciliation data.</p>
+              <p>No food or drinks products found.</p>
+              <p className="text-sm mt-2">Add food or drinks products to see reconciliation data.</p>
             </div>
           ) : (
             <ScrollArea className="h-[400px]">
@@ -395,7 +533,12 @@ const StockReconciliationReport: React.FC = () => {
                     >
                       <TableCell>
                         <div>
-                          <div className="font-medium">{item.productName}</div>
+                          <div className="font-medium flex items-center gap-2">
+                            {item.productName}
+                            {!item.hasBuyingPrice && (
+                              <Badge variant="outline" className="text-xs">No BP</Badge>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">{item.category}</div>
                         </div>
                       </TableCell>
@@ -438,7 +581,7 @@ const StockReconciliationReport: React.FC = () => {
                           item.varianceValue < 0 && 'text-red-500',
                           item.varianceValue > 0 && 'text-green-500'
                         )}>
-                          {item.varianceValue < 0 ? '-' : '+'}
+                          {item.varianceValue !== 0 && (item.varianceValue < 0 ? '-' : '+')}
                           ₹{Math.abs(item.varianceValue).toFixed(0)}
                         </span>
                       </TableCell>
@@ -461,6 +604,7 @@ const StockReconciliationReport: React.FC = () => {
           <p><strong>Variance</strong> = Actual Closing Stock - Expected Closing Stock</p>
           <p className="text-xs">• Negative variance indicates missing stock (theft/wastage/unrecorded sales)</p>
           <p className="text-xs">• Positive variance indicates excess stock (unrecorded purchases/returns)</p>
+          <p className="text-xs mt-2">• BP = Buying Price. Products without buying price use selling or regular price for calculations.</p>
         </CardContent>
       </Card>
     </div>
