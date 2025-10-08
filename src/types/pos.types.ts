@@ -1,13 +1,12 @@
-
 // Types for the POS system
 export interface Product {
   id: string;
   name: string;
   price: number;
-  buyingPrice?: number;   // Added buying price
-  sellingPrice?: number;  // Added selling price (this will be the same as price by default)
-  profit?: number;        // Added profit field
-  category: string; // Changed from enum to string for custom categories
+  buyingPrice?: number;
+  sellingPrice?: number;
+  profit?: number;
+  category: string;
   stock: number;
   image?: string;
   originalPrice?: number;
@@ -49,7 +48,7 @@ export interface Session {
   customerId: string;
   startTime: Date;
   endTime?: Date;
-  duration?: number; // in minutes
+  duration?: number;
 }
 
 export interface CartItem {
@@ -59,7 +58,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   total: number;
-  category?: string; // Changed from enum to string for custom categories
+  category?: string;
 }
 
 export interface Bill {
@@ -73,7 +72,9 @@ export interface Bill {
   loyaltyPointsUsed: number;
   loyaltyPointsEarned: number;
   total: number;
-  paymentMethod: 'cash' | 'upi' | 'split' | 'credit'; // Added credit payment method
+  paymentMethod: 'cash' | 'upi' | 'split' | 'credit';
+  status?: 'completed' | 'complimentary'; // NEW: Transaction status
+  compNote?: string; // NEW: Complimentary note
   isSplitPayment?: boolean;
   cashAmount?: number;
   upiAmount?: number;
@@ -107,7 +108,7 @@ export interface POSContextType {
   discountType: 'percentage' | 'fixed';
   loyaltyPointsUsed: number;
   isStudentDiscount: boolean;
-  categories: string[]; // New property to store available categories
+  categories: string[];
   isSplitPayment: boolean;
   cashAmount: number;
   upiAmount: number;
@@ -117,30 +118,24 @@ export interface POSContextType {
   setUpiAmount: (amount: number) => void;
   updateSplitAmounts: (cash: number, upi: number) => boolean;
   
-  // State setters (adding these to fix the TypeScript errors)
   setBills?: (bills: Bill[] | ((prevBills: Bill[]) => Bill[])) => void;
   setCustomers?: (customers: Customer[] | ((prevCustomers: Customer[]) => Customer[])) => void;
   
-  // Station state setter
   setStations: (stations: Station[]) => void;
   
-  // Product functions
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (id: string) => void;
   
-  // Category functions
-  addCategory: (category: string) => void; // New function to add category
-  updateCategory: (oldCategory: string, newCategory: string) => void; // New function to update category
-  deleteCategory: (category: string) => void; // New function to delete category
+  addCategory: (category: string) => void;
+  updateCategory: (oldCategory: string, newCategory: string) => void;
+  deleteCategory: (category: string) => void;
   
-  // Station functions
   startSession: (stationId: string, customerId: string) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
   deleteStation: (stationId: string) => Promise<boolean>;
   updateStation: (stationId: string, name: string, hourlyRate: number) => Promise<boolean>;
   
-  // Customer functions
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
   updateCustomer: (customer: Customer) => void;
   updateCustomerMembership: (customerId: string, membershipData: {
@@ -151,21 +146,22 @@ export interface POSContextType {
   deleteCustomer: (id: string) => void;
   selectCustomer: (id: string | null) => void;
   
-  // Membership functions
   checkMembershipValidity: (customerId: string) => boolean;
   deductMembershipHours: (customerId: string, hours: number) => boolean;
   
-  // Cart functions
   addToCart: (item: Omit<CartItem, 'total'>) => void;
   removeFromCart: (id: string) => void;
   updateCartItem: (id: string, quantity: number) => void;
   clearCart: () => void;
   
-  // Billing functions
   setDiscount: (amount: number, type: 'percentage' | 'fixed') => void;
   setLoyaltyPointsUsed: (points: number) => void;
   calculateTotal: () => number;
-  completeSale: (paymentMethod: 'cash' | 'upi' | 'split' | 'credit') => Promise<Bill | undefined>; // Added credit to payment methods
+  completeSale: (
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit',
+    status?: 'completed' | 'complimentary',
+    compNote?: string
+  ) => Promise<Bill | undefined>; // UPDATED: Added status and compNote parameters
   updateBill: (
     originalBill: Bill, 
     updatedItems: CartItem[], 
@@ -179,14 +175,11 @@ export interface POSContextType {
     paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
   ) => Promise<Bill | null>;
   
-  // Data export
   exportBills: () => void;
   exportCustomers: () => void;
   
-  // Reset and sample data functions
   resetToSampleData: (options?: ResetOptions) => void;
   addSampleIndianData: () => void;
   
-  // Delete bill function
   deleteBill: (billId: string, customerId: string) => Promise<boolean>;
 }
