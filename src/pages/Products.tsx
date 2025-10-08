@@ -3,7 +3,7 @@ import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
 import { useProducts } from '@/hooks/useProducts';
 import { Product } from '@/types/pos.types';
-import { Plus, Settings, History } from 'lucide-react';
+import { Plus, Settings, History, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductDialog from '@/components/product/ProductDialog';
 import { ProductFormState } from '@/components/product/ProductForm';
@@ -22,6 +22,7 @@ import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAuth } from '@/context/AuthContext';
 import AdvancedFilters from '@/components/product/AdvancedFilters';
 import StockLogsViewer from '@/components/product/StockLogsViewer';
+import StockReconciliationReport from '@/components/product/StockReconciliationReport';
 import { FilterOptions } from '@/types/stockLog.types';
 import { createStockLog, saveStockLog } from '@/utils/stockLogger';
 import {
@@ -268,7 +269,28 @@ const ProductsPage: React.FC = () => {
           <ProductSalesExport />
           <StockExport />
           
-          {/* NEW: Stock Logs Viewer Button */}
+          {/* Stock Reconciliation Report Button */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="h-10">
+                <AlertTriangle className="h-4 w-4 mr-2" /> 
+                Reconciliation
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[95vw] sm:max-w-[95vw] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Stock Reconciliation Report</SheetTitle>
+                <SheetDescription>
+                  Track missing inventory by comparing opening stock, sales, and closing stock
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6">
+                <StockReconciliationReport />
+              </div>
+            </SheetContent>
+          </Sheet>
+          
+          {/* Stock Logs Viewer Button */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="h-10">
@@ -289,6 +311,7 @@ const ProductsPage: React.FC = () => {
             </SheetContent>
           </Sheet>
           
+          {/* Category Management Button */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="h-10">
@@ -309,6 +332,7 @@ const ProductsPage: React.FC = () => {
             </SheetContent>
           </Sheet>
           
+          {/* Add Product Button */}
           <Button onClick={handleOpenDialog} className="h-10">
             <Plus className="h-4 w-4 mr-2" /> Add Product
           </Button>
