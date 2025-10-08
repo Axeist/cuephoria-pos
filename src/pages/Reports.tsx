@@ -7,7 +7,7 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import ExpandableBillRow from '@/components/reports/ExpandableBillRow';
 import SalesWidgets from '@/components/reports/SalesWidgets';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { useToast } from '@/hooks/use-toast';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -36,13 +37,16 @@ const ReportsPage: React.FC = () => {
     products,
     exportBills,
     exportCustomers,
-    stations
+    stations,
+    deleteBill
   } = usePOS();
   const {
     sessions,
     sessionsLoading,
     deleteSession
   } = useSessionsData();
+  
+  const { toast } = useToast();
 
   // Set default range to "this month"
   const today = new Date();
@@ -91,7 +95,7 @@ const ReportsPage: React.FC = () => {
   const getCustomerEmail = (customerId: string) => customerLookup[customerId]?.email || '';
   const getCustomerPhone = (customerId: string) => customerLookup[customerId]?.phone || '';
 
-  // MODIFIED: Enhanced filtered data to include payment type filtering with null checks
+  // Enhanced filtered data to include payment type filtering with null checks
   const filteredData = useMemo(() => {
     const filterByDateRange = <T extends {
       createdAt: Date | string;
@@ -129,13 +133,12 @@ const ReportsPage: React.FC = () => {
       });
     }
 
-    // FIXED: Apply payment type filtering with null checks
+    // Apply payment type filtering with null checks
     if (paymentTypeFilter !== 'all') {
       filteredBills = filteredBills.filter(bill => {
         if (paymentTypeFilter === 'split') {
           return bill.splitPayment && bill.splitPayment.length > 0;
         } else {
-          // Add null check and default to empty string
           const paymentMethod = bill.paymentMethod || '';
           return paymentMethod.toLowerCase() === paymentTypeFilter.toLowerCase();
         }
@@ -234,11 +237,6 @@ const ReportsPage: React.FC = () => {
       }
     });
   }, [filteredData.filteredBills, sortField, sortDirection, getCustomerName]);
-
-  // Calculate total sales for the widget
-  const totalSales = useMemo(() => {
-    return filteredData.filteredBills.reduce((sum, bill) => sum + bill.total, 0);
-  }, [filteredData.filteredBills]);
 
   // Handle sorting
   const handleSort = (field: SortField) => {
@@ -357,7 +355,8 @@ const ReportsPage: React.FC = () => {
           DiscountValue: bill.discountValue || 0,
           PointsUsed: bill.loyaltyPointsUsed || 0,
           Total: bill.total,
-          PaymentMethod: bill.paymentMethod || 'N/A'
+          PaymentMethod: bill.paymentMethod || 'N/A',
+          ComplimentaryNote: bill.paymentMethod === 'complimentary' ? (bill.compNote || 'No note') : ''
         }));
         exportToExcel(billsData, 'Bills_Report');
         break;
@@ -394,6 +393,10 @@ const ReportsPage: React.FC = () => {
       case 'summary':
         const summaryData = [{
           TotalRevenue: summaryMetrics.financial.totalRevenue,
+          ComplimentarySales: summaryMetrics.financial.complimentarySales,
+          ComplimentaryCount: summaryMetrics.financial.complimentaryCount,
+          ComplimentaryPercentage: `${summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%`,
+          AvgComplimentaryValue: summaryMetrics.financial.avgComplimentaryValue,
           GrossProfit: summaryMetrics.financial.grossProfit,
           ProfitMargin: `${summaryMetrics.financial.profitMargin.toFixed(1)}%`,
           TotalTransactions: summaryMetrics.operational.totalTransactions,
@@ -421,12 +424,71 @@ const ReportsPage: React.FC = () => {
     }
   }, [deleteSession]);
 
+  // Handler for editing bill
+  const handleEditBill = (bill: any) => {
+    toast({
+      title: "Edit Transaction",
+      description: `Opening editor for bill ${bill.id.substring(0, 8)}...`,
+    });
+    // You can implement full edit dialog here later
+    console.log('Edit bill:', bill);
+  };
+
+  // Handler for deleting bill
+  const handleDeleteBill = async (bill: any) => {
+    try {
+      const success = await deleteBill(bill.id, bill.customerId);
+      
+      if (success) {
+        toast({
+          title: "Transaction Deleted",
+          description: `Bill ${bill.id.substring(0, 8)} has been deleted successfully.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Delete Failed",
+          description: "Unable to delete the transaction. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting bill:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while deleting the transaction.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Calculate business summary metrics function
   function calculateSummaryMetrics() {
     const { filteredBills } = filteredData;
 
-    const totalRevenue = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
-    const averageBillValue = filteredBills.length > 0 ? totalRevenue / filteredBills.length : 0;
+    // Calculate complimentary metrics
+    const complimentaryBills = filteredBills.filter(bill => 
+      bill.paymentMethod?.toLowerCase() === 'complimentary'
+    );
+    const complimentarySales = complimentaryBills.reduce((sum, bill) => sum + bill.total, 0);
+    const complimentaryCount = complimentaryBills.length;
+
+    // Calculate paid revenue (excluding complimentary)
+    const paidBills = filteredBills.filter(bill => 
+      bill.paymentMethod?.toLowerCase() !== 'complimentary'
+    );
+    const totalRevenue = paidBills.reduce((sum, bill) => sum + bill.total, 0);
+    
+    // Calculate total transaction volume (including complimentary)
+    const totalTransactionVolume = totalRevenue + complimentarySales;
+    const complimentaryPercentage = totalTransactionVolume > 0 ? 
+      (complimentarySales / totalTransactionVolume) * 100 : 0;
+    
+    // Average complimentary value
+    const avgComplimentaryValue = complimentaryCount > 0 ? 
+      complimentarySales / complimentaryCount : 0;
+
+    const averageBillValue = paidBills.length > 0 ? totalRevenue / paidBills.length : 0;
     const totalDiscounts = filteredBills.reduce((sum, bill) => sum + (bill.discountValue || 0), 0);
     const grossProfit = totalRevenue - (businessSummary?.totalExpenses || 0);
     const profitMargin = totalRevenue > 0 ? grossProfit / totalRevenue * 100 : 0;
@@ -434,7 +496,7 @@ const ReportsPage: React.FC = () => {
     const revenueByDay: Record<string, number> = {};
     let highestRevenue = 0;
     let highestRevenueDay = '';
-    filteredBills.forEach(bill => {
+    paidBills.forEach(bill => {
       const day = format(new Date(bill.createdAt), 'yyyy-MM-dd');
       revenueByDay[day] = (revenueByDay[day] || 0) + bill.total;
       if (revenueByDay[day] > highestRevenue) {
@@ -443,8 +505,8 @@ const ReportsPage: React.FC = () => {
       }
     });
 
-    const cashSales = filteredBills.filter(bill => bill.paymentMethod === 'cash').reduce((sum, bill) => sum + bill.total, 0);
-    const upiSales = filteredBills.filter(bill => bill.paymentMethod === 'upi').reduce((sum, bill) => sum + bill.total, 0);
+    const cashSales = paidBills.filter(bill => bill.paymentMethod === 'cash').reduce((sum, bill) => sum + bill.total, 0);
+    const upiSales = paidBills.filter(bill => bill.paymentMethod === 'upi').reduce((sum, bill) => sum + bill.total, 0);
     const cashPercentage = totalRevenue > 0 ? cashSales / totalRevenue * 100 : 0;
     const upiPercentage = totalRevenue > 0 ? upiSales / totalRevenue * 100 : 0;
 
@@ -511,7 +573,7 @@ const ReportsPage: React.FC = () => {
     let ps5Sales = 0;
     let poolSales = 0;
     let metashotSales = 0;
-    filteredBills.forEach(bill => {
+    paidBills.forEach(bill => {
       const discountRatio = bill.total / bill.subtotal;
       bill.items.forEach(item => {
         const discountedItemTotal = item.total * discountRatio;
@@ -552,7 +614,7 @@ const ReportsPage: React.FC = () => {
     const customerSpending: Record<string, number> = {};
     let topCustomerId = '';
     let topCustomerSpend = 0;
-    filteredBills.forEach(bill => {
+    paidBills.forEach(bill => {
       if (bill.customerId) {
         customerSpending[bill.customerId] = (customerSpending[bill.customerId] || 0) + bill.total;
         if (customerSpending[bill.customerId] > topCustomerSpend) {
@@ -579,7 +641,6 @@ const ReportsPage: React.FC = () => {
     const loyaltyPointsUsed = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsUsed || 0), 0);
     const loyaltyPointsEarned = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsEarned || 0), 0);
     const loyaltyUsageRate = loyaltyPointsEarned > 0 ? loyaltyPointsUsed / loyaltyPointsEarned * 100 : 0;
-
     const loyaltyPointsPerRupee = totalRevenue > 0 ? loyaltyPointsEarned / totalRevenue : 0;
     
     return {
@@ -589,6 +650,10 @@ const ReportsPage: React.FC = () => {
         totalDiscounts,
         cashSales,
         upiSales,
+        complimentarySales,
+        complimentaryCount,
+        complimentaryPercentage,
+        avgComplimentaryValue,
         cashPercentage,
         upiPercentage,
         grossProfit,
@@ -631,14 +696,6 @@ const ReportsPage: React.FC = () => {
       }
     };
   }
-
-  // Format duration in hours and minutes
-  const formatDuration = (durationInMinutes: number | undefined) => {
-    if (!durationInMinutes) return "0h 0m";
-    const hours = Math.floor(durationInMinutes / 60);
-    const minutes = durationInMinutes % 60;
-    return `${hours}h ${minutes}m`;
-  };
 
   // Pagination
   const itemsPerPage = 50;
@@ -708,6 +765,7 @@ const ReportsPage: React.FC = () => {
                 <SelectItem value="upi">UPI</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
                 <SelectItem value="credit">Credit</SelectItem>
+                <SelectItem value="complimentary">Complimentary</SelectItem>
                 <SelectItem value="split">Split Payment</SelectItem>
               </SelectContent>
             </Select>
@@ -804,6 +862,7 @@ const ReportsPage: React.FC = () => {
                 </TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead>Split</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -812,12 +871,16 @@ const ReportsPage: React.FC = () => {
                   key={bill.id}
                   bill={bill}
                   getCustomerName={getCustomerName}
+                  getCustomerPhone={getCustomerPhone}
+                  searchTerm={billSearchQuery}
+                  onEdit={handleEditBill}
+                  onDelete={handleDeleteBill}
                 />
               ))}
               
               {paginatedData.bills.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={11} className="text-center py-16 text-gray-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 mb-2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1133,9 +1196,68 @@ const ReportsPage: React.FC = () => {
     </div>
   );
 
-  // FIXED: Summary tab rendering
   const renderSummaryTab = () => (
     <div className="space-y-8">
+      {/* Complimentary Insights Widget */}
+      <Card className="bg-[#1A1F2C] border-gray-800">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between text-white">
+            <span>Complimentary Sales Insights</span>
+            <Gift className="h-5 w-5 text-amber-400" />
+          </CardTitle>
+          <CardDescription>Track free items and promotional giveaways</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <p className="text-sm text-gray-400">Total Value Given</p>
+              <CurrencyDisplay 
+                amount={summaryMetrics.financial.complimentarySales} 
+                className="text-3xl font-bold text-amber-400"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-400">Transactions</p>
+              <p className="text-3xl font-bold text-white">
+                {summaryMetrics.financial.complimentaryCount}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-400">Avg. Per Transaction</p>
+              <CurrencyDisplay 
+                amount={summaryMetrics.financial.avgComplimentaryValue} 
+                className="text-3xl font-bold text-white"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-6 pt-6 border-t border-gray-700 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">% of Total Volume</span>
+              <span className="text-white font-semibold text-lg">
+                {summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+          
+          {/* Visual indicator */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400">Complimentary vs Paid Revenue</span>
+              <span className="text-xs text-amber-400 font-mono">
+                {summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-3">
+              <div 
+                className="bg-gradient-to-r from-amber-500 to-orange-500 h-3 rounded-full transition-all duration-500"
+                style={{width: `${Math.min(summaryMetrics.financial.complimentaryPercentage, 100)}%`}}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <BusinessSummaryReport
         startDate={date?.from}
         endDate={date?.to}
