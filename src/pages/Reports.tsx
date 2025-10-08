@@ -24,6 +24,7 @@ import { saveAs } from 'file-saver';
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
 type SortDirection = 'asc' | 'desc' | null;
+
 const ReportsPage: React.FC = () => {
   const {
     expenses,
@@ -54,6 +55,8 @@ const ReportsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'bills' | 'customers' | 'sessions' | 'summary'>('bills');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [billSearchQuery, setBillSearchQuery] = useState<string>('');
+  // ADD: Payment type filter state
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
 
   // Add sorting state
   const [sortField, setSortField] = useState<SortField>('date');
@@ -79,8 +82,7 @@ const ReportsPage: React.FC = () => {
         email: customer.email,
         phone: customer.phone,
         playTime: '0h 0m',
-        // Will be calculated separately
-        totalSpent: 0 // Will be calculated separately
+        totalSpent: 0
       };
     });
     return lookup;
@@ -91,12 +93,12 @@ const ReportsPage: React.FC = () => {
   const getCustomerEmail = (customerId: string) => customerLookup[customerId]?.email || '';
   const getCustomerPhone = (customerId: string) => customerLookup[customerId]?.phone || '';
 
-  // Memoize filtered data to prevent recalculation on every render
+  // MODIFIED: Enhanced filtered data to include payment type filtering
   const filteredData = useMemo(() => {
     // Filter function applied to any collection with createdAt
     const filterByDateRange = <T extends {
       createdAt: Date | string;
-    },>(items: T[]): T[] => {
+    }>(items: T[]): T[] => {
       if (!date?.from && !date?.to) return items;
       return items.filter(item => {
         const itemDate = item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
@@ -120,7 +122,27 @@ const ReportsPage: React.FC = () => {
       const query = billSearchQuery.toLowerCase().trim();
       filteredBills = filteredBills.filter(bill => {
         const customer = customers.find(c => c.id === bill.customerId);
-        return bill.id.toLowerCase().includes(query) || customer && (customer.name.toLowerCase().includes(query) || customer.email && customer.email.toLowerCase().includes(query) || customer.phone.includes(query));
+        return (
+          bill.id.toLowerCase().includes(query) ||
+          (customer && (
+            customer.name.toLowerCase().includes(query) ||
+            (customer.email && customer.email.toLowerCase().includes(query)) ||
+            customer.phone.includes(query)
+          ))
+        );
+      });
+    }
+
+    // ADD: Apply payment type filtering
+    if (paymentTypeFilter !== 'all') {
+      filteredBills = filteredBills.filter(bill => {
+        if (paymentTypeFilter === 'split') {
+          // Check if bill has split payment (multiple payment methods)
+          return bill.splitPayment && bill.splitPayment.length > 0;
+        } else {
+          // Check for specific payment method
+          return bill.paymentMethod?.toLowerCase() === paymentTypeFilter.toLowerCase();
+        }
       });
     }
 
@@ -144,15 +166,20 @@ const ReportsPage: React.FC = () => {
       filteredSessions = filteredSessions.filter(session => {
         const customer = customers.find(c => c.id === session.customerId);
         if (!customer) return false;
-        return customer.name.toLowerCase().includes(query) || customer.email && customer.email.toLowerCase().includes(query) || customer.phone.includes(query);
+        return (
+          customer.name.toLowerCase().includes(query) ||
+          (customer.email && customer.email.toLowerCase().includes(query)) ||
+          customer.phone.includes(query)
+        );
       });
     }
+
     return {
       filteredCustomers,
       filteredBills,
       filteredSessions
     };
-  }, [bills, customers, sessions, date, searchQuery, billSearchQuery]);
+  }, [bills, customers, sessions, date, searchQuery, billSearchQuery, paymentTypeFilter]);
 
   // Calculate customer play time and total spent
   const getCustomerPlayTime = useCallback((customerId: string) => {
@@ -169,6 +196,7 @@ const ReportsPage: React.FC = () => {
     const minutes = Math.floor(totalMinutes % 60);
     return `${hours}h ${minutes}m`;
   }, [filteredData.filteredSessions]);
+
   const getCustomerTotalSpent = useCallback((customerId: string) => {
     return filteredData.filteredBills.filter(bill => bill.customerId === customerId).reduce((total, bill) => total + bill.total, 0);
   }, [filteredData.filteredBills]);
@@ -219,17 +247,15 @@ const ReportsPage: React.FC = () => {
   // Handle sorting
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      // If clicking the same field, cycle through: asc -> desc -> null
       if (sortDirection === 'asc') {
         setSortDirection('desc');
       } else if (sortDirection === 'desc') {
         setSortDirection(null);
-        setSortField('date'); // Reset to default
+        setSortField('date');
       } else {
         setSortDirection('asc');
       }
     } else {
-      // If clicking a different field, start with asc
       setSortField(field);
       setSortDirection('asc');
     }
@@ -267,7 +293,7 @@ const ReportsPage: React.FC = () => {
       case 'thisWeek':
         from = startOfWeek(today, {
           weekStartsOn: 1
-        }); // Week starts on Monday
+        });
         to = endOfWeek(today, {
           weekStartsOn: 1
         });
@@ -285,7 +311,6 @@ const ReportsPage: React.FC = () => {
         to = endOfYear(today);
         break;
       case 'custom':
-        // Keep the current date range for custom
         from = date?.from;
         to = date?.to;
         break;
@@ -310,12 +335,10 @@ const ReportsPage: React.FC = () => {
   // Export data to Excel file
   const exportToExcel = (data: any[], fileName: string) => {
     try {
-      // Create a new workbook and worksheet
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
 
-      // Write to buffer and save as xlsx
       const excelBuffer = XLSX.write(wb, {
         bookType: 'xlsx',
         type: 'array'
@@ -324,7 +347,6 @@ const ReportsPage: React.FC = () => {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'
       });
 
-      // Save file
       saveAs(blob, `${fileName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     } catch (error) {
       console.error("Error exporting to Excel:", error);
@@ -336,7 +358,6 @@ const ReportsPage: React.FC = () => {
     console.log('Downloading report with date range:', date);
     switch (activeTab) {
       case 'bills':
-        // Prepare bills data for Excel export
         const billsData = sortedBills.map(bill => ({
           Date: format(new Date(bill.createdAt), 'yyyy-MM-dd'),
           Time: format(new Date(bill.createdAt), 'HH:mm:ss'),
@@ -352,7 +373,6 @@ const ReportsPage: React.FC = () => {
         exportToExcel(billsData, 'Bills_Report');
         break;
       case 'customers':
-        // Prepare customer data for Excel export
         const customersData = filteredData.filteredCustomers.map(customer => ({
           Name: customer.name,
           Phone: customer.phone || '',
@@ -366,7 +386,6 @@ const ReportsPage: React.FC = () => {
         exportToExcel(customersData, 'Customers_Report');
         break;
       case 'sessions':
-        // Prepare sessions data for Excel export
         const sessionsData = filteredData.filteredSessions.map(session => {
           const durationInMinutes = session.endTime ? Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)) : session.duration || 0;
           return {
@@ -384,7 +403,6 @@ const ReportsPage: React.FC = () => {
         exportToExcel(sessionsData, 'Sessions_Report');
         break;
       case 'summary':
-        // Prepare summary data for Excel export
         const summaryData = [{
           TotalRevenue: summaryMetrics.financial.totalRevenue,
           GrossProfit: summaryMetrics.financial.grossProfit,
@@ -518,13 +536,10 @@ const ReportsPage: React.FC = () => {
     let poolSales = 0;
     let metashotSales = 0;
     filteredBills.forEach(bill => {
-      // Calculate the effective discount ratio for this bill
       const discountRatio = bill.total / bill.subtotal;
       bill.items.forEach(item => {
-        // Apply proportional discount to each item
         const discountedItemTotal = item.total * discountRatio;
         if (item.type === 'session') {
-          // Include PS5 and Pool sessions in gaming revenue
           const itemName = item.name.toLowerCase();
           if (itemName.includes('ps5') || itemName.includes('playstation')) {
             ps5Sales += discountedItemTotal;
@@ -532,7 +547,6 @@ const ReportsPage: React.FC = () => {
             poolSales += discountedItemTotal;
           }
         }
-        // Include Metashot challenges in gaming revenue
         else if (item.type === 'product') {
           const product = products.find(p => p.id === item.id);
           if (product) {
@@ -675,7 +689,7 @@ const ReportsPage: React.FC = () => {
   // Reset pagination when tab or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, date, searchQuery, billSearchQuery, sortField, sortDirection]);
+  }, [activeTab, date, searchQuery, billSearchQuery, sortField, sortDirection, paymentTypeFilter]);
 
   // Only render what's needed based on active tab
   const renderContent = () => {
@@ -693,8 +707,9 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  // Split rendering into separate functions for clarity and code organization
-  const renderBillsTab = () => <div className="space-y-4">
+  // MODIFIED: Bills tab with payment filter added
+  const renderBillsTab = () => (
+    <div className="space-y-4">
       {/* Sales Widgets */}
       <SalesWidgets filteredBills={filteredData.filteredBills} />
 
@@ -706,64 +721,118 @@ const ReportsPage: React.FC = () => {
             {date?.from && date?.to ? ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : ''}
           </p>
           
-          {/* Search bar for bills */}
-          <div className="mt-4 relative">
-            <div className="relative">
+          {/* MODIFIED: Search bar and payment filter for bills */}
+          <div className="mt-4 flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
-              <Input placeholder="Search by customer name, email, phone, or bill ID" value={billSearchQuery} onChange={e => setBillSearchQuery(e.target.value)} className="pl-10 bg-gray-800 border-gray-700 text-white w-full md:w-96" />
+              <Input
+                placeholder="Search by customer name, email, phone, or bill ID"
+                value={billSearchQuery}
+                onChange={(e) => setBillSearchQuery(e.target.value)}
+                className="pl-10 bg-gray-800 border-gray-700 text-white w-full"
+              />
             </div>
-            {billSearchQuery && <p className="text-sm text-gray-400 mt-2">
-                Found {filteredData.filteredBills.length} matching transactions
-              </p>}
+            
+            {/* ADD: Payment Type Filter */}
+            <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
+              <SelectTrigger className="w-full md:w-[180px] bg-gray-800 border-gray-700 text-white">
+                <SelectValue placeholder="Payment Type" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-700 text-white">
+                <SelectItem value="all">All Payments</SelectItem>
+                <SelectItem value="upi">UPI</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="credit">Credit</SelectItem>
+                <SelectItem value="split">Split Payment</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
-          {sortedBills.length > itemsPerPage && <div className="mt-4 flex justify-between items-center">
+          {(billSearchQuery || paymentTypeFilter !== 'all') && (
+            <p className="text-sm text-gray-400 mt-2">
+              Found {filteredData.filteredBills.length} matching transactions
+            </p>
+          )}
+          
+          {sortedBills.length > itemsPerPage && (
+            <div className="mt-4 flex justify-between items-center">
               <span className="text-sm text-gray-400">
                 Showing {Math.min(paginatedData.bills.length, itemsPerPage)} of {sortedBills.length} transactions
               </span>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}
+                >
                   Previous
                 </Button>
-                <Button variant="outline" size="sm" disabled={currentPage * itemsPerPage >= sortedBills.length} onClick={() => setCurrentPage(curr => curr + 1)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage * itemsPerPage >= sortedBills.length}
+                  onClick={() => setCurrentPage(curr => curr + 1)}
+                >
                   Next
                 </Button>
               </div>
-            </div>}
+            </div>
+          )}
         </div>
         <div className="rounded-md overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>
-                  <Button variant="ghost" onClick={() => handleSort('date')} className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('date')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
                     Date & Time
                     {getSortIcon('date')}
                   </Button>
                 </TableHead>
                 <TableHead>Bill ID</TableHead>
                 <TableHead>
-                  <Button variant="ghost" onClick={() => handleSort('customer')} className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('customer')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
                     Customer
                     {getSortIcon('customer')}
                   </Button>
                 </TableHead>
                 <TableHead>Items</TableHead>
                 <TableHead>
-                  <Button variant="ghost" onClick={() => handleSort('subtotal')} className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('subtotal')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
                     Subtotal
                     {getSortIcon('subtotal')}
                   </Button>
                 </TableHead>
                 <TableHead>
-                  <Button variant="ghost" onClick={() => handleSort('discount')} className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('discount')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
                     Discount
                     {getSortIcon('discount')}
                   </Button>
                 </TableHead>
                 <TableHead>Points Used</TableHead>
                 <TableHead>
-                  <Button variant="ghost" onClick={() => handleSort('total')} className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort('total')}
+                    className="h-auto p-0 font-medium text-gray-400 hover:text-white flex items-center gap-1"
+                  >
                     Total
                     {getSortIcon('total')}
                   </Button>
@@ -773,33 +842,76 @@ const ReportsPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.bills.map(bill => <ExpandableBillRow key={bill.id} bill={bill} getCustomerName={getCustomerName} />)}
+              {paginatedData.bills.map(bill => (
+                <ExpandableBillRow
+                  key={bill.id}
+                  bill={bill}
+                  getCustomerName={getCustomerName}
+                />
+              ))}
               
-              {paginatedData.bills.length === 0 && <TableRow>
+              {paginatedData.bills.length === 0 && (
+                <TableRow>
                   <TableCell colSpan={10} className="text-center py-16 text-gray-400">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 mb-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 mb-2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <path d="M14 2v6h6" />
+                        <path d="M16 13H8" />
+                        <path d="M16 17H8" />
+                        <path d="M10 9H8" />
+                      </svg>
                       <p className="text-lg font-medium">No bills available</p>
                       <p className="text-sm">
-                        {billSearchQuery ? `No transactions found matching "${billSearchQuery}"` : "No transactions found in the selected date range"}
+                        {billSearchQuery || paymentTypeFilter !== 'all' ? 
+                          `No transactions found matching current filters` : 
+                          "No transactions found in the selected date range"
+                        }
                       </p>
-                      {date?.from || date?.to || billSearchQuery ? <div className="flex gap-2 mt-2">
-                          {billSearchQuery && <Button variant="outline" className="text-purple-400 border-purple-800 hover:bg-purple-900/20" onClick={() => setBillSearchQuery('')}>
+                      {(date?.from || date?.to || billSearchQuery || paymentTypeFilter !== 'all') ? (
+                        <div className="flex gap-2 mt-2">
+                          {billSearchQuery && (
+                            <Button
+                              variant="outline"
+                              className="text-purple-400 border-purple-800 hover:bg-purple-900/20"
+                              onClick={() => setBillSearchQuery('')}
+                            >
                               Clear search
-                            </Button>}
-                          {(date?.from || date?.to) && <Button variant="outline" className="text-purple-400 border-purple-800 hover:bg-purple-900/20" onClick={() => setDate(undefined)}>
+                            </Button>
+                          )}
+                          {paymentTypeFilter !== 'all' && (
+                            <Button
+                              variant="outline"
+                              className="text-purple-400 border-purple-800 hover:bg-purple-900/20"
+                              onClick={() => setPaymentTypeFilter('all')}
+                            >
+                              Clear payment filter
+                            </Button>
+                          )}
+                          {(date?.from || date?.to) && (
+                            <Button
+                              variant="outline"
+                              className="text-purple-400 border-purple-800 hover:bg-purple-900/20"
+                              onClick={() => setDate(undefined)}
+                            >
                               Reset date filter
-                            </Button>}
-                        </div> : null}
+                            </Button>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   </TableCell>
-                </TableRow>}
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
-    </div>;
-  const renderCustomersTab = () => <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
+    </div>
+  );
+
+  const renderCustomersTab = () => (
+    <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
       <div className="p-6">
         <h2 className="text-2xl font-bold mb-1">Customer Activity</h2>
         <p className="text-gray-400">
@@ -807,19 +919,31 @@ const ReportsPage: React.FC = () => {
           {date?.from && date?.to ? ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : ''}
         </p>
         
-        {filteredData.filteredCustomers.length > itemsPerPage && <div className="mt-4 flex justify-between items-center">
+        {filteredData.filteredCustomers.length > itemsPerPage && (
+          <div className="mt-4 flex justify-between items-center">
             <span className="text-sm text-gray-400">
               Showing {Math.min(paginatedData.customers.length, itemsPerPage)} of {filteredData.filteredCustomers.length} customers
             </span>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}
+              >
                 Previous
               </Button>
-              <Button variant="outline" size="sm" disabled={currentPage * itemsPerPage >= filteredData.filteredCustomers.length} onClick={() => setCurrentPage(curr => curr + 1)}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage * itemsPerPage >= filteredData.filteredCustomers.length}
+                onClick={() => setCurrentPage(curr => curr + 1)}
+              >
                 Next
               </Button>
             </div>
-          </div>}
+          </div>
+        )}
       </div>
       <div className="rounded-md overflow-hidden">
         <Table>
@@ -835,14 +959,18 @@ const ReportsPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedData.customers.map(customer => <TableRow key={customer.id}>
+            {paginatedData.customers.map(customer => (
+              <TableRow key={customer.id}>
                 <TableCell className="text-white font-medium">{customer.name}</TableCell>
                 <TableCell className="text-white">
                   <div>{customer.phone}</div>
                   {customer.email && <div className="text-gray-400 text-xs">{customer.email}</div>}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className={customer.isMember ? "bg-purple-900/30 text-purple-400 border-purple-800" : "bg-gray-800/50 text-gray-400 border-gray-700"}>
+                  <Badge
+                    variant="outline"
+                    className={customer.isMember ? "bg-purple-900/30 text-purple-400 border-purple-800" : "bg-gray-800/50 text-gray-400 border-gray-700"}
+                  >
                     {customer.isMember ? "Member" : "Non-Member"}
                   </Badge>
                 </TableCell>
@@ -852,12 +980,16 @@ const ReportsPage: React.FC = () => {
                 <TableCell className="text-white">{getCustomerPlayTime(customer.id)}</TableCell>
                 <TableCell className="text-white">{customer.loyaltyPoints || 0}</TableCell>
                 <TableCell className="text-white">{customer.createdAt ? format(new Date(customer.createdAt), 'd MMM yyyy') : 'N/A'}</TableCell>
-              </TableRow>)}
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
-    </div>;
-  const renderSessionsTab = () => <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
+    </div>
+  );
+
+  const renderSessionsTab = () => (
+    <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
       <div className="p-6">
         <h2 className="text-2xl font-bold mb-1">Session History</h2>
         <p className="text-gray-400">
@@ -869,26 +1001,45 @@ const ReportsPage: React.FC = () => {
         <div className="mt-4 relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
-            <Input placeholder="Search by customer name, email or phone" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10 bg-gray-800 border-gray-700 text-white w-full md:w-96" />
+            <Input
+              placeholder="Search by customer name, email or phone"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-gray-800 border-gray-700 text-white w-full md:w-96"
+            />
           </div>
-          {searchQuery && <p className="text-sm text-gray-400 mt-2">
+          {searchQuery && (
+            <p className="text-sm text-gray-400 mt-2">
               Found {filteredData.filteredSessions.length} matching sessions
-            </p>}
+            </p>
+          )}
         </div>
         
-        {filteredData.filteredSessions.length > itemsPerPage && <div className="mt-4 flex justify-between items-center">
+        {filteredData.filteredSessions.length > itemsPerPage && (
+          <div className="mt-4 flex justify-between items-center">
             <span className="text-sm text-gray-400">
               Showing {Math.min(paginatedData.sessions.length, itemsPerPage)} of {filteredData.filteredSessions.length} sessions
             </span>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(curr => Math.max(1, curr - 1))}
+              >
                 Previous
               </Button>
-              <Button variant="outline" size="sm" disabled={currentPage * itemsPerPage >= filteredData.filteredSessions.length} onClick={() => setCurrentPage(curr => curr + 1)}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage * itemsPerPage >= filteredData.filteredSessions.length}
+                onClick={() => setCurrentPage(curr => curr + 1)}
+              >
                 Next
               </Button>
             </div>
-          </div>}
+          </div>
+        )}
       </div>
       <div className="rounded-md overflow-hidden">
         <Table>
@@ -906,47 +1057,62 @@ const ReportsPage: React.FC = () => {
           </TableHeader>
           <TableBody>
             {paginatedData.sessions.map(session => {
-            // Calculate session duration properly
-            let durationDisplay = "0h 1m"; // Default duration
-            if (session.endTime) {
-              const startMs = new Date(session.startTime).getTime();
-              const endMs = new Date(session.endTime).getTime();
-              const durationMinutes = Math.max(1, Math.round((endMs - startMs) / (1000 * 60)));
-              const hours = Math.floor(durationMinutes / 60);
-              const minutes = durationMinutes % 60;
-              durationDisplay = `${hours}h ${minutes}m`;
-            } else if (session.duration) {
-              const hours = Math.floor(session.duration / 60);
-              const minutes = session.duration % 60;
-              durationDisplay = `${hours}h ${minutes}m`;
-            }
-            return <TableRow key={session.id}>
+              // Calculate session duration properly
+              let durationDisplay = "0h 1m"; // Default duration
+              if (session.endTime) {
+                const startMs = new Date(session.startTime).getTime();
+                const endMs = new Date(session.endTime).getTime();
+                const durationMinutes = Math.max(1, Math.round((endMs - startMs) / (1000 * 60)));
+                const hours = Math.floor(durationMinutes / 60);
+                const minutes = durationMinutes % 60;
+                durationDisplay = `${hours}h ${minutes}m`;
+              } else if (session.duration) {
+                const hours = Math.floor(session.duration / 60);
+                const minutes = session.duration % 60;
+                durationDisplay = `${hours}h ${minutes}m`;
+              }
+
+              return (
+                <TableRow key={session.id}>
                   <TableCell className="text-white font-medium">{session.stationId}</TableCell>
                   <TableCell className="text-white">{getCustomerName(session.customerId)}</TableCell>
                   <TableCell className="text-white text-sm">
                     {getCustomerPhone(session.customerId)}
-                    {getCustomerEmail(session.customerId) && <div className="text-gray-400">{getCustomerEmail(session.customerId)}</div>}
+                    {getCustomerEmail(session.customerId) && (
+                      <div className="text-gray-400">{getCustomerEmail(session.customerId)}</div>
+                    )}
                   </TableCell>
                   <TableCell className="text-white">
                     <div>{format(new Date(session.startTime), 'd MMM yyyy')}</div>
                     <div className="text-gray-400">{format(new Date(session.startTime), 'HH:mm')}</div>
                   </TableCell>
                   <TableCell className="text-white">
-                    {session.endTime ? <>
+                    {session.endTime ? (
+                      <>
                         <div>{format(new Date(session.endTime), 'd MMM yyyy')}</div>
                         <div className="text-gray-400">{format(new Date(session.endTime), 'HH:mm')}</div>
-                      </> : '-'}
+                      </>
+                    ) : '-'}
                   </TableCell>
                   <TableCell className="text-white">{durationDisplay}</TableCell>
                   <TableCell>
-                    <Badge className={!session.endTime ? "bg-green-900/30 text-green-400 border-green-800" : "bg-gray-700 text-gray-300"}>
+                    <Badge
+                      className={!session.endTime ?
+                        "bg-green-900/30 text-green-400 border-green-800" :
+                        "bg-gray-700 text-gray-300"
+                      }
+                    >
                       {session.endTime ? 'Completed' : 'Active'}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                        >
                           <Trash2 className="h-4 w-4" />
                           <span className="sr-only">Delete session</span>
                         </Button>
@@ -960,284 +1126,61 @@ const ReportsPage: React.FC = () => {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-                          <AlertDialogAction className="bg-red-900 hover:bg-red-800 focus:ring-red-800" onClick={() => handleDeleteSession(session.id)}>
+                          <AlertDialogAction
+                            className="bg-red-900 hover:bg-red-800 focus:ring-red-800"
+                            onClick={() => handleDeleteSession(session.id)}
+                          >
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </TableCell>
-                </TableRow>;
-          })}
-            {paginatedData.sessions.length === 0 && <TableRow>
+                </TableRow>
+              );
+            })}
+            {paginatedData.sessions.length === 0 && (
+              <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-gray-400">
-                  {sessionsLoading ? <div className="flex items-center justify-center">
+                  {sessionsLoading ? (
+                    <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cuephoria-purple"></div>
                       <span className="ml-3">Loading sessions...</span>
-                    </div> : searchQuery ? <div>
+                    </div>
+                  ) : searchQuery ? (
+                    <div>
                       <p>No sessions found matching "{searchQuery}"</p>
-                      <Button variant="link" className="text-cuephoria-purple" onClick={() => setSearchQuery('')}>
+                      <Button
+                        variant="link"
+                        className="text-cuephoria-purple"
+                        onClick={() => setSearchQuery('')}
+                      >
                         Clear search
                       </Button>
-                    </div> : "No sessions found in the selected date range"}
+                    </div>
+                  ) : (
+                    "No sessions found in the selected date range"
+                  )}
                 </TableCell>
-              </TableRow>}
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
-    </div>;
-  const renderSummaryTab = () => <div className="space-y-8">
-      <BusinessSummaryReport startDate={date?.from} endDate={date?.to} onDownload={handleDownloadReport} />
-      
-      <Card className="border-gray-800 bg-[#1A1F2C] shadow-xl">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xl text-white">Detailed Business Metrics</CardTitle>
-          <CardDescription className="text-gray-400">
-            Overview of key metrics 
-            {date?.from && date?.to ? ` from ${format(date.from, 'MMM do, yyyy')} to ${format(date.to, 'MMM do, yyyy')}` : ''}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Financial Metrics - Enhanced */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Financial Metrics</h3>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Revenue</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.financial.totalRevenue} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Average Bill Value</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.financial.averageBillValue} showDecimals />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Discounts Given</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.financial.totalDiscounts} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Cash Sales</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.financial.cashSales} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">UPI Sales</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.financial.upiSales} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Cash Payment %</span>
-                  <span className="font-semibold text-white">
-                    {summaryMetrics.financial.cashPercentage.toFixed(1)}%
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">UPI Payment %</span>
-                  <span className="font-semibold text-white">
-                    {summaryMetrics.financial.upiPercentage.toFixed(1)}%
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Gross Profit</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.financial.grossProfit} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Profit Margin</span>
-                  <span className="font-semibold text-white">
-                    {summaryMetrics.financial.profitMargin.toFixed(1)}%
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Best Revenue Day</span>
-                  <span className="font-semibold text-white">
-                    {summaryMetrics.financial.highestRevenueDay}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Operational Metrics - Enhanced */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Operational Metrics</h3>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Transactions</span>
-                  <span className="font-semibold text-white">{summaryMetrics.operational.totalTransactions}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Active Sessions</span>
-                  <span className="font-semibold text-white">{summaryMetrics.operational.activeSessions}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Completed Sessions</span>
-                  <span className="font-semibold text-white">{summaryMetrics.operational.completedSessions}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Avg. Session Duration</span>
-                  <span className="font-semibold text-white">
-                    {Math.floor(summaryMetrics.operational.avgSessionDuration / 60)}h {summaryMetrics.operational.avgSessionDuration % 60}m
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Peak Business Hour</span>
-                  <span className="font-semibold text-white">{summaryMetrics.operational.peakHour}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Most Popular Product</span>
-                  <span className="font-semibold text-white">{summaryMetrics.operational.mostPopularProduct}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Units Sold</span>
-                  <span className="font-semibold text-white">{summaryMetrics.operational.totalUnitsSold}</span>
-                </div>
-                
-                {summaryMetrics.operational.daysSinceRestock !== null && <div className="flex justify-between">
-                    <span className="text-gray-400">Days Since Restock</span>
-                    <span className="font-semibold text-white">{summaryMetrics.operational.daysSinceRestock}</span>
-                  </div>}
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">PS5 Usage Rate</span>
-                  <span className="font-semibold text-white">{summaryMetrics.operational.ps5UsageRate}%</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">PS5 Revenue</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.gaming.ps5Sales} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">8-Ball Revenue</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.gaming.poolSales} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Metashot Revenue</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.gaming.metashotSales} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Gaming Revenue</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.gaming.totalGamingSales} />
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Customer Metrics - Enhanced */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Customer Metrics</h3>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Customers</span>
-                  <span className="font-semibold text-white">{summaryMetrics.customer.totalCustomers}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Members</span>
-                  <span className="font-semibold text-white">{summaryMetrics.customer.memberCount}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Non-Members</span>
-                  <span className="font-semibold text-white">{summaryMetrics.customer.nonMemberCount}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Membership Rate</span>
-                  <span className="font-semibold text-white">
-                    {summaryMetrics.customer.membershipRate.toFixed(1)}%
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Avg. Spend per Customer</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.customer.avgSpendPerCustomer} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Top Customer</span>
-                  <span className="font-semibold text-white">{summaryMetrics.customer.topCustomer}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Top Customer Spend</span>
-                  <span className="font-semibold text-white">
-                    <CurrencyDisplay amount={summaryMetrics.customer.topCustomerSpend} />
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Returning Customers</span>
-                  <span className="font-semibold text-white">{summaryMetrics.customer.returningCustomers}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Customer Retention</span>
-                  <span className="font-semibold text-white">
-                    {summaryMetrics.customer.retentionRate.toFixed(1)}%
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Loyalty Points Used</span>
-                  <span className="font-semibold text-white">{summaryMetrics.customer.loyaltyPointsUsed}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Loyalty Points Earned</span>
-                  <span className="font-semibold text-white">{summaryMetrics.customer.loyaltyPointsEarned}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Loyalty Usage Rate</span>
-                  <span className="font-semibold text-white">
-                    {summaryMetrics.customer.loyaltyUsageRate.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>;
+    </div>
+  );
+
+  // MODIFIED: Summary tab with Detailed Business Metrics section removed
+  const renderSummaryTab = () => (
+    <div className="space-y-8">
+      <BusinessSummaryReport
+        startDate={date?.from}
+        endDate={date?.to}
+        onDownload={handleDownloadReport}
+      />
+      {/* REMOVED: Entire "Detailed Business Metrics" Card section */}
+    </div>
+  );
 
   // Handle calendar date changes while ensuring proper types
   const handleCalendarSelect = (newDate: DateRange | undefined) => {
@@ -1246,7 +1189,9 @@ const ReportsPage: React.FC = () => {
       setDateRangeKey('custom');
     }
   };
-  return <div className="p-6 space-y-6 min-h-screen text-white bg-transparent">
+
+  return (
+    <div className="p-6 space-y-6 min-h-screen text-white bg-transparent">
       {/* Header with title, date range, and export button */}
       <div className="flex justify-between items-center pb-2">
         <h1 className="text-4xl font-bold gradient-text font-heading">Reports</h1>
@@ -1274,7 +1219,15 @@ const ReportsPage: React.FC = () => {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700" align="end">
-              <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={handleCalendarSelect} numberOfMonths={2} className="p-3 pointer-events-auto bg-gray-800 text-white" />
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={date?.from}
+                selected={date}
+                onSelect={handleCalendarSelect}
+                numberOfMonths={2}
+                className="p-3 pointer-events-auto bg-gray-800 text-white"
+              />
             </PopoverContent>
           </Popover>
           
@@ -1287,20 +1240,52 @@ const ReportsPage: React.FC = () => {
       
       {/* Navigation tabs */}
       <div className="bg-gray-800/60 rounded-lg p-1 flex gap-2 w-fit">
-        <Button onClick={() => setActiveTab('bills')} variant={activeTab === 'bills' ? 'default' : 'ghost'} className={`gap-2 ${activeTab === 'bills' ? 'bg-gray-700' : 'text-gray-400'}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></svg>
+        <Button
+          onClick={() => setActiveTab('bills')}
+          variant={activeTab === 'bills' ? 'default' : 'ghost'}
+          className={`gap-2 ${activeTab === 'bills' ? 'bg-gray-700' : 'text-gray-400'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <path d="M14 2v6h6" />
+            <path d="M16 13H8" />
+            <path d="M16 17H8" />
+            <path d="M10 9H8" />
+          </svg>
           Bills
         </Button>
-        <Button onClick={() => setActiveTab('customers')} variant={activeTab === 'customers' ? 'default' : 'ghost'} className={`gap-2 ${activeTab === 'customers' ? 'bg-gray-700' : 'text-gray-400'}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 1 0 7.75" /></svg>
+        <Button
+          onClick={() => setActiveTab('customers')}
+          variant={activeTab === 'customers' ? 'default' : 'ghost'}
+          className={`gap-2 ${activeTab === 'customers' ? 'bg-gray-700' : 'text-gray-400'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 1 0 7.75" />
+          </svg>
           Customers
         </Button>
-        <Button onClick={() => setActiveTab('sessions')} variant={activeTab === 'sessions' ? 'default' : 'ghost'} className={`gap-2 ${activeTab === 'sessions' ? 'bg-gray-700' : 'text-gray-400'}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+        <Button
+          onClick={() => setActiveTab('sessions')}
+          variant={activeTab === 'sessions' ? 'default' : 'ghost'}
+          className={`gap-2 ${activeTab === 'sessions' ? 'bg-gray-700' : 'text-gray-400'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
           Sessions
         </Button>
-        <Button onClick={() => setActiveTab('summary')} variant={activeTab === 'summary' ? 'default' : 'ghost'} className={`gap-2 ${activeTab === 'summary' ? 'bg-gray-700' : 'text-gray-400'}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" /></svg>
+        <Button
+          onClick={() => setActiveTab('summary')}
+          variant={activeTab === 'summary' ? 'default' : 'ghost'}
+          className={`gap-2 ${activeTab === 'summary' ? 'bg-gray-700' : 'text-gray-400'}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="20" height="14" x="2" y="5" rx="2" />
+            <line x1="2" x2="22" y1="10" y2="10" />
+          </svg>
           Summary
         </Button>
       </div>
@@ -1309,6 +1294,8 @@ const ReportsPage: React.FC = () => {
       <div className="space-y-6">
         {renderContent()}
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default ReportsPage;
