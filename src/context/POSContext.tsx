@@ -487,10 +487,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   
   // ============================================
-  // UPDATED: completeSale with status and compNote
+  // UPDATED: completeSale with 'complimentary' payment method
   // ============================================
   const completeSale = async (
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit',
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary', // UPDATED
     status: 'completed' | 'complimentary' = 'completed',
     compNote?: string
   ): Promise<Bill | undefined> => {
@@ -625,7 +625,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
     upiAmount: number = 0,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary'
   ): Promise<Bill | null> => {
     return updateBillBase(
       originalBill,
