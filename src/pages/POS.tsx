@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award } from 'lucide-react';
+import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS, Customer, Product, Bill } from '@/context/POSContext';
 import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
@@ -50,6 +51,8 @@ const POS = () => {
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+  const [isCompDialogOpen, setIsCompDialogOpen] = useState(false);
+  const [compNote, setCompNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'credit' | 'split'>('cash');
   const [customDiscountAmount, setCustomDiscountAmount] = useState(discount.toString());
   const [customDiscountType, setCustomDiscountType] = useState<'percentage' | 'fixed'>(discountType);
@@ -59,12 +62,10 @@ const POS = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCompletingSale, setIsCompletingSale] = useState(false);
 
-  // Filter out products with zero stock (except membership products)
   const productsWithStock = products.filter(product => 
     product.category === 'membership' || product.stock > 0
   );
 
-  // Calculate category counts based on filtered products
   const categoryCounts = productsWithStock.reduce((acc, product) => {
     const category = product.category;
     acc[category] = (acc[category] || 0) + 1;
@@ -73,22 +74,18 @@ const POS = () => {
 
   categoryCounts.all = productsWithStock.length;
 
-  // Define category order for sorting
   const categoryOrder = ['food', 'drinks', 'tobacco', 'challenges', 'membership'];
 
-  // Sort products by category when "all" tab is selected
   const getSortedProducts = (productList: Product[]) => {
     if (activeTab === 'all') {
       return productList.sort((a, b) => {
         const aIndex = categoryOrder.indexOf(a.category);
         const bIndex = categoryOrder.indexOf(b.category);
         
-        // If categories are the same, sort by name
         if (aIndex === bIndex) {
           return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
         }
         
-        // Sort by category order
         return aIndex - bIndex;
       });
     }
@@ -172,7 +169,6 @@ const POS = () => {
     if (value === 'split') {
       setIsSplitPayment(true);
       
-      // Initialize with default 50/50 split
       const total = calculateTotal();
       const defaultCashAmount = Math.floor(total / 2);
       setCashAmount(defaultCashAmount);
@@ -231,6 +227,66 @@ const POS = () => {
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'An error occurred while completing the sale',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCompletingSale(false);
+    }
+  };
+
+  // NEW: Handle complimentary transaction
+  const handleComplimentary = async () => {
+    if (!selectedCustomer) {
+      toast({
+        title: 'No Customer Selected',
+        description: 'Please select a customer before marking as complimentary',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (cart.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Please add items to the cart',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCompDialogOpen(true);
+  };
+
+  // NEW: Confirm complimentary transaction
+  const handleConfirmComplimentary = async () => {
+    setIsCompletingSale(true);
+    
+    try {
+      const bill = await completeSale('cash', 'complimentary', compNote);
+      
+      if (bill) {
+        setIsCompDialogOpen(false);
+        setCompNote('');
+        
+        toast({
+          title: 'Marked as Complimentary',
+          description: `Items given free. Stock updated.`,
+          variant: 'default',
+        });
+        
+        clearCart();
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to process complimentary transaction.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error in handleConfirmComplimentary:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'An error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -381,20 +437,34 @@ const POS = () => {
                   )}
                 </Button>
               </div>
-              <Button 
-                variant="default" 
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 animate-pulse-soft"
-                disabled={cart.length === 0 || !selectedCustomer}
-                onClick={() => setIsCheckoutDialogOpen(true)}
-              >
-                <ReceiptIcon className="mr-2 h-4 w-4" />
-                Checkout
-              </Button>
+              
+              {/* NEW: Checkout and Complimentary buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  variant="default" 
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 animate-pulse-soft"
+                  disabled={cart.length === 0 || !selectedCustomer}
+                  onClick={() => setIsCheckoutDialogOpen(true)}
+                >
+                  <ReceiptIcon className="mr-2 h-4 w-4" />
+                  Checkout
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                  disabled={cart.length === 0 || !selectedCustomer}
+                  onClick={handleComplimentary}
+                >
+                  <Gift className="mr-2 h-4 w-4" />
+                  Comp
+                </Button>
+              </div>
             </div>
           </CardFooter>
         </Card>
 
-        {/* Products Section - Improved Layout */}
+        {/* Products Section */}
         <Card className="lg:col-span-2 h-[calc(100vh-12rem)] flex flex-col animate-slide-up delay-200">
           <CardHeader className="pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0">
             <CardTitle className="text-xl font-heading">Products</CardTitle>
@@ -493,6 +563,7 @@ const POS = () => {
         </Card>
       </div>
 
+      {/* Customer Dialog */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
         <DialogContent className="max-w-3xl animate-scale-in">
           <DialogHeader>
@@ -538,6 +609,81 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
+      {/* NEW: Complimentary Dialog */}
+      <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
+        <DialogContent className="max-w-md animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl flex items-center gap-2">
+              <Gift className="h-5 w-5 text-orange-500" />
+              Mark as Complimentary
+            </DialogTitle>
+            <DialogDescription>
+              Items will be given for free. Stock will be reduced but no payment will be recorded.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {selectedCustomer && (
+              <div className="border rounded-md p-3 bg-orange-50">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4" />
+                  <span className="font-medium">{selectedCustomer.name}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="comp-note">Reason/Note (Optional)</Label>
+              <Textarea
+                id="comp-note"
+                placeholder="e.g., Owner consumption, Friend - Raj, Staff meal, etc."
+                value={compNote}
+                onChange={(e) => setCompNote(e.target.value)}
+                className="resize-none"
+                rows={3}
+              />
+            </div>
+
+            <div className="border rounded-md p-3 bg-gray-50">
+              <h4 className="font-medium mb-2">Items</h4>
+              <div className="space-y-1 max-h-32 overflow-auto">
+                {cart.map(item => (
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span>{item.name} x {item.quantity}</span>
+                    <span className="font-mono">₹{item.total.toLocaleString('en-IN')}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between font-bold border-t mt-2 pt-2">
+                <span>Total Value</span>
+                <span className="font-mono">₹{total.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsCompDialogOpen(false);
+                setCompNote('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmComplimentary}
+              disabled={isCompletingSale}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              <Gift className="mr-2 h-4 w-4" />
+              {isCompletingSale ? 'Processing...' : 'Confirm Complimentary'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout Dialog */}
       <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
         <DialogContent className="max-w-md animate-scale-in">
           <DialogHeader>
@@ -670,7 +816,6 @@ const POS = () => {
               </RadioGroup>
             </div>
 
-            {/* Split payment form */}
             {paymentMethod === 'split' && (
               <div className="mt-4 animate-slide-up delay-500">
                 <SplitPaymentForm 
@@ -699,6 +844,7 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Success Dialog */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent className="max-w-md animate-scale-in text-center">
           <div className="flex flex-col items-center justify-center py-6">
@@ -729,6 +875,7 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Receipt */}
       {showReceipt && lastCompletedBill && selectedCustomer && (
         <Receipt 
           bill={lastCompletedBill} 
