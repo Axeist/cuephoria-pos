@@ -34,10 +34,10 @@ const POSContext = createContext<POSContextType>({
   isSplitPayment: false,
   cashAmount: 0,
   upiAmount: 0,
-  categories: ['food', 'drinks', 'tobacco', 'challenges', 'membership'], // Default categories
+  categories: ['food', 'drinks', 'tobacco', 'challenges', 'membership'],
   setIsStudentDiscount: () => {},
-  setBills: () => {}, // Add default implementation
-  setCustomers: () => {}, // Add default implementation
+  setBills: () => {},
+  setCustomers: () => {},
   setStations: () => {},
   addProduct: () => ({}),
   updateProduct: () => ({}),
@@ -48,7 +48,7 @@ const POSContext = createContext<POSContextType>({
   startSession: async () => {},
   endSession: async () => {},
   deleteStation: async () => false,
-  updateStation: async () => false,  // Add default implementation
+  updateStation: async () => false,
   addCustomer: () => ({}),
   updateCustomer: () => ({}),
   updateCustomerMembership: () => null,
@@ -64,7 +64,7 @@ const POSContext = createContext<POSContextType>({
   setLoyaltyPointsUsed: () => {},
   calculateTotal: () => 0,
   completeSale: () => undefined,
-  updateBill: async () => null, // Changed from optional to a required function with default implementation
+  updateBill: async () => null,
   deleteBill: async () => false,
   exportBills: () => {},
   exportCustomers: () => {},
@@ -77,17 +77,14 @@ const POSContext = createContext<POSContextType>({
 });
 
 export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  console.log('POSProvider initialized'); // Debug log
+  console.log('POSProvider initialized');
   
-  // State for student discount
   const [isStudentDiscount, setIsStudentDiscount] = useState<boolean>(false);
   
-  // State for categories
   const [categories, setCategories] = useState<string[]>([
     'food', 'drinks', 'tobacco', 'challenges', 'membership'
   ]);
   
-  // Initialize all hooks
   const { 
     products, 
     loading: productsLoading,
@@ -162,11 +159,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const { toast } = useToast();
 
-  // Fetch categories from Supabase on initial load
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        // Get categories from Supabase
         const { data, error } = await supabase
           .from('categories')
           .select('name');
@@ -177,10 +172,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (data && data.length > 0) {
-          // Use categories from DB
           const dbCategories = data.map(item => item.name.toLowerCase());
           
-          // Ensure "uncategorized" exists
           if (!dbCategories.includes('uncategorized')) {
             try {
               await supabase
@@ -197,10 +190,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('cuephoriaCategories', JSON.stringify(dbCategories));
           console.log('Categories loaded from database:', dbCategories);
         } else {
-          // If no categories in DB, create default ones
           const defaultCategories = ['food', 'drinks', 'tobacco', 'challenges', 'membership', 'uncategorized'];
           
-          // Insert all default categories
           for (const category of defaultCategories) {
             try {
               await supabase
@@ -223,16 +214,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchCategories();
   }, []);
 
-  // Category management functions
   const addCategory = async (category: string) => {
     try {
       const trimmedCategory = category.trim().toLowerCase();
       
       if (!trimmedCategory) {
-        return; // Empty category
+        return;
       }
       
-      // Check if category already exists (case insensitive)
       if (categories.some(cat => cat.toLowerCase() === trimmedCategory)) {
         toast({
           title: 'Error',
@@ -242,7 +231,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       
-      // First, add to Supabase
       const { error } = await supabase
         .from('categories')
         .insert({ name: trimmedCategory });
@@ -257,7 +245,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       
-      // Update local state if database operation was successful
       setCategories(prev => {
         const updated = [...prev, trimmedCategory];
         localStorage.setItem('cuephoriaCategories', JSON.stringify(updated));
@@ -280,7 +267,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateCategory = async (oldCategory: string, newCategory: string) => {
     try {
-      // Don't allow changing the uncategorized category
       if (oldCategory.toLowerCase() === 'uncategorized') {
         toast({
           title: 'Error',
@@ -293,10 +279,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const trimmedNewCategory = newCategory.trim().toLowerCase();
       
       if (oldCategory === newCategory || !trimmedNewCategory) {
-        return; // No change or empty category
+        return;
       }
       
-      // Check if new name already exists (case insensitive)
       if (categories.some(cat => cat.toLowerCase() === trimmedNewCategory && cat.toLowerCase() !== oldCategory.toLowerCase())) {
         toast({
           title: 'Error',
@@ -306,7 +291,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       
-      // First update in Supabase
       const { error } = await supabase
         .from('categories')
         .update({ name: trimmedNewCategory })
@@ -322,7 +306,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       
-      // Update products with this category
       setProducts(prev =>
         prev.map(product => 
           product.category.toLowerCase() === oldCategory.toLowerCase() 
@@ -331,7 +314,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
       
-      // Also update products in database
       const { error: updateProductsError } = await supabase
         .from('products')
         .update({ category: trimmedNewCategory })
@@ -341,7 +323,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error('Error updating products category in Supabase:', updateProductsError);
       }
       
-      // Update category list
       setCategories(prev => {
         const updated = prev.map(cat => 
           cat.toLowerCase() === oldCategory.toLowerCase() ? trimmedNewCategory : cat
@@ -368,7 +349,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const lowerCategory = category.toLowerCase();
       
-      // Don't allow deleting the uncategorized category
       if (lowerCategory === 'uncategorized') {
         toast({
           title: 'Error',
@@ -378,12 +358,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       
-      // Check if products use this category
       const productsWithCategory = products.filter(
         p => p.category.toLowerCase() === lowerCategory
       );
       
-      // Delete from Supabase
       const { error } = await supabase
         .from('categories')
         .delete()
@@ -399,9 +377,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       
-      // Update products with this category to 'uncategorized'
       if (productsWithCategory.length > 0) {
-        // Update products
         setProducts(prev =>
           prev.map(product => 
             product.category.toLowerCase() === lowerCategory
@@ -410,7 +386,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
         );
         
-        // Update products in database
         const { error: updateProductsError } = await supabase
           .from('products')
           .update({ category: 'uncategorized' })
@@ -421,7 +396,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       
-      // Remove from local categories list
       setCategories(prev => {
         const updated = prev.filter(cat => cat.toLowerCase() !== lowerCategory);
         localStorage.setItem('cuephoriaCategories', JSON.stringify(updated));
@@ -442,40 +416,32 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   
-  // Wrapper functions that combine functionality from multiple hooks
   const startSession = async (stationId: string, customerId: string): Promise<void> => {
     await startSessionBase(stationId, customerId);
   };
   
-  // Make endSession return a Promise<void> to match type definition
   const endSession = async (stationId: string): Promise<void> => {
     try {
-      // Get the current station
       const station = stations.find(s => s.id === stationId);
       if (!station || !station.isOccupied || !station.currentSession) {
         console.log("No active session found for this station in wrapper");
         throw new Error("No active session found");
       }
       
-      // Get the customer ID before ending the session
       const customerId = station.currentSession.customerId;
       
-      // Call the base endSession function
       const result = await endSessionBase(stationId, customers);
       
       if (result) {
         const { sessionCartItem, customer } = result;
         
-        // Clear cart before adding the new session
         clearCart();
         
-        // Auto-select customer
         if (customer) {
           console.log("Auto-selecting customer:", customer.name);
           selectCustomer(customer.id);
         }
         
-        // Add the session to cart
         if (sessionCartItem) {
           console.log("Adding session to cart:", sessionCartItem);
           addToCart(sessionCartItem);
@@ -487,7 +453,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   
-  // Fix for the Promise<Customer> error - wrap in a synchronous function that returns Customer | null
   const updateCustomerMembershipWrapper = (
     customerId: string, 
     membershipData: {
@@ -496,12 +461,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       membershipHoursLeft?: number;
     }
   ): Customer | null => {
-    // Create a placeholder customer with the minimum required fields
     const customer = customers.find(c => c.id === customerId);
     
     if (!customer) return null;
     
-    // Start the async update process but don't wait for it
     updateCustomerMembership(customerId, membershipData)
       .then((updatedCustomer) => {
         if (updatedCustomer) {
@@ -512,7 +475,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error("Error updating customer membership:", error);
       });
     
-    // Return a modified version of the existing customer to satisfy the synchronous interface
     return {
       ...customer,
       membershipPlan: membershipData.membershipPlan || customer.membershipPlan,
@@ -524,8 +486,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
   
-  // Modified completeSale to properly handle async operations and support credit payment
-  const completeSale = async (paymentMethod: 'cash' | 'upi' | 'split' | 'credit'): Promise<Bill | undefined> => {
+  // ============================================
+  // UPDATED: completeSale with status and compNote
+  // ============================================
+  const completeSale = async (
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit',
+    status: 'completed' | 'complimentary' = 'completed',
+    compNote?: string
+  ): Promise<Bill | undefined> => {
     if (!selectedCustomer) {
       toast({
         title: 'No Customer Selected',
@@ -545,7 +513,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     
     try {
-      // Apply student price for membership items if student discount is enabled
       let currentCart = cart;
       if (isStudentDiscount) {
         currentCart = cart.map(item => {
@@ -560,11 +527,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return item;
         });
         
-        // Temporarily update cart with student prices
         setCart(currentCart);
       }
       
-      // Look for membership products in cart
       const membershipItems = currentCart.filter(item => {
         const product = products.find(p => p.id === item.id);
         return product && product.category === 'membership';
@@ -573,8 +538,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log("Completing sale with cart:", currentCart);
       console.log("Selected customer:", selectedCustomer);
       console.log("Payment method:", isSplitPayment ? 'split' : paymentMethod);
+      console.log("Transaction status:", status);
       
-      // Call the async completeSale function and wait for it
       const bill = await completeSaleBase(
         currentCart, 
         selectedCustomer, 
@@ -586,23 +551,22 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         products,
         isSplitPayment,
         cashAmount,
-        upiAmount
+        upiAmount,
+        status,
+        compNote
       );
       
       if (bill) {
         console.log("Bill created successfully:", bill);
         
-        // If we have a successful sale with membership items, update the customer
         if (membershipItems.length > 0) {
           for (const item of membershipItems) {
             const product = products.find(p => p.id === item.id);
             
             if (product) {
-              // Default values
-              let membershipHours = product.membershipHours || 4; // Default hours from product or fallback to 4
+              let membershipHours = product.membershipHours || 4;
               let membershipDuration: 'weekly' | 'monthly' = 'weekly';
               
-              // Set duration based on product
               if (product.duration) {
                 membershipDuration = product.duration;
               } else if (product.name.toLowerCase().includes('weekly')) {
@@ -611,25 +575,20 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 membershipDuration = 'monthly';
               }
               
-              // Update customer's membership
               updateCustomerMembership(selectedCustomer.id, {
                 membershipPlan: product.name,
                 membershipDuration: membershipDuration,
                 membershipHoursLeft: membershipHours
               });
               
-              break; // Only apply the first membership found
+              break;
             }
           }
         }
         
-        // Clear the cart after successful sale
         clearCart();
-        // Reset selected customer
         setSelectedCustomer(null);
-        // Reset student discount
         setIsStudentDiscount(false);
-        // Reset split payment data
         resetPaymentInfo();
         
         return bill;
@@ -656,7 +615,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     exportCustomersBase(customers);
   };
   
-  // Implement the updateBill function with split payment support
   const updateBill = async (
     originalBill: Bill, 
     updatedItems: CartItem[], 
@@ -683,13 +641,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
   
-  // Simplified reset function - only resets local state
   const handleResetToSampleData = async (options?: ResetOptions) => {
     try {
-      // Import the reset function from services
       const { resetToSampleData } = await import('@/services/dataOperations');
       
-      // Call the async reset function
       await resetToSampleData(
         options,
         setProducts,
@@ -711,7 +666,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   
-  // Remove sample data functionality
   const handleAddSampleIndianData = () => {
     const { toast } = useToast();
     toast({
@@ -720,12 +674,11 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
   
-  // Update the deleteBill function to handle bill deletion even if customer has been deleted
   const deleteBill = async (billId: string, customerId: string): Promise<boolean> => {
     return await deleteBillBase(billId, customerId);
   };
   
-  console.log('POSProvider rendering with context value'); // Debug log
+  console.log('POSProvider rendering with context value');
   
   return (
     <POSContext.Provider
@@ -794,17 +747,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 };
 
 export const usePOS = () => {
-  console.log('usePOS hook called'); // Debug log
+  console.log('usePOS hook called');
   const context = useContext(POSContext);
   if (context === undefined) {
-    console.error('usePOS must be used within a POSProvider'); // Debug log
+    console.error('usePOS must be used within a POSProvider');
     throw new Error('usePOS must be used within a POSProvider');
   }
-  console.log('usePOS hook returning context'); // Debug log
+  console.log('usePOS hook returning context');
   return context;
 };
 
-// Re-export types from types file for convenience
 export type { 
   Product,
   Station,
