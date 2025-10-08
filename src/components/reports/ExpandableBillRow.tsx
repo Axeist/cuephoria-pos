@@ -45,13 +45,6 @@ interface Bill {
   createdAt: Date | string;
 }
 
-interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  email?: string;
-}
-
 interface ExpandableBillRowProps {
   bill: Bill;
   getCustomerName: (customerId: string) => string;
@@ -81,7 +74,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   const isComplimentary = bill.paymentMethod?.toLowerCase() === 'complimentary';
   const isSplit = bill.isSplitPayment || (bill.splitPayment && bill.splitPayment.length > 0);
 
-  // Check if this bill matches the search term
   const matchesSearch = !searchTerm || 
     customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customerPhone.includes(searchTerm) ||
@@ -120,7 +112,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
       >
         <TableCell className="text-white">
           <div>{format(billDate, 'd MMM yyyy')}</div>
-          <div className="text-gray-400">{format(billDate, 'HH:mm')}</div>
+          <div className="text-gray-400 text-xs">{format(billDate, 'HH:mm')}</div>
         </TableCell>
         <TableCell className="text-white font-mono text-xs">{bill.id.substring(0, 30)}</TableCell>
         <TableCell>
@@ -226,7 +218,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
                 className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-950/30"
               >
                 <Edit2 className="h-4 w-4" />
-                <span className="sr-only">Edit transaction</span>
               </Button>
             )}
             {onDelete && (
@@ -237,14 +228,12 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
                 className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
               >
                 <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete transaction</span>
               </Button>
             )}
           </div>
         </TableCell>
       </TableRow>
       
-      {/* Expanded row showing item details */}
       {isExpanded && (
         <TableRow className={isComplimentary ? 'bg-amber-950/10' : 'bg-gray-800/30'}>
           <TableCell colSpan={11} className="p-4">
@@ -284,7 +273,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
                 ))}
               </div>
 
-              {/* Show complimentary note in expanded section if available */}
               {isComplimentary && bill.compNote && (
                 <div className="mt-3 p-3 bg-amber-950/30 border border-amber-800/50 rounded-md">
                   <p className="text-xs text-gray-400 mb-1">Complimentary Reason:</p>
@@ -292,7 +280,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
                 </div>
               )}
 
-              {/* Summary */}
               <div className="border-t border-gray-700 pt-3 mt-3 space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Subtotal:</span>
@@ -323,7 +310,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
         </TableRow>
       )}
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-gray-800 border-gray-700 text-white">
           <AlertDialogHeader>
