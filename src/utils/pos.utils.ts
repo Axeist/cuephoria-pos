@@ -53,8 +53,8 @@ export const exportCustomersToCSV = (customers: Customer[]) => {
 export const exportBillsToCSV = (bills: Bill[], customers: Customer[]) => {
   let csvContent = "data:text/csv;charset=utf-8,";
   
-  // Header row
-  csvContent += "Bill ID,Customer,Date,Items,Subtotal,Discount,Loyalty Points Used,Total,Payment Method\n";
+  // Header row - UPDATED to include status and comp note
+  csvContent += "Bill ID,Customer,Date,Items,Subtotal,Discount,Loyalty Points Used,Total,Payment Method,Status,Comp Note\n";
   
   // Data rows
   bills.forEach(bill => {
@@ -69,7 +69,9 @@ export const exportBillsToCSV = (bills: Bill[], customers: Customer[]) => {
       bill.discount,
       bill.loyaltyPointsUsed,
       bill.total,
-      bill.paymentMethod
+      bill.paymentMethod,
+      bill.status || 'completed', // NEW: Include status
+      bill.compNote ? `"${bill.compNote}"` : '' // NEW: Include comp note (quoted for CSV safety)
     ];
     csvContent += row.join(",") + "\n";
   });
