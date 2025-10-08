@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,23 +49,37 @@ const StockReconciliationReport: React.FC = () => {
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // Initialize TODAY's opening and closing stock
+  // Debug logging
+  useEffect(() => {
+    console.log('=== RECONCILIATION DEBUG ===');
+    console.log('Total products loaded:', products.length);
+    console.log('All categories:', [...new Set(products.map(p => p.category))]);
+    console.log('Products sample:', products.slice(0, 3));
+    
+    const foodDrinks = products.filter(p => {
+      const cat = p.category?.toLowerCase() || '';
+      return cat === 'food' || cat === 'drinks';
+    });
+    console.log('Food/Drinks products found:', foodDrinks.length);
+    console.log('Food/Drinks sample:', foodDrinks.slice(0, 3));
+  }, [products]);
+
   const initializeTodaySnapshot = () => {
     try {
       let count = 0;
       const today = new Date();
-      
-      // Create opening snapshot at 9:00 AM today
       const openingTime = setMinutes(setHours(today, 9), 0);
-      
-      // Create closing snapshot at 11:55 PM today
       const closingTime = setMinutes(setHours(today, 23), 55);
       
+      console.log('Starting initialization...');
+      
       products.forEach(product => {
-        const category = product.category.toLowerCase();
-        // Check for food OR drinks OR food/drinks variations
-        if (category.includes('food') || category.includes('drink')) {
-          // Create opening snapshot
+        const category = (product.category || '').toLowerCase().trim();
+        
+        // Exact match for "food" or "drinks"
+        if (category === 'food' || category === 'drinks') {
+          console.log(`Initializing: ${product.name} (${product.category}), Stock: ${product.stock}`);
+          
           const openingLog = createStockLog(
             product,
             0,
@@ -77,7 +91,6 @@ const StockReconciliationReport: React.FC = () => {
           openingLog.timestamp = openingTime;
           saveStockLog(openingLog);
           
-          // Create closing snapshot (same value for today)
           const closingLog = createStockLog(
             product,
             product.stock,
@@ -90,27 +103,27 @@ const StockReconciliationReport: React.FC = () => {
           saveStockLog(closingLog);
           
           count++;
-          console.log(`Initialized snapshots for: ${product.name} (${category}), Stock: ${product.stock}`);
         }
       });
+
+      console.log(`Initialization complete. ${count} products initialized.`);
 
       if (count === 0) {
         toast({
           title: 'No Products Found',
-          description: 'No food or drinks products found. Please check your product categories.',
+          description: `Found ${products.length} total products, but none with category "Food" or "Drinks". Please check categories.`,
           variant: 'destructive',
         });
         return;
       }
 
-      // Mark initialization as complete
       localStorage.setItem('stockSnapshotInitialized', 'true');
       localStorage.setItem('lastOpeningSnapshotDate', format(today, 'yyyy-MM-dd'));
       localStorage.setItem('lastClosingSnapshotDate', format(today, 'yyyy-MM-dd'));
 
       toast({
-        title: 'Snapshots Created Successfully!',
-        description: `Initialized ${count} products. Opening (9:00 AM) and Closing (11:55 PM) snapshots created.`,
+        title: 'Snapshots Created!',
+        description: `Successfully initialized ${count} products with opening and closing snapshots.`,
         duration: 5000,
       });
 
@@ -118,16 +131,15 @@ const StockReconciliationReport: React.FC = () => {
         window.location.reload();
       }, 2000);
     } catch (error) {
-      console.error('Error creating snapshots:', error);
+      console.error('Initialization error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create snapshots. Check console for details.',
+        description: `Failed to create snapshots: ${error.message}`,
         variant: 'destructive',
       });
     }
   };
 
-  // Get stock at specific time
   const getStockAtTime = (productId: string, date: Date, hour: number, minute: number = 0): number => {
     try {
       const allLogs = getStockLogs(productId);
@@ -176,18 +188,15 @@ const StockReconciliationReport: React.FC = () => {
     }
   };
 
-  // Calculate reconciliation data
   const reconciliationData = useMemo((): ReconciliationData[] => {
     try {
-      // Get all food and drinks products (flexible category matching)
+      // Exact category match - case insensitive
       const foodAndDrinks = products.filter(p => {
-        const category = p.category.toLowerCase();
-        return category.includes('food') || category.includes('drink');
+        const cat = (p.category || '').toLowerCase().trim();
+        return cat === 'food' || cat === 'drinks';
       });
 
-      console.log('Total products:', products.length);
-      console.log('Food/Drinks products found:', foodAndDrinks.length);
-      console.log('Categories:', products.map(p => p.category).join(', '));
+      console.log('Reconciliation calculation - Food/Drinks found:', foodAndDrinks.length);
 
       return foodAndDrinks.map(product => {
         const pricePerUnit = product.buyingPrice || product.sellingPrice || product.price;
@@ -202,7 +211,6 @@ const StockReconciliationReport: React.FC = () => {
           .reduce((sum, log) => sum + log.quantityChanged, 0);
         const additionsValue = additions * pricePerUnit;
 
-        // Get sales for the selected date
         const startOfSelectedDay = startOfDay(selectedDate);
         const endOfSelectedDay = endOfDay(selectedDate);
         
@@ -224,8 +232,6 @@ const StockReconciliationReport: React.FC = () => {
         const actualClosingStock = getClosingStock(product.id, selectedDate);
         const variance = actualClosingStock - expectedClosingStock;
         const varianceValue = variance * pricePerUnit;
-
-        console.log(`${product.name}: Opening=${openingStock}, Sales=${salesQuantity}, SalesValue=${salesValue}`);
 
         return {
           productId: product.id,
@@ -280,12 +286,11 @@ const StockReconciliationReport: React.FC = () => {
   const isInitialized = localStorage.getItem('stockSnapshotInitialized') === 'true';
   const needsInitialization = !isInitialized;
 
-  // Calculate current total stock value for display
   const currentStockValue = useMemo(() => {
     return products
       .filter(p => {
-        const category = p.category.toLowerCase();
-        return category.includes('food') || category.includes('drink');
+        const cat = (p.category || '').toLowerCase().trim();
+        return cat === 'food' || cat === 'drinks';
       })
       .reduce((total, p) => {
         const price = p.buyingPrice || p.sellingPrice || p.price;
@@ -394,7 +399,7 @@ const StockReconciliationReport: React.FC = () => {
           </Button>
         </div>
         
-        {needsInitialization && reconciliationData.length > 0 && (
+        {needsInitialization && (
           <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
             <CardContent className="pt-4">
               <div className="space-y-2">
@@ -402,30 +407,15 @@ const StockReconciliationReport: React.FC = () => {
                   🎯 Setup Required: Initialize Stock Tracking
                 </p>
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  Current stock value: <strong>₹{currentStockValue.toLocaleString('en-IN')}</strong>
+                  Found <strong>{reconciliationData.length} Food/Drinks products</strong> with stock value: <strong>₹{currentStockValue.toLocaleString('en-IN')}</strong>
                 </p>
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  Today's sales detected: <strong>₹{totals.salesValue.toLocaleString('en-IN')}</strong> (buying price basis)
+                  Today's sales detected: <strong>₹{totals.salesValue.toLocaleString('en-IN')}</strong>
                 </p>
-                <ul className="text-sm text-blue-800 dark:text-blue-200 list-disc list-inside space-y-1 ml-2">
-                  <li>Record opening stock (9:00 AM) = Current stock + Today's sales</li>
-                  <li>Record closing stock (11:55 PM) = Current stock</li>
-                  <li>Enable automatic daily snapshots from tomorrow</li>
-                </ul>
+                <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                  Check console (F12) for detailed debug information
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {needsInitialization && reconciliationData.length === 0 && (
-          <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200">
-            <CardContent className="pt-4">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                <strong>⚠️ No food or drinks products found.</strong> Make sure your products have categories containing "food" or "drinks" (case-insensitive).
-              </p>
-              <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-2">
-                Found {products.length} total products with categories: {products.map(p => p.category).join(', ')}
-              </p>
             </CardContent>
           </Card>
         )}
@@ -548,13 +538,13 @@ const StockReconciliationReport: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Detailed Reconciliation</CardTitle>
+          <CardTitle className="text-base">Detailed Reconciliation ({reconciliationData.length} products)</CardTitle>
         </CardHeader>
         <CardContent>
           {reconciliationData.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>No food or drinks products found.</p>
-              <p className="text-sm mt-2">Check console for product categories detected.</p>
+              <p className="text-sm mt-2">Open browser console (F12) to see debug information.</p>
             </div>
           ) : (
             <ScrollArea className="h-[400px]">
@@ -647,8 +637,8 @@ const StockReconciliationReport: React.FC = () => {
         <CardContent className="text-sm text-muted-foreground space-y-2">
           <p><strong>Expected Closing</strong> = Opening (9:00 AM) + Additions - Sales</p>
           <p><strong>Variance</strong> = Actual Closing (11:55 PM) - Expected Closing</p>
-          <p className="text-xs">• Negative = missing stock (theft/wastage) • Positive = excess stock (unrecorded purchases)</p>
-          <p className="text-xs">• Auto snapshots: 9:00 AM & 11:55 PM daily • Sales shown at buying price basis</p>
+          <p className="text-xs">• Negative = missing stock • Positive = excess stock</p>
+          <p className="text-xs">• Auto snapshots: 9:00 AM & 11:55 PM daily • Sales at buying price basis</p>
         </CardContent>
       </Card>
     </div>
