@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -31,13 +30,22 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
 
     console.log('CanteenSalesProfitWidget - Processing', filteredBills.length, 'bills');
 
-    // Calculate stock value for canteen products
+    // MODIFIED: Calculate stock value for ONLY food and drinks categories (₹6376)
     products.forEach(product => {
       const category = product.category.toLowerCase();
-      const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
+      // Only include food and drinks, exclude tobacco and challenges
+      const isFoodOrDrinks = category === 'food' || 
+                             category === 'foods' ||
+                             category === 'drinks' || 
+                             category === 'drink' ||
+                             category === 'beverages' ||
+                             category === 'beverage' ||
+                             category === 'snacks';
       const isChallenges = category === 'challenges' || category === 'challenge';
+      const isTobacco = category === 'tobacco';
       
-      if (isFoodOrDrinks && !isChallenges) {
+      // Only count if it's food/drinks and NOT challenges or tobacco
+      if (isFoodOrDrinks && !isChallenges && !isTobacco) {
         const stockValue = product.stock * (product.buyingPrice || product.price || 0);
         totalStockValue += stockValue;
       }
@@ -51,12 +59,21 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
           const product = products.find(p => p.id === item.id || p.name === item.name);
           if (product) {
             const category = product.category.toLowerCase();
-            const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
+            // MODIFIED: Exclude tobacco from sales calculations too for consistency
+            const isFoodOrDrinks = category === 'food' || 
+                                   category === 'foods' ||
+                                   category === 'drinks' || 
+                                   category === 'drink' ||
+                                   category === 'beverages' ||
+                                   category === 'beverage' ||
+                                   category === 'snacks';
             const isChallenges = category === 'challenges' || category === 'challenge';
+            const isTobacco = category === 'tobacco';
             
-            console.log(`CanteenSalesProfitWidget - Item ${item.name}: category=${category}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
+            console.log(`CanteenSalesProfitWidget - Item ${item.name}: category=${category}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}, isTobacco=${isTobacco}`);
             
-            if (isFoodOrDrinks && !isChallenges) {
+            // Only count if it's food/drinks and NOT challenges or tobacco
+            if (isFoodOrDrinks && !isChallenges && !isTobacco) {
               // Take the item total directly without applying any discount
               totalSales += item.total;
               console.log(`CanteenSalesProfitWidget - Adding sales: ${item.total} for ${item.name}`);
