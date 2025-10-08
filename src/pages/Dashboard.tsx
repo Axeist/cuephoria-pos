@@ -21,14 +21,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
-import { normalizeBills, isBetween } from '@/lib/date'; // <-- NEW
+import { normalizeBills, isBetween } from '@/lib/date';
 
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
   const { expenses, businessSummary } = useExpenses();
   const { toast } = useToast();
 
-  // Normalize bills once; createdAtDate is safe UTC Date
   const billsN = useMemo(() => normalizeBills(bills), [bills]);
 
   const [activeTab, setActiveTab] = useState('daily');
@@ -44,7 +43,6 @@ const Dashboard = () => {
     lowStockItems: [] as any[]
   });
 
-  // Memoized stats
   const lowStockItems = useMemo(
     () => products.filter(p => p.stock < 5).sort((a, b) => a.stock - b.stock),
     [products]
@@ -58,7 +56,6 @@ const Dashboard = () => {
     return customers.filter(c => new Date(c.createdAt) >= today).length;
   }, [customers]);
 
-  // Expenses date filter
   const filteredExpenses = useMemo(() => {
     if (!dateRange) return expenses;
     return expenses.filter(expense => {
@@ -103,7 +100,6 @@ const Dashboard = () => {
     }
   };
 
-  // Recompute charts/stats
   useEffect(() => {
     setChartData(generateChartData());
     setDashboardStats({
@@ -127,12 +123,14 @@ const Dashboard = () => {
     const today = new Date(); today.setHours(0,0,0,0);
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const hourlyTotals = new Map<number, number>();
-    billsN.forEach(bill => {
-      if (bill.createdAtDate >= today) {
-        const h = bill.createdAtDate.getUTCHours(); // UTC hour to avoid shifts
-        hourlyTotals.set(h, (hourlyTotals.get(h) || 0) + bill.total);
-      }
-    });
+    billsN
+      .filter(bill => bill.paymentMethod !== 'complimentary') // EXCLUDE COMPLIMENTARY
+      .forEach(bill => {
+        if (bill.createdAtDate >= today) {
+          const h = bill.createdAtDate.getUTCHours();
+          hourlyTotals.set(h, (hourlyTotals.get(h) || 0) + bill.total);
+        }
+      });
     return hours.map(hour => {
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const hour12 = hour % 12 || 12;
@@ -143,11 +141,13 @@ const Dashboard = () => {
   const generateDailyChartData = () => {
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const dailyTotals = new Map<string, number>();
-    billsN.forEach(bill => {
-      const d = bill.createdAtDate;
-      const label = days[d.getUTCDay()];
-      dailyTotals.set(label, (dailyTotals.get(label) || 0) + bill.total);
-    });
+    billsN
+      .filter(bill => bill.paymentMethod !== 'complimentary') // EXCLUDE COMPLIMENTARY
+      .forEach(bill => {
+        const d = bill.createdAtDate;
+        const label = days[d.getUTCDay()];
+        dailyTotals.set(label, (dailyTotals.get(label) || 0) + bill.total);
+      });
     return days.map(day => ({ name: day, amount: dailyTotals.get(day) || 0 }));
   };
 
@@ -160,21 +160,25 @@ const Dashboard = () => {
       weeks.push({ start: weekStart, end: weekEnd, label: `${weekStart.getUTCMonth()+1}/${weekStart.getUTCDate()} - ${weekEnd.getUTCMonth()+1}/${weekEnd.getUTCDate()}` });
     }
     return weeks.map(w => {
-      const total = billsN.reduce((sum, b) => (isBetween(b.createdAtDate, w.start, w.end) ? sum + b.total : sum), 0);
+      const total = billsN
+        .filter(b => b.paymentMethod !== 'complimentary') // EXCLUDE COMPLIMENTARY
+        .reduce((sum, b) => (isBetween(b.createdAtDate, w.start, w.end) ? sum + b.total : sum), 0);
       return { name: w.label, amount: total };
     });
   };
 
   const generateMonthlyChartData = () => {
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const y = new Date().getUTCFullYear(); // same-year only
+    const y = new Date().getUTCFullYear();
     const monthlyTotals = new Map<string, number>();
-    billsN.forEach(bill => {
-      const d = bill.createdAtDate;
-      if (d.getUTCFullYear() !== y) return;
-      const label = months[d.getUTCMonth()];
-      monthlyTotals.set(label, (monthlyTotals.get(label) || 0) + bill.total);
-    });
+    billsN
+      .filter(bill => bill.paymentMethod !== 'complimentary') // EXCLUDE COMPLIMENTARY
+      .forEach(bill => {
+        const d = bill.createdAtDate;
+        if (d.getUTCFullYear() !== y) return;
+        const label = months[d.getUTCMonth()];
+        monthlyTotals.set(label, (monthlyTotals.get(label) || 0) + bill.total);
+      });
     return months.map(m => ({ name: m, amount: monthlyTotals.get(m) || 0 }));
   };
 
@@ -192,8 +196,10 @@ const Dashboard = () => {
     } else if (activeTab === 'monthly') {
       startDate = startOfYear(now);
     }
+    
     const total = billsN
       .filter(b => isBetween(b.createdAtDate, startDate, now))
+      .filter(b => b.paymentMethod !== 'complimentary') // EXCLUDE COMPLIMENTARY
       .reduce((sum, b) => sum + b.total, 0);
     return total;
   };
@@ -228,6 +234,7 @@ const Dashboard = () => {
 
     const prev = billsN
       .filter(b => b.createdAtDate >= previousStart && b.createdAtDate < previousEnd)
+      .filter(b => b.paymentMethod !== 'complimentary') // EXCLUDE COMPLIMENTARY
       .reduce((sum, b) => sum + b.total, 0);
 
     if (prev === 0) return current > 0 ? '+100% from last period' : 'No previous data';
@@ -285,7 +292,10 @@ const Dashboard = () => {
           </div>
         </TabsContent>
 
-    <TabsContent value="expenses" className="space-y-6"> <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={dateRange} /> {dateRange ? <FilteredExpenseList startDate={dateRange.start} endDate={dateRange.end} /> : <ExpenseList />} </TabsContent>
+        <TabsContent value="expenses" className="space-y-6">
+          <BusinessSummarySection filteredExpenses={filteredExpenses} dateRange={dateRange} />
+          {dateRange ? <FilteredExpenseList startDate={dateRange.start} endDate={dateRange.end} /> : <ExpenseList />}
+        </TabsContent>
 
         <TabsContent value="cash" className="space-y-6">
           <CashManagement />
