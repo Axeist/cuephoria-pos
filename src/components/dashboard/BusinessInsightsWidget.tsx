@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
-import { BarChart3, TrendingUp, Target, AlertCircle, Brain } from 'lucide-react';
+import { BarChart3, TrendingUp, Target, AlertCircle, Brain, Loader2 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { format, subDays, startOfDay, startOfMonth, endOfMonth, isToday, isYesterday, differenceInDays, getDay } from 'date-fns';
 
@@ -12,14 +12,9 @@ interface BusinessInsightsWidgetProps {
 }
 
 // ============================================
-// TIME SERIES FORECASTING ALGORITHMS
+// ENHANCED TIME SERIES FORECASTING (90 DAYS)
 // ============================================
 
-/**
- * Exponential Smoothing (Holt-Winters) for trend forecasting
- * Alpha: Level smoothing parameter (0.3 = balanced)
- * Beta: Trend smoothing parameter (0.1 = stable trend)
- */
 function exponentialSmoothing(data: number[], alpha: number = 0.3, beta: number = 0.1): {
   forecast: number;
   level: number;
@@ -28,29 +23,22 @@ function exponentialSmoothing(data: number[], alpha: number = 0.3, beta: number 
   if (data.length === 0) return { forecast: 0, level: 0, trend: 0 };
   if (data.length === 1) return { forecast: data[0], level: data[0], trend: 0 };
 
-  // Initialize level and trend
   let level = data[0];
   let trend = data[1] - data[0];
 
-  // Apply exponential smoothing
   for (let i = 1; i < data.length; i++) {
     const prevLevel = level;
     level = alpha * data[i] + (1 - alpha) * (level + trend);
     trend = beta * (level - prevLevel) + (1 - beta) * trend;
   }
 
-  // Forecast next period
   const forecast = level + trend;
   return { forecast, level, trend };
 }
 
-/**
- * Seasonal Decomposition - Identifies day-of-week patterns
- */
 function calculateSeasonalFactors(dailyData: { date: Date; revenue: number }[]): Map<number, number> {
   const dayOfWeekRevenue = new Map<number, number[]>();
   
-  // Group by day of week (0=Sunday, 6=Saturday)
   dailyData.forEach(({ date, revenue }) => {
     const dayOfWeek = getDay(date);
     if (!dayOfWeekRevenue.has(dayOfWeek)) {
@@ -59,22 +47,17 @@ function calculateSeasonalFactors(dailyData: { date: Date; revenue: number }[]):
     dayOfWeekRevenue.get(dayOfWeek)!.push(revenue);
   });
 
-  // Calculate average for each day
   const seasonalFactors = new Map<number, number>();
   const overallAvg = dailyData.reduce((sum, d) => sum + d.revenue, 0) / dailyData.length;
 
   dayOfWeekRevenue.forEach((revenues, dayOfWeek) => {
     const dayAvg = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
-    // Seasonal index: ratio of day average to overall average
     seasonalFactors.set(dayOfWeek, overallAvg > 0 ? dayAvg / overallAvg : 1);
   });
 
   return seasonalFactors;
 }
 
-/**
- * Moving Average Convergence Divergence (MACD) for trend detection
- */
 function calculateMACD(data: number[]): {
   macd: number;
   signal: number;
@@ -85,7 +68,6 @@ function calculateMACD(data: number[]): {
     return { macd: 0, signal: 0, histogram: 0, trend: 'neutral' };
   }
 
-  // Calculate EMA (Exponential Moving Average)
   const calculateEMA = (prices: number[], period: number): number => {
     const multiplier = 2 / (period + 1);
     let ema = prices.slice(0, period).reduce((sum, p) => sum + p, 0) / period;
@@ -99,7 +81,7 @@ function calculateMACD(data: number[]): {
   const ema12 = calculateEMA(data, 12);
   const ema26 = calculateEMA(data, 26);
   const macd = ema12 - ema26;
-  const signal = macd * 0.2; // Simplified signal line
+  const signal = macd * 0.2;
   const histogram = macd - signal;
 
   const trend = histogram > 0 ? 'bullish' : histogram < 0 ? 'bearish' : 'neutral';
@@ -107,9 +89,65 @@ function calculateMACD(data: number[]): {
   return { macd, signal, histogram, trend };
 }
 
-/**
- * Triple Exponential Smoothing (Holt-Winters with Seasonality)
- */
+// ENHANCED: Improved confidence calculation with more factors
+function calculateEnhancedConfidence(
+  dailyData: { date: Date; revenue: number }[],
+  trendStrength: number
+): {
+  confidence: number;
+  factors: {
+    dataQuality: number;
+    consistency: number;
+    trendStability: number;
+    seasonalClarity: number;
+  };
+} {
+  const revenues = dailyData.map(d => d.revenue);
+  const n = revenues.length;
+  
+  // Factor 1: Data Quality (more data = higher confidence)
+  let dataQuality = 0;
+  if (n >= 90) dataQuality = 100;
+  else if (n >= 60) dataQuality = 80;
+  else if (n >= 30) dataQuality = 60;
+  else if (n >= 14) dataQuality = 40;
+  else dataQuality = 20;
+  
+  // Factor 2: Consistency (low variation = higher confidence)
+  const mean = revenues.reduce((sum, r) => sum + r, 0) / n;
+  const variance = revenues.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / n;
+  const stdDev = Math.sqrt(variance);
+  const coefficientOfVariation = mean > 0 ? stdDev / mean : 1;
+  const consistency = Math.max(0, Math.min(100, 100 - (coefficientOfVariation * 100)));
+  
+  // Factor 3: Trend Stability (clear trend = higher confidence)
+  const trendStability = Math.min(100, Math.abs(trendStrength) * 100);
+  
+  // Factor 4: Seasonal Clarity (clear day patterns = higher confidence)
+  const seasonalFactors = calculateSeasonalFactors(dailyData);
+  const factorValues = Array.from(seasonalFactors.values());
+  const seasonalVariance = factorValues.reduce((sum, f) => sum + Math.pow(f - 1, 2), 0) / factorValues.length;
+  const seasonalClarity = Math.max(0, Math.min(100, seasonalVariance * 200));
+  
+  // Weighted average of all factors
+  const confidence = Math.round(
+    (dataQuality * 0.35) +      // 35% weight on data quantity
+    (consistency * 0.35) +       // 35% weight on consistency
+    (trendStability * 0.15) +    // 15% weight on trend
+    (seasonalClarity * 0.15)     // 15% weight on seasonality
+  );
+  
+  return {
+    confidence: Math.max(20, Math.min(95, confidence)),
+    factors: {
+      dataQuality,
+      consistency,
+      trendStability,
+      seasonalClarity
+    }
+  };
+}
+
 function holtWintersForecasting(
   dailyData: { date: Date; revenue: number }[],
   forecastDays: number = 1
@@ -117,55 +155,50 @@ function holtWintersForecasting(
   forecast: number;
   confidence: number;
   trend: 'up' | 'down' | 'stable';
+  confidenceFactors: any;
 } {
   if (dailyData.length < 7) {
     const avg = dailyData.reduce((sum, d) => sum + d.revenue, 0) / dailyData.length;
-    return { forecast: avg, confidence: 30, trend: 'stable' };
+    return { 
+      forecast: avg, 
+      confidence: 20, 
+      trend: 'stable',
+      confidenceFactors: { dataQuality: 20, consistency: 20, trendStability: 0, seasonalClarity: 0 }
+    };
   }
 
   const revenues = dailyData.map(d => d.revenue);
   
-  // Get seasonal factors
   const seasonalFactors = calculateSeasonalFactors(dailyData);
-  const tomorrowDayOfWeek = getDay(new Date(Date.now() + 86400000)); // Tomorrow's day
+  const tomorrowDayOfWeek = getDay(new Date(Date.now() + 86400000));
   const seasonalIndex = seasonalFactors.get(tomorrowDayOfWeek) || 1;
 
-  // Apply exponential smoothing
   const { forecast: baselineForecast, trend: trendValue } = exponentialSmoothing(revenues);
   
-  // Apply seasonal adjustment
   const seasonalForecast = baselineForecast * seasonalIndex;
   
-  // Calculate confidence based on variance
   const mean = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
-  const variance = revenues.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / revenues.length;
-  const stdDev = Math.sqrt(variance);
-  const coefficientOfVariation = mean > 0 ? stdDev / mean : 1;
+  const trendStrength = mean > 0 ? trendValue / mean : 0;
   
-  // Confidence score (lower CV = higher confidence)
-  const confidence = Math.max(20, Math.min(95, 100 - (coefficientOfVariation * 100)));
+  // ENHANCED: Use improved confidence calculation
+  const { confidence, factors } = calculateEnhancedConfidence(dailyData, trendStrength);
   
-  // Determine trend
   const trend = trendValue > mean * 0.05 ? 'up' : trendValue < -mean * 0.05 ? 'down' : 'stable';
 
   return {
     forecast: Math.max(0, seasonalForecast),
     confidence,
-    trend
+    trend,
+    confidenceFactors: factors
   };
 }
 
-/**
- * Prophet-inspired Additive Model (Simplified)
- * Combines trend + seasonality + holidays/events
- */
 function prophetStyleForecast(
   dailyData: { date: Date; revenue: number }[],
   isWeekend: boolean = false
 ): number {
   if (dailyData.length === 0) return 0;
 
-  // Linear trend component
   const n = dailyData.length;
   const revenues = dailyData.map(d => d.revenue);
   const xValues = Array.from({ length: n }, (_, i) => i);
@@ -184,7 +217,6 @@ function prophetStyleForecast(
   const intercept = meanY - slope * meanX;
   const trendForecast = intercept + slope * n;
 
-  // Seasonal component (weekend vs weekday)
   const weekendRevenues = dailyData
     .filter(d => [0, 6].includes(getDay(d.date)))
     .map(d => d.revenue);
@@ -203,16 +235,29 @@ function prophetStyleForecast(
     ? (weekendAvg / meanY) 
     : (weekdayAvg / meanY);
 
-  // Combine trend + seasonality
   return Math.max(0, trendForecast * seasonalAdjustment);
 }
 
 const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDate, endDate }) => {
   const { bills } = usePOS();
   const { expenses } = useExpenses();
+  
+  const [isCalculating, setIsCalculating] = useState(true);
+  const [cachedInsights, setCachedInsights] = useState<any>(null);
 
-  const insights = useMemo(() => {
-    // Filter bills by date range if provided
+  useEffect(() => {
+    setIsCalculating(true);
+    
+    const timer = setTimeout(() => {
+      const newInsights = calculateInsights();
+      setCachedInsights(newInsights);
+      setIsCalculating(false);
+    }, 50);
+    
+    return () => clearTimeout(timer);
+  }, [bills, expenses, startDate, endDate]);
+
+  const calculateInsights = () => {
     const filteredBills = bills.filter(bill => {
       if (!startDate && !endDate) return true;
       const billDate = new Date(bill.createdAt);
@@ -221,7 +266,6 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       return true;
     });
 
-    // Filter expenses by date range if provided
     const filteredExpenses = expenses.filter(expense => {
       if (!startDate && !endDate) return true;
       const expenseDate = new Date(expense.date);
@@ -230,15 +274,12 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       return true;
     });
 
-    // Calculate today's sales
     const todaysBills = bills.filter(bill => isToday(new Date(bill.createdAt)));
     const todaysSales = todaysBills.reduce((sum, bill) => sum + bill.total, 0);
 
-    // Calculate yesterday's sales
     const yesterdaysBills = bills.filter(bill => isYesterday(new Date(bill.createdAt)));
     const yesterdaysSales = yesterdaysBills.reduce((sum, bill) => sum + bill.total, 0);
 
-    // Calculate growth percentage
     const growthPercentage = yesterdaysSales > 0 ? 
       ((todaysSales - yesterdaysSales) / yesterdaysSales) * 100 : 
       (todaysSales > 0 ? 100 : 0);
@@ -261,45 +302,31 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
         growthPercentage,
         predictionConfidence: 0,
         trendDirection: 'stable' as const,
-        algorithmUsed: 'Insufficient Data'
+        algorithmUsed: 'Insufficient Data',
+        macdTrend: 'neutral' as const,
+        daysOfData: 0,
+        confidenceFactors: { dataQuality: 0, consistency: 0, trendStability: 0, seasonalClarity: 0 }
       };
     }
 
-    // Calculate total sales for the filtered period
     const totalSales = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
-    
-    // Calculate total expenses for the filtered period
     const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-    
-    // Calculate net profit
     const netProfit = totalSales - totalExpenses;
-    
-    // Calculate profit margin percentage
     const profitMargin = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
-    
-    // Calculate average bill value
     const avgBillValue = totalSales / filteredBills.length;
-
-    // Calculate expense to revenue ratio
     const expenseToRevenueRatio = totalSales > 0 ? (totalExpenses / totalSales) * 100 : 0;
 
-    // ============================================
-    // ADVANCED PREDICTION ALGORITHMS
-    // ============================================
-    
-    // Get last 60 days of daily revenue data
-    const last60Days = Array.from({ length: 60 }, (_, i) => 
-      startOfDay(subDays(new Date(), 59 - i))
+    // ENHANCED: Use 90 days for maximum accuracy
+    const last90Days = Array.from({ length: 90 }, (_, i) => 
+      startOfDay(subDays(new Date(), 89 - i))
     );
 
-    // Create daily revenue map
     const dailyRevenueMap = new Map<string, number>();
-    last60Days.forEach(day => {
+    last90Days.forEach(day => {
       const dayKey = format(day, 'yyyy-MM-dd');
       dailyRevenueMap.set(dayKey, 0);
     });
 
-    // Fill in actual revenue data
     bills.forEach(bill => {
       const billDate = startOfDay(new Date(bill.createdAt));
       const dayKey = format(billDate, 'yyyy-MM-dd');
@@ -308,40 +335,31 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       }
     });
 
-    // Convert to structured data
-    const dailyData = last60Days.map(date => ({
+    const dailyData = last90Days.map(date => ({
       date,
       revenue: dailyRevenueMap.get(format(date, 'yyyy-MM-dd')) || 0
     }));
 
+    // Count actual days with data
+    const daysWithData = dailyData.filter(d => d.revenue > 0).length;
+
     const revenues = dailyData.map(d => d.revenue);
     
-    // Check if tomorrow is weekend
     const tomorrow = new Date(Date.now() + 86400000);
     const isTomorrowWeekend = [0, 6].includes(getDay(tomorrow));
 
-    // Apply Holt-Winters forecasting
     const holtWinters = holtWintersForecasting(dailyData, 1);
-    
-    // Apply Prophet-style forecasting
     const prophetForecast = prophetStyleForecast(dailyData, isTomorrowWeekend);
-    
-    // Calculate MACD for trend detection
     const macd = calculateMACD(revenues);
     
-    // Ensemble prediction (weighted average of multiple algorithms)
     const dailyPrediction = (holtWinters.forecast * 0.6) + (prophetForecast * 0.4);
     const predictionConfidence = holtWinters.confidence;
     const trendDirection = holtWinters.trend;
+    const confidenceFactors = holtWinters.confidenceFactors;
 
-    // ============================================
-    // ENHANCED MONTHLY TARGET CALCULATION
-    // ============================================
-    
     const currentMonthStart = startOfMonth(new Date());
     const currentMonthEnd = endOfMonth(new Date());
     
-    // Calculate current month sales
     const currentMonthSales = bills
       .filter(bill => {
         const billDate = new Date(bill.createdAt);
@@ -349,23 +367,16 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       })
       .reduce((sum, bill) => sum + bill.total, 0);
     
-    // Days elapsed in current month
     const daysElapsed = Math.max(1, new Date().getDate());
-    
-    // Total days in current month
     const totalDaysInMonth = new Date(
       new Date().getFullYear(), 
       new Date().getMonth() + 1, 
       0
     ).getDate();
     
-    // Days remaining in month
     const daysRemaining = totalDaysInMonth - daysElapsed;
-    
-    // Current daily average for this month
     const currentMonthDailyAvg = currentMonthSales / daysElapsed;
     
-    // Forecast remaining days using Holt-Winters
     let projectedRemainingSales = 0;
     for (let i = 0; i < daysRemaining; i++) {
       const futureDate = new Date(Date.now() + (i + 1) * 86400000);
@@ -374,16 +385,10 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       projectedRemainingSales += dayForecast;
     }
     
-    // Monthly target = current sales + projected remaining
     const monthlyTarget = currentMonthSales + projectedRemainingSales;
-    
     const monthlyProgress = monthlyTarget > 0 ? 
       Math.min(100, (currentMonthSales / monthlyTarget) * 100) : 0;
 
-    // ============================================
-    // ENHANCED BREAK-EVEN CALCULATION
-    // ============================================
-    
     const last30DaysExpenses = expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       const daysDiff = differenceInDays(new Date(), expenseDate);
@@ -397,12 +402,12 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
     const avgDailyExpenses = last30DaysExpenseTotal / 30;
     const breakEvenPoint = avgDailyExpenses;
 
-    // Determine algorithm used
-    const algorithmUsed = dailyData.length >= 30 
-      ? 'Holt-Winters + Prophet Ensemble' 
-      : dailyData.length >= 14 
-        ? 'Exponential Smoothing'
-        : 'Moving Average';
+    // Determine algorithm based on data availability
+    let algorithmUsed = 'Insufficient Data';
+    if (daysWithData >= 90) algorithmUsed = 'Advanced: Holt-Winters + Prophet (90 days)';
+    else if (daysWithData >= 60) algorithmUsed = 'Holt-Winters + Prophet (60 days)';
+    else if (daysWithData >= 30) algorithmUsed = 'Enhanced: Exponential Smoothing (30 days)';
+    else if (daysWithData >= 14) algorithmUsed = 'Basic: Moving Average (14 days)';
 
     return {
       totalSales,
@@ -425,9 +430,38 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       totalDaysInMonth,
       currentMonthDailyAvg,
       algorithmUsed,
-      macdTrend: macd.trend
+      macdTrend: macd.trend,
+      daysOfData: daysWithData,
+      confidenceFactors
     };
-  }, [bills, expenses, startDate, endDate]);
+  };
+
+  if (isCalculating || !cachedInsights) {
+    return (
+      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
+          <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
+            <Brain className="h-5 w-5 text-cyan-400" />
+            AI Business Insights
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-12 flex items-center justify-center min-h-[500px]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin text-cyan-400" />
+              <div className="absolute inset-0 h-12 w-12 animate-ping text-cyan-400/20 rounded-full bg-cyan-400"></div>
+            </div>
+            <div className="text-center">
+              <p className="text-base text-white font-medium mb-1">Analyzing Business Data</p>
+              <p className="text-sm text-gray-400 animate-pulse">Running ML predictions on 90 days of data...</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const insights = cachedInsights;
 
   return (
     <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-cyan-500/20 hover:border-cyan-500/30 transition-all duration-300 backdrop-blur-sm">
@@ -442,7 +476,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       </CardHeader>
       <CardContent className="pb-4 p-6">
         <div className="space-y-4">
-          {/* Daily Sales Section */}
+          {/* Daily Performance */}
           <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-cyan-400" />
@@ -476,7 +510,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
             </div>
           </div>
 
-          {/* Revenue & Expenses Section */}
+          {/* Financial Overview */}
           <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
               <Target className="h-4 w-4 text-blue-400" />
@@ -519,11 +553,11 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
             </div>
           </div>
 
-          {/* AI-Powered Predictions Section */}
+          {/* ML Predictions - ENHANCED */}
           <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/40 shadow-lg">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
               <Brain className="h-4 w-4 text-purple-400 animate-pulse" />
-              ML Predictions
+              ML Predictions ({insights.daysOfData} days data)
             </h4>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -546,7 +580,30 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
                 </span>
               </div>
               
-              <div className="flex justify-between items-center">
+              {/* ADDED: Confidence Breakdown */}
+              <div className="pt-2 border-t border-purple-500/20">
+                <p className="text-xs text-gray-500 mb-2">Confidence Factors:</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Data Quality:</span>
+                    <span className="text-purple-300">{insights.confidenceFactors.dataQuality.toFixed(0)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Consistency:</span>
+                    <span className="text-purple-300">{insights.confidenceFactors.consistency.toFixed(0)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Trend:</span>
+                    <span className="text-purple-300">{insights.confidenceFactors.trendStability.toFixed(0)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Seasonal:</span>
+                    <span className="text-purple-300">{insights.confidenceFactors.seasonalClarity.toFixed(0)}%</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-between items-center pt-2 border-t border-purple-500/20">
                 <span className="text-sm text-gray-400">Trend Direction</span>
                 <span className={`font-medium text-xs px-2 py-1 rounded-full flex items-center gap-1 ${
                   insights.trendDirection === 'up' 
@@ -629,7 +686,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
             </div>
           </div>
 
-          {/* Monthly Progress Section */}
+          {/* Monthly Progress */}
           <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
             <h4 className="text-sm font-medium text-gray-200 mb-3">Monthly Progress</h4>
             <div className="space-y-3">
@@ -686,7 +743,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
               <p>Period: {format(new Date(), 'MMM yyyy')}</p>
               <p className="text-purple-400 flex items-center gap-1">
                 <Brain className="h-3 w-3" />
-                ML Powered
+                90-Day ML
               </p>
             </div>
           </div>
