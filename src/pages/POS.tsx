@@ -234,7 +234,7 @@ const POS = () => {
     }
   };
 
-  // NEW: Handle complimentary transaction
+  // Handle complimentary transaction
   const handleComplimentary = async () => {
     if (!selectedCustomer) {
       toast({
@@ -257,12 +257,13 @@ const POS = () => {
     setIsCompDialogOpen(true);
   };
 
-  // NEW: Confirm complimentary transaction
+  // Confirm complimentary transaction - UPDATED
   const handleConfirmComplimentary = async () => {
     setIsCompletingSale(true);
     
     try {
-      const bill = await completeSale('cash', 'complimentary', compNote);
+      // Pass 'complimentary' as BOTH payment method AND status
+      const bill = await completeSale('complimentary', 'complimentary', compNote);
       
       if (bill) {
         setIsCompDialogOpen(false);
@@ -438,7 +439,7 @@ const POS = () => {
                 </Button>
               </div>
               
-              {/* NEW: Checkout and Complimentary buttons */}
+              {/* Checkout and Complimentary buttons */}
               <div className="grid grid-cols-2 gap-2">
                 <Button 
                   variant="default" 
@@ -452,7 +453,7 @@ const POS = () => {
                 
                 <Button 
                   variant="outline" 
-                  className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                  className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
                   disabled={cart.length === 0 || !selectedCustomer}
                   onClick={handleComplimentary}
                 >
@@ -609,52 +610,54 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* NEW: Complimentary Dialog */}
+      {/* Complimentary Dialog - UPDATED WITH BETTER VISIBILITY */}
       <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
-        <DialogContent className="max-w-md animate-scale-in">
+        <DialogContent className="max-w-md animate-scale-in bg-white dark:bg-gray-900">
           <DialogHeader>
-            <DialogTitle className="font-heading text-xl flex items-center gap-2">
+            <DialogTitle className="font-heading text-xl flex items-center gap-2 text-gray-900 dark:text-gray-100">
               <Gift className="h-5 w-5 text-orange-500" />
               Mark as Complimentary
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-600 dark:text-gray-400">
               Items will be given for free. Stock will be reduced but no payment will be recorded.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             {selectedCustomer && (
-              <div className="border rounded-md p-3 bg-orange-50">
+              <div className="border border-orange-300 dark:border-orange-700 rounded-md p-3 bg-orange-50 dark:bg-orange-950/30">
                 <div className="flex items-center gap-2 mb-2">
-                  <User className="h-4 w-4" />
-                  <span className="font-medium">{selectedCustomer.name}</span>
+                  <User className="h-4 w-4 text-orange-700 dark:text-orange-400" />
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{selectedCustomer.name}</span>
                 </div>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="comp-note">Reason/Note (Optional)</Label>
+              <Label htmlFor="comp-note" className="text-gray-900 dark:text-gray-100 font-medium">
+                Reason/Note (Optional)
+              </Label>
               <Textarea
                 id="comp-note"
                 placeholder="e.g., Owner consumption, Friend - Raj, Staff meal, etc."
                 value={compNote}
                 onChange={(e) => setCompNote(e.target.value)}
-                className="resize-none"
+                className="resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder:text-gray-500"
                 rows={3}
               />
             </div>
 
-            <div className="border rounded-md p-3 bg-gray-50">
-              <h4 className="font-medium mb-2">Items</h4>
+            <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 bg-gray-50 dark:bg-gray-800">
+              <h4 className="font-medium mb-2 text-gray-900 dark:text-gray-100">Items</h4>
               <div className="space-y-1 max-h-32 overflow-auto">
                 {cart.map(item => (
-                  <div key={item.id} className="flex justify-between text-sm">
+                  <div key={item.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                     <span>{item.name} x {item.quantity}</span>
-                    <span className="font-mono">₹{item.total.toLocaleString('en-IN')}</span>
+                    <span className="font-mono font-semibold">₹{item.total.toLocaleString('en-IN')}</span>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between font-bold border-t mt-2 pt-2">
+              <div className="flex justify-between font-bold border-t border-gray-300 dark:border-gray-600 mt-2 pt-2 text-gray-900 dark:text-gray-100">
                 <span>Total Value</span>
                 <span className="font-mono">₹{total.toLocaleString('en-IN')}</span>
               </div>
@@ -668,13 +671,14 @@ const POS = () => {
                 setIsCompDialogOpen(false);
                 setCompNote('');
               }}
+              className="border-gray-300 dark:border-gray-600"
             >
               Cancel
             </Button>
             <Button 
               onClick={handleConfirmComplimentary}
               disabled={isCompletingSale}
-              className="bg-orange-500 hover:bg-orange-600"
+              className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               <Gift className="mr-2 h-4 w-4" />
               {isCompletingSale ? 'Processing...' : 'Confirm Complimentary'}
