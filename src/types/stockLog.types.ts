@@ -14,8 +14,5 @@ export interface StockLog {
 }
 
 export interface FilterOptions {
-  stockStatus: 'all' | 'in-stock' | 'low-stock' | 'out-of-stock';
-  priceRange?: { min: number; max: number };
-  profitMargin?: { min: number; max: number };
-  dateRange?: { start: Date; end: Date };
+  stockStatuses?: string[];  // Changed to array for multi-select
 }
