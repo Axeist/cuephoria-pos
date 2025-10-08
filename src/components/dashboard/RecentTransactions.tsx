@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
-import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet } from 'lucide-react';
+import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet, Gift } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { usePOS } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { 
@@ -51,7 +52,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
-// Add interface for component props
 interface RecentTransactionsProps {
   className?: string;
   bills: Bill[];
@@ -75,7 +75,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // State for managing bill items
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
@@ -83,29 +82,24 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   const [editedItems, setEditedItems] = useState<CartItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   
-  // New item form state
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [newItemQuantity, setNewItemQuantity] = useState<number>(1);
   const [availableStock, setAvailableStock] = useState<number>(0);
   
-  // Additional edit states for discount, points, and payment method
   const [editingDiscount, setEditingDiscount] = useState<number>(0);
   const [editingDiscountType, setEditingDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [editingLoyaltyPointsUsed, setEditingLoyaltyPointsUsed] = useState<number>(0);
-  const [editingPaymentMethod, setEditingPaymentMethod] = useState<'cash' | 'upi' | 'split' | 'credit'>('cash');
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState<'cash' | 'upi' | 'split' | 'credit' | 'complimentary'>('cash');
   const [isEditing, setIsEditing] = useState<boolean>(false);
   
-  // Added split payment fields
   const [editingSplitPayment, setEditingSplitPayment] = useState<boolean>(false);
   const [editingCashAmount, setEditingCashAmount] = useState<number>(0);
   const [editingUpiAmount, setEditingUpiAmount] = useState<number>(0);
   
-  // State for product search in add item dialog
   const [productSearchQuery, setProductSearchQuery] = useState<string>('');
   const [isCommandOpen, setIsCommandOpen] = useState<boolean>(false);
   const [selectedProductName, setSelectedProductName] = useState<string>('');
   
-  // Filtered products based on search query
   const filteredProducts = products.filter(product => {
     if (!productSearchQuery.trim()) return true;
     
@@ -116,16 +110,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     );
   }).filter(product => product.stock > 0);
   
-  // Filter bills based on search query (bill ID, customer name, phone or email)
   const filteredBills = bills.filter(bill => {
     if (!searchQuery.trim()) return true;
     
     const query = searchQuery.toLowerCase().trim();
     
-    // Match by bill ID
     if (bill.id.toLowerCase().includes(query)) return true;
     
-    // Match by customer name, phone or email
     const customer = customers.find(c => c.id === bill.customerId);
     if (customer) {
       const customerName = customer.name.toLowerCase();
@@ -140,12 +131,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     return false;
   });
   
-  // Sort bills by date (newest first)
   const sortedBills = [...filteredBills].sort((a, b) => 
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   
-  // Get current customer info for the selected bill
   const getCurrentCustomerInfo = () => {
     if (!editingBill) return null;
     return customers.find(c => c.id === editingBill.customerId);
@@ -153,17 +142,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
 
   const currentCustomer = getCurrentCustomerInfo();
   
-  // Validate loyalty points input to not exceed available points
   const validateLoyaltyPoints = (value: number) => {
     if (!currentCustomer) return value;
     const maxPoints = currentCustomer.loyaltyPoints + (editingBill?.loyaltyPointsUsed || 0);
     return Math.min(value, maxPoints);
   };
   
-  // Get the 5 most recent transactions
   const recentBills = sortedBills.slice(0, 5);
   
-  // Reset the add item form when dialog opens
   const handleOpenAddItemDialog = () => {
     setSelectedProductId('');
     setSelectedProductName('');
@@ -178,12 +164,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setSelectedProductId(productId);
     setIsCommandOpen(false);
     
-    // Auto-fill product information and set the selected product name
     const selectedProduct = products.find(p => p.id === productId);
     if (selectedProduct) {
       setAvailableStock(selectedProduct.stock || 0);
       setSelectedProductName(selectedProduct.name);
-      // Reset quantity to 1 when a new product is selected
       setNewItemQuantity(1);
     }
   };
@@ -201,7 +185,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       const success = await deleteBill(billToDelete.id, billToDelete.customerId);
       
       if (success) {
-        // Reset state after successful deletion
         setBillToDelete(null);
       }
     } catch (error) {
@@ -212,7 +195,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     }
   };
   
-  // Function to open edit dialog
   const handleEditClick = (bill: Bill) => {
     setEditingBill(bill);
     setEditedItems([...bill.items]);
@@ -221,7 +203,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setEditingLoyaltyPointsUsed(bill.loyaltyPointsUsed);
     setEditingPaymentMethod(bill.paymentMethod);
     
-    // Initialize split payment state
     setEditingSplitPayment(bill.isSplitPayment || false);
     setEditingCashAmount(bill.cashAmount || 0);
     setEditingUpiAmount(bill.upiAmount || 0);
@@ -231,7 +212,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setIsEditDialogOpen(true);
   };
   
-  // Function to update edited items
   const handleUpdateItem = (index: number, field: keyof CartItem, value: any) => {
     const updatedItems = [...editedItems];
     updatedItems[index] = { 
@@ -239,7 +219,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       [field]: value 
     };
     
-    // Recalculate total if price or quantity changed
     if (field === 'price' || field === 'quantity') {
       updatedItems[index].total = updatedItems[index].price * updatedItems[index].quantity;
     }
@@ -247,11 +226,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setEditedItems(updatedItems);
   };
   
-  // Function to remove item from edited items
   const handleRemoveItem = (index: number) => {
     const removedItem = editedItems[index];
     
-    // If this is a product type item, restore stock
     if (removedItem.type === 'product') {
       const product = products.find(p => p.id === removedItem.id);
       if (product) {
@@ -267,13 +244,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setEditedItems(updatedItems);
   };
   
-  // Function to handle loyalty points input change with validation
   const handleLoyaltyPointsChange = (value: string) => {
     const points = parseInt(value) || 0;
     const validatedPoints = validateLoyaltyPoints(points);
     setEditingLoyaltyPointsUsed(validatedPoints);
     
-    // If user tries to enter more points than available, show a toast
     if (points > validatedPoints) {
       toast({
         title: "Maximum Points Exceeded",
@@ -283,7 +258,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     }
   };
   
-  // Function to add new item to bill
   const handleAddNewItem = () => {
     if (!selectedProductId) {
       toast({
@@ -335,13 +309,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     
     setEditedItems([...editedItems, itemToAdd]);
     
-    // Update product stock
     updateProduct({
       ...selectedProduct,
       stock: selectedProduct.stock - newItemQuantity
     });
     
-    // Reset form
     setSelectedProductId('');
     setSelectedProductName('');
     setNewItemQuantity(1);
@@ -350,14 +322,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setIsAddItemDialogOpen(false);
   };
   
-  // Handle split payment fields
-  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split' | 'credit') => {
+  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary') => {
     setEditingPaymentMethod(value);
     
     if (value === 'split') {
       setEditingSplitPayment(true);
       const total = calculateUpdatedBill().total;
-      // Initialize split amounts to half and half if not previously set
       if (editingCashAmount === 0 && editingUpiAmount === 0) {
         setEditingCashAmount(Math.floor(total / 2));
         setEditingUpiAmount(total - Math.floor(total / 2));
@@ -367,7 +337,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     }
   };
   
-  // Function to update split amounts when one changes
   const handleSplitAmountChange = (type: 'cash' | 'upi', amount: number) => {
     const total = calculateUpdatedBill().total;
     
@@ -380,14 +349,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     }
   };
   
-  // Calculate updated bill values
   const calculateUpdatedBill = () => {
     if (!editingBill) return { subtotal: 0, discountValue: 0, total: 0 };
     
-    // Calculate new subtotal
     const subtotal = editedItems.reduce((sum, item) => sum + item.total, 0);
     
-    // Recalculate discount value based on type
     let discountValue = 0;
     if (editingDiscountType === 'percentage') {
       discountValue = subtotal * (editingDiscount / 100);
@@ -395,31 +361,24 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       discountValue = editingDiscount;
     }
     
-    // Calculate new total
     const total = Math.max(0, subtotal - discountValue - editingLoyaltyPointsUsed);
     
     return { subtotal, discountValue, total };
   };
   
-  // Calculate loyalty points earned based on total amount
   const calculateLoyaltyPointsEarned = (total: number, isMember: boolean) => {
-    // Members: 5 points per 100 INR spent
-    // Non-members: 2 points per 100 INR spent
     const pointsRate = isMember ? 5 : 2;
     return Math.floor((total / 100) * pointsRate);
   };
   
-  // Function to save changes to bill
   const handleSaveChanges = async () => {
     if (!editingBill || !editingCustomer) return;
     
     setIsSaving(true);
     
     try {
-      // Calculate new values
       const { subtotal, discountValue, total } = calculateUpdatedBill();
       
-      // Check if split payment amounts match total
       if (editingSplitPayment) {
         const totalSplitAmount = editingCashAmount + editingUpiAmount;
         if (Math.abs(totalSplitAmount - total) > 0.01) {
@@ -433,7 +392,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         }
       }
       
-      // Use the updateBill function to update the bill and automatically handle loyalty points
       if (updateBill) {
         const updatedBill = await updateBill(
           editingBill,
@@ -444,7 +402,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
           editingLoyaltyPointsUsed,
           editingSplitPayment,
           editingCashAmount,
-          editingUpiAmount
+          editingUpiAmount,
+          editingPaymentMethod
         );
         
         if (updatedBill) {
@@ -454,7 +413,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
             variant: "default"
           });
           
-          // Close dialog and reset state
           setIsEditing(false);
           setIsEditDialogOpen(false);
         }
@@ -495,25 +453,53 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               {sortedBills.map(bill => {
                 const customer = customers.find(c => c.id === bill.customerId);
                 const date = new Date(bill.createdAt);
+                const isComplimentary = bill.paymentMethod === 'complimentary';
                 
                 return (
-                  <div key={bill.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-800 border border-gray-700">
+                  <div 
+                    key={bill.id} 
+                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                      isComplimentary 
+                        ? 'bg-orange-950/20 border-orange-800/50' 
+                        : 'bg-gray-800 border-gray-700'
+                    }`}
+                  >
                     <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 rounded-full bg-[#6E59A5]/30 flex items-center justify-center">
-                        <User className="h-5 w-5 text-purple-400" />
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                        isComplimentary 
+                          ? 'bg-orange-500/30' 
+                          : 'bg-[#6E59A5]/30'
+                      }`}>
+                        {isComplimentary ? (
+                          <Gift className="h-5 w-5 text-orange-400" />
+                        ) : (
+                          <User className="h-5 w-5 text-purple-400" />
+                        )}
                       </div>
                       <div>
-                        <p className="font-medium text-white">{customer?.name || 'Unknown Customer'}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-white">{customer?.name || 'Unknown Customer'}</p>
+                          {isComplimentary && (
+                            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-xs px-2 py-0.5">
+                              Comp
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex space-x-2">
                           <p className="text-xs text-gray-400">
                             {date.toLocaleDateString()} {date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </p>
                           <p className="text-xs text-gray-400">ID: {bill.id.substring(0, 8)}</p>
                         </div>
+                        {isComplimentary && bill.compNote && (
+                          <p className="text-xs text-orange-400 mt-1 italic">Note: {bill.compNote}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="text-white font-semibold">
+                      <div className={`font-semibold ${
+                        isComplimentary ? 'text-orange-400' : 'text-white'
+                      }`}>
                         <CurrencyDisplay amount={bill.total} />
                       </div>
                       <div className="flex space-x-1">
@@ -547,7 +533,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         )}
       </CardContent>
       
-      {/* Delete confirmation dialog */}
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <AlertDialogContent className="bg-gray-800 border-gray-700 text-white">
           <AlertDialogHeader>
@@ -570,7 +555,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         </AlertDialogContent>
       </AlertDialog>
       
-      {/* Edit Transaction Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -683,7 +667,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 </Table>
               </div>
               
-              {/* Section for discount, loyalty points, and payment method */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-gray-700 pt-4">
                 <div className="space-y-3">
                   <h3 className="text-sm font-medium text-gray-300">Discount</h3>
@@ -733,7 +716,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                   <h3 className="text-sm font-medium text-gray-300">Payment Method</h3>
                   <RadioGroup 
                     value={editingPaymentMethod} 
-                    onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split' | 'credit')}
+                    onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split' | 'credit' | 'complimentary')}
                     className="flex flex-col space-y-2"
                   >
                     <div className="flex items-center space-x-2">
@@ -764,7 +747,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 </div>
               </div>
 
-              {/* Split payment fields */}
               {editingPaymentMethod === 'split' && (
                 <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800/40 rounded-md border border-gray-700">
                   <div className="space-y-2">
@@ -855,7 +837,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         </DialogContent>
       </Dialog>
       
-      {/* Add Item Dialog */}
       <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
         <DialogContent className="bg-gray-800 border-gray-700 text-white">
           <DialogHeader>
@@ -866,7 +847,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
           </DialogHeader>
           
           <div className="space-y-4">
-            {/* Product selection */}
             <div className="space-y-2">
               <Label htmlFor="product" className="text-white">Product</Label>
               <div className="relative">
@@ -917,7 +897,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               </div>
             </div>
             
-            {/* Quantity */}
             <div className="space-y-2">
               <Label htmlFor="quantity" className="text-white">Quantity</Label>
               <div className="flex items-center space-x-2">
