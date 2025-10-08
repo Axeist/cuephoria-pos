@@ -30,7 +30,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
 
     console.log('CanteenSalesProfitWidget - Processing', filteredBills.length, 'bills');
 
-    // MODIFIED: Calculate stock value for ONLY food and drinks categories (₹6376)
+    // FIXED: Calculate stock value using BUYING PRICE for ONLY food and drinks categories (₹6376)
     products.forEach(product => {
       const category = product.category.toLowerCase();
       // Only include food and drinks, exclude tobacco and challenges
@@ -46,8 +46,11 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
       
       // Only count if it's food/drinks and NOT challenges or tobacco
       if (isFoodOrDrinks && !isChallenges && !isTobacco) {
-        const stockValue = product.stock * (product.buyingPrice || product.price || 0);
+        // FIXED: Use buying price (cost price) to calculate stock value, not selling price
+        const buyingPrice = product.buyingPrice || 0;
+        const stockValue = product.stock * buyingPrice;
         totalStockValue += stockValue;
+        console.log(`Stock value for ${product.name}: stock=${product.stock}, buyingPrice=${buyingPrice}, value=${stockValue}`);
       }
     });
 
@@ -59,7 +62,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
           const product = products.find(p => p.id === item.id || p.name === item.name);
           if (product) {
             const category = product.category.toLowerCase();
-            // MODIFIED: Exclude tobacco from sales calculations too for consistency
+            // Exclude tobacco from sales calculations too for consistency
             const isFoodOrDrinks = category === 'food' || 
                                    category === 'foods' ||
                                    category === 'drinks' || 
