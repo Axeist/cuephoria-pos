@@ -10,13 +10,11 @@ export const useBills = (
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
 
-  // Calculate loyalty points based on correct formula
   const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
     const pointsRate = isMember ? 5 : 2;
     return Math.floor((total / 100) * pointsRate);
   };
 
-  // Load bills from Supabase on component mount
   useEffect(() => {
     const loadBills = async () => {
       try {
@@ -56,7 +54,6 @@ export const useBills = (
           }
         }
 
-        // Transform the data to match our Bill interface
         const transformedBills = allBillsData.map(bill => ({
           id: bill.id,
           customerId: bill.customer_id,
@@ -75,9 +72,9 @@ export const useBills = (
           loyaltyPointsUsed: bill.loyalty_points_used,
           loyaltyPointsEarned: bill.loyalty_points_earned,
           total: Number(bill.total),
-          paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split' | 'credit',
-          status: bill.status || 'completed', // NEW
-          compNote: bill.comp_note || undefined, // NEW
+          paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
+          status: bill.status || 'completed',
+          compNote: bill.comp_note || undefined,
           isSplitPayment: bill.is_split_payment || false,
           cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
           upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
@@ -101,13 +98,13 @@ export const useBills = (
     discountType: 'percentage' | 'fixed',
     loyaltyPointsUsed: number,
     calculateTotal: () => number,
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit',
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary', // UPDATED
     products: Product[],
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
     upiAmount: number = 0,
-    status: 'completed' | 'complimentary' = 'completed', // NEW
-    compNote?: string // NEW
+    status: 'completed' | 'complimentary' = 'completed',
+    compNote?: string
   ): Promise<Bill | undefined> => {
     try {
       console.log('Starting completeSale with cart:', cart);
@@ -129,12 +126,10 @@ export const useBills = (
       
       const total = calculateTotal();
       
-      // NEW: For complimentary transactions, don't earn loyalty points
       const loyaltyPointsEarned = status === 'complimentary' ? 0 : calculateLoyaltyPoints(total, customer.isMember);
 
       console.log('Calculated values:', { subtotal, discountValue, total, loyaltyPointsEarned, status });
 
-      // Start a Supabase transaction
       const { data: billData, error: billError } = await supabase
         .from('bills')
         .insert({
@@ -147,8 +142,8 @@ export const useBills = (
           loyalty_points_earned: loyaltyPointsEarned,
           total: total,
           payment_method: paymentMethod,
-          status: status, // NEW
-          comp_note: compNote, // NEW
+          status: status,
+          comp_note: compNote,
           is_split_payment: isSplitPayment,
           cash_amount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
           upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0)
@@ -163,7 +158,6 @@ export const useBills = (
 
       console.log('Bill created successfully:', billData);
 
-      // Insert bill items
       const billItemsToInsert = cart.map(item => ({
         bill_id: billData.id,
         item_id: item.id,
@@ -188,7 +182,6 @@ export const useBills = (
 
       console.log('Bill items created successfully');
 
-      // NEW: For complimentary transactions, only update total spent, not loyalty points
       const updatedCustomer: Customer = status === 'complimentary' 
         ? {
             ...customer,
@@ -200,7 +193,6 @@ export const useBills = (
             totalSpent: customer.totalSpent + total,
           };
 
-      // Update customer in database
       const customerUpdateData = status === 'complimentary'
         ? { total_spent: updatedCustomer.totalSpent }
         : {
@@ -220,7 +212,6 @@ export const useBills = (
         console.log('Customer updated successfully');
       }
 
-      // Update product stock for non-session items
       for (const item of cart) {
         if (item.type === 'product') {
           const product = products.find(p => p.id === item.id);
@@ -242,7 +233,6 @@ export const useBills = (
         }
       }
 
-      // Create the complete bill object with items
       const completeBill: Bill = {
         id: billData.id,
         customerId: customer.id,
@@ -255,20 +245,18 @@ export const useBills = (
         loyaltyPointsEarned: loyaltyPointsEarned,
         total: total,
         paymentMethod: paymentMethod,
-        status: status, // NEW
-        compNote: compNote, // NEW
+        status: status,
+        compNote: compNote,
         isSplitPayment: isSplitPayment,
         cashAmount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
         upiAmount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
         createdAt: new Date(billData.created_at)
       };
 
-      // Update local bills state
       setBills(prevBills => [completeBill, ...prevBills]);
       
       console.log('Sale completed successfully, bill created:', completeBill);
       
-      // NEW: Different toast message for complimentary
       if (status === 'complimentary') {
         toast({
           title: 'Marked as Complimentary',
@@ -306,7 +294,7 @@ export const useBills = (
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
     upiAmount: number = 0,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' // UPDATED
   ): Promise<Bill | null> => {
     try {
       const subtotal = updatedItems.reduce((sum, item) => sum + item.total, 0);
