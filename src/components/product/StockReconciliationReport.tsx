@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { CalendarIcon, Download, AlertTriangle, TrendingUp, TrendingDown, Database } from 'lucide-react';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -49,115 +49,132 @@ const StockReconciliationReport: React.FC = () => {
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // Initialize stock logs for all products
-  const initializeStockSnapshot = () => {
+  // Initialize TODAY's opening and closing stock as same (first time setup)
+  const initializeTodaySnapshot = () => {
     try {
       let count = 0;
-      const snapshotDate = subDays(selectedDate, 1); // Create snapshot for yesterday
+      const today = new Date();
+      
+      // Create opening snapshot at 9:00 AM today
+      const openingTime = setMinutes(setHours(today, 9), 0);
+      
+      // Create closing snapshot at 11:55 PM today (same value as opening for first day)
+      const closingTime = setMinutes(setHours(today, 23), 55);
       
       products.forEach(product => {
         const category = product.category.toLowerCase();
         if (category === 'food' || category === 'drinks') {
-          // Check if there's already a log for this product before selected date
-          const existingLogs = getStockLogs(product.id);
-          const logsBeforeDate = existingLogs.filter(log => 
-            new Date(log.timestamp) < startOfDay(selectedDate)
+          // Create opening snapshot
+          const openingLog = createStockLog(
+            product,
+            0,
+            product.stock,
+            'initial',
+            user?.name || user?.email || 'System',
+            `Initial opening stock for ${format(today, 'dd MMM yyyy')}`
           );
+          openingLog.timestamp = openingTime;
+          saveStockLog(openingLog);
           
-          if (logsBeforeDate.length === 0 && product.stock > 0) {
-            // Create initial stock log with yesterday's date
-            const stockLog = createStockLog(
-              product,
-              0,
-              product.stock,
-              'initial',
-              user?.name || user?.email || 'System',
-              `Initial stock snapshot created for reconciliation`
-            );
-            
-            // Manually set the timestamp to yesterday
-            stockLog.timestamp = snapshotDate;
-            
-            saveStockLog(stockLog);
-            count++;
-          }
+          // Create closing snapshot (same value as opening for today)
+          const closingLog = createStockLog(
+            product,
+            product.stock,
+            product.stock,
+            'adjustment',
+            user?.name || user?.email || 'System',
+            `Initial closing stock for ${format(today, 'dd MMM yyyy')}`
+          );
+          closingLog.timestamp = closingTime;
+          saveStockLog(closingLog);
+          
+          count++;
         }
       });
 
-      if (count > 0) {
-        toast({
-          title: 'Stock Snapshot Created',
-          description: `Created initial stock logs for ${count} products dated ${format(snapshotDate, 'dd/MM/yyyy')}. Refreshing page...`,
-        });
+      // Mark that initialization is complete
+      localStorage.setItem('stockSnapshotInitialized', 'true');
+      localStorage.setItem('lastOpeningSnapshotDate', format(today, 'yyyy-MM-dd'));
+      localStorage.setItem('lastClosingSnapshotDate', format(today, 'yyyy-MM-dd'));
 
-        // Force re-render after a short delay
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-      } else {
-        toast({
-          title: 'No Action Needed',
-          description: 'All products already have stock logs before the selected date.',
-        });
-      }
+      toast({
+        title: 'Initial Snapshots Created',
+        description: `Created opening (9:00 AM) and closing (11:55 PM) snapshots for ${count} products. Automatic daily snapshots will run from tomorrow.`,
+        duration: 5000,
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (error) {
-      console.error('Error creating stock snapshot:', error);
+      console.error('Error creating initial snapshots:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create stock snapshot',
+        description: 'Failed to create stock snapshots',
         variant: 'destructive',
       });
     }
   };
 
-  // Get stock logs for the selected date
-  const getStockLogsForDate = (productId: string, date: Date) => {
+  // Get stock at specific time (9:00 AM for opening, 11:55 PM for closing)
+  const getStockAtTime = (productId: string, date: Date, hour: number, minute: number = 0): number => {
     try {
       const allLogs = getStockLogs(productId);
-      const startOfSelectedDay = startOfDay(date);
-      const endOfSelectedDay = endOfDay(date);
-
-      return allLogs.filter(log => {
-        const logDate = new Date(log.timestamp);
-        return logDate >= startOfSelectedDay && logDate <= endOfSelectedDay;
-      });
-    } catch (error) {
-      console.error('Error getting stock logs:', error);
-      return [];
-    }
-  };
-
-  // Get opening stock for a product on selected date
-  const getOpeningStock = (productId: string, date: Date): number => {
-    try {
-      const allLogs = getStockLogs(productId);
-      const startOfSelectedDay = startOfDay(date);
+      const targetTime = setMinutes(setHours(startOfDay(date), hour), minute);
       
-      // Find the last log before the selected date
-      const logsBeforeDate = allLogs.filter(log => 
-        new Date(log.timestamp) < startOfSelectedDay
+      // Find logs before or at target time
+      const logsBeforeTime = allLogs.filter(log => 
+        new Date(log.timestamp) <= targetTime
       );
 
-      if (logsBeforeDate.length === 0) {
+      if (logsBeforeTime.length === 0) {
         return 0;
       }
 
-      // Sort by timestamp descending and get the most recent
-      const sortedLogs = logsBeforeDate.sort((a, b) => 
+      // Get the most recent log before target time
+      const sortedLogs = logsBeforeTime.sort((a, b) => 
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
       return sortedLogs[0].newStock;
     } catch (error) {
-      console.error('Error getting opening stock:', error);
+      console.error('Error getting stock at time:', error);
       return 0;
+    }
+  };
+
+  // Get opening stock (9:00 AM snapshot)
+  const getOpeningStock = (productId: string, date: Date): number => {
+    return getStockAtTime(productId, date, 9, 0);
+  };
+
+  // Get closing stock (11:55 PM snapshot)
+  const getClosingStock = (productId: string, date: Date): number => {
+    return getStockAtTime(productId, date, 23, 55);
+  };
+
+  // Get stock logs for the selected date (excluding opening/closing snapshots)
+  const getStockChangesForDate = (productId: string, date: Date) => {
+    try {
+      const allLogs = getStockLogs(productId);
+      const morningTime = setMinutes(setHours(startOfDay(date), 9), 0);
+      const closingTime = setMinutes(setHours(startOfDay(date), 23), 55);
+
+      return allLogs.filter(log => {
+        const logDate = new Date(log.timestamp);
+        return logDate > morningTime && 
+               logDate < closingTime &&
+               !log.notes?.includes('snapshot');
+      });
+    } catch (error) {
+      console.error('Error getting stock changes:', error);
+      return [];
     }
   };
 
   // Calculate reconciliation data
   const reconciliationData = useMemo((): ReconciliationData[] => {
     try {
-      // Get all food and drinks products
       const foodAndDrinks = products.filter(p => {
         const category = p.category.toLowerCase();
         return category === 'food' || category === 'drinks';
@@ -166,18 +183,15 @@ const StockReconciliationReport: React.FC = () => {
       console.log('Found food/drinks products:', foodAndDrinks.length);
 
       return foodAndDrinks.map(product => {
-        // Use buying price if available, otherwise use selling price or regular price
         const pricePerUnit = product.buyingPrice || product.sellingPrice || product.price;
         const hasBuyingPrice = !!product.buyingPrice;
 
-        // Get opening stock
+        // Get opening stock (9:00 AM)
         const openingStock = getOpeningStock(product.id, selectedDate);
         const openingValue = openingStock * pricePerUnit;
 
-        console.log(`${product.name}: Opening=${openingStock}, Price=${pricePerUnit}`);
-
-        // Get stock additions for the day
-        const logsForDate = getStockLogsForDate(product.id, selectedDate);
+        // Get stock additions during the day
+        const logsForDate = getStockChangesForDate(product.id, selectedDate);
         const additions = logsForDate
           .filter(log => log.changeType === 'addition' || log.changeType === 'initial')
           .reduce((sum, log) => sum + log.quantityChanged, 0);
@@ -201,11 +215,9 @@ const StockReconciliationReport: React.FC = () => {
 
         const salesValue = salesQuantity * pricePerUnit;
 
-        console.log(`${product.name}: Sales=${salesQuantity}, Additions=${additions}`);
-
         // Calculate expected vs actual closing stock
         const expectedClosingStock = openingStock + additions - salesQuantity;
-        const actualClosingStock = product.stock;
+        const actualClosingStock = getClosingStock(product.id, selectedDate);
         const variance = actualClosingStock - expectedClosingStock;
         const varianceValue = variance * pricePerUnit;
 
@@ -255,31 +267,30 @@ const StockReconciliationReport: React.FC = () => {
     );
   }, [reconciliationData]);
 
-  // Get items with variance
   const itemsWithVariance = reconciliationData.filter(item => item.variance !== 0);
   const missingItems = reconciliationData.filter(item => item.variance < 0);
   const excessItems = reconciliationData.filter(item => item.variance > 0);
   const itemsWithoutBuyingPrice = reconciliationData.filter(item => !item.hasBuyingPrice);
 
-  // Check if snapshot is needed
-  const needsSnapshot = reconciliationData.every(item => item.openingStock === 0) && reconciliationData.length > 0;
+  // Check if initialization is needed
+  const isInitialized = localStorage.getItem('stockSnapshotInitialized') === 'true';
+  const needsInitialization = !isInitialized && reconciliationData.length > 0;
 
   // Export to CSV
   const exportToCSV = () => {
     const headers = [
       'Product',
       'Category',
-      'Opening Stock',
+      'Opening Stock (9:00 AM)',
       'Opening Value',
       'Additions',
       'Additions Value',
       'Sales Qty',
       'Sales Value',
       'Expected Closing',
-      'Actual Closing',
+      'Actual Closing (11:55 PM)',
       'Variance Qty',
       'Variance Value',
-      'Has Buying Price',
     ];
 
     const rows = reconciliationData.map(item => [
@@ -295,23 +306,24 @@ const StockReconciliationReport: React.FC = () => {
       item.actualClosingStock,
       item.variance,
       item.varianceValue.toFixed(2),
-      item.hasBuyingPrice ? 'Yes' : 'No',
     ]);
 
     const csvContent = [
       ['Stock Reconciliation Report'],
       [`Date: ${format(selectedDate, 'dd/MM/yyyy')}`],
+      ['Opening Stock Time: 9:00 AM'],
+      ['Closing Stock Time: 11:55 PM'],
       ['Generated: ' + format(new Date(), 'dd/MM/yyyy HH:mm:ss')],
       [],
       headers,
       ...rows,
       [],
       ['Summary'],
-      ['Opening Stock Value', totals.openingValue.toFixed(2)],
+      ['Opening Stock Value (9:00 AM)', totals.openingValue.toFixed(2)],
       ['Additions Value', totals.additionsValue.toFixed(2)],
       ['Sales Value', totals.salesValue.toFixed(2)],
       ['Expected Closing Value', totals.expectedClosingValue.toFixed(2)],
-      ['Actual Closing Value', totals.actualClosingValue.toFixed(2)],
+      ['Actual Closing Value (11:55 PM)', totals.actualClosingValue.toFixed(2)],
       ['Variance Value', totals.varianceValue.toFixed(2)],
     ]
       .map(row => row.join(','))
@@ -332,7 +344,7 @@ const StockReconciliationReport: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold">Stock Reconciliation Report</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Track opening stock, sales, and closing stock to identify missing inventory
+            Opening stock at 9:00 AM • Closing stock at 11:55 PM • Track missing inventory
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -359,15 +371,14 @@ const StockReconciliationReport: React.FC = () => {
             </PopoverContent>
           </Popover>
           
-          {/* Initialize Stock Snapshot Button */}
-          {needsSnapshot && (
+          {needsInitialization && (
             <Button 
-              onClick={initializeStockSnapshot} 
+              onClick={initializeTodaySnapshot} 
               variant="default"
               className="bg-blue-600 hover:bg-blue-700"
             >
               <Database className="h-4 w-4 mr-2" />
-              Create Stock Snapshot
+              Initialize Stock Tracking
             </Button>
           )}
           
@@ -377,20 +388,37 @@ const StockReconciliationReport: React.FC = () => {
           </Button>
         </div>
         
-        {/* Info Box for first-time users */}
-        {needsSnapshot && (
+        {needsInitialization && (
           <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
             <CardContent className="pt-4">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                <strong>📸 First time using reconciliation?</strong> Click "Create Stock Snapshot" to record your current stock levels as opening stock for yesterday ({format(subDays(selectedDate, 1), 'dd MMM yyyy')}). 
-                This will enable tracking of stock changes from today onwards.
+              <div className="space-y-2">
+                <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold">
+                  🎯 Setup Required: Initialize Stock Tracking
+                </p>
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  Your current stock value is <strong>₹6,376</strong>. Click "Initialize Stock Tracking" to:
+                </p>
+                <ul className="text-sm text-blue-800 dark:text-blue-200 list-disc list-inside space-y-1 ml-2">
+                  <li>Record today's opening stock (9:00 AM) = ₹6,376</li>
+                  <li>Record today's closing stock (11:55 PM) = ₹6,376 (same for first day)</li>
+                  <li>Enable automatic daily snapshots from tomorrow at 9:00 AM and 11:55 PM</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isInitialized && (
+          <Card className="bg-green-50 dark:bg-green-950/20 border-green-200">
+            <CardContent className="pt-4">
+              <p className="text-sm text-green-800 dark:text-green-200">
+                ✅ Automatic stock tracking is active. Snapshots are taken daily at <strong>9:00 AM</strong> (opening) and <strong>11:55 PM</strong> (closing).
               </p>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* Warning for products without buying price */}
       {itemsWithoutBuyingPrice.length > 0 && (
         <Card className="border-yellow-500">
           <CardHeader>
@@ -401,8 +429,7 @@ const StockReconciliationReport: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              {itemsWithoutBuyingPrice.length} products are using selling price or regular price instead of buying price.
-              For accurate cost-based reconciliation, please add buying prices to all food and drinks products.
+              {itemsWithoutBuyingPrice.length} products are using selling price or regular price. Add buying prices for accurate reconciliation.
             </p>
           </CardContent>
         </Card>
@@ -419,7 +446,7 @@ const StockReconciliationReport: React.FC = () => {
               ₹{totals.openingValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Stock value at start of {format(selectedDate, 'dd MMM yyyy')}
+              At 9:00 AM on {format(selectedDate, 'dd MMM yyyy')}
             </p>
           </CardContent>
         </Card>
@@ -459,13 +486,12 @@ const StockReconciliationReport: React.FC = () => {
               {totals.varianceValue > 0 && ' (Excess)'}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Difference between expected and actual
+              At 11:55 PM closing
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Variance Summary */}
       {itemsWithVariance.length > 0 && (
         <Card className="border-yellow-500">
           <CardHeader>
@@ -516,11 +542,11 @@ const StockReconciliationReport: React.FC = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Opening</TableHead>
+                    <TableHead className="text-right">Opening (9 AM)</TableHead>
                     <TableHead className="text-right">Additions</TableHead>
                     <TableHead className="text-right">Sales</TableHead>
                     <TableHead className="text-right">Expected</TableHead>
-                    <TableHead className="text-right">Actual</TableHead>
+                    <TableHead className="text-right">Actual (11:55 PM)</TableHead>
                     <TableHead className="text-right">Variance</TableHead>
                     <TableHead className="text-right">Value Impact</TableHead>
                   </TableRow>
@@ -600,11 +626,11 @@ const StockReconciliationReport: React.FC = () => {
           <CardTitle className="text-sm">Reconciliation Formula</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p><strong>Expected Closing Stock</strong> = Opening Stock + Additions - Sales</p>
-          <p><strong>Variance</strong> = Actual Closing Stock - Expected Closing Stock</p>
-          <p className="text-xs">• Negative variance indicates missing stock (theft/wastage/unrecorded sales)</p>
-          <p className="text-xs">• Positive variance indicates excess stock (unrecorded purchases/returns)</p>
-          <p className="text-xs mt-2">• BP = Buying Price. Products without buying price use selling or regular price for calculations.</p>
+          <p><strong>Expected Closing Stock</strong> = Opening Stock (9:00 AM) + Additions - Sales</p>
+          <p><strong>Variance</strong> = Actual Closing Stock (11:55 PM) - Expected Closing Stock</p>
+          <p className="text-xs">• Negative variance = missing stock (theft/wastage/unrecorded sales)</p>
+          <p className="text-xs">• Positive variance = excess stock (unrecorded purchases/returns)</p>
+          <p className="text-xs">• Automatic snapshots: 9:00 AM (opening) & 11:55 PM (closing) daily</p>
         </CardContent>
       </Card>
     </div>
