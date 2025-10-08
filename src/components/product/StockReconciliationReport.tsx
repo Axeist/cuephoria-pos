@@ -21,7 +21,6 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CurrencyDisplay } from '@/components/ui/currency';
 import { getStockLogs } from '@/utils/stockLogger';
 
 interface ReconciliationData {
@@ -47,103 +46,113 @@ const StockReconciliationReport: React.FC = () => {
 
   // Get stock logs for the selected date
   const getStockLogsForDate = (productId: string, date: Date) => {
-    const allLogs = getStockLogs(productId);
-    const startOfSelectedDay = startOfDay(date);
-    const endOfSelectedDay = endOfDay(date);
+    try {
+      const allLogs = getStockLogs(productId);
+      const startOfSelectedDay = startOfDay(date);
+      const endOfSelectedDay = endOfDay(date);
 
-    return allLogs.filter(log => {
-      const logDate = new Date(log.timestamp);
-      return logDate >= startOfSelectedDay && logDate <= endOfSelectedDay;
-    });
+      return allLogs.filter(log => {
+        const logDate = new Date(log.timestamp);
+        return logDate >= startOfSelectedDay && logDate <= endOfSelectedDay;
+      });
+    } catch (error) {
+      console.error('Error getting stock logs:', error);
+      return [];
+    }
   };
 
   // Get opening stock for a product on selected date
   const getOpeningStock = (productId: string, date: Date): number => {
-    const allLogs = getStockLogs(productId);
-    const startOfSelectedDay = startOfDay(date);
-    
-    // Find the last log before the selected date
-    const logsBeforeDate = allLogs.filter(log => 
-      new Date(log.timestamp) < startOfSelectedDay
-    );
-
-    if (logsBeforeDate.length === 0) {
-      // No logs before this date, check if there's an initial log on this date
-      const initialLog = allLogs.find(log => 
-        log.changeType === 'initial' && 
-        new Date(log.timestamp) >= startOfSelectedDay
+    try {
+      const allLogs = getStockLogs(productId);
+      const startOfSelectedDay = startOfDay(date);
+      
+      // Find the last log before the selected date
+      const logsBeforeDate = allLogs.filter(log => 
+        new Date(log.timestamp) < startOfSelectedDay
       );
-      return initialLog ? 0 : 0;
+
+      if (logsBeforeDate.length === 0) {
+        return 0;
+      }
+
+      // Sort by timestamp descending and get the most recent
+      const sortedLogs = logsBeforeDate.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      return sortedLogs[0].newStock;
+    } catch (error) {
+      console.error('Error getting opening stock:', error);
+      return 0;
     }
-
-    // Sort by timestamp descending and get the most recent
-    const sortedLogs = logsBeforeDate.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    return sortedLogs[0].newStock;
   };
 
   // Calculate reconciliation data
   const reconciliationData = useMemo((): ReconciliationData[] => {
-    const foodAndDrinks = products.filter(p => {
-      const category = p.category.toLowerCase();
-      return (category === 'food' || category === 'drinks') && p.buyingPrice;
-    });
-
-    return foodAndDrinks.map(product => {
-      // Get opening stock
-      const openingStock = getOpeningStock(product.id, selectedDate);
-      const openingValue = openingStock * (product.buyingPrice || 0);
-
-      // Get stock additions for the day
-      const logsForDate = getStockLogsForDate(product.id, selectedDate);
-      const additions = logsForDate
-        .filter(log => log.changeType === 'addition' || log.changeType === 'initial')
-        .reduce((sum, log) => sum + log.quantityChanged, 0);
-      const additionsValue = additions * (product.buyingPrice || 0);
-
-      // Get sales for the day
-      const startOfSelectedDay = startOfDay(selectedDate);
-      const endOfSelectedDay = endOfDay(selectedDate);
-      
-      const daySales = transactions.filter(t => {
-        const transactionDate = new Date(t.timestamp);
-        return transactionDate >= startOfSelectedDay && 
-               transactionDate <= endOfSelectedDay &&
-               t.status === 'completed';
+    try {
+      const foodAndDrinks = products.filter(p => {
+        const category = p.category.toLowerCase();
+        return (category === 'food' || category === 'drinks') && p.buyingPrice;
       });
 
-      const salesQuantity = daySales.reduce((sum, transaction) => {
-        const productInTransaction = transaction.items.find(item => item.id === product.id);
-        return sum + (productInTransaction?.quantity || 0);
-      }, 0);
+      return foodAndDrinks.map(product => {
+        // Get opening stock
+        const openingStock = getOpeningStock(product.id, selectedDate);
+        const openingValue = openingStock * (product.buyingPrice || 0);
 
-      const salesValue = salesQuantity * (product.buyingPrice || 0);
+        // Get stock additions for the day
+        const logsForDate = getStockLogsForDate(product.id, selectedDate);
+        const additions = logsForDate
+          .filter(log => log.changeType === 'addition' || log.changeType === 'initial')
+          .reduce((sum, log) => sum + log.quantityChanged, 0);
+        const additionsValue = additions * (product.buyingPrice || 0);
 
-      // Calculate expected vs actual closing stock
-      const expectedClosingStock = openingStock + additions - salesQuantity;
-      const actualClosingStock = product.stock;
-      const variance = actualClosingStock - expectedClosingStock;
-      const varianceValue = variance * (product.buyingPrice || 0);
+        // Get sales for the day
+        const startOfSelectedDay = startOfDay(selectedDate);
+        const endOfSelectedDay = endOfDay(selectedDate);
+        
+        const daySales = transactions.filter(t => {
+          const transactionDate = new Date(t.timestamp);
+          return transactionDate >= startOfSelectedDay && 
+                 transactionDate <= endOfSelectedDay &&
+                 t.status === 'completed';
+        });
 
-      return {
-        productId: product.id,
-        productName: product.name,
-        category: product.category,
-        openingStock,
-        openingValue,
-        additions,
-        additionsValue,
-        salesQuantity,
-        salesValue,
-        expectedClosingStock,
-        actualClosingStock,
-        variance,
-        varianceValue,
-        buyingPrice: product.buyingPrice || 0,
-      };
-    });
+        const salesQuantity = daySales.reduce((sum, transaction) => {
+          const productInTransaction = transaction.items.find(item => item.id === product.id);
+          return sum + (productInTransaction?.quantity || 0);
+        }, 0);
+
+        const salesValue = salesQuantity * (product.buyingPrice || 0);
+
+        // Calculate expected vs actual closing stock
+        const expectedClosingStock = openingStock + additions - salesQuantity;
+        const actualClosingStock = product.stock;
+        const variance = actualClosingStock - expectedClosingStock;
+        const varianceValue = variance * (product.buyingPrice || 0);
+
+        return {
+          productId: product.id,
+          productName: product.name,
+          category: product.category,
+          openingStock,
+          openingValue,
+          additions,
+          additionsValue,
+          salesQuantity,
+          salesValue,
+          expectedClosingStock,
+          actualClosingStock,
+          variance,
+          varianceValue,
+          buyingPrice: product.buyingPrice || 0,
+        };
+      });
+    } catch (error) {
+      console.error('Error calculating reconciliation data:', error);
+      return [];
+    }
   }, [products, transactions, selectedDate]);
 
   // Calculate totals
@@ -232,12 +241,12 @@ const StockReconciliationReport: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <h2 className="text-2xl font-bold">Stock Reconciliation Report</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-1">
             Track opening stock, sales, and closing stock to identify missing inventory
           </p>
         </div>
@@ -255,7 +264,7 @@ const StockReconciliationReport: React.FC = () => {
                 {selectedDate ? format(selectedDate, 'PPP') : <span>Pick a date</span>}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={selectedDate}
@@ -279,7 +288,7 @@ const StockReconciliationReport: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <CurrencyDisplay amount={totals.openingValue} />
+              ₹{totals.openingValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </CardContent>
         </Card>
@@ -290,7 +299,7 @@ const StockReconciliationReport: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <CurrencyDisplay amount={totals.salesValue} />
+              ₹{totals.salesValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </div>
           </CardContent>
         </Card>
@@ -310,7 +319,7 @@ const StockReconciliationReport: React.FC = () => {
               totals.varianceValue < 0 && 'text-red-500',
               totals.varianceValue > 0 && 'text-green-500'
             )}>
-              <CurrencyDisplay amount={Math.abs(totals.varianceValue)} />
+              ₹{Math.abs(totals.varianceValue).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               {totals.varianceValue < 0 && ' (Missing)'}
               {totals.varianceValue > 0 && ' (Excess)'}
             </div>
@@ -322,7 +331,7 @@ const StockReconciliationReport: React.FC = () => {
       {itemsWithVariance.length > 0 && (
         <Card className="border-yellow-500">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
               Variance Alert
             </CardTitle>
@@ -355,83 +364,90 @@ const StockReconciliationReport: React.FC = () => {
       {/* Detailed Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Detailed Reconciliation</CardTitle>
+          <CardTitle className="text-base">Detailed Reconciliation</CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[500px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Opening</TableHead>
-                  <TableHead className="text-right">Additions</TableHead>
-                  <TableHead className="text-right">Sales</TableHead>
-                  <TableHead className="text-right">Expected</TableHead>
-                  <TableHead className="text-right">Actual</TableHead>
-                  <TableHead className="text-right">Variance</TableHead>
-                  <TableHead className="text-right">Value Impact</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reconciliationData.map((item) => (
-                  <TableRow 
-                    key={item.productId}
-                    className={item.variance !== 0 ? 'bg-yellow-50 dark:bg-yellow-950/10' : ''}
-                  >
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{item.productName}</div>
-                        <div className="text-xs text-muted-foreground">{item.category}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div>{item.openingStock}</div>
-                      <div className="text-xs text-muted-foreground">
-                        ₹{item.openingValue.toFixed(0)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div>{item.additions > 0 ? `+${item.additions}` : item.additions}</div>
-                      <div className="text-xs text-muted-foreground">
-                        ₹{item.additionsValue.toFixed(0)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div>{item.salesQuantity}</div>
-                      <div className="text-xs text-muted-foreground">
-                        ₹{item.salesValue.toFixed(0)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {item.expectedClosingStock}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {item.actualClosingStock}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {item.variance !== 0 ? (
-                        <Badge variant={item.variance < 0 ? 'destructive' : 'default'}>
-                          {item.variance > 0 ? '+' : ''}{item.variance}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">0</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn(
-                        'font-medium',
-                        item.varianceValue < 0 && 'text-red-500',
-                        item.varianceValue > 0 && 'text-green-500'
-                      )}>
-                        {item.varianceValue < 0 ? '-' : '+'}
-                        ₹{Math.abs(item.varianceValue).toFixed(0)}
-                      </span>
-                    </TableCell>
+          {reconciliationData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No food or drinks products with buying price found.</p>
+              <p className="text-sm mt-2">Add buying prices to products to see reconciliation data.</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-[400px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="text-right">Opening</TableHead>
+                    <TableHead className="text-right">Additions</TableHead>
+                    <TableHead className="text-right">Sales</TableHead>
+                    <TableHead className="text-right">Expected</TableHead>
+                    <TableHead className="text-right">Actual</TableHead>
+                    <TableHead className="text-right">Variance</TableHead>
+                    <TableHead className="text-right">Value Impact</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+                </TableHeader>
+                <TableBody>
+                  {reconciliationData.map((item) => (
+                    <TableRow 
+                      key={item.productId}
+                      className={item.variance !== 0 ? 'bg-yellow-50 dark:bg-yellow-950/10' : ''}
+                    >
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{item.productName}</div>
+                          <div className="text-xs text-muted-foreground">{item.category}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div>{item.openingStock}</div>
+                        <div className="text-xs text-muted-foreground">
+                          ₹{item.openingValue.toFixed(0)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div>{item.additions > 0 ? `+${item.additions}` : item.additions}</div>
+                        <div className="text-xs text-muted-foreground">
+                          ₹{item.additionsValue.toFixed(0)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div>{item.salesQuantity}</div>
+                        <div className="text-xs text-muted-foreground">
+                          ₹{item.salesValue.toFixed(0)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {item.expectedClosingStock}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {item.actualClosingStock}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.variance !== 0 ? (
+                          <Badge variant={item.variance < 0 ? 'destructive' : 'default'}>
+                            {item.variance > 0 ? '+' : ''}{item.variance}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">0</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={cn(
+                          'font-medium',
+                          item.varianceValue < 0 && 'text-red-500',
+                          item.varianceValue > 0 && 'text-green-500'
+                        )}>
+                          {item.varianceValue < 0 ? '-' : '+'}
+                          ₹{Math.abs(item.varianceValue).toFixed(0)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          )}
         </CardContent>
       </Card>
 
