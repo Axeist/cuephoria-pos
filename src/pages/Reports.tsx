@@ -7,7 +7,7 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -357,7 +357,8 @@ const ReportsPage: React.FC = () => {
           DiscountValue: bill.discountValue || 0,
           PointsUsed: bill.loyaltyPointsUsed || 0,
           Total: bill.total,
-          PaymentMethod: bill.paymentMethod || 'N/A'
+          PaymentMethod: bill.paymentMethod || 'N/A',
+          ComplimentaryNote: bill.paymentMethod === 'complimentary' ? (bill.compNote || 'No note') : ''
         }));
         exportToExcel(billsData, 'Bills_Report');
         break;
@@ -394,6 +395,10 @@ const ReportsPage: React.FC = () => {
       case 'summary':
         const summaryData = [{
           TotalRevenue: summaryMetrics.financial.totalRevenue,
+          ComplimentarySales: summaryMetrics.financial.complimentarySales,
+          ComplimentaryCount: summaryMetrics.financial.complimentaryCount,
+          ComplimentaryPercentage: `${summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%`,
+          AvgComplimentaryValue: summaryMetrics.financial.avgComplimentaryValue,
           GrossProfit: summaryMetrics.financial.grossProfit,
           ProfitMargin: `${summaryMetrics.financial.profitMargin.toFixed(1)}%`,
           TotalTransactions: summaryMetrics.operational.totalTransactions,
@@ -425,8 +430,29 @@ const ReportsPage: React.FC = () => {
   function calculateSummaryMetrics() {
     const { filteredBills } = filteredData;
 
-    const totalRevenue = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
-    const averageBillValue = filteredBills.length > 0 ? totalRevenue / filteredBills.length : 0;
+    // NEW: Calculate complimentary metrics
+    const complimentaryBills = filteredBills.filter(bill => 
+      bill.paymentMethod?.toLowerCase() === 'complimentary'
+    );
+    const complimentarySales = complimentaryBills.reduce((sum, bill) => sum + bill.total, 0);
+    const complimentaryCount = complimentaryBills.length;
+
+    // Calculate paid revenue (excluding complimentary)
+    const paidBills = filteredBills.filter(bill => 
+      bill.paymentMethod?.toLowerCase() !== 'complimentary'
+    );
+    const totalRevenue = paidBills.reduce((sum, bill) => sum + bill.total, 0);
+    
+    // Calculate total transaction volume (including complimentary)
+    const totalTransactionVolume = totalRevenue + complimentarySales;
+    const complimentaryPercentage = totalTransactionVolume > 0 ? 
+      (complimentarySales / totalTransactionVolume) * 100 : 0;
+    
+    // Average complimentary value
+    const avgComplimentaryValue = complimentaryCount > 0 ? 
+      complimentarySales / complimentaryCount : 0;
+
+    const averageBillValue = paidBills.length > 0 ? totalRevenue / paidBills.length : 0;
     const totalDiscounts = filteredBills.reduce((sum, bill) => sum + (bill.discountValue || 0), 0);
     const grossProfit = totalRevenue - (businessSummary?.totalExpenses || 0);
     const profitMargin = totalRevenue > 0 ? grossProfit / totalRevenue * 100 : 0;
@@ -434,7 +460,7 @@ const ReportsPage: React.FC = () => {
     const revenueByDay: Record<string, number> = {};
     let highestRevenue = 0;
     let highestRevenueDay = '';
-    filteredBills.forEach(bill => {
+    paidBills.forEach(bill => {
       const day = format(new Date(bill.createdAt), 'yyyy-MM-dd');
       revenueByDay[day] = (revenueByDay[day] || 0) + bill.total;
       if (revenueByDay[day] > highestRevenue) {
@@ -443,8 +469,8 @@ const ReportsPage: React.FC = () => {
       }
     });
 
-    const cashSales = filteredBills.filter(bill => bill.paymentMethod === 'cash').reduce((sum, bill) => sum + bill.total, 0);
-    const upiSales = filteredBills.filter(bill => bill.paymentMethod === 'upi').reduce((sum, bill) => sum + bill.total, 0);
+    const cashSales = paidBills.filter(bill => bill.paymentMethod === 'cash').reduce((sum, bill) => sum + bill.total, 0);
+    const upiSales = paidBills.filter(bill => bill.paymentMethod === 'upi').reduce((sum, bill) => sum + bill.total, 0);
     const cashPercentage = totalRevenue > 0 ? cashSales / totalRevenue * 100 : 0;
     const upiPercentage = totalRevenue > 0 ? upiSales / totalRevenue * 100 : 0;
 
@@ -511,7 +537,7 @@ const ReportsPage: React.FC = () => {
     let ps5Sales = 0;
     let poolSales = 0;
     let metashotSales = 0;
-    filteredBills.forEach(bill => {
+    paidBills.forEach(bill => {
       const discountRatio = bill.total / bill.subtotal;
       bill.items.forEach(item => {
         const discountedItemTotal = item.total * discountRatio;
@@ -552,7 +578,7 @@ const ReportsPage: React.FC = () => {
     const customerSpending: Record<string, number> = {};
     let topCustomerId = '';
     let topCustomerSpend = 0;
-    filteredBills.forEach(bill => {
+    paidBills.forEach(bill => {
       if (bill.customerId) {
         customerSpending[bill.customerId] = (customerSpending[bill.customerId] || 0) + bill.total;
         if (customerSpending[bill.customerId] > topCustomerSpend) {
@@ -579,7 +605,6 @@ const ReportsPage: React.FC = () => {
     const loyaltyPointsUsed = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsUsed || 0), 0);
     const loyaltyPointsEarned = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsEarned || 0), 0);
     const loyaltyUsageRate = loyaltyPointsEarned > 0 ? loyaltyPointsUsed / loyaltyPointsEarned * 100 : 0;
-
     const loyaltyPointsPerRupee = totalRevenue > 0 ? loyaltyPointsEarned / totalRevenue : 0;
     
     return {
@@ -589,6 +614,10 @@ const ReportsPage: React.FC = () => {
         totalDiscounts,
         cashSales,
         upiSales,
+        complimentarySales,
+        complimentaryCount,
+        complimentaryPercentage,
+        avgComplimentaryValue,
         cashPercentage,
         upiPercentage,
         grossProfit,
@@ -708,6 +737,7 @@ const ReportsPage: React.FC = () => {
                 <SelectItem value="upi">UPI</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
                 <SelectItem value="credit">Credit</SelectItem>
+                <SelectItem value="complimentary">Complimentary</SelectItem>
                 <SelectItem value="split">Split Payment</SelectItem>
               </SelectContent>
             </Select>
@@ -1133,7 +1163,6 @@ const ReportsPage: React.FC = () => {
     </div>
   );
 
-  // FIXED: Summary tab rendering
   const renderSummaryTab = () => (
     <div className="space-y-8">
       <BusinessSummaryReport
