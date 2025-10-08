@@ -3,7 +3,7 @@ import { usePOS } from '@/context/POSContext';
 import { Button } from '@/components/ui/button';
 import { useProducts } from '@/hooks/useProducts';
 import { Product } from '@/types/pos.types';
-import { Plus, Settings } from 'lucide-react';
+import { Plus, Settings, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductDialog from '@/components/product/ProductDialog';
 import { ProductFormState } from '@/components/product/ProductForm';
@@ -21,6 +21,7 @@ import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useAuth } from '@/context/AuthContext';
 import AdvancedFilters from '@/components/product/AdvancedFilters';
+import StockLogsViewer from '@/components/product/StockLogsViewer';
 import { FilterOptions } from '@/types/stockLog.types';
 import { createStockLog, saveStockLog } from '@/utils/stockLogger';
 import {
@@ -49,12 +50,10 @@ const ProductsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showZeroStockOnly, setShowZeroStockOnly] = useState<boolean>(false);
   
-  // NEW: Advanced filters state
-  const [advancedFilters, setAdvancedFilters] = useState<FilterOptions>({
-    stockStatus: 'all',
-  });
+  // Advanced filters state
+  const [advancedFilters, setAdvancedFilters] = useState<FilterOptions>({});
 
-  // Filter and sort products based on search term, active tab, zero stock filter, and advanced filters
+  // Filter and sort products based on all filters
   const getFilteredAndSortedProducts = () => {
     let filtered = products.filter(product => {
       // Search filter
@@ -65,39 +64,24 @@ const ProductsPage: React.FC = () => {
       const matchesZeroStock = !showZeroStockOnly || 
         (product.category !== 'membership' && product.stock === 0);
       
-      // NEW: Advanced stock status filter
+      // Advanced stock status filter (multi-select)
       let matchesStockStatus = true;
-      if (advancedFilters.stockStatus !== 'all') {
-        switch (advancedFilters.stockStatus) {
-          case 'in-stock':
-            matchesStockStatus = product.stock > 10;
-            break;
-          case 'low-stock':
-            matchesStockStatus = product.stock > 0 && product.stock <= 10;
-            break;
-          case 'out-of-stock':
-            matchesStockStatus = product.stock === 0 && product.category !== 'membership';
-            break;
-        }
-      }
-
-      // NEW: Price range filter
-      let matchesPriceRange = true;
-      if (advancedFilters.priceRange) {
-        const { min, max } = advancedFilters.priceRange;
-        matchesPriceRange = product.price >= min && product.price <= max;
-      }
-
-      // NEW: Profit margin filter
-      let matchesProfitMargin = true;
-      if (advancedFilters.profitMargin && product.buyingPrice && product.sellingPrice) {
-        const profitMargin = ((product.sellingPrice - product.buyingPrice) / product.buyingPrice) * 100;
-        const { min, max } = advancedFilters.profitMargin;
-        matchesProfitMargin = profitMargin >= min && profitMargin <= max;
+      if (advancedFilters.stockStatuses && advancedFilters.stockStatuses.length > 0) {
+        matchesStockStatus = advancedFilters.stockStatuses.some(status => {
+          switch (status) {
+            case 'in-stock':
+              return product.stock >= 2;
+            case 'low-stock':
+              return product.stock === 1;
+            case 'out-of-stock':
+              return product.stock === 0 && product.category !== 'membership';
+            default:
+              return false;
+          }
+        });
       }
       
-      return matchesSearch && matchesZeroStock && matchesStockStatus && 
-             matchesPriceRange && matchesProfitMargin;
+      return matchesSearch && matchesZeroStock && matchesStockStatus;
     });
 
     // Sort by category when "All" tab is selected
@@ -166,7 +150,7 @@ const ProductsPage: React.FC = () => {
         studentPrice, duration, membershipHours, buyingPrice, sellingPrice 
       } = formData;
       
-      if (!name || !price || !category || !stock) {
+      if (!name || !price || !category || stock === undefined) {
         toast({
           title: 'Error',
           description: 'Please fill out all required fields',
@@ -202,7 +186,7 @@ const ProductsPage: React.FC = () => {
       console.log('Submitting product data:', productData);
       
       if (isEditMode && selectedProduct) {
-        // NEW: Log stock changes
+        // Log stock changes
         if (selectedProduct.stock !== Number(stock)) {
           const stockLog = createStockLog(
             { ...selectedProduct, ...productData, id: selectedProduct.id },
@@ -224,7 +208,7 @@ const ProductsPage: React.FC = () => {
       } else {
         const newProduct = await addProduct(productData);
         
-        // NEW: Log initial stock
+        // Log initial stock
         if (newProduct && Number(stock) > 0) {
           const stockLog = createStockLog(
             newProduct as Product,
@@ -283,6 +267,27 @@ const ProductsPage: React.FC = () => {
         <div className="flex flex-wrap gap-2">
           <ProductSalesExport />
           <StockExport />
+          
+          {/* NEW: Stock Logs Viewer Button */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="h-10">
+                <History className="h-4 w-4 mr-2" /> 
+                Stock Logs
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[90vw] sm:w-[800px] sm:max-w-[90vw]">
+              <SheetHeader>
+                <SheetTitle>Stock Change Logs</SheetTitle>
+                <SheetDescription>
+                  View all stock changes across all products
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6">
+                <StockLogsViewer />
+              </div>
+            </SheetContent>
+          </Sheet>
           
           <Sheet>
             <SheetTrigger asChild>
@@ -349,7 +354,6 @@ const ProductsPage: React.FC = () => {
                 placeholder="Search products by name or category..."
               />
             </div>
-            {/* NEW: Advanced Filters Component */}
             <AdvancedFilters
               currentFilters={advancedFilters}
               onFilterChange={setAdvancedFilters}
