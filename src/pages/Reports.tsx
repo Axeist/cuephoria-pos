@@ -46,7 +46,6 @@ const ReportsPage: React.FC = () => {
 
   // Set default range to "this month"
   const today = new Date();
-  // Changed to use DateRange type to match the Calendar component
   const [date, setDate] = useState<DateRange | undefined>({
     from: startOfMonth(today),
     to: endOfMonth(today)
@@ -55,7 +54,6 @@ const ReportsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'bills' | 'customers' | 'sessions' | 'summary'>('bills');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [billSearchQuery, setBillSearchQuery] = useState<string>('');
-  // ADD: Payment type filter state
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
 
   // Add sorting state
@@ -88,14 +86,13 @@ const ReportsPage: React.FC = () => {
     return lookup;
   }, [customers]);
 
-  // Use customer lookup for performance - define these functions before they are used
+  // Use customer lookup for performance
   const getCustomerName = (customerId: string) => customerLookup[customerId]?.name || 'Unknown';
   const getCustomerEmail = (customerId: string) => customerLookup[customerId]?.email || '';
   const getCustomerPhone = (customerId: string) => customerLookup[customerId]?.phone || '';
 
-  // MODIFIED: Enhanced filtered data to include payment type filtering
+  // MODIFIED: Enhanced filtered data to include payment type filtering with null checks
   const filteredData = useMemo(() => {
-    // Filter function applied to any collection with createdAt
     const filterByDateRange = <T extends {
       createdAt: Date | string;
     }>(items: T[]): T[] => {
@@ -113,11 +110,10 @@ const ReportsPage: React.FC = () => {
       });
     };
 
-    // Apply filters to all datasets at once
     const filteredCustomers = filterByDateRange(customers);
     let filteredBills = filterByDateRange(bills);
 
-    // Apply bill search filtering if search query exists
+    // Apply bill search filtering
     if (billSearchQuery.trim()) {
       const query = billSearchQuery.toLowerCase().trim();
       filteredBills = filteredBills.filter(bill => {
@@ -133,20 +129,20 @@ const ReportsPage: React.FC = () => {
       });
     }
 
-    // ADD: Apply payment type filtering
+    // FIXED: Apply payment type filtering with null checks
     if (paymentTypeFilter !== 'all') {
       filteredBills = filteredBills.filter(bill => {
         if (paymentTypeFilter === 'split') {
-          // Check if bill has split payment (multiple payment methods)
           return bill.splitPayment && bill.splitPayment.length > 0;
         } else {
-          // Check for specific payment method
-          return bill.paymentMethod?.toLowerCase() === paymentTypeFilter.toLowerCase();
+          // Add null check and default to empty string
+          const paymentMethod = bill.paymentMethod || '';
+          return paymentMethod.toLowerCase() === paymentTypeFilter.toLowerCase();
         }
       });
     }
 
-    // Filter sessions (special case since sessions use startTime instead of createdAt)
+    // Filter sessions
     let filteredSessions = sessions.filter(session => {
       if (!date?.from && !date?.to) return true;
       const startTime = new Date(session.startTime);
@@ -160,7 +156,7 @@ const ReportsPage: React.FC = () => {
       return true;
     });
 
-    // Apply search filtering if search query exists
+    // Apply search filtering
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filteredSessions = filteredSessions.filter(session => {
@@ -275,7 +271,7 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  // Handle date range selection from dropdown with improved options
+  // Handle date range selection from dropdown
   const handleDateRangeChange = useCallback((value: string) => {
     setDateRangeKey(value);
     const today = new Date();
@@ -291,12 +287,8 @@ const ReportsPage: React.FC = () => {
         to = endOfDay(subDays(today, 1));
         break;
       case 'thisWeek':
-        from = startOfWeek(today, {
-          weekStartsOn: 1
-        });
-        to = endOfWeek(today, {
-          weekStartsOn: 1
-        });
+        from = startOfWeek(today, { weekStartsOn: 1 });
+        to = endOfWeek(today, { weekStartsOn: 1 });
         break;
       case 'thisMonth':
         from = startOfMonth(today);
@@ -318,13 +310,10 @@ const ReportsPage: React.FC = () => {
         from = subDays(today, 30);
         to = today;
     }
-    setDate({
-      from,
-      to
-    });
+    setDate({ from, to });
   }, [date]);
 
-  // Memoize the date range string to prevent unnecessary re-renders
+  // Memoize the date range string
   const dateRangeString = useMemo(() => {
     if (date?.from && date?.to) {
       return `${format(date.from, 'dd MMM yyyy')} - ${format(date.to, 'dd MMM yyyy')}`;
@@ -368,7 +357,7 @@ const ReportsPage: React.FC = () => {
           DiscountValue: bill.discountValue || 0,
           PointsUsed: bill.loyaltyPointsUsed || 0,
           Total: bill.total,
-          PaymentMethod: bill.paymentMethod
+          PaymentMethod: bill.paymentMethod || 'N/A'
         }));
         exportToExcel(billsData, 'Bills_Report');
         break;
@@ -424,7 +413,7 @@ const ReportsPage: React.FC = () => {
   // Pre-calculate summary metrics once when filtered data changes
   const summaryMetrics = useMemo(() => calculateSummaryMetrics(), [filteredData]);
 
-  // Handle session deletion - memoized to prevent re-creation
+  // Handle session deletion
   const handleDeleteSession = useCallback(async (sessionId: string) => {
     const success = await deleteSession(sessionId);
     if (success) {
@@ -432,20 +421,16 @@ const ReportsPage: React.FC = () => {
     }
   }, [deleteSession]);
 
-  // Calculate business summary metrics function with enhanced metrics
+  // Calculate business summary metrics function
   function calculateSummaryMetrics() {
-    const {
-      filteredBills
-    } = filteredData;
+    const { filteredBills } = filteredData;
 
-    // Financial metrics - Enhanced with more insights
     const totalRevenue = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
     const averageBillValue = filteredBills.length > 0 ? totalRevenue / filteredBills.length : 0;
     const totalDiscounts = filteredBills.reduce((sum, bill) => sum + (bill.discountValue || 0), 0);
     const grossProfit = totalRevenue - (businessSummary?.totalExpenses || 0);
     const profitMargin = totalRevenue > 0 ? grossProfit / totalRevenue * 100 : 0;
 
-    // Day with highest revenue
     const revenueByDay: Record<string, number> = {};
     let highestRevenue = 0;
     let highestRevenueDay = '';
@@ -458,18 +443,15 @@ const ReportsPage: React.FC = () => {
       }
     });
 
-    // Payment method breakdown
     const cashSales = filteredBills.filter(bill => bill.paymentMethod === 'cash').reduce((sum, bill) => sum + bill.total, 0);
     const upiSales = filteredBills.filter(bill => bill.paymentMethod === 'upi').reduce((sum, bill) => sum + bill.total, 0);
     const cashPercentage = totalRevenue > 0 ? cashSales / totalRevenue * 100 : 0;
     const upiPercentage = totalRevenue > 0 ? upiSales / totalRevenue * 100 : 0;
 
-    // Operational metrics - Enhanced with more insights
     const totalTransactions = filteredBills.length;
     const activeSessions = sessions.filter(s => s.endTime === null).length;
     const completedSessions = filteredData.filteredSessions.filter(s => s.endTime !== null).length;
 
-    // Calculate average session duration
     let totalSessionDuration = 0;
     let sessionsWithDuration = 0;
     filteredData.filteredSessions.forEach(session => {
@@ -486,7 +468,6 @@ const ReportsPage: React.FC = () => {
     });
     const avgSessionDuration = sessionsWithDuration > 0 ? Math.round(totalSessionDuration / sessionsWithDuration) : 0;
 
-    // Calculate peak hours (hour with most session starts)
     const sessionsByHour: Record<number, number> = {};
     let peakHour = 0;
     let peakHourCount = 0;
@@ -499,14 +480,11 @@ const ReportsPage: React.FC = () => {
       }
     });
 
-    // Format peak hour for display
     const formattedPeakHour = peakHour < 12 ? `${peakHour}:00 AM` : `${peakHour === 12 ? 12 : peakHour - 12}:00 PM`;
 
-    // Calculate days since last restock (rough estimate from expenses)
     const restockExpenses = expenses.filter(e => e.category.toLowerCase() === 'restock').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const daysSinceRestock = restockExpenses.length > 0 ? Math.floor((new Date().getTime() - new Date(restockExpenses[0].date).getTime()) / (1000 * 3600 * 24)) : null;
 
-    // Find most popular product
     const productFrequency: Record<string, number> = {};
     let mostPopularProductId = '';
     let maxFrequency = 0;
@@ -524,14 +502,12 @@ const ReportsPage: React.FC = () => {
     });
     const mostPopularProduct = products.find(p => p.id === mostPopularProductId)?.name || 'None';
 
-    // Calculate total units sold
     const totalUnitsSold = filteredBills.reduce((sum, bill) => {
       return sum + bill.items.reduce((itemSum, item) => {
         return item.type === 'product' ? itemSum + item.quantity : itemSum;
       }, 0);
     }, 0);
 
-    // Gaming metrics - calculate PS5 vs Pool vs Metashot revenue taking discounts into account
     let ps5Sales = 0;
     let poolSales = 0;
     let metashotSales = 0;
@@ -546,8 +522,7 @@ const ReportsPage: React.FC = () => {
           } else if (itemName.includes('pool') || itemName.includes('8-ball') || itemName.includes('8 ball')) {
             poolSales += discountedItemTotal;
           }
-        }
-        else if (item.type === 'product') {
+        } else if (item.type === 'product') {
           const product = products.find(p => p.id === item.id);
           if (product) {
             const category = product.category.toLowerCase();
@@ -560,7 +535,6 @@ const ReportsPage: React.FC = () => {
       });
     });
 
-    // Calculate usage rates for PS5 stations
     const ps5Sessions = filteredData.filteredSessions.filter(s => {
       if (!stations) return false;
       const station = stations.find(st => st.id === s.stationId);
@@ -568,16 +542,13 @@ const ReportsPage: React.FC = () => {
     });
     const ps5UsageRate = ps5Sessions.length > 0 ? Math.round(ps5Sessions.filter(s => s.endTime).length / ps5Sessions.length * 100) : 0;
 
-    // Customer metrics - Enhanced with more insights
     const totalCustomers = filteredData.filteredCustomers.length;
     const memberCount = filteredData.filteredCustomers.filter(c => c.isMember).length;
     const nonMemberCount = filteredData.filteredCustomers.filter(c => !c.isMember).length;
     const membershipRate = totalCustomers > 0 ? memberCount / totalCustomers * 100 : 0;
 
-    // Calculate average spend per customer
     const avgSpendPerCustomer = totalCustomers > 0 ? totalRevenue / totalCustomers : 0;
 
-    // Find top customer
     const customerSpending: Record<string, number> = {};
     let topCustomerId = '';
     let topCustomerSpend = 0;
@@ -592,7 +563,6 @@ const ReportsPage: React.FC = () => {
     });
     const topCustomer = customers.find(c => c.id === topCustomerId)?.name || 'None';
 
-    // Calculate customer retention (rough estimate - returning customers)
     const customersWithMultipleBills: Record<string, boolean> = {};
     const customerBillCounts: Record<string, number> = {};
     filteredBills.forEach(bill => {
@@ -606,13 +576,12 @@ const ReportsPage: React.FC = () => {
     const returningCustomers = Object.keys(customersWithMultipleBills).length;
     const retentionRate = totalCustomers > 0 ? returningCustomers / totalCustomers * 100 : 0;
 
-    // Loyalty metrics
     const loyaltyPointsUsed = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsUsed || 0), 0);
     const loyaltyPointsEarned = filteredBills.reduce((sum, bill) => sum + (bill.loyaltyPointsEarned || 0), 0);
     const loyaltyUsageRate = loyaltyPointsEarned > 0 ? loyaltyPointsUsed / loyaltyPointsEarned * 100 : 0;
 
-    // Calculate loyalty points per rupee spent
     const loyaltyPointsPerRupee = totalRevenue > 0 ? loyaltyPointsEarned / totalRevenue : 0;
+    
     return {
       financial: {
         totalRevenue,
@@ -663,7 +632,7 @@ const ReportsPage: React.FC = () => {
     };
   }
 
-  // Format duration in hours and minutes - a simple utility function
+  // Format duration in hours and minutes
   const formatDuration = (durationInMinutes: number | undefined) => {
     if (!durationInMinutes) return "0h 0m";
     const hours = Math.floor(durationInMinutes / 60);
@@ -671,11 +640,10 @@ const ReportsPage: React.FC = () => {
     return `${hours}h ${minutes}m`;
   };
 
-  // Only display a limited number of items at once for better performance
+  // Pagination
   const itemsPerPage = 50;
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Calculate paginated data for each tab
   const paginatedData = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
     const endIdx = startIdx + itemsPerPage;
@@ -691,7 +659,7 @@ const ReportsPage: React.FC = () => {
     setCurrentPage(1);
   }, [activeTab, date, searchQuery, billSearchQuery, sortField, sortDirection, paymentTypeFilter]);
 
-  // Only render what's needed based on active tab
+  // Render content based on active tab
   const renderContent = () => {
     switch (activeTab) {
       case 'bills':
@@ -707,10 +675,9 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  // MODIFIED: Bills tab with payment filter added
+  // Bills tab
   const renderBillsTab = () => (
     <div className="space-y-4">
-      {/* Sales Widgets */}
       <SalesWidgets filteredBills={filteredData.filteredBills} />
 
       <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
@@ -721,7 +688,6 @@ const ReportsPage: React.FC = () => {
             {date?.from && date?.to ? ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : ''}
           </p>
           
-          {/* MODIFIED: Search bar and payment filter for bills */}
           <div className="mt-4 flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
@@ -733,7 +699,6 @@ const ReportsPage: React.FC = () => {
               />
             </div>
             
-            {/* ADD: Payment Type Filter */}
             <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
               <SelectTrigger className="w-full md:w-[180px] bg-gray-800 border-gray-700 text-white">
                 <SelectValue placeholder="Payment Type" />
@@ -997,7 +962,6 @@ const ReportsPage: React.FC = () => {
           {date?.from && date?.to ? ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : ''}
         </p>
         
-        {/* Search bar for sessions */}
         <div className="mt-4 relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
@@ -1057,8 +1021,7 @@ const ReportsPage: React.FC = () => {
           </TableHeader>
           <TableBody>
             {paginatedData.sessions.map(session => {
-              // Calculate session duration properly
-              let durationDisplay = "0h 1m"; // Default duration
+              let durationDisplay = "0h 1m";
               if (session.endTime) {
                 const startMs = new Date(session.startTime).getTime();
                 const endMs = new Date(session.endTime).getTime();
@@ -1170,7 +1133,7 @@ const ReportsPage: React.FC = () => {
     </div>
   );
 
-  // MODIFIED: Summary tab with Detailed Business Metrics section removed
+  // FIXED: Summary tab rendering
   const renderSummaryTab = () => (
     <div className="space-y-8">
       <BusinessSummaryReport
@@ -1178,11 +1141,10 @@ const ReportsPage: React.FC = () => {
         endDate={date?.to}
         onDownload={handleDownloadReport}
       />
-      {/* REMOVED: Entire "Detailed Business Metrics" Card section */}
     </div>
   );
 
-  // Handle calendar date changes while ensuring proper types
+  // Handle calendar date changes
   const handleCalendarSelect = (newDate: DateRange | undefined) => {
     setDate(newDate);
     if (newDate?.from && newDate?.to) {
@@ -1192,7 +1154,6 @@ const ReportsPage: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6 min-h-screen text-white bg-transparent">
-      {/* Header with title, date range, and export button */}
       <div className="flex justify-between items-center pb-2">
         <h1 className="text-4xl font-bold gradient-text font-heading">Reports</h1>
         <div className="flex items-center gap-4">
@@ -1238,7 +1199,6 @@ const ReportsPage: React.FC = () => {
         </div>
       </div>
       
-      {/* Navigation tabs */}
       <div className="bg-gray-800/60 rounded-lg p-1 flex gap-2 w-fit">
         <Button
           onClick={() => setActiveTab('bills')}
@@ -1290,7 +1250,6 @@ const ReportsPage: React.FC = () => {
         </Button>
       </div>
       
-      {/* Render only the content for the active tab */}
       <div className="space-y-6">
         {renderContent()}
       </div>
