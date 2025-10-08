@@ -7,37 +7,33 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 const StockValueWidget: React.FC = () => {
   const { products } = usePOS();
 
-  // Calculate total stock value for food and drinks only (optimized with useMemo)
+  // Calculate total stock value for food and drinks only using BUYING price
   const totalStockValue = useMemo(() => {
     return products.reduce((total, product) => {
       const category = product.category.toLowerCase();
       
-      // Only include food and drinks products
-      if (category === 'food' || category === 'drinks') {
-        // Use buying price if available, otherwise fall back to regular price
-        const pricePerUnit = product.buyingPrice || product.price;
-        return total + (pricePerUnit * product.stock);
+      // Only include food and drinks products that have buying price
+      if ((category === 'food' || category === 'drinks') && product.buyingPrice) {
+        return total + (product.buyingPrice * product.stock);
       }
       return total;
     }, 0);
   }, [products]);
 
-  // Count food and drinks products (optimized with useMemo)
+  // Count food and drinks products with buying price
   const productsWithStock = useMemo(() => {
-    return products.filter(
-      product => {
-        const category = product.category.toLowerCase();
-        return (category === 'food' || category === 'drinks');
-      }
-    ).length;
+    return products.filter(product => {
+      const category = product.category.toLowerCase();
+      return (category === 'food' || category === 'drinks') && product.buyingPrice;
+    }).length;
   }, [products]);
 
-  // Count total items in stock for food and drinks
+  // Count total items in stock for food and drinks (only with buying price)
   const totalItems = useMemo(() => {
     return products
       .filter(product => {
         const category = product.category.toLowerCase();
-        return category === 'food' || category === 'drinks';
+        return (category === 'food' || category === 'drinks') && product.buyingPrice;
       })
       .reduce((total, product) => total + product.stock, 0);
   }, [products]);
