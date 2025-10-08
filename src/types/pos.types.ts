@@ -72,9 +72,9 @@ export interface Bill {
   loyaltyPointsUsed: number;
   loyaltyPointsEarned: number;
   total: number;
-  paymentMethod: 'cash' | 'upi' | 'split' | 'credit';
-  status?: 'completed' | 'complimentary'; // NEW: Transaction status
-  compNote?: string; // NEW: Complimentary note
+  paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary'; // UPDATED: Added 'complimentary'
+  status?: 'completed' | 'complimentary';
+  compNote?: string;
   isSplitPayment?: boolean;
   cashAmount?: number;
   upiAmount?: number;
@@ -158,10 +158,10 @@ export interface POSContextType {
   setLoyaltyPointsUsed: (points: number) => void;
   calculateTotal: () => number;
   completeSale: (
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit',
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary', // UPDATED
     status?: 'completed' | 'complimentary',
     compNote?: string
-  ) => Promise<Bill | undefined>; // UPDATED: Added status and compNote parameters
+  ) => Promise<Bill | undefined>;
   updateBill: (
     originalBill: Bill, 
     updatedItems: CartItem[], 
@@ -172,7 +172,7 @@ export interface POSContextType {
     isSplitPayment?: boolean, 
     cashAmount?: number, 
     upiAmount?: number,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit'
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' // UPDATED
   ) => Promise<Bill | null>;
   
   exportBills: () => void;
