@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
@@ -20,8 +19,12 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     console.log('Date filter range:', { startDate, endDate });
     console.log('Total bills in system:', bills.length);
 
+    // FIXED: Filter out complimentary bills first
+    const paidBills = bills.filter(bill => bill.paymentMethod !== 'complimentary');
+    console.log('Paid bills (excluding complimentary):', paidBills.length);
+
     // Filter bills by date range if provided
-    const filteredBills = bills.filter(bill => {
+    const filteredBills = paidBills.filter(bill => {
       if (!startDate && !endDate) return true;
       const billDate = new Date(bill.createdAt);
       
@@ -39,10 +42,10 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     
     let totalCashAmount = 0;
     let totalUpiAmount = 0;
-    let totalCreditAmount = 0; // Add credit tracking
+    let totalCreditAmount = 0;
     let cashOnlyCount = 0;
     let upiOnlyCount = 0;
-    let creditOnlyCount = 0; // Add credit count
+    let creditOnlyCount = 0;
     let splitCount = 0;
     let splitCashTotal = 0;
     let splitUpiTotal = 0;
