@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -397,8 +397,35 @@ const Customers = () => {
     return count;
   };
 
-  const sortCustomers = (customers: Customer[]) => {
-    return [...customers].sort((a, b) => {
+  // ✅ REAL-TIME SEARCH FILTER - Using useMemo for performance
+  const filteredCustomers = useMemo(() => {
+    return customersData.filter(customer => {
+      // Apply search query if present
+      if (searchQuery && searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase().trim();
+        const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
+        const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
+        
+        // Search across all fields with case-insensitive matching
+        const matchesName = customer.name.toLowerCase().includes(query);
+        const matchesPhone = normalizedCustomerPhone.includes(normalizedSearchPhone);
+        const matchesEmail = customer.email?.toLowerCase().includes(query) || false;
+        const matchesCustomerId = customer.customerId?.toLowerCase().includes(query) || false;
+        
+        // Return true if ANY field matches
+        const matchesSearch = matchesName || matchesPhone || matchesEmail || matchesCustomerId;
+        
+        if (!matchesSearch) return false;
+      }
+      
+      // Apply additional filters
+      return applyFilters(customer);
+    });
+  }, [customersData, searchQuery, filters]);
+
+  // ✅ SORTING - Separate from filtering for better performance
+  const sortedCustomers = useMemo(() => {
+    return [...filteredCustomers].sort((a, b) => {
       let comparison = 0;
       
       switch (sortField) {
@@ -420,7 +447,7 @@ const Customers = () => {
       
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  };
+  }, [filteredCustomers, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -448,33 +475,6 @@ const Customers = () => {
     const directionLabel = sortDirection === 'asc' ? '↑' : '↓';
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
-
-  // ✅ ENHANCED MULTI-FIELD SEARCH: Searches by Name, Phone, Email, and Customer ID
-  const filteredAndSortedCustomers = sortCustomers(
-    customersData
-      .filter(customer => {
-        // Apply search query if present
-        if (searchQuery.trim() !== '') {
-          const query = searchQuery.toLowerCase().trim();
-          const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
-          const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
-          
-          // Search across all fields with case-insensitive matching
-          const matchesName = customer.name.toLowerCase().includes(query);
-          const matchesPhone = normalizedCustomerPhone.includes(normalizedSearchPhone);
-          const matchesEmail = customer.email?.toLowerCase().includes(query) || false;
-          const matchesCustomerId = customer.customerId?.toLowerCase().includes(query) || false;
-          
-          // Return true if ANY field matches
-          const matchesSearch = matchesName || matchesPhone || matchesEmail || matchesCustomerId;
-          
-          if (!matchesSearch) return false;
-        }
-        
-        // Apply additional filters
-        return applyFilters(customer);
-      })
-  );
 
   if (error) {
     return (
@@ -883,14 +883,14 @@ const Customers = () => {
       
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Showing {filteredAndSortedCustomers.length} of {customersData.length} customers
+          Showing {sortedCustomers.length} of {customersData.length} customers
         </p>
       </div>
 
       {/* CUSTOMER GRID */}
-      {filteredAndSortedCustomers.length > 0 ? (
+      {sortedCustomers.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredAndSortedCustomers.map((customer) => (
+          {sortedCustomers.map((customer) => (
             <CustomerCard 
               key={customer.id} 
               customer={customer} 
