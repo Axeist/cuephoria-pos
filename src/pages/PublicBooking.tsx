@@ -1976,7 +1976,7 @@ export default function PublicBooking() {
                               </td>
                               <td className="py-2">{statusChip(r.status)}</td>
                             </tr>
-                          )))}
+                          ))}
                         </tbody>
                       </table>
                     </div>
