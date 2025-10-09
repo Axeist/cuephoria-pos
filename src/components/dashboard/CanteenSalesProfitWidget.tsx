@@ -55,7 +55,14 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
     });
 
     filteredBills.forEach(bill => {
-      console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items);
+      // FIXED: Check if bill is complimentary and skip it for product performance
+      const isComplimentary = bill.isComplimentary || 
+                             bill.paymentMethod === 'complimentary' || 
+                             bill.paymentMethod === 'Complimentary' ||
+                             bill.discount === 100 ||
+                             bill.total === 0;
+      
+      console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items, 'isComplimentary:', isComplimentary);
       
       bill.items.forEach(item => {
         if (item.type === 'product') {
@@ -95,19 +102,24 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
               totalProfit += itemProfit;
               console.log(`CanteenSalesProfitWidget - Adding profit: ${itemProfit} for ${item.name}`);
 
-              // Track individual product performance
-              if (!productSales[item.name]) {
-                productSales[item.name] = {
-                  name: item.name,
-                  sales: 0,
-                  quantity: 0,
-                  profit: 0
-                };
+              // FIXED: Track individual product performance ONLY for non-complimentary sales
+              if (!isComplimentary) {
+                if (!productSales[item.name]) {
+                  productSales[item.name] = {
+                    name: item.name,
+                    sales: 0,
+                    quantity: 0,
+                    profit: 0
+                  };
+                }
+                
+                productSales[item.name].sales += item.total;
+                productSales[item.name].quantity += item.quantity;
+                productSales[item.name].profit += itemProfit;
+                console.log(`CanteenSalesProfitWidget - Added to product performance: ${item.name}`);
+              } else {
+                console.log(`CanteenSalesProfitWidget - Skipped complimentary item from product performance: ${item.name}`);
               }
-              
-              productSales[item.name].sales += item.total;
-              productSales[item.name].quantity += item.quantity;
-              productSales[item.name].profit += itemProfit;
             }
           }
         }
