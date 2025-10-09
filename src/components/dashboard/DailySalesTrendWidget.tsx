@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,12 @@ interface DailySalesTrendWidgetProps {
 const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate, endDate }) => {
   const { bills } = usePOS();
   const [selectedPeriod, setSelectedPeriod] = useState<'7days' | '30days' | 'year'>('7days');
+
+  // FIXED: Filter out complimentary bills
+  const paidBills = useMemo(() => 
+    bills.filter(bill => bill.paymentMethod !== 'complimentary'),
+    [bills]
+  );
 
   const chartData = useMemo(() => {
     let days = 7;
@@ -39,7 +44,8 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
         });
       }
 
-      bills.forEach(bill => {
+      // Use paidBills instead of bills
+      paidBills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
         if (billDate >= yearStart && billDate <= now) {
           const monthIndex = billDate.getMonth();
@@ -62,7 +68,8 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
     });
 
     // Filter bills by date range if provided, otherwise use all bills
-    const filteredBills = bills.filter(bill => {
+    // Use paidBills instead of bills
+    const filteredBills = paidBills.filter(bill => {
       const billDate = new Date(bill.createdAt);
       if (startDate && endDate) {
         return billDate >= startDate && billDate <= endDate;
@@ -82,7 +89,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
     });
 
     return periodDays.map(({ dateStr, sales }) => ({ date: dateStr, sales }));
-  }, [bills, selectedPeriod, startDate, endDate]);
+  }, [paidBills, selectedPeriod, startDate, endDate]);
 
   const metrics = useMemo(() => {
     const totalSales = chartData.reduce((sum, day) => sum + day.sales, 0);
