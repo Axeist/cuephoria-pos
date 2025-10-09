@@ -30,7 +30,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
 
     console.log('CanteenSalesProfitWidget - Processing', filteredBills.length, 'bills');
 
-    // FIXED: Calculate stock value using BUYING PRICE for ONLY food and drinks categories (₹6376)
+    // FIXED: Calculate stock value using BUYING PRICE for ONLY food and drinks categories
     products.forEach(product => {
       const category = product.category.toLowerCase();
       // Only include food and drinks, exclude tobacco and challenges
@@ -55,14 +55,20 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
     });
 
     filteredBills.forEach(bill => {
-      // FIXED: Check if bill is complimentary and skip it for product performance
+      // FIXED: Check if bill is complimentary at the bill level and skip entire bill
       const isComplimentary = bill.isComplimentary || 
                              bill.paymentMethod === 'complimentary' || 
                              bill.paymentMethod === 'Complimentary' ||
                              bill.discount === 100 ||
                              bill.total === 0;
       
-      console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'with items:', bill.items, 'isComplimentary:', isComplimentary);
+      console.log('CanteenSalesProfitWidget - Processing bill:', bill.id, 'isComplimentary:', isComplimentary);
+      
+      // Skip complimentary bills entirely from ALL calculations
+      if (isComplimentary) {
+        console.log('CanteenSalesProfitWidget - Skipping complimentary bill:', bill.id);
+        return;
+      }
       
       bill.items.forEach(item => {
         if (item.type === 'product') {
@@ -102,31 +108,27 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
               totalProfit += itemProfit;
               console.log(`CanteenSalesProfitWidget - Adding profit: ${itemProfit} for ${item.name}`);
 
-              // FIXED: Track individual product performance ONLY for non-complimentary sales
-              if (!isComplimentary) {
-                if (!productSales[item.name]) {
-                  productSales[item.name] = {
-                    name: item.name,
-                    sales: 0,
-                    quantity: 0,
-                    profit: 0
-                  };
-                }
-                
-                productSales[item.name].sales += item.total;
-                productSales[item.name].quantity += item.quantity;
-                productSales[item.name].profit += itemProfit;
-                console.log(`CanteenSalesProfitWidget - Added to product performance: ${item.name}`);
-              } else {
-                console.log(`CanteenSalesProfitWidget - Skipped complimentary item from product performance: ${item.name}`);
+              // Track individual product performance
+              if (!productSales[item.name]) {
+                productSales[item.name] = {
+                  name: item.name,
+                  sales: 0,
+                  quantity: 0,
+                  profit: 0
+                };
               }
+              
+              productSales[item.name].sales += item.total;
+              productSales[item.name].quantity += item.quantity;
+              productSales[item.name].profit += itemProfit;
+              console.log(`CanteenSalesProfitWidget - Added to product performance: ${item.name}`);
             }
           }
         }
       });
     });
 
-    // Get all products sorted by sales (remove the slice to show all products)
+    // Get all products sorted by sales
     const allProducts = Object.values(productSales)
       .sort((a, b) => b.sales - a.sales);
 
