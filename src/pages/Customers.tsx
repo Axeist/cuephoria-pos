@@ -726,7 +726,7 @@ const Customers = () => {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search by name, phone, email, or Customer ID..." 
+              placeholder="Search by phone number or Customer ID..." 
               className="pl-8" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
