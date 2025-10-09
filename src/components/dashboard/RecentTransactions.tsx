@@ -196,20 +196,28 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   const handleEditClick = (bill: Bill) => {
+    console.log('RecentTransactions: Edit clicked for bill:', bill.id);
+    
+    // Set all editing states first
     setEditingBill(bill);
     setEditedItems([...bill.items]);
     setEditingDiscount(bill.discount);
     setEditingDiscountType(bill.discountType);
     setEditingLoyaltyPointsUsed(bill.loyaltyPointsUsed);
     setEditingPaymentMethod(bill.paymentMethod);
-    
     setEditingSplitPayment(bill.isSplitPayment || false);
     setEditingCashAmount(bill.cashAmount || 0);
     setEditingUpiAmount(bill.upiAmount || 0);
-    
     setEditingCustomer(customers.find(c => c.id === bill.customerId) || null);
     setIsEditing(true);
-    setIsEditDialogOpen(true);
+    
+    console.log('RecentTransactions: All states set, opening dialog');
+    
+    // Open dialog after state updates (this fixes the issue)
+    setTimeout(() => {
+      setIsEditDialogOpen(true);
+      console.log('RecentTransactions: Dialog opened');
+    }, 0);
   };
   
   const handleUpdateItem = (index: number, field: keyof CartItem, value: any) => {
@@ -508,6 +516,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                           size="icon" 
                           className="text-gray-400 hover:text-blue-500 transition-colors"
                           onClick={() => handleEditClick(bill)}
+                          type="button"
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
@@ -516,6 +525,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                           size="icon" 
                           className="text-gray-400 hover:text-red-500 transition-colors"
                           onClick={() => handleDeleteClick(bill)}
+                          type="button"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
