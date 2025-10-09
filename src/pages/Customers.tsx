@@ -12,6 +12,7 @@ import { usePOS, Customer } from '@/context/POSContext';
 import CustomerCard from '@/components/CustomerCard';
 import CustomerInsightWidgets from '@/components/customers/CustomerInsightWidgets';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
 type SortDirection = 'asc' | 'desc';
@@ -61,6 +62,7 @@ const Customers = () => {
 
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicates, setDuplicates] = useState<Array<{ phone: string; customers: Customer[] }>>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [formState, setFormState] = useState({
     name: '',
@@ -327,19 +329,149 @@ const Customers = () => {
     }
   };
 
-  const resolveDuplicate = (phoneGroup: { phone: string; customers: Customer[] }, keepCustomerId: string) => {
+  // ✅ NEW: Merge bookings from one customer to another
+  const mergeCustomerBookings = async (fromCustomerId: string, toCustomerId: string): Promise<boolean> => {
+    try {
+      console.log(`Merging bookings from ${fromCustomerId} to ${toCustomerId}`);
+      
+      // First check if there are any bookings to merge
+      const { data: bookingsToMerge, error: checkError } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('customer_id', fromCustomerId);
+      
+      if (checkError) {
+        console.error('Error checking bookings:', checkError);
+        throw checkError;
+      }
+      
+      if (bookingsToMerge && bookingsToMerge.length > 0) {
+        console.log(`Found ${bookingsToMerge.length} bookings to merge`);
+        
+        // Transfer all bookings to the keeper customer
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({ customer_id: toCustomerId })
+          .eq('customer_id', fromCustomerId);
+        
+        if (updateError) {
+          console.error('Error merging bookings:', updateError);
+          throw updateError;
+        }
+        
+        console.log(`Successfully merged ${bookingsToMerge.length} bookings`);
+      } else {
+        console.log('No bookings to merge');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error in mergeCustomerBookings:', error);
+      return false;
+    }
+  };
+
+  // ✅ UPDATED: Resolve duplicates with booking merge
+  const resolveDuplicate = async (
+    phoneGroup: { phone: string; customers: Customer[] }, 
+    keepCustomerId: string
+  ) => {
+    if (isProcessing) {
+      toast({
+        title: 'Please Wait',
+        description: 'Already processing duplicates...',
+        variant: 'default'
+      });
+      return;
+    }
+
+    const keeper = phoneGroup.customers.find(c => c.id === keepCustomerId);
     const toDelete = phoneGroup.customers.filter(c => c.id !== keepCustomerId);
     
-    toDelete.forEach(customer => {
-      deleteCustomer(customer.id);
-    });
-
+    if (!keeper) {
+      toast({
+        title: 'Error',
+        description: 'Selected customer not found',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setIsProcessing(true);
+    
     toast({
-      title: 'Duplicates Removed',
-      description: `Removed ${toDelete.length} duplicate customer(s) for phone ${phoneGroup.phone}`
+      title: 'Processing...',
+      description: `Merging ${toDelete.length} duplicate customer(s) and their bookings...`
     });
+    
+    try {
+      // Step 1: Merge bookings from each duplicate to the keeper
+      let totalBookingsMerged = 0;
+      
+      for (const customer of toDelete) {
+        console.log(`Processing duplicate: ${customer.name} (${customer.customerId || customer.id})`);
+        
+        const merged = await mergeCustomerBookings(customer.id, keepCustomerId);
+        
+        if (!merged) {
+          toast({
+            title: 'Error',
+            description: `Failed to merge bookings for ${customer.name}. Stopping process.`,
+            variant: 'destructive'
+          });
+          setIsProcessing(false);
+          return;
+        }
+        
+        // Check how many bookings were merged
+        const { data: mergedBookings } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('customer_id', keepCustomerId);
+        
+        if (mergedBookings) {
+          console.log(`Customer ${keeper.name} now has ${mergedBookings.length} total bookings`);
+        }
+      }
+      
+      // Step 2: Now safely delete the duplicate customers
+      let deletedCount = 0;
+      for (const customer of toDelete) {
+        try {
+          console.log(`Deleting duplicate customer: ${customer.name} (${customer.customerId || customer.id})`);
+          await deleteCustomer(customer.id);
+          deletedCount++;
+        } catch (error) {
+          console.error(`Failed to delete ${customer.name}:`, error);
+          toast({
+            title: 'Warning',
+            description: `Could not delete ${customer.name}, but bookings were merged`,
+            variant: 'default'
+          });
+        }
+      }
 
-    findDuplicates();
+      // Step 3: Show success message
+      toast({
+        title: 'Duplicates Removed',
+        description: `Removed ${deletedCount} duplicate customer(s) and merged all their bookings to ${keeper.name} (${keeper.customerId})`
+      });
+
+      // Step 4: Refresh the duplicate list
+      setTimeout(() => {
+        findDuplicates();
+        setIsProcessing(false);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error in resolveDuplicate:', error);
+      toast({
+        title: 'Error',
+        description: 'An error occurred while processing duplicates',
+        variant: 'destructive'
+      });
+      setIsProcessing(false);
+    }
   };
 
   const applyFilters = (customer: Customer): boolean => {
@@ -449,7 +581,6 @@ const Customers = () => {
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
 
-  // ✅ UPDATED: Enhanced search with Customer ID support
   const filteredAndSortedCustomers = sortCustomers(
     customersData
       .filter(customer => {
@@ -462,7 +593,7 @@ const Customers = () => {
             customer.name.toLowerCase().includes(query) || 
             normalizedCustomerPhone.includes(normalizedSearchPhone) ||
             customer.email?.toLowerCase().includes(query) ||
-            customer.customerId?.toLowerCase().includes(query); // ✅ Search by Customer ID
+            customer.customerId?.toLowerCase().includes(query);
           
           if (!matchesSearch) return false;
         }
@@ -498,6 +629,7 @@ const Customers = () => {
               variant="outline" 
               onClick={() => setShowDuplicateDialog(true)}
               className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white"
+              disabled={isProcessing}
             >
               <User className="h-4 w-4 mr-2" /> 
               Fix Duplicates ({duplicates.length})
@@ -543,7 +675,6 @@ const Customers = () => {
 
       <CustomerInsightWidgets customers={customersData} />
 
-      {/* ADD CUSTOMER DIALOG */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -662,13 +793,12 @@ const Customers = () => {
         </DialogContent>
       </Dialog>
 
-      {/* DUPLICATE CLEANUP DIALOG */}
       <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Duplicate Customers Found</DialogTitle>
             <DialogDescription>
-              Found {duplicates.length} phone number(s) with duplicate entries. Select which customer to keep for each group.
+              Found {duplicates.length} phone number(s) with duplicate entries. Select which customer to keep for each group. All bookings will be merged automatically.
             </DialogDescription>
           </DialogHeader>
           
@@ -701,9 +831,10 @@ const Customers = () => {
                       <Button
                         size="sm"
                         onClick={() => resolveDuplicate(dupGroup, customer.id)}
+                        disabled={isProcessing}
                         className="ml-4"
                       >
-                        Keep This One
+                        {isProcessing ? 'Processing...' : 'Keep This One'}
                       </Button>
                     </div>
                   ))}
@@ -713,14 +844,13 @@ const Customers = () => {
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDuplicateDialog(false)}>
+            <Button variant="outline" onClick={() => setShowDuplicateDialog(false)} disabled={isProcessing}>
               Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* FILTER PANEL */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -882,7 +1012,6 @@ const Customers = () => {
         </p>
       </div>
 
-      {/* CUSTOMER GRID */}
       {filteredAndSortedCustomers.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredAndSortedCustomers.map((customer) => (
