@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronRight, Trash2, Edit2, Gift } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Gift } from 'lucide-react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -50,7 +50,6 @@ interface ExpandableBillRowProps {
   getCustomerName: (customerId: string) => string;
   getCustomerPhone?: (customerId: string) => string;
   searchTerm?: string;
-  onEdit?: (bill: Bill) => void;
   onDelete?: (bill: Bill) => void;
 }
 
@@ -59,7 +58,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   getCustomerName, 
   getCustomerPhone,
   searchTerm = '',
-  onEdit,
   onDelete
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -83,15 +81,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   if (!matchesSearch) {
     return null;
   }
-
-  const handleEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    if (onEdit) {
-      onEdit(bill);
-    }
-  };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -213,17 +202,6 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-1">
-            {onEdit && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleEdit}
-                className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-950/30"
-                type="button"
-              >
-                <Edit2 className="h-4 w-4" />
-              </Button>
-            )}
             {onDelete && (
               <Button
                 variant="ghost"
