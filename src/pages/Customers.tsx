@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -97,7 +97,6 @@ const Customers = () => {
     if (posContext && customers) {
       setCustomersData(customers);
       setIsContextLoaded(true);
-      console.log('✅ Customers loaded:', customers.length);
     }
   }, [posContext, customers]);
 
@@ -106,11 +105,6 @@ const Customers = () => {
       findDuplicates();
     }
   }, [customersData]);
-
-  // ✅ DEBUG: Log search query changes
-  useEffect(() => {
-    console.log('🔍 Search query changed:', searchQuery);
-  }, [searchQuery]);
 
   const resetForm = () => {
     setFormState({
@@ -403,60 +397,8 @@ const Customers = () => {
     return count;
   };
 
-  // ✅ IMPROVED SEARCH HANDLER with logging
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    console.log('🔍 Search input changed to:', value);
-    setSearchQuery(value);
-  };
-
-  // ✅ REAL-TIME SEARCH FILTER with detailed logging
-  const filteredCustomers = useMemo(() => {
-    console.log('🔄 Filtering customers...');
-    console.log('Total customers:', customersData.length);
-    console.log('Current search query:', searchQuery);
-    
-    const result = customersData.filter(customer => {
-      // Apply search query if present
-      if (searchQuery && searchQuery.trim() !== '') {
-        const query = searchQuery.toLowerCase().trim();
-        const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
-        const normalizedCustomerPhone = normalizePhoneNumber(customer.phone || '');
-        
-        // Search across all fields with case-insensitive matching
-        const matchesName = customer.name?.toLowerCase().includes(query) || false;
-        const matchesPhone = normalizedCustomerPhone.includes(normalizedSearchPhone);
-        const matchesEmail = customer.email?.toLowerCase().includes(query) || false;
-        const matchesCustomerId = customer.customerId?.toLowerCase().includes(query) || false;
-        
-        // Debug logging for each customer
-        if (query === 'ranjith') {
-          console.log('Checking customer:', {
-            name: customer.name,
-            matchesName,
-            matchesPhone,
-            matchesEmail,
-            matchesCustomerId
-          });
-        }
-        
-        // Return true if ANY field matches
-        const matchesSearch = matchesName || matchesPhone || matchesEmail || matchesCustomerId;
-        
-        if (!matchesSearch) return false;
-      }
-      
-      // Apply additional filters
-      return applyFilters(customer);
-    });
-    
-    console.log('✅ Filtered results:', result.length);
-    return result;
-  }, [customersData, searchQuery, filters]);
-
-  // ✅ SORTING
-  const sortedCustomers = useMemo(() => {
-    return [...filteredCustomers].sort((a, b) => {
+  const sortCustomers = (customers: Customer[]) => {
+    return [...customers].sort((a, b) => {
       let comparison = 0;
       
       switch (sortField) {
@@ -478,7 +420,7 @@ const Customers = () => {
       
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [filteredCustomers, sortField, sortDirection]);
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -506,6 +448,28 @@ const Customers = () => {
     const directionLabel = sortDirection === 'asc' ? '↑' : '↓';
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
+
+  // ✅ UPDATED: Enhanced search with Customer ID support
+  const filteredAndSortedCustomers = sortCustomers(
+    customersData
+      .filter(customer => {
+        if (searchQuery.trim() !== '') {
+          const query = searchQuery.toLowerCase();
+          const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
+          const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
+          
+          const matchesSearch = 
+            customer.name.toLowerCase().includes(query) || 
+            normalizedCustomerPhone.includes(normalizedSearchPhone) ||
+            customer.email?.toLowerCase().includes(query) ||
+            customer.customerId?.toLowerCase().includes(query); // ✅ Search by Customer ID
+          
+          if (!matchesSearch) return false;
+        }
+        
+        return applyFilters(customer);
+      })
+  );
 
   if (error) {
     return (
@@ -765,7 +729,7 @@ const Customers = () => {
               placeholder="Search by name, phone, email, or Customer ID..." 
               className="pl-8" 
               value={searchQuery} 
-              onChange={handleSearchChange}
+              onChange={(e) => setSearchQuery(e.target.value)} 
             />
           </div>
           
@@ -914,14 +878,14 @@ const Customers = () => {
       
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Showing {sortedCustomers.length} of {customersData.length} customers
+          Showing {filteredAndSortedCustomers.length} of {customersData.length} customers
         </p>
       </div>
 
       {/* CUSTOMER GRID */}
-      {sortedCustomers.length > 0 ? (
+      {filteredAndSortedCustomers.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedCustomers.map((customer) => (
+          {filteredAndSortedCustomers.map((customer) => (
             <CustomerCard 
               key={customer.id} 
               customer={customer} 
@@ -956,4 +920,4 @@ const Customers = () => {
   );
 };
 
-export default Customers;
+export default Customers; 
