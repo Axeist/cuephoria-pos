@@ -97,6 +97,7 @@ const Customers = () => {
     if (posContext && customers) {
       setCustomersData(customers);
       setIsContextLoaded(true);
+      console.log('✅ Customers loaded:', customers.length);
     }
   }, [posContext, customers]);
 
@@ -105,6 +106,11 @@ const Customers = () => {
       findDuplicates();
     }
   }, [customersData]);
+
+  // ✅ DEBUG: Log search query changes
+  useEffect(() => {
+    console.log('🔍 Search query changed:', searchQuery);
+  }, [searchQuery]);
 
   const resetForm = () => {
     setFormState({
@@ -397,20 +403,42 @@ const Customers = () => {
     return count;
   };
 
-  // ✅ REAL-TIME SEARCH FILTER - Using useMemo for performance
+  // ✅ IMPROVED SEARCH HANDLER with logging
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    console.log('🔍 Search input changed to:', value);
+    setSearchQuery(value);
+  };
+
+  // ✅ REAL-TIME SEARCH FILTER with detailed logging
   const filteredCustomers = useMemo(() => {
-    return customersData.filter(customer => {
+    console.log('🔄 Filtering customers...');
+    console.log('Total customers:', customersData.length);
+    console.log('Current search query:', searchQuery);
+    
+    const result = customersData.filter(customer => {
       // Apply search query if present
       if (searchQuery && searchQuery.trim() !== '') {
         const query = searchQuery.toLowerCase().trim();
         const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
-        const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
+        const normalizedCustomerPhone = normalizePhoneNumber(customer.phone || '');
         
         // Search across all fields with case-insensitive matching
-        const matchesName = customer.name.toLowerCase().includes(query);
+        const matchesName = customer.name?.toLowerCase().includes(query) || false;
         const matchesPhone = normalizedCustomerPhone.includes(normalizedSearchPhone);
         const matchesEmail = customer.email?.toLowerCase().includes(query) || false;
         const matchesCustomerId = customer.customerId?.toLowerCase().includes(query) || false;
+        
+        // Debug logging for each customer
+        if (query === 'ranjith') {
+          console.log('Checking customer:', {
+            name: customer.name,
+            matchesName,
+            matchesPhone,
+            matchesEmail,
+            matchesCustomerId
+          });
+        }
         
         // Return true if ANY field matches
         const matchesSearch = matchesName || matchesPhone || matchesEmail || matchesCustomerId;
@@ -421,9 +449,12 @@ const Customers = () => {
       // Apply additional filters
       return applyFilters(customer);
     });
+    
+    console.log('✅ Filtered results:', result.length);
+    return result;
   }, [customersData, searchQuery, filters]);
 
-  // ✅ SORTING - Separate from filtering for better performance
+  // ✅ SORTING
   const sortedCustomers = useMemo(() => {
     return [...filteredCustomers].sort((a, b) => {
       let comparison = 0;
@@ -734,7 +765,7 @@ const Customers = () => {
               placeholder="Search by name, phone, email, or Customer ID..." 
               className="pl-8" 
               value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
+              onChange={handleSearchChange}
             />
           </div>
           
