@@ -84,17 +84,44 @@ const genTxnId = () =>
 
 const isHappyHour = (date: Date, slot: TimeSlot | null) => {
   if (!slot) return false;
-  const day = getDay(date); // 0 Sun .. 6 Sat
+  const day = getDay(date);
   const startHour = Number(slot.start_time.split(":")[0]);
-  return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16; // Mon-Fri, 11:00–15:59
+  return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
 };
 
-// Get slot duration by station type
+// ✅ NEW: Phone number normalization
+const normalizePhoneNumber = (phone: string): string => {
+  return phone.replace(/\D/g, '');
+};
+
+// ✅ NEW: Generate unique Customer ID
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
+// ✅ NEW: Validate Indian phone number
+const validatePhoneNumber = (phone: string): { valid: boolean; error?: string } => {
+  const normalized = normalizePhoneNumber(phone);
+  
+  if (normalized.length !== 10) {
+    return { valid: false, error: 'Phone number must be exactly 10 digits' };
+  }
+
+  const phoneRegex = /^[6-9]\d{9}$/;
+  if (!phoneRegex.test(normalized)) {
+    return { valid: false, error: 'Please enter a valid Indian mobile number (starting with 6, 7, 8, or 9)' };
+  }
+
+  return { valid: true };
+};
+
 const getSlotDuration = (stationType: StationType) => {
   return stationType === 'vr' ? 15 : 60;
 };
 
-// Get booking duration based on selected station types
 const getBookingDuration = (stationIds: string[], stations: Station[]) => {
   const hasVR = stationIds.some(id => 
     stations.find(s => s.id === id && s.type === 'vr')
@@ -106,7 +133,6 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
    Component
    ========================= */
 export default function PublicBooking() {
-  // Stations & slots
   const [stations, setStations] = useState<Station[]>([]);
   const [stationType, setStationType] = useState<"all" | StationType>("all");
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
@@ -114,7 +140,6 @@ export default function PublicBooking() {
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 
-  // Customer
   const [customerNumber, setCustomerNumber] = useState("");
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
@@ -125,15 +150,12 @@ export default function PublicBooking() {
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Coupons
   const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>({});
   const [couponCode, setCouponCode] = useState("");
 
-  // Payment
   const [paymentMethod, setPaymentMethod] = useState<"venue" | "phonepe">("venue");
   const [loading, setLoading] = useState(false);
 
-  // Misc
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
@@ -145,11 +167,9 @@ export default function PublicBooking() {
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
   
-  // Payment callback handling
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
 
-  // Handle payment callbacks from PhonePe
   useEffect(() => {
     const pp = searchParams.get("pp");
     const txn = searchParams.get("txn");
@@ -164,14 +184,13 @@ export default function PublicBooking() {
         toast.error("Payment failed. Please try again or choose 'Pay at Venue'.");
       }
       
-      // Clean up URL parameters
       setSearchParams({});
     }
   }, [searchParams, setSearchParams]);
 
+  // ✅ UPDATED: Payment success handler with duplicate check and Customer ID
   const handlePaymentSuccess = async (txnId: string) => {
     try {
-      // Verify payment status
       const statusResponse = await fetch(`https://admin.cuephoria.in/api/phonepe/status?txn=${encodeURIComponent(txnId)}`);
       const statusData = await statusResponse.json();
       
@@ -179,7 +198,6 @@ export default function PublicBooking() {
         throw new Error("Payment verification failed");
       }
       
-      // Get pending booking data
       const pendingBookingData = localStorage.getItem("pendingBooking");
       if (!pendingBookingData) {
         throw new Error("No pending booking found");
@@ -187,24 +205,30 @@ export default function PublicBooking() {
       
       const pendingBooking = JSON.parse(pendingBookingData);
       
-      // Create customer if needed
       let customerId = pendingBooking.customer.id;
+      
       if (!customerId) {
+        const normalizedPhone = normalizePhoneNumber(pendingBooking.customer.phone);
+        
+        // ✅ Check for existing customer
         const { data: existingCustomer } = await supabase
           .from("customers")
           .select("id")
-          .eq("phone", pendingBooking.customer.phone)
+          .eq("phone", normalizedPhone)
           .maybeSingle();
         
         if (existingCustomer?.id) {
           customerId = existingCustomer.id;
         } else {
+          const customerID = generateCustomerID(normalizedPhone);
+          
           const { data: newCustomer, error } = await supabase
             .from("customers")
             .insert({
               name: pendingBooking.customer.name,
-              phone: pendingBooking.customer.phone,
+              phone: normalizedPhone,
               email: pendingBooking.customer.email || null,
+              custom_id: customerID,
               is_member: false,
               loyalty_points: 0,
               total_spent: 0,
@@ -213,12 +237,28 @@ export default function PublicBooking() {
             .select("id")
             .single();
           
-          if (error) throw error;
-          customerId = newCustomer.id;
+          if (error) {
+            if (error.code === '23505') {
+              const { data: retryCustomer } = await supabase
+                .from("customers")
+                .select("id")
+                .eq("phone", normalizedPhone)
+                .single();
+              
+              if (retryCustomer) {
+                customerId = retryCustomer.id;
+              } else {
+                throw error;
+              }
+            } else {
+              throw error;
+            }
+          } else {
+            customerId = newCustomer.id;
+          }
         }
       }
       
-      // Create booking records with dynamic duration
       const bookingDuration = getBookingDuration(pendingBooking.selectedStations, stations);
       const bookingRows = pendingBooking.selectedStations.map((stationId: string) => ({
         station_id: stationId,
@@ -244,12 +284,10 @@ export default function PublicBooking() {
       
       if (bookingError) throw bookingError;
       
-      // Clean up and show success
       localStorage.removeItem("pendingBooking");
       setPaymentStatus("success");
       toast.success("🎉 Payment successful! Your booking is confirmed.");
       
-      // Refresh data
       fetchTodaysBookings();
       if (selectedStations.length > 0 && selectedDate) {
         fetchAvailableSlots();
@@ -262,16 +300,12 @@ export default function PublicBooking() {
     }
   };
 
-  /* =========================
-     Effects
-     ========================= */
   useEffect(() => {
     fetchStations();
     fetchTodaysBookings();
   }, []);
 
   useEffect(() => {
-    // Remove HH99 if happy hour condition breaks
     if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
       setAppliedCoupons((prev) => {
         const copy = { ...prev };
@@ -315,9 +349,6 @@ export default function PublicBooking() {
     }
   }, [selectedStations, selectedDate]);
 
-  /* =========================
-     Queries
-     ========================= */
   async function fetchStations() {
     try {
       const { data, error } = await supabase
@@ -342,7 +373,6 @@ export default function PublicBooking() {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
       
-      // Check if we have mixed station types
       const hasVR = selectedStations.some(id => 
         stations.find(s => s.id === id && s.type === 'vr')
       );
@@ -350,7 +380,6 @@ export default function PublicBooking() {
         stations.find(s => s.id === id && s.type !== 'vr')
       );
       
-      // Prevent mixing VR with non-VR due to different time intervals
       if (hasVR && hasNonVR) {
         toast.error("VR sessions cannot be booked with other station types due to different time intervals (VR: 15 min, Others: 60 min)");
         setSelectedStations(selectedStations.filter(id => 
@@ -359,7 +388,6 @@ export default function PublicBooking() {
         return;
       }
       
-      // Get appropriate slot duration
       const slotDuration = hasVR ? 15 : 60;
       
       if (selectedStations.length === 1) {
@@ -372,7 +400,6 @@ export default function PublicBooking() {
         
         let slotsToSet = data || [];
         
-        // Mark past slots as elapsed if today
         if (isToday) {
           const now = new Date();
           const currentHour = now.getHours();
@@ -381,7 +408,6 @@ export default function PublicBooking() {
           slotsToSet = slotsToSet.map((slot: TimeSlot) => {
             const [slotHour, slotMinute] = slot.start_time.split(':').map(Number);
             
-            // Check if slot time has passed
             const isPast = (slotHour < currentHour) || 
                           (slotHour === currentHour && slotMinute <= currentMinute);
             
@@ -398,7 +424,6 @@ export default function PublicBooking() {
         
         setAvailableSlots(slotsToSet);
       } else {
-        // Merge available slots across selected stations
         const results = await Promise.all(
           selectedStations.map((id) =>
             supabase.rpc("get_available_slots", {
@@ -430,7 +455,6 @@ export default function PublicBooking() {
           is_available: union.get(key(s)) ?? false,
         }));
         
-        // Mark past slots as elapsed if today
         if (isToday) {
           const now = new Date();
           const currentHour = now.getHours();
@@ -456,7 +480,6 @@ export default function PublicBooking() {
         setAvailableSlots(merged);
       }
 
-      // Deselect slot if it became unavailable or is in the past
       if (
         selectedSlot &&
         !availableSlots.some(
@@ -476,18 +499,29 @@ export default function PublicBooking() {
     }
   }
 
+  // ✅ UPDATED: searchCustomer with phone normalization
   async function searchCustomer() {
     if (!customerNumber.trim()) {
       toast.error("Please enter a customer number");
       return;
     }
+
+    const normalizedPhone = normalizePhoneNumber(customerNumber);
+    
+    const validation = validatePhoneNumber(normalizedPhone);
+    if (!validation.valid) {
+      toast.error(validation.error || "Invalid phone number");
+      return;
+    }
+
     setSearchingCustomer(true);
     try {
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, phone, email")
-        .eq("phone", customerNumber)
-        .single();
+        .select("id, name, phone, email, custom_id")
+        .eq("phone", normalizedPhone)
+        .maybeSingle();
+        
       if (error && (error as any).code !== "PGRST116") throw error;
 
       if (data) {
@@ -495,13 +529,17 @@ export default function PublicBooking() {
         setCustomerInfo({
           id: data.id,
           name: data.name,
-          phone: data.phone,
+          phone: normalizedPhone,
           email: data.email || "",
         });
         toast.success(`Welcome back, ${data.name}! 🎮`);
       } else {
         setIsReturningCustomer(false);
-        setCustomerInfo({ name: "", phone: customerNumber, email: "" });
+        setCustomerInfo({ 
+          name: "", 
+          phone: normalizedPhone,
+          email: "" 
+        });
         toast.info("New customer! Please fill in your details below.");
       }
       setHasSearched(true);
@@ -513,14 +551,10 @@ export default function PublicBooking() {
     }
   }
 
-  /* =========================
-     Selection helpers
-     ========================= */
   const handleStationToggle = (id: string) => {
     const station = stations.find(s => s.id === id);
     if (!station) return;
     
-    // Check for mixed station types when adding
     if (!selectedStations.includes(id)) {
       const hasVR = selectedStations.some(stationId => 
         stations.find(s => s.id === stationId && s.type === 'vr')
@@ -545,7 +579,6 @@ export default function PublicBooking() {
     if (selectedStations.length === 0) return selectedStations;
     const dateStr = format(selectedDate, "yyyy-MM-dd");
     
-    // Get slot duration based on selected stations
     const hasVR = selectedStations.some(id => 
       stations.find(s => s.id === id && s.type === 'vr')
     );
@@ -583,7 +616,6 @@ export default function PublicBooking() {
   }
 
   async function handleSlotSelect(slot: TimeSlot) {
-    // Prevent selection of elapsed slots
     if (slot.status === 'elapsed') {
       toast.error("Cannot select a time slot that has already passed.");
       return;
@@ -600,10 +632,6 @@ export default function PublicBooking() {
     }
     setSelectedSlot(slot);
   }
-
-  /* =========================
-     Coupons & Pricing
-     ========================= */
 
   const allowedCoupons = [
     "CUEPHORIA25",
@@ -646,7 +674,6 @@ export default function PublicBooking() {
     );
     const happyHourActive = isHappyHour(selectedDate, selectedSlot);
 
-    // CUEPHORIA50
     if (code === "CUEPHORIA50") {
       if (!validateStudentID()) return;
       setAppliedCoupons({ all: "CUEPHORIA50" });
@@ -656,7 +683,6 @@ export default function PublicBooking() {
       return;
     }
 
-    // AXEIST
     if (code === "AXEIST") {
       const ok = window.confirm(
         "🥷 AXEIST grants 100% OFF for close friends. Apply?"
@@ -667,14 +693,12 @@ export default function PublicBooking() {
       return;
     }
 
-    // CUEPHORIA25
     if (code === "CUEPHORIA25") {
       setAppliedCoupons({ all: "CUEPHORIA25" });
       toast.success("🎉 CUEPHORIA25 applied: 25% OFF! Book more, play more! 🕹️");
       return;
     }
 
-    // HH99 - Only for PS5 and 8-Ball, not VR
     if (code === "HH99") {
       if (selectedHasVR) {
         toast.error("⏰ HH99 is not applicable to VR gaming stations.");
@@ -700,7 +724,6 @@ export default function PublicBooking() {
       return;
     }
 
-    // NIT50 logic
     if (code === "NIT50") {
       if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
         toast.error(
@@ -725,7 +748,6 @@ export default function PublicBooking() {
       return;
     }
 
-    // ALMA50
     if (code === "ALMA50") {
       if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
         toast.error(
@@ -761,8 +783,6 @@ export default function PublicBooking() {
     return stations
       .filter((s) => selectedStations.includes(s.id))
       .reduce((sum, s) => {
-        // For VR stations, the rate is already for 15 minutes, don't divide
-        // For other stations, the rate is hourly
         const sessionRate = s.type === 'vr' ? s.hourly_rate : s.hourly_rate;
         return sum + sessionRate;
       }, 0);
@@ -791,7 +811,6 @@ export default function PublicBooking() {
     let totalDiscount = 0;
     const breakdown: Record<string, number> = {};
 
-    // HH99 stacked with NIT50: 8-ball at ₹99, PS5 at ₹75
     if (
       appliedCoupons["8ball"] === "HH99" &&
       appliedCoupons["ps5"] === "NIT50"
@@ -809,7 +828,7 @@ export default function PublicBooking() {
         (s) => selectedStations.includes(s.id) && s.type === "ps5"
       );
       const sum2 = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-      const d2 = sum2 - ps5s.length * 75; // Special stacked price ₹75
+      const d2 = sum2 - ps5s.length * 75;
       totalDiscount += d2;
       breakdown["PS5 (HH99+NIT50)"] = d2;
     } else {
@@ -861,7 +880,6 @@ export default function PublicBooking() {
         const vrStations = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "vr"
         );
-        // VR rate is already for 15 mins, don't divide by 4
         const sum = vrStations.reduce((x, s) => x + s.hourly_rate, 0);
         const d = sum * 0.5;
         totalDiscount += d;
@@ -884,29 +902,61 @@ export default function PublicBooking() {
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
 
-  /* =========================
-     Create booking (Pay at venue)
-     ========================= */
+  // ✅ UPDATED: createVenueBooking with duplicate check and Customer ID
   async function createVenueBooking() {
     setLoading(true);
     try {
       let customerId = customerInfo.id;
+      
       if (!customerId) {
-        const { data: newCustomer, error: customerError } = await supabase
+        const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
+        
+        const validation = validatePhoneNumber(normalizedPhone);
+        if (!validation.valid) {
+          toast.error(validation.error || "Invalid phone number");
+          setLoading(false);
+          return;
+        }
+
+        // ✅ Check for duplicate phone number
+        const { data: existingCustomer } = await supabase
           .from("customers")
-          .insert({
-            name: customerInfo.name,
-            phone: customerInfo.phone,
-            email: customerInfo.email || null,
-            is_member: false,
-            loyalty_points: 0,
-            total_spent: 0,
-            total_play_time: 0,
-          })
-          .select("id")
-          .single();
-        if (customerError) throw customerError;
-        customerId = newCustomer.id;
+          .select("id, name, custom_id")
+          .eq("phone", normalizedPhone)
+          .maybeSingle();
+
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+          toast.info(`Using existing customer: ${existingCustomer.name}`);
+        } else {
+          const customerID = generateCustomerID(normalizedPhone);
+
+          const { data: newCustomer, error: customerError } = await supabase
+            .from("customers")
+            .insert({
+              name: customerInfo.name,
+              phone: normalizedPhone,
+              email: customerInfo.email || null,
+              custom_id: customerID,
+              is_member: false,
+              loyalty_points: 0,
+              total_spent: 0,
+              total_play_time: 0,
+            })
+            .select("id")
+            .single();
+            
+          if (customerError) {
+            if (customerError.code === '23505') {
+              toast.error("This phone number is already registered. Please search for your account.");
+              setLoading(false);
+              return;
+            }
+            throw customerError;
+          }
+          customerId = newCustomer.id;
+          toast.success(`New customer created: ${customerID}`);
+        }
       }
 
       const couponCodes = Object.values(appliedCoupons).join(",");
@@ -929,13 +979,13 @@ export default function PublicBooking() {
         .from("bookings")
         .insert(rows)
         .select("id");
+        
       if (bookingError) throw bookingError;
 
       const stationObjects = stations.filter((s) =>
         selectedStations.includes(s.id)
       );
       
-      // Get session duration for display
       const hasVR = selectedStations.some(id => 
         stations.find(s => s.id === id && s.type === 'vr')
       );
@@ -963,7 +1013,6 @@ export default function PublicBooking() {
 
       toast.success("🎉 Booking confirmed! Get ready to game! 🎮");
 
-      // Reset form
       setSelectedStations([]);
       setSelectedSlot(null);
       setCustomerNumber("");
@@ -981,9 +1030,6 @@ export default function PublicBooking() {
     }
   }
 
-  /* =========================
-     PhonePe payment (robust)
-     ========================= */
   const initiatePhonePe = async () => {
     if (finalPrice <= 0) {
       toast.error("Amount must be greater than 0 for online payment.");
@@ -1001,7 +1047,6 @@ export default function PublicBooking() {
 
     setLoading(true);
     try {
-      // Store pending booking data for after payment
       const bookingDuration = getBookingDuration(selectedStations, stations);
       const pendingBooking = {
         selectedStations,
@@ -1023,7 +1068,7 @@ export default function PublicBooking() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          amount: finalPrice, // rupees; server converts to paise
+          amount: finalPrice,
           customerPhone: customerInfo.phone,
           merchantTransactionId: txnId,
           successUrl,
@@ -1031,16 +1076,13 @@ export default function PublicBooking() {
         }),
       });
 
-      // IMPORTANT: read as text first (backend may return HTML/plain text on errors)
       const raw = await res.text();
       let data: any = null;
       try {
         data = JSON.parse(raw);
       } catch {
-        // Not JSON – that's OK; we'll use raw
       }
 
-      // Log everything once for debugging
       console.log("PhonePe pay upstream →", {
         status: res.status,
         ok: res.ok,
@@ -1049,12 +1091,10 @@ export default function PublicBooking() {
       });
 
       if (res.ok && data?.ok && data?.url) {
-        // Redirect to PhonePe hosted page
         window.location.href = data.url;
         return;
       }
 
-      // Nice error toasts that include API details when possible
       const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
       const step = data?.step ? ` (${data.step})` : "";
       const status = res.status ? ` [HTTP ${res.status}]` : "";
@@ -1091,9 +1131,6 @@ export default function PublicBooking() {
     }
   }
 
-  /* =========================
-     Today's bookings
-     ========================= */
   function maskPhone(p?: string) {
     if (!p) return "";
     const s = p.replace(/\D/g, "");
@@ -1253,12 +1290,8 @@ export default function PublicBooking() {
     }
   };
 
-  /* =========================
-     Render
-     ========================= */
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
-      {/* glows */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
         <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
@@ -1267,7 +1300,6 @@ export default function PublicBooking() {
 
       <CouponPromotionalPopup onCouponSelect={applyCoupon} />
 
-      {/* Header */}
       <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col items-center mb-8">
@@ -1291,7 +1323,6 @@ export default function PublicBooking() {
               Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria
             </p>
 
-            {/* LOB badge */}
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-gray-300 backdrop-blur-md">
               <span className="font-semibold tracking-wide">Line of Business:</span>
               <span>
@@ -1302,9 +1333,7 @@ export default function PublicBooking() {
         </div>
       </header>
 
-      {/* Main */}
       <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
-        {/* About */}
         <section className="mb-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-gray-300">
           <h2 className="mb-1 text-base font-semibold text-white">About Cuephoria</h2>
           <p>
@@ -1319,9 +1348,7 @@ export default function PublicBooking() {
         </section>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* LEFT SIDE */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Step 1: Customer */}
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
@@ -1346,19 +1373,24 @@ export default function PublicBooking() {
                   <Input
                     value={customerNumber}
                     onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomerNumber(val);
-                      setHasSearched(false);
-                      setIsReturningCustomer(false);
-                      setCustomerInfo((prev) => ({
-                        ...prev,
-                        name: "",
-                        email: "",
-                        phone: val,
-                      }));
+                      const value = e.target.value;
+                      const normalized = normalizePhoneNumber(value);
+                      
+                      if (normalized.length <= 10) {
+                        setCustomerNumber(normalized);
+                        setHasSearched(false);
+                        setIsReturningCustomer(false);
+                        setCustomerInfo((prev) => ({
+                          ...prev,
+                          name: "",
+                          email: "",
+                          phone: normalized,
+                        }));
+                      }
                     }}
-                    placeholder="Enter phone number"
+                    placeholder="Enter 10-digit phone number"
                     className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl flex-1"
+                    maxLength={10}
                   />
                   <Button
                     onClick={searchCustomer}
@@ -1415,7 +1447,6 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* Step 2: Stations */}
             <Card className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl">
               <CardHeader className="relative pb-4">
                 <div className="flex items-center justify-between gap-3">
@@ -1524,7 +1555,6 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
-            {/* Step 3: Time */}
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
@@ -1562,11 +1592,11 @@ export default function PublicBooking() {
                           onSelect={(date) => date && setSelectedDate(date)}
                           disabled={(date) => {
                             const today = new Date();
-                            today.setHours(0, 0, 0, 0); // Reset time to start of day
+                            today.setHours(0, 0, 0, 0);
                             const compareDate = new Date(date);
-                            compareDate.setHours(0, 0, 0, 0); // Reset time to start of day
+                            compareDate.setHours(0, 0, 0, 0);
                             
-                            return compareDate < today; // Only disable dates before today
+                            return compareDate < today;
                           }}
                           className={cn(
                             "rounded-xl border bg-black/30 border-white/10 pointer-events-auto"
@@ -1595,7 +1625,6 @@ export default function PublicBooking() {
             </Card>
           </div>
 
-          {/* RIGHT SIDE: Summary */}
           <div className="lg:col-span-1">
             <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl">
               <CardHeader>
@@ -1666,7 +1695,6 @@ export default function PublicBooking() {
                   </div>
                 )}
 
-                {/* Coupon */}
                 <div>
                   <Label className="text-xs font-semibold text-gray-400 uppercase">
                     Coupon Code
@@ -1739,7 +1767,6 @@ export default function PublicBooking() {
                   )}
                 </div>
 
-                {/* Payment method */}
                 <div className="mt-2">
                   <Label className="text-xs font-semibold text-gray-400 uppercase">
                     Payment Method
@@ -1777,7 +1804,6 @@ export default function PublicBooking() {
                   )}
                 </div>
 
-                {/* Totals */}
                 {originalPrice > 0 && (
                   <>
                     <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -1854,7 +1880,6 @@ export default function PublicBooking() {
           </div>
         </div>
 
-        {/* Policy summaries */}
         <section className="mt-10 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <h3 className="text-white font-semibold mb-2">
@@ -1897,7 +1922,6 @@ export default function PublicBooking() {
           </div>
         </section>
 
-        {/* Today's bookings */}
         <div className="mt-10">
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1952,7 +1976,7 @@ export default function PublicBooking() {
                               </td>
                               <td className="py-2">{statusChip(r.status)}</td>
                             </tr>
-                          ))}
+                          )))}
                         </tbody>
                       </table>
                     </div>
@@ -1964,7 +1988,6 @@ export default function PublicBooking() {
         </div>
       </main>
 
-            {/* Footer */}
       <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
@@ -2041,7 +2064,6 @@ export default function PublicBooking() {
         </div>
       </footer>
 
-      {/* Booking confirmation (venue only) */}
       {bookingConfirmationData && (
         <BookingConfirmationDialog 
           isOpen={showConfirmationDialog}
@@ -2050,14 +2072,12 @@ export default function PublicBooking() {
         />
       )}
 
-      {/* Legal dialog */}
       <LegalDialog 
         isOpen={showLegalDialog}
         onClose={() => setShowLegalDialog(false)}
         type={legalDialogType}
       />
 
-      {/* Refund policy modal */}
       {showRefundDialog && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
           <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
