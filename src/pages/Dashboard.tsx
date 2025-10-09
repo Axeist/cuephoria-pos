@@ -19,7 +19,6 @@ import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import CashManagement from '@/components/cash/CashManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -37,11 +36,8 @@ const Dashboard = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
-  
-  // NEW: Year filter state
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
-  
   const [dashboardStats, setDashboardStats] = useState({
     totalSales: 0,
     salesChange: '',
@@ -51,7 +47,7 @@ const Dashboard = () => {
     lowStockItems: [] as any[]
   });
 
-  // NEW: Calculate available years from bills
+  // Calculate available years from bills
   useEffect(() => {
     const years = new Set<string>();
     billsN.forEach(bill => {
@@ -61,16 +57,19 @@ const Dashboard = () => {
     setAvailableYears(sortedYears);
   }, [billsN]);
 
-  // NEW: Filter bills by selected year
+  // FIXED: Filter bills by selected year (ALWAYS exclude complimentary first)
   const filteredBillsByYear = useMemo(() => {
-    if (selectedYear === 'all') return billsN;
+    const nonComplimentaryBills = billsN.filter(bill => bill.paymentMethod !== 'complimentary');
+    
+    if (selectedYear === 'all') {
+      return nonComplimentaryBills;
+    }
     
     const year = parseInt(selectedYear);
     const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
     
-    return billsN.filter(bill => 
-      bill.paymentMethod !== 'complimentary' && 
+    return nonComplimentaryBills.filter(bill => 
       bill.createdAtDate >= yearStart && 
       bill.createdAtDate <= yearEnd
     );
@@ -351,7 +350,6 @@ const Dashboard = () => {
             <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
           </TabsList>
           
-          {/* NEW: Year Filter for Overview Tab */}
           {currentDashboardTab === 'overview' && (
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
