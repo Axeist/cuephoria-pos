@@ -3,6 +3,18 @@ import { Customer } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 
+// ✅ HELPER FUNCTIONS FOR PHONE NORMALIZATION AND ID GENERATION
+const normalizePhoneNumber = (phone: string): string => {
+  return phone.replace(/\D/g, '');
+};
+
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
 export const useCustomers = (initialCustomers: Customer[]) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -17,6 +29,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           
           const customersWithDates = parsedCustomers.map((customer: any) => ({
             ...customer,
+            customerId: customer.customerId || generateCustomerID(customer.phone), // ✅ Generate if missing
+            phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
             createdAt: new Date(customer.createdAt),
             membershipStartDate: customer.membershipStartDate ? new Date(customer.membershipStartDate) : undefined,
             membershipExpiryDate: customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate) : undefined
@@ -24,9 +38,11 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           
           setCustomers(customersWithDates);
           
+          // ✅ Sync to database with customer_id
           for (const customer of customersWithDates) {
             await supabase.from('customers').upsert({
                 id: customer.id,
+                customer_id: customer.customerId, // ✅ Include customer_id
                 name: customer.name,
                 phone: customer.phone,
                 email: customer.email,
@@ -66,6 +82,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         if (data && data.length > 0) {
           const transformedCustomers = data.map(item => ({
             id: item.id,
+            customerId: item.customer_id || generateCustomerID(item.phone), // ✅ Map customer_id
             name: item.name,
             phone: item.phone,
             email: item.email || undefined,
@@ -137,14 +154,28 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     checkExpirations();
   }, [customers]);
   
-  const isDuplicateCustomer = (phone: string, email?: string): { isDuplicate: boolean, existingCustomer?: Customer } => {
-    const existingByPhone = customers.find(c => c.phone === phone);
+  // ✅ UPDATED: Duplicate check with normalized phone comparison
+  const isDuplicateCustomer = (phone: string, email?: string, currentCustomerId?: string): { isDuplicate: boolean, existingCustomer?: Customer } => {
+    const normalizedPhone = normalizePhoneNumber(phone);
+    
+    // Check for duplicate phone (normalized comparison)
+    const existingByPhone = customers.find(c => {
+      if (currentCustomerId && c.id === currentCustomerId) return false; // Skip current customer in edit mode
+      return normalizePhoneNumber(c.phone) === normalizedPhone;
+    });
+    
     if (existingByPhone) {
       return { isDuplicate: true, existingCustomer: existingByPhone };
     }
     
-    if (email) {
-      const existingByEmail = customers.find(c => c.email === email);
+    // Check for duplicate email
+    if (email && email.trim() !== '') {
+      const normalizedEmail = email.toLowerCase().trim();
+      const existingByEmail = customers.find(c => {
+        if (currentCustomerId && c.id === currentCustomerId) return false;
+        return c.email?.toLowerCase().trim() === normalizedEmail;
+      });
+      
       if (existingByEmail) {
         return { isDuplicate: true, existingCustomer: existingByEmail };
       }
@@ -153,24 +184,34 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     return { isDuplicate: false };
   };
   
+  // ✅ UPDATED: Add customer with ID generation and phone normalization
   const addCustomer = async (customer: Omit<Customer, 'id' | 'createdAt'>) => {
     try {
+      // Normalize phone
+      const normalizedPhone = normalizePhoneNumber(customer.phone);
+      
+      // Check for duplicates
       const { isDuplicate, existingCustomer } = isDuplicateCustomer(customer.phone, customer.email);
       
       if (isDuplicate && existingCustomer) {
         toast({
           title: 'Duplicate Customer',
-          description: `A customer with this ${existingCustomer.phone === customer.phone ? 'phone number' : 'email'} already exists.`,
+          description: `Customer "${existingCustomer.name}" (${existingCustomer.customerId}) already exists with this ${existingCustomer.phone === normalizedPhone ? 'phone number' : 'email'}`,
           variant: 'destructive'
         });
         return existingCustomer;
       }
       
+      // Generate customer ID
+      const customerID = customer.customerId || generateCustomerID(normalizedPhone);
+      
+      // Insert into database
       const { data, error } = await supabase
         .from('customers')
         .insert({
+          customer_id: customerID, // ✅ Include customer_id
           name: customer.name,
-          phone: customer.phone,
+          phone: normalizedPhone, // ✅ Store normalized phone
           email: customer.email,
           is_member: customer.isMember,
           membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
@@ -198,6 +239,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       if (data) {
         const newCustomer: Customer = {
           id: data.id,
+          customerId: data.customer_id, // ✅ Map customer_id
           name: data.name,
           phone: data.phone,
           email: data.email || undefined,
@@ -216,8 +258,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         setCustomers(prev => [...prev, newCustomer]);
         
         toast({
-          title: 'Success',
-          description: 'Customer added successfully',
+          title: 'Customer Added',
+          description: `${newCustomer.name} (ID: ${newCustomer.customerId}) added successfully`,
         });
         
         return newCustomer;
@@ -275,29 +317,42 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     return result;
   };
   
+  // ✅ UPDATED: Update customer with duplicate checking
   const updateCustomer = async (customer: Customer) => {
     try {
       const existingCustomer = customers.find(c => c.id === customer.id);
       
       if (existingCustomer) {
-        if (existingCustomer.phone !== customer.phone) {
-          const duplicatePhone = customers.find(c => c.id !== customer.id && c.phone === customer.phone);
+        // Check for duplicate phone (normalized comparison, excluding current customer)
+        const normalizedPhone = normalizePhoneNumber(customer.phone);
+        const normalizedExistingPhone = normalizePhoneNumber(existingCustomer.phone);
+        
+        if (normalizedPhone !== normalizedExistingPhone) {
+          const duplicatePhone = customers.find(c => 
+            c.id !== customer.id && normalizePhoneNumber(c.phone) === normalizedPhone
+          );
+          
           if (duplicatePhone) {
             toast({
               title: 'Duplicate Phone Number',
-              description: 'This phone number is already used by another customer',
+              description: `This phone number is already used by ${duplicatePhone.name} (${duplicatePhone.customerId})`,
               variant: 'destructive'
             });
             return null;
           }
         }
         
+        // Check for duplicate email
         if (existingCustomer.email !== customer.email && customer.email) {
-          const duplicateEmail = customers.find(c => c.id !== customer.id && c.email === customer.email);
+          const normalizedEmail = customer.email.toLowerCase().trim();
+          const duplicateEmail = customers.find(c => 
+            c.id !== customer.id && c.email?.toLowerCase().trim() === normalizedEmail
+          );
+          
           if (duplicateEmail) {
             toast({
               title: 'Duplicate Email',
-              description: 'This email is already used by another customer',
+              description: `This email is already used by ${duplicateEmail.name} (${duplicateEmail.customerId})`,
               variant: 'destructive'
             });
             return null;
@@ -310,11 +365,13 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         loyaltyPoints: customer.loyaltyPoints
       });
       
+      // ✅ Update with normalized phone and customer_id
       const { error } = await supabase
         .from('customers')
         .update({
+          customer_id: customer.customerId, // ✅ Include customer_id
           name: customer.name,
-          phone: customer.phone,
+          phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
           email: customer.email,
           is_member: customer.isMember,
           membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
@@ -381,7 +438,6 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         
       if (sessionsError) {
         console.error('Error checking active sessions:', sessionsError);
-        // Continue with the operation since we've updated the schema to handle deletion
       } else if (activeSessions && activeSessions.length > 0) {
         toast({
           title: 'Cannot Delete Customer',
@@ -391,8 +447,6 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         return;
       }
 
-      // We've already updated the database schema to set NULL on delete,
-      // so we can now safely delete the customer
       const { error } = await supabase
         .from('customers')
         .delete()
@@ -440,6 +494,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     if (customer) {
       console.log('useCustomers: Found customer to select:', {
         name: customer.name,
+        customerId: customer.customerId,
         totalSpent: customer.totalSpent,
         loyaltyPoints: customer.loyaltyPoints
       });
