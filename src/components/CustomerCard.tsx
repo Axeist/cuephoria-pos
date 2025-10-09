@@ -34,20 +34,36 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   useEffect(() => {
     const updatedCustomer = customers.find(c => c.id === customer.id);
     if (updatedCustomer) {
+      console.log('CustomerCard: Customer data updated for', updatedCustomer.name, {
+        oldTotalSpent: customer.totalSpent,
+        newTotalSpent: updatedCustomer.totalSpent,
+        oldLoyaltyPoints: customer.loyaltyPoints,
+        newLoyaltyPoints: updatedCustomer.loyaltyPoints
+      });
+      
       setCustomer(updatedCustomer);
     }
   }, [customers, customer.id]);
   
   useEffect(() => {
     if (initialCustomer && initialCustomer.id !== customer.id) {
+      console.log('CustomerCard: Initial customer prop changed to', initialCustomer.name);
       setCustomer(initialCustomer);
-    } else if (initialCustomer && (
+    }
+    
+    else if (initialCustomer && (
       initialCustomer.totalSpent !== customer.totalSpent || 
       initialCustomer.loyaltyPoints !== customer.loyaltyPoints
     )) {
+      console.log('CustomerCard: Initial customer data updated', {
+        oldTotalSpent: customer.totalSpent,
+        newTotalSpent: initialCustomer.totalSpent,
+        oldLoyaltyPoints: customer.loyaltyPoints,
+        newLoyaltyPoints: initialCustomer.loyaltyPoints
+      });
       setCustomer(initialCustomer);
     }
-  }, [initialCustomer]);
+  }, [initialCustomer, customer.id, customer.totalSpent, customer.loyaltyPoints]);
 
   const formatDate = (date: Date | undefined) => {
     if (!date) return 'N/A';
@@ -251,6 +267,15 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
               </Button>
               
               <div className="flex gap-2 w-full">
+                {onEdit && (
+                  <Dialog>
+                    <DialogContent className="bg-background">
+                      <DialogHeader>
+                        <DialogTitle>Edit Customer</DialogTitle>
+                      </DialogHeader>
+                    </DialogContent>
+                  </Dialog>
+                )}
                 <Button 
                   variant="outline" 
                   size="sm" 
