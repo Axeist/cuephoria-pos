@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -100,6 +99,21 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
+  // Custom filter function to search by both name and phone number
+  const customFilter = (value: string, search: string) => {
+    const searchLower = search.toLowerCase().trim();
+    if (!searchLower) return 1; // Show all if no search query
+    
+    // The value contains both name and phone separated by '|'
+    const [name, phone] = value.toLowerCase().split('|');
+    
+    // Check if search matches name or phone
+    const nameMatch = name?.includes(searchLower) || false;
+    const phoneMatch = phone?.includes(searchLower) || false;
+    
+    return nameMatch || phoneMatch ? 1 : 0;
+  };
+
   if (station.isOccupied) {
     return (
       <Button 
@@ -133,15 +147,15 @@ const StationActions: React.FC<StationActionsProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0">
-          <Command>
-            <CommandInput placeholder="Search customers..." />
+          <Command filter={customFilter}>
+            <CommandInput placeholder="Search by name or phone..." className="h-9" />
             <CommandEmpty>No customer found.</CommandEmpty>
             <CommandGroup>
               <CommandList>
                 {customers.map((customer) => (
                   <CommandItem
                     key={customer.id}
-                    value={customer.name}
+                    value={`${customer.name}|${customer.phone}`}
                     onSelect={() => {
                       setSelectedCustomerId(customer.id === selectedCustomerId ? "" : customer.id);
                       setOpen(false);
@@ -153,11 +167,11 @@ const StationActions: React.FC<StationActionsProps> = ({
                         selectedCustomerId === customer.id ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    <div className="flex items-center">
-                      <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">{customer.name}</p>
-                        <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                    <div className="flex items-center w-full">
+                      <User className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{customer.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{customer.phone}</p>
                       </div>
                     </div>
                   </CommandItem>
