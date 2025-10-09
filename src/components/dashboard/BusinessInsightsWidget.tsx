@@ -89,7 +89,6 @@ function calculateMACD(data: number[]): {
   return { macd, signal, histogram, trend };
 }
 
-// ENHANCED: Improved confidence calculation with more factors
 function calculateEnhancedConfidence(
   dailyData: { date: Date; revenue: number }[],
   trendStrength: number
@@ -105,7 +104,6 @@ function calculateEnhancedConfidence(
   const revenues = dailyData.map(d => d.revenue);
   const n = revenues.length;
   
-  // Factor 1: Data Quality (more data = higher confidence)
   let dataQuality = 0;
   if (n >= 90) dataQuality = 100;
   else if (n >= 60) dataQuality = 80;
@@ -113,28 +111,24 @@ function calculateEnhancedConfidence(
   else if (n >= 14) dataQuality = 40;
   else dataQuality = 20;
   
-  // Factor 2: Consistency (low variation = higher confidence)
   const mean = revenues.reduce((sum, r) => sum + r, 0) / n;
   const variance = revenues.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / n;
   const stdDev = Math.sqrt(variance);
   const coefficientOfVariation = mean > 0 ? stdDev / mean : 1;
   const consistency = Math.max(0, Math.min(100, 100 - (coefficientOfVariation * 100)));
   
-  // Factor 3: Trend Stability (clear trend = higher confidence)
   const trendStability = Math.min(100, Math.abs(trendStrength) * 100);
   
-  // Factor 4: Seasonal Clarity (clear day patterns = higher confidence)
   const seasonalFactors = calculateSeasonalFactors(dailyData);
   const factorValues = Array.from(seasonalFactors.values());
   const seasonalVariance = factorValues.reduce((sum, f) => sum + Math.pow(f - 1, 2), 0) / factorValues.length;
   const seasonalClarity = Math.max(0, Math.min(100, seasonalVariance * 200));
   
-  // Weighted average of all factors
   const confidence = Math.round(
-    (dataQuality * 0.35) +      // 35% weight on data quantity
-    (consistency * 0.35) +       // 35% weight on consistency
-    (trendStability * 0.15) +    // 15% weight on trend
-    (seasonalClarity * 0.15)     // 15% weight on seasonality
+    (dataQuality * 0.35) +
+    (consistency * 0.35) +
+    (trendStability * 0.15) +
+    (seasonalClarity * 0.15)
   );
   
   return {
@@ -180,7 +174,6 @@ function holtWintersForecasting(
   const mean = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
   const trendStrength = mean > 0 ? trendValue / mean : 0;
   
-  // ENHANCED: Use improved confidence calculation
   const { confidence, factors } = calculateEnhancedConfidence(dailyData, trendStrength);
   
   const trend = trendValue > mean * 0.05 ? 'up' : trendValue < -mean * 0.05 ? 'down' : 'stable';
@@ -245,6 +238,12 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
   const [isCalculating, setIsCalculating] = useState(true);
   const [cachedInsights, setCachedInsights] = useState<any>(null);
 
+  // FIXED: Filter out complimentary bills at the start
+  const paidBills = useMemo(() => 
+    bills.filter(bill => bill.paymentMethod !== 'complimentary'),
+    [bills]
+  );
+
   useEffect(() => {
     setIsCalculating(true);
     
@@ -255,10 +254,11 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
     }, 50);
     
     return () => clearTimeout(timer);
-  }, [bills, expenses, startDate, endDate]);
+  }, [paidBills, expenses, startDate, endDate]);
 
   const calculateInsights = () => {
-    const filteredBills = bills.filter(bill => {
+    // Use paidBills instead of bills
+    const filteredBills = paidBills.filter(bill => {
       if (!startDate && !endDate) return true;
       const billDate = new Date(bill.createdAt);
       if (startDate && billDate < startDate) return false;
@@ -274,10 +274,11 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       return true;
     });
 
-    const todaysBills = bills.filter(bill => isToday(new Date(bill.createdAt)));
+    // Use paidBills for today's and yesterday's sales
+    const todaysBills = paidBills.filter(bill => isToday(new Date(bill.createdAt)));
     const todaysSales = todaysBills.reduce((sum, bill) => sum + bill.total, 0);
 
-    const yesterdaysBills = bills.filter(bill => isYesterday(new Date(bill.createdAt)));
+    const yesterdaysBills = paidBills.filter(bill => isYesterday(new Date(bill.createdAt)));
     const yesterdaysSales = yesterdaysBills.reduce((sum, bill) => sum + bill.total, 0);
 
     const growthPercentage = yesterdaysSales > 0 ? 
@@ -316,7 +317,6 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
     const avgBillValue = totalSales / filteredBills.length;
     const expenseToRevenueRatio = totalSales > 0 ? (totalExpenses / totalSales) * 100 : 0;
 
-    // ENHANCED: Use 90 days for maximum accuracy
     const last90Days = Array.from({ length: 90 }, (_, i) => 
       startOfDay(subDays(new Date(), 89 - i))
     );
@@ -327,7 +327,8 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       dailyRevenueMap.set(dayKey, 0);
     });
 
-    bills.forEach(bill => {
+    // Use paidBills for daily revenue calculation
+    paidBills.forEach(bill => {
       const billDate = startOfDay(new Date(bill.createdAt));
       const dayKey = format(billDate, 'yyyy-MM-dd');
       if (dailyRevenueMap.has(dayKey)) {
@@ -340,7 +341,6 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       revenue: dailyRevenueMap.get(format(date, 'yyyy-MM-dd')) || 0
     }));
 
-    // Count actual days with data
     const daysWithData = dailyData.filter(d => d.revenue > 0).length;
 
     const revenues = dailyData.map(d => d.revenue);
@@ -360,7 +360,8 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
     const currentMonthStart = startOfMonth(new Date());
     const currentMonthEnd = endOfMonth(new Date());
     
-    const currentMonthSales = bills
+    // Use paidBills for current month sales
+    const currentMonthSales = paidBills
       .filter(bill => {
         const billDate = new Date(bill.createdAt);
         return billDate >= currentMonthStart && billDate <= currentMonthEnd;
@@ -402,7 +403,6 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
     const avgDailyExpenses = last30DaysExpenseTotal / 30;
     const breakEvenPoint = avgDailyExpenses;
 
-    // Determine algorithm based on data availability
     let algorithmUsed = 'Insufficient Data';
     if (daysWithData >= 90) algorithmUsed = 'Advanced: Holt-Winters + Prophet (90 days)';
     else if (daysWithData >= 60) algorithmUsed = 'Holt-Winters + Prophet (60 days)';
@@ -553,7 +553,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
             </div>
           </div>
 
-          {/* ML Predictions - ENHANCED */}
+          {/* ML Predictions */}
           <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/40 shadow-lg">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
               <Brain className="h-4 w-4 text-purple-400 animate-pulse" />
@@ -580,7 +580,6 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
                 </span>
               </div>
               
-              {/* ADDED: Confidence Breakdown */}
               <div className="pt-2 border-t border-purple-500/20">
                 <p className="text-xs text-gray-500 mb-2">Confidence Factors:</p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
