@@ -18,12 +18,10 @@ import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import CashManagement from '@/components/cash/CashManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeBills, isBetween } from '@/lib/date';
-import { Calendar } from 'lucide-react';
 
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
@@ -36,8 +34,6 @@ const Dashboard = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [currentDashboardTab, setCurrentDashboardTab] = useState('overview');
-  const [selectedYear, setSelectedYear] = useState<string>('all');
-  const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [dashboardStats, setDashboardStats] = useState({
     totalSales: 0,
     salesChange: '',
@@ -47,33 +43,11 @@ const Dashboard = () => {
     lowStockItems: [] as any[]
   });
 
-  // Calculate available years from bills
-  useEffect(() => {
-    const years = new Set<string>();
-    billsN.forEach(bill => {
-      years.add(bill.createdAtDate.getFullYear().toString());
-    });
-    const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
-    setAvailableYears(sortedYears);
-  }, [billsN]);
-
-  // FIXED: Filter bills by selected year (ALWAYS exclude complimentary first)
-  const filteredBillsByYear = useMemo(() => {
-    const nonComplimentaryBills = billsN.filter(bill => bill.paymentMethod !== 'complimentary');
-    
-    if (selectedYear === 'all') {
-      return nonComplimentaryBills;
-    }
-    
-    const year = parseInt(selectedYear);
-    const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
-    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
-    
-    return nonComplimentaryBills.filter(bill => 
-      bill.createdAtDate >= yearStart && 
-      bill.createdAtDate <= yearEnd
-    );
-  }, [billsN, selectedYear]);
+  // FIXED: Filter out complimentary bills for all calculations
+  const paidBills = useMemo(() => 
+    billsN.filter(bill => bill.paymentMethod !== 'complimentary'),
+    [billsN]
+  );
 
   const lowStockItems = useMemo(
     () => products.filter(p => p.stock < 5).sort((a, b) => a.stock - b.stock),
@@ -168,7 +142,7 @@ const Dashboard = () => {
       lowStockCount: lowStockItems.length,
       lowStockItems
     });
-  }, [filteredBillsByYear, customers, stations, sessions, products, activeTab, activeSessionsCount, newMembersCount, lowStockItems, selectedYear]);
+  }, [paidBills, customers, stations, sessions, products, activeTab, activeSessionsCount, newMembersCount, lowStockItems]);
 
   const generateChartData = () => {
     if (activeTab === 'hourly') return generateHourlyChartData();
@@ -183,7 +157,7 @@ const Dashboard = () => {
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const hourlyTotals = new Map<number, number>();
     
-    filteredBillsByYear.forEach(bill => {
+    paidBills.forEach(bill => {
       if (bill.createdAtDate >= today) {
         const h = bill.createdAtDate.getUTCHours();
         hourlyTotals.set(h, (hourlyTotals.get(h) || 0) + bill.total);
@@ -201,7 +175,7 @@ const Dashboard = () => {
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const dailyTotals = new Map<string, number>();
     
-    filteredBillsByYear.forEach(bill => {
+    paidBills.forEach(bill => {
       const d = bill.createdAtDate;
       const label = days[d.getUTCDay()];
       dailyTotals.set(label, (dailyTotals.get(label) || 0) + bill.total);
@@ -233,7 +207,7 @@ const Dashboard = () => {
     }
     
     return weeks.map(w => {
-      const total = filteredBillsByYear.reduce((sum, b) => 
+      const total = paidBills.reduce((sum, b) => 
         (isBetween(b.createdAtDate, w.start, w.end) ? sum + b.total : sum), 0
       );
       return { name: w.label, amount: total };
@@ -242,14 +216,10 @@ const Dashboard = () => {
 
   const generateMonthlyChartData = () => {
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const y = selectedYear === 'all' ? new Date().getUTCFullYear() : parseInt(selectedYear);
     const monthlyTotals = new Map<string, number>();
     
-    filteredBillsByYear.forEach(bill => {
+    paidBills.forEach(bill => {
       const d = bill.createdAtDate;
-      if (selectedYear === 'all' && d.getUTCFullYear() !== new Date().getUTCFullYear()) return;
-      if (selectedYear !== 'all' && d.getUTCFullYear() !== y) return;
-      
       const label = months[d.getUTCMonth()];
       monthlyTotals.set(label, (monthlyTotals.get(label) || 0) + bill.total);
     });
@@ -270,14 +240,10 @@ const Dashboard = () => {
     } else if (activeTab === 'weekly') {
       startDate = startOfMonth(now);
     } else if (activeTab === 'monthly') {
-      if (selectedYear !== 'all') {
-        startDate = new Date(parseInt(selectedYear), 0, 1);
-      } else {
-        startDate = startOfYear(now);
-      }
+      startDate = startOfYear(now);
     }
     
-    const total = filteredBillsByYear
+    const total = paidBills
       .filter(b => isBetween(b.createdAtDate, startDate, now))
       .reduce((sum, b) => sum + b.total, 0);
     
@@ -309,19 +275,12 @@ const Dashboard = () => {
       previousStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     } else {
       const now = new Date();
-      if (selectedYear !== 'all') {
-        const year = parseInt(selectedYear);
-        currentStart = new Date(year, 0, 1);
-        previousStart = new Date(year - 1, 0, 1);
-        previousEnd = new Date(year, 0, 1);
-      } else {
-        currentStart = startOfYear(now);
-        previousEnd = new Date(currentStart);
-        previousStart = startOfYear(new Date(now.getFullYear() - 1, 0, 1));
-      }
+      currentStart = startOfYear(now);
+      previousEnd = new Date(currentStart);
+      previousStart = startOfYear(new Date(now.getFullYear() - 1, 0, 1));
     }
 
-    const prev = filteredBillsByYear
+    const prev = paidBills
       .filter(b => b.createdAtDate >= previousStart && b.createdAtDate < previousEnd)
       .reduce((sum, b) => sum + b.total, 0);
 
@@ -349,25 +308,6 @@ const Dashboard = () => {
             <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
             <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
           </TabsList>
-          
-          {currentDashboardTab === 'overview' && (
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select Year" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Years</SelectItem>
-                  {availableYears.map(year => (
-                    <SelectItem key={year} value={year}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           
           {currentDashboardTab === 'expenses' && (
             <ExpenseDateFilter 
