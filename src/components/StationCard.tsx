@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { usePOS, Station } from '@/context/POSContext';
@@ -27,6 +26,7 @@ interface StationCardProps {
 const StationCard: React.FC<StationCardProps> = ({ station }) => {
   const { customers, startSession, endSession, deleteStation, updateStation } = usePOS();
   const isPoolTable = station.type === '8ball';
+  const isVR = station.type === 'vr';
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const getCustomer = (id: string) => {
@@ -59,12 +59,50 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
               : 'border-cuephoria-orange bg-black/80' 
             : isPoolTable 
               ? 'border-green-500 bg-gradient-to-b from-green-900/30 to-green-950/40' 
-              : 'border-cuephoria-purple bg-gradient-to-b from-cuephoria-purple/20 to-black/50'
+              : isVR
+                ? 'border-blue-500 bg-gradient-to-br from-blue-900/40 via-purple-900/30 to-cyan-900/40'
+                : 'border-cuephoria-purple bg-gradient-to-b from-cuephoria-purple/20 to-black/50'
           }
-          ${isPoolTable ? 'rounded-xl' : 'rounded-lg'}
+          ${isPoolTable ? 'rounded-xl' : isVR ? 'rounded-2xl' : 'rounded-lg'}
         `}
       >
-        {/* Visual elements to enhance the appearance */}
+        {/* VR Specific Visual Elements */}
+        {isVR && (
+          <>
+            {/* Animated gradient border effect */}
+            <div className="absolute inset-0 rounded-2xl opacity-30 pointer-events-none">
+              <div className="absolute inset-[-2px] rounded-2xl bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 animate-spin-slow blur-sm"></div>
+            </div>
+            
+            {/* Inner content wrapper for proper z-index */}
+            <div className="absolute inset-[1px] rounded-2xl bg-gradient-to-br from-blue-900/40 via-purple-900/30 to-cyan-900/40 pointer-events-none"></div>
+            
+            {/* Corner accents */}
+            <div className="absolute top-0 left-0 w-20 h-20 bg-gradient-to-br from-blue-400/30 to-transparent rounded-tl-2xl pointer-events-none"></div>
+            <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-tl from-cyan-400/30 to-transparent rounded-br-2xl pointer-events-none"></div>
+            
+            {/* Floating particles effect */}
+            <div className="absolute top-4 left-4 w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse pointer-events-none"></div>
+            <div className="absolute top-6 right-8 w-1 h-1 rounded-full bg-cyan-400 animate-pulse delay-75 pointer-events-none"></div>
+            <div className="absolute bottom-8 left-6 w-1 h-1 rounded-full bg-purple-400 animate-pulse delay-150 pointer-events-none"></div>
+            <div className="absolute bottom-4 right-4 w-1.5 h-1.5 rounded-full bg-blue-300 animate-pulse delay-300 pointer-events-none"></div>
+            
+            {/* Horizontal scan lines */}
+            <div className="absolute w-full h-[1px] top-12 bg-gradient-to-r from-transparent via-blue-500/40 to-transparent animate-pulse pointer-events-none"></div>
+            <div className="absolute w-full h-[1px] bottom-12 bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent animate-pulse delay-200 pointer-events-none"></div>
+            
+            {/* VR headset icon glow */}
+            <div className="absolute top-2 right-2 w-8 h-8 bg-blue-500/20 rounded-full blur-md animate-pulse pointer-events-none"></div>
+            
+            {/* Corner tech details */}
+            <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-blue-400/50 rounded-tl-lg pointer-events-none"></div>
+            <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-cyan-400/50 rounded-tr-lg pointer-events-none"></div>
+            <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-blue-400/50 rounded-bl-lg pointer-events-none"></div>
+            <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-cyan-400/50 rounded-br-lg pointer-events-none"></div>
+          </>
+        )}
+
+        {/* Pool Table Visual Elements */}
         {isPoolTable && (
           <>
             <div className="absolute top-3 left-3 w-2 h-2 rounded-full bg-green-400 shadow-sm shadow-green-300"></div>
@@ -75,7 +113,8 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
           </>
         )}
         
-        {!isPoolTable && (
+        {/* PS5 Visual Elements */}
+        {!isPoolTable && !isVR && (
           <>
             <div className="absolute right-0 top-0 w-8 h-3 bg-cuephoria-lightpurple/20 rounded-bl-lg"></div>
             <div className="absolute w-full h-[1px] top-10 bg-gradient-to-r from-transparent via-cuephoria-lightpurple/30 to-transparent"></div>
@@ -86,12 +125,12 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
 
         {/* Membership indicator on top of card */}
         {station.isOccupied && customer && (
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-transparent to-transparent">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-transparent to-transparent z-20">
             <div className={`h-full ${customer.isMember ? 'bg-green-500' : 'bg-gray-500'} w-2/3 rounded-br-lg`}></div>
           </div>
         )}
 
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 relative z-10">
           <div className="flex justify-between items-center space-x-2">
             <div className="flex-grow">
               <StationInfo station={station} customerName={customerName} customerData={customer} />
@@ -104,7 +143,9 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                   h-8 w-8 shrink-0 
                   ${isPoolTable 
                     ? 'text-green-300 hover:text-blue-500 hover:bg-green-950/50' 
-                    : 'text-cuephoria-lightpurple hover:text-blue-500 hover:bg-cuephoria-purple/20'
+                    : isVR
+                      ? 'text-blue-300 hover:text-cyan-400 hover:bg-blue-950/50'
+                      : 'text-cuephoria-lightpurple hover:text-blue-500 hover:bg-cuephoria-purple/20'
                   }
                 `}
                 disabled={station.isOccupied}
@@ -121,7 +162,9 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                       h-8 w-8 shrink-0 
                       ${isPoolTable 
                         ? 'text-green-300 hover:text-red-500 hover:bg-green-950/50' 
-                        : 'text-cuephoria-lightpurple hover:text-destructive hover:bg-cuephoria-purple/20'
+                        : isVR
+                          ? 'text-blue-300 hover:text-red-500 hover:bg-blue-950/50'
+                          : 'text-cuephoria-lightpurple hover:text-destructive hover:bg-cuephoria-purple/20'
                       }
                     `}
                     disabled={station.isOccupied}
@@ -129,7 +172,7 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent className={isPoolTable ? 'border-green-500' : 'border-cuephoria-purple'}>
+                <AlertDialogContent className={isPoolTable ? 'border-green-500' : isVR ? 'border-blue-500' : 'border-cuephoria-purple'}>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete Station</AlertDialogTitle>
                     <AlertDialogDescription>
@@ -150,14 +193,14 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pb-2">
+        <CardContent className="pb-2 relative z-10">
           <div className="flex flex-col space-y-2">
             {station.isOccupied && station.currentSession && (
               <StationTimer station={station} />
             )}
           </div>
         </CardContent>
-        <CardFooter className="flex-col space-y-2 pt-2">
+        <CardFooter className="flex-col space-y-2 pt-2 relative z-10">
           <StationActions 
             station={station}
             customers={customers}
