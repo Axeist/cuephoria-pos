@@ -109,7 +109,6 @@ const Stations = () => {
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {ps5Stations
               .sort((a, b) => {
-                // Extract numbers from station names (e.g., "Console 1" -> 1)
                 const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
                 const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
                 return numA - numB;
@@ -135,7 +134,6 @@ const Stations = () => {
           <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
             {ballStations
               .sort((a, b) => {
-                // Extract numbers from station names (e.g., "Table 1" -> 1)
                 const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
                 const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
                 return numA - numB;
@@ -161,7 +159,6 @@ const Stations = () => {
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {vrStations
               .sort((a, b) => {
-                // Extract numbers from station names (e.g., "VR Station 1" -> 1)
                 const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
                 const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
                 return numA - numB;
