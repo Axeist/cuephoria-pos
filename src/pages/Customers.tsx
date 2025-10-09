@@ -1,12 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
-import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
+import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { usePOS, Customer } from '@/context/POSContext';
 import CustomerCard from '@/components/CustomerCard';
 import CustomerInsightWidgets from '@/components/customers/CustomerInsightWidgets';
@@ -15,15 +16,30 @@ import { useToast } from '@/hooks/use-toast';
 type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
 type SortDirection = 'asc' | 'desc';
 
-const Customers = () => {
-  console.log('Customers component rendering');
+interface FilterState {
+  membershipStatus: 'all' | 'member' | 'non-member' | 'active' | 'expired';
+  loyaltyPointsMin: number;
+  loyaltyPointsMax: number;
+  joinDateFrom: string;
+  joinDateTo: string;
+}
 
-  // Local state to handle errors
+const normalizePhoneNumber = (phone: string): string => {
+  return phone.replace(/\D/g, '');
+};
+
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
+const Customers = () => {
   const [error, setError] = useState<string | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
   const [isContextLoaded, setIsContextLoaded] = useState(false);
 
-  // State for component functionality
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -31,11 +47,21 @@ const Customers = () => {
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
 
-  // Sort state
   const [sortField, setSortField] = useState<SortField>('joinDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  // Form state
+  const [filters, setFilters] = useState<FilterState>({
+    membershipStatus: 'all',
+    loyaltyPointsMin: 0,
+    loyaltyPointsMax: 10000,
+    joinDateFrom: '',
+    joinDateTo: ''
+  });
+  const [showFilters, setShowFilters] = useState(false);
+
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicates, setDuplicates] = useState<Array<{ phone: string; customers: Customer[] }>>([]);
+
   const [formState, setFormState] = useState({
     name: '',
     phone: '',
@@ -44,26 +70,21 @@ const Customers = () => {
     membershipExpiryDate: '',
     membershipHoursLeft: ''
   });
-  const {
-    toast
-  } = useToast();
+  
+  const { toast } = useToast();
 
-  // Use a try-catch when getting the context - but only once, not on every render
   let posContext;
   try {
     posContext = usePOS();
   } catch (e) {
     console.error('Error using POS context:', e);
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-
-    // Only set the error if it's not already set
     if (error !== errorMessage) {
       setError(errorMessage);
     }
     posContext = null;
   }
 
-  // If we have the context, extract what we need
   const {
     customers = [],
     addCustomer = () => {},
@@ -72,14 +93,18 @@ const Customers = () => {
     exportCustomers = () => {}
   } = posContext || {};
 
-  // Update local state when context data changes
   useEffect(() => {
     if (posContext && customers) {
-      console.log('Setting customer data:', customers);
       setCustomersData(customers);
       setIsContextLoaded(true);
     }
   }, [posContext, customers]);
+
+  useEffect(() => {
+    if (customersData.length > 0) {
+      findDuplicates();
+    }
+  }, [customersData]);
 
   const resetForm = () => {
     setFormState({
@@ -102,11 +127,9 @@ const Customers = () => {
   };
 
   const handleEditCustomer = (customer: Customer) => {
-    console.log('Editing customer:', customer);
     setIsEditMode(true);
     setSelectedCustomer(customer);
 
-    // Format date for input field
     const expiryDate = customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate).toISOString().split('T')[0] : '';
     setFormState({
       name: customer.name,
@@ -127,33 +150,33 @@ const Customers = () => {
     });
   };
 
-  // Check for duplicate phone and email
   const checkForDuplicates = (): boolean => {
     setPhoneError('');
     setEmailError('');
     let hasDuplicates = false;
     
-    // Skip checking current customer in edit mode
     const currentId = isEditMode && selectedCustomer ? selectedCustomer.id : null;
+    const normalizedPhone = normalizePhoneNumber(formState.phone);
     
-    // Check for duplicate phone (required field)
-    const duplicatePhone = customersData.find(
-      c => c.phone === formState.phone && c.id !== currentId
-    );
+    const duplicatePhone = customersData.find(c => {
+      const existingNormalizedPhone = normalizePhoneNumber(c.phone);
+      return existingNormalizedPhone === normalizedPhone && c.id !== currentId;
+    });
     
     if (duplicatePhone) {
-      setPhoneError('This phone number is already registered');
+      setPhoneError(`This phone number is already registered (Customer: ${duplicatePhone.name} - ${duplicatePhone.customerId})`);
       hasDuplicates = true;
     }
     
-    // Check for duplicate email (if provided)
-    if (formState.email) {
-      const duplicateEmail = customersData.find(
-        c => c.email === formState.email && c.id !== currentId
-      );
+    if (formState.email && formState.email.trim() !== '') {
+      const normalizedEmail = formState.email.toLowerCase().trim();
+      const duplicateEmail = customersData.find(c => {
+        const existingEmail = c.email?.toLowerCase().trim();
+        return existingEmail === normalizedEmail && c.id !== currentId;
+      });
       
       if (duplicateEmail) {
-        setEmailError('This email is already registered');
+        setEmailError(`This email is already registered (Customer: ${duplicateEmail.name} - ${duplicateEmail.customerId})`);
         hasDuplicates = true;
       }
     }
@@ -163,14 +186,7 @@ const Customers = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const {
-      name,
-      phone,
-      email,
-      isMember,
-      membershipExpiryDate,
-      membershipHoursLeft
-    } = formState;
+    const { name, phone, email, isMember, membershipExpiryDate, membershipHoursLeft } = formState;
     
     if (!name || !phone) {
       toast({
@@ -181,32 +197,44 @@ const Customers = () => {
       return;
     }
 
-    // Validate Indian phone number
+    const normalizedPhone = normalizePhoneNumber(phone);
+    
+    if (normalizedPhone.length !== 10) {
+      setPhoneError('Phone number must be exactly 10 digits');
+      return;
+    }
+
     const phoneRegex = /^[6-9]\d{9}$/;
-    if (!phoneRegex.test(phone)) {
-      setPhoneError('Please enter a valid 10-digit Indian phone number');
+    if (!phoneRegex.test(normalizedPhone)) {
+      setPhoneError('Please enter a valid Indian mobile number (starting with 6, 7, 8, or 9)');
       return;
     }
     
-    // Check for duplicates
     if (checkForDuplicates()) {
-      return; // Don't proceed if duplicates found
+      toast({
+        title: 'Duplicate Entry Detected',
+        description: 'A customer with this phone number or email already exists',
+        variant: 'destructive'
+      });
+      return;
     }
 
-    // Create the customer data object
+    const customerID = isEditMode && selectedCustomer?.customerId 
+      ? selectedCustomer.customerId 
+      : generateCustomerID(normalizedPhone);
+
     const customerData: Partial<Customer> = {
-      name,
-      phone,
-      email: email || undefined,
+      name: name.trim(),
+      phone: normalizedPhone,
+      email: email?.trim() || undefined,
+      customerId: customerID,
       isMember,
       loyaltyPoints: isEditMode && selectedCustomer ? selectedCustomer.loyaltyPoints : 0,
       totalSpent: isEditMode && selectedCustomer ? selectedCustomer.totalSpent : 0,
       totalPlayTime: isEditMode && selectedCustomer ? selectedCustomer.totalPlayTime : 0
     };
 
-    // Add membership details if customer is a member
     if (isMember) {
-      // Keep existing membership plan if editing
       if (isEditMode && selectedCustomer && selectedCustomer.membershipPlan) {
         customerData.membershipPlan = selectedCustomer.membershipPlan;
         customerData.membershipDuration = selectedCustomer.membershipDuration;
@@ -220,7 +248,7 @@ const Customers = () => {
         customerData.membershipHoursLeft = parseInt(membershipHoursLeft, 10);
       }
     }
-    console.log('Submitting customer data:', customerData);
+    
     if (isEditMode && selectedCustomer) {
       updateCustomer({
         ...customerData,
@@ -229,17 +257,32 @@ const Customers = () => {
       } as Customer);
       toast({
         title: 'Customer Updated',
-        description: 'The customer has been updated successfully.'
+        description: `Customer ${customerID} has been updated successfully.`
       });
     } else {
       addCustomer(customerData as Omit<Customer, 'id' | 'createdAt'>);
       toast({
         title: 'Customer Added',
-        description: 'The customer has been added successfully.'
+        description: `Customer ${customerID} has been added successfully.`
       });
     }
+    
     setIsDialogOpen(false);
     resetForm();
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const normalized = normalizePhoneNumber(value);
+    
+    if (normalized.length <= 10) {
+      setFormState(prev => ({
+        ...prev,
+        phone: normalized
+      }));
+    }
+    
+    setPhoneError('');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,8 +292,6 @@ const Customers = () => {
       [name]: value
     }));
     
-    // Clear validation errors when input changes
-    if (name === 'phone') setPhoneError('');
     if (name === 'email') setEmailError('');
   };
 
@@ -261,7 +302,101 @@ const Customers = () => {
     }));
   };
 
-  // Sort function
+  const findDuplicates = () => {
+    const phoneMap = new Map<string, Customer[]>();
+    
+    customersData.forEach(customer => {
+      const normalizedPhone = normalizePhoneNumber(customer.phone);
+      if (!phoneMap.has(normalizedPhone)) {
+        phoneMap.set(normalizedPhone, []);
+      }
+      phoneMap.get(normalizedPhone)!.push(customer);
+    });
+
+    const duplicateGroups = Array.from(phoneMap.entries())
+      .filter(([_, customers]) => customers.length > 1)
+      .map(([phone, customers]) => ({
+        phone,
+        customers: customers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      }));
+
+    setDuplicates(duplicateGroups);
+    
+    if (duplicateGroups.length > 0) {
+      console.log(`Found ${duplicateGroups.length} duplicate phone number groups`);
+    }
+  };
+
+  const resolveDuplicate = (phoneGroup: { phone: string; customers: Customer[] }, keepCustomerId: string) => {
+    const toDelete = phoneGroup.customers.filter(c => c.id !== keepCustomerId);
+    
+    toDelete.forEach(customer => {
+      deleteCustomer(customer.id);
+    });
+
+    toast({
+      title: 'Duplicates Removed',
+      description: `Removed ${toDelete.length} duplicate customer(s) for phone ${phoneGroup.phone}`
+    });
+
+    findDuplicates();
+  };
+
+  const applyFilters = (customer: Customer): boolean => {
+    if (filters.membershipStatus !== 'all') {
+      const isActive = customer.isMember && customer.membershipExpiryDate && new Date(customer.membershipExpiryDate) > new Date();
+      
+      switch (filters.membershipStatus) {
+        case 'member':
+          if (!customer.isMember) return false;
+          break;
+        case 'non-member':
+          if (customer.isMember) return false;
+          break;
+        case 'active':
+          if (!isActive) return false;
+          break;
+        case 'expired':
+          if (!customer.isMember || isActive) return false;
+          break;
+      }
+    }
+
+    if (customer.loyaltyPoints < filters.loyaltyPointsMin || customer.loyaltyPoints > filters.loyaltyPointsMax) {
+      return false;
+    }
+
+    const joinDate = new Date(customer.createdAt);
+    if (filters.joinDateFrom && new Date(filters.joinDateFrom) > joinDate) {
+      return false;
+    }
+    if (filters.joinDateTo && new Date(filters.joinDateTo) < joinDate) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      membershipStatus: 'all',
+      loyaltyPointsMin: 0,
+      loyaltyPointsMax: 10000,
+      joinDateFrom: '',
+      joinDateTo: ''
+    });
+  };
+
+  const getActiveFilterCount = (): number => {
+    let count = 0;
+    if (filters.membershipStatus !== 'all') count++;
+    if (filters.loyaltyPointsMin > 0) count++;
+    if (filters.loyaltyPointsMax < 10000) count++;
+    if (filters.joinDateFrom) count++;
+    if (filters.joinDateTo) count++;
+    return count;
+  };
+
   const sortCustomers = (customers: Customer[]) => {
     return [...customers].sort((a, b) => {
       let comparison = 0;
@@ -287,19 +422,15 @@ const Customers = () => {
     });
   };
 
-  // Handle sort selection from dropdown
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      // Toggle direction if same field
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      // Set new field with descending as default
       setSortField(field);
       setSortDirection('desc');
     }
   };
 
-  // Get sort icon for a field
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) {
       return <ArrowUpDown className="h-4 w-4" />;
@@ -307,7 +438,6 @@ const Customers = () => {
     return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
   };
 
-  // Get current sort label
   const getCurrentSortLabel = () => {
     const fieldLabels = {
       joinDate: 'Join Date',
@@ -319,20 +449,31 @@ const Customers = () => {
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
 
-  // Filter and sort customers
+  // ✅ UPDATED: Enhanced search with Customer ID support
   const filteredAndSortedCustomers = sortCustomers(
-    searchQuery.trim() === '' 
-      ? customersData 
-      : customersData.filter(customer => 
-          customer.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-          customer.phone.includes(searchQuery) || 
-          customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase())
-        )
+    customersData
+      .filter(customer => {
+        if (searchQuery.trim() !== '') {
+          const query = searchQuery.toLowerCase();
+          const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
+          const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
+          
+          const matchesSearch = 
+            customer.name.toLowerCase().includes(query) || 
+            normalizedCustomerPhone.includes(normalizedSearchPhone) ||
+            customer.email?.toLowerCase().includes(query) ||
+            customer.customerId?.toLowerCase().includes(query); // ✅ Search by Customer ID
+          
+          if (!matchesSearch) return false;
+        }
+        
+        return applyFilters(customer);
+      })
   );
 
-  // If we have an error, display it
   if (error) {
-    return <div className="flex-1 space-y-4 p-8 pt-6">
+    return (
+      <div className="flex-1 space-y-4 p-8 pt-6">
         <div className="flex items-center justify-between">
           <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
         </div>
@@ -341,13 +482,28 @@ const Customers = () => {
           <span className="block sm:inline">{error}</span>
           <p className="mt-2">Please try refreshing the page or contact support if the issue persists.</p>
         </div>
-      </div>;
+      </div>
+    );
   }
 
-  return <div className="flex-1 space-y-4 p-8 pt-6">
+  const activeFilterCount = getActiveFilterCount();
+
+  return (
+    <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
         <div className="flex space-x-2">
+          {duplicates.length > 0 && (
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDuplicateDialog(true)}
+              className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white"
+            >
+              <User className="h-4 w-4 mr-2" /> 
+              Fix Duplicates ({duplicates.length})
+            </Button>
+          )}
+          
           <Button variant="outline" onClick={exportCustomers}>
             <Download className="h-4 w-4 mr-2" /> Export
           </Button>
@@ -385,12 +541,11 @@ const Customers = () => {
         </div>
       </div>
 
-      {/* Customer Insight Widgets */}
       <CustomerInsightWidgets customers={customersData} />
 
-      {/* Customer Dialog */}
+      {/* ADD CUSTOMER DIALOG */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Customer' : 'Add New Customer'}</DialogTitle>
             <DialogDescription>
@@ -399,23 +554,36 @@ const Customers = () => {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
-              {/* Basic Information */}
               <div className="grid gap-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" name="name" value={formState.name} onChange={handleChange} placeholder="Enter customer name" />
+                <Label htmlFor="name">Full Name *</Label>
+                <Input 
+                  id="name" 
+                  name="name" 
+                  value={formState.name} 
+                  onChange={handleChange} 
+                  placeholder="Enter customer name"
+                  required
+                />
               </div>
+
               <div className="grid gap-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">Phone Number * (10 digits)</Label>
                 <Input 
                   id="phone" 
                   name="phone" 
                   value={formState.phone} 
-                  onChange={handleChange} 
-                  placeholder="10-digit mobile number" 
+                  onChange={handlePhoneChange} 
+                  placeholder="Enter 10-digit mobile number" 
                   className={phoneError ? "border-red-500" : ""}
+                  maxLength={10}
+                  required
                 />
-                {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
+                <p className="text-xs text-muted-foreground">
+                  Indian mobile number (starts with 6, 7, 8, or 9)
+                </p>
+                {phoneError && <p className="text-sm text-red-500 font-medium">{phoneError}</p>}
               </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="email">Email (Optional)</Label>
                 <Input 
@@ -427,35 +595,60 @@ const Customers = () => {
                   placeholder="Enter email address" 
                   className={emailError ? "border-red-500" : ""}
                 />
-                {emailError && <p className="text-sm text-red-500">{emailError}</p>}
+                {emailError && <p className="text-sm text-red-500 font-medium">{emailError}</p>}
               </div>
               
-              {/* Membership Section */}
               <div className="flex items-center space-x-2 pt-2">
-                <Switch id="member" checked={formState.isMember} onCheckedChange={handleSwitchChange} />
+                <Switch 
+                  id="member" 
+                  checked={formState.isMember} 
+                  onCheckedChange={handleSwitchChange} 
+                />
                 <Label htmlFor="member">Is Member</Label>
               </div>
               
-              {/* Conditional Membership Fields */}
-              {formState.isMember && <div className="space-y-4 border rounded-md p-4 bg-background">
-                  {isEditMode && selectedCustomer && selectedCustomer.membershipPlan && <div className="grid gap-2">
+              {formState.isMember && (
+                <div className="space-y-4 border rounded-md p-4 bg-background">
+                  {isEditMode && selectedCustomer && selectedCustomer.membershipPlan && (
+                    <div className="grid gap-2">
                       <Label htmlFor="membershipPlan">Current Membership</Label>
-                      <Input id="membershipPlan" value={selectedCustomer.membershipPlan} readOnly className="bg-muted" />
+                      <Input 
+                        id="membershipPlan" 
+                        value={selectedCustomer.membershipPlan} 
+                        readOnly 
+                        className="bg-muted" 
+                      />
                       <p className="text-xs text-muted-foreground mt-1">
                         Membership can only be changed through purchase at checkout.
                       </p>
-                    </div>}
+                    </div>
+                  )}
                   
                   <div className="grid gap-2">
                     <Label htmlFor="membershipExpiryDate">Expiry Date</Label>
-                    <Input id="membershipExpiryDate" name="membershipExpiryDate" type="date" value={formState.membershipExpiryDate} onChange={handleChange} />
+                    <Input 
+                      id="membershipExpiryDate" 
+                      name="membershipExpiryDate" 
+                      type="date" 
+                      value={formState.membershipExpiryDate} 
+                      onChange={handleChange} 
+                    />
                   </div>
                   
                   <div className="grid gap-2">
                     <Label htmlFor="membershipHoursLeft">Hours Left</Label>
-                    <Input id="membershipHoursLeft" name="membershipHoursLeft" type="number" min="0" value={formState.membershipHoursLeft} onChange={handleChange} placeholder="Available hours" />
+                    <Input 
+                      id="membershipHoursLeft" 
+                      name="membershipHoursLeft" 
+                      type="number" 
+                      min="0" 
+                      value={formState.membershipHoursLeft} 
+                      onChange={handleChange} 
+                      placeholder="Available hours" 
+                    />
                   </div>
-                </div>}
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -469,28 +662,262 @@ const Customers = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Search and filter */}
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search customers by name, phone or email..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+      {/* DUPLICATE CLEANUP DIALOG */}
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Duplicate Customers Found</DialogTitle>
+            <DialogDescription>
+              Found {duplicates.length} phone number(s) with duplicate entries. Select which customer to keep for each group.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {duplicates.map((dupGroup, groupIndex) => (
+              <div key={groupIndex} className="border rounded-lg p-4 bg-muted/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Phone: {dupGroup.phone}</h3>
+                  <Badge variant="destructive">{dupGroup.customers.length} Duplicates</Badge>
+                </div>
+                
+                <div className="grid gap-3">
+                  {dupGroup.customers.map((customer) => (
+                    <div 
+                      key={customer.id} 
+                      className="flex items-center justify-between p-3 bg-background rounded-md border"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium">{customer.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          ID: {customer.customerId || 'N/A'} | 
+                          Joined: {new Date(customer.createdAt).toLocaleDateString('en-IN')} | 
+                          Points: {customer.loyaltyPoints} | 
+                          Spent: ₹{customer.totalSpent}
+                        </p>
+                        {customer.email && (
+                          <p className="text-sm text-muted-foreground">Email: {customer.email}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => resolveDuplicate(dupGroup, customer.id)}
+                        className="ml-4"
+                      >
+                        Keep This One
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDuplicateDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* FILTER PANEL */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by name, phone, email, or Customer ID..." 
+              className="pl-8" 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+            />
+          </div>
+          
+          <Button
+            variant={activeFilterCount > 0 ? "default" : "outline"}
+            onClick={() => setShowFilters(!showFilters)}
+            className="relative"
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+            {activeFilterCount > 0 && (
+              <Badge className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center" variant="secondary">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
         </div>
+
+        {showFilters && (
+          <div className="border rounded-lg p-4 bg-muted/50 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Filter Customers</h3>
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                <X className="h-4 w-4 mr-1" />
+                Reset Filters
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="membershipStatus">Membership Status</Label>
+                <Select
+                  value={filters.membershipStatus}
+                  onValueChange={(value: any) => setFilters(prev => ({ ...prev, membershipStatus: value }))}
+                >
+                  <SelectTrigger id="membershipStatus">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Customers</SelectItem>
+                    <SelectItem value="member">All Members</SelectItem>
+                    <SelectItem value="non-member">Non-Members</SelectItem>
+                    <SelectItem value="active">Active Members</SelectItem>
+                    <SelectItem value="expired">Expired Members</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="loyaltyMin">Min Loyalty Points</Label>
+                <Input
+                  id="loyaltyMin"
+                  type="number"
+                  min="0"
+                  value={filters.loyaltyPointsMin}
+                  onChange={(e) => setFilters(prev => ({ ...prev, loyaltyPointsMin: parseInt(e.target.value) || 0 }))}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="loyaltyMax">Max Loyalty Points</Label>
+                <Input
+                  id="loyaltyMax"
+                  type="number"
+                  min="0"
+                  value={filters.loyaltyPointsMax}
+                  onChange={(e) => setFilters(prev => ({ ...prev, loyaltyPointsMax: parseInt(e.target.value) || 10000 }))}
+                  placeholder="10000"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="joinFrom">Joined From</Label>
+                <Input
+                  id="joinFrom"
+                  type="date"
+                  value={filters.joinDateFrom}
+                  onChange={(e) => setFilters(prev => ({ ...prev, joinDateFrom: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="joinTo">Joined To</Label>
+                <Input
+                  id="joinTo"
+                  type="date"
+                  value={filters.joinDateTo}
+                  onChange={(e) => setFilters(prev => ({ ...prev, joinDateTo: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {filters.membershipStatus !== 'all' && (
+                  <Badge variant="secondary">
+                    Status: {filters.membershipStatus}
+                    <X 
+                      className="h-3 w-3 ml-1 cursor-pointer" 
+                      onClick={() => setFilters(prev => ({ ...prev, membershipStatus: 'all' }))}
+                    />
+                  </Badge>
+                )}
+                {filters.loyaltyPointsMin > 0 && (
+                  <Badge variant="secondary">
+                    Min Points: {filters.loyaltyPointsMin}
+                    <X 
+                      className="h-3 w-3 ml-1 cursor-pointer" 
+                      onClick={() => setFilters(prev => ({ ...prev, loyaltyPointsMin: 0 }))}
+                    />
+                  </Badge>
+                )}
+                {filters.loyaltyPointsMax < 10000 && (
+                  <Badge variant="secondary">
+                    Max Points: {filters.loyaltyPointsMax}
+                    <X 
+                      className="h-3 w-3 ml-1 cursor-pointer" 
+                      onClick={() => setFilters(prev => ({ ...prev, loyaltyPointsMax: 10000 }))}
+                    />
+                  </Badge>
+                )}
+                {filters.joinDateFrom && (
+                  <Badge variant="secondary">
+                    From: {new Date(filters.joinDateFrom).toLocaleDateString('en-IN')}
+                    <X 
+                      className="h-3 w-3 ml-1 cursor-pointer" 
+                      onClick={() => setFilters(prev => ({ ...prev, joinDateFrom: '' }))}
+                    />
+                  </Badge>
+                )}
+                {filters.joinDateTo && (
+                  <Badge variant="secondary">
+                    To: {new Date(filters.joinDateTo).toLocaleDateString('en-IN')}
+                    <X 
+                      className="h-3 w-3 ml-1 cursor-pointer" 
+                      onClick={() => setFilters(prev => ({ ...prev, joinDateTo: '' }))}
+                    />
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       
-      {/* Customer list */}
-      {filteredAndSortedCustomers.length > 0 ? <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredAndSortedCustomers.map(customer => <CustomerCard key={customer.id} customer={customer} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />)}
-        </div> : <div className="flex flex-col items-center justify-center h-64">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Showing {filteredAndSortedCustomers.length} of {customersData.length} customers
+        </p>
+      </div>
+
+      {/* CUSTOMER GRID */}
+      {filteredAndSortedCustomers.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredAndSortedCustomers.map((customer) => (
+            <CustomerCard 
+              key={customer.id} 
+              customer={customer} 
+              onEdit={handleEditCustomer} 
+              onDelete={handleDeleteCustomer} 
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center h-64">
           <User className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-xl font-medium">No Customers Found</h3>
           <p className="text-muted-foreground mt-2">
-            {searchQuery ? "No customers match your search criteria." : "You haven't added any customers yet."}
+            {searchQuery || activeFilterCount > 0 
+              ? "No customers match your search or filter criteria." 
+              : "You haven't added any customers yet."}
           </p>
+          {(searchQuery || activeFilterCount > 0) && (
+            <Button className="mt-4" variant="outline" onClick={() => {
+              setSearchQuery('');
+              resetFilters();
+            }}>
+              Clear Search & Filters
+            </Button>
+          )}
           <Button className="mt-4" onClick={handleOpenDialog}>
             <Plus className="h-4 w-4 mr-2" /> Add Customer
           </Button>
-        </div>}
-    </div>;
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default Customers;
