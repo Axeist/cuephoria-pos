@@ -333,7 +333,6 @@ const ReportsPage: React.FC = () => {
       const blob = new Blob([excelBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8'
       });
-
       saveAs(blob, `${fileName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     } catch (error) {
       console.error("Error exporting to Excel:", error);
@@ -430,7 +429,6 @@ const ReportsPage: React.FC = () => {
       title: "Edit Transaction",
       description: `Opening editor for bill ${bill.id.substring(0, 8)}...`,
     });
-    // You can implement full edit dialog here later
     console.log('Edit bill:', bill);
   };
 
@@ -736,7 +734,6 @@ const ReportsPage: React.FC = () => {
   const renderBillsTab = () => (
     <div className="space-y-4">
       <SalesWidgets filteredBills={filteredData.filteredBills} />
-
       <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
         <div className="p-6">
           <h2 className="text-2xl font-bold mb-1">Transaction History</h2>
@@ -1198,71 +1195,114 @@ const ReportsPage: React.FC = () => {
 
   const renderSummaryTab = () => (
     <div className="space-y-8">
-      {/* Complimentary Insights Widget */}
-      <Card className="bg-[#1A1F2C] border-gray-800">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-white">
-            <span>Complimentary Sales Insights</span>
-            <Gift className="h-5 w-5 text-amber-400" />
-          </CardTitle>
-          <CardDescription>Track free items and promotional giveaways</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <p className="text-sm text-gray-400">Total Value Given</p>
-              <CurrencyDisplay 
-                amount={summaryMetrics.financial.complimentarySales} 
-                className="text-3xl font-bold text-amber-400"
-              />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-400">Transactions</p>
-              <p className="text-3xl font-bold text-white">
-                {summaryMetrics.financial.complimentaryCount}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-400">Avg. Per Transaction</p>
-              <CurrencyDisplay 
-                amount={summaryMetrics.financial.avgComplimentaryValue} 
-                className="text-3xl font-bold text-white"
-              />
-            </div>
-          </div>
-          
-          <div className="mt-6 pt-6 border-t border-gray-700 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">% of Total Volume</span>
-              <span className="text-white font-semibold text-lg">
-                {summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%
-              </span>
-            </div>
-          </div>
-          
-          {/* Visual indicator */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-400">Complimentary vs Paid Revenue</span>
-              <span className="text-xs text-amber-400 font-mono">
-                {summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%
-              </span>
-            </div>
-            <div className="w-full bg-gray-800 rounded-full h-3">
-              <div 
-                className="bg-gradient-to-r from-amber-500 to-orange-500 h-3 rounded-full transition-all duration-500"
-                style={{width: `${Math.min(summaryMetrics.financial.complimentaryPercentage, 100)}%`}}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <BusinessSummaryReport
         startDate={date?.from}
         endDate={date?.to}
         onDownload={handleDownloadReport}
       />
+      
+      {/* Complimentary Insights Widget - Moved to bottom with matching theme */}
+      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-amber-500/20 hover:border-amber-500/30 transition-all duration-300 backdrop-blur-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
+          <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
+            <Gift className="h-5 w-5 text-amber-400" />
+            Complimentary Sales Insights
+          </CardTitle>
+          <div className="h-8 w-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Gift className="h-4 w-4 text-amber-400" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-8 w-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+                      <line x1="12" y1="1" x2="12" y2="23"></line>
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-400">Total Value Given</p>
+                </div>
+                <CurrencyDisplay 
+                  amount={summaryMetrics.financial.complimentarySales} 
+                  className="text-2xl font-bold text-amber-400"
+                />
+              </div>
+              
+              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-400">Transactions</p>
+                </div>
+                <p className="text-2xl font-bold text-white">
+                  {summaryMetrics.financial.complimentaryCount}
+                </p>
+              </div>
+              
+              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-8 w-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
+                      <line x1="12" y1="20" x2="12" y2="10"></line>
+                      <line x1="18" y1="20" x2="18" y2="4"></line>
+                      <line x1="6" y1="20" x2="6" y2="16"></line>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-400">Avg. Per Transaction</p>
+                </div>
+                <CurrencyDisplay 
+                  amount={summaryMetrics.financial.avgComplimentaryValue} 
+                  className="text-2xl font-bold text-white"
+                />
+              </div>
+            </div>
+            
+            {/* Percentage of Total Volume */}
+            <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-200">% of Total Transaction Volume</span>
+                <span className="text-lg font-bold text-amber-400">
+                  {summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%
+                </span>
+              </div>
+              
+              {/* Visual Progress Bar */}
+              <div className="space-y-2">
+                <div className="w-full bg-gray-700/50 rounded-full h-3 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 h-3 rounded-full transition-all duration-500 ease-out shadow-lg shadow-amber-500/30"
+                    style={{width: `${Math.min(summaryMetrics.financial.complimentaryPercentage, 100)}%`}}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>0%</span>
+                  <span>50%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Additional Info */}
+            <div className="pt-2 border-t border-gray-700/30">
+              <div className="text-xs text-gray-500 flex justify-between items-center">
+                <p>Complimentary items help build customer loyalty and drive repeat visits</p>
+                <p className="text-amber-400 flex items-center gap-1">
+                  <Gift className="h-3 w-3" />
+                  Promotional Tracking
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 
