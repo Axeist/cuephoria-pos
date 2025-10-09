@@ -257,7 +257,7 @@ const POS = () => {
     setIsCompDialogOpen(true);
   };
 
-  // Confirm complimentary transaction - UPDATED
+  // Confirm complimentary transaction
   const handleConfirmComplimentary = async () => {
     setIsCompletingSale(true);
     
@@ -443,7 +443,7 @@ const POS = () => {
               <div className="grid grid-cols-2 gap-2">
                 <Button 
                   variant="default" 
-                  className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 animate-pulse-soft"
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 animate-pulse-soft transition-all duration-300 hover:scale-105"
                   disabled={cart.length === 0 || !selectedCustomer}
                   onClick={() => setIsCheckoutDialogOpen(true)}
                 >
@@ -452,13 +452,13 @@ const POS = () => {
                 </Button>
                 
                 <Button 
-                  variant="outline" 
-                  className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                  variant="default"
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 animate-pulse-soft transition-all duration-300 hover:scale-105"
                   disabled={cart.length === 0 || !selectedCustomer}
                   onClick={handleComplimentary}
                 >
                   <Gift className="mr-2 h-4 w-4" />
-                  Comp
+                  Complimentary
                 </Button>
               </div>
             </div>
@@ -610,31 +610,31 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Complimentary Dialog - UPDATED WITH BETTER VISIBILITY */}
+      {/* Complimentary Dialog - THEMED */}
       <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
-        <DialogContent className="max-w-md animate-scale-in bg-white dark:bg-gray-900">
+        <DialogContent className="max-w-md animate-scale-in">
           <DialogHeader>
-            <DialogTitle className="font-heading text-xl flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <DialogTitle className="font-heading text-xl flex items-center gap-2">
               <Gift className="h-5 w-5 text-orange-500" />
               Mark as Complimentary
             </DialogTitle>
-            <DialogDescription className="text-gray-600 dark:text-gray-400">
+            <DialogDescription>
               Items will be given for free. Stock will be reduced but no payment will be recorded.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             {selectedCustomer && (
-              <div className="border border-orange-300 dark:border-orange-700 rounded-md p-3 bg-orange-50 dark:bg-orange-950/30">
+              <div className="border border-orange-200 dark:border-orange-800 rounded-md p-3 bg-gradient-to-r from-orange-50 to-transparent dark:from-orange-950/20 dark:to-transparent animate-fade-in">
                 <div className="flex items-center gap-2 mb-2">
-                  <User className="h-4 w-4 text-orange-700 dark:text-orange-400" />
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{selectedCustomer.name}</span>
+                  <User className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                  <span className="font-medium">{selectedCustomer.name}</span>
                 </div>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="comp-note" className="text-gray-900 dark:text-gray-100 font-medium">
+            <div className="space-y-2 animate-slide-up delay-100">
+              <Label htmlFor="comp-note" className="font-heading">
                 Reason/Note (Optional)
               </Label>
               <Textarea
@@ -642,43 +642,45 @@ const POS = () => {
                 placeholder="e.g., Owner consumption, Friend - Raj, Staff meal, etc."
                 value={compNote}
                 onChange={(e) => setCompNote(e.target.value)}
-                className="resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 placeholder:text-gray-500"
+                className="resize-none font-quicksand"
                 rows={3}
               />
             </div>
 
-            <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 bg-gray-50 dark:bg-gray-800">
-              <h4 className="font-medium mb-2 text-gray-900 dark:text-gray-100">Items</h4>
+            <div className="border rounded-md p-3 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-orange/10 animate-slide-up delay-200">
+              <h4 className="font-medium mb-2 font-heading">Items</h4>
               <div className="space-y-1 max-h-32 overflow-auto">
                 {cart.map(item => (
-                  <div key={item.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
-                    <span>{item.name} x {item.quantity}</span>
-                    <span className="font-mono font-semibold">₹{item.total.toLocaleString('en-IN')}</span>
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span className="font-quicksand">{item.name} x {item.quantity}</span>
+                    <span className="font-mono font-semibold indian-rupee">
+                      {item.total.toLocaleString('en-IN')}
+                    </span>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between font-bold border-t border-gray-300 dark:border-gray-600 mt-2 pt-2 text-gray-900 dark:text-gray-100">
-                <span>Total Value</span>
-                <span className="font-mono">₹{total.toLocaleString('en-IN')}</span>
+              <div className="flex justify-between font-bold border-t mt-2 pt-2">
+                <span className="font-heading">Total Value</span>
+                <CurrencyDisplay amount={total} className="text-orange-600" />
               </div>
             </div>
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="animate-slide-up delay-300">
             <Button 
               variant="outline" 
               onClick={() => {
                 setIsCompDialogOpen(false);
                 setCompNote('');
               }}
-              className="border-gray-300 dark:border-gray-600"
+              className="hover:bg-muted transition-colors"
             >
               Cancel
             </Button>
             <Button 
               onClick={handleConfirmComplimentary}
               disabled={isCompletingSale}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 transition-all duration-300"
             >
               <Gift className="mr-2 h-4 w-4" />
               {isCompletingSale ? 'Processing...' : 'Confirm Complimentary'}
