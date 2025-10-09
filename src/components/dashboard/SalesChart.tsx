@@ -1,13 +1,14 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartContainer } from '@/components/ui/chart';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
 import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, format, addDays, addWeeks } from 'date-fns';
+import { Calendar } from 'lucide-react';
 
 interface SalesChartProps {
   data: {
@@ -23,6 +24,34 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const { expenses } = useExpenses();
   const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; }[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+
+  // Calculate available years from bills
+  useEffect(() => {
+    const years = new Set<string>();
+    bills.forEach(bill => {
+      const billDate = new Date(bill.createdAt);
+      years.add(billDate.getFullYear().toString());
+    });
+    const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+    setAvailableYears(sortedYears);
+  }, [bills]);
+
+  // Filter bills by year and exclude complimentary
+  const filteredBills = useMemo(() => {
+    const paidBills = bills.filter(bill => bill.paymentMethod !== 'complimentary');
+    
+    if (selectedYear === 'all') {
+      return paidBills;
+    }
+    
+    const year = parseInt(selectedYear);
+    return paidBills.filter(bill => {
+      const billDate = new Date(bill.createdAt);
+      return billDate.getFullYear() === year;
+    });
+  }, [bills, selectedYear]);
 
   const generateChartData = () => {
     const now = new Date();
@@ -36,7 +65,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const hourlyTotals = new Map();
       const hourlyExpenses = new Map();
       
-      bills.forEach(bill => {
+      filteredBills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
         if (billDate >= todayStart && billDate <= todayEnd) {
           const hour = billDate.getHours();
@@ -74,7 +103,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const dailyTotals = new Map();
       const dailyExpenses = new Map();
       
-      bills.forEach(bill => {
+      filteredBills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
         if (billDate >= weekStart && billDate <= weekEnd) {
           const dayOfWeek = billDate.getDay();
@@ -122,7 +151,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const weeklyTotals = new Map();
       const weeklyExpenses = new Map();
       
-      bills.forEach(bill => {
+      filteredBills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
         if (billDate >= monthStart && billDate <= monthEnd) {
           const week = weeks.find(w => billDate >= w.start && billDate <= w.end);
@@ -156,7 +185,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const monthlyTotals = new Map();
       const monthlyExpenses = new Map();
       
-      bills.forEach(bill => {
+      filteredBills.forEach(bill => {
         const date = new Date(bill.createdAt);
         const month = months[date.getMonth()];
         const current = monthlyTotals.get(month) || 0;
@@ -178,7 +207,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     }
   };
 
-  // Handle smooth transitions when activeTab changes
+  // Handle smooth transitions when activeTab or selectedYear changes
   useEffect(() => {
     setIsTransitioning(true);
     
@@ -190,7 +219,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [activeTab, bills, expenses]);
+  }, [activeTab, filteredBills, expenses, selectedYear]);
 
   // Initialize chart data on first render
   useEffect(() => {
@@ -206,34 +235,55 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold text-white font-heading">Sales Overview</CardTitle>
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-auto">
-            <TabsList className="bg-gray-800 text-gray-400">
-              <TabsTrigger 
-                value="hourly"
-                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-              >
-                Hourly
-              </TabsTrigger>
-              <TabsTrigger 
-                value="daily"
-                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-              >
-                Daily
-              </TabsTrigger>
-              <TabsTrigger 
-                value="weekly"
-                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-              >
-                Weekly
-              </TabsTrigger>
-              <TabsTrigger 
-                value="monthly"
-                className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-              >
-                Monthly
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-4">
+            {/* Year Filter */}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Select Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Time Period Tabs */}
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-auto">
+              <TabsList className="bg-gray-800 text-gray-400">
+                <TabsTrigger 
+                  value="hourly"
+                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+                >
+                  Hourly
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="daily"
+                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+                >
+                  Daily
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="weekly"
+                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+                >
+                  Weekly
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="monthly"
+                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
+                >
+                  Monthly
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="h-[350px] pt-4">
