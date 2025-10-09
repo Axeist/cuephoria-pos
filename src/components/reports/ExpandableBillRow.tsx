@@ -86,6 +86,8 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
+    
     if (onEdit) {
       onEdit(bill);
     }
@@ -93,6 +95,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setShowDeleteDialog(true);
   };
 
@@ -216,6 +219,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
                 size="icon"
                 onClick={handleEdit}
                 className="h-8 w-8 text-blue-400 hover:text-blue-300 hover:bg-blue-950/30"
+                type="button"
               >
                 <Edit2 className="h-4 w-4" />
               </Button>
@@ -226,6 +230,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
                 size="icon"
                 onClick={handleDeleteClick}
                 className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                type="button"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
