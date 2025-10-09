@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
 import { Trophy, Crown, Medal, Award } from 'lucide-react';
@@ -13,8 +12,14 @@ interface TopCustomersWidgetProps {
 const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endDate }) => {
   const { customers, bills } = usePOS();
 
+  // FIXED: Filter out complimentary bills first
+  const paidBills = useMemo(() => 
+    bills.filter(bill => bill.paymentMethod !== 'complimentary'),
+    [bills]
+  );
+
   // Filter bills by date range if provided
-  const filteredBills = bills.filter(bill => {
+  const filteredBills = paidBills.filter(bill => {
     if (!startDate && !endDate) return true;
     const billDate = new Date(bill.createdAt);
     if (startDate && billDate < startDate) return false;
