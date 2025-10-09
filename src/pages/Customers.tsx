@@ -449,24 +449,29 @@ const Customers = () => {
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
 
-  // ✅ UPDATED: Enhanced search with Customer ID support
+  // ✅ ENHANCED MULTI-FIELD SEARCH: Searches by Name, Phone, Email, and Customer ID
   const filteredAndSortedCustomers = sortCustomers(
     customersData
       .filter(customer => {
+        // Apply search query if present
         if (searchQuery.trim() !== '') {
-          const query = searchQuery.toLowerCase();
+          const query = searchQuery.toLowerCase().trim();
           const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
           const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
           
-          const matchesSearch = 
-            customer.name.toLowerCase().includes(query) || 
-            normalizedCustomerPhone.includes(normalizedSearchPhone) ||
-            customer.email?.toLowerCase().includes(query) ||
-            customer.customerId?.toLowerCase().includes(query); // ✅ Search by Customer ID
+          // Search across all fields with case-insensitive matching
+          const matchesName = customer.name.toLowerCase().includes(query);
+          const matchesPhone = normalizedCustomerPhone.includes(normalizedSearchPhone);
+          const matchesEmail = customer.email?.toLowerCase().includes(query) || false;
+          const matchesCustomerId = customer.customerId?.toLowerCase().includes(query) || false;
+          
+          // Return true if ANY field matches
+          const matchesSearch = matchesName || matchesPhone || matchesEmail || matchesCustomerId;
           
           if (!matchesSearch) return false;
         }
         
+        // Apply additional filters
         return applyFilters(customer);
       })
   );
