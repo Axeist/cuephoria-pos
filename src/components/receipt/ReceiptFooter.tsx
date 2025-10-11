@@ -2,7 +2,7 @@ import React from 'react';
 
 const ReceiptFooter: React.FC = () => {
   return (
-    <div className="border-t-2 border-dashed border-gray-400 pt-4 mt-6 text-center">
+    <div className="border-t-2 border-dashed border-gray-400 pt-4 mt-6 text-center receipt-footer">
       {/* Thank You Message */}
       <div className="mb-4">
         <h3 className="text-lg font-bold text-[#6E59A5] mb-1">
@@ -13,8 +13,8 @@ const ReceiptFooter: React.FC = () => {
         </p>
       </div>
       
-      {/* Terms & Conditions */}
-      <div className="bg-gray-50 rounded-lg p-3 mb-4">
+      {/* Terms & Conditions - With page-break protection */}
+      <div className="bg-gray-50 rounded-lg p-3 mb-4 terms-section">
         <h4 className="text-xs font-semibold text-gray-700 mb-2">Terms & Conditions:</h4>
         <ul className="text-[10px] text-gray-600 space-y-1 text-left">
           <li>• Goods once sold cannot be returned or exchanged</li>
