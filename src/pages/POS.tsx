@@ -16,6 +16,7 @@ import Receipt from '@/components/Receipt';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
+import { getCartInfo } from '@/utils/cartStorage';
 
 const POS = () => {
   const {
@@ -119,13 +120,25 @@ const POS = () => {
   };
 
   const handleSelectCustomer = (customer: Customer) => {
+    const cartInfo = getCartInfo(customer.id);
+    
     selectCustomer(customer.id);
     setIsCustomerDialogOpen(false);
-    toast({
-      title: 'Customer Selected',
-      description: `${customer.name} has been selected for this transaction.`,
-      variant: 'default',
-    });
+    
+    if (cartInfo.hasCart) {
+      toast({
+        title: 'Cart Restored',
+        description: `${customer.name}'s cart with ${cartInfo.itemCount} item(s) has been restored.`,
+        variant: 'default',
+        duration: 3000,
+      });
+    } else {
+      toast({
+        title: 'Customer Selected',
+        description: `${customer.name} has been selected for this transaction.`,
+        variant: 'default',
+      });
+    }
   };
 
   const handleApplyDiscount = () => {
@@ -234,7 +247,6 @@ const POS = () => {
     }
   };
 
-  // Handle complimentary transaction
   const handleComplimentary = async () => {
     if (!selectedCustomer) {
       toast({
@@ -257,12 +269,10 @@ const POS = () => {
     setIsCompDialogOpen(true);
   };
 
-  // Confirm complimentary transaction
   const handleConfirmComplimentary = async () => {
     setIsCompletingSale(true);
     
     try {
-      // Pass 'complimentary' as BOTH payment method AND status
       const bill = await completeSale('complimentary', 'complimentary', compNote);
       
       if (bill) {
@@ -439,7 +449,6 @@ const POS = () => {
                 </Button>
               </div>
               
-              {/* Checkout and Complimentary buttons */}
               <div className="grid grid-cols-2 gap-2">
                 <Button 
                   variant="default" 
@@ -564,11 +573,16 @@ const POS = () => {
         </Card>
       </div>
 
-      {/* Customer Dialog */}
+      {/* ============================================ */}
+      {/* UPDATED: Customer Dialog with Pending Cart Badges */}
+      {/* ============================================ */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
         <DialogContent className="max-w-3xl animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">Select Customer</DialogTitle>
+            <DialogDescription>
+              Choose a customer to start or resume their transaction
+            </DialogDescription>
           </DialogHeader>
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -583,19 +597,31 @@ const POS = () => {
           <div className="max-h-[60vh] overflow-auto">
             {filteredCustomers.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredCustomers.map((customer, index) => (
-                  <div 
-                    key={customer.id} 
-                    className={`animate-scale-in delay-${index % 6}`} 
-                    style={{animationDelay: `${(index % 6) * 100}ms`}}
-                  >
-                    <CustomerCard
-                      customer={customer}
-                      isSelectable={true}
-                      onSelect={handleSelectCustomer}
-                    />
-                  </div>
-                ))}
+                {filteredCustomers.map((customer, index) => {
+                  // Get cart info for this customer
+                  const cartInfo = getCartInfo(customer.id);
+                  
+                  return (
+                    <div 
+                      key={customer.id} 
+                      className={`relative animate-scale-in delay-${index % 6}`} 
+                      style={{animationDelay: `${(index % 6) * 100}ms`}}
+                    >
+                      {/* Pending Cart Badge */}
+                      {cartInfo.hasCart && (
+                        <div className="absolute -top-2 -right-2 bg-gradient-to-r from-cuephoria-orange to-cuephoria-lightpurple text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 z-10 animate-pulse shadow-lg">
+                          <ShoppingCart className="h-3 w-3" />
+                          <span className="font-semibold">{cartInfo.itemCount}</span>
+                        </div>
+                      )}
+                      <CustomerCard
+                        customer={customer}
+                        isSelectable={true}
+                        onSelect={handleSelectCustomer}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8">
@@ -610,7 +636,7 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Complimentary Dialog - THEMED */}
+      {/* Complimentary Dialog */}
       <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
         <DialogContent className="max-w-md animate-scale-in">
           <DialogHeader>
