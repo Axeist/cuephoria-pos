@@ -7,23 +7,35 @@ export const generatePDF = async (element: HTMLElement, billId: string): Promise
   }
   
   try {
-    // Create a clone of the element to avoid affecting the visible DOM
+    // Show loading indicator
+    const loadingDiv = document.createElement('div');
+    loadingDiv.innerHTML = 'Generating PDF...';
+    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);z-index:9999;';
+    document.body.appendChild(loadingDiv);
+    
+    // Create a clone of the element
     const clonedElement = element.cloneNode(true) as HTMLElement;
     
     // Temporarily add the clone to the document
     clonedElement.style.position = 'absolute';
     clonedElement.style.left = '-9999px';
+    clonedElement.style.width = '800px'; // Fixed width for better rendering
     document.body.appendChild(clonedElement);
+    
+    // Wait a bit for fonts to load
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     const canvas = await html2canvas(clonedElement, {
       scale: 2,
       backgroundColor: '#ffffff',
       logging: false,
-      useCORS: true
+      useCORS: true,
+      allowTaint: true
     });
     
-    // Remove the clone
+    // Remove the clone and loading indicator
     document.body.removeChild(clonedElement);
+    document.body.removeChild(loadingDiv);
     
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF({
@@ -64,7 +76,7 @@ export const generatePDF = async (element: HTMLElement, billId: string): Promise
 
 export const handlePrint = (printContent: string): void => {
   try {
-    // Create a new window for printing instead of replacing body content
+    // Create a new window for printing with optimized print styles
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     
     if (!printWindow) {
@@ -84,99 +96,266 @@ export const handlePrint = (printContent: string): void => {
               box-sizing: border-box;
             }
             
-            body { 
-              font-family: 'Arial', sans-serif;
-              padding: 20px;
-              background: white;
-              color: black;
+            @page {
+              size: A4;
+              margin: 10mm;
             }
             
-            @media print {
-              body {
-                padding: 0;
-              }
-              
-              .no-print {
-                display: none !important;
-              }
+            html, body {
+              width: 100%;
+              height: 100%;
+              font-family: 'Arial', 'Helvetica', sans-serif;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+              color: #000;
+            }
+            
+            body { 
+              background: white;
+              padding: 0;
+              margin: 0;
             }
             
             .receipt-container {
               max-width: 800px;
               margin: 0 auto;
+              padding: 20px;
               background: white;
-              padding: 30px;
             }
             
-            .receipt-header {
+            /* Header Styles */
+            h1 {
+              font-size: 36px;
+              font-weight: bold;
+              color: #6E59A5 !important;
               text-align: center;
-              border-bottom: 2px solid #333;
-              padding-bottom: 20px;
-              margin-bottom: 20px;
+              margin-bottom: 5px;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             
-            .receipt-header h1 {
-              font-size: 32px;
+            h2 {
+              font-size: 24px;
               font-weight: bold;
-              color: #6E59A5;
-              margin-bottom: 10px;
+              text-align: center;
+              margin: 15px 0;
             }
             
-            .receipt-item {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 10px;
-              padding: 8px 0;
-            }
-            
-            .receipt-total {
-              border-top: 2px solid #333;
-              margin-top: 20px;
-              padding-top: 15px;
-              font-weight: bold;
+            h3 {
               font-size: 18px;
+              font-weight: bold;
+              margin: 10px 0;
             }
             
+            h4 {
+              font-size: 14px;
+              font-weight: 600;
+              margin: 8px 0;
+            }
+            
+            p {
+              margin: 4px 0;
+              line-height: 1.5;
+            }
+            
+            /* Borders */
+            .border-b-2 {
+              border-bottom: 2px solid #333;
+            }
+            
+            .border-t-2 {
+              border-top: 2px solid #333;
+            }
+            
+            .border-dashed {
+              border-style: dashed !important;
+            }
+            
+            .border-gray-400 {
+              border-color: #9ca3af;
+            }
+            
+            /* Spacing */
+            .mb-1 { margin-bottom: 4px; }
+            .mb-2 { margin-bottom: 8px; }
+            .mb-3 { margin-bottom: 12px; }
+            .mb-4 { margin-bottom: 16px; }
+            .mt-1 { margin-top: 4px; }
+            .mt-2 { margin-top: 8px; }
+            .mt-3 { margin-top: 12px; }
+            .mt-4 { margin-top: 16px; }
+            .mt-6 { margin-top: 24px; }
+            .pb-2 { padding-bottom: 8px; }
+            .pb-3 { padding-bottom: 12px; }
+            .pb-4 { padding-bottom: 16px; }
+            .pt-2 { padding-top: 8px; }
+            .pt-3 { padding-top: 12px; }
+            .pt-4 { padding-top: 16px; }
+            .p-2 { padding: 8px; }
+            .p-3 { padding: 12px; }
+            
+            /* Text Alignment */
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .text-left { text-align: left; }
+            
+            /* Text Sizes */
+            .text-xs { font-size: 11px; }
+            .text-sm { font-size: 13px; }
+            .text-base { font-size: 15px; }
+            .text-lg { font-size: 17px; }
+            .text-xl { font-size: 20px; }
+            .text-2xl { font-size: 24px; }
+            .text-3xl { font-size: 30px; }
+            .text-4xl { font-size: 36px; }
+            
+            /* Font Weights */
+            .font-medium { font-weight: 500; }
+            .font-semibold { font-weight: 600; }
+            .font-bold { font-weight: 700; }
+            
+            /* Colors */
+            .text-gray-600 { color: #4b5563; }
+            .text-gray-700 { color: #374151; }
+            .text-gray-800 { color: #1f2937; }
+            
+            /* Background Colors */
+            .bg-gray-50 { background-color: #f9fafb; }
+            .bg-amber-50 { background-color: #fffbeb; }
+            
+            /* Flex & Grid */
+            .flex {
+              display: flex;
+            }
+            
+            .items-center {
+              align-items: center;
+            }
+            
+            .justify-center {
+              justify-content: center;
+            }
+            
+            .justify-between {
+              justify-content: space-between;
+            }
+            
+            .gap-1 { gap: 4px; }
+            .gap-2 { gap: 8px; }
+            .gap-3 { gap: 12px; }
+            
+            .grid {
+              display: grid;
+            }
+            
+            .grid-cols-2 {
+              grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .space-y-1 > * + * { margin-top: 4px; }
+            .space-y-2 > * + * { margin-top: 8px; }
+            
+            /* Table Styles */
             table {
               width: 100%;
               border-collapse: collapse;
-              margin: 20px 0;
+              margin: 15px 0;
             }
             
             table th,
             table td {
               text-align: left;
-              padding: 10px;
-              border-bottom: 1px solid #ddd;
+              padding: 10px 8px;
+              border-bottom: 1px solid #e5e7eb;
+              font-size: 13px;
             }
             
             table th {
-              background-color: #f5f5f5;
-              font-weight: bold;
+              background-color: #f3f4f6;
+              font-weight: 600;
             }
             
-            .text-center {
-              text-align: center;
+            table tr:last-child td {
+              border-bottom: none;
             }
             
-            .text-right {
-              text-align: right;
+            /* Rounded Corners */
+            .rounded { border-radius: 4px; }
+            .rounded-lg { border-radius: 8px; }
+            
+            /* Lists */
+            ul {
+              list-style-position: inside;
+              padding-left: 0;
             }
             
-            .font-bold {
-              font-weight: bold;
+            ul li {
+              margin: 4px 0;
             }
             
-            .mt-4 {
-              margin-top: 20px;
+            /* Icons - hide in print */
+            svg {
+              display: none;
             }
             
-            .text-sm {
-              font-size: 14px;
+            /* Hide edit button and other UI elements */
+            .no-print,
+            button,
+            .edit-button {
+              display: none !important;
             }
             
-            .text-xs {
-              font-size: 12px;
+            /* Specific receipt styles */
+            .uppercase {
+              text-transform: uppercase;
+            }
+            
+            .tracking-wider {
+              letter-spacing: 0.05em;
+            }
+            
+            .font-mono {
+              font-family: 'Courier New', monospace;
+            }
+            
+            .italic {
+              font-style: italic;
+            }
+            
+            /* Border styles */
+            .border {
+              border: 1px solid #d1d5db;
+            }
+            
+            .border-amber-300 {
+              border-color: #fcd34d;
+            }
+            
+            .border-gray-200 {
+              border-color: #e5e7eb;
+            }
+            
+            /* Prevent page breaks in important sections */
+            .receipt-header,
+            table,
+            .payment-summary {
+              page-break-inside: avoid;
+            }
+            
+            @media print {
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              
+              .receipt-container {
+                padding: 10px;
+              }
+              
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
             }
           </style>
         </head>
@@ -186,10 +365,12 @@ export const handlePrint = (printContent: string): void => {
           </div>
           <script>
             window.onload = function() {
-              window.print();
-              window.onafterprint = function() {
-                window.close();
-              };
+              setTimeout(function() {
+                window.print();
+                window.onafterprint = function() {
+                  window.close();
+                };
+              }, 250);
             };
           </script>
         </body>
