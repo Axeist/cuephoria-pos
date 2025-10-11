@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Station } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -43,14 +42,14 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       return;
     }
 
-    // Store the session data in ref to maintain persistence across renders
+    // ✅ UPDATED: Store the session data including coupon-discounted rate
     if (station.currentSession && !sessionDataRef.current) {
       sessionDataRef.current = {
         sessionId: station.currentSession.id,
         startTime: new Date(station.currentSession.startTime),
         stationId: station.id,
         customerId: station.currentSession.customerId,
-        hourlyRate: station.hourlyRate
+        hourlyRate: station.currentSession.hourlyRate || station.hourlyRate  // Use session rate if available
       };
     }
 
@@ -74,9 +73,10 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       setMinutes(minutesTotal % 60);
       setHours(hoursTotal);
       
-      // Calculate cost based on hourly rate
+      // ✅ UPDATED: Use session's hourly rate (which may be discounted from coupon)
+      const sessionRate = station.currentSession?.hourlyRate || station.hourlyRate;
       const hoursElapsed = elapsedMs / (1000 * 60 * 60);
-      let calculatedCost = Math.ceil(hoursElapsed * station.hourlyRate);
+      let calculatedCost = Math.ceil(hoursElapsed * sessionRate);
       
       // Apply 50% discount for members - IMPORTANT: Same logic as in useEndSession
       if (isMember) {
@@ -92,7 +92,9 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
         secondsTotal,
         minutesTotal,
         hoursTotal,
-        hourlyRate: station.hourlyRate,
+        sessionRate,  // ✅ UPDATED: Shows discounted rate
+        originalRate: station.hourlyRate,
+        couponCode: station.currentSession?.couponCode,
         isMember,
         discountApplied: isMember,
         calculatedCost
@@ -126,18 +128,23 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
           
           if (sessionData && sessionData.start_time) {
             const startTime = new Date(sessionData.start_time);
+            // ✅ UPDATED: Get hourly rate from DB (with coupon discount)
+            const dbHourlyRate = sessionData.hourly_rate || station.hourlyRate;
+            
             console.log("Session start time from Supabase:", startTime);
+            console.log("Session hourly rate from Supabase:", dbHourlyRate);
             
             // Update the sessionDataRef with data from Supabase
             if (sessionDataRef.current) {
               sessionDataRef.current.startTime = startTime;
+              sessionDataRef.current.hourlyRate = dbHourlyRate;  // ✅ UPDATED
             } else {
               sessionDataRef.current = {
                 sessionId,
                 startTime,
                 stationId: station.id,
                 customerId: station.currentSession.customerId,
-                hourlyRate: station.hourlyRate
+                hourlyRate: dbHourlyRate  // ✅ UPDATED
               };
             }
             
@@ -193,6 +200,11 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
     return null;
   }
 
+  // ✅ NEW: Check if coupon discount is applied
+  const hasCoupon = station.currentSession?.couponCode;
+  const sessionRate = station.currentSession?.hourlyRate || station.hourlyRate;
+  const isDiscounted = hasCoupon && sessionRate !== station.hourlyRate;
+
   return (
     <div className="space-y-4 bg-black/70 p-3 rounded-lg">
       <div className="text-center">
@@ -202,7 +214,19 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       </div>
       <div className="flex justify-between items-center">
         <span className="text-white">Current Cost:</span>
-        <CurrencyDisplay amount={cost} className="text-cuephoria-orange font-bold text-lg" />
+        <CurrencyDisplay 
+          amount={cost} 
+          className={`font-bold text-lg ${isDiscounted ? 'text-orange-400' : 'text-cuephoria-orange'}`} 
+        />
+      </div>
+      {/* ✅ NEW: Show rate information with discount indicator */}
+      <div className="text-xs text-gray-400 text-center">
+        @ ₹{sessionRate}/hr
+        {isDiscounted && (
+          <span className="ml-1 line-through text-gray-500">
+            ₹{station.hourlyRate}/hr
+          </span>
+        )}
       </div>
     </div>
   );
