@@ -13,54 +13,71 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
     loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px 40px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:99999;text-align:center;';
     document.body.appendChild(loadingDiv);
     
-    // Create a clone of the element
-    const clonedElement = element.cloneNode(true) as HTMLElement;
+    // Find the receipt content (skip the success message and action buttons)
+    const receiptContent = element.querySelector('[class*="p-6"]') as HTMLElement;
+    if (!receiptContent) {
+      throw new Error('Receipt content not found');
+    }
     
-    // Hide edit buttons and UI elements in clone
+    // Create a complete clone for PDF generation
+    const clonedElement = receiptContent.cloneNode(true) as HTMLElement;
+    
+    // Hide all no-print elements in the clone
     const elementsToHide = clonedElement.querySelectorAll('.no-print, button, .edit-button');
     elementsToHide.forEach((el) => {
       (el as HTMLElement).style.display = 'none';
     });
     
-    // Set optimal styling for PDF with extra padding to prevent cutoff
-    clonedElement.style.position = 'absolute';
-    clonedElement.style.left = '-9999px';
-    clonedElement.style.width = '190mm'; // Slightly narrower than A4 to leave margins
-    clonedElement.style.maxWidth = '190mm';
-    clonedElement.style.padding = '15mm';
-    clonedElement.style.backgroundColor = '#ffffff';
-    clonedElement.style.color = '#000000';
-    clonedElement.style.boxSizing = 'border-box';
+    // Create a temporary container with fixed dimensions
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.top = '0';
+    tempContainer.style.width = '210mm'; // A4 width
+    tempContainer.style.minHeight = '297mm'; // A4 height
+    tempContainer.style.padding = '15mm';
+    tempContainer.style.backgroundColor = '#ffffff';
+    tempContainer.style.color = '#000000';
+    tempContainer.style.fontFamily = 'Arial, sans-serif';
+    tempContainer.style.fontSize = '14px';
+    tempContainer.style.boxSizing = 'border-box';
+    tempContainer.style.overflow = 'visible';
     
-    // Add page-break-inside: avoid to all major sections
-    const sections = clonedElement.querySelectorAll('.border-t-2, .bg-gray-50, .rounded-lg, table');
-    sections.forEach((section) => {
-      (section as HTMLElement).style.pageBreakInside = 'avoid';
-      (section as HTMLElement).style.breakInside = 'avoid';
-    });
+    tempContainer.appendChild(clonedElement);
+    document.body.appendChild(tempContainer);
     
-    document.body.appendChild(clonedElement);
+    // Wait for layout to settle
+    await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Wait for fonts and images to load
-    await new Promise(resolve => setTimeout(resolve, 400));
+    // Get the actual height of the content
+    const contentHeight = clonedElement.scrollHeight;
+    tempContainer.style.height = `${contentHeight + 60}px`; // Add padding
     
-    const canvas = await html2canvas(clonedElement, {
-      scale: 2.5, // Good balance between quality and file size
+    // Wait again for height adjustment
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Capture with html2canvas
+    const canvas = await html2canvas(tempContainer, {
+      scale: 2.5,
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: false,
       imageTimeout: 0,
       removeContainer: false,
-      windowWidth: 1024,
-      windowHeight: clonedElement.scrollHeight + 100 // Add extra space
+      windowWidth: 794, // A4 width in pixels (210mm at 96 DPI)
+      windowHeight: contentHeight + 100,
+      width: tempContainer.offsetWidth,
+      height: tempContainer.offsetHeight,
+      scrollX: 0,
+      scrollY: 0
     });
     
-    // Remove the clone and loading indicator
-    document.body.removeChild(clonedElement);
+    // Remove temporary container and loading indicator
+    document.body.removeChild(tempContainer);
     document.body.removeChild(loadingDiv);
     
-    // Create PDF with proper margins
+    // Create PDF
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -68,36 +85,46 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
       compress: true
     });
     
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const margin = 10; // 10mm margins on all sides
-    const contentWidth = pdfWidth - (margin * 2);
-    const contentHeight = pdfHeight - (margin * 2);
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 0; // No margins since content already has padding
     
+    const contentWidth = pageWidth;
+    const contentHeightMM = pageHeight;
+    
+    // Calculate dimensions
     const imgWidth = contentWidth;
     const imgHeight = (canvas.height * contentWidth) / canvas.width;
     
-    // Convert to image
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    // Convert canvas to high quality image
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
     
-    let heightLeft = imgHeight;
-    let position = margin;
-    let page = 1;
+    // Calculate number of pages needed
+    const totalPages = Math.ceil(imgHeight / contentHeightMM);
     
-    // Add first page
-    pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
-    heightLeft -= contentHeight;
+    console.log(`Generating PDF: ${totalPages} page(s), Content height: ${imgHeight}mm`);
     
-    // Add additional pages if needed
-    while (heightLeft > 0) {
-      position = margin - (imgHeight - heightLeft);
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= contentHeight;
-      page++;
+    // Add pages
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) {
+        pdf.addPage();
+      }
+      
+      const yOffset = -page * contentHeightMM;
+      
+      pdf.addImage(
+        imgData,
+        'JPEG',
+        margin,
+        yOffset,
+        imgWidth,
+        imgHeight,
+        undefined,
+        'FAST'
+      );
     }
     
-    // Format filename: Cuephoria_Receipt_CustomerName_BillID.pdf
+    // Format filename
     const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_');
     const shortBillId = billId.substring(0, 8).toUpperCase();
     const fileName = `Cuephoria_Receipt_${sanitizedCustomerName}_${shortBillId}.pdf`;
@@ -118,7 +145,6 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
 
 export const handlePrint = (printContent: string): void => {
   try {
-    // Create a new window for printing with optimized print styles
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     
     if (!printWindow) {
@@ -165,7 +191,6 @@ export const handlePrint = (printContent: string): void => {
               background: white;
             }
             
-            /* Header Styles */
             h1 {
               font-size: 36px;
               font-weight: bold;
@@ -200,7 +225,6 @@ export const handlePrint = (printContent: string): void => {
               line-height: 1.5;
             }
             
-            /* Borders */
             .border-b-2 {
               border-bottom: 2px solid #333;
             }
@@ -218,11 +242,11 @@ export const handlePrint = (printContent: string): void => {
               border-color: #9ca3af;
             }
             
-            /* Spacing */
             .mb-1 { margin-bottom: 4px; }
             .mb-2 { margin-bottom: 8px; }
             .mb-3 { margin-bottom: 12px; }
             .mb-4 { margin-bottom: 16px; }
+            .mb-6 { margin-bottom: 24px; }
             .mt-1 { margin-top: 4px; }
             .mt-2 { margin-top: 8px; }
             .mt-3 { margin-top: 12px; }
@@ -237,12 +261,10 @@ export const handlePrint = (printContent: string): void => {
             .p-2 { padding: 8px; }
             .p-3 { padding: 12px; }
             
-            /* Text Alignment */
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .text-left { text-align: left; }
             
-            /* Text Sizes */
             .text-xs { font-size: 11px; }
             .text-sm { font-size: 13px; }
             .text-base { font-size: 15px; }
@@ -252,24 +274,27 @@ export const handlePrint = (printContent: string): void => {
             .text-3xl { font-size: 30px; }
             .text-4xl { font-size: 36px; }
             
-            /* Font Weights */
             .font-medium { font-weight: 500; }
             .font-semibold { font-weight: 600; }
             .font-bold { font-weight: 700; }
             
-            /* Colors */
             .text-gray-600 { color: #4b5563; }
             .text-gray-700 { color: #374151; }
             .text-gray-800 { color: #1f2937; }
             
-            /* Background Colors */
             .bg-gray-50 { 
               background-color: #f9fafb;
               page-break-inside: avoid;
             }
             .bg-amber-50 { background-color: #fffbeb; }
+            .bg-green-100 { background-color: #dcfce7; }
+            .bg-blue-100 { background-color: #dbeafe; }
+            .bg-orange-100 { background-color: #ffedd5; }
             
-            /* Flex & Grid */
+            .text-green-800 { color: #166534; }
+            .text-blue-800 { color: #1e40af; }
+            .text-orange-800 { color: #9a3412; }
+            
             .flex {
               display: flex;
             }
@@ -301,12 +326,11 @@ export const handlePrint = (printContent: string): void => {
             .space-y-1 > * + * { margin-top: 4px; }
             .space-y-2 > * + * { margin-top: 8px; }
             
-            /* Table Styles */
             table {
               width: 100%;
               border-collapse: collapse;
               margin: 15px 0;
-              page-break-inside: avoid;
+              page-break-inside: auto;
             }
             
             table th,
@@ -322,21 +346,25 @@ export const handlePrint = (printContent: string): void => {
               font-weight: 600;
             }
             
+            table tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+            
             table tr:last-child td {
               border-bottom: none;
             }
             
-            /* Rounded Corners */
             .rounded { 
               border-radius: 4px;
-              page-break-inside: avoid;
             }
             .rounded-lg { 
               border-radius: 8px;
-              page-break-inside: avoid;
+            }
+            .rounded-full {
+              border-radius: 9999px;
             }
             
-            /* Lists */
             ul {
               list-style-position: inside;
               padding-left: 0;
@@ -347,19 +375,16 @@ export const handlePrint = (printContent: string): void => {
               margin: 4px 0;
             }
             
-            /* Icons - hide in print */
             svg {
               display: none;
             }
             
-            /* Hide edit button and other UI elements */
             .no-print,
             button,
             .edit-button {
               display: none !important;
             }
             
-            /* Specific receipt styles */
             .uppercase {
               text-transform: uppercase;
             }
@@ -376,7 +401,6 @@ export const handlePrint = (printContent: string): void => {
               font-style: italic;
             }
             
-            /* Border styles */
             .border {
               border: 1px solid #d1d5db;
             }
@@ -389,19 +413,20 @@ export const handlePrint = (printContent: string): void => {
               border-color: #e5e7eb;
             }
             
-            /* Prevent page breaks in important sections */
+            .border-gray-300 {
+              border-color: #d1d5db;
+            }
+            
             .receipt-header,
-            table,
             .payment-summary,
-            .terms-section {
+            .terms-section,
+            .payment-method-section {
               page-break-inside: avoid !important;
               break-inside: avoid !important;
             }
             
-            /* Add extra bottom margin to payment method section */
-            .payment-method-section {
-              margin-bottom: 20px;
-              page-break-inside: avoid;
+            tbody {
+              page-break-inside: auto;
             }
             
             @media print {
@@ -417,11 +442,6 @@ export const handlePrint = (printContent: string): void => {
               * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
-              }
-              
-              /* Force page breaks before footer if needed */
-              .receipt-footer {
-                page-break-before: auto;
               }
             }
           </style>
