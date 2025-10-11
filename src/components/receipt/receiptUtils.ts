@@ -13,11 +13,9 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
     loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px 40px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:99999;text-align:center;';
     document.body.appendChild(loadingDiv);
     
-    // Find the receipt content (skip the success message and action buttons)
-    const receiptContent = element.querySelector('[class*="p-6"]') as HTMLElement;
-    if (!receiptContent) {
-      throw new Error('Receipt content not found');
-    }
+    // The element passed is already the receipt content ref from ReceiptContent
+    // Just use it directly
+    const receiptContent = element;
     
     // Create a complete clone for PDF generation
     const clonedElement = receiptContent.cloneNode(true) as HTMLElement;
@@ -28,49 +26,68 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
       (el as HTMLElement).style.display = 'none';
     });
     
-    // Create a temporary container with fixed dimensions
+    // Create a temporary container with A4 dimensions
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
+    tempContainer.style.left = '-99999px';
     tempContainer.style.top = '0';
-    tempContainer.style.width = '210mm'; // A4 width
-    tempContainer.style.minHeight = '297mm'; // A4 height
-    tempContainer.style.padding = '15mm';
+    tempContainer.style.width = '794px'; // A4 width in pixels (210mm at 96 DPI)
+    tempContainer.style.padding = '40px';
     tempContainer.style.backgroundColor = '#ffffff';
     tempContainer.style.color = '#000000';
     tempContainer.style.fontFamily = 'Arial, sans-serif';
-    tempContainer.style.fontSize = '14px';
     tempContainer.style.boxSizing = 'border-box';
     tempContainer.style.overflow = 'visible';
+    
+    // Ensure cloned content is properly styled
+    clonedElement.style.width = '100%';
+    clonedElement.style.maxHeight = 'none';
+    clonedElement.style.overflow = 'visible';
     
     tempContainer.appendChild(clonedElement);
     document.body.appendChild(tempContainer);
     
-    // Wait for layout to settle
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait for layout to settle and images to load
+    await new Promise(resolve => setTimeout(resolve, 800));
     
     // Get the actual height of the content
-    const contentHeight = clonedElement.scrollHeight;
-    tempContainer.style.height = `${contentHeight + 60}px`; // Add padding
+    const contentHeight = Math.max(
+      clonedElement.scrollHeight,
+      clonedElement.offsetHeight,
+      clonedElement.clientHeight
+    );
+    
+    tempContainer.style.height = `${contentHeight + 80}px`; // Add extra padding
     
     // Wait again for height adjustment
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    
+    console.log('Capturing content:', {
+      width: tempContainer.offsetWidth,
+      height: tempContainer.offsetHeight,
+      contentHeight: contentHeight
+    });
     
     // Capture with html2canvas
     const canvas = await html2canvas(tempContainer, {
-      scale: 2.5,
+      scale: 2,
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: false,
       imageTimeout: 0,
       removeContainer: false,
-      windowWidth: 794, // A4 width in pixels (210mm at 96 DPI)
-      windowHeight: contentHeight + 100,
       width: tempContainer.offsetWidth,
       height: tempContainer.offsetHeight,
       scrollX: 0,
-      scrollY: 0
+      scrollY: 0,
+      windowWidth: tempContainer.offsetWidth,
+      windowHeight: tempContainer.offsetHeight
+    });
+    
+    console.log('Canvas captured:', {
+      width: canvas.width,
+      height: canvas.height
     });
     
     // Remove temporary container and loading indicator
@@ -87,22 +104,18 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
     
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 0; // No margins since content already has padding
-    
-    const contentWidth = pageWidth;
-    const contentHeightMM = pageHeight;
     
     // Calculate dimensions
-    const imgWidth = contentWidth;
-    const imgHeight = (canvas.height * contentWidth) / canvas.width;
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * pageWidth) / canvas.width;
     
-    // Convert canvas to high quality image
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    // Convert canvas to image
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
     
     // Calculate number of pages needed
-    const totalPages = Math.ceil(imgHeight / contentHeightMM);
+    const totalPages = Math.ceil(imgHeight / pageHeight);
     
-    console.log(`Generating PDF: ${totalPages} page(s), Content height: ${imgHeight}mm`);
+    console.log(`Generating PDF: ${totalPages} page(s), Image height: ${imgHeight}mm`);
     
     // Add pages
     for (let page = 0; page < totalPages; page++) {
@@ -110,12 +123,12 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
         pdf.addPage();
       }
       
-      const yOffset = -page * contentHeightMM;
+      const yOffset = -page * pageHeight;
       
       pdf.addImage(
         imgData,
         'JPEG',
-        margin,
+        0,
         yOffset,
         imgWidth,
         imgHeight,
@@ -131,13 +144,18 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
     
     pdf.save(fileName);
     
+    console.log('PDF saved successfully:', fileName);
+    
     return;
   } catch (error) {
     // Remove loading indicator if error occurs
-    const loadingDiv = document.querySelector('div[style*="z-index:99999"]');
-    if (loadingDiv && loadingDiv.parentNode) {
-      document.body.removeChild(loadingDiv);
-    }
+    const loadingDivs = document.querySelectorAll('div[style*="z-index:99999"]');
+    loadingDivs.forEach(div => {
+      if (div.parentNode) {
+        document.body.removeChild(div);
+      }
+    });
+    
     console.error('Error generating PDF:', error);
     throw new Error('Failed to generate PDF. Please try again.');
   }
