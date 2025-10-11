@@ -91,6 +91,7 @@ export const useBills = (
     loadBills();
   }, []);
 
+  // ✅ UPDATED: Added customTimestamp parameter
   const completeSale = async (
     cart: CartItem[],
     customer: Customer,
@@ -98,19 +99,21 @@ export const useBills = (
     discountType: 'percentage' | 'fixed',
     loyaltyPointsUsed: number,
     calculateTotal: () => number,
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary', // UPDATED
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
     products: Product[],
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
     upiAmount: number = 0,
     status: 'completed' | 'complimentary' = 'completed',
-    compNote?: string
+    compNote?: string,
+    customTimestamp?: Date  // ✅ NEW PARAMETER
   ): Promise<Bill | undefined> => {
     try {
       console.log('Starting completeSale with cart:', cart);
       console.log('Customer:', customer);
       console.log('Payment method:', paymentMethod);
       console.log('Transaction status:', status);
+      console.log('Custom timestamp:', customTimestamp); // ✅ NEW LOG
 
       if (!customer || cart.length === 0) {
         throw new Error('Invalid customer or empty cart');
@@ -130,6 +133,10 @@ export const useBills = (
 
       console.log('Calculated values:', { subtotal, discountValue, total, loyaltyPointsEarned, status });
 
+      // ✅ UPDATED: Use customTimestamp or current date
+      const billTimestamp = customTimestamp || new Date();
+      console.log('Bill will be created with timestamp:', billTimestamp);
+
       const { data: billData, error: billError } = await supabase
         .from('bills')
         .insert({
@@ -146,7 +153,8 @@ export const useBills = (
           comp_note: compNote,
           is_split_payment: isSplitPayment,
           cash_amount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
-          upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0)
+          upi_amount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
+          created_at: billTimestamp.toISOString()  // ✅ NEW: Use custom timestamp
         })
         .select()
         .single();
@@ -233,6 +241,7 @@ export const useBills = (
         }
       }
 
+      // ✅ UPDATED: Use billTimestamp instead of new Date()
       const completeBill: Bill = {
         id: billData.id,
         customerId: customer.id,
@@ -250,7 +259,7 @@ export const useBills = (
         isSplitPayment: isSplitPayment,
         cashAmount: isSplitPayment ? cashAmount : (paymentMethod === 'cash' ? total : 0),
         upiAmount: isSplitPayment ? upiAmount : (paymentMethod === 'upi' ? total : 0),
-        createdAt: new Date(billData.created_at)
+        createdAt: billTimestamp  // ✅ UPDATED: Use billTimestamp
       };
 
       setBills(prevBills => [completeBill, ...prevBills]);
@@ -294,7 +303,7 @@ export const useBills = (
     isSplitPayment: boolean = false,
     cashAmount: number = 0,
     upiAmount: number = 0,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' // UPDATED
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary'
   ): Promise<Bill | null> => {
     try {
       const subtotal = updatedItems.reduce((sum, item) => sum + item.total, 0);
