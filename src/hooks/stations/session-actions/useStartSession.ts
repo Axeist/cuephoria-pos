@@ -1,4 +1,3 @@
-
 import { Session, Station } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
@@ -19,10 +18,21 @@ export const useStartSession = ({
   
   /**
    * Start a new session for a station
+   * @param stationId - The ID of the station
+   * @param customerId - The ID of the customer
+   * @param finalRate - Optional discounted hourly rate (from coupon)
+   * @param couponCode - Optional coupon code applied
    */
-  const startSession = async (stationId: string, customerId: string): Promise<Session | undefined> => {
+  const startSession = async (
+    stationId: string, 
+    customerId: string,
+    finalRate?: number,      // NEW: Discounted rate from coupon
+    couponCode?: string      // NEW: Coupon code applied
+  ): Promise<Session | undefined> => {
     try {
       console.log("Starting session for station:", stationId, "for customer:", customerId);
+      console.log("Coupon details:", { finalRate, couponCode });
+      
       const station = stations.find(s => s.id === stationId);
       if (!station) {
         console.error("Station not found");
@@ -49,12 +59,21 @@ export const useStartSession = ({
       const sessionId = generateId();
       console.log("Generated session ID:", sessionId);
       
+      // Calculate session rate and discount
+      const sessionRate = finalRate !== undefined ? finalRate : station.hourlyRate;
+      const originalRate = station.hourlyRate;
+      const discountAmount = originalRate - sessionRate;
+      
       // Create new session locally first
       const newSession: Session = {
         id: sessionId,
         stationId,
         customerId,
-        startTime
+        startTime,
+        hourlyRate: sessionRate,        // NEW: Store discounted rate
+        originalRate: originalRate,     // NEW: Store original rate
+        couponCode: couponCode,         // NEW: Store coupon code
+        discountAmount: discountAmount, // NEW: Store discount amount
       };
       
       // Update local state first for immediate UI update
@@ -80,7 +99,11 @@ export const useStartSession = ({
             id: sessionId,
             station_id: dbStationId, // Use the proper format for DB
             customer_id: customerId,
-            start_time: startTime.toISOString()
+            start_time: startTime.toISOString(),
+            hourly_rate: sessionRate,        // NEW: Store in DB
+            original_rate: originalRate,     // NEW: Store in DB
+            coupon_code: couponCode,         // NEW: Store in DB
+            discount_amount: discountAmount, // NEW: Store in DB
           } as any)
           .select()
           .single();
@@ -119,9 +142,14 @@ export const useStartSession = ({
         // Continue since local state is already updated
       }
       
+      // Enhanced success message with coupon info
+      const couponText = couponCode 
+        ? ` with ${couponCode} (₹${discountAmount} saved)` 
+        : '';
+      
       toast({
         title: 'Success',
-        description: 'Session started successfully',
+        description: `Session started successfully${couponText}`,
       });
       
       return newSession;
