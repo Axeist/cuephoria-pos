@@ -1,4 +1,3 @@
-
 import React, { ReactNode, RefObject, useState, useEffect } from 'react';
 import { Bill, Customer, CartItem } from '@/types/pos.types';
 import ReceiptHeader from './ReceiptHeader';
@@ -219,31 +218,27 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
       
       // Save edit history using the RPC function
       try {
-        // Define the parameter types for the RPC function
         interface SaveBillEditAuditParams {
           p_bill_id: string;
           p_editor_name: string;
           p_changes: string;
         }
         
-        // Call RPC function to save edit audit
         const { error: auditError } = await supabase
           .rpc('save_bill_edit_audit', {
             p_bill_id: bill.id,
             p_editor_name: editorName,
-            p_changes: `Bill edited: Total changed from ${initialBill.total} to ${bill.total}`
+            p_changes: `Bill edited: Total changed from ₹${initialBill.total} to ₹${bill.total}`
           });
           
         if (auditError) {
-          // Fallback method if RPC doesn't exist
           console.error('RPC error:', auditError);
           
-          // Use a direct SQL query as a fallback
           const { error: fallbackError } = await supabase.from('bill_edit_audit' as any)
             .insert({
               bill_id: bill.id,
               editor_name: editorName,
-              changes: `Bill edited: Total changed from ${initialBill.total} to ${bill.total}`
+              changes: `Bill edited: Total changed from ₹${initialBill.total} to ₹${bill.total}`
             });
             
           if (fallbackError) {
@@ -360,10 +355,13 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
     });
   };
 
+  const isComplimentary = bill.paymentMethod?.toLowerCase() === 'complimentary';
+
   return (
     <div ref={receiptRef} className="p-6 text-black max-h-[calc(100vh-250px)] overflow-auto">
+      {/* Edit Button - Only visible on screen, not in print */}
       {allowEdit && (
-        <div className="flex justify-end mb-3">
+        <div className="flex justify-end mb-3 no-print">
           {!isEditing ? (
             <Button 
               variant="outline" 
@@ -400,6 +398,7 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
         </div>
       )}
       
+      {/* Professional Receipt Content */}
       <ReceiptHeader bill={bill} />
       <CustomerInfo customer={customer} />
       <ReceiptItems 
@@ -413,11 +412,45 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
         onUpdateBill={handleBillUpdate}
         editable={isEditing}
       />
-      <BillEditAudit 
-        edits={editHistory}
-        onSaveEdit={handleSaveEditorInfo}
-        isEditing={isEditing}
-      />
+      
+      {/* Payment Method Badge */}
+      {!isComplimentary && (
+        <div className="mt-4 mb-4 flex items-center justify-between border-t border-gray-300 pt-3">
+          <span className="text-sm font-semibold text-gray-700">Payment Method:</span>
+          <div className="flex items-center gap-2">
+            {bill.isSplitPayment ? (
+              <div className="text-xs space-y-1 text-right">
+                <div className="bg-green-100 text-green-800 px-3 py-1 rounded font-semibold">
+                  Cash: ₹{bill.cashAmount?.toLocaleString('en-IN') || 0}
+                </div>
+                <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-semibold">
+                  UPI: ₹{bill.upiAmount?.toLocaleString('en-IN') || 0}
+                </div>
+              </div>
+            ) : (
+              <span className={`px-4 py-1 rounded-full font-semibold text-sm ${
+                bill.paymentMethod === 'cash' 
+                  ? 'bg-green-100 text-green-800' 
+                  : bill.paymentMethod === 'upi'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-orange-100 text-orange-800'
+              }`}>
+                {bill.paymentMethod === 'cash' ? 'CASH' : bill.paymentMethod === 'upi' ? 'UPI' : 'CREDIT'}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Audit Trail - Only visible on screen */}
+      <div className="no-print">
+        <BillEditAudit 
+          edits={editHistory}
+          onSaveEdit={handleSaveEditorInfo}
+          isEditing={isEditing}
+        />
+      </div>
+      
       <ReceiptFooter />
     </div>
   );
