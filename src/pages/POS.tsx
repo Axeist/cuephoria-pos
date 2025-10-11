@@ -1015,33 +1015,61 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Success Dialog */}
+      {/* Success Dialog - UPDATED FOR FASTER LOADING */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent className="max-w-md animate-scale-in text-center">
-          <div className="flex flex-col items-center justify-center py-6">
-            <div className="rounded-full bg-green-100 p-6 mb-4">
-              <Check className="h-12 w-12 text-green-600" />
-            </div>
-            <DialogTitle className="text-2xl font-heading mb-2">Payment Successful!</DialogTitle>
-            <DialogDescription className="text-center mb-6">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-heading mb-2 flex items-center justify-center gap-2">
+              <div className="rounded-full bg-green-100 p-3">
+                <Check className="h-8 w-8 text-green-600" />
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex flex-col items-center justify-center py-4">
+            <h3 className="text-2xl font-bold mb-2">Payment Successful!</h3>
+            <DialogDescription className="text-center mb-4">
               Your transaction has been completed successfully.
             </DialogDescription>
-            <p className="font-bold text-xl mb-2">
-              <CurrencyDisplay amount={lastCompletedBill?.total || 0} />
-            </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              {lastCompletedBill ? new Date(lastCompletedBill.createdAt).toLocaleString() : ''}
-            </p>
-            <Button 
-              onClick={() => {
-                setShowSuccess(false);
-                setShowReceipt(true);
-              }}
-              className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/90"
-            >
-              <ReceiptIcon className="mr-2 h-4 w-4" />
-              View Receipt
-            </Button>
+            
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 p-4 rounded-lg w-full mb-4">
+              <p className="font-bold text-3xl mb-2 text-green-600">
+                <CurrencyDisplay amount={lastCompletedBill?.total || 0} />
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {lastCompletedBill ? new Date(lastCompletedBill.createdAt).toLocaleString('en-IN', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short'
+                }) : ''}
+              </p>
+            </div>
+            
+            <div className="flex flex-col gap-2 w-full">
+              <Button 
+                onClick={() => {
+                  setShowSuccess(false);
+                  // Small delay before showing receipt for better UX
+                  setTimeout(() => {
+                    setShowReceipt(true);
+                  }, 100);
+                }}
+                className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/90"
+              >
+                <ReceiptIcon className="mr-2 h-4 w-4" />
+                View Receipt
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setShowSuccess(false);
+                  setLastCompletedBill(null);
+                }}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
