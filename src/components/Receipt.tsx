@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import { Bill, Customer } from '@/context/POSContext';
 import { generatePDF, handlePrint } from './receipt/receiptUtils';
@@ -40,7 +39,14 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
   }, [customers, customer.id]);
 
   const handleDownloadPDF = async () => {
-    if (!receiptRef.current) return;
+    if (!receiptRef.current) {
+      toast({
+        title: "Error",
+        description: "Receipt content not found",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsDownloading(true);
     
@@ -54,7 +60,7 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
       console.error('Error generating PDF:', error);
       toast({
         title: "Error",
-        description: "Failed to download receipt",
+        description: error instanceof Error ? error.message : "Failed to download receipt",
         variant: "destructive"
       });
     } finally {
@@ -63,24 +69,36 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
   };
 
   const handlePrintReceipt = () => {
+    if (!receiptRef.current) {
+      toast({
+        title: "Error",
+        description: "Receipt content not found",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsPrinting(true);
     
     try {
-      if (receiptRef.current) {
-        handlePrint(receiptRef.current.innerHTML);
-        toast({
-          title: "Print",
-          description: "Print dialog opened",
-        });
-      }
+      // Use a small delay to ensure UI updates before printing
+      setTimeout(() => {
+        if (receiptRef.current) {
+          handlePrint(receiptRef.current.innerHTML);
+          toast({
+            title: "Print",
+            description: "Print dialog opened",
+          });
+        }
+        setIsPrinting(false);
+      }, 100);
     } catch (error) {
       console.error('Error printing receipt:', error);
       toast({
         title: "Error",
-        description: "Failed to print receipt",
+        description: error instanceof Error ? error.message : "Failed to print receipt",
         variant: "destructive"
       });
-    } finally {
       setIsPrinting(false);
     }
   };
@@ -89,10 +107,15 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
     setShowSuccessMsg(false);
   };
 
+  const handleClose = () => {
+    console.log('Receipt: Closing receipt dialog');
+    onClose();
+  };
+
   return (
-    <ReceiptContainer>
+    <ReceiptContainer onClose={handleClose}>
       {showSuccessMsg && <SuccessMessage onClose={handleCloseSuccessMsg} />}
-      <ReceiptTitle onClose={onClose} date={bill.createdAt} />
+      <ReceiptTitle onClose={handleClose} date={bill.createdAt} />
       <ReceiptContent 
         bill={bill} 
         customer={customer} 
@@ -102,7 +125,7 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
       <ReceiptActions 
         onPrint={handlePrintReceipt}
         onDownload={handleDownloadPDF}
-        onClose={onClose}
+        onClose={handleClose}
         isPrinting={isPrinting}
         isDownloading={isDownloading}
       />
