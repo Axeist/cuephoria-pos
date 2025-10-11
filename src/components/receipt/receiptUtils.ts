@@ -1,7 +1,7 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-export const generatePDF = async (element: HTMLElement, billId: string): Promise<void> => {
+export const generatePDF = async (element: HTMLElement, billId: string, customerName: string): Promise<void> => {
   if (!element) {
     throw new Error('Receipt element not found');
   }
@@ -9,39 +9,55 @@ export const generatePDF = async (element: HTMLElement, billId: string): Promise
   try {
     // Show loading indicator
     const loadingDiv = document.createElement('div');
-    loadingDiv.innerHTML = 'Generating PDF...';
-    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1);z-index:9999;';
+    loadingDiv.innerHTML = '<div style="font-size:16px;font-weight:bold;">Generating PDF...</div><div style="font-size:12px;margin-top:8px;color:#666;">Please wait</div>';
+    loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px 40px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:99999;text-align:center;';
     document.body.appendChild(loadingDiv);
     
     // Create a clone of the element
     const clonedElement = element.cloneNode(true) as HTMLElement;
     
-    // Temporarily add the clone to the document
+    // Hide edit buttons and UI elements in clone
+    const elementsToHide = clonedElement.querySelectorAll('.no-print, button, .edit-button');
+    elementsToHide.forEach((el) => {
+      (el as HTMLElement).style.display = 'none';
+    });
+    
+    // Set optimal styling for PDF
     clonedElement.style.position = 'absolute';
     clonedElement.style.left = '-9999px';
-    clonedElement.style.width = '800px'; // Fixed width for better rendering
+    clonedElement.style.width = '210mm'; // A4 width
+    clonedElement.style.padding = '10mm';
+    clonedElement.style.backgroundColor = '#ffffff';
+    clonedElement.style.color = '#000000';
+    
     document.body.appendChild(clonedElement);
     
-    // Wait a bit for fonts to load
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for fonts and images to load
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     const canvas = await html2canvas(clonedElement, {
-      scale: 2,
+      scale: 3, // Higher quality
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
-      allowTaint: true
+      allowTaint: false,
+      imageTimeout: 0,
+      removeContainer: false,
+      windowWidth: 794, // A4 width in pixels at 96 DPI
+      windowHeight: 1123 // A4 height in pixels at 96 DPI
     });
     
     // Remove the clone and loading indicator
     document.body.removeChild(clonedElement);
     document.body.removeChild(loadingDiv);
     
-    const imgData = canvas.toDataURL('image/png');
+    // Create PDF
+    const imgData = canvas.toDataURL('image/jpeg', 0.95); // Use JPEG with 95% quality for smaller file
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: 'a4'
+      format: 'a4',
+      compress: true
     });
     
     const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -53,22 +69,31 @@ export const generatePDF = async (element: HTMLElement, billId: string): Promise
     let position = 0;
     
     // Add first page
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
     heightLeft -= pdfHeight;
     
     // Add additional pages if content is longer than one page
     while (heightLeft > 0) {
       position = heightLeft - imgHeight;
       pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pdfHeight;
     }
     
-    const fileName = `Cuephoria_Receipt_${billId.substring(0, 8)}_${new Date().toISOString().split('T')[0]}.pdf`;
+    // Format filename: Cuephoria_Receipt_CustomerName_BillID.pdf
+    const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_');
+    const shortBillId = billId.substring(0, 8).toUpperCase();
+    const fileName = `Cuephoria_Receipt_${sanitizedCustomerName}_${shortBillId}.pdf`;
+    
     pdf.save(fileName);
     
     return;
   } catch (error) {
+    // Remove loading indicator if error occurs
+    const loadingDiv = document.querySelector('div[style*="z-index:99999"]');
+    if (loadingDiv) {
+      document.body.removeChild(loadingDiv);
+    }
     console.error('Error generating PDF:', error);
     throw new Error('Failed to generate PDF. Please try again.');
   }
