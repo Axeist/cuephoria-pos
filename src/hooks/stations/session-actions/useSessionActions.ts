@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useStartSession } from './useStartSession';
 import { useEndSession } from './useEndSession';
@@ -18,8 +17,13 @@ export const useSessionActions = (props: SessionActionsProps) => {
   const startSessionHook = useStartSession(props);
   const endSessionHook = useEndSession({...props, updateCustomer});
   
-  // Start a new session
-  const startSession = async (stationId: string, customerId: string): Promise<void> => {
+  // UPDATED: Added finalRate and couponCode parameters
+  const startSession = async (
+    stationId: string, 
+    customerId: string,
+    finalRate?: number,
+    couponCode?: string
+  ): Promise<void> => {
     try {
       setIsLoading(true);
       console.log('Starting session for station:', stationId, 'customer:', customerId);
@@ -39,11 +43,21 @@ export const useSessionActions = (props: SessionActionsProps) => {
       // Create a new session
       const now = new Date();
       const sessionId = generateId();
+      
+      // UPDATED: Calculate session rate if finalRate provided
+      const sessionRate = finalRate !== undefined ? finalRate : station.hourlyRate;
+      const originalRate = station.hourlyRate;
+      const discountAmount = originalRate - sessionRate;
+      
       const newSession: Session = {
         id: sessionId,
         stationId: stationId,
         customerId: customerId,
         startTime: now,
+        hourlyRate: sessionRate,        // ADDED
+        originalRate: originalRate,     // ADDED
+        couponCode: couponCode,         // ADDED
+        discountAmount: discountAmount, // ADDED
         // No endTime or duration, will be set when explicitly ended
       };
       
@@ -67,6 +81,10 @@ export const useSessionActions = (props: SessionActionsProps) => {
             station_id: dbStationId, // Use a valid UUID for database
             customer_id: newSession.customerId,
             start_time: newSession.startTime.toISOString(),
+            hourly_rate: sessionRate,        // ADDED
+            original_rate: originalRate,     // ADDED
+            coupon_code: couponCode,         // ADDED
+            discount_amount: discountAmount, // ADDED
             // No end_time or duration, making it persist until explicitly ended
           } as any)
           .select();
@@ -111,9 +129,11 @@ export const useSessionActions = (props: SessionActionsProps) => {
       setStations(stations.map(s => s.id === stationId ? updatedStation : s));
       setSessions([...sessions, newSession]);
       
+      // UPDATED: Show coupon info if applied
+      const couponText = couponCode ? ` with ${couponCode}` : '';
       toast({
         title: 'Session Started',
-        description: `Session started for station ${station.name}`,
+        description: `Session started for station ${station.name}${couponText}`,
       });
       
       console.log('Session started successfully');
@@ -131,7 +151,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
     }
   };
   
-  // End an active session
+  // End an active session (NO CHANGES)
   const endSession = async (stationId: string, customersList?: Customer[]): Promise<SessionResult | undefined> => {
     try {
       setIsLoading(true);
