@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import { getCartInfo } from '@/utils/cartStorage';
+import SavedCartsManager from '@/components/SavedCartsManager';
 
 const POS = () => {
   const {
@@ -574,8 +575,13 @@ const POS = () => {
       </div>
 
       {/* ============================================ */}
-      {/* UPDATED: Customer Dialog with Pending Cart Badges */}
+      {/* ADDED: SavedCartsManager - Visible to All Users */}
       {/* ============================================ */}
+      <div className="mt-6">
+        <SavedCartsManager />
+      </div>
+
+      {/* Customer Dialog with Pending Cart Badges */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
         <DialogContent className="max-w-3xl animate-scale-in">
           <DialogHeader>
@@ -598,7 +604,6 @@ const POS = () => {
             {filteredCustomers.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredCustomers.map((customer, index) => {
-                  // Get cart info for this customer
                   const cartInfo = getCartInfo(customer.id);
                   
                   return (
@@ -607,7 +612,6 @@ const POS = () => {
                       className={`relative animate-scale-in delay-${index % 6}`} 
                       style={{animationDelay: `${(index % 6) * 100}ms`}}
                     >
-                      {/* Pending Cart Badge */}
                       {cartInfo.hasCart && (
                         <div className="absolute -top-2 -right-2 bg-gradient-to-r from-cuephoria-orange to-cuephoria-lightpurple text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 z-10 animate-pulse shadow-lg">
                           <ShoppingCart className="h-3 w-3" />
