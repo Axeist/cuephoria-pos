@@ -560,12 +560,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   
   // ============================================
-  // UPDATED: completeSale with cart persistence clearing
+  // ✅ UPDATED: completeSale with custom timestamp support
   // ============================================
   const completeSale = async (
     paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
     status: 'completed' | 'complimentary' = 'completed',
-    compNote?: string
+    compNote?: string,
+    customTimestamp?: Date
   ): Promise<Bill | undefined> => {
     if (!selectedCustomer) {
       toast({
@@ -612,6 +613,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log("Selected customer:", selectedCustomer);
       console.log("Payment method:", isSplitPayment ? 'split' : paymentMethod);
       console.log("Transaction status:", status);
+      console.log("Custom timestamp:", customTimestamp);
       
       const bill = await completeSaleBase(
         currentCart, 
@@ -626,7 +628,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cashAmount,
         upiAmount,
         status,
-        compNote
+        compNote,
+        customTimestamp
       );
       
       if (bill) {
