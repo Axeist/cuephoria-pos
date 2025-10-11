@@ -31,7 +31,6 @@ export const useStationsData = () => {
           description: 'Failed to fetch stations from database',
           variant: 'destructive'
         });
-        // Use empty array if error
         setStations([]);
         return;
       }
@@ -39,37 +38,51 @@ export const useStationsData = () => {
       // Transform data to match our Station type
       if (data && data.length > 0) {
         const transformedStations: Station[] = data.map(item => {
-          // ✅ FIXED: Parse currentSession from database
+          // ✅ Parse currentSession from database
           let currentSession: Session | null = null;
           
-          if (item.currentsession && typeof item.currentsession === 'object') {
-            const sessionData = item.currentsession as any;
-            currentSession = {
-              id: sessionData.id,
-              stationId: sessionData.stationId || sessionData.station_id || item.id,
-              customerId: sessionData.customerId || sessionData.customer_id,
-              startTime: new Date(sessionData.startTime || sessionData.start_time),
-              endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
-              duration: sessionData.duration,
-              hourlyRate: sessionData.hourlyRate || sessionData.hourly_rate,           // ✅ NEW
-              originalRate: sessionData.originalRate || sessionData.original_rate,     // ✅ NEW
-              couponCode: sessionData.couponCode || sessionData.coupon_code,           // ✅ NEW
-              discountAmount: sessionData.discountAmount || sessionData.discount_amount // ✅ NEW
-            };
+          if (item.currentsession) {
+            try {
+              // Parse if it's a string, or use directly if it's already an object
+              const sessionData = typeof item.currentsession === 'string' 
+                ? JSON.parse(item.currentsession) 
+                : item.currentsession;
+              
+              console.log('✅ Parsed session data for', item.name, ':', sessionData);
+              
+              if (sessionData && sessionData.id) {
+                currentSession = {
+                  id: sessionData.id,
+                  stationId: sessionData.stationId || sessionData.station_id || item.id,
+                  customerId: sessionData.customerId || sessionData.customer_id,
+                  startTime: new Date(sessionData.startTime || sessionData.start_time),
+                  endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
+                  duration: sessionData.duration,
+                  hourlyRate: sessionData.hourlyRate,
+                  originalRate: sessionData.originalRate,
+                  couponCode: sessionData.couponCode,
+                  discountAmount: sessionData.discountAmount
+                };
+                
+                console.log('✅ Created currentSession with coupon:', currentSession.couponCode);
+              }
+            } catch (error) {
+              console.error('❌ Error parsing currentSession:', error, item.currentsession);
+            }
           }
           
           return {
             id: item.id,
             name: item.name,
-            type: item.type as 'ps5' | '8ball' | 'vr', // ✅ Added 'vr' type
+            type: item.type as 'ps5' | '8ball' | 'vr',
             hourlyRate: item.hourly_rate,
             isOccupied: item.is_occupied,
-            currentSession: currentSession // ✅ FIXED: Use parsed session data
+            currentSession: currentSession
           };
         });
         
         setStations(transformedStations);
-        console.log("Loaded stations from Supabase:", transformedStations);
+        console.log("✅ Loaded stations from Supabase:", transformedStations.length, "stations");
       } else {
         console.log("No stations found in Supabase");
         toast({
@@ -86,7 +99,6 @@ export const useStationsData = () => {
         description: 'Failed to load stations',
         variant: 'destructive'
       });
-      // Use empty array if error
       setStations([]);
     } finally {
       setStationsLoading(false);
@@ -95,7 +107,6 @@ export const useStationsData = () => {
   
   const updateStation = async (stationId: string, name: string, hourlyRate: number) => {
     try {
-      // Check if the station exists and is not occupied
       const station = stations.find(s => s.id === stationId);
       if (!station) {
         console.error('Station not found:', stationId);
@@ -107,13 +118,11 @@ export const useStationsData = () => {
         return false;
       }
       
-      // Format data for update
       const updateData = {
         name,
         hourly_rate: hourlyRate
       };
       
-      // Update in Supabase
       const { error } = await supabase
         .from('stations')
         .update(updateData)
@@ -129,7 +138,6 @@ export const useStationsData = () => {
         return false;
       }
       
-      // Update local state
       setStations(prev => prev.map(s => 
         s.id === stationId 
           ? { ...s, name, hourlyRate } 
@@ -155,7 +163,6 @@ export const useStationsData = () => {
   
   const deleteStation = async (stationId: string) => {
     try {
-      // Check if the station is occupied first
       const station = stations.find(s => s.id === stationId);
       if (!station) {
         console.error('Station not found:', stationId);
@@ -176,11 +183,9 @@ export const useStationsData = () => {
         return false;
       }
       
-      // Check if it's a valid UUID (database station)
       const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stationId);
       
       if (isValidUUID) {
-        // First, check for existing sessions
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('sessions')
           .select('id')
@@ -196,11 +201,9 @@ export const useStationsData = () => {
           return false;
         }
         
-        // If there are sessions, check if any bills reference these sessions
         if (sessionsData && sessionsData.length > 0) {
           const sessionIds = sessionsData.map(session => session.id);
           
-          // Check for bills that have items referencing these sessions
           const { data: billItemsData, error: billItemsError } = await supabase
             .from('bill_items')
             .select('bill_id')
@@ -226,7 +229,6 @@ export const useStationsData = () => {
             return false;
           }
           
-          // If no bills reference the sessions, ask user if they want to delete sessions
           toast({
             title: 'Sessions Found',
             description: `This station has ${sessionsData.length} session(s) that will be deleted. Please delete sessions manually first.`,
@@ -235,7 +237,6 @@ export const useStationsData = () => {
           return false;
         }
         
-        // No sessions found, safe to delete station
         const { error } = await supabase
           .from('stations')
           .delete()
@@ -254,7 +255,6 @@ export const useStationsData = () => {
         console.log('Skipping Supabase delete for non-UUID station ID:', stationId);
       }
       
-      // Update local state
       setStations(prev => prev.filter(station => station.id !== stationId));
       
       toast({
