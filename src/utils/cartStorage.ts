@@ -188,3 +188,30 @@ export const getCustomersWithSavedCarts = (): Array<{
 
   return customersWithCarts;
 };
+
+/**
+ * Clear all carts from localStorage - THIS WAS MISSING!
+ */
+export const clearAllCarts = (): number => {
+  let clearedCount = 0;
+
+  try {
+    const keysToRemove: string[] = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(CART_STORAGE_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => {
+      localStorage.removeItem(key);
+      clearedCount++;
+    });
+  } catch (error) {
+    console.error('Error clearing all carts:', error);
+  }
+
+  return clearedCount;
+};
