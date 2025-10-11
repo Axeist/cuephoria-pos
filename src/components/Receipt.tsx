@@ -51,7 +51,8 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
     setIsDownloading(true);
     
     try {
-      await generatePDF(receiptRef.current, bill.id);
+      // Pass customer name to generatePDF for filename
+      await generatePDF(receiptRef.current, bill.id, customer.name);
       toast({
         title: "Success",
         description: "Receipt downloaded successfully",
