@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Station, Session } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
@@ -39,14 +38,35 @@ export const useStationsData = () => {
       
       // Transform data to match our Station type
       if (data && data.length > 0) {
-        const transformedStations: Station[] = data.map(item => ({
-          id: item.id,
-          name: item.name,
-          type: item.type as 'ps5' | '8ball', // Cast to the correct type
-          hourlyRate: item.hourly_rate,
-          isOccupied: item.is_occupied,
-          currentSession: null
-        }));
+        const transformedStations: Station[] = data.map(item => {
+          // ✅ FIXED: Parse currentSession from database
+          let currentSession: Session | null = null;
+          
+          if (item.currentsession && typeof item.currentsession === 'object') {
+            const sessionData = item.currentsession as any;
+            currentSession = {
+              id: sessionData.id,
+              stationId: sessionData.stationId || sessionData.station_id || item.id,
+              customerId: sessionData.customerId || sessionData.customer_id,
+              startTime: new Date(sessionData.startTime || sessionData.start_time),
+              endTime: sessionData.endTime ? new Date(sessionData.endTime) : undefined,
+              duration: sessionData.duration,
+              hourlyRate: sessionData.hourlyRate || sessionData.hourly_rate,           // ✅ NEW
+              originalRate: sessionData.originalRate || sessionData.original_rate,     // ✅ NEW
+              couponCode: sessionData.couponCode || sessionData.coupon_code,           // ✅ NEW
+              discountAmount: sessionData.discountAmount || sessionData.discount_amount // ✅ NEW
+            };
+          }
+          
+          return {
+            id: item.id,
+            name: item.name,
+            type: item.type as 'ps5' | '8ball' | 'vr', // ✅ Added 'vr' type
+            hourlyRate: item.hourly_rate,
+            isOccupied: item.is_occupied,
+            currentSession: currentSession // ✅ FIXED: Use parsed session data
+          };
+        });
         
         setStations(transformedStations);
         console.log("Loaded stations from Supabase:", transformedStations);
