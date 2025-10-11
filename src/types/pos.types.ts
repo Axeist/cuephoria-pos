@@ -37,7 +37,7 @@ export interface Customer {
 export interface Station {
   id: string;
   name: string;
-  type: 'ps5' | '8ball';
+  type: 'ps5' | '8ball' | 'vr'; // UPDATED: Added 'vr'
   hourlyRate: number;
   isOccupied: boolean;
   currentSession: Session | null;
@@ -50,6 +50,10 @@ export interface Session {
   startTime: Date;
   endTime?: Date;
   duration?: number;
+  hourlyRate?: number;          // ADDED: To store the rate used for this session
+  couponCode?: string;          // ADDED: Coupon applied to session
+  originalRate?: number;        // ADDED: Original rate before discount
+  discountAmount?: number;      // ADDED: Amount discounted
 }
 
 export interface CartItem {
@@ -73,7 +77,7 @@ export interface Bill {
   loyaltyPointsUsed: number;
   loyaltyPointsEarned: number;
   total: number;
-  paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary'; // UPDATED: Added 'complimentary'
+  paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary';
   status?: 'completed' | 'complimentary';
   compNote?: string;
   isSplitPayment?: boolean;
@@ -132,7 +136,8 @@ export interface POSContextType {
   updateCategory: (oldCategory: string, newCategory: string) => void;
   deleteCategory: (category: string) => void;
   
-  startSession: (stationId: string, customerId: string) => Promise<void>;
+  // UPDATED: Added hourlyRate and couponCode parameters
+  startSession: (stationId: string, customerId: string, hourlyRate?: number, couponCode?: string) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
   deleteStation: (stationId: string) => Promise<boolean>;
   updateStation: (stationId: string, name: string, hourlyRate: number) => Promise<boolean>;
@@ -159,7 +164,7 @@ export interface POSContextType {
   setLoyaltyPointsUsed: (points: number) => void;
   calculateTotal: () => number;
   completeSale: (
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary', // UPDATED
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
     status?: 'completed' | 'complimentary',
     compNote?: string
   ) => Promise<Bill | undefined>;
@@ -173,7 +178,7 @@ export interface POSContextType {
     isSplitPayment?: boolean, 
     cashAmount?: number, 
     upiAmount?: number,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' // UPDATED
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary'
   ) => Promise<Bill | null>;
   
   exportBills: () => void;
