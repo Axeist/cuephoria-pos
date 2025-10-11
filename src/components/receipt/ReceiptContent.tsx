@@ -413,9 +413,9 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
         editable={isEditing}
       />
       
-      {/* Payment Method Badge */}
+      {/* Payment Method Badge - With page-break protection */}
       {!isComplimentary && (
-        <div className="mt-4 mb-4 flex items-center justify-between border-t border-gray-300 pt-3">
+        <div className="mt-4 mb-6 flex items-center justify-between border-t border-gray-300 pt-3 payment-method-section">
           <span className="text-sm font-semibold text-gray-700">Payment Method:</span>
           <div className="flex items-center gap-2">
             {bill.isSplitPayment ? (
