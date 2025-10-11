@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Bill, Customer } from '@/context/POSContext';
 import { generatePDF, handlePrint } from './receipt/receiptUtils';
 import ReceiptContainer from './receipt/ReceiptContainer';
-import ReceiptTitle from './receipt/ReceiptTitle';
 import ReceiptContent from './receipt/ReceiptContent';
 import ReceiptActions from './receipt/ReceiptActions';
 import SuccessMessage from './receipt/SuccessMessage';
@@ -116,7 +115,6 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
   return (
     <ReceiptContainer onClose={handleClose}>
       {showSuccessMsg && <SuccessMessage onClose={handleCloseSuccessMsg} />}
-      <ReceiptTitle onClose={handleClose} date={bill.createdAt} />
       <ReceiptContent 
         bill={bill} 
         customer={customer} 
