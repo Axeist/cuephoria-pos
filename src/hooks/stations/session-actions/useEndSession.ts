@@ -1,4 +1,3 @@
-
 import { Session, Station, Customer, CartItem, SessionResult } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
@@ -120,8 +119,8 @@ export const useEndSession = ({
       const cartItemId = generateId();
       console.log("Generated cart item ID:", cartItemId);
       
-      // Calculate session cost
-      const stationRate = station.hourlyRate;
+      // ✅ UPDATED: Use session's hourly rate (which may be discounted from coupon)
+      const stationRate = session.hourlyRate || station.hourlyRate;
       const hoursPlayed = durationMs / (1000 * 60 * 60);
       let sessionCost = Math.ceil(hoursPlayed * stationRate);
       
@@ -144,10 +143,14 @@ export const useEndSession = ({
         sessionCost 
       });
       
+      // ✅ UPDATED: Show coupon info if it was applied
+      const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
+      const memberInfo = discountApplied ? ' - Member 50% OFF' : '';
+      
       // Create cart item for the session with discount info in the name if applicable
       const sessionCartItem: CartItem = {
         id: cartItemId,
-        name: `${station.name} (${customer?.name || 'Unknown Customer'})${discountApplied ? ' - Member 50% OFF' : ''}`,
+        name: `${station.name} (${customer?.name || 'Unknown Customer'})${couponInfo}${memberInfo}`,
         price: sessionCost,
         quantity: 1,
         total: sessionCost,
