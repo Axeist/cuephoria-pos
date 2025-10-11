@@ -5,7 +5,7 @@ import StationInfo from '@/components/station/StationInfo';
 import StationTimer from '@/components/station/StationTimer';
 import StationActions from '@/components/station/StationActions';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit2 } from 'lucide-react';
+import { Trash2, Edit2, Tag, TrendingDown } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
 import {
   AlertDialog,
@@ -38,6 +38,13 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
     : null;
     
   const customerName = customer ? customer.name : 'Unknown Customer';
+  
+  // ✅ NEW: Get coupon information from session
+  const session = station.currentSession;
+  const hasCoupon = session?.couponCode;
+  const discountedRate = session?.hourlyRate || station.hourlyRate;
+  const originalRate = session?.originalRate || station.hourlyRate;
+  const isDiscounted = hasCoupon && discountedRate !== originalRate;
     
   const handleDeleteStation = async () => {
     await deleteStation(station.id);
@@ -56,7 +63,9 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
           ${station.isOccupied 
             ? customer?.isMember 
               ? 'border-green-500 bg-black/80' 
-              : 'border-cuephoria-orange bg-black/80' 
+              : hasCoupon
+                ? 'border-orange-500 bg-black/80'
+                : 'border-cuephoria-orange bg-black/80' 
             : isPoolTable 
               ? 'border-green-500 bg-gradient-to-b from-green-900/30 to-green-950/40' 
               : isVR
@@ -121,6 +130,14 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
             <div className="absolute left-4 bottom-3 w-1 h-1 rounded-full bg-cuephoria-orange animate-pulse-soft"></div>
             <div className="absolute left-7 bottom-3 w-1 h-1 rounded-full bg-cuephoria-lightpurple animate-pulse-soft delay-100"></div>
           </>
+        )}
+
+        {/* ✅ NEW: Coupon Badge (shows when session has coupon) */}
+        {station.isOccupied && hasCoupon && (
+          <div className="absolute top-2 right-2 z-30 flex items-center gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg animate-pulse">
+            <Tag className="h-3 w-3" />
+            {session.couponCode}
+          </div>
         )}
 
         {/* Membership indicator on top of card */}
@@ -196,7 +213,47 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
         <CardContent className="pb-2 relative z-10">
           <div className="flex flex-col space-y-2">
             {station.isOccupied && station.currentSession && (
-              <StationTimer station={station} />
+              <>
+                <StationTimer station={station} />
+                
+                {/* ✅ NEW: Show discounted rate information */}
+                {isDiscounted && (
+                  <div className="mt-2 p-2 bg-orange-500/10 border border-orange-500/30 rounded-md animate-fade-in">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1 text-orange-400">
+                        <TrendingDown className="h-3 w-3" />
+                        <span className="font-medium">Discounted Rate</span>
+                      </div>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="text-sm line-through text-gray-400 indian-rupee">
+                        {originalRate}/hr
+                      </span>
+                      <span className="text-lg font-bold text-orange-400 indian-rupee">
+                        {discountedRate}/hr
+                      </span>
+                      {discountedRate === 0 && (
+                        <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                          FREE
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-orange-300 mt-1">
+                      Saving ₹{originalRate - discountedRate}/hr
+                    </div>
+                  </div>
+                )}
+                
+                {/* ✅ Show regular rate if no coupon */}
+                {!isDiscounted && (
+                  <div className="mt-2 p-2 bg-cuephoria-purple/10 border border-cuephoria-purple/30 rounded-md">
+                    <div className="text-xs text-gray-400">Current Rate</div>
+                    <div className="text-lg font-bold text-cuephoria-lightpurple indian-rupee">
+                      {station.hourlyRate}/hr
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </CardContent>
