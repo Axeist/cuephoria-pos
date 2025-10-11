@@ -184,7 +184,7 @@ const Customers = () => {
     return hasDuplicates;
   };
 
-  // ✅ FIXED: Direct Supabase insert with correct field names
+  // ✅ FIXED: Using correct snake_case column names from your Supabase table
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { name, phone, email, isMember, membershipExpiryDate, membershipHoursLeft } = formState;
@@ -226,21 +226,21 @@ const Customers = () => {
 
     try {
       if (isEditMode && selectedCustomer) {
-        // ✅ Update existing customer
+        // ✅ Update with correct snake_case column names
         const updateData: any = {
           name: name.trim(),
           phone: normalizedPhone,
           email: email?.trim() || null,
-          customid: customerID,
-          ismember: isMember
+          customer_id: customerID,        // ✅ Correct column name
+          is_member: isMember             // ✅ Correct column name
         };
 
         if (isMember) {
           if (membershipExpiryDate) {
-            updateData.membershipexpirydate = new Date(membershipExpiryDate).toISOString();
+            updateData.membership_expiry_date = new Date(membershipExpiryDate).toISOString();
           }
           if (membershipHoursLeft) {
-            updateData.membershiphoursleft = parseInt(membershipHoursLeft, 10);
+            updateData.membership_hours_left = parseInt(membershipHoursLeft, 10);
           }
         }
 
@@ -249,36 +249,40 @@ const Customers = () => {
           .update(updateData)
           .eq('id', selectedCustomer.id);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('Supabase update error:', updateError);
+          throw updateError;
+        }
 
         toast({
           title: 'Customer Updated',
           description: `Customer ${customerID} has been updated successfully.`
         });
 
-        // Refresh customer list
         window.location.reload();
       } else {
-        // ✅ Insert new customer with lowercase field names
+        // ✅ Insert with correct snake_case column names
         const insertData: any = {
           name: name.trim(),
           phone: normalizedPhone,
           email: email?.trim() || null,
-          customid: customerID,
-          ismember: isMember,
-          loyaltypoints: 0,
-          totalspent: 0,
-          totalplaytime: 0
+          customer_id: customerID,        // ✅ Correct column name
+          is_member: isMember,            // ✅ Correct column name
+          loyalty_points: 0,              // ✅ Correct column name
+          total_spent: 0,                 // ✅ Correct column name
+          total_play_time: 0              // ✅ Correct column name
         };
 
         if (isMember) {
           if (membershipExpiryDate) {
-            insertData.membershipexpirydate = new Date(membershipExpiryDate).toISOString();
+            insertData.membership_expiry_date = new Date(membershipExpiryDate).toISOString();
           }
           if (membershipHoursLeft) {
-            insertData.membershiphoursleft = parseInt(membershipHoursLeft, 10);
+            insertData.membership_hours_left = parseInt(membershipHoursLeft, 10);
           }
         }
+
+        console.log('Inserting data:', insertData); // Debug log
 
         const { data, error: insertError } = await supabase
           .from('customers')
@@ -296,7 +300,6 @@ const Customers = () => {
           description: `Customer ${customerID} has been added successfully.`
         });
 
-        // Refresh customer list
         window.location.reload();
       }
       
