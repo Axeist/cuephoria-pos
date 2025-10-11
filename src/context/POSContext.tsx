@@ -16,6 +16,12 @@ import { useCart } from '@/hooks/useCart';
 import { useBills } from '@/hooks/useBills';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
+import { 
+  saveCartToStorage, 
+  loadCartFromStorage, 
+  clearCartFromStorage,
+  cleanupExpiredCarts 
+} from '@/utils/cartStorage';
 
 const POSContext = createContext<POSContextType>({
   products: [],
@@ -158,6 +164,67 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   } = useBills(updateCustomer, updateProduct);
 
   const { toast } = useToast();
+
+  // ============================================
+  // CART PERSISTENCE: Cleanup expired carts on mount
+  // ============================================
+  useEffect(() => {
+    const cleaned = cleanupExpiredCarts();
+    if (cleaned > 0) {
+      console.log(`Cleaned up ${cleaned} expired cart(s)`);
+    }
+  }, []);
+
+  // ============================================
+  // CART PERSISTENCE: Load cart when customer is selected
+  // ============================================
+  useEffect(() => {
+    if (selectedCustomer) {
+      const savedCartData = loadCartFromStorage(selectedCustomer.id);
+      
+      if (savedCartData && savedCartData.items.length > 0) {
+        console.log(`Loading saved cart for ${selectedCustomer.name} with ${savedCartData.items.length} items`);
+        
+        // Restore cart items
+        setCart(savedCartData.items);
+        
+        // Restore discount
+        if (savedCartData.discount !== undefined) {
+          setDiscountAmount(savedCartData.discount);
+        }
+        if (savedCartData.discountType) {
+          setDiscountType(savedCartData.discountType);
+        }
+        
+        // Restore loyalty points
+        if (savedCartData.loyaltyPointsUsed !== undefined) {
+          setLoyaltyPointsUsedAmount(savedCartData.loyaltyPointsUsed);
+        }
+        
+        toast({
+          title: 'Cart Restored',
+          description: `Loaded ${savedCartData.items.length} item(s) from ${selectedCustomer.name}'s saved cart`,
+          duration: 3000,
+        });
+      }
+    }
+  }, [selectedCustomer?.id]);
+
+  // ============================================
+  // CART PERSISTENCE: Save cart whenever it changes
+  // ============================================
+  useEffect(() => {
+    if (selectedCustomer && cart.length > 0) {
+      saveCartToStorage(
+        selectedCustomer.id, 
+        cart, 
+        selectedCustomer.name,
+        discount,
+        discountType,
+        loyaltyPointsUsed
+      );
+    }
+  }, [cart, discount, discountType, loyaltyPointsUsed, selectedCustomer?.id]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -487,10 +554,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   
   // ============================================
-  // UPDATED: completeSale with 'complimentary' payment method
+  // UPDATED: completeSale with cart persistence clearing
   // ============================================
   const completeSale = async (
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary', // UPDATED
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
     status: 'completed' | 'complimentary' = 'completed',
     compNote?: string
   ): Promise<Bill | undefined> => {
@@ -558,6 +625,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       if (bill) {
         console.log("Bill created successfully:", bill);
+        
+        // ============================================
+        // CART PERSISTENCE: Clear from localStorage after successful sale
+        // ============================================
+        clearCartFromStorage(selectedCustomer.id);
+        console.log(`Cleared saved cart for ${selectedCustomer.name}`);
         
         if (membershipItems.length > 0) {
           for (const item of membershipItems) {
