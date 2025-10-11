@@ -22,37 +22,45 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
       (el as HTMLElement).style.display = 'none';
     });
     
-    // Set optimal styling for PDF
+    // Set optimal styling for PDF with extra padding to prevent cutoff
     clonedElement.style.position = 'absolute';
     clonedElement.style.left = '-9999px';
-    clonedElement.style.width = '210mm'; // A4 width
-    clonedElement.style.padding = '10mm';
+    clonedElement.style.width = '190mm'; // Slightly narrower than A4 to leave margins
+    clonedElement.style.maxWidth = '190mm';
+    clonedElement.style.padding = '15mm';
     clonedElement.style.backgroundColor = '#ffffff';
     clonedElement.style.color = '#000000';
+    clonedElement.style.boxSizing = 'border-box';
+    
+    // Add page-break-inside: avoid to all major sections
+    const sections = clonedElement.querySelectorAll('.border-t-2, .bg-gray-50, .rounded-lg, table');
+    sections.forEach((section) => {
+      (section as HTMLElement).style.pageBreakInside = 'avoid';
+      (section as HTMLElement).style.breakInside = 'avoid';
+    });
     
     document.body.appendChild(clonedElement);
     
     // Wait for fonts and images to load
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 400));
     
     const canvas = await html2canvas(clonedElement, {
-      scale: 3, // Higher quality
+      scale: 2.5, // Good balance between quality and file size
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: false,
       imageTimeout: 0,
       removeContainer: false,
-      windowWidth: 794, // A4 width in pixels at 96 DPI
-      windowHeight: 1123 // A4 height in pixels at 96 DPI
+      windowWidth: 1024,
+      windowHeight: clonedElement.scrollHeight + 100 // Add extra space
     });
     
     // Remove the clone and loading indicator
     document.body.removeChild(clonedElement);
     document.body.removeChild(loadingDiv);
     
-    // Create PDF
-    const imgData = canvas.toDataURL('image/jpeg', 0.95); // Use JPEG with 95% quality for smaller file
+    // Create PDF with proper margins
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -62,22 +70,31 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
     
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+    const margin = 10; // 10mm margins on all sides
+    const contentWidth = pdfWidth - (margin * 2);
+    const contentHeight = pdfHeight - (margin * 2);
+    
+    const imgWidth = contentWidth;
+    const imgHeight = (canvas.height * contentWidth) / canvas.width;
+    
+    // Convert to image
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
     
     let heightLeft = imgHeight;
-    let position = 0;
+    let position = margin;
+    let page = 1;
     
     // Add first page
-    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-    heightLeft -= pdfHeight;
+    pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+    heightLeft -= contentHeight;
     
-    // Add additional pages if content is longer than one page
+    // Add additional pages if needed
     while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
+      position = margin - (imgHeight - heightLeft);
       pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pdfHeight;
+      pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= contentHeight;
+      page++;
     }
     
     // Format filename: Cuephoria_Receipt_CustomerName_BillID.pdf
@@ -91,7 +108,7 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
   } catch (error) {
     // Remove loading indicator if error occurs
     const loadingDiv = document.querySelector('div[style*="z-index:99999"]');
-    if (loadingDiv) {
+    if (loadingDiv && loadingDiv.parentNode) {
       document.body.removeChild(loadingDiv);
     }
     console.error('Error generating PDF:', error);
@@ -123,7 +140,7 @@ export const handlePrint = (printContent: string): void => {
             
             @page {
               size: A4;
-              margin: 10mm;
+              margin: 15mm;
             }
             
             html, body {
@@ -142,9 +159,9 @@ export const handlePrint = (printContent: string): void => {
             }
             
             .receipt-container {
-              max-width: 800px;
+              max-width: 190mm;
               margin: 0 auto;
-              padding: 20px;
+              padding: 10mm;
               background: white;
             }
             
@@ -190,6 +207,7 @@ export const handlePrint = (printContent: string): void => {
             
             .border-t-2 {
               border-top: 2px solid #333;
+              page-break-inside: avoid;
             }
             
             .border-dashed {
@@ -245,7 +263,10 @@ export const handlePrint = (printContent: string): void => {
             .text-gray-800 { color: #1f2937; }
             
             /* Background Colors */
-            .bg-gray-50 { background-color: #f9fafb; }
+            .bg-gray-50 { 
+              background-color: #f9fafb;
+              page-break-inside: avoid;
+            }
             .bg-amber-50 { background-color: #fffbeb; }
             
             /* Flex & Grid */
@@ -285,6 +306,7 @@ export const handlePrint = (printContent: string): void => {
               width: 100%;
               border-collapse: collapse;
               margin: 15px 0;
+              page-break-inside: avoid;
             }
             
             table th,
@@ -305,13 +327,20 @@ export const handlePrint = (printContent: string): void => {
             }
             
             /* Rounded Corners */
-            .rounded { border-radius: 4px; }
-            .rounded-lg { border-radius: 8px; }
+            .rounded { 
+              border-radius: 4px;
+              page-break-inside: avoid;
+            }
+            .rounded-lg { 
+              border-radius: 8px;
+              page-break-inside: avoid;
+            }
             
             /* Lists */
             ul {
               list-style-position: inside;
               padding-left: 0;
+              page-break-inside: avoid;
             }
             
             ul li {
@@ -363,7 +392,15 @@ export const handlePrint = (printContent: string): void => {
             /* Prevent page breaks in important sections */
             .receipt-header,
             table,
-            .payment-summary {
+            .payment-summary,
+            .terms-section {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
+            
+            /* Add extra bottom margin to payment method section */
+            .payment-method-section {
+              margin-bottom: 20px;
               page-break-inside: avoid;
             }
             
@@ -374,12 +411,17 @@ export const handlePrint = (printContent: string): void => {
               }
               
               .receipt-container {
-                padding: 10px;
+                padding: 5mm;
               }
               
               * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+              }
+              
+              /* Force page breaks before footer if needed */
+              .receipt-footer {
+                page-break-before: auto;
               }
             }
           </style>
@@ -395,7 +437,7 @@ export const handlePrint = (printContent: string): void => {
                 window.onafterprint = function() {
                   window.close();
                 };
-              }, 250);
+              }, 300);
             };
           </script>
         </body>
