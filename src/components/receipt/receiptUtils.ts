@@ -22,39 +22,45 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
       (el as HTMLElement).style.display = 'none';
     });
     
-    // Set optimal styling for PDF - allow natural height
+    // Set optimal styling for PDF with extra padding to prevent cutoff
     clonedElement.style.position = 'absolute';
     clonedElement.style.left = '-9999px';
-    clonedElement.style.width = '800px'; // Fixed width for consistency
-    clonedElement.style.maxWidth = '800px';
-    clonedElement.style.padding = '40px';
+    clonedElement.style.width = '190mm'; // Slightly narrower than A4 to leave margins
+    clonedElement.style.maxWidth = '190mm';
+    clonedElement.style.padding = '15mm';
     clonedElement.style.backgroundColor = '#ffffff';
     clonedElement.style.color = '#000000';
     clonedElement.style.boxSizing = 'border-box';
     
+    // Add page-break-inside: avoid to all major sections
+    const sections = clonedElement.querySelectorAll('.border-t-2, .bg-gray-50, .rounded-lg, table');
+    sections.forEach((section) => {
+      (section as HTMLElement).style.pageBreakInside = 'avoid';
+      (section as HTMLElement).style.breakInside = 'avoid';
+    });
+    
     document.body.appendChild(clonedElement);
     
     // Wait for fonts and images to load
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 400));
     
-    // Capture the entire content as canvas
     const canvas = await html2canvas(clonedElement, {
-      scale: 2, // Good quality
+      scale: 2.5, // Good balance between quality and file size
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: false,
       imageTimeout: 0,
       removeContainer: false,
-      windowWidth: 800,
-      windowHeight: clonedElement.scrollHeight // Use actual content height
+      windowWidth: 1024,
+      windowHeight: clonedElement.scrollHeight + 100 // Add extra space
     });
     
     // Remove the clone and loading indicator
     document.body.removeChild(clonedElement);
     document.body.removeChild(loadingDiv);
     
-    // Create PDF
+    // Create PDF with proper margins
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -62,43 +68,33 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
       compress: true
     });
     
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 10; // 10mm margins
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10; // 10mm margins on all sides
+    const contentWidth = pdfWidth - (margin * 2);
+    const contentHeight = pdfHeight - (margin * 2);
     
-    const contentWidth = pageWidth - (2 * margin);
-    const contentHeight = pageHeight - (2 * margin);
-    
-    // Calculate dimensions
     const imgWidth = contentWidth;
     const imgHeight = (canvas.height * contentWidth) / canvas.width;
     
-    // Convert canvas to image
-    const imgData = canvas.toDataURL('image/jpeg', 0.90);
+    // Convert to image
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
     
-    // Calculate number of pages needed
-    const totalPages = Math.ceil(imgHeight / contentHeight);
+    let heightLeft = imgHeight;
+    let position = margin;
+    let page = 1;
     
-    console.log(`Generating ${totalPages} page(s) for PDF`);
+    // Add first page
+    pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+    heightLeft -= contentHeight;
     
-    // Add pages
-    for (let page = 0; page < totalPages; page++) {
-      if (page > 0) {
-        pdf.addPage();
-      }
-      
-      const yOffset = -page * contentHeight;
-      
-      pdf.addImage(
-        imgData,
-        'JPEG',
-        margin,
-        margin + yOffset,
-        imgWidth,
-        imgHeight,
-        undefined,
-        'FAST'
-      );
+    // Add additional pages if needed
+    while (heightLeft > 0) {
+      position = margin - (imgHeight - heightLeft);
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= contentHeight;
+      page++;
     }
     
     // Format filename: Cuephoria_Receipt_CustomerName_BillID.pdf
@@ -227,7 +223,6 @@ export const handlePrint = (printContent: string): void => {
             .mb-2 { margin-bottom: 8px; }
             .mb-3 { margin-bottom: 12px; }
             .mb-4 { margin-bottom: 16px; }
-            .mb-6 { margin-bottom: 24px; }
             .mt-1 { margin-top: 4px; }
             .mt-2 { margin-top: 8px; }
             .mt-3 { margin-top: 12px; }
@@ -273,14 +268,6 @@ export const handlePrint = (printContent: string): void => {
               page-break-inside: avoid;
             }
             .bg-amber-50 { background-color: #fffbeb; }
-            .bg-green-100 { background-color: #dcfce7; }
-            .bg-blue-100 { background-color: #dbeafe; }
-            .bg-orange-100 { background-color: #ffedd5; }
-            
-            /* Text Colors */
-            .text-green-800 { color: #166534; }
-            .text-blue-800 { color: #1e40af; }
-            .text-orange-800 { color: #9a3412; }
             
             /* Flex & Grid */
             .flex {
@@ -319,7 +306,7 @@ export const handlePrint = (printContent: string): void => {
               width: 100%;
               border-collapse: collapse;
               margin: 15px 0;
-              page-break-inside: auto;
+              page-break-inside: avoid;
             }
             
             table th,
@@ -335,11 +322,6 @@ export const handlePrint = (printContent: string): void => {
               font-weight: 600;
             }
             
-            table tr {
-              page-break-inside: avoid;
-              page-break-after: auto;
-            }
-            
             table tr:last-child td {
               border-bottom: none;
             }
@@ -347,12 +329,11 @@ export const handlePrint = (printContent: string): void => {
             /* Rounded Corners */
             .rounded { 
               border-radius: 4px;
+              page-break-inside: avoid;
             }
             .rounded-lg { 
               border-radius: 8px;
-            }
-            .rounded-full {
-              border-radius: 9999px;
+              page-break-inside: avoid;
             }
             
             /* Lists */
@@ -408,22 +389,19 @@ export const handlePrint = (printContent: string): void => {
               border-color: #e5e7eb;
             }
             
-            .border-gray-300 {
-              border-color: #d1d5db;
-            }
-            
             /* Prevent page breaks in important sections */
             .receipt-header,
+            table,
             .payment-summary,
-            .terms-section,
-            .payment-method-section {
+            .terms-section {
               page-break-inside: avoid !important;
               break-inside: avoid !important;
             }
             
-            /* Allow page breaks in large tables if needed */
-            tbody {
-              page-break-inside: auto;
+            /* Add extra bottom margin to payment method section */
+            .payment-method-section {
+              margin-bottom: 20px;
+              page-break-inside: avoid;
             }
             
             @media print {
@@ -439,6 +417,11 @@ export const handlePrint = (printContent: string): void => {
               * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+              }
+              
+              /* Force page breaks before footer if needed */
+              .receipt-footer {
+                page-break-before: auto;
               }
             }
           </style>
