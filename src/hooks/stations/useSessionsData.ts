@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { Session } from '@/types/pos.types';
 import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
@@ -41,14 +40,18 @@ export const useSessionsData = () => {
         // Use type assertion to handle the TypeScript issues
         const sessionsData = data as any[];
         
-        // Use more efficient transformation
+        // ✅ FIXED: Include all coupon fields
         const transformedSessions = sessionsData.map(item => ({
           id: item.id,
           stationId: item.station_id,
           customerId: item.customer_id,
           startTime: new Date(item.start_time),
           endTime: item.end_time ? new Date(item.end_time) : undefined,
-          duration: item.duration
+          duration: item.duration,
+          hourlyRate: item.hourly_rate,           // ✅ ADDED
+          originalRate: item.original_rate,       // ✅ ADDED
+          couponCode: item.coupon_code,           // ✅ ADDED
+          discountAmount: item.discount_amount    // ✅ ADDED
         }));
         
         console.log(`Loaded ${transformedSessions.length} total sessions from Supabase`);
@@ -57,7 +60,12 @@ export const useSessionsData = () => {
         // Log active sessions (those without end_time)
         const activeSessions = transformedSessions.filter(s => !s.endTime);
         console.log(`Found ${activeSessions.length} active sessions in loaded data`);
-        activeSessions.forEach(s => console.log(`- Active session ID: ${s.id}, Station ID: ${s.stationId}`));
+        activeSessions.forEach(s => {
+          console.log(`- Active session ID: ${s.id}, Station ID: ${s.stationId}`);
+          if (s.couponCode) {
+            console.log(`  ✅ Coupon: ${s.couponCode}, Rate: ${s.hourlyRate}`);
+          }
+        });
       } else {
         console.log("No sessions found in Supabase");
         setSessions([]);
