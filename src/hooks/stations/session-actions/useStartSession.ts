@@ -18,24 +18,20 @@ export const useStartSession = ({
   
   /**
    * Start a new session for a station
-   * @param stationId - The ID of the station
-   * @param customerId - The ID of the customer
-   * @param finalRate - Optional discounted hourly rate (from coupon)
-   * @param couponCode - Optional coupon code applied
    */
   const startSession = async (
     stationId: string, 
     customerId: string,
-    finalRate?: number,      // NEW: Discounted rate from coupon
-    couponCode?: string      // NEW: Coupon code applied
+    finalRate?: number,
+    couponCode?: string
   ): Promise<Session | undefined> => {
     try {
-      console.log("Starting session for station:", stationId, "for customer:", customerId);
-      console.log("Coupon details:", { finalRate, couponCode });
+      console.log("🚀 Starting session for station:", stationId, "for customer:", customerId);
+      console.log("🎟️ Coupon details:", { finalRate, couponCode });
       
       const station = stations.find(s => s.id === stationId);
       if (!station) {
-        console.error("Station not found");
+        console.error("❌ Station not found");
         toast({
           title: "Station Error",
           description: "Station not found",
@@ -46,7 +42,7 @@ export const useStartSession = ({
       
       // Check if the station is already occupied
       if (station.isOccupied || station.currentSession) {
-        console.error("Station already occupied");
+        console.error("❌ Station already occupied");
         toast({
           title: "Station Error",
           description: "Station is already occupied",
@@ -57,26 +53,35 @@ export const useStartSession = ({
       
       const startTime = new Date();
       const sessionId = generateId();
-      console.log("Generated session ID:", sessionId);
+      console.log("🆔 Generated session ID:", sessionId);
       
       // Calculate session rate and discount
       const sessionRate = finalRate !== undefined ? finalRate : station.hourlyRate;
       const originalRate = station.hourlyRate;
       const discountAmount = originalRate - sessionRate;
       
-      // Create new session locally first
+      console.log("💰 Rate calculation:", {
+        originalRate,
+        sessionRate,
+        discountAmount,
+        couponCode
+      });
+      
+      // Create new session object
       const newSession: Session = {
         id: sessionId,
         stationId,
         customerId,
         startTime,
-        hourlyRate: sessionRate,        // NEW: Store discounted rate
-        originalRate: originalRate,     // NEW: Store original rate
-        couponCode: couponCode,         // NEW: Store coupon code
-        discountAmount: discountAmount, // NEW: Store discount amount
+        hourlyRate: sessionRate,
+        originalRate: originalRate,
+        couponCode: couponCode,
+        discountAmount: discountAmount,
       };
       
-      // Update local state first for immediate UI update
+      console.log("📦 Created new session object:", newSession);
+      
+      // Update local state FIRST for immediate UI update
       setSessions(prev => [...prev, newSession]);
       setStations(prev => prev.map(s => 
         s.id === stationId 
@@ -84,70 +89,99 @@ export const useStartSession = ({
           : s
       ));
       
-      // Then try to create session in Supabase
+      console.log("✅ Local state updated");
+      
+      // Then try to create session in Supabase sessions table
       try {
-        // Convert non-UUID station IDs to proper UUIDs for Supabase
-        // Check if stationId is already a UUID format (contains hyphens)
-        const dbStationId = stationId.includes('-') ? stationId : sessionId; // Use session ID as fallback
+        const dbStationId = stationId.includes('-') ? stationId : sessionId;
         
-        console.log("Using DB station ID:", dbStationId);
+        console.log("💾 Saving to sessions table with station_id:", dbStationId);
         
-        // Use type assertion for TypeScript compatibility
         const { data, error } = await supabase
           .from('sessions')
           .insert({
             id: sessionId,
-            station_id: dbStationId, // Use the proper format for DB
+            station_id: dbStationId,
             customer_id: customerId,
             start_time: startTime.toISOString(),
-            hourly_rate: sessionRate,        // NEW: Store in DB
-            original_rate: originalRate,     // NEW: Store in DB
-            coupon_code: couponCode,         // NEW: Store in DB
-            discount_amount: discountAmount, // NEW: Store in DB
+            hourly_rate: sessionRate,
+            original_rate: originalRate,
+            coupon_code: couponCode,
+            discount_amount: discountAmount,
           } as any)
           .select()
           .single();
           
         if (error) {
-          console.error('Error creating session in Supabase:', error);
-          // We'll continue since local state is already updated
+          console.error('❌ Error creating session in Supabase:', error);
         } else {
-          console.log("Session created in Supabase:", data);
+          console.log("✅ Session saved to sessions table:", data);
         }
       } catch (supabaseError) {
-        console.error('Error in Supabase operation:', supabaseError);
-        // We'll continue since local state is already updated
+        console.error('❌ Error in Supabase sessions operation:', supabaseError);
       }
       
-      // Try to update station in Supabase
+      // CRITICAL: Update station in Supabase with currentSession
       try {
-        // Find the station to check if it has a proper UUID
-        const dbStationId = stationId.includes('-') ? stationId : null;
+        // Check if station ID is a valid UUID
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stationId);
         
-        if (dbStationId) {
-          const { error: stationError } = await supabase
+        console.log("🔍 Station ID validation:", {
+          stationId,
+          isValidUUID,
+          length: stationId.length
+        });
+        
+        if (isValidUUID) {
+          console.log("💾 Updating stations table with currentsession...");
+          
+          const { error: stationError, data: stationData } = await supabase
             .from('stations')
             .update({ 
-              is_occupied: true,        // ✅ FIXED: Changed from isoccupied
-              currentsession: newSession // ✅ Store complete session with coupon data
+              is_occupied: true,
+              currentsession: newSession  // Store as JSONB
             })
-            .eq('id', dbStationId);
+            .eq('id', stationId)
+            .select();
           
           if (stationError) {
-            console.error('Error updating station in Supabase:', stationError);
-            // Continue since local state is already updated
+            console.error('❌ Error updating station in Supabase:', stationError);
+            toast({
+              title: 'Warning',
+              description: 'Session started but database sync failed',
+              variant: 'destructive'
+            });
           } else {
-            console.log('✅ Station updated in Supabase with session data');
+            console.log("✅ SUCCESS! Station updated in Supabase:", stationData);
+            
+            // Verify the update
+            const { data: verifyData, error: verifyError } = await supabase
+              .from('stations')
+              .select('currentsession, is_occupied')
+              .eq('id', stationId)
+              .single();
+            
+            if (verifyError) {
+              console.error('❌ Error verifying update:', verifyError);
+            } else {
+              console.log("✅ Verified data in DB:", verifyData);
+              if (!verifyData?.currentsession) {
+                console.error("❌ WARNING: currentsession is still NULL in database!");
+              }
+            }
           }
         } else {
-          console.log("Skipping station update in Supabase due to non-UUID station ID");
+          console.warn("⚠️ Station ID is not a valid UUID, cannot update database:", stationId);
+          toast({
+            title: 'Warning',
+            description: 'Session started locally only (invalid station ID format)',
+          });
         }
       } catch (supabaseError) {
-        console.error('Error updating station in Supabase:', supabaseError);
-        // Continue since local state is already updated
+        console.error('❌ Error updating station in Supabase:', supabaseError);
       }
       
-      // Enhanced success message with coupon info
+      // Show success message
       const couponText = couponCode 
         ? ` with ${couponCode} (₹${discountAmount} saved)` 
         : '';
@@ -157,9 +191,11 @@ export const useStartSession = ({
         description: `Session started successfully${couponText}`,
       });
       
+      console.log("🎉 Session start complete!");
+      
       return newSession;
     } catch (error) {
-      console.error('Error in startSession:', error);
+      console.error('❌ Error in startSession:', error);
       toast({
         title: 'Error',
         description: 'Failed to start session: ' + (error instanceof Error ? error.message : 'Unknown error'),
