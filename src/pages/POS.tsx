@@ -575,13 +575,15 @@ const POS = () => {
       </div>
 
       {/* ============================================ */}
-      {/* ADDED: SavedCartsManager - Visible to All Users */}
+      {/* SavedCartsManager - Visible to All Users */}
       {/* ============================================ */}
       <div className="mt-6">
         <SavedCartsManager />
       </div>
 
-      {/* Customer Dialog with Pending Cart Badges */}
+      {/* ============================================ */}
+      {/* Customer Dialog with Better Badge Alignment */}
+      {/* ============================================ */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
         <DialogContent className="max-w-3xl animate-scale-in">
           <DialogHeader>
@@ -609,13 +611,14 @@ const POS = () => {
                   return (
                     <div 
                       key={customer.id} 
-                      className={`relative animate-scale-in delay-${index % 6}`} 
+                      className="relative animate-scale-in"
                       style={{animationDelay: `${(index % 6) * 100}ms`}}
                     >
+                      {/* Better Aligned Pending Cart Badge */}
                       {cartInfo.hasCart && (
-                        <div className="absolute -top-2 -right-2 bg-gradient-to-r from-cuephoria-orange to-cuephoria-lightpurple text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 z-10 animate-pulse shadow-lg">
-                          <ShoppingCart className="h-3 w-3" />
-                          <span className="font-semibold">{cartInfo.itemCount}</span>
+                        <div className="absolute -top-2 -right-2 bg-gradient-to-r from-cuephoria-orange to-cuephoria-lightpurple text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 z-10 shadow-lg animate-pulse">
+                          <ShoppingCart className="h-3.5 w-3.5" />
+                          <span className="font-bold">{cartInfo.itemCount}</span>
                         </div>
                       )}
                       <CustomerCard
