@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift } from 'lucide-react';
+import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS, Customer, Product, Bill } from '@/context/POSContext';
 import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
@@ -63,6 +63,21 @@ const POS = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isCompletingSale, setIsCompletingSale] = useState(false);
+
+  // Custom Date/Time States
+  const [customBillDate, setCustomBillDate] = useState('');
+  const [customBillTime, setCustomBillTime] = useState('');
+  const [useCustomDateTime, setUseCustomDateTime] = useState(false);
+
+  // Initialize custom date/time when dialogs open
+  useEffect(() => {
+    if (isCheckoutDialogOpen || isCompDialogOpen) {
+      const now = new Date();
+      setCustomBillDate(now.toISOString().split('T')[0]);
+      setCustomBillTime(now.toTimeString().slice(0, 5));
+      setUseCustomDateTime(false);
+    }
+  }, [isCheckoutDialogOpen, isCompDialogOpen]);
 
   const productsWithStock = products.filter(product => 
     product.category === 'membership' || product.stock > 0
@@ -214,8 +229,14 @@ const POS = () => {
     setIsCompletingSale(true);
     
     try {
+      // Prepare custom timestamp if enabled
+      let customTimestamp = undefined;
+      if (useCustomDateTime && customBillDate && customBillTime) {
+        customTimestamp = new Date(`${customBillDate}T${customBillTime}`);
+      }
+      
       console.log("Starting completeSale process...");
-      const bill = await completeSale(paymentMethod);
+      const bill = await completeSale(paymentMethod, undefined, undefined, customTimestamp);
       console.log("CompleteSale returned:", bill);
       
       if (bill) {
@@ -274,7 +295,13 @@ const POS = () => {
     setIsCompletingSale(true);
     
     try {
-      const bill = await completeSale('complimentary', 'complimentary', compNote);
+      // Prepare custom timestamp if enabled
+      let customTimestamp = undefined;
+      if (useCustomDateTime && customBillDate && customBillTime) {
+        customTimestamp = new Date(`${customBillDate}T${customBillTime}`);
+      }
+      
+      const bill = await completeSale('complimentary', 'complimentary', compNote, customTimestamp);
       
       if (bill) {
         setIsCompDialogOpen(false);
@@ -574,16 +601,12 @@ const POS = () => {
         </Card>
       </div>
 
-      {/* ============================================ */}
-      {/* SavedCartsManager - Visible to All Users */}
-      {/* ============================================ */}
+      {/* SavedCartsManager */}
       <div className="mt-6">
         <SavedCartsManager />
       </div>
 
-      {/* ============================================ */}
-      {/* Customer Dialog with Better Badge Alignment */}
-      {/* ============================================ */}
+      {/* Customer Dialog */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
         <DialogContent className="max-w-3xl animate-scale-in">
           <DialogHeader>
@@ -614,7 +637,6 @@ const POS = () => {
                       className="relative animate-scale-in"
                       style={{animationDelay: `${(index % 6) * 100}ms`}}
                     >
-                      {/* Better Aligned Pending Cart Badge */}
                       {cartInfo.hasCart && (
                         <div className="absolute -top-2 -right-2 bg-gradient-to-r from-cuephoria-orange to-cuephoria-lightpurple text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 z-10 shadow-lg animate-pulse">
                           <ShoppingCart className="h-3.5 w-3.5" />
@@ -680,7 +702,62 @@ const POS = () => {
               />
             </div>
 
-            <div className="border rounded-md p-3 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-orange/10 animate-slide-up delay-200">
+            {/* Custom Date/Time Section for Complimentary */}
+            <div className="space-y-3 border-t pt-3 animate-slide-up delay-200">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium font-heading flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-orange-500" />
+                  Custom Bill Date/Time
+                </h4>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="comp-use-custom-datetime"
+                    checked={useCustomDateTime}
+                    onCheckedChange={(checked) => setUseCustomDateTime(checked as boolean)}
+                  />
+                  <Label htmlFor="comp-use-custom-datetime" className="font-quicksand text-sm cursor-pointer">
+                    Enable
+                  </Label>
+                </div>
+              </div>
+              
+              {useCustomDateTime && (
+                <div className="grid grid-cols-2 gap-3 animate-fade-in">
+                  <div className="space-y-2">
+                    <Label htmlFor="comp-bill-date" className="text-sm font-quicksand">Date</Label>
+                    <Input
+                      id="comp-bill-date"
+                      type="date"
+                      value={customBillDate}
+                      onChange={(e) => setCustomBillDate(e.target.value)}
+                      className="font-quicksand"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="comp-bill-time" className="text-sm font-quicksand">Time</Label>
+                    <Input
+                      id="comp-bill-time"
+                      type="time"
+                      value={customBillTime}
+                      onChange={(e) => setCustomBillTime(e.target.value)}
+                      className="font-quicksand"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {useCustomDateTime && customBillDate && customBillTime && (
+                <p className="text-xs text-muted-foreground bg-orange-50 dark:bg-orange-950/20 p-2 rounded animate-fade-in flex items-center gap-2">
+                  <Clock className="h-3 w-3" />
+                  Bill will be dated: {new Date(`${customBillDate}T${customBillTime}`).toLocaleString('en-IN', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short'
+                  })}
+                </p>
+              )}
+            </div>
+
+            <div className="border rounded-md p-3 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-orange/10 animate-slide-up delay-300">
               <h4 className="font-medium mb-2 font-heading">Items</h4>
               <div className="space-y-1 max-h-32 overflow-auto">
                 {cart.map(item => (
@@ -699,7 +776,7 @@ const POS = () => {
             </div>
           </div>
           
-          <DialogFooter className="animate-slide-up delay-300">
+          <DialogFooter className="animate-slide-up delay-400">
             <Button 
               variant="outline" 
               onClick={() => {
@@ -724,7 +801,7 @@ const POS = () => {
 
       {/* Checkout Dialog */}
       <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
-        <DialogContent className="max-w-md animate-scale-in">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">Complete Transaction</DialogTitle>
           </DialogHeader>
@@ -856,7 +933,7 @@ const POS = () => {
             </div>
 
             {paymentMethod === 'split' && (
-              <div className="mt-4 animate-slide-up delay-500">
+              <div className="mt-4 animate-slide-up delay-450">
                 <SplitPaymentForm 
                   total={total}
                   cashAmount={cashAmount}
@@ -866,9 +943,64 @@ const POS = () => {
                 />
               </div>
             )}
+
+            {/* Custom Date/Time Section for Checkout */}
+            <div className="space-y-3 border-t pt-4 animate-slide-up delay-500">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium font-heading flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-cuephoria-purple" />
+                  Custom Bill Date/Time
+                </h4>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="use-custom-datetime"
+                    checked={useCustomDateTime}
+                    onCheckedChange={(checked) => setUseCustomDateTime(checked as boolean)}
+                  />
+                  <Label htmlFor="use-custom-datetime" className="font-quicksand text-sm cursor-pointer">
+                    Enable
+                  </Label>
+                </div>
+              </div>
+              
+              {useCustomDateTime && (
+                <div className="grid grid-cols-2 gap-3 animate-fade-in">
+                  <div className="space-y-2">
+                    <Label htmlFor="bill-date" className="text-sm font-quicksand">Date</Label>
+                    <Input
+                      id="bill-date"
+                      type="date"
+                      value={customBillDate}
+                      onChange={(e) => setCustomBillDate(e.target.value)}
+                      className="font-quicksand"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bill-time" className="text-sm font-quicksand">Time</Label>
+                    <Input
+                      id="bill-time"
+                      type="time"
+                      value={customBillTime}
+                      onChange={(e) => setCustomBillTime(e.target.value)}
+                      className="font-quicksand"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {useCustomDateTime && customBillDate && customBillTime && (
+                <p className="text-xs text-muted-foreground bg-cuephoria-purple/10 p-2 rounded animate-fade-in flex items-center gap-2">
+                  <Clock className="h-3 w-3" />
+                  Bill will be dated: {new Date(`${customBillDate}T${customBillTime}`).toLocaleString('en-IN', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short'
+                  })}
+                </p>
+              )}
+            </div>
           </div>
           
-          <DialogFooter className="animate-slide-up delay-500">
+          <DialogFooter className="animate-slide-up delay-600">
             <Button variant="outline" onClick={() => setIsCheckoutDialogOpen(false)}>
               Cancel
             </Button>
