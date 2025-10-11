@@ -184,7 +184,7 @@ const Customers = () => {
     return hasDuplicates;
   };
 
-  // ✅ FIXED: Using correct snake_case column names from your Supabase table
+  // ✅ FIXED: Using custom_id (not customer_id)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { name, phone, email, isMember, membershipExpiryDate, membershipHoursLeft } = formState;
@@ -226,13 +226,13 @@ const Customers = () => {
 
     try {
       if (isEditMode && selectedCustomer) {
-        // ✅ Update with correct snake_case column names
+        // ✅ Update with correct field name: custom_id
         const updateData: any = {
           name: name.trim(),
           phone: normalizedPhone,
           email: email?.trim() || null,
-          customer_id: customerID,        // ✅ Correct column name
-          is_member: isMember             // ✅ Correct column name
+          custom_id: customerID,          // ✅ FIXED: custom_id
+          is_member: isMember
         };
 
         if (isMember) {
@@ -261,16 +261,16 @@ const Customers = () => {
 
         window.location.reload();
       } else {
-        // ✅ Insert with correct snake_case column names
+        // ✅ Insert with correct field name: custom_id
         const insertData: any = {
           name: name.trim(),
           phone: normalizedPhone,
           email: email?.trim() || null,
-          customer_id: customerID,        // ✅ Correct column name
-          is_member: isMember,            // ✅ Correct column name
-          loyalty_points: 0,              // ✅ Correct column name
-          total_spent: 0,                 // ✅ Correct column name
-          total_play_time: 0              // ✅ Correct column name
+          custom_id: customerID,          // ✅ FIXED: custom_id
+          is_member: isMember,
+          loyalty_points: 0,
+          total_spent: 0,
+          total_play_time: 0
         };
 
         if (isMember) {
@@ -282,7 +282,7 @@ const Customers = () => {
           }
         }
 
-        console.log('Inserting data:', insertData); // Debug log
+        console.log('Inserting data:', insertData);
 
         const { data, error: insertError } = await supabase
           .from('customers')
