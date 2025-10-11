@@ -127,12 +127,17 @@ export const useStartSession = ({
         if (dbStationId) {
           const { error: stationError } = await supabase
             .from('stations')
-            .update({ is_occupied: true })
+            .update({ 
+              is_occupied: true,        // ✅ FIXED: Changed from isoccupied
+              currentsession: newSession // ✅ Store complete session with coupon data
+            })
             .eq('id', dbStationId);
           
           if (stationError) {
             console.error('Error updating station in Supabase:', stationError);
             // Continue since local state is already updated
+          } else {
+            console.log('✅ Station updated in Supabase with session data');
           }
         } else {
           console.log("Skipping station update in Supabase due to non-UUID station ID");
