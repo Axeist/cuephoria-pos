@@ -12,6 +12,7 @@ import { usePOS, Customer } from '@/context/POSContext';
 import CustomerCard from '@/components/CustomerCard';
 import CustomerInsightWidgets from '@/components/customers/CustomerInsightWidgets';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
 type SortDirection = 'asc' | 'desc';
@@ -87,7 +88,6 @@ const Customers = () => {
 
   const {
     customers = [],
-    addCustomer = () => {},
     updateCustomer = () => {},
     deleteCustomer = () => {},
     exportCustomers = () => {}
@@ -184,7 +184,8 @@ const Customers = () => {
     return hasDuplicates;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ✅ FIXED: Direct Supabase insert with correct field names
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { name, phone, email, isMember, membershipExpiryDate, membershipHoursLeft } = formState;
     
@@ -223,52 +224,92 @@ const Customers = () => {
       ? selectedCustomer.customerId 
       : generateCustomerID(normalizedPhone);
 
-    const customerData: Partial<Customer> = {
-      name: name.trim(),
-      phone: normalizedPhone,
-      email: email?.trim() || undefined,
-      customerId: customerID,
-      isMember,
-      loyaltyPoints: isEditMode && selectedCustomer ? selectedCustomer.loyaltyPoints : 0,
-      totalSpent: isEditMode && selectedCustomer ? selectedCustomer.totalSpent : 0,
-      totalPlayTime: isEditMode && selectedCustomer ? selectedCustomer.totalPlayTime : 0
-    };
+    try {
+      if (isEditMode && selectedCustomer) {
+        // ✅ Update existing customer
+        const updateData: any = {
+          name: name.trim(),
+          phone: normalizedPhone,
+          email: email?.trim() || null,
+          customid: customerID,
+          ismember: isMember
+        };
 
-    if (isMember) {
-      if (isEditMode && selectedCustomer && selectedCustomer.membershipPlan) {
-        customerData.membershipPlan = selectedCustomer.membershipPlan;
-        customerData.membershipDuration = selectedCustomer.membershipDuration;
+        if (isMember) {
+          if (membershipExpiryDate) {
+            updateData.membershipexpirydate = new Date(membershipExpiryDate).toISOString();
+          }
+          if (membershipHoursLeft) {
+            updateData.membershiphoursleft = parseInt(membershipHoursLeft, 10);
+          }
+        }
+
+        const { error: updateError } = await supabase
+          .from('customers')
+          .update(updateData)
+          .eq('id', selectedCustomer.id);
+
+        if (updateError) throw updateError;
+
+        toast({
+          title: 'Customer Updated',
+          description: `Customer ${customerID} has been updated successfully.`
+        });
+
+        // Refresh customer list
+        window.location.reload();
+      } else {
+        // ✅ Insert new customer with lowercase field names
+        const insertData: any = {
+          name: name.trim(),
+          phone: normalizedPhone,
+          email: email?.trim() || null,
+          customid: customerID,
+          ismember: isMember,
+          loyaltypoints: 0,
+          totalspent: 0,
+          totalplaytime: 0
+        };
+
+        if (isMember) {
+          if (membershipExpiryDate) {
+            insertData.membershipexpirydate = new Date(membershipExpiryDate).toISOString();
+          }
+          if (membershipHoursLeft) {
+            insertData.membershiphoursleft = parseInt(membershipHoursLeft, 10);
+          }
+        }
+
+        const { data, error: insertError } = await supabase
+          .from('customers')
+          .insert([insertData])
+          .select('*')
+          .single();
+
+        if (insertError) {
+          console.error('Supabase insert error:', insertError);
+          throw insertError;
+        }
+
+        toast({
+          title: 'Customer Added',
+          description: `Customer ${customerID} has been added successfully.`
+        });
+
+        // Refresh customer list
+        window.location.reload();
       }
       
-      if (membershipExpiryDate) {
-        customerData.membershipExpiryDate = new Date(membershipExpiryDate);
-      }
-      
-      if (membershipHoursLeft) {
-        customerData.membershipHoursLeft = parseInt(membershipHoursLeft, 10);
-      }
-    }
-    
-    if (isEditMode && selectedCustomer) {
-      updateCustomer({
-        ...customerData,
-        id: selectedCustomer.id,
-        createdAt: selectedCustomer.createdAt
-      } as Customer);
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      console.error('Error saving customer:', error);
       toast({
-        title: 'Customer Updated',
-        description: `Customer ${customerID} has been updated successfully.`
-      });
-    } else {
-      addCustomer(customerData as Omit<Customer, 'id' | 'createdAt'>);
-      toast({
-        title: 'Customer Added',
-        description: `Customer ${customerID} has been added successfully.`
+        title: 'Database Error',
+        description: error.message || 'Failed to save customer to database',
+        variant: 'destructive'
       });
     }
-    
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -449,7 +490,6 @@ const Customers = () => {
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
 
-  // ✅ UPDATED: Enhanced search with Customer ID support
   const filteredAndSortedCustomers = sortCustomers(
     customersData
       .filter(customer => {
@@ -462,7 +502,7 @@ const Customers = () => {
             customer.name.toLowerCase().includes(query) || 
             normalizedCustomerPhone.includes(normalizedSearchPhone) ||
             customer.email?.toLowerCase().includes(query) ||
-            customer.customerId?.toLowerCase().includes(query); // ✅ Search by Customer ID
+            customer.customerId?.toLowerCase().includes(query);
           
           if (!matchesSearch) return false;
         }
@@ -543,7 +583,6 @@ const Customers = () => {
 
       <CustomerInsightWidgets customers={customersData} />
 
-      {/* ADD CUSTOMER DIALOG */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -662,7 +701,6 @@ const Customers = () => {
         </DialogContent>
       </Dialog>
 
-      {/* DUPLICATE CLEANUP DIALOG */}
       <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -720,7 +758,6 @@ const Customers = () => {
         </DialogContent>
       </Dialog>
 
-      {/* FILTER PANEL */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -882,7 +919,6 @@ const Customers = () => {
         </p>
       </div>
 
-      {/* CUSTOMER GRID */}
       {filteredAndSortedCustomers.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredAndSortedCustomers.map((customer) => (
@@ -920,4 +956,4 @@ const Customers = () => {
   );
 };
 
-export default Customers; 
+export default Customers;
