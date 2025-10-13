@@ -89,12 +89,10 @@ const isHappyHour = (date: Date, slot: TimeSlot | null) => {
   return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
 };
 
-// ✅ NEW: Phone number normalization
 const normalizePhoneNumber = (phone: string): string => {
   return phone.replace(/\D/g, '');
 };
 
-// ✅ NEW: Generate unique Customer ID
 const generateCustomerID = (phone: string): string => {
   const normalized = normalizePhoneNumber(phone);
   const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
@@ -102,7 +100,6 @@ const generateCustomerID = (phone: string): string => {
   return `CUE${phoneHash}${timestamp}`;
 };
 
-// ✅ NEW: Validate Indian phone number
 const validatePhoneNumber = (phone: string): { valid: boolean; error?: string } => {
   const normalized = normalizePhoneNumber(phone);
   
@@ -128,6 +125,13 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
   );
   return hasVR ? 15 : 60;
 };
+
+function maskPhone(p?: string) {
+  if (!p) return "";
+  const s = p.replace(/\D/g, "");
+  if (s.length <= 4) return s;
+  return `${s.slice(0, 3)}${"X".repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
+}
 
 /* =========================
    Component
@@ -170,6 +174,14 @@ export default function PublicBooking() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
 
+  // ✅ NEW STATE for Manage Bookings feature
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [lookupBookingId, setLookupBookingId] = useState("");
+  const [lookupResults, setLookupResults] = useState<any[]>([]);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [hasLookedUp, setHasLookedUp] = useState(false);
+  const [rsvpUpdating, setRsvpUpdating] = useState<string | null>(null);
+
   useEffect(() => {
     const pp = searchParams.get("pp");
     const txn = searchParams.get("txn");
@@ -188,7 +200,6 @@ export default function PublicBooking() {
     }
   }, [searchParams, setSearchParams]);
 
-  // ✅ UPDATED: Payment success handler with duplicate check and Customer ID
   const handlePaymentSuccess = async (txnId: string) => {
     try {
       const statusResponse = await fetch(`https://admin.cuephoria.in/api/phonepe/status?txn=${encodeURIComponent(txnId)}`);
@@ -210,7 +221,6 @@ export default function PublicBooking() {
       if (!customerId) {
         const normalizedPhone = normalizePhoneNumber(pendingBooking.customer.phone);
         
-        // ✅ Check for existing customer
         const { data: existingCustomer } = await supabase
           .from("customers")
           .select("id")
@@ -499,7 +509,6 @@ export default function PublicBooking() {
     }
   }
 
-  // ✅ UPDATED: searchCustomer with phone normalization
   async function searchCustomer() {
     if (!customerNumber.trim()) {
       toast.error("Please enter a customer number");
@@ -902,7 +911,6 @@ export default function PublicBooking() {
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
 
-  // ✅ UPDATED: createVenueBooking with duplicate check and Customer ID
   async function createVenueBooking() {
     setLoading(true);
     try {
@@ -918,7 +926,6 @@ export default function PublicBooking() {
           return;
         }
 
-        // ✅ Check for duplicate phone number
         const { data: existingCustomer } = await supabase
           .from("customers")
           .select("id, name, custom_id")
@@ -1131,13 +1138,6 @@ export default function PublicBooking() {
     }
   }
 
-  function maskPhone(p?: string) {
-    if (!p) return "";
-    const s = p.replace(/\D/g, "");
-    if (s.length <= 4) return s;
-    return `${s.slice(0, 3)}${"X".repeat(Math.max(0, s.length - 5))}${s.slice(-2)}`;
-  }
-
   async function fetchTodaysBookings() {
     setTodayLoading(true);
     try {
@@ -1188,6 +1188,185 @@ export default function PublicBooking() {
       toast.error("Failed to load today's bookings");
     } finally {
       setTodayLoading(false);
+    }
+  }
+
+  // ✅ NEW: Helper to check if booking is upcoming
+  const isBookingUpcoming = (booking: any) => {
+    const now = new Date();
+    const bookingDateTime = new Date(`${booking.booking_date}T${booking.start_time}`);
+    return bookingDateTime > now && (booking.status === "confirmed" || booking.status === "pending");
+  };
+
+  // ✅ NEW: Lookup by phone number
+  async function handleLookupByPhone() {
+    if (!lookupPhone.trim()) {
+      toast.error("Please enter a phone number");
+      return;
+    }
+
+    const normalized = normalizePhoneNumber(lookupPhone);
+    const validation = validatePhoneNumber(normalized);
+    
+    if (!validation.valid) {
+      toast.error(validation.error || "Invalid phone number");
+      return;
+    }
+
+    setLookupLoading(true);
+    setHasLookedUp(true);
+    
+    try {
+      const { data: customer, error: customerError } = await supabase
+        .from("customers")
+        .select("id, name, phone")
+        .eq("phone", normalized)
+        .maybeSingle();
+
+      if (customerError) throw customerError;
+      
+      if (!customer) {
+        setLookupResults([]);
+        toast.info("No customer found with this phone number");
+        return;
+      }
+
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("id, booking_date, start_time, end_time, status, duration, station_id, customer_id")
+        .eq("customer_id", customer.id)
+        .gte("booking_date", format(new Date(), "yyyy-MM-dd"))
+        .order("booking_date", { ascending: true })
+        .order("start_time", { ascending: true });
+
+      if (bookingsError) throw bookingsError;
+
+      if (!bookings || bookings.length === 0) {
+        setLookupResults([]);
+        toast.info("No upcoming bookings found");
+        return;
+      }
+
+      const stationIds = [...new Set(bookings.map((b) => b.station_id))];
+      const { data: stationsData } = await supabase
+        .from("stations")
+        .select("id, name")
+        .in("id", stationIds);
+
+      const enrichedBookings = bookings.map((booking) => {
+        const station = stationsData?.find((s) => s.id === booking.station_id);
+        return {
+          ...booking,
+          stationName: station?.name || "—",
+          customerName: customer.name,
+          customerPhone: maskPhone(customer.phone),
+        };
+      });
+
+      setLookupResults(enrichedBookings);
+      toast.success(`Found ${enrichedBookings.length} booking(s)`);
+    } catch (error) {
+      console.error("Lookup error:", error);
+      toast.error("Failed to look up bookings");
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
+  // ✅ NEW: Lookup by booking ID
+  async function handleLookupByBookingId() {
+    if (!lookupBookingId.trim()) {
+      toast.error("Please enter a booking ID");
+      return;
+    }
+
+    setLookupLoading(true);
+    setHasLookedUp(true);
+    
+    try {
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("id, booking_date, start_time, end_time, status, duration, station_id, customer_id")
+        .ilike("id", `${lookupBookingId}%`)
+        .limit(10);
+
+      if (bookingsError) throw bookingsError;
+
+      if (!bookings || bookings.length === 0) {
+        setLookupResults([]);
+        toast.info("No booking found with this ID");
+        return;
+      }
+
+      const customerIds = [...new Set(bookings.map((b) => b.customer_id))];
+      const stationIds = [...new Set(bookings.map((b) => b.station_id))];
+
+      const [{ data: customersData }, { data: stationsData }] = await Promise.all([
+        supabase.from("customers").select("id, name, phone").in("id", customerIds),
+        supabase.from("stations").select("id, name").in("id", stationIds),
+      ]);
+
+      const enrichedBookings = bookings.map((booking) => {
+        const customer = customersData?.find((c) => c.id === booking.customer_id);
+        const station = stationsData?.find((s) => s.id === booking.station_id);
+        return {
+          ...booking,
+          stationName: station?.name || "—",
+          customerName: customer?.name || "—",
+          customerPhone: maskPhone(customer?.phone),
+        };
+      });
+
+      setLookupResults(enrichedBookings);
+      toast.success(`Found ${enrichedBookings.length} booking(s)`);
+    } catch (error) {
+      console.error("Lookup error:", error);
+      toast.error("Failed to look up booking");
+    } finally {
+      setLookupLoading(false);
+    }
+  }
+
+  // ✅ NEW: Update RSVP status
+  async function handleRSVPUpdate(bookingId: string, newStatus: "confirmed" | "cancelled") {
+    const booking = lookupResults.find((b) => b.id === bookingId);
+    
+    if (!booking) {
+      toast.error("Booking not found");
+      return;
+    }
+
+    if (!isBookingUpcoming(booking)) {
+      toast.error("Can only update RSVP for upcoming bookings");
+      return;
+    }
+
+    setRsvpUpdating(bookingId);
+
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: newStatus })
+        .eq("id", bookingId);
+
+      if (error) throw error;
+
+      setLookupResults((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b))
+      );
+
+      toast.success(
+        newStatus === "confirmed"
+          ? "✅ Booking confirmed! See you soon!"
+          : "❌ Booking cancelled successfully"
+      );
+
+      fetchTodaysBookings();
+    } catch (error) {
+      console.error("RSVP update error:", error);
+      toast.error("Failed to update booking status");
+    } finally {
+      setRsvpUpdating(null);
     }
   }
 
@@ -1349,6 +1528,7 @@ export default function PublicBooking() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
+            {/* Customer Information Card */}
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
@@ -1447,6 +1627,7 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
+            {/* Station Selection Card */}
             <Card className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl">
               <CardHeader className="relative pb-4">
                 <div className="flex items-center justify-between gap-3">
@@ -1555,6 +1736,7 @@ export default function PublicBooking() {
               </CardContent>
             </Card>
 
+            {/* Date & Time Selection Card */}
             <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
@@ -1625,6 +1807,7 @@ export default function PublicBooking() {
             </Card>
           </div>
 
+          {/* Right Column - Summary Card */}
           <div className="lg:col-span-1">
             <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl">
               <CardHeader>
@@ -1880,6 +2063,7 @@ export default function PublicBooking() {
           </div>
         </div>
 
+        {/* Terms & Privacy Section */}
         <section className="mt-10 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <h3 className="text-white font-semibold mb-2">
@@ -1922,217 +2106,408 @@ export default function PublicBooking() {
           </div>
         </section>
 
+        {/* ✅ NEW: Manage My Bookings Section */}
         <div className="mt-10">
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
-                <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
-                Today's Bookings
+                <User className="h-5 w-5 text-cuephoria-purple" />
+                Manage My Bookings
               </CardTitle>
-              <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
-                {todayRows.length} total
-              </span>
+              <p className="text-sm text-gray-400 mt-1">
+                Look up your bookings using your phone number or booking ID
+              </p>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {todayLoading ? (
-                <div className="h-12 rounded-md bg-white/5 animate-pulse" />
-              ) : groupedByTime.length === 0 ? (
-                <div className="text-sm text-gray-400">No bookings today.</div>
-              ) : (
-                groupedByTime.map(([timeLabel, rows]) => (
-                  <details
-                    key={timeLabel}
-                    className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40"
-                  >
-                    <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-gray-200">
-                        <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
-                        <span className="font-medium">{timeLabel}</span>
-                      </div>
-                      <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
-                        {rows.length} booking{rows.length !== 1 ? "s" : ""}
-                      </span>
-                    </summary>
-                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
-                      <table className="min-w-[520px] w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-gray-400">
-                            <th className="py-2 pr-3 font-medium">Customer</th>
-                            <th className="py-2 pr-3 font-medium">Station</th>
-                            <th className="py-2 font-medium">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((r) => (
-                            <tr key={r.id} className="border-t border-white/10">
-                              <td className="py-2 pr-3">
-                                <div className="text-gray-100">{r.customerName}</div>
-                                <div className="text-xs text-gray-400">{r.customerPhone}</div>
-                              </td>
-                              <td className="py-2 pr-3">
-                                <Badge className="bg-white/5 border-white/10 text-gray-200 rounded-full">
-                                  {r.stationName}
+            <CardContent className="space-y-4">
+              {/* Search Section */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Search by Phone Number */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-gray-300 uppercase">
+                    Search by Phone Number
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="lookup-phone"
+                      placeholder="Enter 10-digit phone"
+                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl flex-1"
+                      maxLength={10}
+                      value={lookupPhone}
+                      onChange={(e) => {
+                        const normalized = normalizePhoneNumber(e.target.value);
+                        if (normalized.length <= 10) {
+                          setLookupPhone(normalized);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleLookupByPhone();
+                      }}
+                    />
+                    <Button
+                      onClick={handleLookupByPhone}
+                      disabled={lookupLoading}
+                      className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
+                    >
+                      {lookupLoading ? "Searching..." : "Search"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Search by Booking ID */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-gray-300 uppercase">
+                    Search by Booking ID
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="lookup-booking-id"
+                      placeholder="Enter Booking ID"
+                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl flex-1"
+                      value={lookupBookingId}
+                      onChange={(e) => setLookupBookingId(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleLookupByBookingId();
+                      }}
+                    />
+                    <Button
+                      onClick={handleLookupByBookingId}
+                      disabled={lookupLoading}
+                      className="rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
+                    >
+                      {lookupLoading ? "Searching..." : "Search"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Results Section */}
+              {lookupResults.length > 0 && (
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold text-gray-200">
+                      {lookupResults.length} Booking{lookupResults.length !== 1 ? "s" : ""} Found
+                    </Label>
+                    <Button
+                      onClick={() => {
+                        setLookupResults([]);
+                        setLookupPhone("");
+                        setLookupBookingId("");
+                        setHasLookedUp(false);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl border-white/10 bg-black/30 text-gray-300"
+                    >
+                      Clear Results
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {lookupResults.map((booking) => {
+                      const canUpdate = isBookingUpcoming(booking);
+                      
+                      return (
+                        <div
+                          key={booking.id}
+                          className="rounded-xl border border-white/10 bg-black/30 p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-cuephoria-purple/20 text-cuephoria-purple border-cuephoria-purple/30 rounded-full">
+                                  {booking.id.slice(0, 8).toUpperCase()}
                                 </Badge>
-                              </td>
-                              <td className="py-2">{statusChip(r.status)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                ))
+                                {statusChip(booking.status)}
+                              </div>
+                              <p className="text-sm text-gray-300">
+                                <strong className="text-white">{booking.customerName}</strong> • {booking.customerPhone}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            <div>
+                              <Label className="text-xs text-gray-400">Station</Label>
+                              <p className="text-gray-200 font-medium">{booking.stationName}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-400">Date</Label>
+                              <p className="text-gray-200 font-medium">
+                                {format(new Date(booking.booking_date), "MMM d, yyyy")}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-400">Time</Label>
+                              <p className="text-gray-200 font-medium">
+                                {new Date(`2000-01-01T${booking.start_time}`).toLocaleTimeString("en-US", {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })}
+                                                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-400">Duration</Label>
+                              <p className="text-gray-200 font-medium">{booking.duration} min</p>
+                            </div>
+                          </div>
+
+                          {canUpdate ? (
+                            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                              <Label className="text-xs text-gray-400 mr-2">Update RSVP:</Label>
+                              <Button
+                                onClick={() => handleRSVPUpdate(booking.id, "confirmed")}
+                                disabled={booking.status === "confirmed" || rsvpUpdating === booking.id}
+                                size="sm"
+                                className={cn(
+                                  "rounded-lg text-xs",
+                                  booking.status === "confirmed"
+                                    ? "bg-green-600/20 text-green-300 border-green-400/30"
+                                    : "bg-green-600 hover:bg-green-700 text-white"
+                                )}
+                              >
+                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                Confirm
+                              </Button>
+                              <Button
+                                onClick={() => handleRSVPUpdate(booking.id, "cancelled")}
+                                disabled={booking.status === "cancelled" || rsvpUpdating === booking.id}
+                                size="sm"
+                                className={cn(
+                                  "rounded-lg text-xs",
+                                  booking.status === "cancelled"
+                                    ? "bg-rose-600/20 text-rose-300 border-rose-400/30"
+                                    : "bg-rose-600 hover:bg-rose-700 text-white"
+                                )}
+                              >
+                                <X className="h-3.5 w-3.5 mr-1" />
+                                Cancel
+                              </Button>
+                              {rsvpUpdating === booking.id && (
+                                <span className="text-xs text-gray-400 ml-2">Updating...</span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="pt-2 border-t border-white/10">
+                              <p className="text-xs text-gray-400 flex items-center gap-1">
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                {booking.status === "completed" || booking.status === "cancelled"
+                                  ? "This booking has already been completed or cancelled."
+                                  : "RSVP updates are only available for upcoming bookings."}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* No Results Message */}
+              {hasLookedUp && lookupResults.length === 0 && (
+                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+                  <AlertTriangle className="h-8 w-8 text-yellow-400 mx-auto mb-2" />
+                  <p className="text-gray-300">No bookings found with the provided information.</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Please check your phone number or booking ID and try again.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
         </div>
+
+        {/* Today's Bookings Section */}
+        <section className="mt-10">
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-cuephoria-purple" />
+                  Today's Bookings
+                </CardTitle>
+                <Button
+                  onClick={fetchTodaysBookings}
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl border-white/10 bg-black/30 text-gray-300"
+                >
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {todayLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-cuephoria-purple border-t-transparent"></div>
+                </div>
+              ) : groupedByTime.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-400">No bookings for today yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {groupedByTime.map(([timeKey, rows]) => (
+                    <div key={timeKey}>
+                      <div className="mb-2 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-cuephoria-purple" />
+                        <span className="text-sm font-medium text-gray-300">{timeKey}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {rows.map((row) => (
+                          <div
+                            key={row.id}
+                            className="rounded-xl border border-white/10 bg-black/30 p-4"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge className="bg-cuephoria-purple/20 text-cuephoria-purple border-cuephoria-purple/30 rounded-full">
+                                    {row.id.slice(0, 8).toUpperCase()}
+                                  </Badge>
+                                  {statusChip(row.status)}
+                                </div>
+                                <p className="text-sm text-gray-300">
+                                  <strong className="text-white">{row.customerName}</strong> • {row.customerPhone}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 text-sm">
+                              <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-cuephoria-purple" />
+                                <Label className="text-xs text-gray-400">Station:</Label>
+                                <p className="text-gray-200 font-medium">{row.stationName}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Contact & Refund Policy Section */}
+        <section className="mt-10">
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+            <CardHeader>
+              <CardTitle className="text-white">Contact & Refund Policy</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h3 className="text-white font-semibold mb-2">Contact Us</h3>
+                <div className="space-y-2 text-sm text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-cuephoria-purple" />
+                    <span>Phone: +91 98765 43210</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-cuephoria-purple" />
+                    <span>Email: support@cuephoria.in</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-cuephoria-purple" />
+                    <span>Location: Trichy, Tamil Nadu, India</span>
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="bg-white/10" />
+
+              <div>
+                <h3 className="text-white font-semibold mb-2">Refund & Cancellation Policy</h3>
+                <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
+                  <li>
+                    <strong>Cancellations made 24+ hours before booking:</strong> Full refund
+                    (minus payment gateway fees, if applicable).
+                  </li>
+                  <li>
+                    <strong>Cancellations within 24 hours:</strong> 50% refund.
+                  </li>
+                  <li>
+                    <strong>No-shows or cancellations within 1 hour:</strong> No refund.
+                  </li>
+                  <li>
+                    Refunds are processed within 5-7 business days to the original payment
+                    method.
+                  </li>
+                  <li>
+                    For "Pay at Venue" bookings, no advance payment is taken; simply
+                    cancel/update your booking online.
+                  </li>
+                </ul>
+                <button
+                  onClick={() => {
+                    setLegalDialogType("contact");
+                    setShowLegalDialog(true);
+                  }}
+                  className="mt-3 text-sm text-cuephoria-lightpurple hover:underline"
+                >
+                  View full Refund Policy
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       </main>
 
-      <footer className="py-10 px-4 sm:px-6 md:px-8 border-t border-white/10 backdrop-blur-md bg-black/30 relative z-10">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center mb-4 md:mb-0">
-              <img
-                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-                alt="Cuephoria Logo"
-                className="h-8 mr-3"
-              />
-              <p className="text-gray-400 text-sm">
-                © {new Date().getFullYear()} Cuephoria. All rights reserved.
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-gray-400 text-sm">
-                <Clock className="h-4 w-4 text-gray-400 mr-1.5" />
-                <span>Book anytime, anywhere</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="flex flex-wrap justify-center md:justify-start gap-6">
-              <button
-                onClick={() => {
-                  setLegalDialogType("terms");
-                  setShowLegalDialog(true);
-                }}
-                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
-              >
-                Terms & Conditions
-              </button>
-              <button
-                onClick={() => {
-                  setLegalDialogType("privacy");
-                  setShowLegalDialog(true);
-                }}
-                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
-              >
-                Privacy Policy
-              </button>
-              <button
-                onClick={() => {
-                  setLegalDialogType("contact");
-                  setShowLegalDialog(true);
-                }}
-                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
-              >
-                Contact Us
-              </button>
-              <button
-                onClick={() => setShowRefundDialog(true)}
-                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
-              >
-                Refund Policy
-              </button>
-            </div>
-
-            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-400">
-              <div className="flex items-center gap-1">
-                <Phone className="h-4 w-4" />
-                <a href="tel:918637625155" className="hover:text-white transition-colors">
-                  +91 86376 25155
-                </a>
-              </div>
-              <div className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                <a href="mailto:contact@cuephoria.in" className="hover:text-white transition-colors">
-                  contact@cuephoria.in
-                </a>
-              </div>
-            </div>
-          </div>
+      <footer className="mt-16 py-8 px-4 sm:px-6 md:px-8 border-t border-white/10 relative z-10">
+        <div className="max-w-7xl mx-auto text-center text-sm text-gray-400">
+          <p>
+            © {new Date().getFullYear()} Cuephoria. All rights reserved. | Trichy, Tamil
+            Nadu, India
+          </p>
+          <p className="mt-2">
+            <button
+              onClick={() => {
+                setLegalDialogType("terms");
+                setShowLegalDialog(true);
+              }}
+              className="text-cuephoria-lightpurple hover:underline"
+            >
+              Terms
+            </button>{" "}
+            ·{" "}
+            <button
+              onClick={() => {
+                setLegalDialogType("privacy");
+                setShowLegalDialog(true);
+              }}
+              className="text-cuephoria-lightpurple hover:underline"
+            >
+              Privacy
+            </button>{" "}
+            ·{" "}
+            <button
+              onClick={() => {
+                setLegalDialogType("contact");
+                setShowLegalDialog(true);
+              }}
+              className="text-cuephoria-lightpurple hover:underline"
+            >
+              Contact & Refunds
+            </button>
+          </p>
         </div>
       </footer>
 
-      {bookingConfirmationData && (
-        <BookingConfirmationDialog 
-          isOpen={showConfirmationDialog}
-          onClose={() => setShowConfirmationDialog(false)}
-          bookingData={bookingConfirmationData}
-        />
-      )}
-
-      <LegalDialog 
-        isOpen={showLegalDialog}
-        onClose={() => setShowLegalDialog(false)}
-        type={legalDialogType}
+      {/* Dialogs */}
+      <BookingConfirmationDialog
+        open={showConfirmationDialog}
+        onOpenChange={setShowConfirmationDialog}
+        bookingData={bookingConfirmationData}
       />
 
-      {showRefundDialog && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0c0c13] p-5 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">Refund & Cancellation Policy</h3>
-              <button
-                aria-label="Close refund policy"
-                onClick={() => setShowRefundDialog(false)}
-                className="rounded-md p-1 text-gray-400 hover:bg-white/10 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="prose prose-invert max-w-none text-sm text-gray-300">
-              <p className="text-gray-400">
-                This policy outlines how a booking for a gaming service made through the Platform can be canceled or refunded.
-              </p>
-              
-              <h4 className="mt-4 text-white">Cancellations</h4>
-              <ul className="ml-5 list-disc">
-                <li>Requests must be made within <strong>1 day</strong> of placing the booking.</li>
-                <li>Cancellation may not be possible if the session is already confirmed or about to commence.</li>
-              </ul>
-
-              <h4 className="mt-4 text-white">Non-Cancellable Services</h4>
-              <ul className="ml-5 list-disc">
-                <li>No cancellations for time-sensitive or non-refundable bookings.</li>
-                <li>Refunds/rescheduling may be considered if the session wasn't provided as described.</li>
-              </ul>
-
-              <h4 className="mt-4 text-white">Service Quality Issues</h4>
-              <ul className="ml-5 list-disc">
-                <li>Report issues within <strong>1 day</strong> of the scheduled session.</li>
-              </ul>
-
-              <h4 className="mt-4 text-white">Refund Processing</h4>
-              <ul className="ml-5 list-disc">
-                <li>If approved, refunds are processed within <strong>3 days</strong> to the original payment method.</li>
-              </ul>
-
-              <p className="mt-4 text-xs text-gray-400">
-                Need help? Call{' '}
-                <a className="underline hover:text-white" href="tel:918637625155">
-                  +91 86376 25155
-                </a>{' '}
-                or email{' '}
-                <a className="ml-1 underline hover:text-white" href="mailto:contact@cuephoria.in">
-                  contact@cuephoria.in
-                </a>
-                .
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <LegalDialog
+        open={showLegalDialog}
+        onOpenChange={setShowLegalDialog}
+        type={legalDialogType}
+      />
     </div>
   );
 }
