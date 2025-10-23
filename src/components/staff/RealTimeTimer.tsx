@@ -30,37 +30,47 @@ const RealTimeTimer: React.FC<RealTimeTimerProps> = ({
   }, []);
 
   const calculateStats = () => {
-    const clockIn = new Date(clockInTime);
-    const totalElapsedMs = currentTime.getTime() - clockIn.getTime();
-    const totalElapsedHours = totalElapsedMs / (1000 * 60 * 60);
+    try {
+      const clockIn = new Date(clockInTime);
+      const totalElapsedMs = currentTime.getTime() - clockIn.getTime();
+      const totalElapsedHours = totalElapsedMs / (1000 * 60 * 60);
 
-    // Calculate current break time if on break
-    let currentBreakMinutes = breakDuration;
-    if (isOnBreak && breakStartTime) {
-      const breakStart = new Date(breakStartTime);
-      const breakElapsedMs = currentTime.getTime() - breakStart.getTime();
-      currentBreakMinutes += breakElapsedMs / (1000 * 60);
-    }
-
-    // Calculate working hours (excluding breaks)
-    const workingHours = Math.max(0, totalElapsedHours - (currentBreakMinutes / 60));
-    const earnings = workingHours * hourlyRate;
-
-    return {
-      hours: Math.floor(workingHours),
-      minutes: Math.floor((workingHours % 1) * 60),
-      seconds: Math.floor(((workingHours % 1) * 60 % 1) * 60),
-      earnings: earnings,
-      totalElapsed: {
-        hours: Math.floor(totalElapsedHours),
-        minutes: Math.floor((totalElapsedHours % 1) * 60),
-        seconds: Math.floor(((totalElapsedHours % 1) * 60 % 1) * 60)
-      },
-      breakTime: {
-        minutes: Math.floor(currentBreakMinutes),
-        seconds: Math.floor((currentBreakMinutes % 1) * 60)
+      let currentBreakMinutes = breakDuration || 0;
+      if (isOnBreak && breakStartTime) {
+        const breakStart = new Date(breakStartTime);
+        const breakElapsedMs = currentTime.getTime() - breakStart.getTime();
+        currentBreakMinutes += breakElapsedMs / (1000 * 60);
       }
-    };
+
+      const workingHours = Math.max(0, totalElapsedHours - (currentBreakMinutes / 60));
+      const earnings = workingHours * (hourlyRate || 0);
+
+      return {
+        hours: Math.floor(workingHours),
+        minutes: Math.floor((workingHours % 1) * 60),
+        seconds: Math.floor(((workingHours % 1) * 60 % 1) * 60),
+        earnings: earnings,
+        totalElapsed: {
+          hours: Math.floor(totalElapsedHours),
+          minutes: Math.floor((totalElapsedHours % 1) * 60),
+          seconds: Math.floor(((totalElapsedHours % 1) * 60 % 1) * 60)
+        },
+        breakTime: {
+          minutes: Math.floor(currentBreakMinutes),
+          seconds: Math.floor((currentBreakMinutes % 1) * 60)
+        }
+      };
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+      return {
+        hours: 0,
+        minutes: 0,
+        seconds: 0,
+        earnings: 0,
+        totalElapsed: { hours: 0, minutes: 0, seconds: 0 },
+        breakTime: { minutes: 0, seconds: 0 }
+      };
+    }
   };
 
   const stats = calculateStats();
@@ -123,7 +133,7 @@ const RealTimeTimer: React.FC<RealTimeTimerProps> = ({
           <div className="mt-4 pt-4 border-t border-white/20">
             <div className="flex justify-between text-sm">
               <span className="text-white/70">Hourly rate:</span>
-              <span className="text-white font-semibold">₹{hourlyRate.toFixed(2)}/hr</span>
+              <span className="text-white font-semibold">₹{(hourlyRate || 0).toFixed(2)}/hr</span>
             </div>
           </div>
         </CardContent>
