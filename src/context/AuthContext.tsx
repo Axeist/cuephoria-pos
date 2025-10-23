@@ -31,6 +31,7 @@ export interface LoginLog {
   id: string;
   username: string;
   is_admin: boolean;
+  login_success: boolean;
   ip_address?: string;
   city?: string;
   region?: string;
@@ -158,6 +159,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdminLogin: boolean,
     metadata: LoginMetadata = {}
   ): Promise<boolean> => {
+    let loginSuccess = false;
+    let attemptedUsername = username;
+
     try {
       const query = supabase
         .from('admin_users')
@@ -173,12 +177,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const { data, error } = await query.single();
 
-      if (error || !data) {
-        console.error('Login error:', error);
-        return false;
-      }
-
-      if (data.password === password) {
+      // Check if login is successful
+      if (!error && data && data.password === password) {
+        loginSuccess = true;
         const adminUser = {
           id: data.id,
           username: data.username,
@@ -186,46 +187,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         setUser(adminUser);
         localStorage.setItem('cuephoriaAdmin', JSON.stringify(adminUser));
+      }
+
+      // Save login attempt (both success and failure) to database
+      try {
+        const { error: logError } = await supabase
+          .from('login_logs')
+          .insert({
+            username: attemptedUsername,
+            is_admin: isAdminLogin,
+            login_success: loginSuccess,
+            ip_address: metadata.ip || null,
+            city: metadata.city || null,
+            region: metadata.region || null,
+            country: metadata.country || null,
+            timezone: metadata.timezone || null,
+            isp: metadata.isp || null,
+            browser: metadata.browser || null,
+            browser_version: metadata.browserVersion || null,
+            os: metadata.os || null,
+            os_version: metadata.osVersion || null,
+            device_type: metadata.deviceType || null,
+            device_model: metadata.deviceModel || null,
+            device_vendor: metadata.deviceVendor || null,
+            user_agent: metadata.userAgent || null,
+            login_time: new Date().toISOString()
+          });
         
-        // Save login log to database
-        try {
-          const { error: logError } = await supabase
-            .from('login_logs')
-            .insert({
-              username: username,
-              is_admin: isAdminLogin,
-              ip_address: metadata.ip || null,
-              city: metadata.city || null,
-              region: metadata.region || null,
-              country: metadata.country || null,
-              timezone: metadata.timezone || null,
-              isp: metadata.isp || null,
-              browser: metadata.browser || null,
-              browser_version: metadata.browserVersion || null,
-              os: metadata.os || null,
-              os_version: metadata.osVersion || null,
-              device_type: metadata.deviceType || null,
-              device_model: metadata.deviceModel || null,
-              device_vendor: metadata.deviceVendor || null,
-              user_agent: metadata.userAgent || null,
-              login_time: new Date().toISOString()
-            });
-          
-          if (logError) {
-            console.error('Error saving login log:', logError);
-          } else {
-            console.log('✅ Login log saved successfully');
-          }
-        } catch (logError) {
+        if (logError) {
           console.error('Error saving login log:', logError);
+        } else {
+          console.log(loginSuccess ? '✅ Successful login logged' : '❌ Failed login attempt logged');
         }
-        
-        return true;
+      } catch (logError) {
+        console.error('Error saving login log:', logError);
       }
       
-      return false;
+      return loginSuccess;
     } catch (error) {
       console.error('Login error:', error);
+      
+      // Log the failed attempt even if there's an exception
+      try {
+        await supabase
+          .from('login_logs')
+          .insert({
+            username: attemptedUsername,
+            is_admin: isAdminLogin,
+            login_success: false,
+            ip_address: metadata.ip || null,
+            city: metadata.city || null,
+            region: metadata.region || null,
+            country: metadata.country || null,
+            timezone: metadata.timezone || null,
+            isp: metadata.isp || null,
+            browser: metadata.browser || null,
+            browser_version: metadata.browserVersion || null,
+            os: metadata.os || null,
+            os_version: metadata.osVersion || null,
+            device_type: metadata.deviceType || null,
+            device_model: metadata.deviceModel || null,
+            device_vendor: metadata.deviceVendor || null,
+            user_agent: metadata.userAgent || null,
+            login_time: new Date().toISOString()
+          });
+      } catch (logError) {
+        console.error('Error saving failed login log:', logError);
+      }
+      
       return false;
     }
   };
