@@ -2,15 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, User, MapPin, Monitor, Clock, Shield, Users } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { ArrowLeft, User, MapPin, Monitor, Clock, Shield, Users, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const LoginLogs = () => {
   const navigate = useNavigate();
-  const { getLoginLogs } = useAuth();
+  const { getLoginLogs, deleteLoginLog } = useAuth();
+  const { toast } = useToast();
   const [logs, setLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [logToDelete, setLogToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     loadLogs();
@@ -21,6 +35,26 @@ const LoginLogs = () => {
     const data = await getLoginLogs();
     setLogs(data);
     setIsLoading(false);
+  };
+
+  const handleDeleteClick = (logId: string) => {
+    setLogToDelete(logId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (logToDelete) {
+      const success = await deleteLoginLog(logToDelete);
+      if (success) {
+        toast({
+          title: 'Success',
+          description: 'Login log deleted successfully',
+        });
+        loadLogs(); // Refresh the logs
+      }
+    }
+    setDeleteDialogOpen(false);
+    setLogToDelete(null);
   };
 
   return (
@@ -56,9 +90,19 @@ const LoginLogs = () => {
           </Card>
         ) : (
           logs.map((log) => (
-            <Card key={log.id} className="bg-cuephoria-darker border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/60 transition-colors">
+            <Card key={log.id} className="bg-cuephoria-darker border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/60 transition-colors relative">
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Delete Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-4 right-4 text-red-400 hover:text-red-600 hover:bg-red-500/10"
+                  onClick={() => handleDeleteClick(log.id)}
+                >
+                  <Trash2 size={18} />
+                </Button>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pr-12">
                   {/* User Info */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-cuephoria-lightpurple">
@@ -123,6 +167,30 @@ const LoginLogs = () => {
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-cuephoria-darker border-red-500/50">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-400">
+              <Trash2 size={20} />
+              Delete Login Log
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this login log? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
