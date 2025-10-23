@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Clock, LogIn, LogOut, Coffee, Calendar, FileText, User, DollarSign, TrendingUp } from 'lucide-react';
+import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
+import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
 import jsPDF from 'jspdf';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,10 +18,12 @@ const StaffPortal = () => {
   const navigate = useNavigate();
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [showStaffSelection, setShowStaffSelection] = useState(true);
+  const [showLeaveRequest, setShowLeaveRequest] = useState(false);
   const [currentShift, setCurrentShift] = useState<any>(null);
   const [todayAttendance, setTodayAttendance] = useState<any[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [leaveBalance, setLeaveBalance] = useState({ paid: 1, unpaid: 2 });
   const [payslips, setPayslips] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -35,8 +38,9 @@ const StaffPortal = () => {
     
     setIsLoading(true);
     try {
-      // Fetch current shift
       const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch current shift
       const { data: shift } = await supabase
         .from('staff_attendance')
         .select('*')
@@ -80,6 +84,24 @@ const StaffPortal = () => {
         .limit(10);
 
       setLeaveRequests(leaves || []);
+
+      // Calculate leave balance for current year
+      const approvedPaidLeaves = (leaves || []).filter(
+        l => l.status === 'approved' && 
+        l.leave_type !== 'unpaid_leave' && 
+        new Date(l.start_date).getFullYear() === currentYear
+      ).reduce((sum, l) => sum + (l.total_days || 0), 0);
+
+      const approvedUnpaidLeaves = (leaves || []).filter(
+        l => l.status === 'approved' && 
+        l.leave_type === 'unpaid_leave' && 
+        new Date(l.start_date).getFullYear() === currentYear
+      ).reduce((sum, l) => sum + (l.total_days || 0), 0);
+
+      setLeaveBalance({
+        paid: Math.max(0, 1 - approvedPaidLeaves),
+        unpaid: Math.max(0, 2 - approvedUnpaidLeaves)
+      });
 
       // Fetch payslips
       const { data: payrollData } = await supabase
@@ -359,6 +381,7 @@ const StaffPortal = () => {
 
   return (
     <div className="flex-1 space-y-6 p-6 text-white bg-inherit">
+      {/* Header with user info */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
@@ -387,7 +410,7 @@ const StaffPortal = () => {
         </Button>
       </div>
 
-      {/* Rest of the component remains the same - Clock In/Out Card, Stats, Tabs, etc. */}
+      {/* Clock In/Out Card */}
       <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
@@ -458,11 +481,11 @@ const StaffPortal = () => {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white">This Month</CardTitle>
-            <Calendar className="h-4 w-4 text-cuephoria-lightpurple" />
+            <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">
@@ -491,15 +514,30 @@ const StaffPortal = () => {
 
         <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white">Leave Requests</CardTitle>
-            <FileText className="h-4 w-4 text-yellow-500" />
+            <CardTitle className="text-sm font-medium text-white">Paid Leave</CardTitle>
+            <CalendarIcon className="h-4 w-4 text-cuephoria-blue" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">
-              {leaveRequests.filter(l => l.status === 'pending').length}
+              {leaveBalance.paid}
             </div>
             <p className="text-xs text-muted-foreground">
-              Pending approval
+              Day remaining
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Unpaid Leave</CardTitle>
+            <CalendarIcon className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">
+              {leaveBalance.unpaid}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Days remaining
             </p>
           </CardContent>
         </Card>
@@ -567,7 +605,17 @@ const StaffPortal = () => {
         <TabsContent value="leaves" className="space-y-4 mt-6">
           <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
             <CardHeader>
-              <CardTitle className="text-white">Leave Requests</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white">Leave Requests</CardTitle>
+                <Button
+                  onClick={() => setShowLeaveRequest(true)}
+                  className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Request Leave
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {leaveRequests.length === 0 ? (
@@ -600,6 +648,11 @@ const StaffPortal = () => {
                         <p className="text-sm text-muted-foreground">
                           {leave.total_days} day{leave.total_days > 1 ? 's' : ''} • {leave.leave_type?.replace('_', ' ')}
                         </p>
+                        {leave.reason && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Reason: {leave.reason}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -664,6 +717,15 @@ const StaffPortal = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Leave Request Dialog */}
+      <LeaveRequestDialog
+        open={showLeaveRequest}
+        onOpenChange={setShowLeaveRequest}
+        staffId={selectedStaff?.user_id}
+        leaveBalance={leaveBalance}
+        onSuccess={fetchStaffData}
+      />
     </div>
   );
 };
