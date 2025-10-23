@@ -553,8 +553,143 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
         </Card>
       </div>
 
-      {/* Dialogs remain same - Deduction, Allowance */}
-      {/* ... (keeping the rest of your dialogs as is) ... */}
+      {/* Deduction Dialog */}
+      <Dialog open={showDeductionDialog} onOpenChange={setShowDeductionDialog}>
+        <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+          <DialogHeader>
+            <DialogTitle>Add Deduction</DialogTitle>
+            <DialogDescription>
+              Add a deduction for {selectedStaff?.staff_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Deduction Type</Label>
+              <Select
+                value={deductionForm.type}
+                onValueChange={(v) => setDeductionForm({...deductionForm, type: v})}
+              >
+                <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+                  <SelectItem value="lop">Loss of Pay (LOP)</SelectItem>
+                  <SelectItem value="penalty">Penalty</SelectItem>
+                  <SelectItem value="advance">Advance Deduction</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Amount (₹)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={deductionForm.amount}
+                onChange={(e) => setDeductionForm({...deductionForm, amount: e.target.value})}
+                placeholder="0.00"
+                className="bg-cuephoria-darker border-cuephoria-purple/20"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={deductionForm.reason}
+                onChange={(e) => setDeductionForm({...deductionForm, reason: e.target.value})}
+                placeholder="Enter reason for deduction"
+                className="bg-cuephoria-darker border-cuephoria-purple/20"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeductionDialog(false);
+                setDeductionForm({ type: 'lop', amount: '', reason: '' });
+              }}
+              className="border-cuephoria-purple/20"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddDeduction}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Add Deduction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Allowance Dialog */}
+      <Dialog open={showAllowanceDialog} onOpenChange={setShowAllowanceDialog}>
+        <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+          <DialogHeader>
+            <DialogTitle>Add Allowance</DialogTitle>
+            <DialogDescription>
+              Add an allowance for {selectedStaff?.staff_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Allowance Type</Label>
+              <Select
+                value={allowanceForm.type}
+                onValueChange={(v) => setAllowanceForm({...allowanceForm, type: v})}
+              >
+                <SelectTrigger className="bg-cuephoria-darker border-cuephoria-purple/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+                  <SelectItem value="bonus">Bonus</SelectItem>
+                  <SelectItem value="incentive">Incentive</SelectItem>
+                  <SelectItem value="overtime">Overtime</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Amount (₹)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={allowanceForm.amount}
+                onChange={(e) => setAllowanceForm({...allowanceForm, amount: e.target.value})}
+                placeholder="0.00"
+                className="bg-cuephoria-darker border-cuephoria-purple/20"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={allowanceForm.reason}
+                onChange={(e) => setAllowanceForm({...allowanceForm, reason: e.target.value})}
+                placeholder="Enter reason for allowance"
+                className="bg-cuephoria-darker border-cuephoria-purple/20"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAllowanceDialog(false);
+                setAllowanceForm({ type: 'bonus', amount: '', reason: '' });
+              }}
+              className="border-cuephoria-purple/20"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddAllowance}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Add Allowance
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Regenerate Confirmation */}
       <AlertDialog open={!!regenerateStaffId} onOpenChange={() => setRegenerateStaffId(null)}>
