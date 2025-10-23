@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Clock, Trash2, Edit } from 'lucide-react';
+import { Clock, Trash2, Edit, AlertCircle, Coffee } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -53,6 +53,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [breakViolations, setBreakViolations] = useState<any[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [deleteAttendanceId, setDeleteAttendanceId] = useState<string | null>(null);
   const [editAttendance, setEditAttendance] = useState<any>(null);
@@ -88,6 +89,17 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
 
       if (error) throw error;
       setAttendanceRecords(data || []);
+
+      // Fetch break violations for this period
+      const { data: violations, error: violationsError } = await supabase
+        .from('staff_break_violations')
+        .select('*')
+        .gte('date', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`)
+        .lt('date', `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`)
+        .order('date', { ascending: false });
+
+      if (violationsError) throw violationsError;
+      setBreakViolations(violations || []);
     } catch (error: any) {
       console.error('Error fetching attendance:', error);
       toast({
@@ -248,12 +260,48 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4 mt-6">
+            {/* Break Violations Warning */}
+            {breakViolations.length > 0 && (
+              <Card className="bg-red-500/10 border-red-500/50">
+                <CardHeader>
+                  <CardTitle className="text-red-500 flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    Break Time Violations ({breakViolations.length})
+                  </CardTitle>
+                  <CardDescription className="text-red-400">
+                    Staff members who exceeded 1 hour break time this month
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {breakViolations.map((v) => (
+                      <div key={v.id} className="flex items-center justify-between p-3 bg-cuephoria-darker rounded-lg">
+                        <div>
+                          <p className="text-white font-semibold">{getStaffName(v.staff_id)}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(new Date(v.date), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-red-500 font-bold flex items-center gap-1">
+                            <Coffee className="h-4 w-4" />
+                            {v.break_duration_minutes} minutes
+                          </p>
+                          <p className="text-xs text-muted-foreground">Excess: {v.excess_minutes} min</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-white">Attendance History</CardTitle>
-                    <CardDescription>View and manage attendance records</CardDescription>
+                    <CardDescription>View and manage all attendance records</CardDescription>
                   </div>
                   <div className="flex gap-2">
                     <Select
@@ -313,8 +361,13 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                             <Badge variant="outline" className="text-cuephoria-lightpurple border-cuephoria-lightpurple">
                               {format(new Date(record.date), 'MMM dd, yyyy')}
                             </Badge>
+                            {record.break_duration_minutes > 60 && (
+                              <Badge variant="outline" className="text-red-500 border-red-500">
+                                Break Violation
+                              </Badge>
+                            )}
                           </div>
-                          <div className="grid grid-cols-4 gap-4 text-sm">
+                          <div className="grid grid-cols-5 gap-4 text-sm">
                             <div>
                               <p className="text-muted-foreground">Clock In</p>
                               <p className="text-white">{format(new Date(record.clock_in), 'hh:mm a')}</p>
@@ -323,6 +376,12 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                               <p className="text-muted-foreground">Clock Out</p>
                               <p className="text-white">
                                 {record.clock_out ? format(new Date(record.clock_out), 'hh:mm a') : 'In Progress'}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Break Time</p>
+                              <p className={`font-semibold ${record.break_duration_minutes > 60 ? 'text-red-500' : 'text-white'}`}>
+                                {record.break_duration_minutes || 0} min
                               </p>
                             </div>
                             <div>
@@ -401,6 +460,9 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                 onChange={(e) => setEditForm({...editForm, break_duration_minutes: parseInt(e.target.value) || 0})}
                 className="bg-cuephoria-darker border-cuephoria-purple/20"
               />
+              {editForm.break_duration_minutes > 60 && (
+                <p className="text-xs text-red-500">⚠️ Exceeds maximum allowed break time (60 min)</p>
+              )}
             </div>
           </div>
           <DialogFooter>
