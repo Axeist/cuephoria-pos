@@ -10,9 +10,11 @@ import { Clock, LogIn, LogOut, Coffee, Calendar, FileText, User, DollarSign, Tre
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
 import jsPDF from 'jspdf';
+import { useNavigate } from 'react-router-dom';
 
 const StaffPortal = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [showStaffSelection, setShowStaffSelection] = useState(true);
   const [currentShift, setCurrentShift] = useState<any>(null);
@@ -336,6 +338,10 @@ const StaffPortal = () => {
     }
   };
 
+  const handleCloseDialog = () => {
+    navigate('/dashboard');
+  };
+
   if (!selectedStaff) {
     return (
       <StaffSelectionDialog
@@ -344,6 +350,7 @@ const StaffPortal = () => {
           setSelectedStaff(staff);
           setShowStaffSelection(false);
         }}
+        onClose={handleCloseDialog}
       />
     );
   }
@@ -380,7 +387,7 @@ const StaffPortal = () => {
         </Button>
       </div>
 
-      {/* Clock In/Out Card */}
+      {/* Rest of the component remains the same - Clock In/Out Card, Stats, Tabs, etc. */}
       <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
