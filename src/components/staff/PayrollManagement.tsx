@@ -26,7 +26,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 interface PayrollManagementProps {
   staffProfiles: any[];
@@ -91,7 +90,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
         p_staff_id: staffId,
         p_month: selectedMonth,
         p_year: selectedYear,
-        p_admin_username: 'admin' // Get from auth context
+        p_admin_username: 'admin'
       });
 
       if (error) throw error;
@@ -210,9 +209,9 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       doc.rect(0, 0, 210, 40, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
-      doc.text('Cuephoria', 105, 20, { align: 'center' });
+      doc.text('Cuephoria', 105, 20, { align: 'center' } as any);
       doc.setFontSize(12);
-      doc.text('Payslip', 105, 30, { align: 'center' });
+      doc.text('Payslip', 105, 30, { align: 'center' } as any);
       
       // Employee Details
       doc.setTextColor(0, 0, 0);
@@ -224,45 +223,45 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       
       // Earnings Section
       doc.setFontSize(12);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Earnings', 20, 90);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       
       let yPos = 100;
       doc.text(`Base Salary (${payroll.total_working_days} days)`, 20, yPos);
-      doc.text(`₹${payroll.gross_earnings?.toFixed(2)}`, 180, yPos, { align: 'right' });
+      doc.text(`₹${payroll.gross_earnings?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
       
       if (payroll.allowances_detail && payroll.allowances_detail.length > 0) {
         yPos += 7;
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('Allowances:', 20, yPos);
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         
         payroll.allowances_detail.forEach((allowance: any) => {
           yPos += 7;
           doc.text(`  ${allowance.type}`, 25, yPos);
-          doc.text(`₹${allowance.amount?.toFixed(2)}`, 180, yPos, { align: 'right' });
+          doc.text(`₹${allowance.amount?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
         });
       }
       
       yPos += 10;
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Total Earnings:', 20, yPos);
-      doc.text(`₹${(payroll.gross_earnings + payroll.total_allowances)?.toFixed(2)}`, 180, yPos, { align: 'right' });
+      doc.text(`₹${(payroll.gross_earnings + payroll.total_allowances)?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
       
       // Deductions Section
       yPos += 15;
       doc.setFontSize(12);
       doc.text('Deductions', 20, yPos);
       doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       
       if (payroll.deductions_detail && payroll.deductions_detail.length > 0) {
         payroll.deductions_detail.forEach((deduction: any) => {
           yPos += 7;
           doc.text(`  ${deduction.type}`, 25, yPos);
-          doc.text(`₹${deduction.amount?.toFixed(2)}`, 180, yPos, { align: 'right' });
+          doc.text(`₹${deduction.amount?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
         });
       } else {
         yPos += 7;
@@ -270,9 +269,9 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       }
       
       yPos += 10;
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Total Deductions:', 20, yPos);
-      doc.text(`₹${payroll.total_deductions?.toFixed(2)}`, 180, yPos, { align: 'right' });
+      doc.text(`₹${payroll.total_deductions?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
       
       // Net Salary
       yPos += 15;
@@ -281,12 +280,12 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
       doc.text('NET SALARY:', 20, yPos + 3);
-      doc.text(`₹${payroll.net_salary?.toFixed(2)}`, 185, yPos + 3, { align: 'right' });
+      doc.text(`₹${payroll.net_salary?.toFixed(2)}`, 185, yPos + 3, { align: 'right' } as any);
       
       // Footer
       doc.setTextColor(100, 100, 100);
       doc.setFontSize(8);
-      doc.text('This is a computer-generated payslip and does not require a signature.', 105, 280, { align: 'center' });
+      doc.text('This is a computer-generated payslip and does not require a signature.', 105, 280, { align: 'center' } as any);
       
       doc.save(`Payslip_${payroll.staff_name}_${format(new Date(payroll.year, payroll.month - 1), 'MMM_yyyy')}.pdf`);
       
