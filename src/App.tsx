@@ -57,10 +57,15 @@ const AutoRefreshApp = ({ children }: { children: React.ReactNode }) => {
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  requireStaffOnly?: boolean; // NEW: Staff only (not admin)
 }
 
 // Enhanced Protected route component that checks for authentication
-const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ 
+  children, 
+  requireAdmin = false,
+  requireStaffOnly = false 
+}: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -79,6 +84,11 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
 
   // If route requires admin access and user is not admin, redirect to dashboard
   if (requireAdmin && !user.isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If route requires staff only (not admin), redirect admin to dashboard
+  if (requireStaffOnly && user.isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -210,11 +220,11 @@ const App = () => (
                     }
                   />
 
-                  {/* Staff Portal - All Users */}
+                  {/* Staff Portal - Staff Only (NOT Admin) */}
                   <Route
                     path="/staff-portal"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requireStaffOnly={true}>
                         <StaffPortal />
                       </ProtectedRoute>
                     }
