@@ -28,6 +28,7 @@ import PublicStations from "./pages/PublicStations";
 import PublicBooking from "./pages/PublicBooking";
 import BookingPage from "./pages/BookingPage";
 import BookingManagement from "./pages/BookingManagement";
+import StaffManagement from "./pages/StaffManagement";
 
 // Payment routes
 import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
@@ -176,6 +177,16 @@ const App = () => (
                     element={
                       <ProtectedRoute>
                         <BookingManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Staff Management - Admin Only */}
+                  <Route
+                    path="/staff"
+                    element={
+                      <ProtectedRoute requireAdmin={true}>
+                        <StaffManagement />
                       </ProtectedRoute>
                     }
                   />
