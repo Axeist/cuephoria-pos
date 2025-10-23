@@ -16,11 +16,13 @@ import { Search, User } from 'lucide-react';
 interface StaffSelectionDialogProps {
   open: boolean;
   onSelectStaff: (staff: any) => void;
+  onClose: () => void;
 }
 
 const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   open,
-  onSelectStaff
+  onSelectStaff,
+  onClose
 }) => {
   const { toast } = useToast();
   const [staffList, setStaffList] = useState<any[]>([]);
@@ -59,7 +61,7 @@ const StaffSelectionDialog: React.FC<StaffSelectionDialogProps> = ({
   );
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl gradient-text">Select Staff Member</DialogTitle>
