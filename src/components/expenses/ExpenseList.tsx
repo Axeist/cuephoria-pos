@@ -30,8 +30,12 @@ const getCategoryColor = (category: string) => {
   }
 };
 
-const ExpenseList: React.FC = () => {
+const ExpenseList: React.FC<{ selectedCategory?: string | null }> = ({ selectedCategory = null }) => {
   const { expenses, deleteExpense } = useExpenses();
+
+  const visibleExpenses = expenses.filter(e =>
+    !selectedCategory || normalizeCategory(e.category) === selectedCategory
+  );
 
   const handleDeleteExpense = async (id: string) => {
     try { await deleteExpense(id); } catch (error) { console.error('Error deleting expense:', error); }
@@ -40,16 +44,19 @@ const ExpenseList: React.FC = () => {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Recent Expenses</CardTitle>
+        <CardTitle>Recent Expenses {selectedCategory ? `— ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}` : ''}</CardTitle>
         <ExpenseDialog>
           <Button variant="default" className="flex items-center gap-2">
-            <PlusCircle className="h-4 w-4" /> Add Expense
+            <PlusCircle className="h-4 w-4" />
+            Add Expense
           </Button>
         </ExpenseDialog>
       </CardHeader>
       <CardContent>
-        {expenses.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">No expenses found. Add your first expense by clicking the button above.</div>
+        {visibleExpenses.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No expenses found{selectedCategory ? ' for the selected category' : ''}.
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
@@ -64,7 +71,7 @@ const ExpenseList: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => {
+                {visibleExpenses.map((expense) => {
                   const label = normalizeCategory(expense.category);
                   return (
                     <TableRow key={expense.id}>
@@ -78,16 +85,23 @@ const ExpenseList: React.FC = () => {
                       <TableCell>{format(new Date(expense.date), 'MMM dd, yyyy')}</TableCell>
                       <TableCell>
                         {expense.isRecurring ? (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">{expense.frequency}</Badge>
+                          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">
+                            {expense.frequency}
+                          </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-gray-100 text-gray-800 border-gray-200">one-time</Badge>
+                          <Badge variant="outline" className="bg-gray-100 text-gray-800 border-gray-200">
+                            one-time
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <ExpenseDialog expense={expense}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                           </ExpenseDialog>
+
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50">
@@ -97,11 +111,18 @@ const ExpenseList: React.FC = () => {
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Delete Expense</AlertDialogTitle>
-                                <AlertDialogDescription>Are you sure you want to delete this expense? This action cannot be undone.</AlertDialogDescription>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this expense? This action cannot be undone.
+                                </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteExpense(expense.id)} className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteExpense(expense.id)}
+                                  className="bg-red-500 hover:bg-red-600"
+                                >
+                                  Delete
+                                </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
