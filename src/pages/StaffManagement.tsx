@@ -1,26 +1,26 @@
 // src/pages/StaffManagement.tsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Clock, CalendarDays, DollarSign, FileText, UserPlus, Shield } from 'lucide-react';
-import StaffOverview from '@/components/staff/StaffOverview.tsx';
-import AttendanceManagement from '@/components/staff/AttendanceManagement.tsx';
-import LeaveManagement from '@/components/staff/LeaveManagement.tsx';
-import PayrollManagement from '@/components/staff/PayrollManagement.tsx';
-import StaffDirectory from '@/components/staff/StaffDirectory.tsx';
-import CreateStaffDialog from '@/components/staff/CreateStaffDialog.tsx';
+import { Users, UserPlus, Calendar, FileText, DollarSign, Activity } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import StaffOverview from '@/components/staff/StaffOverview';
+import StaffDirectory from '@/components/staff/StaffDirectory';
+import AttendanceManagement from '@/components/staff/AttendanceManagement';
+import LeaveManagement from '@/components/staff/LeaveManagement';
+import PayrollManagement from '@/components/staff/PayrollManagement';
+import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
 
 const StaffManagement = () => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'directory' | 'attendance' | 'leaves' | 'payroll'>('overview');
   const [staffProfiles, setStaffProfiles] = useState<any[]>([]);
   const [activeShifts, setActiveShifts] = useState<any[]>([]);
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
+  const [monthlyPayroll, setMonthlyPayroll] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [showCreateStaff, setShowCreateStaff] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   useEffect(() => {
     fetchStaffData();
@@ -38,7 +38,7 @@ const StaffManagement = () => {
       if (profilesError) throw profilesError;
       setStaffProfiles(profiles || []);
 
-      // Fetch today's active shifts
+      // Fetch active shifts
       const { data: shifts, error: shiftsError } = await supabase
         .from('today_active_shifts')
         .select('*');
@@ -46,13 +46,28 @@ const StaffManagement = () => {
       if (shiftsError) throw shiftsError;
       setActiveShifts(shifts || []);
 
-      // Fetch pending leave requests
+      // Fetch pending leaves
       const { data: leaves, error: leavesError } = await supabase
         .from('pending_leaves_view')
         .select('*');
 
       if (leavesError) throw leavesError;
       setPendingLeaves(leaves || []);
+
+      // Calculate monthly payroll
+      const currentMonth = new Date().getMonth() + 1;
+      const currentYear = new Date().getFullYear();
+      
+      const { data: payroll, error: payrollError } = await supabase
+        .from('staff_payslip_view')
+        .select('net_salary')
+        .eq('month', currentMonth)
+        .eq('year', currentYear);
+
+      if (payrollError) throw payrollError;
+      
+      const total = (payroll || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
+      setMonthlyPayroll(total);
 
     } catch (error: any) {
       console.error('Error fetching staff data:', error);
@@ -66,51 +81,30 @@ const StaffManagement = () => {
     }
   };
 
-  const statsCards = useMemo(() => [
-    {
-      title: 'Total Staff',
-      value: staffProfiles.filter(s => s.is_active).length,
-      icon: Users,
-      description: `${staffProfiles.filter(s => !s.is_active).length} inactive`,
-      color: 'text-cuephoria-lightpurple'
-    },
-    {
-      title: 'Active Now',
-      value: activeShifts.length,
-      icon: Clock,
-      description: 'Currently clocked in',
-      color: 'text-green-500'
-    },
-    {
-      title: 'Pending Leaves',
-      value: pendingLeaves.length,
-      icon: CalendarDays,
-      description: 'Awaiting approval',
-      color: 'text-yellow-500'
-    },
-    {
-      title: 'Monthly Payroll',
-      value: `₹${staffProfiles.reduce((sum, s) => sum + (s.monthly_salary || 0), 0).toLocaleString()}`,
-      icon: DollarSign,
-      description: 'Total monthly cost',
-      color: 'text-cuephoria-blue'
-    }
-  ], [staffProfiles, activeShifts, pendingLeaves]);
+  const stats = {
+    totalStaff: staffProfiles.length,
+    activeStaff: staffProfiles.filter(s => s.is_active).length,
+    inactiveStaff: staffProfiles.filter(s => !s.is_active).length,
+    activeNow: activeShifts.length,
+    pendingLeaves: pendingLeaves.length,
+    monthlyPayroll: monthlyPayroll
+  };
 
   return (
-    <div className="flex-1 space-y-6 p-6 text-white bg-inherit">
+    <div className="flex-1 space-y-6 p-6 text-white">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">
             Staff Management
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1">
             Manage your team, track attendance, and process payroll
           </p>
         </div>
         <Button
-          onClick={() => setShowCreateStaff(true)}
-          className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple transition-all duration-300"
+          onClick={() => setShowCreateDialog(true)}
+          className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
         >
           <UserPlus className="mr-2 h-4 w-4" />
           Add Staff Member
@@ -118,63 +112,97 @@ const StaffManagement = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statsCards.map((stat, index) => (
-          <Card key={index} className="bg-cuephoria-dark border-cuephoria-purple/20 hover:border-cuephoria-purple/60 transition-all duration-300">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-white">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Total Staff</CardTitle>
+            <Users className="h-4 w-4 text-cuephoria-lightpurple" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{stats.totalStaff}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.inactiveStaff} inactive
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Active Now</CardTitle>
+            <Activity className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{stats.activeNow}</div>
+            <p className="text-xs text-muted-foreground">
+              Currently clocked in
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Pending Leaves</CardTitle>
+            <Calendar className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{stats.pendingLeaves}</div>
+            <p className="text-xs text-muted-foreground">
+              Awaiting approval
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Monthly Payroll</CardTitle>
+            <DollarSign className="h-4 w-4 text-cuephoria-blue" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">
+              ₹{stats.monthlyPayroll.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Total monthly cost
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Main Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={(v) => setActiveTab(v as any)}
-        className="w-full"
-      >
-        <TabsList className="w-full grid grid-cols-5 bg-cuephoria-dark border border-cuephoria-purple/20">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-cuephoria-purple">
-            <Shield className="mr-2 h-4 w-4" />
+      {/* Tabs */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-5 bg-cuephoria-dark border border-cuephoria-purple/20">
+          <TabsTrigger value="overview">
+            <Users className="h-4 w-4 mr-2" />
             Overview
           </TabsTrigger>
-          <TabsTrigger value="directory" className="data-[state=active]:bg-cuephoria-purple">
-            <Users className="mr-2 h-4 w-4" />
+          <TabsTrigger value="directory">
+            <Users className="h-4 w-4 mr-2" />
             Directory
           </TabsTrigger>
-          <TabsTrigger value="attendance" className="data-[state=active]:bg-cuephoria-purple">
-            <Clock className="mr-2 h-4 w-4" />
+          <TabsTrigger value="attendance">
+            <Activity className="h-4 w-4 mr-2" />
             Attendance
           </TabsTrigger>
-          <TabsTrigger value="leaves" className="data-[state=active]:bg-cuephoria-purple">
-            <CalendarDays className="mr-2 h-4 w-4" />
+          <TabsTrigger value="leaves">
+            <Calendar className="h-4 w-4 mr-2" />
             Leaves
           </TabsTrigger>
-          <TabsTrigger value="payroll" className="data-[state=active]:bg-cuephoria-purple">
-            <FileText className="mr-2 h-4 w-4" />
+          <TabsTrigger value="payroll">
+            <DollarSign className="h-4 w-4 mr-2" />
             Payroll
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6 mt-6">
+        <TabsContent value="overview" className="space-y-4 mt-6">
           <StaffOverview
             staffProfiles={staffProfiles}
             activeShifts={activeShifts}
-            pendingLeaves={pendingLeaves}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
         </TabsContent>
 
-        <TabsContent value="directory" className="space-y-6 mt-6">
+        <TabsContent value="directory" className="space-y-4 mt-6">
           <StaffDirectory
             staffProfiles={staffProfiles}
             isLoading={isLoading}
@@ -182,7 +210,7 @@ const StaffManagement = () => {
           />
         </TabsContent>
 
-        <TabsContent value="attendance" className="space-y-6 mt-6">
+        <TabsContent value="attendance" className="space-y-4 mt-6">
           <AttendanceManagement
             staffProfiles={staffProfiles}
             activeShifts={activeShifts}
@@ -191,16 +219,15 @@ const StaffManagement = () => {
           />
         </TabsContent>
 
-        <TabsContent value="leaves" className="space-y-6 mt-6">
+        <TabsContent value="leaves" className="space-y-4 mt-6">
           <LeaveManagement
-            staffProfiles={staffProfiles}
             pendingLeaves={pendingLeaves}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
         </TabsContent>
 
-        <TabsContent value="payroll" className="space-y-6 mt-6">
+        <TabsContent value="payroll" className="space-y-4 mt-6">
           <PayrollManagement
             staffProfiles={staffProfiles}
             isLoading={isLoading}
@@ -211,12 +238,9 @@ const StaffManagement = () => {
 
       {/* Create Staff Dialog */}
       <CreateStaffDialog
-        open={showCreateStaff}
-        onOpenChange={setShowCreateStaff}
-        onSuccess={() => {
-          fetchStaffData();
-          setShowCreateStaff(false);
-        }}
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onSuccess={fetchStaffData}
       />
     </div>
   );
