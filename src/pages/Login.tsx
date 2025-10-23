@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
+import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText, Camera } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -15,9 +15,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { UAParser } from 'ua-parser-js';
+import { supabase } from "@/integrations/supabase/client";
 
 interface LocationState {
   from?: string;
@@ -49,13 +49,17 @@ const Login = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showMasterKey, setShowMasterKey] = useState(false);
   
-  // NEW: PIN dialog state
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [showPin, setShowPin] = useState(false);
   
-  // Login metadata state
-  const [loginMetadata, setLoginMetadata] = useState({});
+  // Webcam states
+  const [showCamera, setShowCamera] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  const [loginMetadata, setLoginMetadata] = useState<any>({});
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -64,26 +68,68 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Collect login metadata on component mount
+  // Get canvas fingerprint
+  const getCanvasFingerprint = (): string => {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+      
+      canvas.width = 200;
+      canvas.height = 50;
+      
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText('Cuephoria Security', 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText('Canvas FP', 4, 17);
+      
+      return canvas.toDataURL();
+    } catch (e) {
+      return '';
+    }
+  };
+
+  // Get installed fonts
+  const getInstalledFonts = (): string[] => {
+    const baseFonts = ['monospace', 'sans-serif', 'serif'];
+    const testFonts = [
+      'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia',
+      'Palatino', 'Garamond', 'Comic Sans MS', 'Trebuchet MS', 'Arial Black'
+    ];
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return [];
+    
+    const detected: string[] = [];
+    
+    testFonts.forEach(font => {
+      ctx.font = `72px ${font}, ${baseFonts[0]}`;
+      const baseWidth = ctx.measureText('mmmmmmmmmmlli').width;
+      
+      ctx.font = `72px ${font}`;
+      const testWidth = ctx.measureText('mmmmmmmmmmlli').width;
+      
+      if (baseWidth !== testWidth) {
+        detected.push(font);
+      }
+    });
+    
+    return detected;
+  };
+
+  // Collect all metadata
   useEffect(() => {
     const collectLoginInfo = async () => {
       try {
-        // Get IP address and location
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-        
-        // Get device information
         const parser = new UAParser();
         const device = parser.getResult();
         
-        // Store all metadata
-        setLoginMetadata({
-          ip: data.ip,
-          city: data.city,
-          region: data.region,
-          country: data.country_name,
-          timezone: data.timezone,
-          isp: data.org,
+        const metadata: any = {
           browser: device.browser.name,
           browserVersion: device.browser.version,
           os: device.os.name,
@@ -92,28 +138,158 @@ const Login = () => {
           deviceModel: device.device.model || 'Unknown',
           deviceVendor: device.device.vendor || 'Unknown',
           loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          userAgent: navigator.userAgent
-        });
+          userAgent: navigator.userAgent,
+          screenResolution: `${window.screen.width}x${window.screen.height}`,
+          colorDepth: window.screen.colorDepth,
+          pixelRatio: window.devicePixelRatio,
+          touchSupport: 'ontouchstart' in window,
+          canvasFingerprint: getCanvasFingerprint(),
+          installedFonts: getInstalledFonts().join(', ')
+        };
 
-        console.log('Login tracking ready - metadata collected');
+        // Hardware info
+        if ('hardwareConcurrency' in navigator) {
+          metadata.cpuCores = (navigator as any).hardwareConcurrency;
+        }
+        if ('deviceMemory' in navigator) {
+          metadata.deviceMemory = (navigator as any).deviceMemory;
+        }
+
+        // Connection info
+        const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+        if (connection) {
+          metadata.connectionType = connection.effectiveType || connection.type;
+        }
+
+        // Battery info
+        if ('getBattery' in navigator) {
+          const battery: any = await (navigator as any).getBattery();
+          metadata.batteryLevel = Math.round(battery.level * 100);
+        }
+
+        // Get IP and location
+        try {
+          const response = await fetch('https://ipapi.co/json/');
+          const data = await response.json();
+          metadata.ip = data.ip;
+          metadata.city = data.city;
+          metadata.region = data.region;
+          metadata.country = data.country_name;
+          metadata.timezone = data.timezone;
+          metadata.isp = data.org;
+        } catch (error) {
+          console.log('Could not fetch IP data');
+        }
+
+        // Get GPS coordinates
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              metadata.latitude = position.coords.latitude;
+              metadata.longitude = position.coords.longitude;
+              metadata.locationAccuracy = position.coords.accuracy;
+              setLoginMetadata({ ...metadata });
+            },
+            (error) => {
+              console.log('Location permission denied or unavailable');
+              setLoginMetadata({ ...metadata });
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+          );
+        } else {
+          setLoginMetadata(metadata);
+        }
+
+        console.log('Login tracking ready - enhanced metadata collected');
       } catch (error) {
-        console.log('Could not collect full metadata, using basic info');
-        const parser = new UAParser();
-        const device = parser.getResult();
-        
-        setLoginMetadata({
-          browser: device.browser.name,
-          browserVersion: device.browser.version,
-          os: device.os.name,
-          osVersion: device.os.version,
-          deviceType: device.device.type || 'desktop',
-          loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-        });
+        console.log('Error collecting metadata:', error);
       }
     };
     
     collectLoginInfo();
   }, []);
+
+  // Camera functions
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' },
+        audio: false 
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setShowCamera(true);
+    } catch (error) {
+      console.error('Camera access denied:', error);
+      toast({
+        title: 'Camera Access',
+        description: 'Camera access denied. Login will proceed without selfie.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        setCapturedImage(imageData);
+        
+        // Stop camera
+        const stream = video.srcObject as MediaStream;
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+        setShowCamera(false);
+      }
+    }
+  };
+
+  const uploadSelfie = async (imageData: string): Promise<string | null> => {
+    try {
+      const base64Data = imageData.split(',')[1];
+      const fileName = `selfie_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+      
+      const { data, error } = await supabase.storage
+        .from('login-selfies')
+        .upload(fileName, decode(base64Data), {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+        });
+
+      if (error) throw error;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('login-selfies')
+        .getPublicUrl(fileName);
+
+      return publicUrlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading selfie:', error);
+      return null;
+    }
+  };
+
+  const decode = (base64: string): Uint8Array => {
+    const binaryString = window.atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,12 +302,33 @@ const Login = () => {
       });
       return;
     }
+
+    // Ask for selfie
+    if (!capturedImage) {
+      toast({
+        title: 'Take Selfie',
+        description: 'Please capture your selfie for security verification',
+      });
+      await startCamera();
+      return;
+    }
     
     setIsLoading(true);
     try {
       const isAdminLogin = loginType === 'admin';
       
-      const success = await login(username, password, isAdminLogin, loginMetadata);
+      // Upload selfie
+      let selfieUrl = null;
+      if (capturedImage) {
+        selfieUrl = await uploadSelfie(capturedImage);
+      }
+
+      const enhancedMetadata = {
+        ...loginMetadata,
+        selfieUrl
+      };
+      
+      const success = await login(username, password, isAdminLogin, enhancedMetadata);
       
       if (success) {
         toast({
@@ -147,6 +344,7 @@ const Login = () => {
           description: `Invalid ${isAdminLogin ? 'admin' : 'staff'} credentials`,
           variant: 'destructive',
         });
+        setCapturedImage(null); // Reset selfie for retry
       }
     } catch (error) {
       toast({
@@ -159,13 +357,11 @@ const Login = () => {
     }
   };
 
-  // NEW: Handle View Logs button click
   const handleViewLogsClick = () => {
     setPinInput('');
     setPinDialogOpen(true);
   };
 
-  // NEW: Handle PIN verification
   const handlePinSubmit = () => {
     if (pinInput === '2101') {
       setPinDialogOpen(false);
@@ -271,25 +467,11 @@ const Login = () => {
     }
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const toggleNewPasswordVisibility = () => {
-    setShowNewPassword(!showNewPassword);
-  };
-
-  const toggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword(!showConfirmPassword);
-  };
-
-  const toggleMasterKeyVisibility = () => {
-    setShowMasterKey(!showMasterKey);
-  };
-
-  const togglePinVisibility = () => {
-    setShowPin(!showPin);
-  };
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleNewPasswordVisibility = () => setShowNewPassword(!showNewPassword);
+  const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
+  const toggleMasterKeyVisibility = () => setShowMasterKey(!showMasterKey);
+  const togglePinVisibility = () => setShowPin(!showPin);
 
   const renderForgotPasswordContent = () => {
     if (forgotPasswordType === 'staff') {
@@ -487,7 +669,6 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-cuephoria-dark overflow-hidden relative px-4">
-      {/* Back to home button and Logs button */}
       <div className="absolute top-4 left-4 right-4 z-20 flex justify-between">
         <Button 
           variant="ghost" 
@@ -590,6 +771,53 @@ const Login = () => {
                 </Tabs>
               </div>
 
+              {/* Camera Preview */}
+              {showCamera && (
+                <div className="space-y-2">
+                  <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+                    <video 
+                      ref={videoRef} 
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      playsInline
+                      muted
+                    />
+                  </div>
+                  <Button 
+                    type="button"
+                    onClick={capturePhoto}
+                    className="w-full bg-cuephoria-orange hover:bg-cuephoria-orange/80 flex items-center gap-2"
+                  >
+                    <Camera size={16} />
+                    Capture Selfie
+                  </Button>
+                </div>
+              )}
+
+              {/* Captured Image Preview */}
+              {capturedImage && !showCamera && (
+                <div className="space-y-2">
+                  <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+                    <img 
+                      src={capturedImage} 
+                      alt="Captured selfie" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <Button 
+                    type="button"
+                    onClick={() => {
+                      setCapturedImage(null);
+                      startCamera();
+                    }}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Retake Photo
+                  </Button>
+                </div>
+              )}
+
               <div className="space-y-2 group">
                 <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
                   <User size={14} className="inline-block" />
@@ -657,7 +885,7 @@ const Login = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Accessing...
+                      Verifying...
                     </>
                   ) : (
                     <>
@@ -672,7 +900,10 @@ const Login = () => {
         </Card>
       </div>
 
-      {/* PIN Dialog for Logs Access */}
+      {/* Hidden canvas for photo capture */}
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {/* PIN Dialog */}
       <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
         <DialogContent className="sm:max-w-md bg-background border-cuephoria-orange">
           <DialogHeader>
