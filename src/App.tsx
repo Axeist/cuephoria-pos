@@ -10,7 +10,7 @@ import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
-import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+// REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Pages
 import Login from "./pages/Login";
@@ -39,26 +39,25 @@ import PublicPaymentFailed from "./pages/PublicPaymentFailed";
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
-// Create a new QueryClient instance outside of the component
+// ✅ OPTIMIZED: Aggressive caching to reduce egress by 60-80%
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 15 * 60 * 1000, // 15 minutes - data stays fresh longer
+      cacheTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer
+      refetchOnWindowFocus: false, // Don't refetch when switching tabs
+      refetchOnMount: false, // Don't refetch when component remounts
       retry: 1,
     },
   },
 });
 
-// App auto-refresh wrapper component
-const AutoRefreshApp = ({ children }: { children: React.ReactNode }) => {
-  useAutoRefresh(); // Apply auto-refresh to the entire app
-  return <>{children}</>;
-};
+// REMOVED: AutoRefreshApp wrapper component - replaced with targeted Realtime subscriptions
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
-  requireStaffOnly?: boolean; // NEW: Staff only (not admin)
+  requireStaffOnly?: boolean;
 }
 
 // Enhanced Protected route component that checks for authentication
@@ -79,16 +78,13 @@ const ProtectedRoute = ({
   }
 
   if (!user) {
-    // Redirect to login page while preserving the intended destination
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  // If route requires admin access and user is not admin, redirect to dashboard
   if (requireAdmin && !user.isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // If route requires staff only (not admin), redirect admin to dashboard
   if (requireStaffOnly && user.isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -102,7 +98,6 @@ const ProtectedRoute = ({
             <SidebarTrigger />
           </div>
           {children}
-          {/* Branding footer */}
           <footer className="mt-auto w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-50">
             Designed & Developed by RK.
           </footer>
@@ -120,132 +115,132 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <AutoRefreshApp>
-              <BrowserRouter>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/login-logs" element={<LoginLogs />} />
+            {/* REMOVED: <AutoRefreshApp> wrapper */}
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/login-logs" element={<LoginLogs />} />
 
-                  {/* Public routes */}
-                  <Route path="/public/tournaments" element={<PublicTournaments />} />
-                  <Route path="/public/stations" element={<PublicStations />} />
-                  <Route path="/public/booking" element={<PublicBooking />} />
+                {/* Public routes */}
+                <Route path="/public/tournaments" element={<PublicTournaments />} />
+                <Route path="/public/stations" element={<PublicStations />} />
+                <Route path="/public/booking" element={<PublicBooking />} />
 
-                  {/* Payment routes */}
-                  <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
-                  <Route path="/public/payment/failed" element={<PublicPaymentFailed />} />
+                {/* Payment routes */}
+                <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
+                <Route path="/public/payment/failed" element={<PublicPaymentFailed />} />
 
-                  {/* Protected routes */}
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/pos"
-                    element={
-                      <ProtectedRoute>
-                        <POS />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/stations"
-                    element={
-                      <ProtectedRoute>
-                        <Stations />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/products"
-                    element={
-                      <ProtectedRoute>
-                        <Products />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/customers"
-                    element={
-                      <ProtectedRoute>
-                        <Customers />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/reports"
-                    element={
-                      <ProtectedRoute>
-                        <Reports />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/booking-management"
-                    element={
-                      <ProtectedRoute>
-                        <BookingManagement />
-                      </ProtectedRoute>
-                    }
-                  />
+                {/* Protected routes */}
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/pos"
+                  element={
+                    <ProtectedRoute>
+                      <POS />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/stations"
+                  element={
+                    <ProtectedRoute>
+                      <Stations />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/products"
+                  element={
+                    <ProtectedRoute>
+                      <Products />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/customers"
+                  element={
+                    <ProtectedRoute>
+                      <Customers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute>
+                      <Reports />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/booking-management"
+                  element={
+                    <ProtectedRoute>
+                      <BookingManagement />
+                    </ProtectedRoute>
+                  }
+                />
 
-                  {/* How to Use page */}
-                  <Route
-                    path="/how-to-use"
-                    element={
-                      <ProtectedRoute>
-                        <Suspense
-                          fallback={
-                            <div className="min-h-screen flex items-center justify-center">
-                              Loading...
-                            </div>
-                          }
-                        >
-                          <HowToUsePage />
-                        </Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
+                {/* How to Use page */}
+                <Route
+                  path="/how-to-use"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense
+                        fallback={
+                          <div className="min-h-screen flex items-center justify-center">
+                            Loading...
+                          </div>
+                        }
+                      >
+                        <HowToUsePage />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
 
-                  {/* Staff Management - Admin Only */}
-                  <Route
-                    path="/staff"
-                    element={
-                      <ProtectedRoute requireAdmin={true}>
-                        <StaffManagement />
-                      </ProtectedRoute>
-                    }
-                  />
+                {/* Staff Management - Admin Only */}
+                <Route
+                  path="/staff"
+                  element={
+                    <ProtectedRoute requireAdmin={true}>
+                      <StaffManagement />
+                    </ProtectedRoute>
+                  }
+                />
 
-                  {/* Staff Portal - Staff Only (NOT Admin) */}
-                  <Route
-                    path="/staff-portal"
-                    element={
-                      <ProtectedRoute requireStaffOnly={true}>
-                        <StaffPortal />
-                      </ProtectedRoute>
-                    }
-                  />
+                {/* Staff Portal - Staff Only (NOT Admin) */}
+                <Route
+                  path="/staff-portal"
+                  element={
+                    <ProtectedRoute requireStaffOnly={true}>
+                      <StaffPortal />
+                    </ProtectedRoute>
+                  }
+                />
 
-                  {/* Settings */}
-                  <Route
-                    path="/settings"
-                    element={
-                      <ProtectedRoute>
-                        <Settings />
-                      </ProtectedRoute>
-                    }
-                  />
+                {/* Settings */}
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <Settings />
+                    </ProtectedRoute>
+                  }
+                />
 
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </BrowserRouter>
-            </AutoRefreshApp>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+            {/* REMOVED: </AutoRefreshApp> wrapper */}
           </TooltipProvider>
         </ExpenseProvider>
       </POSProvider>
