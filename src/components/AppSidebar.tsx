@@ -47,7 +47,7 @@ const AppSidebar: React.FC = () => {
   ];
 
   // Admin-only menu item
-  const adminMenuItem = { icon: Users2, label: 'Staff', path: '/staff' };
+  const adminMenuItem = { icon: Users2, label: 'Staff Management', path: '/staff' };
 
   // Settings menu item (always last)
   const settingsMenuItem = { icon: Settings, label: 'Settings', path: '/settings' };
