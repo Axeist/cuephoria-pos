@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import UAParser from 'ua-parser-js';
+import { UAParser } from 'ua-parser-js';
 
 interface LocationState {
   from?: string;
