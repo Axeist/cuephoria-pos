@@ -49,7 +49,12 @@ const Login = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showMasterKey, setShowMasterKey] = useState(false);
   
-  // NEW: Login metadata state
+  // NEW: PIN dialog state
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  
+  // Login metadata state
   const [loginMetadata, setLoginMetadata] = useState({});
 
   useEffect(() => {
@@ -59,7 +64,7 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // NEW: Collect login metadata on component mount
+  // Collect login metadata on component mount
   useEffect(() => {
     const collectLoginInfo = async () => {
       try {
@@ -93,7 +98,6 @@ const Login = () => {
         console.log('Login tracking ready - metadata collected');
       } catch (error) {
         console.log('Could not collect full metadata, using basic info');
-        // Fallback to basic info if API fails
         const parser = new UAParser();
         const device = parser.getResult();
         
@@ -127,7 +131,6 @@ const Login = () => {
     try {
       const isAdminLogin = loginType === 'admin';
       
-      // UPDATED: Pass metadata to login function
       const success = await login(username, password, isAdminLogin, loginMetadata);
       
       if (success) {
@@ -153,6 +156,26 @@ const Login = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // NEW: Handle View Logs button click
+  const handleViewLogsClick = () => {
+    setPinInput('');
+    setPinDialogOpen(true);
+  };
+
+  // NEW: Handle PIN verification
+  const handlePinSubmit = () => {
+    if (pinInput === '2101') {
+      setPinDialogOpen(false);
+      navigate('/login-logs');
+    } else {
+      toast({
+        title: 'Error',
+        description: 'Incorrect PIN',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -262,6 +285,10 @@ const Login = () => {
 
   const toggleMasterKeyVisibility = () => {
     setShowMasterKey(!showMasterKey);
+  };
+
+  const togglePinVisibility = () => {
+    setShowPin(!showPin);
   };
 
   const renderForgotPasswordContent = () => {
@@ -476,7 +503,7 @@ const Login = () => {
           variant="ghost" 
           size="sm"
           className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-orange/20"
-          onClick={() => navigate('/login-logs')}
+          onClick={handleViewLogsClick}
         >
           <FileText size={16} />
           <span>View Logs</span>
@@ -645,6 +672,61 @@ const Login = () => {
         </Card>
       </div>
 
+      {/* PIN Dialog for Logs Access */}
+      <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-background border-cuephoria-orange">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock size={16} className="text-cuephoria-orange" />
+              Enter PIN to Access Logs
+            </DialogTitle>
+            <DialogDescription>
+              Enter the security PIN to view login logs.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6">
+            <div className="space-y-2">
+              <label htmlFor="pinInput" className="text-sm font-medium">Security PIN</label>
+              <div className="relative">
+                <Input
+                  id="pinInput"
+                  type={showPin ? "text" : "password"}
+                  placeholder="Enter 4-digit PIN"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handlePinSubmit();
+                    }
+                  }}
+                  maxLength={4}
+                  className="bg-background/50 border-cuephoria-orange/30 pr-10 text-center text-2xl tracking-widest"
+                />
+                <button
+                  type="button"
+                  onClick={togglePinVisibility}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cuephoria-orange hover:text-accent focus:outline-none"
+                  aria-label={showPin ? "Hide PIN" : "Show PIN"}
+                >
+                  {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPinDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handlePinSubmit}
+              disabled={pinInput.length !== 4}
+              className="bg-cuephoria-orange hover:bg-cuephoria-orange/80"
+            >
+              Access Logs
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Forgot Password Dialog */}
       <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
         <DialogContent className="sm:max-w-md bg-background border-cuephoria-purple">
           {renderForgotPasswordContent()}
