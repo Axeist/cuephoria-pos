@@ -17,14 +17,11 @@ interface ExpenseContextType {
 }
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
-
 const STORAGE_KEY = 'pos-expenses';
 
 export const useExpenses = () => {
   const context = useContext(ExpenseContext);
-  if (!context) {
-    throw new Error('useExpenses must be used within an ExpenseProvider');
-  }
+  if (!context) throw new Error('useExpenses must be used within an ExpenseProvider');
   return context;
 };
 
@@ -36,7 +33,9 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     grossIncome: 0,
     totalExpenses: 0,
     netProfit: 0,
-    profitMargin: 0
+    profitMargin: 0,
+    withdrawals: 0,
+    moneyInBank: 0
   });
   const { bills } = usePOS();
   const { toast } = useToast();
@@ -44,28 +43,18 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const fetchExpenses = async () => {
     setLoading(true);
     setError(null);
-    
     try {
-      // Try to fetch expenses from Supabase using a type assertion to bypass type checking
       const { data: supabaseExpenses, error: supabaseError } = await (supabase
         .from('expenses' as any)
         .select('*')
         .order('date', { ascending: false }) as any);
-      
-      console.log('Supabase Expenses Fetched:', supabaseExpenses); // Added console log
-      
+
       if (supabaseError) {
-        console.error('Error fetching expenses from Supabase:', supabaseError);
-        
-        // Fall back to localStorage if Supabase fails
         const storedExpenses = localStorage.getItem(STORAGE_KEY);
-        
         if (storedExpenses) {
           const parsedExpenses = JSON.parse(storedExpenses) as Expense[];
           setExpenses(parsedExpenses);
-          console.log(`Loaded ${parsedExpenses.length} expenses from localStorage`);
-          
-          // Try to sync localStorage expenses to Supabase
+          // try sync to supabase (best-effort)
           parsedExpenses.forEach(async (expense) => {
             await (supabase.from('expenses' as any).upsert({
               id: expense.id,
@@ -80,11 +69,9 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           });
         } else {
           setExpenses([]);
-          console.log('No expenses found in localStorage');
         }
       } else {
-        // Use Supabase data
-        const formattedExpenses = supabaseExpenses.map((item: any) => ({
+        const formatted = (supabaseExpenses || []).map((item: any) => ({
           id: item.id,
           name: item.name,
           amount: item.amount,
@@ -94,83 +81,77 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           isRecurring: item.is_recurring,
           notes: item.notes || undefined
         }));
-        
-        setExpenses(formattedExpenses);
-        console.log(`Loaded ${formattedExpenses.length} expenses from Supabase`);
-        
-        // Update localStorage with the latest data from Supabase
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(formattedExpenses));
+        setExpenses(formatted);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(formatted));
       }
     } catch (err) {
-      console.error('Error in fetchExpenses:', err);
       setError('An unexpected error occurred while fetching expenses');
     } finally {
       setLoading(false);
     }
   };
 
+  const prorate = (e: Expense) => {
+    if (!e.isRecurring) return e.amount;
+    switch (e.frequency) {
+      case 'monthly': return e.amount;
+      case 'quarterly': return e.amount / 3;
+      case 'yearly': return e.amount / 12;
+      default: return e.amount;
+    }
+  };
+
+  const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
+
   const calculateBusinessSummary = () => {
-    const grossIncome = bills.reduce((sum, bill) => sum + bill.total, 0);
-    
-    const totalExpenses = expenses.reduce((sum, expense) => {
-      if (expense.isRecurring) {
-        switch(expense.frequency) {
-          case 'monthly':
-            return sum + expense.amount;
-          case 'quarterly':
-            return sum + (expense.amount / 3);
-          case 'yearly':
-            return sum + (expense.amount / 12);
-          default:
-            return sum + expense.amount;
-        }
-      } else {
-        return sum + expense.amount;
-      }
-    }, 0);
-    
-    const netProfit = grossIncome - totalExpenses;
-    
+    const grossIncome = (bills || [])
+      .filter((b: any) => b?.paymentMethod !== 'complimentary')
+      .reduce((sum: number, b: any) => sum + (b?.total ?? 0), 0);
+
+    const totalWithdrawals = expenses
+      .filter(e => normalizeCategory(e.category) === 'withdrawal')
+      .reduce((sum, e) => sum + prorate(e), 0);
+
+    const operatingExpenses = expenses
+      .filter(e => normalizeCategory(e.category) !== 'withdrawal')
+      .reduce((sum, e) => sum + prorate(e), 0);
+
+    const netProfit = grossIncome - operatingExpenses;
+    const moneyInBank = netProfit - totalWithdrawals;
     const profitMargin = grossIncome > 0 ? (netProfit / grossIncome) * 100 : 0;
-    
+
     setBusinessSummary({
       grossIncome,
-      totalExpenses,
+      totalExpenses: operatingExpenses,
       netProfit,
-      profitMargin
+      profitMargin,
+      withdrawals: totalWithdrawals,
+      moneyInBank
     });
   };
 
-  const saveExpensesToStorage = (updatedExpenses: Expense[]) => {
+  const saveExpensesToStorage = (updated: Expense[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedExpenses));
-    } catch (err) {
-      console.error('Error saving expenses to localStorage:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to save expenses data locally',
-        variant: 'destructive'
-      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save expenses data locally', variant: 'destructive' });
     }
   };
 
   const addExpense = async (formData: Omit<ExpenseFormData, 'date'> & { date: string }): Promise<boolean> => {
     try {
       const id = generateId();
-      
-      // The date is already an ISO string from ExpenseDialog
       const newExpense: Expense = {
         id,
         name: formData.name,
         amount: formData.amount,
         category: formData.category,
         frequency: formData.frequency,
-        date: formData.date, // Already a string from ExpenseDialog
+        date: formData.date,
         isRecurring: formData.isRecurring,
         notes: formData.notes
       };
-      
-      // Insert to Supabase with type assertion to bypass type checking
+
       const { error: supabaseError } = await (supabase
         .from('expenses' as any)
         .insert({
@@ -183,42 +164,26 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           is_recurring: newExpense.isRecurring,
           notes: newExpense.notes || null
         }) as any);
-      
+
       if (supabaseError) {
-        const errorMessage = handleSupabaseError(supabaseError, 'adding expense');
-        toast({
-          title: 'Error',
-          description: errorMessage,
-          variant: 'destructive'
-        });
+        const msg = handleSupabaseError(supabaseError, 'adding expense');
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
         return false;
       }
-      
-      // Update local state
-      const updatedExpenses = [newExpense, ...expenses];
-      setExpenses(updatedExpenses);
-      saveExpensesToStorage(updatedExpenses);
-      
-      toast({
-        title: 'Success',
-        description: 'Expense added successfully'
-      });
-      
+
+      const updated = [newExpense, ...expenses];
+      setExpenses(updated);
+      saveExpensesToStorage(updated);
+      toast({ title: 'Success', description: 'Expense added successfully' });
       return true;
-    } catch (err) {
-      console.error('Error in addExpense:', err);
-      toast({
-        title: 'Error',
-        description: 'An unexpected error occurred while adding expense',
-        variant: 'destructive'
-      });
+    } catch {
+      toast({ title: 'Error', description: 'An unexpected error occurred while adding expense', variant: 'destructive' });
       return false;
     }
   };
 
   const updateExpense = async (expense: Expense): Promise<boolean> => {
     try {
-      // Update in Supabase with type assertion
       const { error: supabaseError } = await (supabase
         .from('expenses' as any)
         .update({
@@ -229,91 +194,46 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           date: expense.date,
           is_recurring: expense.isRecurring,
           notes: expense.notes || null
-        })
-        .eq('id', expense.id) as any);
-      
+        }).eq('id', expense.id) as any);
+
       if (supabaseError) {
-        const errorMessage = handleSupabaseError(supabaseError, 'updating expense');
-        toast({
-          title: 'Error',
-          description: errorMessage,
-          variant: 'destructive'
-        });
+        const msg = handleSupabaseError(supabaseError, 'updating expense');
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
         return false;
       }
-      
-      // Update local state
-      const updatedExpenses = expenses.map(item => 
-        item.id === expense.id ? expense : item
-      );
-      
-      setExpenses(updatedExpenses);
-      saveExpensesToStorage(updatedExpenses);
-      
-      toast({
-        title: 'Success',
-        description: 'Expense updated successfully'
-      });
-      
+
+      const updated = expenses.map(item => item.id === expense.id ? expense : item);
+      setExpenses(updated);
+      saveExpensesToStorage(updated);
+      toast({ title: 'Success', description: 'Expense updated successfully' });
       return true;
-    } catch (err) {
-      console.error('Error in updateExpense:', err);
-      toast({
-        title: 'Error',
-        description: 'An unexpected error occurred while updating expense',
-        variant: 'destructive'
-      });
+    } catch {
+      toast({ title: 'Error', description: 'An unexpected error occurred while updating expense', variant: 'destructive' });
       return false;
     }
   };
 
   const deleteExpense = async (id: string): Promise<boolean> => {
     try {
-      // Delete from Supabase with type assertion
-      const { error: supabaseError } = await (supabase
-        .from('expenses' as any)
-        .delete()
-        .eq('id', id) as any);
-      
+      const { error: supabaseError } = await (supabase.from('expenses' as any).delete().eq('id', id) as any);
       if (supabaseError) {
-        const errorMessage = handleSupabaseError(supabaseError, 'deleting expense');
-        toast({
-          title: 'Error',
-          description: errorMessage,
-          variant: 'destructive'
-        });
+        const msg = handleSupabaseError(supabaseError, 'deleting expense');
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
         return false;
       }
-      
-      // Update local state
-      const updatedExpenses = expenses.filter(item => item.id !== id);
-      setExpenses(updatedExpenses);
-      saveExpensesToStorage(updatedExpenses);
-      
-      toast({
-        title: 'Success',
-        description: 'Expense deleted successfully'
-      });
-      
+      const updated = expenses.filter(item => item.id !== id);
+      setExpenses(updated);
+      saveExpensesToStorage(updated);
+      toast({ title: 'Success', description: 'Expense deleted successfully' });
       return true;
-    } catch (err) {
-      console.error('Error in deleteExpense:', err);
-      toast({
-        title: 'Error',
-        description: 'An unexpected error occurred while deleting expense',
-        variant: 'destructive'
-      });
+    } catch {
+      toast({ title: 'Error', description: 'An unexpected error occurred while deleting expense', variant: 'destructive' });
       return false;
     }
   };
 
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
-
-  useEffect(() => {
-    calculateBusinessSummary();
-  }, [bills, expenses]);
+  useEffect(() => { fetchExpenses(); }, []);
+  useEffect(() => { calculateBusinessSummary(); }, [bills, expenses]);
 
   const contextValue: ExpenseContextType = {
     expenses,
@@ -326,9 +246,5 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     error
   };
 
-  return (
-    <ExpenseContext.Provider value={contextValue}>
-      {children}
-    </ExpenseContext.Provider>
-  );
+  return <ExpenseContext.Provider value={contextValue}>{children}</ExpenseContext.Provider>;
 };
