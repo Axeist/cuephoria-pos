@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import UAParser from 'ua-parser-js';
 
 interface LocationState {
   from?: string;
@@ -47,12 +48,67 @@ const Login = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showMasterKey, setShowMasterKey] = useState(false);
+  
+  // NEW: Login metadata state
+  const [loginMetadata, setLoginMetadata] = useState({});
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setAnimationClass('animate-scale-in');
     }, 100);
     return () => clearTimeout(timer);
+  }, []);
+
+  // NEW: Collect login metadata on component mount
+  useEffect(() => {
+    const collectLoginInfo = async () => {
+      try {
+        // Get IP address and location
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        
+        // Get device information
+        const parser = new UAParser();
+        const device = parser.getResult();
+        
+        // Store all metadata
+        setLoginMetadata({
+          ip: data.ip,
+          city: data.city,
+          region: data.region,
+          country: data.country_name,
+          timezone: data.timezone,
+          isp: data.org,
+          browser: device.browser.name,
+          browserVersion: device.browser.version,
+          os: device.os.name,
+          osVersion: device.os.version,
+          deviceType: device.device.type || 'desktop',
+          deviceModel: device.device.model || 'Unknown',
+          deviceVendor: device.device.vendor || 'Unknown',
+          loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          userAgent: navigator.userAgent
+        });
+
+        console.log('Login tracking ready - metadata collected');
+      } catch (error) {
+        console.log('Could not collect full metadata, using basic info');
+        // Fallback to basic info if API fails
+        const parser = new UAParser();
+        const device = parser.getResult();
+        
+        setLoginMetadata({
+          browser: device.browser.name,
+          browserVersion: device.browser.version,
+          os: device.os.name,
+          osVersion: device.os.version,
+          deviceType: device.device.type || 'desktop',
+          loginTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+        });
+      }
+    };
+    
+    collectLoginInfo();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -70,7 +126,10 @@ const Login = () => {
     setIsLoading(true);
     try {
       const isAdminLogin = loginType === 'admin';
-      const success = await login(username, password, isAdminLogin);
+      
+      // UPDATED: Pass metadata to login function
+      const success = await login(username, password, isAdminLogin, loginMetadata);
+      
       if (success) {
         toast({
           title: 'Success',
@@ -401,8 +460,8 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-cuephoria-dark overflow-hidden relative px-4">
-      {/* Back to home button */}
-      <div className="absolute top-4 left-4 z-20">
+      {/* Back to home button and Logs button */}
+      <div className="absolute top-4 left-4 right-4 z-20 flex justify-between">
         <Button 
           variant="ghost" 
           size="sm"
@@ -411,6 +470,16 @@ const Login = () => {
         >
           <ArrowLeft size={16} />
           <span>Back to Home</span>
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="sm"
+          className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-orange/20"
+          onClick={() => navigate('/login-logs')}
+        >
+          <FileText size={16} />
+          <span>View Logs</span>
         </Button>
       </div>
       
