@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus, Trash2 } from 'lucide-react';
+import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
 import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
@@ -31,13 +31,40 @@ const StaffPortal = () => {
   const [showStaffSelection, setShowStaffSelection] = useState(true);
   const [showLeaveRequest, setShowLeaveRequest] = useState(false);
   const [currentShift, setCurrentShift] = useState<any>(null);
-  const [todayAttendance, setTodayAttendance] = useState<any[]>([]);
+  const [allAttendance, setAllAttendance] = useState<any[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [leaveBalance, setLeaveBalance] = useState({ paid: 1, unpaid: 2 });
   const [payslips, setPayslips] = useState<any[]>([]);
+  const [breakViolations, setBreakViolations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [deleteLeaveId, setDeleteLeaveId] = useState<string | null>(null);
+
+  // Check if anyone is logged in, remind every minute
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      const { data: activeStaff } = await supabase
+        .from('today_active_shifts')
+        .select('*');
+      
+      if (!activeStaff || activeStaff.length === 0) {
+        toast({
+          title: '⚠️ No Staff Logged In',
+          description: 'Please clock in to start your shift',
+          variant: 'destructive',
+          duration: 5000
+        });
+      }
+    };
+
+    // Check immediately
+    checkLoginStatus();
+    
+    // Then check every minute
+    const interval = setInterval(checkLoginStatus, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (selectedStaff) {
@@ -62,14 +89,26 @@ const StaffPortal = () => {
 
       setCurrentShift(shift);
 
+      // Fetch ALL attendance (last 30 records)
       const { data: attendance } = await supabase
         .from('staff_attendance')
         .select('*')
         .eq('staff_id', selectedStaff.user_id)
-        .eq('date', today)
-        .order('clock_in', { ascending: false });
+        .order('date', { ascending: false })
+        .order('clock_in', { ascending: false })
+        .limit(30);
 
-      setTodayAttendance(attendance || []);
+      setAllAttendance(attendance || []);
+
+      // Fetch break violations
+      const { data: violations } = await supabase
+        .from('staff_break_violations')
+        .select('*')
+        .eq('staff_id', selectedStaff.user_id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setBreakViolations(violations || []);
 
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
@@ -243,7 +282,7 @@ const StaffPortal = () => {
 
       toast({
         title: 'Break Started',
-        description: 'Enjoy your break!'
+        description: 'Enjoy your break! Remember: max 1 hour per day'
       });
 
       fetchStaffData();
@@ -281,10 +320,19 @@ const StaffPortal = () => {
         .eq('attendance_id', currentShift.id)
         .eq('is_active', true);
 
-      toast({
-        title: 'Break Ended',
-        description: `Break duration: ${breakMinutes} minutes`
-      });
+      if (totalBreak > 60) {
+        toast({
+          title: '⚠️ Break Time Exceeded',
+          description: `Total break: ${totalBreak} minutes. Maximum allowed is 60 minutes. Penalty may be applied.`,
+          variant: 'destructive',
+          duration: 10000
+        });
+      } else {
+        toast({
+          title: 'Break Ended',
+          description: `Break duration: ${breakMinutes} minutes`
+        });
+      }
 
       fetchStaffData();
     } catch (error: any) {
@@ -456,6 +504,13 @@ const StaffPortal = () => {
                     <Clock className="h-4 w-4" />
                     Clocked in at {format(new Date(currentShift.clock_in), 'hh:mm a')}
                   </div>
+                  {currentShift.break_duration_minutes > 0 && (
+                    <div className={`flex items-center gap-2 ${currentShift.break_duration_minutes > 60 ? 'text-red-500' : 'text-yellow-500'}`}>
+                      <Coffee className="h-4 w-4" />
+                      Break time: {currentShift.break_duration_minutes} min
+                      {currentShift.break_duration_minutes > 60 && ' (EXCEEDED!)'}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-muted-foreground">Not clocked in yet</p>
@@ -508,17 +563,18 @@ const StaffPortal = () => {
           </div>
 
           {/* Real-Time Timer */}
-          {currentShift && (
+          {currentShift && selectedStaff?.hourly_rate && (
             <RealTimeTimer
               clockInTime={currentShift.clock_in}
               breakStartTime={currentShift.break_start_time}
               breakDuration={currentShift.break_duration_minutes || 0}
-              hourlyRate={selectedStaff.hourly_rate}
+              hourlyRate={selectedStaff.hourly_rate || 0}
               isOnBreak={isOnBreak}
             />
           )}
         </CardContent>
       </Card>
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
@@ -593,46 +649,85 @@ const StaffPortal = () => {
         <TabsContent value="attendance" className="space-y-4 mt-6">
           <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
             <CardHeader>
-              <CardTitle className="text-white">Today's Attendance</CardTitle>
+              <CardTitle className="text-white">All Attendance Records</CardTitle>
+              <CardDescription>Your complete attendance history (last 30 records)</CardDescription>
             </CardHeader>
             <CardContent>
-              {todayAttendance.length === 0 ? (
+              {/* Break Violations Warning */}
+              {breakViolations.length > 0 && (
+                <div className="mb-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                    <div>
+                      <p className="text-red-500 font-semibold">Break Time Violations</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        You have {breakViolations.length} break time violation(s). 
+                        Maximum allowed break time is 1 hour per day. Penalties may be applied.
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {breakViolations.slice(0, 3).map((v) => (
+                          <p key={v.id} className="text-xs text-red-400">
+                            {format(new Date(v.date), 'MMM dd, yyyy')}: 
+                            {' '}{v.break_duration_minutes} minutes (excess: {v.excess_minutes} min)
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {allAttendance.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No attendance records for today
+                  No attendance records found
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {todayAttendance.map((record) => (
+                  {allAttendance.map((record) => (
                     <div
                       key={record.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
                     >
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Clock In</p>
-                        <p className="text-white">{format(new Date(record.clock_in), 'hh:mm a')}</p>
-                      </div>
-                      <div className="space-y-1 text-right">
-                        <p className="text-sm text-muted-foreground">Clock Out</p>
-                        <p className="text-white">
-                          {record.clock_out ? format(new Date(record.clock_out), 'hh:mm a') : 'In Progress'}
-                        </p>
-                      </div>
-                      {record.total_working_hours && (
-                        <div className="space-y-1 text-right">
-                          <p className="text-sm text-muted-foreground">Hours</p>
-                          <Badge variant="outline" className="text-green-500 border-green-500">
-                            {record.total_working_hours.toFixed(1)} hrs
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-cuephoria-lightpurple border-cuephoria-lightpurple">
+                            {format(new Date(record.date), 'MMM dd, yyyy')}
                           </Badge>
+                          {record.break_duration_minutes > 60 && (
+                            <Badge variant="outline" className="text-red-500 border-red-500 animate-pulse">
+                              Break Violation
+                            </Badge>
+                          )}
                         </div>
-                      )}
-                      {record.daily_earnings && (
-                        <div className="space-y-1 text-right">
-                          <p className="text-sm text-muted-foreground">Earnings</p>
-                          <p className="text-cuephoria-blue font-semibold">
-                            ₹{record.daily_earnings.toFixed(2)}
-                          </p>
+                        <div className="grid grid-cols-5 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Clock In</p>
+                            <p className="text-white">{format(new Date(record.clock_in), 'hh:mm a')}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Clock Out</p>
+                            <p className="text-white">
+                              {record.clock_out ? format(new Date(record.clock_out), 'hh:mm a') : 'In Progress'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Break Time</p>
+                            <p className={`font-semibold ${record.break_duration_minutes > 60 ? 'text-red-500' : 'text-white'}`}>
+                              {record.break_duration_minutes || 0} min
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Hours</p>
+                            <p className="text-white">{record.total_working_hours?.toFixed(2) || '0.00'} hrs</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Earnings</p>
+                            <p className="text-cuephoria-blue font-semibold">
+                              ₹{record.daily_earnings?.toFixed(2) || '0.00'}
+                            </p>
+                          </div>
                         </div>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
