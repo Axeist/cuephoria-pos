@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, Clock, CalendarDays, DollarSign, FileText, UserPlus, Shield } from 'lucide-react';
-import StaffOverview from '@/components/staff/StaffOverview';
-import AttendanceManagement from '@/components/staff/AttendanceManagement';
-import LeaveManagement from '@/components/staff/LeaveManagement';
-import PayrollManagement from '@/components/staff/PayrollManagement';
-import StaffDirectory from '@/components/staff/StaffDirectory';
-import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
+import StaffOverview from '@/components/staff/StaffOverview.tsx';
+import AttendanceManagement from '@/components/staff/AttendanceManagement.tsx';
+import LeaveManagement from '@/components/staff/LeaveManagement.tsx';
+import PayrollManagement from '@/components/staff/PayrollManagement.tsx';
+import StaffDirectory from '@/components/staff/StaffDirectory.tsx';
+import CreateStaffDialog from '@/components/staff/CreateStaffDialog.tsx';
 
 const StaffManagement = () => {
   const { toast } = useToast();
