@@ -25,6 +25,20 @@ interface LoginMetadata {
   deviceVendor?: string;
   loginTime?: string;
   userAgent?: string;
+  latitude?: number;
+  longitude?: number;
+  locationAccuracy?: number;
+  selfieUrl?: string | null;
+  screenResolution?: string;
+  colorDepth?: number;
+  pixelRatio?: number;
+  cpuCores?: number;
+  deviceMemory?: number;
+  touchSupport?: boolean;
+  connectionType?: string;
+  batteryLevel?: number;
+  canvasFingerprint?: string;
+  installedFonts?: string;
 }
 
 export interface LoginLog {
@@ -46,6 +60,20 @@ export interface LoginLog {
   device_model?: string;
   device_vendor?: string;
   user_agent?: string;
+  latitude?: number;
+  longitude?: number;
+  location_accuracy?: number;
+  selfie_url?: string;
+  screen_resolution?: string;
+  color_depth?: number;
+  pixel_ratio?: number;
+  cpu_cores?: number;
+  device_memory?: number;
+  touch_support?: boolean;
+  connection_type?: string;
+  battery_level?: number;
+  canvas_fingerprint?: string;
+  installed_fonts?: string;
   login_time: string;
   created_at: string;
 }
@@ -71,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const INACTIVITY_LIMIT_MS = 5 * 60 * 60 * 1000; // 5 hours
+  const INACTIVITY_LIMIT_MS = 5 * 60 * 60 * 1000;
 
   const clearInactivityTimer = () => {
     if (inactivityTimerRef.current) {
@@ -177,7 +205,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const { data, error } = await query.single();
 
-      // Check if login is successful
       if (!error && data && data.password === password) {
         loginSuccess = true;
         const adminUser = {
@@ -189,7 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('cuephoriaAdmin', JSON.stringify(adminUser));
       }
 
-      // Save login attempt (both success and failure) to database
+      // Save comprehensive login attempt to database
       try {
         const { error: logError } = await supabase
           .from('login_logs')
@@ -211,13 +238,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             device_model: metadata.deviceModel || null,
             device_vendor: metadata.deviceVendor || null,
             user_agent: metadata.userAgent || null,
+            latitude: metadata.latitude || null,
+            longitude: metadata.longitude || null,
+            location_accuracy: metadata.locationAccuracy || null,
+            selfie_url: metadata.selfieUrl || null,
+            screen_resolution: metadata.screenResolution || null,
+            color_depth: metadata.colorDepth || null,
+            pixel_ratio: metadata.pixelRatio || null,
+            cpu_cores: metadata.cpuCores || null,
+            device_memory: metadata.deviceMemory || null,
+            touch_support: metadata.touchSupport || null,
+            connection_type: metadata.connectionType || null,
+            battery_level: metadata.batteryLevel || null,
+            canvas_fingerprint: metadata.canvasFingerprint || null,
+            installed_fonts: metadata.installedFonts || null,
             login_time: new Date().toISOString()
           });
         
         if (logError) {
           console.error('Error saving login log:', logError);
         } else {
-          console.log(loginSuccess ? '✅ Successful login logged' : '❌ Failed login attempt logged');
+          console.log(loginSuccess ? '✅ Successful login logged with enhanced data' : '❌ Failed login attempt logged');
         }
       } catch (logError) {
         console.error('Error saving login log:', logError);
@@ -227,7 +268,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Login error:', error);
       
-      // Log the failed attempt even if there's an exception
       try {
         await supabase
           .from('login_logs')
@@ -249,6 +289,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             device_model: metadata.deviceModel || null,
             device_vendor: metadata.deviceVendor || null,
             user_agent: metadata.userAgent || null,
+            latitude: metadata.latitude || null,
+            longitude: metadata.longitude || null,
+            location_accuracy: metadata.locationAccuracy || null,
+            selfie_url: metadata.selfieUrl || null,
+            screen_resolution: metadata.screenResolution || null,
+            color_depth: metadata.colorDepth || null,
+            pixel_ratio: metadata.pixelRatio || null,
+            cpu_cores: metadata.cpuCores || null,
+            device_memory: metadata.deviceMemory || null,
+            touch_support: metadata.touchSupport || null,
+            connection_type: metadata.connectionType || null,
+            battery_level: metadata.batteryLevel || null,
+            canvas_fingerprint: metadata.canvasFingerprint || null,
+            installed_fonts: metadata.installedFonts || null,
             login_time: new Date().toISOString()
           });
       } catch (logError) {
