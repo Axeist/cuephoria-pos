@@ -33,7 +33,8 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<'hourly'|'daily'|'weekly'|'monthly'>('daily');
   const [chartData, setChartData] = useState<any[]>([]);
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
-  const [currentDashboardTab, setCurrentDashboardTab] = useState<'overview' | 'analytics' | 'expenses' | 'cash'>('overview');
+  const [currentDashboardTab, setCurrentDashboardTab] = useState<'overview'|'analytics'|'expenses'|'cash'>('overview');
+  const [selectedCategory, setSelectedCategory] = useState<string|null>(null); // NEW
   const [dashboardStats, setDashboardStats] = useState({
     totalSales: 0,
     salesChange: '',
@@ -43,7 +44,7 @@ const Dashboard = () => {
     lowStockItems: [] as any[]
   });
 
-  // Exclude complimentary bills
+  // Filter out complimentary bills
   const paidBills = useMemo(
     () => billsN.filter(bill => bill.paymentMethod !== 'complimentary'),
     [billsN]
@@ -75,11 +76,13 @@ const Dashboard = () => {
 
   const handleDateRangeChange = (startDate: Date, endDate: Date) => {
     setDateRange({ start: startDate, end: endDate });
+    setSelectedCategory(null); // reset category filter when date range changes
   };
 
   const handleExport = () => {
     try {
-      if (filteredExpenses.length === 0) {
+      const list = filteredExpenses;
+      if (list.length === 0) {
         toast({
           title: 'No Data to Export',
           description: 'There are no expenses in the selected date range to export.',
@@ -88,7 +91,7 @@ const Dashboard = () => {
         return;
       }
 
-      const exportData = filteredExpenses.map(expense => ({
+      const exportData = list.map(expense => ({
         'Date': format(new Date(expense.date), 'yyyy-MM-dd'),
         'Name': expense.name,
         'Category': expense.category.charAt(0).toUpperCase() + expense.category.slice(1),
@@ -104,7 +107,6 @@ const Dashboard = () => {
         { wch: 12 }, { wch: 25 }, { wch: 15 },
         { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 30 }
       ];
-
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
 
       const filename = dateRange
@@ -120,7 +122,7 @@ const Dashboard = () => {
 
       toast({
         title: 'Export Successful',
-        description: `Exported ${filteredExpenses.length} expenses to ${filename}`
+        description: `Exported ${list.length} expenses to ${filename}`
       });
     } catch (error) {
       console.error('Error exporting expenses:', error);
@@ -156,14 +158,12 @@ const Dashboard = () => {
     today.setHours(0,0,0,0);
     const hours = Array.from({ length: 24 }, (_, i) => i);
     const hourlyTotals = new Map<number, number>();
-
     paidBills.forEach(bill => {
       if (bill.createdAtDate >= today) {
         const h = bill.createdAtDate.getUTCHours();
         hourlyTotals.set(h, (hourlyTotals.get(h) || 0) + bill.total);
       }
     });
-
     return hours.map(hour => {
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const hour12 = hour % 12 || 12;
@@ -174,20 +174,17 @@ const Dashboard = () => {
   const generateDailyChartData = () => {
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const dailyTotals = new Map<string, number>();
-
     paidBills.forEach(bill => {
       const d = bill.createdAtDate;
       const label = days[d.getUTCDay()];
       dailyTotals.set(label, (dailyTotals.get(label) || 0) + bill.total);
     });
-
     return days.map(day => ({ name: day, amount: dailyTotals.get(day) || 0 }));
   };
 
   const generateWeeklyChartData = () => {
     const weeks: { start: Date; end: Date; label: string }[] = [];
     const now = new Date();
-
     for (let i = 3; i >= 0; i--) {
       const weekStart = new Date(Date.UTC(
         now.getUTCFullYear(),
@@ -205,7 +202,6 @@ const Dashboard = () => {
         label: `${weekStart.getUTCMonth()+1}/${weekStart.getUTCDate()} - ${weekEnd.getUTCMonth()+1}/${weekEnd.getUTCDate()}`
       });
     }
-
     return weeks.map(w => {
       const total = paidBills.reduce((sum, b) =>
         (isBetween(b.createdAtDate, w.start, w.end) ? sum + b.total : sum), 0
@@ -217,20 +213,17 @@ const Dashboard = () => {
   const generateMonthlyChartData = () => {
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const monthlyTotals = new Map<string, number>();
-
     paidBills.forEach(bill => {
       const d = bill.createdAtDate;
       const label = months[d.getUTCMonth()];
       monthlyTotals.set(label, (monthlyTotals.get(label) || 0) + bill.total);
     });
-
     return months.map(m => ({ name: m, amount: monthlyTotals.get(m) || 0 }));
   };
 
   const calculateTotalSales = () => {
     let startDate = new Date();
     const now = new Date();
-
     if (activeTab === 'hourly') {
       startDate.setUTCHours(0,0,0,0);
     } else if (activeTab === 'daily') {
@@ -239,14 +232,12 @@ const Dashboard = () => {
       startDate.setUTCHours(0,0,0,0);
     } else if (activeTab === 'weekly') {
       startDate = startOfMonth(now);
-    } else if (activeTab === 'monthly') {
+    } else {
       startDate = startOfYear(now);
     }
-
     const total = paidBills
       .filter(b => isBetween(b.createdAtDate, startDate, now))
       .reduce((sum, b) => sum + b.total, 0);
-
     return total;
   };
 
@@ -327,8 +318,8 @@ const Dashboard = () => {
             newMembersCount={dashboardStats.newMembersCount}
             lowStockCount={dashboardStats.lowStockCount}
             lowStockItems={dashboardStats.lowStockItems}
-            withdrawalsAmount={businessSummary.withdrawals}   // added
-            moneyInBank={businessSummary.moneyInBank}         // added
+            withdrawalsAmount={businessSummary.withdrawals}
+            moneyInBank={businessSummary.moneyInBank}
           />
           <ActionButtonSection />
           <SalesChart
@@ -363,9 +354,11 @@ const Dashboard = () => {
             <FilteredExpenseList
               startDate={dateRange.start}
               endDate={dateRange.end}
+              selectedCategory={selectedCategory}
+              onCategorySelect={setSelectedCategory}
             />
           ) : (
-            <ExpenseList />
+            <ExpenseList selectedCategory={selectedCategory} />
           )}
         </TabsContent>
 
