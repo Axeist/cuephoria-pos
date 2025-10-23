@@ -1,6 +1,7 @@
+// src/components/AppSidebar.tsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar, Users2 } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -40,20 +41,23 @@ const AppSidebar: React.FC = () => {
     { icon: Clock, label: 'Gaming Stations', path: '/stations' },
     { icon: Package, label: 'Products', path: '/products' },
     { icon: Users, label: 'Customers', path: '/customers' },
-    { icon: BarChart2, label: 'Reports', path: '/reports' }, // Now accessible to staff
-    { icon: Settings, label: 'Settings', path: '/settings' }, // Now accessible to staff
-  ];
-  
-  // Insert the Booking Management and How To Use menu items before Settings (last)
-  const customMenuItems = [
-    ...baseMenuItems.slice(0, baseMenuItems.findIndex(item => item.label === 'Settings')),
+    { icon: BarChart2, label: 'Reports', path: '/reports' },
     { icon: Calendar, label: 'Bookings', path: '/booking-management' },
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
-    ...baseMenuItems.slice(baseMenuItems.findIndex(item => item.label === 'Settings'))
   ];
-  
-  // All users now have access to all menu items
-  const menuItems = customMenuItems;
+
+  // Admin-only menu item
+  const adminMenuItem = { icon: Users2, label: 'Staff', path: '/staff' };
+
+  // Settings menu item (always last)
+  const settingsMenuItem = { icon: Settings, label: 'Settings', path: '/settings' };
+
+  // Build the final menu
+  const menuItems = [
+    ...baseMenuItems,
+    ...(isAdmin ? [adminMenuItem] : []),
+    settingsMenuItem
+  ];
 
   // Mobile version with sheet
   if (isMobile) {
