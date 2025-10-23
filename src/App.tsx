@@ -29,6 +29,7 @@ import PublicBooking from "./pages/PublicBooking";
 import BookingPage from "./pages/BookingPage";
 import BookingManagement from "./pages/BookingManagement";
 import StaffManagement from "./pages/StaffManagement";
+import StaffPortal from "./pages/StaffPortal";
 
 // Payment routes
 import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
@@ -181,17 +182,7 @@ const App = () => (
                     }
                   />
 
-                  {/* Staff Management - Admin Only */}
-                  <Route
-                    path="/staff"
-                    element={
-                      <ProtectedRoute requireAdmin={true}>
-                        <StaffManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  {/* How to Use page, protected */}
+                  {/* How to Use page */}
                   <Route
                     path="/how-to-use"
                     element={
@@ -209,6 +200,27 @@ const App = () => (
                     }
                   />
 
+                  {/* Staff Management - Admin Only */}
+                  <Route
+                    path="/staff"
+                    element={
+                      <ProtectedRoute requireAdmin={true}>
+                        <StaffManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Staff Portal - All Users */}
+                  <Route
+                    path="/staff-portal"
+                    element={
+                      <ProtectedRoute>
+                        <StaffPortal />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Settings */}
                   <Route
                     path="/settings"
                     element={
