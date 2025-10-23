@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Clock, Calendar, Trash2, Edit, AlertCircle } from 'lucide-react';
+import { Clock, Trash2, Edit } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -44,8 +44,8 @@ interface AttendanceManagementProps {
 }
 
 const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
-  staffProfiles,
-  activeShifts,
+  staffProfiles = [],
+  activeShifts = [],
   isLoading,
   onRefresh
 }) => {
@@ -63,22 +63,25 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   });
 
   useEffect(() => {
-    fetchAttendanceRecords();
-  }, [selectedMonth, selectedYear]);
+    if (staffProfiles && staffProfiles.length > 0) {
+      fetchAttendanceRecords();
+    }
+  }, [selectedMonth, selectedYear, staffProfiles]);
+
+  const getStaffName = (staffId: string) => {
+    if (!staffId || !staffProfiles || staffProfiles.length === 0) {
+      return 'Unknown Staff';
+    }
+    const staff = staffProfiles.find(s => s.user_id === staffId);
+    return staff?.username || 'Unknown Staff';
+  };
 
   const fetchAttendanceRecords = async () => {
     setIsLoadingRecords(true);
     try {
       const { data, error } = await supabase
         .from('staff_attendance')
-        .select(`
-          *,
-          staff_profiles!staff_attendance_staff_id_fkey (
-            username,
-            full_name,
-            designation
-          )
-        `)
+        .select('*')
         .gte('date', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`)
         .lt('date', `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`)
         .order('date', { ascending: false });
@@ -305,7 +308,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <p className="font-semibold text-white">
-                              {record.staff_profiles?.username}
+                              {getStaffName(record.staff_id)}
                             </p>
                             <Badge variant="outline" className="text-cuephoria-lightpurple border-cuephoria-lightpurple">
                               {format(new Date(record.date), 'MMM dd, yyyy')}
@@ -368,7 +371,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
           <DialogHeader>
             <DialogTitle>Edit Attendance</DialogTitle>
             <DialogDescription>
-              Modify attendance record for {editAttendance?.staff_profiles?.username}
+              Modify attendance record for {getStaffName(editAttendance?.staff_id)}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -395,7 +398,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
               <Input
                 type="number"
                 value={editForm.break_duration_minutes}
-                onChange={(e) => setEditForm({...editForm, break_duration_minutes: parseInt(e.target.value)})}
+                onChange={(e) => setEditForm({...editForm, break_duration_minutes: parseInt(e.target.value) || 0})}
                 className="bg-cuephoria-darker border-cuephoria-purple/20"
               />
             </div>
