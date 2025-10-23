@@ -60,6 +60,7 @@ interface AuthContextType {
   deleteStaffMember: (id: string) => Promise<boolean>;
   resetPassword: (username: string, newPassword: string) => Promise<boolean>;
   getLoginLogs: () => Promise<LoginLog[]>;
+  deleteLoginLog: (logId: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const INACTIVITY_LIMIT_MS = 5 * 60 * 60 * 1000;
+  const INACTIVITY_LIMIT_MS = 5 * 60 * 60 * 1000; // 5 hours
 
   const clearInactivityTimer = () => {
     if (inactivityTimerRef.current) {
@@ -253,6 +254,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error fetching login logs:', error);
       toast.error('Error fetching login logs');
       return [];
+    }
+  };
+
+  const deleteLoginLog = async (logId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('login_logs')
+        .delete()
+        .eq('id', logId);
+      
+      if (error) {
+        console.error('Error deleting login log:', error);
+        toast.error('Error deleting login log');
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting login log:', error);
+      toast.error('Error deleting login log');
+      return false;
     }
   };
 
@@ -443,7 +465,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateStaffMember,
       deleteStaffMember,
       resetPassword,
-      getLoginLogs
+      getLoginLogs,
+      deleteLoginLog
     }}>
       {children}
     </AuthContext.Provider>
