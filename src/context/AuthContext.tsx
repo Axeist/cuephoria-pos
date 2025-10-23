@@ -9,9 +9,49 @@ interface AdminUser {
   isAdmin: boolean;
 }
 
+interface LoginMetadata {
+  ip?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  timezone?: string;
+  isp?: string;
+  browser?: string;
+  browserVersion?: string;
+  os?: string;
+  osVersion?: string;
+  deviceType?: string;
+  deviceModel?: string;
+  deviceVendor?: string;
+  loginTime?: string;
+  userAgent?: string;
+}
+
+export interface LoginLog {
+  id: string;
+  username: string;
+  is_admin: boolean;
+  ip_address?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  timezone?: string;
+  isp?: string;
+  browser?: string;
+  browser_version?: string;
+  os?: string;
+  os_version?: string;
+  device_type?: string;
+  device_model?: string;
+  device_vendor?: string;
+  user_agent?: string;
+  login_time: string;
+  created_at: string;
+}
+
 interface AuthContextType {
   user: AdminUser | null;
-  login: (username: string, password: string, isAdminLogin: boolean) => Promise<boolean>;
+  login: (username: string, password: string, isAdminLogin: boolean, metadata?: LoginMetadata) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
   addStaffMember: (username: string, password: string) => Promise<boolean>;
@@ -19,6 +59,7 @@ interface AuthContextType {
   updateStaffMember: (id: string, data: Partial<AdminUser>) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
   resetPassword: (username: string, newPassword: string) => Promise<boolean>;
+  getLoginLogs: () => Promise<LoginLog[]>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,11 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Track the inactivity timer
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const INACTIVITY_LIMIT_MS = 5 * 60 * 60 * 1000; // 5 hours
+  const INACTIVITY_LIMIT_MS = 5 * 60 * 60 * 1000;
 
-  // Helper to clear inactivity timer
   const clearInactivityTimer = () => {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
@@ -39,18 +78,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Helper to set inactivity timer
   const startInactivityTimer = () => {
     clearInactivityTimer();
     inactivityTimerRef.current = setTimeout(() => {
-      // Auto logout after inactivity
       setUser(null);
       localStorage.removeItem('cuephoriaAdmin');
       toast.warning('You have been logged out due to inactivity. Please login again.');
     }, INACTIVITY_LIMIT_MS);
   };
 
-  // Listen for user interactions to reset inactivity timer (only if logged in)
   useEffect(() => {
     if (user) {
       const events = [
@@ -73,7 +109,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       clearInactivityTimer();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {
@@ -116,7 +151,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkExistingUser();
   }, []);
 
-  const login = async (username: string, password: string, isAdminLogin: boolean): Promise<boolean> => {
+  const login = async (
+    username: string, 
+    password: string, 
+    isAdminLogin: boolean,
+    metadata: LoginMetadata = {}
+  ): Promise<boolean> => {
     try {
       const query = supabase
         .from('admin_users')
@@ -145,6 +185,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         setUser(adminUser);
         localStorage.setItem('cuephoriaAdmin', JSON.stringify(adminUser));
+        
+        // Save login log to database
+        try {
+          const { error: logError } = await supabase
+            .from('login_logs')
+            .insert({
+              username: username,
+              is_admin: isAdminLogin,
+              ip_address: metadata.ip || null,
+              city: metadata.city || null,
+              region: metadata.region || null,
+              country: metadata.country || null,
+              timezone: metadata.timezone || null,
+              isp: metadata.isp || null,
+              browser: metadata.browser || null,
+              browser_version: metadata.browserVersion || null,
+              os: metadata.os || null,
+              os_version: metadata.osVersion || null,
+              device_type: metadata.deviceType || null,
+              device_model: metadata.deviceModel || null,
+              device_vendor: metadata.deviceVendor || null,
+              user_agent: metadata.userAgent || null,
+              login_time: new Date().toISOString()
+            });
+          
+          if (logError) {
+            console.error('Error saving login log:', logError);
+          } else {
+            console.log('✅ Login log saved successfully');
+          }
+        } catch (logError) {
+          console.error('Error saving login log:', logError);
+        }
+        
         return true;
       }
       
@@ -160,6 +234,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('cuephoriaAdmin');
   };
 
+  const getLoginLogs = async (): Promise<LoginLog[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('login_logs')
+        .select('*')
+        .order('login_time', { ascending: false })
+        .limit(100);
+      
+      if (error) {
+        console.error('Error fetching login logs:', error);
+        toast.error('Error fetching login logs');
+        return [];
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching login logs:', error);
+      toast.error('Error fetching login logs');
+      return [];
+    }
+  };
+
   const addStaffMember = async (username: string, password: string): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
@@ -168,7 +264,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      const { data: existingUser, error: checkError } = await supabase
+      const { data: existingUser } = await supabase
         .from('admin_users')
         .select('id')
         .eq('username', username)
@@ -346,7 +442,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       getStaffMembers,
       updateStaffMember,
       deleteStaffMember,
-      resetPassword
+      resetPassword,
+      getLoginLogs
     }}>
       {children}
     </AuthContext.Provider>
