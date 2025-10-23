@@ -14,6 +14,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Pages
 import Login from "./pages/Login";
+import LoginLogs from "./pages/LoginLogs";
 import Dashboard from "./pages/Dashboard";
 import Stations from "./pages/Stations";
 import Products from "./pages/Products";
@@ -124,6 +125,7 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/login-logs" element={<LoginLogs />} />
 
                   {/* Public routes */}
                   <Route path="/public/tournaments" element={<PublicTournaments />} />
