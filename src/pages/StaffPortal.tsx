@@ -6,12 +6,23 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus } from 'lucide-react';
+import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
 import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
+import RealTimeTimer from '@/components/staff/RealTimeTimer';
 import jsPDF from 'jspdf';
 import { useNavigate } from 'react-router-dom';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const StaffPortal = () => {
   const { toast } = useToast();
@@ -26,6 +37,7 @@ const StaffPortal = () => {
   const [leaveBalance, setLeaveBalance] = useState({ paid: 1, unpaid: 2 });
   const [payslips, setPayslips] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [deleteLeaveId, setDeleteLeaveId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedStaff) {
@@ -40,7 +52,6 @@ const StaffPortal = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      // Fetch current shift
       const { data: shift } = await supabase
         .from('staff_attendance')
         .select('*')
@@ -51,7 +62,6 @@ const StaffPortal = () => {
 
       setCurrentShift(shift);
 
-      // Fetch today's attendance
       const { data: attendance } = await supabase
         .from('staff_attendance')
         .select('*')
@@ -61,7 +71,6 @@ const StaffPortal = () => {
 
       setTodayAttendance(attendance || []);
 
-      // Fetch monthly stats
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
       
@@ -75,7 +84,6 @@ const StaffPortal = () => {
 
       setMonthlyStats(stats);
 
-      // Fetch leave requests
       const { data: leaves } = await supabase
         .from('staff_leave_requests')
         .select('*')
@@ -85,7 +93,6 @@ const StaffPortal = () => {
 
       setLeaveRequests(leaves || []);
 
-      // Calculate leave balance for current year
       const approvedPaidLeaves = (leaves || []).filter(
         l => l.status === 'approved' && 
         l.leave_type !== 'unpaid_leave' && 
@@ -103,7 +110,6 @@ const StaffPortal = () => {
         unpaid: Math.max(0, 2 - approvedUnpaidLeaves)
       });
 
-      // Fetch payslips
       const { data: payrollData } = await supabase
         .from('staff_payslip_view')
         .select('*')
@@ -291,6 +297,34 @@ const StaffPortal = () => {
     }
   };
 
+  const handleDeleteLeave = async () => {
+    if (!deleteLeaveId) return;
+
+    try {
+      const { error } = await supabase
+        .from('staff_leave_requests')
+        .delete()
+        .eq('id', deleteLeaveId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Leave request deleted successfully'
+      });
+
+      setDeleteLeaveId(null);
+      fetchStaffData();
+    } catch (error: any) {
+      console.error('Error deleting leave:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete leave request',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const handleDownloadPayslip = async (payslip: any) => {
     try {
       const doc = new jsPDF();
@@ -381,7 +415,7 @@ const StaffPortal = () => {
 
   return (
     <div className="flex-1 space-y-6 p-6 text-white bg-inherit">
-      {/* Header with user info */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
@@ -410,10 +444,10 @@ const StaffPortal = () => {
         </Button>
       </div>
 
-      {/* Clock In/Out Card */}
+      {/* Clock In/Out Card with Real-Time Timer */}
       <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
         <CardContent className="p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-xl font-semibold text-white mb-2">Current Shift</h3>
               {currentShift ? (
@@ -422,11 +456,6 @@ const StaffPortal = () => {
                     <Clock className="h-4 w-4" />
                     Clocked in at {format(new Date(currentShift.clock_in), 'hh:mm a')}
                   </div>
-                  {isOnBreak && (
-                    <Badge variant="outline" className="text-yellow-500 border-yellow-500">
-                      Currently on break
-                    </Badge>
-                  )}
                 </div>
               ) : (
                 <p className="text-muted-foreground">Not clocked in yet</p>
@@ -477,9 +506,19 @@ const StaffPortal = () => {
               )}
             </div>
           </div>
+
+          {/* Real-Time Timer */}
+          {currentShift && (
+            <RealTimeTimer
+              clockInTime={currentShift.clock_in}
+              breakStartTime={currentShift.break_start_time}
+              breakDuration={currentShift.break_duration_minutes || 0}
+              hourlyRate={selectedStaff.hourly_rate}
+              isOnBreak={isOnBreak}
+            />
+          )}
         </CardContent>
       </Card>
-
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
@@ -629,31 +668,51 @@ const StaffPortal = () => {
                       key={leave.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
                     >
-                      <div>
-                        <Badge
-                          variant="outline"
-                          className={
-                            leave.status === 'approved'
-                              ? 'text-green-500 border-green-500'
-                              : leave.status === 'rejected'
-                              ? 'text-red-500 border-red-500'
-                              : 'text-yellow-500 border-yellow-500'
-                          }
-                        >
-                          {leave.status?.toUpperCase()}
-                        </Badge>
-                        <p className="text-white mt-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              leave.status === 'approved'
+                                ? 'text-green-500 border-green-500'
+                                : leave.status === 'rejected'
+                                ? 'text-red-500 border-red-500'
+                                : 'text-yellow-500 border-yellow-500'
+                            }
+                          >
+                            {leave.status?.toUpperCase()}
+                          </Badge>
+                          <Badge variant="outline" className="text-cuephoria-lightpurple border-cuephoria-lightpurple">
+                            {leave.leave_type?.replace('_', ' ').toUpperCase()}
+                          </Badge>
+                        </div>
+                        <p className="text-white">
                           {format(new Date(leave.start_date), 'MMM dd')} - {format(new Date(leave.end_date), 'MMM dd, yyyy')}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {leave.total_days} day{leave.total_days > 1 ? 's' : ''} • {leave.leave_type?.replace('_', ' ')}
+                          {leave.total_days} day{leave.total_days > 1 ? 's' : ''}
                         </p>
                         {leave.reason && (
                           <p className="text-sm text-muted-foreground mt-1">
                             Reason: {leave.reason}
                           </p>
                         )}
+                        {leave.remarks && leave.status === 'rejected' && (
+                          <p className="text-sm text-red-400 mt-1">
+                            Admin note: {leave.remarks}
+                          </p>
+                        )}
                       </div>
+                      {leave.status === 'rejected' && (
+                        <Button
+                          onClick={() => setDeleteLeaveId(leave.id)}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white ml-4"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -726,6 +785,27 @@ const StaffPortal = () => {
         leaveBalance={leaveBalance}
         onSuccess={fetchStaffData}
       />
+
+      {/* Delete Leave Confirmation */}
+      <AlertDialog open={!!deleteLeaveId} onOpenChange={() => setDeleteLeaveId(null)}>
+        <AlertDialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Leave Request?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This action cannot be undone. This will permanently delete this rejected leave request.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-cuephoria-purple/20">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteLeave}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
