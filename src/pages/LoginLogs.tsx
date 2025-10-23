@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, MapPin, Monitor, Clock, Shield, Users, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Monitor, Clock, Shield, Users, Trash2, Camera, Cpu, Wifi, Battery, Fingerprint } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -16,6 +16,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const LoginLogs = () => {
   const navigate = useNavigate();
@@ -27,6 +33,8 @@ const LoginLogs = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [logToDelete, setLogToDelete] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'success' | 'failed'>('all');
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<any>(null);
 
   useEffect(() => {
     loadLogs();
@@ -73,6 +81,11 @@ const LoginLogs = () => {
     setLogToDelete(null);
   };
 
+  const handleViewDetails = (log: any) => {
+    setSelectedLog(log);
+    setDetailsDialogOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-cuephoria-dark p-4">
       {/* Header */}
@@ -88,7 +101,7 @@ const LoginLogs = () => {
         </Button>
 
         <h1 className="text-3xl font-bold gradient-text mb-2">Login Logs</h1>
-        <p className="text-muted-foreground mb-4">Track all login activities and user sessions</p>
+        <p className="text-muted-foreground mb-4">Advanced security tracking with biometric verification</p>
 
         {/* Filter Buttons */}
         <div className="flex gap-2">
@@ -155,13 +168,23 @@ const LoginLogs = () => {
                   <Trash2 size={18} />
                 </Button>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pr-12">
-                  {/* User Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 pr-12">
+                  {/* User Info with Selfie */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-cuephoria-lightpurple">
                       {log.is_admin ? <Shield size={16} /> : <Users size={16} />}
                       <span className="text-xs font-medium">USER</span>
                     </div>
+                    {log.selfie_url && (
+                      <div className="mb-2">
+                        <img 
+                          src={log.selfie_url} 
+                          alt="Login selfie" 
+                          className="w-20 h-20 rounded-lg object-cover border-2 border-cuephoria-lightpurple/30 cursor-pointer hover:border-cuephoria-lightpurple/60 transition-colors"
+                          onClick={() => handleViewDetails(log)}
+                        />
+                      </div>
+                    )}
                     <p className="font-semibold">{log.username}</p>
                     <p className="text-xs text-muted-foreground">
                       {log.is_admin ? 'Admin' : 'Staff'}
@@ -195,6 +218,11 @@ const LoginLogs = () => {
                     <p className="text-xs text-muted-foreground">
                       IP: {log.ip_address || 'N/A'}
                     </p>
+                    {log.latitude && log.longitude && (
+                      <p className="text-xs text-muted-foreground">
+                        GPS: {log.latitude.toFixed(4)}, {log.longitude.toFixed(4)}
+                      </p>
+                    )}
                     {log.isp && (
                       <p className="text-xs text-muted-foreground">ISP: {log.isp}</p>
                     )}
@@ -213,6 +241,46 @@ const LoginLogs = () => {
                     <p className="text-xs text-muted-foreground">
                       {log.os} {log.os_version}
                     </p>
+                    {log.screen_resolution && (
+                      <p className="text-xs text-muted-foreground">
+                        Screen: {log.screen_resolution}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Hardware Info */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-cuephoria-blue">
+                      <Cpu size={16} />
+                      <span className="text-xs font-medium">HARDWARE</span>
+                    </div>
+                    {log.cpu_cores && (
+                      <p className="text-xs text-muted-foreground">
+                        CPU: {log.cpu_cores} cores
+                      </p>
+                    )}
+                    {log.device_memory && (
+                      <p className="text-xs text-muted-foreground">
+                        RAM: {log.device_memory} GB
+                      </p>
+                    )}
+                    {log.battery_level && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Battery size={12} />
+                        {log.battery_level}%
+                      </p>
+                    )}
+                    {log.connection_type && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Wifi size={12} />
+                        {log.connection_type}
+                      </p>
+                    )}
+                    {log.touch_support && (
+                      <p className="text-xs text-muted-foreground">
+                        Touch: Yes
+                      </p>
+                    )}
                   </div>
 
                   {/* Time Info */}
@@ -225,11 +293,20 @@ const LoginLogs = () => {
                       {format(new Date(log.login_time), 'MMM dd, yyyy')}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(log.login_time), 'hh:mm a')}
+                      {format(new Date(log.login_time), 'hh:mm:ss a')}
                     </p>
                     {log.timezone && (
                       <p className="text-xs text-muted-foreground">{log.timezone}</p>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-cuephoria-lightpurple hover:text-accent mt-2"
+                      onClick={() => handleViewDetails(log)}
+                    >
+                      <Fingerprint size={12} className="mr-1" />
+                      View Details
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -237,6 +314,100 @@ const LoginLogs = () => {
           ))
         )}
       </div>
+
+      {/* Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="max-w-4xl bg-cuephoria-darker border-cuephoria-lightpurple/30 max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-cuephoria-lightpurple">
+              <Fingerprint size={20} />
+              Advanced Login Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="space-y-6 py-4">
+              {/* Selfie */}
+              {selectedLog.selfie_url && (
+                <div>
+                  <h3 className="text-sm font-medium mb-2 text-cuephoria-orange">Security Photo</h3>
+                  <img 
+                    src={selectedLog.selfie_url} 
+                    alt="Login selfie" 
+                    className="w-48 h-48 rounded-lg object-cover border-2 border-cuephoria-lightpurple/30"
+                  />
+                </div>
+              )}
+
+              {/* GPS Coordinates */}
+              {selectedLog.latitude && selectedLog.longitude && (
+                <div>
+                  <h3 className="text-sm font-medium mb-2 text-cuephoria-orange">GPS Coordinates</h3>
+                  <div className="bg-cuephoria-dark p-3 rounded-lg space-y-1">
+                    <p className="text-xs">Latitude: {selectedLog.latitude}</p>
+                    <p className="text-xs">Longitude: {selectedLog.longitude}</p>
+                    <p className="text-xs">Accuracy: ±{selectedLog.location_accuracy?.toFixed(0)}m</p>
+                    <a 
+                      href={`https://www.google.com/maps?q=${selectedLog.latitude},${selectedLog.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-cuephoria-lightpurple hover:text-accent underline"
+                    >
+                      View on Google Maps
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Device Fingerprint */}
+              {selectedLog.canvas_fingerprint && (
+                <div>
+                  <h3 className="text-sm font-medium mb-2 text-cuephoria-blue">Canvas Fingerprint</h3>
+                  <div className="bg-cuephoria-dark p-3 rounded-lg">
+                    <img 
+                      src={selectedLog.canvas_fingerprint} 
+                      alt="Canvas fingerprint" 
+                      className="w-full max-w-md border border-cuephoria-lightpurple/30 rounded"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Installed Fonts */}
+              {selectedLog.installed_fonts && (
+                <div>
+                  <h3 className="text-sm font-medium mb-2 text-cuephoria-green">Detected Fonts</h3>
+                  <div className="bg-cuephoria-dark p-3 rounded-lg">
+                    <p className="text-xs">{selectedLog.installed_fonts}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Technical Details */}
+              <div>
+                <h3 className="text-sm font-medium mb-2 text-accent">Technical Specifications</h3>
+                <div className="bg-cuephoria-dark p-3 rounded-lg space-y-1 text-xs">
+                  <p>Screen Resolution: {selectedLog.screen_resolution}</p>
+                  <p>Color Depth: {selectedLog.color_depth}-bit</p>
+                  <p>Pixel Ratio: {selectedLog.pixel_ratio}x</p>
+                  <p>CPU Cores: {selectedLog.cpu_cores}</p>
+                  <p>Device Memory: {selectedLog.device_memory} GB</p>
+                  <p>Connection: {selectedLog.connection_type}</p>
+                  <p>Battery: {selectedLog.battery_level}%</p>
+                  <p>Touch Support: {selectedLog.touch_support ? 'Yes' : 'No'}</p>
+                </div>
+              </div>
+
+              {/* User Agent */}
+              <div>
+                <h3 className="text-sm font-medium mb-2 text-muted-foreground">User Agent</h3>
+                <div className="bg-cuephoria-dark p-3 rounded-lg">
+                  <p className="text-xs break-all">{selectedLog.user_agent}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -247,7 +418,7 @@ const LoginLogs = () => {
               Delete Login Log
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this login log? This action cannot be undone.
+              Are you sure you want to delete this login log? This action cannot be undone and will remove all associated data including selfie photo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
