@@ -29,7 +29,6 @@ const StaffManagement = () => {
   const fetchStaffData = async () => {
     setIsLoading(true);
     try {
-      // Fetch staff profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('staff_profiles')
         .select('*')
@@ -38,7 +37,6 @@ const StaffManagement = () => {
       if (profilesError) throw profilesError;
       setStaffProfiles(profiles || []);
 
-      // Fetch active shifts
       const { data: shifts, error: shiftsError } = await supabase
         .from('today_active_shifts')
         .select('*');
@@ -46,7 +44,6 @@ const StaffManagement = () => {
       if (shiftsError) throw shiftsError;
       setActiveShifts(shifts || []);
 
-      // Fetch pending leaves
       const { data: leaves, error: leavesError } = await supabase
         .from('pending_leaves_view')
         .select('*');
@@ -54,7 +51,6 @@ const StaffManagement = () => {
       if (leavesError) throw leavesError;
       setPendingLeaves(leaves || []);
 
-      // Calculate monthly payroll
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
       
@@ -82,17 +78,16 @@ const StaffManagement = () => {
   };
 
   const stats = {
-    totalStaff: staffProfiles.length,
-    activeStaff: staffProfiles.filter(s => s.is_active).length,
-    inactiveStaff: staffProfiles.filter(s => !s.is_active).length,
-    activeNow: activeShifts.length,
-    pendingLeaves: pendingLeaves.length,
+    totalStaff: staffProfiles?.length || 0,
+    activeStaff: staffProfiles?.filter(s => s.is_active).length || 0,
+    inactiveStaff: staffProfiles?.filter(s => !s.is_active).length || 0,
+    activeNow: activeShifts?.length || 0,
+    pendingLeaves: pendingLeaves?.length || 0,
     monthlyPayroll: monthlyPayroll
   };
 
   return (
     <div className="flex-1 space-y-6 p-6 text-white">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">
@@ -111,7 +106,6 @@ const StaffManagement = () => {
         </Button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -168,7 +162,6 @@ const StaffManagement = () => {
         </Card>
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-5 bg-cuephoria-dark border border-cuephoria-purple/20">
           <TabsTrigger value="overview">
@@ -195,8 +188,9 @@ const StaffManagement = () => {
 
         <TabsContent value="overview" className="space-y-4 mt-6">
           <StaffOverview
-            staffProfiles={staffProfiles}
-            activeShifts={activeShifts}
+            staffProfiles={staffProfiles || []}
+            activeShifts={activeShifts || []}
+            pendingLeaves={pendingLeaves || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
@@ -204,7 +198,7 @@ const StaffManagement = () => {
 
         <TabsContent value="directory" className="space-y-4 mt-6">
           <StaffDirectory
-            staffProfiles={staffProfiles}
+            staffProfiles={staffProfiles || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
@@ -212,8 +206,8 @@ const StaffManagement = () => {
 
         <TabsContent value="attendance" className="space-y-4 mt-6">
           <AttendanceManagement
-            staffProfiles={staffProfiles}
-            activeShifts={activeShifts}
+            staffProfiles={staffProfiles || []}
+            activeShifts={activeShifts || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
@@ -221,7 +215,7 @@ const StaffManagement = () => {
 
         <TabsContent value="leaves" className="space-y-4 mt-6">
           <LeaveManagement
-            pendingLeaves={pendingLeaves}
+            pendingLeaves={pendingLeaves || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
@@ -229,14 +223,13 @@ const StaffManagement = () => {
 
         <TabsContent value="payroll" className="space-y-4 mt-6">
           <PayrollManagement
-            staffProfiles={staffProfiles}
+            staffProfiles={staffProfiles || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
         </TabsContent>
       </Tabs>
 
-      {/* Create Staff Dialog */}
       <CreateStaffDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
