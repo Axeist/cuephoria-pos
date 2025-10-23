@@ -1,7 +1,7 @@
 // src/components/AppSidebar.tsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar, Users2 } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar, Users2, UserCircle } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -46,17 +46,12 @@ const AppSidebar: React.FC = () => {
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
   ];
 
-  // Admin-only menu item
-  const adminMenuItem = { icon: Users2, label: 'Staff Management', path: '/staff' };
-
-  // Settings menu item (always last)
-  const settingsMenuItem = { icon: Settings, label: 'Settings', path: '/settings' };
-
-  // Build the final menu
+  // Build menu based on user role
   const menuItems = [
     ...baseMenuItems,
-    ...(isAdmin ? [adminMenuItem] : []),
-    settingsMenuItem
+    ...(isAdmin ? [{ icon: Users2, label: 'Staff', path: '/staff' }] : []),
+    { icon: UserCircle, label: 'My Portal', path: '/staff-portal' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
   // Mobile version with sheet
