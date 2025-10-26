@@ -4,11 +4,20 @@
   ],
   "headers": [
     {
+      "source": "/debug/phonepe",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'unsafe-inline'; font-src * data:; img-src * data: blob:; connect-src *; worker-src * blob: data:; frame-src *; object-src 'none';"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google-analytics.com https://dqg88cldibal5.cloudfront.net https://mercurystatic.phonepe.com https://linchpin.phonepe.com https://mercury.phonepe.com https://www.phonepe.com https://mercury-t1.phonepe.com https://mercury-t2.phonepe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://mercury-t1.phonepe.com https://mercury-t2.phonepe.com https://tez.google.com https://dgg88cldibal5.cloudfront.net https://mercurystatic.phonepe.com https://imgstatic.phonepe.com https://mercury.phonepe.com https://sentry.phonepe.com https://linchpin.phonepe.com https://api.phonepe.com https://cards.phonepe.com https://*.supabase.co https://*.supabase.in; worker-src 'self' blob:; frame-src 'self' https://mercury-t1.phonepe.com https://mercury-t2.phonepe.com https://mercury.phonepe.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+          "value": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws:; worker-src 'self' blob: data:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self';"
         }
       ]
     }
