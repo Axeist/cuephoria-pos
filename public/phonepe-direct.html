@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhonePe Direct Test</title>
+    <!-- NO CSP AT ALL -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .success {
+            background: #28a745;
+        }
+        .warning {
+            background: #ffc107;
+            color: #000;
+        }
+        .error {
+            background: #dc3545;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            background: #f8f9fa;
+            text-align: left;
+        }
+        pre {
+            background: #f1f1f1;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .loading {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 PhonePe Direct Test</h1>
+        <p>This page has NO Content Security Policy restrictions.</p>
+        
+        <div id="status" class="status loading" style="display: none;">
+            <strong>Status:</strong> <span id="statusText">Loading...</span>
+        </div>
+        
+        <div>
+            <h3>Step 1: Test Configuration</h3>
+            <button class="button" onclick="testConfig()">Test PhonePe Config</button>
+        </div>
+        
+        <div>
+            <h3>Step 2: Create Test Payment</h3>
+            <input type="number" id="amount" value="1" min="1" max="1000" placeholder="Amount in ₹" style="padding: 10px; margin: 10px;">
+            <br>
+            <button class="button success" onclick="testPayment()">Create ₹1 Test Payment</button>
+        </div>
+        
+        <div>
+            <h3>Step 3: Test Return Handler</h3>
+            <button class="button warning" onclick="testReturnHandler()">Test Return Handler</button>
+        </div>
+        
+        <div id="result" class="result" style="display: none;">
+            <h4>Result:</h4>
+            <pre id="resultContent"></pre>
+        </div>
+        
+        <div style="margin-top: 30px; padding: 15px; background: #e9ecef; border-radius: 5px; text-align: left;">
+            <h4>Instructions:</h4>
+            <ol>
+                <li>Click "Test PhonePe Config" - should show success</li>
+                <li>Click "Create ₹1 Test Payment" - will redirect to PhonePe</li>
+                <li>On PhonePe page, either complete or cancel payment</li>
+                <li>You should be redirected back to this page</li>
+                <li>Check browser console for any errors</li>
+            </ol>
+        </div>
+        
+        <div style="margin-top: 20px; font-size: 12px; color: #666;">
+            <p><strong>Current URL:</strong> <span id="currentUrl"></span></p>
+            <p><strong>Return Parameters:</strong> <span id="returnParams">None</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Show current URL and parameters
+        document.getElementById('currentUrl').textContent = window.location.href;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const params = {};
+        for (const [key, value] of urlParams) {
+            params[key] = value;
+        }
+        document.getElementById('returnParams').textContent = Object.keys(params).length > 0 ? JSON.stringify(params) : 'None';
+
+        function showStatus(message, type = 'loading') {
+            const statusDiv = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            statusDiv.style.display = 'block';
+            statusDiv.className = `status ${type}`;
+            statusText.textContent = message;
+        }
+
+        function showResult(data, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = `result ${type}`;
+            resultContent.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function testConfig() {
+            showStatus('Testing PhonePe configuration...', 'loading');
+            try {
+                const response = await fetch('https://admin.cuephoria.in/api/phonepe/test');
+                const data = await response.json();
+                
+                if (data.ok) {
+                    showStatus('✅ PhonePe configuration is working!', 'success');
+                    showResult(data, 'success');
+                } else {
+                    showStatus('❌ PhonePe configuration failed', 'error');
+                    showResult(data, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Network error: ' + error.message, 'error');
+                showResult({ error: error.message }, 'error');
+            }
+        }
+
+        async function testPayment() {
+            const amount = document.getElementById('amount').value;
+            if (!amount || amount < 1) {
+                alert('Please enter a valid amount');
+                return;
+            }
+
+            showStatus('Creating test payment...', 'loading');
+            try {
+                const response = await fetch('https://admin.cuephoria.in/api/phonepe/test-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: parseFloat(amount) })
+                });
+                const data = await response.json();
+                
+                if (data.ok && data.url) {
+                    showStatus('✅ Payment created! Redirecting to PhonePe...', 'success');
+                    showResult(data, 'success');
+                    
+                    // Store return URL for testing
+                    const returnUrl = window.location.href;
+                    localStorage.setItem('phonepeReturnUrl', returnUrl);
+                    
+                    // Redirect to PhonePe
+                    setTimeout(() => {
+                        window.location.href = data.url;
+                    }, 1000);
+                } else {
+                    showStatus('❌ Payment creation failed', 'error');
+                    showResult(data, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Payment error: ' + error.message, 'error');
+                showResult({ error: error.message }, 'error');
+            }
+        }
+
+        function testReturnHandler() {
+            const testUrl = 'https://admin.cuephoria.in/api/phonepe/debug-return?merchantTransactionId=TEST123&status=success&code=SUCCESS';
+            window.open(testUrl, '_blank');
+            showStatus('🧪 Opened return handler test in new tab', 'loading');
+        }
+
+        // Check if we're returning from a payment
+        if (urlParams.get('pp') || urlParams.get('txn')) {
+            showStatus('🎉 Returned from PhonePe payment!', 'success');
+            showResult({
+                message: 'Successfully returned from PhonePe',
+                parameters: params,
+                timestamp: new Date().toISOString()
+            }, 'success');
+        }
+
+        // Log CSP status
+        console.log('🔍 CSP Status Check:');
+        console.log('- Meta CSP:', document.querySelector('meta[http-equiv="Content-Security-Policy"]') ? 'Present' : 'None');
+        console.log('- Current URL:', window.location.href);
+        console.log('- User Agent:', navigator.userAgent);
+    </script>
+</body>
+</html>
