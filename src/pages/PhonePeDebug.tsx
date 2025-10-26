@@ -61,6 +61,12 @@ export default function PhonePeDebug() {
     toast.info('🧪 Opening return handler test page');
   };
 
+  const testActualReturnHandler = () => {
+    const testUrl = `https://admin.cuephoria.in/api/phonepe/return?merchantTransactionId=TEST123&status=success&code=SUCCESS`;
+    window.open(testUrl, '_blank');
+    toast.info('🧪 Testing actual return handler');
+  };
+
   return (
     <div className="min-h-screen bg-black text-white p-6">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -126,12 +132,20 @@ export default function PhonePeDebug() {
               <p className="text-sm text-gray-400">
                 Test if your return handler is working with mock data.
               </p>
-              <Button 
-                onClick={testReturnHandler}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-              >
-                Test Return Handler
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  onClick={testReturnHandler}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  Test Debug Return Handler
+                </Button>
+                <Button 
+                  onClick={testActualReturnHandler}
+                  className="w-full bg-orange-600 hover:bg-orange-700"
+                >
+                  Test Actual Return Handler
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
