@@ -35,6 +35,7 @@ import StaffPortal from "./pages/StaffPortal";
 // Payment routes
 import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
 import PublicPaymentFailed from "./pages/PublicPaymentFailed";
+import PhonePeDebug from "./pages/PhonePeDebug";
 
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
@@ -130,6 +131,9 @@ const App = () => (
                 {/* Payment routes */}
                 <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
                 <Route path="/public/payment/failed" element={<PublicPaymentFailed />} />
+
+                {/* Debug routes */}
+                <Route path="/debug/phonepe" element={<PhonePeDebug />} />
 
                 {/* Protected routes */}
                 <Route
