@@ -22,6 +22,7 @@ export default async function handler(req: Request) {
     const transactionId = url.searchParams.get("transactionId") || merchantTransactionId;
     const code = url.searchParams.get("code");
     const providerReferenceId = url.searchParams.get("providerReferenceId");
+    const responseCode = url.searchParams.get("responseCode");
 
     console.log("🔄 Return handler called:", { 
       method: req.method,
@@ -31,8 +32,20 @@ export default async function handler(req: Request) {
       merchantTransactionId,
       transactionId,
       code,
+      responseCode,
       providerReferenceId,
       allParams: Object.fromEntries(url.searchParams.entries())
+    });
+
+    // Additional debugging for PhonePe specific parameters
+    console.log("📋 PhonePe specific parameters:", {
+      code: url.searchParams.get("code"),
+      responseCode: url.searchParams.get("responseCode"),
+      state: url.searchParams.get("state"),
+      message: url.searchParams.get("message"),
+      providerReferenceId: url.searchParams.get("providerReferenceId"),
+      transactionId: url.searchParams.get("transactionId"),
+      merchantTransactionId: url.searchParams.get("merchantTransactionId")
     });
 
     // Frontend base URL
@@ -40,10 +53,32 @@ export default async function handler(req: Request) {
 
     // Determine if payment was successful based on multiple indicators
     const finalTxnId = transactionId || merchantTransactionId || txnId;
-    const isSuccess = Boolean(finalTxnId) && 
-                      code !== "PAYMENT_ERROR" && 
-                      code !== "PAYMENT_CANCELLED" &&
-                      !["failed", "failure", "cancelled", "cancel", "error"].includes(status);
+    
+    // Check for explicit success indicators
+    const hasSuccessCode = code === "SUCCESS" || responseCode === "SUCCESS";
+    const hasSuccessStatus = status === "success" || status === "completed";
+    
+    // Check for explicit failure indicators
+    const hasFailureCode = code === "PAYMENT_ERROR" || 
+                          code === "PAYMENT_CANCELLED" || 
+                          responseCode === "PAYMENT_ERROR" || 
+                          responseCode === "PAYMENT_CANCELLED";
+    const hasFailureStatus = ["failed", "failure", "cancelled", "cancel", "error"].includes(status);
+    
+    // If we have explicit success indicators, it's a success
+    // If we have explicit failure indicators, it's a failure
+    // Otherwise, if we have a transaction ID and no explicit failure, assume success
+    const isSuccess = (hasSuccessCode || hasSuccessStatus) || 
+                      (Boolean(finalTxnId) && !hasFailureCode && !hasFailureStatus);
+    
+    console.log("🎯 Success determination:", {
+      finalTxnId,
+      hasSuccessCode,
+      hasSuccessStatus,
+      hasFailureCode,
+      hasFailureStatus,
+      isSuccess
+    });
     
     const redirectUrl = isSuccess
       ? `${base}/public/booking?pp=success&txn=${encodeURIComponent(finalTxnId as string)}`

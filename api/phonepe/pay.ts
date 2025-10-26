@@ -75,8 +75,8 @@ export default async function handler(req: Request) {
 
     // Use return handler that redirects to your success/failure pages
     const defaultReturnEndpoint = "https://admin.cuephoria.in/api/phonepe/return";
-    const successRedirect = `${defaultReturnEndpoint}?txn=${encodeURIComponent(orderId)}&status=success`;
-    const failedRedirect = `${defaultReturnEndpoint}?txn=${encodeURIComponent(orderId)}&status=failed`;
+    const successRedirect = `${defaultReturnEndpoint}?merchantTransactionId=${encodeURIComponent(orderId)}&status=success`;
+    const failedRedirect = `${defaultReturnEndpoint}?merchantTransactionId=${encodeURIComponent(orderId)}&status=failed`;
     console.log("🔗 Redirect URLs:", { successRedirect, failedRedirect });
 
     // Get OAuth token

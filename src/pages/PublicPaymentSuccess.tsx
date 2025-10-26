@@ -27,7 +27,7 @@ export default function PublicPaymentSuccess() {
 
       // 1) Verify with backend
       try {
-        const st = await fetch(`/api/phonepe/status?txn=${encodeURIComponent(txn)}`).then(r => r.json());
+        const st = await fetch(`https://admin.cuephoria.in/api/phonepe/status?txn=${encodeURIComponent(txn)}`).then(r => r.json());
         if (!st?.success) {
           localStorage.removeItem("pendingBooking");
           setStatus("failed");

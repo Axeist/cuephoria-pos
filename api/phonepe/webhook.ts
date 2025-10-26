@@ -88,9 +88,8 @@ async function processPhonePeWebhook(data: any) {
       // Payment successful - create booking, update database, etc.
       console.log('✅ Payment successful:', merchantTransactionId);
       
-      // Get booking data from localStorage backup or database
-      // const bookingData = await getBookingData(merchantTransactionId);
-      // await createBookingFromWebhook(bookingData);
+      // Note: Booking creation is handled by the frontend after redirect
+      // This webhook is mainly for logging and backup verification
       
     } else if (state === 'FAILED') {
       // Payment failed - clean up, notify user, etc.

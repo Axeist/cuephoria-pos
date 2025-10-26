@@ -191,8 +191,12 @@ export default function PublicBooking() {
   // ✅ UPDATED: Payment success handler with duplicate check and Customer ID
   const handlePaymentSuccess = async (txnId: string) => {
     try {
+      console.log("🔄 Processing payment success for transaction:", txnId);
+      
       const statusResponse = await fetch(`https://admin.cuephoria.in/api/phonepe/status?txn=${encodeURIComponent(txnId)}`);
       const statusData = await statusResponse.json();
+      
+      console.log("📊 Payment status response:", statusData);
       
       if (!statusData?.success) {
         throw new Error("Payment verification failed");
@@ -204,6 +208,7 @@ export default function PublicBooking() {
       }
       
       const pendingBooking = JSON.parse(pendingBookingData);
+      console.log("📋 Pending booking data:", pendingBooking);
       
       let customerId = pendingBooking.customer.id;
       
@@ -278,12 +283,18 @@ export default function PublicBooking() {
         payment_txn_id: txnId,
       }));
       
+      console.log("💾 Creating booking records:", bookingRows);
+      
       const { error: bookingError } = await supabase
         .from("bookings")
         .insert(bookingRows);
       
-      if (bookingError) throw bookingError;
+      if (bookingError) {
+        console.error("❌ Booking creation failed:", bookingError);
+        throw bookingError;
+      }
       
+      console.log("✅ Booking created successfully");
       localStorage.removeItem("pendingBooking");
       setPaymentStatus("success");
       toast.success("🎉 Payment successful! Your booking is confirmed.");

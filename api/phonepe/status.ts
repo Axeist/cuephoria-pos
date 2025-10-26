@@ -70,7 +70,8 @@ export default async function handler(req: Request) {
     const merchantOrderId = params.get("merchantOrderId") ||
       params.get("merchantTransactionId") ||
       params.get("order") ||
-      params.get("txn");
+      params.get("txn") ||
+      params.get("transactionId");
 
     console.log("🔍 Status check for order:", merchantOrderId);
 
