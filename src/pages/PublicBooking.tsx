@@ -177,6 +177,9 @@ export default function PublicBooking() {
     if (pp && txn) {
       setPaymentStatus("processing");
       
+      // Clear any stored payment transaction ID since we're processing the result
+      localStorage.removeItem("currentPaymentTxnId");
+      
       if (pp === "success") {
         handlePaymentSuccess(txn);
       } else if (pp === "failed") {
@@ -1102,6 +1105,28 @@ export default function PublicBooking() {
       });
 
       if (res.ok && data?.ok && data?.url) {
+        // Store the transaction ID for potential fallback
+        localStorage.setItem("currentPaymentTxnId", txnId);
+        
+        // Set a timeout to handle cases where redirect doesn't work
+        const redirectTimeout = setTimeout(() => {
+          console.warn("⚠️ Payment redirect timeout - user may have cancelled or closed the window");
+          // Check if user is still on the same page (indicating redirect didn't work)
+          if (window.location.href.includes('/public/booking')) {
+            toast.error("Payment was cancelled or failed. Please try again.");
+            setLoading(false);
+          }
+        }, 300000); // 5 minutes timeout
+        
+        // Clear timeout if user navigates away (successful redirect)
+        const originalHref = window.location.href;
+        const checkRedirect = setInterval(() => {
+          if (window.location.href !== originalHref) {
+            clearTimeout(redirectTimeout);
+            clearInterval(checkRedirect);
+          }
+        }, 1000);
+        
         window.location.href = data.url;
         return;
       }

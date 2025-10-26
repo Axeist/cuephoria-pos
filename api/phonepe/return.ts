@@ -61,9 +61,13 @@ export default async function handler(req: Request) {
     // Check for explicit failure indicators
     const hasFailureCode = code === "PAYMENT_ERROR" || 
                           code === "PAYMENT_CANCELLED" || 
+                          code === "CANCELLED" ||
+                          code === "FAILED" ||
                           responseCode === "PAYMENT_ERROR" || 
-                          responseCode === "PAYMENT_CANCELLED";
-    const hasFailureStatus = ["failed", "failure", "cancelled", "cancel", "error"].includes(status);
+                          responseCode === "PAYMENT_CANCELLED" ||
+                          responseCode === "CANCELLED" ||
+                          responseCode === "FAILED";
+    const hasFailureStatus = ["failed", "failure", "cancelled", "cancel", "error", "aborted", "timeout"].includes(status);
     
     // If we have explicit success indicators, it's a success
     // If we have explicit failure indicators, it's a failure
@@ -86,23 +90,81 @@ export default async function handler(req: Request) {
 
     console.log("🚀 Redirecting to:", redirectUrl, { isSuccess, finalTxnId });
 
-    // Use 302 redirect with proper headers
-    return new Response(null, {
-      status: 302,
+    // Create a more robust redirect response with fallback
+    const redirectHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <meta http-equiv="refresh" content="0;url=${redirectUrl}">
+    <script>
+        // Immediate redirect
+        window.location.href = "${redirectUrl}";
+        
+        // Fallback redirect after 1 second
+        setTimeout(function() {
+            window.location.href = "${redirectUrl}";
+        }, 1000);
+        
+        // Final fallback after 3 seconds
+        setTimeout(function() {
+            window.location.href = "${redirectUrl}";
+        }, 3000);
+    </script>
+</head>
+<body>
+    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h2>Redirecting...</h2>
+        <p>If you are not automatically redirected, <a href="${redirectUrl}">click here</a></p>
+        <p><small>Transaction ID: ${finalTxnId || 'Unknown'}</small></p>
+    </div>
+</body>
+</html>`;
+
+    // Use 302 redirect with proper headers and HTML fallback
+    return new Response(redirectHtml, {
+      status: 200,
       headers: {
         ...corsHeaders,
-        'Location': redirectUrl,
-        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       }
     });
   } catch (error) {
     console.error("❌ Return handler error:", error);
-    return new Response(null, {
-      status: 302,
+    
+    const fallbackUrl = "https://admin.cuephoria.in/public/booking?pp=failed";
+    const fallbackHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Payment Error</title>
+    <meta http-equiv="refresh" content="3;url=${fallbackUrl}">
+    <script>
+        setTimeout(function() {
+            window.location.href = "${fallbackUrl}";
+        }, 3000);
+    </script>
+</head>
+<body>
+    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h2>Payment Processing Error</h2>
+        <p>There was an issue processing your payment. You will be redirected shortly.</p>
+        <p>If you are not automatically redirected, <a href="${fallbackUrl}">click here</a></p>
+    </div>
+</body>
+</html>`;
+    
+    return new Response(fallbackHtml, {
+      status: 200,
       headers: {
         ...corsHeaders,
-        'Location': "https://admin.cuephoria.in/public/booking?pp=failed",
-        'Cache-Control': 'no-cache',
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       }
     });
   }

@@ -91,9 +91,12 @@ export default async function handler(req: Request) {
         type: "PG_CHECKOUT",
         redirectUrl: successRedirect,
         failureRedirectUrl: failedRedirect,
+        cancelUrl: failedRedirect, // Add explicit cancel URL
       },
       metaInfo: {
         customerPhone: customerPhone || "",
+        returnUrl: successRedirect, // Additional return URL
+        cancelUrl: failedRedirect, // Additional cancel URL
       },
       expireAfter: 900, // 15 min
     };
