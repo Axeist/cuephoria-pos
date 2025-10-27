@@ -105,10 +105,10 @@ const ChatAI: React.FC = () => {
     const loadBusinessData = async () => {
       try {
         setIsInitializing(true);
-        console.log('Loading business data...');
+        console.log('Loading optimized business data...');
         const context = await fetchBusinessDataForAI();
         setBusinessContext(context);
-        console.log('Business data loaded successfully');
+        console.log(`Business data loaded: ${context.length} characters`);
         
         // Don't add welcome message automatically - show suggestions instead
       } catch (err) {

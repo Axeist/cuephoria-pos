@@ -15,139 +15,96 @@ export interface BusinessSnapshot {
   cashVault: any[];
 }
 
-// Helper to truncate arrays to prevent token exhaustion
-function truncateArray<T>(arr: T[], limit: number): T[] {
-  return arr.slice(0, limit);
-}
-
-// Helper to format summary statistics
-function createSummary(data: any[], entityName: string): string {
-  const count = data.length;
-  const recent = data.slice(0, 5).map(item => {
-    const simplified = { ...item };
-    // Remove large data fields
-    if (simplified.players) delete simplified.players;
-    if (simplified.matches) delete simplified.matches;
-    return simplified;
-  });
-  return `${entityName}: ${count} total records. Recent 5: ${JSON.stringify(recent)}`;
-}
-
 export const fetchBusinessDataForAI = async (): Promise<string> => {
   try {
-    console.log('Fetching ALL business data for AI...');
+    console.log('Fetching optimized business data for AI...');
     
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
-    const todayDateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const todayDateStr = now.toISOString().split('T')[0];
+    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     
-    // Fetch ALL data in parallel - NO LIMITS
+    // Fetch ONLY essential data with smart limits
     const [
+      { data: todayBills, error: todayBillsError },
+      { data: recentBills, error: recentBillsError },
+      { data: todayBookings, error: todayBookingsError },
+      { data: upcomingBookings, error: upcomingBookingsError },
       { data: customers, error: customersError },
       { data: products, error: productsError },
       { data: stations, error: stationsError },
-      { data: allSessions, error: sessionsError },
-      { data: allBills, error: billsError },
-      { data: todayBills, error: todayBillsError },
-      { data: tournaments, error: tournamentsError },
+      { data: activeSessions, error: sessionsError },
       { data: expenses, error: expensesError },
-      { data: allBookings, error: bookingsError },
-      { data: todayBookings, error: todayBookingsError },
-      { data: staff, error: staffError },
-      { data: cashVault, error: cashVaultError },
     ] = await Promise.all([
-      supabase.from('customers').select('*').order('created_at', { ascending: false }),
-      supabase.from('products').select('*').order('created_at', { ascending: false }),
-      supabase.from('stations').select('*').order('created_at', { ascending: false }),
-      supabase.from('sessions').select('*').order('start_time', { ascending: false }),
-      supabase.from('bills').select('*').order('created_at', { ascending: false }),
-      supabase.from('bills').select('*').gte('created_at', todayStart).lte('created_at', todayEnd),
-      supabase.from('tournaments').select('*').order('created_at', { ascending: false }),
-      supabase.from('expenses').select('*').order('created_at', { ascending: false }),
-      supabase.from('bookings').select('*').order('booking_date', { ascending: false }),
-      supabase.from('bookings').select('*').eq('booking_date', todayDateStr),
-      supabase.from('staff_profiles').select('*'),
-      supabase.from('cash_vault_transactions').select('*').order('created_at', { ascending: false }),
+      // Today's bills
+      supabase.from('bills').select('id, total, payment_method, created_at').gte('created_at', todayStart).lte('created_at', todayEnd),
+      // Last 7 days summary
+      supabase.from('bills').select('total').gte('created_at', last7Days),
+      // Today's bookings
+      supabase.from('bookings').select('booking_date, start_time, end_time, status, station_id').eq('booking_date', todayDateStr),
+      // Upcoming bookings
+      supabase.from('bookings').select('booking_date, start_time, status').gte('booking_date', todayDateStr).limit(100),
+      // Top customers
+      supabase.from('customers').select('name, is_member, loyalty_points, total_spent').order('total_spent', { ascending: false }).limit(20),
+      // Products
+      supabase.from('products').select('name, price, category, stock').order('created_at', { ascending: false }).limit(50),
+      // Stations
+      supabase.from('stations').select('name, type, hourly_rate, is_occupied'),
+      // Active sessions
+      supabase.from('sessions').select('station_id, start_time').is('end_time', null),
+      // Recent expenses
+      supabase.from('expenses').select('name, amount, category').order('created_at', { ascending: false }).limit(20),
     ]);
 
     // Log errors but continue
+    if (todayBillsError) console.error('Error fetching today bills:', todayBillsError);
+    if (recentBillsError) console.error('Error fetching recent bills:', recentBillsError);
+    if (todayBookingsError) console.error('Error fetching today bookings:', todayBookingsError);
+    if (upcomingBookingsError) console.error('Error fetching upcoming bookings:', upcomingBookingsError);
     if (customersError) console.error('Error fetching customers:', customersError);
     if (productsError) console.error('Error fetching products:', productsError);
     if (stationsError) console.error('Error fetching stations:', stationsError);
     if (sessionsError) console.error('Error fetching sessions:', sessionsError);
-    if (billsError) console.error('Error fetching bills:', billsError);
-    if (todayBillsError) console.error('Error fetching today bills:', todayBillsError);
-    if (tournamentsError) console.error('Error fetching tournaments:', tournamentsError);
     if (expensesError) console.error('Error fetching expenses:', expensesError);
-    if (bookingsError) console.error('Error fetching bookings:', bookingsError);
-    if (todayBookingsError) console.error('Error fetching today bookings:', todayBookingsError);
-    if (staffError) console.error('Error fetching staff:', staffError);
-    if (cashVaultError) console.error('Error fetching cash vault:', cashVaultError);
 
-    const sessions = allSessions || [];
-    const bills = allBills || [];
-    const bookings = allBookings || [];
-
-    // Calculate key statistics
-    const todayRevenue = todayBills?.reduce((sum: number, bill: any) => sum + (bill.total || 0), 0) || 0;
-    const todaySalesCount = todayBills?.length || 0;
-    const todayBookingsCount = todayBookings?.length || 0;
+    // Calculate TODAY stats
+    const todayRevenue = todayBills?.reduce((sum: number, b: any) => sum + (Number(b.total) || 0), 0) || 0;
+    const todayCashCount = todayBills?.filter((b: any) => b.payment_method === 'cash').length || 0;
+    const todayUPICount = todayBills?.filter((b: any) => b.payment_method === 'upi').length || 0;
     
-    const stats = {
-      CURRENT_DATE: new Date().toISOString().split('T')[0],
-      totalCustomers: customers?.length || 0,
-      totalProducts: products?.length || 0,
-      totalStations: stations?.length || 0,
-      activeSessions: sessions.filter(s => !s.end_time).length || 0,
-      totalRevenueAllTime: bills.reduce((sum: number, bill: any) => sum + (bill.total || 0), 0),
-      totalBills: bills.length || 0,
-      totalTournaments: tournaments?.length || 0,
-      totalExpenses: expenses?.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0),
-      totalBookings: bookings.length || 0,
-      upcomingBookings: bookings.filter(b => new Date(b.booking_date) >= new Date()).length || 0,
-      TODAY_RECEIPTS: todaySalesCount,
-      TODAY_REVENUE: todayRevenue,
-      TODAY_BOOKINGS: todayBookingsCount,
-    };
+    // Calculate week stats
+    const weekRevenue = recentBills?.reduce((sum: number, b: any) => sum + (Number(b.total) || 0), 0) || 0;
+    
+    // Summary data
+    const totalMembers = customers?.filter((c: any) => c.is_member).length || 0;
+    const topSpenders = customers?.slice(0, 5).map((c: any) => `${c.name}:₹${Number(c.total_spent).toFixed(0)}`).join('|') || 'None';
+    
+    const lowStockProducts = products?.filter((p: any) => Number(p.stock) < 10).map((p: any) => `${p.name}(${p.stock})`).join('|') || 'None';
+    const outOfStock = products?.filter((p: any) => Number(p.stock) === 0).length || 0;
+    
+    const occupied = stations?.filter((s: any) => s.is_occupied).length || 0;
+    const stationList = stations?.map((s: any) => `${s.name}(${s.type}):${s.is_occupied ? 'BUSY' : 'FREE'}`).join('|') || 'None';
+    
+    // Build MINIMAL context
+    const context = `CUEPHORIA ${todayDateStr}
 
-    // Build comprehensive context
-    const contextParts = [
-      '=== CUEPHORIA BUSINESS DATA - ALL RECORDS ===',
-      `\nCURRENT DATE: ${stats.CURRENT_DATE}`,
-      `\nTODAY'S SALES: ${stats.TODAY_RECEIPTS} transactions, Revenue: ₹${stats.TODAY_REVENUE}`,
-      `\nTODAY'S BOOKINGS: ${stats.TODAY_BOOKINGS}`,
-      '\n=== OVERALL STATISTICS ===',
-      `Total Customers: ${stats.totalCustomers}`,
-      `Total Products: ${stats.totalProducts}`,
-      `Total Stations: ${stats.totalStations}`,
-      `Active Sessions: ${stats.activeSessions}`,
-      `Total Revenue (All Time): ₹${stats.totalRevenueAllTime}`,
-      `Total Bills: ${stats.totalBills}`,
-      `Total Bookings: ${stats.totalBookings}`,
-      `Upcoming Bookings: ${stats.upcomingBookings}`,
-      '\n=== ALL BILLS DATA ===',
-      JSON.stringify(bills, null, 2),
-      '\n=== ALL BOOKINGS DATA ===',
-      JSON.stringify(bookings, null, 2),
-      '\n=== ALL SESSIONS DATA ===',
-      JSON.stringify(sessions, null, 2),
-      '\n=== ALL PRODUCTS DATA ===',
-      JSON.stringify(products, null, 2),
-      '\n=== ALL CUSTOMERS DATA ===',
-      JSON.stringify(customers, null, 2),
-      '\n=== ALL STATIONS DATA ===',
-      JSON.stringify(stations, null, 2),
-      '\n=== ALL EXPENSES DATA ===',
-      JSON.stringify(expenses, null, 2),
-      '\n=== ALL TOURNAMENTS DATA ===',
-      JSON.stringify(tournaments, null, 2),
-      '\n=== CASH VAULT DATA ===',
-      JSON.stringify(cashVault, null, 2),
-    ];
+TODAY: Sales:${todayBills?.length || 0} Revenue:₹${todayRevenue.toFixed(0)} Cash:${todayCashCount} UPI:${todayUPICount} Bookings:${todayBookings?.length || 0}
 
-    const context = contextParts.join('\n');
-    console.log(`Generated context size: ${context.length} characters`);
+WEEK: Revenue:₹${weekRevenue.toFixed(0)}
+
+CUSTOMERS: Total:${customers?.length || 0} Members:${totalMembers} Top:${topSpenders}
+
+PRODUCTS: Total:${products?.length || 0} OutOfStock:${outOfStock} LowStock:${lowStockProducts}
+
+STATIONS: Total:${stations?.length || 0} Occupied:${occupied} List:${stationList}
+
+BOOKINGS: Today:${todayBookings?.length || 0} Upcoming:${upcomingBookings?.filter((b: any) => b.status === 'confirmed').length || 0}
+
+EXPENSES: ${expenses?.slice(0, 5).map((e: any) => `${e.category}:₹${Number(e.amount).toFixed(0)}`).join('|') || 'None'}
+`;
+
+    console.log(`Optimized context: ${context.length} chars`);
     
     return context;
   } catch (error) {
