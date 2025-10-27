@@ -64,7 +64,7 @@ This project is built with .
 
 The application includes a chat bot powered by Google's Gemini AI. To enable this feature:
 
-1. Get a Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+1. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey)
 2. Create a `.env` file in the project root
 3. Add the following line:
    ```
@@ -73,6 +73,14 @@ The application includes a chat bot powered by Google's Gemini AI. To enable thi
 4. Restart the development server
 
 **Note**: The AI chat feature requires a Gemini API key. Without it, the chat will show an error message when trying to use the feature.
+
+**Model Support**: The application tries multiple Gemini models automatically:
+- `gemini-2.0-flash-exp` (default - latest and fastest)
+- `gemini-1.5-flash` (fallback - fast and cost-effective)
+- `gemini-1.5-pro` (fallback - more advanced capabilities)
+- `gemini-pro` (legacy fallback)
+
+The application will automatically try these models in order if one fails.
 
 ## How can I deploy this project?
 

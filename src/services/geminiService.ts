@@ -78,16 +78,35 @@ export const sendChatMessage = async (
     // Build the full context
     const fullContext = `${SYSTEM_PROMPT}\n\n=== CURRENT BUSINESS DATA ===\n${businessContext}\n\n=== END BUSINESS DATA ===\n\nUser: ${message}\n\nAssistant:`;
 
-    // Get the model
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Try different models as fallback
+    const modelsToTry = ['gemini-2.5-flash-lite'];
+    let lastError: any = null;
 
-    // Generate response
-    const result = await model.generateContent(fullContext);
-    const response = await result.response;
-    const text = response.text();
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Trying model: ${modelName}`);
+        const model = genAI!.getGenerativeModel({ model: modelName });
+        
+        // Generate response
+        const result = await model.generateContent(fullContext);
+        const response = await result.response;
+        const text = response.text();
 
+        console.log(`Successfully used model: ${modelName}`);
+        return {
+          message: text,
+        };
+      } catch (error: any) {
+        console.warn(`Model ${modelName} failed:`, error.message);
+        lastError = error;
+        // Continue to try next model
+      }
+    }
+
+    // If all models failed, return error
     return {
-      message: text,
+      message: '',
+      error: lastError?.message || 'Failed to get response from AI. Please check your API key and ensure you have access to Gemini models.',
     };
   } catch (error: any) {
     console.error('Error calling Gemini API:', error);
@@ -99,5 +118,5 @@ export const sendChatMessage = async (
 };
 
 export const getModelInfo = (): string => {
-  return 'Gemini Pro';
+  return 'Gemini 2.0 Flash';
 };
