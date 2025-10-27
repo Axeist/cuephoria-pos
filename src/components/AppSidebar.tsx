@@ -43,7 +43,6 @@ const AppSidebar: React.FC = () => {
     { icon: Users, label: 'Customers', path: '/customers' },
     { icon: BarChart2, label: 'Reports', path: '/reports' },
     { icon: Calendar, label: 'Bookings', path: '/booking-management' },
-    { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
   ];
 
   // Build menu based on user role
@@ -55,6 +54,7 @@ const AppSidebar: React.FC = () => {
     ...(!isAdmin ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
     { icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' },
     { icon: Settings, label: 'Settings', path: '/settings' },
+    { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
   ];
 
   // Mobile version with sheet
