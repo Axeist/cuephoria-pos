@@ -144,6 +144,30 @@
   .grid {
     @apply grid-cols-1;
   }
+  
+  /* Better scroll behavior on mobile */
+  body {
+    @apply overflow-x-hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent zoom on input focus */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile-specific utilities */
+@media (max-width: 640px) {
+  .mobile-hidden {
+    @apply hidden;
+  }
+}
+
+@media (min-width: 641px) {
+  .desktop-hidden {
+    @apply hidden;
+  }
 }
 
 /* Animations */
@@ -374,6 +398,26 @@
   /* Dashboard stats cards */
   .stats-card {
     @apply mx-auto max-w-[320px];
+  }
+  
+  /* Improve touch targets on mobile */
+  button, a, [role="button"] {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  
+  /* Better spacing for mobile */
+  .p-8 {
+    @apply p-4;
+  }
+  
+  /* Tables responsive */
+  table {
+    @apply text-xs;
+  }
+  
+  /* Dialog improvements */
+  [role="dialog"] {
+    @apply mx-2;
   }
 }
 

@@ -281,9 +281,9 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex-1 space-y-6 p-6 text-white bg-inherit">
+    <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6 text-white bg-inherit">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
       </div>
 
       <Tabs
@@ -292,12 +292,12 @@ const Dashboard = () => {
         onValueChange={(v) => setCurrentDashboardTab(v as any)}
         className="w-full"
       >
-        <div className="flex items-center justify-between mb-6">
-          <TabsList className="w-auto">
-            <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-            <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
-            <TabsTrigger value="expenses" className="flex-1">Expenses</TabsTrigger>
-            <TabsTrigger value="cash" className="flex-1">Vault</TabsTrigger>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 sm:mb-6">
+          <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:flex">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="analytics" className="text-xs sm:text-sm">Analytics</TabsTrigger>
+            <TabsTrigger value="expenses" className="text-xs sm:text-sm">Expenses</TabsTrigger>
+            <TabsTrigger value="cash" className="text-xs sm:text-sm">Vault</TabsTrigger>
           </TabsList>
 
           {currentDashboardTab === 'expenses' && (
@@ -308,7 +308,7 @@ const Dashboard = () => {
           )}
         </div>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
           <StatCardSection
             totalSales={dashboardStats.totalSales}
             salesChange={dashboardStats.salesChange}
@@ -327,25 +327,25 @@ const Dashboard = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+        <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerSpendingCorrelation />
             <HourlyRevenueDistribution />
           </div>
           <ProductPerformance />
-          <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerActivityChart />
             <ProductInventoryChart />
           </div>
         </TabsContent>
 
-        <TabsContent value="expenses" className="space-y-6">
+        <TabsContent value="expenses" className="space-y-4 sm:space-y-6">
           <BusinessSummarySection
             filteredExpenses={filteredExpenses}
             dateRange={dateRange}
@@ -362,7 +362,7 @@ const Dashboard = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="cash" className="space-y-6">
+        <TabsContent value="cash" className="space-y-4 sm:space-y-6">
           <CashManagement />
         </TabsContent>
       </Tabs>

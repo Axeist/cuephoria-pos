@@ -92,14 +92,16 @@ const ProtectedRoute = ({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full overflow-x-hidden">
+      <div className="flex min-h-screen w-full overflow-x-hidden relative">
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-x-hidden">
           <div className="hidden md:block">
             <SidebarTrigger />
           </div>
-          {children}
-          <footer className="mt-auto w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-50">
+          <div className="flex-1 pb-16 sm:pb-0">
+            {children}
+          </div>
+          <footer className="fixed sm:relative bottom-0 left-0 right-0 w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-40 sm:z-50">
             Designed & Developed by RK.
           </footer>
         </div>

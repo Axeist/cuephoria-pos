@@ -31,12 +31,12 @@ const Stations = () => {
   };
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between animate-slide-down">
-        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Gaming Stations</h2>
-        <div className="flex space-x-2">
+    <div className="flex-1 space-y-4 p-4 sm:p-6 md:p-8 pt-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-slide-down">
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">Gaming Stations</h2>
+        <div className="flex space-x-2 w-full sm:w-auto">
           <Button 
-            className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+            className="bg-cuephoria-purple hover:bg-cuephoria-purple/80 text-sm sm:text-base"
             onClick={handleAddStationClick}
           >
             <Plus className="mr-2 h-4 w-4" /> Add Station
@@ -59,9 +59,9 @@ const Stations = () => {
         onOpenChange={setOpenAddDialog} 
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-slide-up">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 animate-slide-up">
         <Card className="bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-cuephoria-purple/30 border animate-fade-in">
-          <CardContent className="p-4 flex items-center justify-between">
+          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">PlayStation 5</p>
               <p className="text-2xl font-bold">{activePs5} / {ps5Stations.length} Active</p>

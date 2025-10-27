@@ -532,10 +532,10 @@ const Customers = () => {
   const activeFilterCount = getActiveFilterCount();
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
-        <div className="flex space-x-2">
+    <div className="flex-1 space-y-4 p-4 sm:p-6 md:p-8 pt-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">Customers</h2>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
           {duplicates.length > 0 && (
             <Button 
               variant="outline" 
@@ -587,7 +587,7 @@ const Customers = () => {
       <CustomerInsightWidgets customers={customersData} />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Customer' : 'Add New Customer'}</DialogTitle>
             <DialogDescription>
@@ -705,7 +705,7 @@ const Customers = () => {
       </Dialog>
 
       <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Duplicate Customers Found</DialogTitle>
             <DialogDescription>
@@ -762,12 +762,12 @@ const Customers = () => {
       </Dialog>
 
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search by phone number or Customer ID..." 
-              className="pl-8" 
+              placeholder="Search by phone..." 
+              className="pl-8 text-sm" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
             />
@@ -776,7 +776,7 @@ const Customers = () => {
           <Button
             variant={activeFilterCount > 0 ? "default" : "outline"}
             onClick={() => setShowFilters(!showFilters)}
-            className="relative"
+            className="relative text-sm"
           >
             <Filter className="h-4 w-4 mr-2" />
             Filters
@@ -789,16 +789,16 @@ const Customers = () => {
         </div>
 
         {showFilters && (
-          <div className="border rounded-lg p-4 bg-muted/50 space-y-4">
+          <div className="border rounded-lg p-3 sm:p-4 bg-muted/50 space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Filter Customers</h3>
-              <Button variant="ghost" size="sm" onClick={resetFilters}>
-                <X className="h-4 w-4 mr-1" />
-                Reset Filters
+              <h3 className="font-semibold text-sm sm:text-base">Filter Customers</h3>
+              <Button variant="ghost" size="sm" onClick={resetFilters} className="text-xs sm:text-sm">
+                <X className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                Reset
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label htmlFor="membershipStatus">Membership Status</Label>
                 <Select
@@ -917,13 +917,13 @@ const Customers = () => {
       </div>
       
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Showing {filteredAndSortedCustomers.length} of {customersData.length} customers
         </p>
       </div>
 
       {filteredAndSortedCustomers.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredAndSortedCustomers.map((customer) => (
             <CustomerCard 
               key={customer.id} 

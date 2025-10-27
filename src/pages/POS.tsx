@@ -343,14 +343,14 @@ const POS = () => {
   const total = calculateTotal();
 
   return (
-    <div className="flex-1 p-8 pt-6">
-      <div className="flex items-center justify-between mb-6 animate-slide-down">
-        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
+    <div className="flex-1 p-4 sm:p-6 md:p-8 pt-6">
+      <div className="flex items-center justify-between mb-4 sm:mb-6 animate-slide-down">
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Cart Section */}
-        <Card className="lg:col-span-1 h-[calc(100vh-12rem)] flex flex-col animate-slide-up">
+        <Card className="lg:col-span-1 h-[calc(100vh-20rem)] sm:h-[calc(100vh-16rem)] lg:h-[calc(100vh-12rem)] flex flex-col animate-slide-up order-2 lg:order-1">
           <CardHeader className="pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent">
             <div className="flex justify-between items-center">
               <CardTitle className="text-xl font-heading">
@@ -376,29 +376,29 @@ const POS = () => {
                 {cart.map((item, index) => (
                   <div 
                     key={item.id} 
-                    className={`flex items-center justify-between border-b pb-3 animate-fade-in grid grid-cols-[2fr_1fr_1fr] gap-2`} 
+                    className={`flex items-center justify-between border-b pb-2 sm:pb-3 animate-fade-in grid grid-cols-[2fr_1fr_1fr] gap-1 sm:gap-2`} 
                     style={{animationDelay: `${index * 50}ms`}}
                   >
-                    <div className="flex flex-col justify-center">
-                      <p className="font-medium font-quicksand truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground indian-rupee">
+                    <div className="flex flex-col justify-center min-w-0">
+                      <p className="font-medium font-quicksand truncate text-sm sm:text-base">{item.name}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground indian-rupee">
                         {item.price.toLocaleString('en-IN')} each
                       </p>
                     </div>
-                    <div className="flex items-center justify-center space-x-2">
+                    <div className="flex items-center justify-center space-x-1 sm:space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 w-7 p-0"
+                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-sm"
                         onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                       >
                         -
                       </Button>
-                      <span className="w-8 text-center">{item.quantity}</span>
+                      <span className="w-6 sm:w-8 text-center text-sm">{item.quantity}</span>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 w-7 p-0"
+                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-sm"
                         onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
                       >
                         +
@@ -408,12 +408,12 @@ const POS = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 p-0 text-destructive hover:bg-red-500/10 self-end"
+                        className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-destructive hover:bg-red-500/10 self-end"
                         onClick={() => handleRemoveItem(item.id)}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
-                      <div className="indian-rupee font-mono text-right">
+                      <div className="indian-rupee font-mono text-right text-xs sm:text-sm">
                         {item.total.toLocaleString('en-IN')}
                       </div>
                     </div>
@@ -503,15 +503,15 @@ const POS = () => {
         </Card>
 
         {/* Products Section */}
-        <Card className="lg:col-span-2 h-[calc(100vh-12rem)] flex flex-col animate-slide-up delay-200">
+        <Card className="lg:col-span-2 h-[calc(100vh-20rem)] sm:h-[calc(100vh-16rem)] lg:h-[calc(100vh-12rem)] flex flex-col animate-slide-up delay-200 order-1 lg:order-2">
           <CardHeader className="pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0">
-            <CardTitle className="text-xl font-heading">Products</CardTitle>
+            <CardTitle className="text-lg sm:text-xl font-heading">Products</CardTitle>
             <div className="flex space-x-2">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search products..."
-                  className="pl-8 font-quicksand"
+                  className="pl-8 font-quicksand text-sm"
                   value={productSearchQuery}
                   onChange={(e) => setProductSearchQuery(e.target.value)}
                 />
@@ -526,54 +526,55 @@ const POS = () => {
               onValueChange={setActiveTab}
               className="flex flex-col flex-grow min-h-0 animate-scale-in"
             >
-              <div className="px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
-                <TabsList className="grid w-full grid-cols-6 gap-1 mb-4 h-auto p-1">
+              <div className="px-3 sm:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0 overflow-x-auto">
+                <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1 mb-4 h-auto p-1 min-w-max sm:min-w-0">
                   <TabsTrigger
                     value="all"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white"
                   >
                     All ({categoryCounts.all || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="food"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white"
                   >
                     Food ({categoryCounts.food || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="drinks"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white"
                   >
                     Drinks ({categoryCounts.drinks || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="tobacco"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-red-500 data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 data-[state=active]:bg-red-500 data-[state=active]:text-white"
                   >
                     Tobacco ({categoryCounts.tobacco || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="challenges"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-green-500 data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 data-[state=active]:bg-green-500 data-[state=active]:text-white"
                   >
                     Challenges ({categoryCounts.challenges || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="membership"
-                    className="text-xs px-1 py-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white flex items-center gap-1"
+                    className="text-[10px] sm:text-xs px-1 py-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white flex items-center gap-1"
                   >
                     <Award className="h-3 w-3" />
-                    Membership ({categoryCounts.membership || 0})
+                    <span className="hidden sm:inline">Membership ({categoryCounts.membership || 0})</span>
+                    <span className="sm:hidden">M ({categoryCounts.membership || 0})</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
 
               <TabsContent
                 value={activeTab}
-                className="flex-grow min-h-0 m-0 p-6 overflow-auto"
+                className="flex-grow min-h-0 m-0 p-3 sm:p-4 md:p-6 overflow-auto"
               >
                 {searchedProducts.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 auto-rows-fr">
                     {searchedProducts.map((product, index) => (
                       <div
                         key={product.id}
@@ -589,8 +590,8 @@ const POS = () => {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-                    <h3 className="text-xl font-medium font-heading">No Products Found</h3>
-                    <p className="text-muted-foreground mt-2">
+                    <h3 className="text-lg sm:text-xl font-medium font-heading">No Products Found</h3>
+                    <p className="text-muted-foreground mt-2 text-sm sm:text-base">
                       Try a different search or category
                     </p>
                   </div>
@@ -608,10 +609,10 @@ const POS = () => {
 
       {/* Customer Dialog */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
-        <DialogContent className="max-w-3xl animate-scale-in">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden animate-scale-in">
           <DialogHeader>
-            <DialogTitle className="font-heading text-xl">Select Customer</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="font-heading text-lg sm:text-xl">Select Customer</DialogTitle>
+            <DialogDescription className="text-sm">
               Choose a customer to start or resume their transaction
             </DialogDescription>
           </DialogHeader>
@@ -619,15 +620,15 @@ const POS = () => {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search customers..."
-              className="pl-8 font-quicksand"
+              className="pl-8 font-quicksand text-sm"
               value={customerSearchQuery}
               onChange={(e) => setCustomerSearchQuery(e.target.value)}
             />
           </div>
           
-          <div className="max-h-[60vh] overflow-auto">
+          <div className="max-h-[50vh] sm:max-h-[60vh] overflow-auto -mx-1 px-1">
             {filteredCustomers.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {filteredCustomers.map((customer, index) => {
                   const cartInfo = getCartInfo(customer.id);
                   
@@ -667,7 +668,7 @@ const POS = () => {
 
       {/* Complimentary Dialog */}
       <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
-        <DialogContent className="max-w-md animate-scale-in">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2">
               <Gift className="h-5 w-5 text-orange-500" />
@@ -801,12 +802,12 @@ const POS = () => {
 
       {/* Checkout Dialog */}
       <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
+        <DialogContent className="max-w-md max-h-[95vh] overflow-y-auto animate-scale-in">
           <DialogHeader>
-            <DialogTitle className="font-heading text-xl">Complete Transaction</DialogTitle>
+            <DialogTitle className="font-heading text-lg sm:text-xl">Complete Transaction</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 py-2">
+          <div className="space-y-3 sm:space-y-4 py-2">
             {selectedCustomer && (
               <div className="border rounded-md p-3 bg-gradient-to-r from-cuephoria-purple/10 to-transparent animate-fade-in">
                 <div className="flex justify-between items-center">
@@ -1017,9 +1018,9 @@ const POS = () => {
 
       {/* Success Dialog - UPDATED FOR FASTER LOADING */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="max-w-md animate-scale-in text-center">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto animate-scale-in text-center">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-heading mb-2 flex items-center justify-center gap-2">
+            <DialogTitle className="text-xl sm:text-2xl font-heading mb-2 flex items-center justify-center gap-2">
               <div className="rounded-full bg-green-100 p-3">
                 <Check className="h-8 w-8 text-green-600" />
               </div>

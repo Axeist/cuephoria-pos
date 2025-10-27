@@ -60,23 +60,23 @@ const AppSidebar: React.FC = () => {
   if (isMobile) {
     return (
       <>
-        <div className="fixed top-0 left-0 w-full z-30 bg-[#1A1F2C] p-4 flex justify-between items-center shadow-md">
+        <div className="fixed top-0 left-0 w-full z-30 bg-[#1A1F2C] p-3 sm:p-4 flex justify-between items-center shadow-md">
           <div className="flex items-center gap-2">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white">
+                <Button variant="ghost" size="icon" className="text-white h-10 w-10">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[80%] max-w-[280px] bg-[#1A1F2C] border-r-0">
+              <SheetContent side="left" className="p-0 w-[85%] sm:w-[80%] max-w-[280px] bg-[#1A1F2C] border-r-0">
                 <div className="h-full flex flex-col">
-                  <div className="p-4 flex items-center gap-3">
+                  <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
                     <img
                       src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
                       alt="Cuephoria Logo"
-                      className="h-12 w-12 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
+                      className="h-10 w-10 sm:h-12 sm:w-12 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
                     />
-                    <span className="text-xl font-bold gradient-text font-heading">Cuephoria</span>
+                    <span className="text-lg sm:text-xl font-bold gradient-text font-heading">Cuephoria</span>
                   </div>
                   <div className="mx-4 h-px bg-cuephoria-purple/30" />
                   <div className="flex-1 overflow-auto py-2">
@@ -124,10 +124,10 @@ const AppSidebar: React.FC = () => {
                 </div>
               </SheetContent>
             </Sheet>
-            <span className="text-xl font-bold gradient-text font-heading">Cuephoria</span>
+            <span className="text-lg sm:text-xl font-bold gradient-text font-heading">Cuephoria</span>
           </div>
         </div>
-        <div className="pt-16"></div>
+        <div className="pt-[64px] sm:pt-16"></div>
       </>
     );
   }
