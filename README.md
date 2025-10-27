@@ -60,6 +60,20 @@ This project is built with .
 - shadcn-ui
 - Tailwind CSS
 
+## Cuephoria AI Setup
+
+The application includes a chat bot powered by Google's Gemini AI. To enable this feature:
+
+1. Get a Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create a `.env` file in the project root
+3. Add the following line:
+   ```
+   VITE_GEMINI_API_KEY=your_api_key_here
+   ```
+4. Restart the development server
+
+**Note**: The AI chat feature requires a Gemini API key. Without it, the chat will show an error message when trying to use the feature.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/1a46da40-620c-4f55-9f80-b0b990917809) and click on Share -> Publish.

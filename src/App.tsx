@@ -31,6 +31,7 @@ import BookingPage from "./pages/BookingPage";
 import BookingManagement from "./pages/BookingManagement";
 import StaffManagement from "./pages/StaffManagement";
 import StaffPortal from "./pages/StaffPortal";
+import ChatAI from "./pages/ChatAI";
 
 // Payment routes
 import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
@@ -229,6 +230,16 @@ const App = () => (
                   element={
                     <ProtectedRoute requireStaffOnly={true}>
                       <StaffPortal />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Chat AI */}
+                <Route
+                  path="/chat-ai"
+                  element={
+                    <ProtectedRoute>
+                      <ChatAI />
                     </ProtectedRoute>
                   }
                 />

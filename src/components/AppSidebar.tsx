@@ -1,7 +1,7 @@
 // src/components/AppSidebar.tsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar, Users2, UserCircle } from 'lucide-react';
+import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar, Users2, UserCircle, Bot } from 'lucide-react';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -53,6 +53,7 @@ const AppSidebar: React.FC = () => {
     ...(isAdmin ? [{ icon: Users2, label: 'Staff Management', path: '/staff' }] : []),
     // Staff sees "My Portal" menu (admin does NOT see this)
     ...(!isAdmin ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
+    { icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
