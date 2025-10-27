@@ -222,23 +222,23 @@ const ChatAI: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-[#0F1419] via-[#1A1F2C] to-[#1A1F2C]">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-[#0F1419] via-[#1A1F2C] to-[#1A1F2C] overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-b border-cuephoria-purple/30 p-4 shadow-lg">
+      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-b border-cuephoria-purple/30 p-3 sm:p-4 shadow-lg flex-shrink-0">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <div className="relative">
               <div className="absolute inset-0 bg-cuephoria-purple/30 blur-xl rounded-full" />
-              <Bot className="h-10 w-10 text-cuephoria-lightpurple relative z-10 animate-pulse-soft" />
+              <Bot className="h-8 w-8 sm:h-10 sm:w-10 text-cuephoria-lightpurple relative z-10 animate-pulse-soft" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold gradient-text flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold gradient-text flex items-center gap-2 flex-wrap">
                 Cuephoria AI
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
                   Active
                 </span>
               </h1>
-              <p className="text-sm text-gray-400 flex items-center gap-1">
+              <p className="text-xs sm:text-sm text-gray-400 flex items-center gap-1">
                 Powered by Gemini AI
               </p>
             </div>
@@ -248,7 +248,7 @@ const ChatAI: React.FC = () => {
             size="icon"
             onClick={handleRefresh}
             disabled={isLoading}
-            className="text-cuephoria-lightpurple hover:bg-cuephoria-dark hover:text-white"
+            className="text-cuephoria-lightpurple hover:bg-cuephoria-dark hover:text-white flex-shrink-0"
             title="Refresh business data"
           >
             <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -258,7 +258,7 @@ const ChatAI: React.FC = () => {
 
       {/* Error Alert */}
       {error && (
-        <div className="p-4">
+        <div className="p-3 sm:p-4 flex-shrink-0">
           <Alert variant="destructive" className="max-w-7xl mx-auto">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
@@ -268,7 +268,7 @@ const ChatAI: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-0">
         <div className="max-w-7xl mx-auto">
           {messages.length === 0 ? (
             // Show suggestions when no messages
@@ -359,7 +359,7 @@ const ChatAI: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-t border-cuephoria-purple/30 p-4 shadow-lg">
+      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-t border-cuephoria-purple/30 p-3 sm:p-4 shadow-lg flex-shrink-0">
         <div className="max-w-7xl mx-auto">
           <div className="flex gap-2">
             <Textarea
@@ -368,13 +368,13 @@ const ChatAI: React.FC = () => {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask me anything about your business... (or try a suggestion above)"
-              className="bg-cuephoria-dark border-cuephoria-purple/30 text-white placeholder:text-gray-500 resize-none min-h-[60px] max-h-[200px] rounded-xl focus:border-cuephoria-purple focus:ring-2 focus:ring-cuephoria-purple/20"
+              className="bg-cuephoria-dark border-cuephoria-purple/30 text-white placeholder:text-gray-500 resize-none min-h-[50px] sm:min-h-[60px] max-h-[150px] sm:max-h-[200px] rounded-xl focus:border-cuephoria-purple focus:ring-2 focus:ring-cuephoria-purple/20 text-sm sm:text-base"
               disabled={isLoading || isInitializing}
             />
             <Button
               onClick={() => handleSend()}
               disabled={!input.trim() || isLoading || isInitializing}
-              className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/80 hover:to-cuephoria-lightpurple/80 text-white px-6 shadow-lg shadow-cuephoria-purple/50 rounded-xl h-[60px]"
+              className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/80 hover:to-cuephoria-lightpurple/80 text-white px-3 sm:px-6 shadow-lg shadow-cuephoria-purple/50 rounded-xl h-[50px] sm:h-[60px] flex-shrink-0"
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

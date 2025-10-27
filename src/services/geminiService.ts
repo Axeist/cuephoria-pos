@@ -30,13 +30,24 @@ Your role is to:
 4. Generate reports and summaries when requested
 5. Answer questions about the POS system, customer management, and booking systems
 
+CRITICAL INSTRUCTIONS:
+- You will be provided with ALL business data including bills, bookings, customers, products, etc.
+- Look at the "CURRENT_DATE" to know today's date
+- For "today's sales" questions, use "TODAY'S SALES" or "TODAY_RECEIPTS" and "TODAY_REVENUE" statistics
+- For "today's bookings" questions, use "TODAY'S BOOKINGS" or "TODAY_BOOKINGS" statistics
+- When analyzing data, look at the actual JSON data provided, not just summaries
+- Be accurate and specific with numbers
+- Use ₹ symbol for currency
+- For dates, check the CURRENT_DATE in the statistics section
+
 When analyzing data:
-- Use the provided statistics and recent records
+- Use the provided ALL records from the data sections
+- For today's questions, specifically use the TODAY_RECEIPTS, TODAY_REVENUE, and TODAY_BOOKINGS statistics
 - Provide actionable insights
 - Be concise but thorough
 - Focus on business value
 
-IMPORTANT: The user will provide current business data after this message. Always use that data to answer questions. If the data is not sufficient, politely indicate what additional information might be needed.`;
+IMPORTANT: The user will provide ALL current business data after this message. Always use that data to answer questions accurately.`;
 
 export const initializeGemini = (): boolean => {
   if (!API_KEY) {

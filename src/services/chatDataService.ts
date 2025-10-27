@@ -35,31 +35,40 @@ function createSummary(data: any[], entityName: string): string {
 
 export const fetchBusinessDataForAI = async (): Promise<string> => {
   try {
-    console.log('Fetching business data for AI...');
+    console.log('Fetching ALL business data for AI...');
     
-    // Fetch all data in parallel
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+    const todayDateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Fetch ALL data in parallel - NO LIMITS
     const [
       { data: customers, error: customersError },
       { data: products, error: productsError },
       { data: stations, error: stationsError },
-      { data: sessions, error: sessionsError },
-      { data: bills, error: billsError },
+      { data: allSessions, error: sessionsError },
+      { data: allBills, error: billsError },
+      { data: todayBills, error: todayBillsError },
       { data: tournaments, error: tournamentsError },
       { data: expenses, error: expensesError },
-      { data: bookings, error: bookingsError },
+      { data: allBookings, error: bookingsError },
+      { data: todayBookings, error: todayBookingsError },
       { data: staff, error: staffError },
       { data: cashVault, error: cashVaultError },
     ] = await Promise.all([
-      supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(100),
-      supabase.from('products').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('customers').select('*').order('created_at', { ascending: false }),
+      supabase.from('products').select('*').order('created_at', { ascending: false }),
       supabase.from('stations').select('*').order('created_at', { ascending: false }),
-      supabase.from('sessions').select('*').order('start_time', { ascending: false }).limit(200),
-      supabase.from('bills').select('*').order('created_at', { ascending: false }).limit(200),
-      supabase.from('tournaments').select('*').order('created_at', { ascending: false }).limit(50),
-      supabase.from('expenses').select('*').order('created_at', { ascending: false }).limit(200),
-      supabase.from('bookings').select('*').order('booking_date', { ascending: false }).limit(100),
-      supabase.from('staff_profiles').select('*').limit(50),
-      supabase.from('cash_vault_transactions').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('sessions').select('*').order('start_time', { ascending: false }),
+      supabase.from('bills').select('*').order('created_at', { ascending: false }),
+      supabase.from('bills').select('*').gte('created_at', todayStart).lte('created_at', todayEnd),
+      supabase.from('tournaments').select('*').order('created_at', { ascending: false }),
+      supabase.from('expenses').select('*').order('created_at', { ascending: false }),
+      supabase.from('bookings').select('*').order('booking_date', { ascending: false }),
+      supabase.from('bookings').select('*').eq('booking_date', todayDateStr),
+      supabase.from('staff_profiles').select('*'),
+      supabase.from('cash_vault_transactions').select('*').order('created_at', { ascending: false }),
     ]);
 
     // Log errors but continue
@@ -68,40 +77,73 @@ export const fetchBusinessDataForAI = async (): Promise<string> => {
     if (stationsError) console.error('Error fetching stations:', stationsError);
     if (sessionsError) console.error('Error fetching sessions:', sessionsError);
     if (billsError) console.error('Error fetching bills:', billsError);
+    if (todayBillsError) console.error('Error fetching today bills:', todayBillsError);
     if (tournamentsError) console.error('Error fetching tournaments:', tournamentsError);
     if (expensesError) console.error('Error fetching expenses:', expensesError);
     if (bookingsError) console.error('Error fetching bookings:', bookingsError);
+    if (todayBookingsError) console.error('Error fetching today bookings:', todayBookingsError);
     if (staffError) console.error('Error fetching staff:', staffError);
     if (cashVaultError) console.error('Error fetching cash vault:', cashVaultError);
 
+    const sessions = allSessions || [];
+    const bills = allBills || [];
+    const bookings = allBookings || [];
+
     // Calculate key statistics
+    const todayRevenue = todayBills?.reduce((sum: number, bill: any) => sum + (bill.total || 0), 0) || 0;
+    const todaySalesCount = todayBills?.length || 0;
+    const todayBookingsCount = todayBookings?.length || 0;
+    
     const stats = {
+      CURRENT_DATE: new Date().toISOString().split('T')[0],
       totalCustomers: customers?.length || 0,
       totalProducts: products?.length || 0,
       totalStations: stations?.length || 0,
-      activeSessions: sessions?.filter(s => !s.end_time).length || 0,
-      totalRevenue: bills?.reduce((sum, bill) => sum + (bill.total || 0), 0) || 0,
-      totalBills: bills?.length || 0,
+      activeSessions: sessions.filter(s => !s.end_time).length || 0,
+      totalRevenueAllTime: bills.reduce((sum: number, bill: any) => sum + (bill.total || 0), 0),
+      totalBills: bills.length || 0,
       totalTournaments: tournaments?.length || 0,
-      totalExpenses: expenses?.reduce((sum, exp) => sum + (exp.amount || 0), 0) || 0,
-      totalBookings: bookings?.length || 0,
-      upcomingBookings: bookings?.filter(b => new Date(b.booking_date) >= new Date()).length || 0,
+      totalExpenses: expenses?.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0),
+      totalBookings: bookings.length || 0,
+      upcomingBookings: bookings.filter(b => new Date(b.booking_date) >= new Date()).length || 0,
+      TODAY_RECEIPTS: todaySalesCount,
+      TODAY_REVENUE: todayRevenue,
+      TODAY_BOOKINGS: todayBookingsCount,
     };
 
-    // Build a compact context string
+    // Build comprehensive context
     const contextParts = [
-      '=== CUEPHORIA BUSINESS DATA SNAPSHOT ===',
-      `\nSTATISTICS:\n${JSON.stringify(stats, null, 2)}`,
-      `\n\nCUSTOMERS (${customers?.length || 0}):\n${createSummary(customers || [], 'customers')}`,
-      `\n\nPRODUCTS (${products?.length || 0}):\n${createSummary(products || [], 'products')}`,
-      `\n\nSTATIONS (${stations?.length || 0}):\n${createSummary(stations || [], 'stations')}`,
-      `\n\nRECENT SESSIONS (${sessions?.length || 0}):\n${createSummary(sessions || [], 'sessions')}`,
-      `\n\nRECENT BILLS (${bills?.length || 0}):\n${createSummary(bills || [], 'bills')}`,
-      `\n\nTOURNAMENTS (${tournaments?.length || 0}):\n${createSummary(tournaments || [], 'tournaments')}`,
-      `\n\nEXPENSES (${expenses?.length || 0}):\n${createSummary(expenses || [], 'expenses')}`,
-      `\n\nBOOKINGS (${bookings?.length || 0}):\n${createSummary(bookings || [], 'bookings')}`,
-      `\n\nSTAFF (${staff?.length || 0}):\n${createSummary(staff || [], 'staff')}`,
-      `\n\nCASH VAULT (${cashVault?.length || 0}):\n${createSummary(cashVault || [], 'cash_vault')}`,
+      '=== CUEPHORIA BUSINESS DATA - ALL RECORDS ===',
+      `\nCURRENT DATE: ${stats.CURRENT_DATE}`,
+      `\nTODAY'S SALES: ${stats.TODAY_RECEIPTS} transactions, Revenue: ₹${stats.TODAY_REVENUE}`,
+      `\nTODAY'S BOOKINGS: ${stats.TODAY_BOOKINGS}`,
+      '\n=== OVERALL STATISTICS ===',
+      `Total Customers: ${stats.totalCustomers}`,
+      `Total Products: ${stats.totalProducts}`,
+      `Total Stations: ${stats.totalStations}`,
+      `Active Sessions: ${stats.activeSessions}`,
+      `Total Revenue (All Time): ₹${stats.totalRevenueAllTime}`,
+      `Total Bills: ${stats.totalBills}`,
+      `Total Bookings: ${stats.totalBookings}`,
+      `Upcoming Bookings: ${stats.upcomingBookings}`,
+      '\n=== ALL BILLS DATA ===',
+      JSON.stringify(bills, null, 2),
+      '\n=== ALL BOOKINGS DATA ===',
+      JSON.stringify(bookings, null, 2),
+      '\n=== ALL SESSIONS DATA ===',
+      JSON.stringify(sessions, null, 2),
+      '\n=== ALL PRODUCTS DATA ===',
+      JSON.stringify(products, null, 2),
+      '\n=== ALL CUSTOMERS DATA ===',
+      JSON.stringify(customers, null, 2),
+      '\n=== ALL STATIONS DATA ===',
+      JSON.stringify(stations, null, 2),
+      '\n=== ALL EXPENSES DATA ===',
+      JSON.stringify(expenses, null, 2),
+      '\n=== ALL TOURNAMENTS DATA ===',
+      JSON.stringify(tournaments, null, 2),
+      '\n=== CASH VAULT DATA ===',
+      JSON.stringify(cashVault, null, 2),
     ];
 
     const context = contextParts.join('\n');
