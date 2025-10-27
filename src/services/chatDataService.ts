@@ -41,16 +41,16 @@ export const fetchBusinessDataForAI = async (): Promise<string> => {
       supabase.from('bills').select('id, total, payment_method, created_at').gte('created_at', todayStart).lte('created_at', todayEnd),
       // Last 7 days summary
       supabase.from('bills').select('total').gte('created_at', last7Days),
-      // Today's bookings
-      supabase.from('bookings').select('booking_date, start_time, end_time, status, station_id').eq('booking_date', todayDateStr),
+      // Today's bookings with customer and station info
+      supabase.from('bookings').select('booking_date, start_time, end_time, status, station_id, customer_id').eq('booking_date', todayDateStr),
       // Upcoming bookings
       supabase.from('bookings').select('booking_date, start_time, status').gte('booking_date', todayDateStr).limit(100),
       // Top customers
-      supabase.from('customers').select('name, is_member, loyalty_points, total_spent').order('total_spent', { ascending: false }).limit(20),
+      supabase.from('customers').select('id, name, is_member, loyalty_points, total_spent').order('total_spent', { ascending: false }).limit(20),
       // Products
       supabase.from('products').select('name, price, category, stock').order('created_at', { ascending: false }).limit(50),
       // Stations
-      supabase.from('stations').select('name, type, hourly_rate, is_occupied'),
+      supabase.from('stations').select('id, name, type, hourly_rate, is_occupied'),
       // Active sessions
       supabase.from('sessions').select('station_id, start_time').is('end_time', null),
       // Recent expenses
@@ -86,20 +86,31 @@ export const fetchBusinessDataForAI = async (): Promise<string> => {
     const occupied = stations?.filter((s: any) => s.is_occupied).length || 0;
     const stationList = stations?.map((s: any) => `${s.name}(${s.type}):${s.is_occupied ? 'BUSY' : 'FREE'}`).join('|') || 'None';
     
+    // Build detailed booking info with customer name, station, and timings
+    let todayBookingsDetail = 'None';
+    if (todayBookings && todayBookings.length > 0 && customers && stations) {
+      const bookingDetails = todayBookings.slice(0, 10).map((b: any) => {
+        const customer = customers.find((c: any) => c.id === b.customer_id);
+        const station = stations.find((s: any) => s.id === b.station_id);
+        const customerName = customer?.name || 'Unknown';
+        const stationName = station?.name || 'Unknown';
+        return `${customerName}@${stationName}:${b.start_time}-${b.end_time}(${b.status})`;
+      });
+      todayBookingsDetail = bookingDetails.join('|');
+    }
+    
     // Build MINIMAL context
     const context = `CUEPHORIA ${todayDateStr}
 
 TODAY: Sales:${todayBills?.length || 0} Revenue:₹${todayRevenue.toFixed(0)} Cash:${todayCashCount} UPI:${todayUPICount} Bookings:${todayBookings?.length || 0}
 
+BOOKINGS_DETAIL: ${todayBookingsDetail}
+
 WEEK: Revenue:₹${weekRevenue.toFixed(0)}
 
 CUSTOMERS: Total:${customers?.length || 0} Members:${totalMembers} Top:${topSpenders}
 
-PRODUCTS: Total:${products?.length || 0} OutOfStock:${outOfStock} LowStock:${lowStockProducts}
-
 STATIONS: Total:${stations?.length || 0} Occupied:${occupied} List:${stationList}
-
-BOOKINGS: Today:${todayBookings?.length || 0} Upcoming:${upcomingBookings?.filter((b: any) => b.status === 'confirmed').length || 0}
 
 EXPENSES: ${expenses?.slice(0, 5).map((e: any) => `${e.category}:₹${Number(e.amount).toFixed(0)}`).join('|') || 'None'}
 `;

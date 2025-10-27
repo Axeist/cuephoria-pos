@@ -27,76 +27,40 @@ const ChatAI: React.FC = () => {
 
   const suggestions: Suggestion[] = [
     {
-      title: 'Revenue Analysis',
-      prompt: 'Show me today\'s revenue breakdown and compare it with yesterday',
+      title: 'Today\'s Revenue',
+      prompt: 'Show me today\'s sales revenue breakdown',
       icon: <TrendingUp className="h-5 w-5" />,
       color: 'from-green-500 to-emerald-600'
     },
     {
-      title: 'Top Customers',
-      prompt: 'Who are my top 10 customers by total spending?',
-      icon: <Users className="h-5 w-5" />,
-      color: 'from-blue-500 to-cyan-600'
-    },
-    {
-      title: 'Product Performance',
-      prompt: 'Analyze product sales and identify best-selling items',
-      icon: <Package className="h-5 w-5" />,
-      color: 'from-purple-500 to-pink-600'
-    },
-    {
-      title: 'Station Utilization',
-      prompt: 'Show me station occupancy rates and most popular station types',
-      icon: <Clock className="h-5 w-5" />,
-      color: 'from-orange-500 to-red-600'
-    },
-    {
-      title: 'Booking Insights',
-      prompt: 'Analyze booking patterns and predict demand for next week',
-      icon: <Calendar className="h-5 w-5" />,
-      color: 'from-indigo-500 to-blue-600'
-    },
-    {
-      title: 'Tournament Stats',
-      prompt: 'Show tournament history and most popular game types',
-      icon: <Trophy className="h-5 w-5" />,
-      color: 'from-yellow-500 to-orange-600'
-    },
-    {
-      title: 'Profit Margin',
-      prompt: 'Calculate overall profit margins and identify areas for improvement',
-      icon: <DollarSign className="h-5 w-5" />,
-      color: 'from-teal-500 to-green-600'
-    },
-    {
-      title: 'Sales Report',
-      prompt: 'Generate a comprehensive sales report for this month',
+      title: 'Recent Sales',
+      prompt: 'Show me recent sales transactions and payment methods',
       icon: <BarChart3 className="h-5 w-5" />,
       color: 'from-violet-500 to-purple-600'
     },
     {
-      title: 'Inventory Check',
-      prompt: 'Check stock levels and identify items that need restocking',
-      icon: <ShoppingCart className="h-5 w-5" />,
-      color: 'from-pink-500 to-rose-600'
+      title: 'Today\'s Bookings',
+      prompt: 'Show me today\'s bookings with customer names, times, and stations',
+      icon: <Calendar className="h-5 w-5" />,
+      color: 'from-indigo-500 to-blue-600'
     },
     {
-      title: 'Customer Trends',
-      prompt: 'Analyze customer behavior patterns and membership trends',
-      icon: <Target className="h-5 w-5" />,
-      color: 'from-cyan-500 to-teal-600'
+      title: 'Booking Patterns',
+      prompt: 'Analyze recent booking patterns and predict tomorrow\'s demand',
+      icon: <Clock className="h-5 w-5" />,
+      color: 'from-orange-500 to-red-600'
     },
     {
-      title: 'Expense Tracking',
-      prompt: 'Show me monthly expenses breakdown by category',
-      icon: <TrendingDown className="h-5 w-5" />,
-      color: 'from-red-500 to-pink-600'
+      title: 'Top Customers',
+      prompt: 'Who are my top 5 customers by recent spending?',
+      icon: <Users className="h-5 w-5" />,
+      color: 'from-blue-500 to-cyan-600'
     },
     {
-      title: 'Quick Tips',
-      prompt: 'Give me operational suggestions to improve business efficiency',
-      icon: <Zap className="h-5 w-5" />,
-      color: 'from-amber-500 to-yellow-600'
+      title: 'Sales Summary',
+      prompt: 'Generate a summary of today\'s sales performance',
+      icon: <DollarSign className="h-5 w-5" />,
+      color: 'from-teal-500 to-green-600'
     },
   ];
 
@@ -222,9 +186,9 @@ const ChatAI: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-[#0F1419] via-[#1A1F2C] to-[#1A1F2C] overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-[#0F1419] via-[#1A1F2C] to-[#1A1F2C] overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-b border-cuephoria-purple/30 p-3 sm:p-4 shadow-lg flex-shrink-0">
+      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-b border-cuephoria-purple/30 p-3 sm:p-4 shadow-lg flex-shrink-0 relative">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="relative">
@@ -272,19 +236,19 @@ const ChatAI: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           {messages.length === 0 ? (
             // Show suggestions when no messages
-            <div className="space-y-6">
-              <div className="text-center py-8">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple mb-6 shadow-lg shadow-cuephoria-purple/50">
-                  <Bot className="h-10 w-10 text-white" />
+            <div className="space-y-4">
+              <div className="text-center py-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple mb-4 shadow-lg shadow-cuephoria-purple/50">
+                  <Bot className="h-8 w-8 text-white" />
                 </div>
-                <h2 className="text-3xl font-bold text-white mb-3">Welcome to Cuephoria AI</h2>
-                <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+                <h2 className="text-2xl font-bold text-white mb-2">Welcome to Cuephoria AI</h2>
+                <p className="text-gray-400 text-sm max-w-2xl mx-auto">
                   Your intelligent business assistant powered by Gemini AI. Get insights, analyze data, and make better decisions.
                 </p>
               </div>
 
               {/* Suggestions Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {suggestions.map((suggestion, index) => (
                   <Card
                     key={index}
@@ -359,7 +323,7 @@ const ChatAI: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-t border-cuephoria-purple/30 p-3 sm:p-4 shadow-lg flex-shrink-0">
+      <div className="bg-gradient-to-r from-[#1A1F2C] to-[#1F2532] border-t border-cuephoria-purple/30 p-3 sm:p-4 shadow-lg flex-shrink-0 relative">
         <div className="max-w-7xl mx-auto">
           <div className="flex gap-2">
             <Textarea
