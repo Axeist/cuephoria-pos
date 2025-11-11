@@ -153,6 +153,11 @@ const Settings = () => {
             if (managingTournament?.id === id) {
               setManagingTournament(null);
             }
+            
+            // Refetch tournaments from server to confirm deletion persisted
+            const refreshed = await tournamentOps.fetchTournaments();
+            console.log('Remaining tournaments after delete:', refreshed.map(t => ({ id: t.id, name: t.name })));
+            setTournaments(refreshed);
           }
         }
       } catch (error) {
