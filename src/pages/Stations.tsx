@@ -12,15 +12,19 @@ const Stations = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
   
-  // Separate stations by type
+  // Separate stations by type (support custom types)
   const ps5Stations = stations.filter(station => station.type === 'ps5');
   const ballStations = stations.filter(station => station.type === '8ball');
   const vrStations = stations.filter(station => station.type === 'vr');
+  const otherStations = stations.filter(
+    station => station.type !== 'ps5' && station.type !== '8ball' && station.type !== 'vr'
+  );
 
   // Count active stations
   const activePs5 = ps5Stations.filter(s => s.isOccupied).length;
   const activeBall = ballStations.filter(s => s.isOccupied).length;
   const activeVr = vrStations.filter(s => s.isOccupied).length;
+  const activeOther = otherStations.filter(s => s.isOccupied).length;
 
   const handleAddStationClick = () => {
     setOpenPinDialog(true);
@@ -59,7 +63,7 @@ const Stations = () => {
         onOpenChange={setOpenAddDialog} 
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 animate-slide-up">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 animate-slide-up">
         <Card className="bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-cuephoria-purple/30 border animate-fade-in">
           <CardContent className="p-3 sm:p-4 flex items-center justify-between">
             <div>
@@ -95,6 +99,20 @@ const Stations = () => {
             </div>
           </CardContent>
         </Card>
+        
+        {otherStations.length > 0 && (
+          <Card className="bg-gradient-to-r from-gray-800/20 to-gray-700/10 border-gray-600/30 border animate-fade-in delay-300">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Other Types</p>
+                <p className="text-2xl font-bold">{activeOther} / {otherStations.length} Active</p>
+              </div>
+              <div className="rounded-full bg-gray-800/30 p-3">
+                <span className="h-6 w-6 text-gray-300 font-bold">∑</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -171,6 +189,28 @@ const Stations = () => {
             }
           </div>
         </div>
+
+        {otherStations.length > 0 && (
+          <div className="animate-slide-up delay-500">
+            <div className="flex items-center mb-4">
+              <h3 className="text-xl font-semibold font-heading">Other Types</h3>
+              <span className="ml-2 bg-gray-800/30 text-gray-300 text-xs px-2 py-1 rounded-full">
+                {activeOther} active
+              </span>
+            </div>
+            
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {otherStations
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((station, index) => (
+                  <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 900}ms`}}>
+                    <StationCard station={station} />
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
