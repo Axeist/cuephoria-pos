@@ -154,15 +154,41 @@ export const saveTournament = async (tournament: Tournament): Promise<{ data: To
         .update(updateData)
         .eq('id', tournament.id)
         .select()
-        .single();
+        .maybeSingle();
         
       if (error) {
         console.error('Error updating tournament:', error);
-        return { data: null, error: formatTournamentError(error) };
+        // If update returned no rows (e.g., archived/deleted), fall back to insert
+        if ((error as any).code === 'PGRST116') {
+          console.warn('Update returned no rows, falling back to insert for tournament:', tournament.id);
+          const { data: insertAfterUpdate, error: insertAfterUpdateError } = await tournamentsTable
+            .insert({ ...supabaseTournament, created_at: new Date().toISOString() })
+            .select()
+            .single();
+          if (insertAfterUpdateError) {
+            console.error('Insert after update fallback failed:', insertAfterUpdateError);
+            return { data: null, error: formatTournamentError(insertAfterUpdateError) };
+          }
+          result = insertAfterUpdate;
+        } else {
+          return { data: null, error: formatTournamentError(error) };
+        }
+      } else if (!data) {
+        // No error but also no data (edge case) - insert fallback
+        console.warn('Update returned no data, falling back to insert for tournament:', tournament.id);
+        const { data: insertAfterUpdate, error: insertAfterUpdateError } = await tournamentsTable
+          .insert({ ...supabaseTournament, created_at: new Date().toISOString() })
+          .select()
+          .single();
+        if (insertAfterUpdateError) {
+          console.error('Insert after update fallback failed:', insertAfterUpdateError);
+          return { data: null, error: formatTournamentError(insertAfterUpdateError) };
+        }
+        result = insertAfterUpdate;
+      } else {
+        result = data;
+        console.log('Tournament updated successfully:', result);
       }
-      
-      result = data;
-      console.log('Tournament updated successfully:', result);
     } else {
       // Create new tournament with created_at timestamp
       console.log('Creating new tournament with max_players:', supabaseTournament.max_players);

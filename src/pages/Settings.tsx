@@ -156,7 +156,9 @@ const Settings = () => {
             
             // Refetch tournaments from server to confirm deletion persisted
             const refreshed = await tournamentOps.fetchTournaments();
-            console.log('Remaining tournaments after delete:', refreshed.map(t => ({ id: t.id, name: t.name })));
+            const remainingSummaries = refreshed.map(t => ({ id: t.id, name: t.name }));
+            const stillPresent = remainingSummaries.some(t => t.id === id);
+            console.log('Remaining tournaments after delete:', remainingSummaries, 'Deleted ID still present:', stillPresent);
             setTournaments(refreshed);
           }
         }
