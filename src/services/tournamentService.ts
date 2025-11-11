@@ -66,6 +66,7 @@ export const fetchTournaments = async (): Promise<Tournament[]> => {
     const { data, error } = await tournamentsTable
       .select()
       .select('*')
+      .neq('status', 'archived')
       .order('created_at', { ascending: false });
       
     if (error) {
@@ -249,16 +250,34 @@ export const deleteTournament = async (id: string): Promise<{ success: boolean; 
     }
     
     // Finally, delete the tournament itself
-    const { error } = await tournamentsTable
+    // Attempt hard delete and verify affected rows using returning select
+    const { data: deletedRows, error: hardDeleteError } = await tournamentsTable
       .delete()
-      .eq('id', id);
-      
-    if (error) {
-      console.error('Error deleting tournament:', error);
-      return { success: false, error: formatTournamentError(error) };
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
+    
+    if (hardDeleteError) {
+      console.error('Error deleting tournament (hard delete):', hardDeleteError);
     }
     
-    console.log('Tournament and all related entries deleted successfully');
+    if (!hardDeleteError && deletedRows?.id === id) {
+      console.log('Tournament and all related entries deleted successfully');
+      return { success: true, error: null };
+    }
+    
+    // If hard delete failed or affected 0 rows, fall back to soft-delete (archive)
+    console.warn('Hard delete did not remove the tournament, applying soft-delete (archive) fallback');
+    const { error: archiveError } = await tournamentsTable
+      .update({ status: 'archived', updated_at: new Date().toISOString() })
+      .eq('id', id);
+    
+    if (archiveError) {
+      console.error('Soft-delete (archive) failed:', archiveError);
+      return { success: false, error: formatTournamentError(archiveError) };
+    }
+    
+    console.log('Tournament archived successfully as a fallback');
     return { success: true, error: null };
   } catch (error) {
     console.error('Unexpected error deleting tournament:', error);
