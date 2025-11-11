@@ -18,7 +18,7 @@ interface EditStationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   station: Station | null;
-  onSave: (stationId: string, name: string, hourlyRate: number) => Promise<boolean>;
+  onSave: (stationId: string, name: string, type: string, hourlyRate: number) => Promise<boolean>;
 }
 
 const EditStationDialog: React.FC<EditStationDialogProps> = ({
@@ -28,6 +28,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   onSave,
 }) => {
   const [name, setName] = React.useState('');
+  const [type, setType] = React.useState('');
   const [hourlyRate, setHourlyRate] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -35,6 +36,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   React.useEffect(() => {
     if (station) {
       setName(station.name);
+      setType(station.type);
       setHourlyRate(station.hourlyRate);
     }
   }, [station]);
@@ -45,7 +47,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
     
     setIsLoading(true);
     try {
-      const success = await onSave(station.id, name, hourlyRate);
+      const success = await onSave(station.id, name, type, hourlyRate);
       if (success) {
         onOpenChange(false);
       }
@@ -80,6 +82,17 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
           </div>
           
           <div className="space-y-2">
+            <Label htmlFor="type">Station Type</Label>
+            <Input
+              id="type"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              placeholder="e.g., ps5, 8ball, vr, etc."
+              required
+            />
+          </div>
+          
+          <div className="space-y-2">
             <Label htmlFor="hourlyRate">Hourly Rate</Label>
             <Input
               id="hourlyRate"
@@ -105,7 +118,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
             <Button 
               type="submit" 
               className="bg-cuephoria-purple hover:bg-cuephoria-purple/80" 
-              disabled={isLoading || !name || hourlyRate <= 0}
+              disabled={isLoading || !name || !type || hourlyRate <= 0}
             >
               {isLoading ? 'Saving...' : 'Save Changes'}
             </Button>

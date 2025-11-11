@@ -13,12 +13,10 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
 import { generateId } from '@/utils/pos.utils';
 
-// Create a schema for station validation - Updated to include 'vr'
+// Create a schema for station validation - allow custom type
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
-  type: z.enum(['ps5', '8ball', 'vr'], { 
-    required_error: 'Please select a station type.' 
-  }),
+  type: z.string().min(1, { message: 'Please enter a station type.' }),
   hourlyRate: z.coerce.number()
     .min(10, { message: 'Rate must be at least ₹10.' })
     .max(5000, { message: 'Rate cannot exceed ₹5000.' })
@@ -141,18 +139,9 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Station Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select station type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="ps5">PlayStation 5</SelectItem>
-                      <SelectItem value="8ball">8-Ball Table</SelectItem>
-                      <SelectItem value="vr">VR Gaming</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input placeholder="e.g., ps5, 8ball, vr, snooker" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
