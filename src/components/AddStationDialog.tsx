@@ -34,6 +34,9 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
   const { stations, setStations } = usePOS();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Existing station types for suggestions
+  const existingTypes = Array.from(new Set(stations.map(s => s.type))).sort((a, b) => a.localeCompare(b));
+  
   // Initialize the form
   const form = useForm<StationFormValues>({
     resolver: zodResolver(stationSchema),
@@ -51,14 +54,18 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     setIsSubmitting(true);
     
     try {
+      // Enforce name and type to match
+      const finalName = values.name.trim();
+      const finalType = finalName;
+      
       // Generate a proper UUID for the new station
       const stationId = crypto.randomUUID();
       
       // Create a new station object
       const newStation = {
         id: stationId,
-        name: values.name,
-        type: values.type,
+        name: finalName,
+        type: finalType,
         hourlyRate: values.hourlyRate,
         isOccupied: false,
         currentSession: null
@@ -69,8 +76,8 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         .from('stations')
         .insert({
           id: stationId,
-          name: values.name,
-          type: values.type,
+          name: finalName,
+          type: finalType,
           hourly_rate: values.hourlyRate,
           is_occupied: false
         });
@@ -92,7 +99,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
       // Show success toast
       toast({
         title: "Station Added",
-        description: `${values.name} has been added successfully.`,
+        description: `${finalName} has been added successfully.`,
       });
       
       // Reset form and close dialog
@@ -126,7 +133,15 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                 <FormItem>
                   <FormLabel>Station Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter station name" {...field} />
+                    <Input 
+                      placeholder="Enter station name"
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        // Keep type in sync with name
+                        form.setValue('type', e.target.value, { shouldValidate: true });
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -140,8 +155,35 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                 <FormItem>
                   <FormLabel>Station Type</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., ps5, 8ball, vr, snooker" {...field} />
+                    <Input 
+                      placeholder="Select or type a station type"
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        // Keep name in sync with type
+                        form.setValue('name', e.target.value, { shouldValidate: true });
+                      }}
+                    />
                   </FormControl>
+                  
+                  {existingTypes.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {existingTypes.map((t) => (
+                        <Button
+                          key={t}
+                          type="button"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            form.setValue('type', t, { shouldValidate: true });
+                            form.setValue('name', t, { shouldValidate: true });
+                          }}
+                        >
+                          {t}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

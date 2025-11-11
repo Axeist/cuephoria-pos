@@ -31,6 +31,17 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   const [type, setType] = React.useState('');
   const [hourlyRate, setHourlyRate] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
+  
+  // Keep name and type in sync
+  const handleNameChange = (value: string) => {
+    setName(value);
+    setType(value);
+  };
+  
+  const handleTypeChange = (value: string) => {
+    setType(value);
+    setName(value);
+  };
 
   // Update form when station changes
   React.useEffect(() => {
@@ -75,7 +86,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
             <Input
               id="name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Enter station name"
               required
             />
@@ -86,7 +97,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
             <Input
               id="type"
               value={type}
-              onChange={(e) => setType(e.target.value)}
+              onChange={(e) => handleTypeChange(e.target.value)}
               placeholder="e.g., ps5, 8ball, vr, etc."
               required
             />
