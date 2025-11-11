@@ -206,6 +206,26 @@ export const deleteTournament = async (id: string): Promise<{ success: boolean; 
   try {
     console.log('Starting tournament deletion for ID:', id);
     
+    // Clean up public registrations tied to this tournament
+    const { error: registrationsError } = await supabase
+      .from('tournament_public_registrations')
+      .delete()
+      .eq('tournament_id', id);
+    if (registrationsError) {
+      console.error('Error deleting tournament public registrations:', registrationsError);
+      return { success: false, error: formatTournamentError(registrationsError) };
+    }
+    
+    // Clean up winner images tied to this tournament
+    const { error: winnerImagesError } = await supabase
+      .from('tournament_winner_images')
+      .delete()
+      .eq('tournament_id', id);
+    if (winnerImagesError) {
+      console.error('Error deleting tournament winner images:', winnerImagesError);
+      return { success: false, error: formatTournamentError(winnerImagesError) };
+    }
+    
     // First, delete related tournament history entries
     const { error: historyError } = await supabase
       .from('tournament_history')
