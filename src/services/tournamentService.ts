@@ -294,16 +294,23 @@ export const deleteTournament = async (id: string): Promise<{ success: boolean; 
     
     // If hard delete failed or affected 0 rows, fall back to soft-delete (archive)
     console.warn('Hard delete did not remove the tournament, applying soft-delete (archive) fallback');
-    const { error: archiveError } = await tournamentsTable
+    const { data: archivedRow, error: archiveError } = await tournamentsTable
       .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id, status')
+      .maybeSingle();
     
     if (archiveError) {
       console.error('Soft-delete (archive) failed:', archiveError);
       return { success: false, error: formatTournamentError(archiveError) };
     }
     
-    console.log('Tournament archived successfully as a fallback');
+    if (!archivedRow || archivedRow.id !== id) {
+      console.error('Soft-delete (archive) did not affect any row for ID:', id);
+      return { success: false, error: 'Could not delete or archive the tournament. Please check your permissions.' };
+    }
+    
+    console.log('Tournament archived successfully as a fallback:', archivedRow);
     return { success: true, error: null };
   } catch (error) {
     console.error('Unexpected error deleting tournament:', error);
