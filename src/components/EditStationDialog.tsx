@@ -32,15 +32,13 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   const [hourlyRate, setHourlyRate] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
   
-  // Keep name and type in sync
+  // Name and type can be edited independently
   const handleNameChange = (value: string) => {
     setName(value);
-    setType(value);
   };
   
   const handleTypeChange = (value: string) => {
     setType(value);
-    setName(value);
   };
 
   // Update form when station changes

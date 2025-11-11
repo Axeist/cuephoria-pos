@@ -27,12 +27,15 @@ type StationFormValues = z.infer<typeof stationSchema>;
 interface AddStationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialType?: string;
 }
 
-const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange }) => {
+const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange, initialType }) => {
   const { toast } = useToast();
   const { stations, setStations } = usePOS();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCustomType, setShowCustomType] = useState(false);
+  const [customType, setCustomType] = useState('');
   
   // Existing station types for suggestions
   const existingTypes = Array.from(new Set(stations.map(s => s.type))).sort((a, b) => a.localeCompare(b));
@@ -42,7 +45,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     resolver: zodResolver(stationSchema),
     defaultValues: {
       name: '',
-      type: 'ps5',
+      type: initialType || 'ps5',
       hourlyRate: 100,
     },
   });
@@ -54,9 +57,18 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     setIsSubmitting(true);
     
     try {
-      // Enforce name and type to match
       const finalName = values.name.trim();
-      const finalType = finalName;
+      const finalType = (initialType || (showCustomType ? customType : values.type) || '').trim();
+      
+      if (!finalType) {
+        toast({
+          title: "Type required",
+          description: "Please select or enter a station type.",
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
       
       // Generate a proper UUID for the new station
       const stationId = crypto.randomUUID();
@@ -133,15 +145,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                 <FormItem>
                   <FormLabel>Station Name</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Enter station name"
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        // Keep type in sync with name
-                        form.setValue('type', e.target.value, { shouldValidate: true });
-                      }}
-                    />
+                    <Input placeholder="Enter station name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -154,35 +158,49 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Station Type</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="Select or type a station type"
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        // Keep name in sync with type
-                        form.setValue('name', e.target.value, { shouldValidate: true });
-                      }}
-                    />
-                  </FormControl>
-                  
-                  {existingTypes.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {existingTypes.map((t) => (
-                        <Button
-                          key={t}
-                          type="button"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => {
-                            form.setValue('type', t, { shouldValidate: true });
-                            form.setValue('name', t, { shouldValidate: true });
-                          }}
-                        >
-                          {t}
-                        </Button>
-                      ))}
-                    </div>
+                  {initialType ? (
+                    <FormControl>
+                      <Input value={initialType} disabled readOnly />
+                    </FormControl>
+                  ) : (
+                    <>
+                      <Select
+                        onValueChange={(val) => {
+                          if (val === '__custom__') {
+                            setShowCustomType(true);
+                            field.onChange('');
+                          } else {
+                            setShowCustomType(false);
+                            setCustomType('');
+                            field.onChange(val);
+                          }
+                        }}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a station type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {existingTypes.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__custom__">Custom...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {showCustomType && (
+                        <div className="mt-2">
+                          <Input 
+                            placeholder="Enter new type"
+                            value={customType}
+                            onChange={(e) => setCustomType(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                   <FormMessage />
                 </FormItem>
