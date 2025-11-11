@@ -1,30 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import { Card, CardContent } from '@/components/ui/card';
-import { Gamepad2, Plus, Table2, Headset, Pencil } from 'lucide-react';
+import { Gamepad2, Plus, Table2, Headset } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
 const Stations = () => {
-  const { stations, setStations } = usePOS();
+  const { stations } = usePOS();
   const [openAddDialog, setOpenAddDialog] = useState(false);
-  const [selectedTypeToAdd, setSelectedTypeToAdd] = useState<string | undefined>(undefined);
   const [openPinDialog, setOpenPinDialog] = useState(false);
-  const { toast } = useToast();
-  
-  const stationsByType = useMemo(() => {
-    const map = new Map<string, typeof stations>();
-    for (const s of stations) {
-      const key = s.type || 'unknown';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
-    }
-    return map;
-  }, [stations]);
   
   // Separate stations by type
   const ps5Stations = stations.filter(station => station.type === 'ps5');
@@ -36,8 +22,7 @@ const Stations = () => {
   const activeBall = ballStations.filter(s => s.isOccupied).length;
   const activeVr = vrStations.filter(s => s.isOccupied).length;
 
-  const handleAddStationClick = (type?: 'ps5' | '8ball' | 'vr') => {
-    setSelectedTypeToAdd(type);
+  const handleAddStationClick = () => {
     setOpenPinDialog(true);
   };
 
@@ -52,7 +37,7 @@ const Stations = () => {
         <div className="flex space-x-2 w-full sm:w-auto">
           <Button 
             className="bg-cuephoria-purple hover:bg-cuephoria-purple/80 text-sm sm:text-base"
-            onClick={() => handleAddStationClick(undefined)}
+            onClick={handleAddStationClick}
           >
             <Plus className="mr-2 h-4 w-4" /> Add Station
           </Button>
@@ -71,84 +56,121 @@ const Stations = () => {
       {/* Add Station Dialog */}
       <AddStationDialog 
         open={openAddDialog} 
-        onOpenChange={(o) => {
-          if (!o) setSelectedTypeToAdd(undefined);
-          setOpenAddDialog(o);
-        }} 
-        initialType={selectedTypeToAdd}
+        onOpenChange={setOpenAddDialog} 
       />
 
-      {/* Summary cards removed in favor of dynamic sections */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 animate-slide-up">
+        <Card className="bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-cuephoria-purple/30 border animate-fade-in">
+          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">PlayStation 5</p>
+              <p className="text-2xl font-bold">{activePs5} / {ps5Stations.length} Active</p>
+            </div>
+            <div className="rounded-full bg-cuephoria-purple/20 p-3">
+              <Gamepad2 className="h-6 w-6 text-cuephoria-lightpurple" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-r from-green-900/20 to-green-700/10 border-green-500/30 border animate-fade-in delay-100">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">8-Ball Tables</p>
+              <p className="text-2xl font-bold">{activeBall} / {ballStations.length} Active</p>
+            </div>
+            <div className="rounded-full bg-green-900/30 p-3">
+              <Table2 className="h-6 w-6 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-r from-blue-900/20 to-blue-700/10 border-blue-500/30 border animate-fade-in delay-200">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">VR Gaming</p>
+              <p className="text-2xl font-bold">{activeVr} / {vrStations.length} Active</p>
+            </div>
+            <div className="rounded-full bg-blue-900/30 p-3">
+              <Headset className="h-6 w-6 text-blue-400" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="space-y-6">
-        {[...stationsByType.keys()].map((type, sectionIndex) => {
-          const group = stationsByType.get(type) || [];
-          const activeCount = group.filter(s => s.isOccupied).length;
-          
-          const handleRename = async () => {
-            const newName = window.prompt('Enter new section name:', type);
-            const trimmed = (newName || '').trim();
-            if (!trimmed || trimmed === type) return;
-            
-            const { error } = await supabase
-              .from('stations')
-              .update({ type: trimmed })
-              .eq('type', type);
-            if (error) {
-              console.error('Error renaming section:', error);
-              toast({
-                title: 'Error',
-                description: 'Failed to rename section',
-                variant: 'destructive'
-              });
-              return;
+        <div className="animate-slide-up delay-200">
+          <div className="flex items-center mb-4">
+            <Gamepad2 className="h-5 w-5 text-cuephoria-lightpurple mr-2" />
+            <h3 className="text-xl font-semibold font-heading">PlayStation 5 Consoles</h3>
+            <span className="ml-2 bg-cuephoria-purple/20 text-cuephoria-lightpurple text-xs px-2 py-1 rounded-full">
+              {activePs5} active
+            </span>
+          </div>
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {ps5Stations
+              .sort((a, b) => {
+                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                return numA - numB;
+              })
+              .map((station, index) => (
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
+                  <StationCard station={station} />
+                </div>
+              ))
             }
-            setStations(prev => prev.map(s => s.type === type ? { ...s, type: trimmed } : s));
-            toast({
-              title: 'Section Renamed',
-              description: `Renamed "${type}" to "${trimmed}"`,
-            });
-          };
+          </div>
+        </div>
+
+        <div className="animate-slide-up delay-300">
+          <div className="flex items-center mb-4">
+            <Table2 className="h-5 w-5 text-green-500 mr-2" />
+            <h3 className="text-xl font-semibold font-heading">8-Ball Tables</h3>
+            <span className="ml-2 bg-green-800/30 text-green-400 text-xs px-2 py-1 rounded-full">
+              {activeBall} active
+            </span>
+          </div>
           
-          return (
-            <div key={type} className={`animate-slide-up ${sectionIndex === 0 ? 'delay-200' : sectionIndex === 1 ? 'delay-300' : 'delay-400'}`}>
-              <div className="flex items-center mb-4">
-                {type.toLowerCase() === 'ps5' && <Gamepad2 className="h-5 w-5 text-cuephoria-lightpurple mr-2" />}
-                {type.toLowerCase() === '8ball' && <Table2 className="h-5 w-5 text-green-500 mr-2" />}
-                {type.toLowerCase() === 'vr' && <Headset className="h-5 w-5 text-blue-400 mr-2" />}
-                <h3 className="text-xl font-semibold font-heading">{type}</h3>
-                <span className="ml-2 bg-cuephoria-purple/20 text-cuephoria-lightpurple text-xs px-2 py-1 rounded-full">
-                  {activeCount} active
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto"
-                  onClick={handleRename}
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Edit Section Name
-                </Button>
-              </div>
-              
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {group
-                  .sort((a, b) => {
-                    const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
-                    const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
-                    return numA - numB;
-                  })
-                  .map((station, index) => (
-                    <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
-                      <StationCard station={station} />
-                    </div>
-                  ))
-                }
-              </div>
-            </div>
-          );
-        })}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            {ballStations
+              .sort((a, b) => {
+                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                return numA - numB;
+              })
+              .map((station, index) => (
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
+                  <StationCard station={station} />
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <div className="animate-slide-up delay-400">
+          <div className="flex items-center mb-4">
+            <Headset className="h-5 w-5 text-blue-400 mr-2" />
+            <h3 className="text-xl font-semibold font-heading">VR Gaming Stations</h3>
+            <span className="ml-2 bg-blue-800/30 text-blue-400 text-xs px-2 py-1 rounded-full">
+              {activeVr} active
+            </span>
+          </div>
+          
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {vrStations
+              .sort((a, b) => {
+                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                return numA - numB;
+              })
+              .map((station, index) => (
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
+                  <StationCard station={station} />
+                </div>
+              ))
+            }
+          </div>
+        </div>
       </div>
     </div>
   );
