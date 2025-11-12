@@ -13,22 +13,26 @@ function j(res: unknown, status = 200) {
 }
 
 // Edge-safe env getter
-function need(name: string) {
+function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
   const fromProcess = typeof process !== "undefined" ? (process.env as any)?.[name] : undefined;
-  const v = fromDeno ?? fromProcess;
+  return fromDeno ?? fromProcess;
+}
+
+function need(name: string): string {
+  const v = getEnv(name);
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
 }
 
 // Get Razorpay key secret
 function getRazorpayKeySecret() {
-  const mode = need("RAZORPAY_MODE") || "test";
+  const mode = getEnv("RAZORPAY_MODE") || "test";
   const isLive = mode === "live";
   
   return isLive
-    ? (need("RAZORPAY_KEY_SECRET_LIVE") || need("RAZORPAY_KEY_SECRET"))
-    : (need("RAZORPAY_KEY_SECRET_TEST") || need("RAZORPAY_KEY_SECRET"));
+    ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
+    : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
 }
 
 // Verify Razorpay payment signature
@@ -60,16 +64,16 @@ function verifyPaymentSignature(
 
 // Fetch payment status from Razorpay API
 async function fetchPaymentStatus(paymentId: string) {
-  const mode = need("RAZORPAY_MODE") || "test";
+  const mode = getEnv("RAZORPAY_MODE") || "test";
   const isLive = mode === "live";
   
   const keyId = isLive 
-    ? (need("RAZORPAY_KEY_ID_LIVE") || need("RAZORPAY_KEY_ID"))
-    : (need("RAZORPAY_KEY_ID_TEST") || need("RAZORPAY_KEY_ID"));
+    ? (getEnv("RAZORPAY_KEY_ID_LIVE") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_LIVE"))
+    : (getEnv("RAZORPAY_KEY_ID_TEST") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_TEST"));
     
   const keySecret = isLive
-    ? (need("RAZORPAY_KEY_SECRET_LIVE") || need("RAZORPAY_KEY_SECRET"))
-    : (need("RAZORPAY_KEY_SECRET_TEST") || need("RAZORPAY_KEY_SECRET"));
+    ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
+    : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
 
   const auth = btoa(`${keyId}:${keySecret}`);
 
