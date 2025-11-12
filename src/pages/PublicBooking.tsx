@@ -30,6 +30,7 @@ import {
   X,
   CreditCard,
   Headset,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parse, getDay } from "date-fns";
@@ -1874,10 +1875,10 @@ export default function PublicBooking() {
                     <button
                       onClick={() => setPaymentMethod("venue")}
                       className={cn(
-                        "rounded-lg px-3 py-2 text-sm border",
+                        "rounded-lg px-3 py-2 text-sm border transition-all",
                         paymentMethod === "venue"
                           ? "bg-white/10 border-white/20 text-white"
-                          : "bg-black/20 border-white/10 text-gray-300"
+                          : "bg-black/20 border-white/10 text-gray-300 hover:bg-black/30"
                       )}
                     >
                       Pay at Venue
@@ -1885,21 +1886,54 @@ export default function PublicBooking() {
                     <button
                       onClick={() => setPaymentMethod("razorpay")}
                       className={cn(
-                        "rounded-lg px-3 py-2 text-sm border inline-flex items-center justify-center gap-2",
+                        "rounded-lg px-3 py-2.5 text-sm border transition-all relative overflow-hidden",
                         paymentMethod === "razorpay"
-                          ? "bg-white/10 border-white/20 text-white"
-                          : "bg-black/20 border-white/10 text-gray-300"
+                          ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] border-[#3395FF]/50 text-white shadow-lg shadow-[#3395FF]/20"
+                          : "bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-[#3395FF]/30"
                       )}
                     >
-                      <CreditCard className="h-4 w-4" />
-                      Pay Online (Razorpay)
+                      <div className="inline-flex items-center justify-center gap-2 relative z-10">
+                        {paymentMethod === "razorpay" ? (
+                          <>
+                            {/* Razorpay Logo - Layered Design */}
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="flex-shrink-0"
+                            >
+                              <rect x="4" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.9"/>
+                              <rect x="14" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.7"/>
+                              <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" fillOpacity="0.5"/>
+                            </svg>
+                            <Shield className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span className="font-semibold">Razorpay</span>
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="h-4 w-4" />
+                            <span>Pay Online</span>
+                          </>
+                        )}
+                      </div>
+                      {paymentMethod === "razorpay" && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
+                      )}
                     </button>
                   </div>
                   {paymentMethod === "razorpay" && (
-                    <p className="mt-2 text-[11px] text-gray-400">
-                      You'll complete payment securely via Razorpay. Booking is created only after
-                      payment success.
-                    </p>
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[11px] text-gray-400">
+                        You'll complete payment securely via Razorpay. Booking is created only after
+                        payment success.
+                      </p>
+                      <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/80">
+                        <Shield className="h-3 w-3" />
+                        <span>Secured by Razorpay</span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1996,16 +2030,46 @@ export default function PublicBooking() {
                   disabled={
                     (selectedSlots.length === 0 && !selectedSlot) || selectedStations.length === 0 || !customerNumber || loading
                   }
-                  className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
+                  className={cn(
+                    "w-full rounded-xl relative overflow-hidden transition-all",
+                    paymentMethod === "razorpay"
+                      ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] hover:from-[#2B85E6] hover:to-[#1E50D9] shadow-lg shadow-[#3395FF]/30 border border-[#3395FF]/30"
+                      : "bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
+                  )}
                   size="lg"
                 >
-                  {loading
-                    ? paymentMethod === "razorpay"
-                      ? "Starting Payment..."
-                      : "Creating Booking..."
-                    : paymentMethod === "razorpay"
-                    ? "Confirm & Pay (Razorpay)"
-                    : "Confirm Booking"}
+                  <div className="inline-flex items-center justify-center gap-2 relative z-10">
+                    {paymentMethod === "razorpay" && !loading && (
+                      <>
+                        {/* Razorpay Logo - Layered Design */}
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="flex-shrink-0"
+                        >
+                          <rect x="4" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.9"/>
+                          <rect x="14" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.7"/>
+                          <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" fillOpacity="0.5"/>
+                        </svg>
+                        <Shield className="h-4 w-4 flex-shrink-0" />
+                      </>
+                    )}
+                    <span className="font-semibold">
+                      {loading
+                        ? paymentMethod === "razorpay"
+                          ? "Starting Payment..."
+                          : "Creating Booking..."
+                        : paymentMethod === "razorpay"
+                        ? "Confirm & Pay with Razorpay"
+                        : "Confirm Booking"}
+                    </span>
+                  </div>
+                  {paymentMethod === "razorpay" && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-white/5 to-transparent opacity-60"></div>
+                  )}
                 </Button>
 
                 <p className="text-xs text-gray-400 text-center">
