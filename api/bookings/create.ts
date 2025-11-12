@@ -86,6 +86,7 @@ export default async function handler(req: Request) {
 
     // Create booking records
     const couponCodes = appliedCoupons ? Object.values(appliedCoupons).join(",") : "";
+    
     const rows = selectedStations.map((stationId: string) => ({
       station_id: stationId,
       customer_id: customerId,
@@ -98,8 +99,8 @@ export default async function handler(req: Request) {
       discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
       final_price: finalPrice || 0,
       coupon_code: couponCodes || null,
-      payment_mode: payment_mode,
-      payment_txn_id: orderId || null,
+      payment_mode: payment_mode || null, // 'venue', 'razorpay', etc.
+      payment_txn_id: orderId || null, // Payment transaction/order ID
     }));
 
     console.log("💾 Inserting booking records:", rows.length, "records");

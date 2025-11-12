@@ -104,7 +104,7 @@ export default function PublicPaymentSuccess() {
         }
       }
 
-      // 4) Insert booking rows (one per station per slot)
+      // 4) Insert booking rows directly (one per station per slot)
       const rows: any[] = [];
       pb.selectedStations.forEach((station_id) => {
         pb.slots.forEach((slot) => {
@@ -122,18 +122,27 @@ export default function PublicPaymentSuccess() {
             final_price: pb.pricing.final / pb.slots.length,
             coupon_code: pb.pricing.coupons || null,
             payment_mode: "razorpay",
-            payment_txn_id: paymentId,
+            payment_txn_id: paymentId, // Store Razorpay payment ID
+            notes: `Razorpay Order: ${orderId}`, // Store order ID in notes for reference
           });
         });
       });
 
-      const { error: bErr } = await supabase.from("bookings").insert(rows);
+      const { error: bErr, data: insertedBookings } = await supabase
+        .from("bookings")
+        .insert(rows)
+        .select("id");
+
       if (bErr) {
         console.error("Booking creation error:", bErr);
         setStatus("failed");
-        setMsg("Payment ok, but booking creation failed. Please contact support or rebook.");
+        setMsg(
+          `Payment ok, but booking creation failed: ${bErr.message || "Database error"}. Please contact support or rebook.`
+        );
         return;
       }
+
+      console.log("✅ Bookings created:", insertedBookings?.length || 0);
 
       localStorage.removeItem("pendingBooking");
       setStatus("done");

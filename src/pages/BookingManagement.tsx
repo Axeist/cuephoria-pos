@@ -45,6 +45,8 @@ interface Booking {
   booking_group_id?: string | null;
   status_updated_at?: string | null;
   status_updated_by?: string | null;
+  payment_mode?: string | null;
+  payment_txn_id?: string | null;
   station: {
     name: string;
     type: string;
@@ -88,6 +90,7 @@ interface Filters {
   priceRange: string;
   duration: string;
   customerType: string;
+  paymentStatus: string;
 }
 
 interface CouponAnalytics {
@@ -198,7 +201,8 @@ export default function BookingManagement() {
     coupon: 'all',
     priceRange: 'all',
     duration: 'all',
-    customerType: 'all'
+    customerType: 'all',
+    paymentStatus: 'all'
   });
 
   const [couponOptions, setCouponOptions] = useState<string[]>([]);
@@ -301,6 +305,8 @@ export default function BookingManagement() {
           booking_group_id,
           status_updated_at,
           status_updated_by,
+          payment_mode,
+          payment_txn_id,
           station_id,
           customer_id,
           created_at,
@@ -464,6 +470,16 @@ export default function BookingManagement() {
         if (filters.customerType === 'returning') return !isNewCustomer;
         return true;
       });
+    }
+
+    if (filters.paymentStatus !== 'all') {
+      if (filters.paymentStatus === 'paid') {
+        filtered = filtered.filter(b => b.payment_mode && b.payment_mode !== 'venue');
+      } else if (filters.paymentStatus === 'unpaid') {
+        filtered = filtered.filter(b => !b.payment_mode || b.payment_mode === 'venue');
+      } else if (filters.paymentStatus === 'razorpay') {
+        filtered = filtered.filter(b => b.payment_mode === 'razorpay');
+      }
     }
 
     return filtered;
@@ -693,11 +709,23 @@ export default function BookingManagement() {
                                   {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between gap-2">
                                 <BookingStatusBadge status={booking.status} />
-                                {booking.coupon_code && (
-                                  <Gift className="h-3 w-3 text-purple-600" />
-                                )}
+                                <div className="flex items-center gap-1">
+                                  {booking.payment_mode && booking.payment_mode !== 'venue' && (
+                                    <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                      💳 {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
+                                    </Badge>
+                                  )}
+                                  {(!booking.payment_mode || booking.payment_mode === 'venue') && (
+                                    <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                      💰 Venue
+                                    </Badge>
+                                  )}
+                                  {booking.coupon_code && (
+                                    <Gift className="h-3 w-3 text-purple-600" />
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}
@@ -742,6 +770,16 @@ export default function BookingManagement() {
                               
                               <div className="flex items-center justify-between">
                                 <BookingStatusBadge status={booking.status} />
+                                {booking.payment_mode && booking.payment_mode !== 'venue' && (
+                                  <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                    💳 {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
+                                  </Badge>
+                                )}
+                                {(!booking.payment_mode || booking.payment_mode === 'venue') && (
+                                  <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                    💰 Venue
+                                  </Badge>
+                                )}
                                 {booking.coupon_code && (
                                   <Badge variant="secondary" className="text-xs flex items-center gap-1">
                                     <Gift className="h-2 w-2" />
@@ -750,6 +788,12 @@ export default function BookingManagement() {
                                 )}
                               </div>
                               
+                              {booking.payment_txn_id && (
+                                <div className="p-2 bg-blue-500/10 rounded text-xs border border-blue-500/20">
+                                  <span className="text-blue-600 font-medium">Transaction ID: </span>
+                                  <span className="text-blue-400 font-mono text-[10px]">{booking.payment_txn_id}</span>
+                                </div>
+                              )}
                               {booking.notes && (
                                 <div className="p-2 bg-muted/50 rounded text-xs">
                                   <span className="text-muted-foreground">Notes: </span>
@@ -1156,7 +1200,8 @@ export default function BookingManagement() {
       coupon: 'all',
       priceRange: 'all',
       duration: 'all',
-      customerType: 'all'
+      customerType: 'all',
+      paymentStatus: 'all'
     });
   };
 
@@ -1393,6 +1438,21 @@ export default function BookingManagement() {
                       <SelectItem value="all">All Customers</SelectItem>
                       <SelectItem value="new">🆕 New Customers</SelectItem>
                       <SelectItem value="returning">🔄 Returning</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Payment Status</Label>
+                  <Select value={filters.paymentStatus} onValueChange={(value) => setFilters(prev => ({ ...prev, paymentStatus: value }))}>
+                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Payments</SelectItem>
+                      <SelectItem value="paid">💳 Paid Online</SelectItem>
+                      <SelectItem value="unpaid">💰 Pay at Venue</SelectItem>
+                      <SelectItem value="razorpay">🔷 Razorpay</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
