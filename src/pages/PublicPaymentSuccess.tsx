@@ -5,36 +5,52 @@ import { supabase } from "@/integrations/supabase/client";
 type PendingBooking = {
   selectedStations: string[];
   selectedDateISO: string;
-  start_time: string;
-  end_time: string;
+  slots: Array<{ start_time: string; end_time: string }>;
+  duration: number;
   customer: { id?: string; name: string; phone: string; email?: string };
   pricing: { original: number; discount: number; final: number; coupons: string };
 };
 
 export default function PublicPaymentSuccess() {
   const [searchParams] = useSearchParams();
-  const txn = searchParams.get("txn") || "";
+  const paymentId = searchParams.get("payment_id") || "";
+  const orderId = searchParams.get("order_id") || "";
+  const signature = searchParams.get("signature") || "";
   const [status, setStatus] = useState<"checking" | "creating" | "done" | "failed">("checking");
   const [msg, setMsg] = useState("Verifying your payment…");
 
   useEffect(() => {
     const run = async () => {
-      if (!txn) {
+      if (!paymentId || !orderId || !signature) {
         setStatus("failed");
-        setMsg("Missing transaction reference. Please rebook.");
+        setMsg("Missing payment details. Please rebook.");
         return;
       }
 
-      // 1) Verify with backend
+      // 1) Verify payment with backend
       try {
-        const st = await fetch(`https://admin.cuephoria.in/api/phonepe/status?txn=${encodeURIComponent(txn)}`).then(r => r.json());
-        if (!st?.success) {
+        const verifyRes = await fetch("/api/razorpay/verify-payment", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: orderId,
+            razorpay_payment_id: paymentId,
+            razorpay_signature: signature,
+          }),
+        });
+
+        const verifyData = await verifyRes.json().catch(() => null);
+
+        if (!verifyRes.ok || !verifyData?.ok || !verifyData?.success) {
           localStorage.removeItem("pendingBooking");
           setStatus("failed");
-          setMsg("Payment verification failed. Please try again.");
+          setMsg(verifyData?.error || "Payment verification failed. Please try again.");
           return;
         }
-      } catch {
+
+        console.log("✅ Payment verified:", verifyData);
+      } catch (err) {
+        console.error("Payment verification error:", err);
         setStatus("failed");
         setMsg("Could not verify payment at this time. Please try again.");
         return;
@@ -88,26 +104,32 @@ export default function PublicPaymentSuccess() {
         }
       }
 
-      // 4) Insert booking rows (one per station)
-      const rows = pb.selectedStations.map((station_id) => ({
-        station_id,
-        customer_id: customerId!,
-        booking_date: pb.selectedDateISO,
-        start_time: pb.start_time,
-        end_time: pb.end_time,
-        duration: 60,
-        status: "confirmed",
-        original_price: pb.pricing.original,
-        discount_percentage:
-          pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
-        final_price: pb.pricing.final,
-        coupon_code: pb.pricing.coupons || null,
-        payment_mode: "phonepe",
-        payment_txn_id: txn,
-      }));
+      // 4) Insert booking rows (one per station per slot)
+      const rows: any[] = [];
+      pb.selectedStations.forEach((station_id) => {
+        pb.slots.forEach((slot) => {
+          rows.push({
+            station_id,
+            customer_id: customerId!,
+            booking_date: pb.selectedDateISO,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            duration: pb.duration,
+            status: "confirmed",
+            original_price: pb.pricing.original / pb.slots.length,
+            discount_percentage:
+              pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
+            final_price: pb.pricing.final / pb.slots.length,
+            coupon_code: pb.pricing.coupons || null,
+            payment_mode: "razorpay",
+            payment_txn_id: paymentId,
+          });
+        });
+      });
 
       const { error: bErr } = await supabase.from("bookings").insert(rows);
       if (bErr) {
+        console.error("Booking creation error:", bErr);
         setStatus("failed");
         setMsg("Payment ok, but booking creation failed. Please contact support or rebook.");
         return;
@@ -119,7 +141,7 @@ export default function PublicPaymentSuccess() {
     };
 
     run();
-  }, [txn]);
+  }, [paymentId, orderId, signature]);
 
   const title =
     status === "done" ? "Payment Success"

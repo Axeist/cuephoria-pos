@@ -166,7 +166,7 @@ export default function PublicBooking() {
   const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>({});
   const [couponCode, setCouponCode] = useState("");
 
-  const [paymentMethod, setPaymentMethod] = useState<"venue" | "phonepe">("venue");
+  const [paymentMethod, setPaymentMethod] = useState<"venue" | "razorpay">("venue");
   const [loading, setLoading] = useState(false);
 
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -183,168 +183,7 @@ export default function PublicBooking() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
 
-  useEffect(() => {
-    const pp = searchParams.get("pp");
-    const txn = searchParams.get("txn");
-    
-    if (pp && txn) {
-      setPaymentStatus("processing");
-      
-      // Clear any stored payment transaction ID since we're processing the result
-      localStorage.removeItem("currentPaymentTxnId");
-      
-      if (pp === "success") {
-        handlePaymentSuccess(txn);
-      } else if (pp === "failed") {
-        setPaymentStatus("failed");
-        toast.error("Payment failed. Please try again or choose 'Pay at Venue'.");
-      }
-      
-      setSearchParams({});
-    }
-  }, [searchParams, setSearchParams]);
-
-  // ✅ UPDATED: Payment success handler with duplicate check and Customer ID
-  const handlePaymentSuccess = async (txnId: string) => {
-    try {
-      console.log("🔄 Processing payment success for transaction:", txnId);
-      
-      const statusResponse = await fetch(`https://admin.cuephoria.in/api/phonepe/status?txn=${encodeURIComponent(txnId)}`);
-      const statusData = await statusResponse.json();
-      
-      console.log("📊 Payment status response:", statusData);
-      
-      if (!statusData?.success) {
-        throw new Error("Payment verification failed");
-      }
-      
-      const pendingBookingData = localStorage.getItem("pendingBooking");
-      if (!pendingBookingData) {
-        throw new Error("No pending booking found");
-      }
-      
-      const pendingBooking = JSON.parse(pendingBookingData);
-      console.log("📋 Pending booking data:", pendingBooking);
-      
-      let customerId = pendingBooking.customer.id;
-      
-      if (!customerId) {
-        const normalizedPhone = normalizePhoneNumber(pendingBooking.customer.phone);
-        
-        // ✅ Check for existing customer
-        const { data: existingCustomer } = await supabase
-          .from("customers")
-          .select("id")
-          .eq("phone", normalizedPhone)
-          .maybeSingle();
-        
-        if (existingCustomer?.id) {
-          customerId = existingCustomer.id;
-        } else {
-          const customerID = generateCustomerID(normalizedPhone);
-          
-          const { data: newCustomer, error } = await supabase
-            .from("customers")
-            .insert({
-              name: pendingBooking.customer.name,
-              phone: normalizedPhone,
-              email: pendingBooking.customer.email || null,
-              custom_id: customerID,
-              is_member: false,
-              loyalty_points: 0,
-              total_spent: 0,
-              total_play_time: 0,
-            })
-            .select("id")
-            .single();
-          
-          if (error) {
-            if (error.code === '23505') {
-              const { data: retryCustomer } = await supabase
-                .from("customers")
-                .select("id")
-                .eq("phone", normalizedPhone)
-                .single();
-              
-              if (retryCustomer) {
-                customerId = retryCustomer.id;
-              } else {
-                throw error;
-              }
-            } else {
-              throw error;
-            }
-          } else {
-            customerId = newCustomer.id;
-          }
-        }
-      }
-      
-      const bookingDuration = getBookingDuration(pendingBooking.selectedStations, stations);
-      
-      // Handle both old format (single slot) and new format (multiple slots)
-      const slots = pendingBooking.slots || (pendingBooking.start_time ? [{
-        start_time: pendingBooking.start_time,
-        end_time: pendingBooking.end_time
-      }] : []);
-      
-      if (slots.length === 0) {
-        throw new Error("No time slots found in pending booking");
-      }
-      
-      // Calculate price per slot
-      const pricePerSlot = pendingBooking.pricing.final / slots.length;
-      const originalPerSlot = pendingBooking.pricing.original / slots.length;
-      const discountPerSlot = pendingBooking.pricing.discount / slots.length;
-      
-      // Create bookings for each slot and station combination
-      const bookingRows = slots.flatMap((slot: { start_time: string; end_time: string }) =>
-        pendingBooking.selectedStations.map((stationId: string) => ({
-          station_id: stationId,
-          customer_id: customerId,
-          booking_date: pendingBooking.selectedDateISO,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          duration: bookingDuration,
-          status: "confirmed",
-          original_price: originalPerSlot,
-          discount_percentage: discountPerSlot > 0 
-            ? (discountPerSlot / originalPerSlot) * 100 
-            : null,
-          final_price: pricePerSlot,
-          coupon_code: pendingBooking.pricing.coupons || null,
-          payment_mode: "phonepe",
-          payment_txn_id: txnId,
-        }))
-      );
-      
-      console.log("💾 Creating booking records:", bookingRows);
-      
-      const { error: bookingError } = await supabase
-        .from("bookings")
-        .insert(bookingRows);
-      
-      if (bookingError) {
-        console.error("❌ Booking creation failed:", bookingError);
-        throw bookingError;
-      }
-      
-      console.log("✅ Booking created successfully");
-      localStorage.removeItem("pendingBooking");
-      setPaymentStatus("success");
-      toast.success("🎉 Payment successful! Your booking is confirmed.");
-      
-      fetchTodaysBookings();
-      if (selectedStations.length > 0 && selectedDate) {
-        fetchAvailableSlots();
-      }
-      
-    } catch (error) {
-      console.error("Payment success handling error:", error);
-      setPaymentStatus("failed");
-      toast.error("Payment was successful but booking creation failed. Please contact support.");
-    }
-  };
+  // Old PhonePe payment handling removed - now using Razorpay with separate success page
 
   useEffect(() => {
     fetchStations();
@@ -1133,7 +972,24 @@ export default function PublicBooking() {
     }
   }
 
-  const initiatePhonePe = async () => {
+  // Load Razorpay script dynamically
+  useEffect(() => {
+    if (paymentMethod === "razorpay" && !(window as any).Razorpay) {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => {
+        console.log("✅ Razorpay script loaded");
+      };
+      script.onerror = () => {
+        console.error("❌ Failed to load Razorpay script");
+        toast.error("Failed to load payment gateway. Please refresh the page.");
+      };
+      document.body.appendChild(script);
+    }
+  }, [paymentMethod]);
+
+  const initiateRazorpay = async () => {
     // Use selectedSlots if available, otherwise fall back to single selectedSlot
     const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
     
@@ -1153,12 +1009,14 @@ export default function PublicBooking() {
       return;
     }
 
-    const txnId = genTxnId();
-    const origin = window.location.origin;
-    const successUrl = `${origin}/public/booking?pp=success`;
-    const failedUrl = `${origin}/public/booking?pp=failed`;
+    if (!(window as any).Razorpay) {
+      toast.error("Payment gateway is loading. Please wait a moment and try again.");
+      return;
+    }
 
+    const txnId = genTxnId();
     setLoading(true);
+
     try {
       const bookingDuration = getBookingDuration(selectedStations, stations);
       // Store all slots for booking creation after payment
@@ -1180,66 +1038,100 @@ export default function PublicBooking() {
       };
       localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
 
-      const res = await fetch("/api/phonepe/pay", {
+      // Create order on server
+      const orderRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           amount: totalPrice,
-          customerPhone: customerInfo.phone,
-          merchantTransactionId: txnId,
-          successUrl,
-          failedUrl,
+          receipt: txnId,
+          notes: {
+            customer_name: customerInfo.name,
+            customer_phone: customerInfo.phone,
+            customer_email: customerInfo.email || "",
+            booking_date: format(selectedDate, "yyyy-MM-dd"),
+            stations: selectedStations.join(","),
+          },
         }),
       });
 
-      const raw = await res.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(raw);
-      } catch {
-      }
+      const orderData = await orderRes.json().catch(() => null);
 
-      console.log("PhonePe pay upstream →", {
-        status: res.status,
-        ok: res.ok,
-        raw,
-        json: data,
-      });
-
-      if (res.ok && data?.ok && data?.url) {
-        // Store the transaction ID for potential fallback
-        localStorage.setItem("currentPaymentTxnId", txnId);
-        
-        // Set a timeout to handle cases where redirect doesn't work
-        const redirectTimeout = setTimeout(() => {
-          console.warn("⚠️ Payment redirect timeout - user may have cancelled or closed the window");
-          // Check if user is still on the same page (indicating redirect didn't work)
-          if (window.location.href.includes('/public/booking')) {
-            toast.error("Payment was cancelled or failed. Please try again.");
-            setLoading(false);
-          }
-        }, 300000); // 5 minutes timeout
-        
-        // Clear timeout if user navigates away (successful redirect)
-        const originalHref = window.location.href;
-        const checkRedirect = setInterval(() => {
-          if (window.location.href !== originalHref) {
-            clearTimeout(redirectTimeout);
-            clearInterval(checkRedirect);
-          }
-        }, 1000);
-        
-        window.location.href = data.url;
+      if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
+        const error = orderData?.error || "Failed to create payment order";
+        console.error("❌ Order creation failed:", error);
+        toast.error(`Payment setup failed: ${error}`);
+        setLoading(false);
         return;
       }
 
-      const apiErr = (data && (data.error || data.raw)) || raw || "Unknown error";
-      const step = data?.step ? ` (${data.step})` : "";
-      const status = res.status ? ` [HTTP ${res.status}]` : "";
-      toast.error(`Could not start PhonePe payment${step}${status}. ${apiErr}`);
+      console.log("✅ Razorpay order created:", orderData.orderId);
+
+      // Get Razorpay key ID (we'll need to fetch this from server or use env)
+      // For now, we'll create an endpoint to get the key ID
+      const keyRes = await fetch("/api/razorpay/get-key-id");
+      const keyData = await keyRes.json().catch(() => ({ keyId: "" }));
+      const razorpayKeyId = keyData.keyId || "";
+
+      if (!razorpayKeyId) {
+        toast.error("Payment gateway configuration error. Please contact support.");
+            setLoading(false);
+        return;
+      }
+
+      const origin = window.location.origin;
+      const callbackUrl = `${origin}/api/razorpay/callback`;
+
+      // Razorpay checkout options
+      const options = {
+        key: razorpayKeyId,
+        amount: orderData.amount, // Amount in paise
+        currency: orderData.currency || "INR",
+        name: "Cuephoria Gaming Lounge",
+        description: `Booking for ${slotsToBook.length} slot(s)`,
+        order_id: orderData.orderId,
+        handler: function (response: any) {
+          console.log("✅ Razorpay payment success:", response);
+          // Redirect to success page with payment details
+          window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}`;
+        },
+        prefill: {
+          name: customerInfo.name,
+          email: customerInfo.email || "",
+          contact: customerInfo.phone,
+        },
+        notes: {
+          transaction_id: txnId,
+          customer_name: customerInfo.name,
+          customer_phone: customerInfo.phone,
+        },
+        theme: {
+          color: "#8B5CF6", // Cuephoria purple
+        },
+        modal: {
+          ondismiss: function() {
+            console.log("Payment cancelled by user");
+            setLoading(false);
+            toast.info("Payment was cancelled");
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      
+      rzp.on("payment.failed", function (response: any) {
+        console.error("❌ Razorpay payment failed:", response);
+        const error = response.error?.description || response.error?.reason || "Payment failed";
+        toast.error(`Payment failed: ${error}`);
+        setLoading(false);
+        // Redirect to failure page
+        window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}`;
+      });
+
+      rzp.open();
     } catch (e: any) {
-      toast.error(`Unable to start payment (network). ${e?.message || e}`);
-    } finally {
+      console.error("💥 Razorpay payment error:", e);
+      toast.error(`Unable to start payment: ${e?.message || e}`);
       setLoading(false);
     }
   };
@@ -1266,7 +1158,7 @@ export default function PublicBooking() {
     if (paymentMethod === "venue") {
       await createVenueBooking();
     } else {
-      await initiatePhonePe();
+      await initiateRazorpay();
     }
   }
 
@@ -1957,21 +1849,21 @@ export default function PublicBooking() {
                       Pay at Venue
                     </button>
                     <button
-                      onClick={() => setPaymentMethod("phonepe")}
+                      onClick={() => setPaymentMethod("razorpay")}
                       className={cn(
                         "rounded-lg px-3 py-2 text-sm border inline-flex items-center justify-center gap-2",
-                        paymentMethod === "phonepe"
+                        paymentMethod === "razorpay"
                           ? "bg-white/10 border-white/20 text-white"
                           : "bg-black/20 border-white/10 text-gray-300"
                       )}
                     >
                       <CreditCard className="h-4 w-4" />
-                      Pay Online (PhonePe)
+                      Pay Online (Razorpay)
                     </button>
                   </div>
-                  {paymentMethod === "phonepe" && (
+                  {paymentMethod === "razorpay" && (
                     <p className="mt-2 text-[11px] text-gray-400">
-                      You'll be redirected to PhonePe. Booking is created only after
+                      You'll complete payment securely via Razorpay. Booking is created only after
                       payment success.
                     </p>
                   )}
@@ -2074,18 +1966,18 @@ export default function PublicBooking() {
                   size="lg"
                 >
                   {loading
-                    ? paymentMethod === "phonepe"
+                    ? paymentMethod === "razorpay"
                       ? "Starting Payment..."
                       : "Creating Booking..."
-                    : paymentMethod === "phonepe"
-                    ? "Confirm & Pay (PhonePe)"
+                    : paymentMethod === "razorpay"
+                    ? "Confirm & Pay (Razorpay)"
                     : "Confirm Booking"}
                 </Button>
 
                 <p className="text-xs text-gray-400 text-center">
                   All prices are shown in <span className="font-semibold">INR (₹)</span>.{" "}
-                  {paymentMethod === "phonepe"
-                    ? "You will complete payment securely on PhonePe."
+                  {paymentMethod === "razorpay"
+                    ? "You will complete payment securely via Razorpay."
                     : "Payment will be collected at the venue."}
                 </p>
               </CardContent>
