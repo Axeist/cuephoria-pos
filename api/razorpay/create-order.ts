@@ -62,12 +62,20 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
     throw new Error("Amount must be at least ₹1.00 (100 paise)");
   }
 
-  const orderData = {
-    amount: amountInPaise, // Convert to paise
+  // Ensure notes is an object (not null/undefined)
+  const orderNotes = notes && typeof notes === 'object' ? notes : {};
+  
+  // Build order data according to Razorpay API spec
+  const orderData: any = {
+    amount: amountInPaise, // Amount in paise (smallest currency unit)
     currency: "INR",
     receipt: receipt.substring(0, 40), // Razorpay has 40 char limit
-    notes: notes || {},
   };
+  
+  // Only include notes if it has content (Razorpay may reject empty objects)
+  if (orderNotes && Object.keys(orderNotes).length > 0) {
+    orderData.notes = orderNotes;
+  }
 
   console.log("📤 Creating Razorpay order:", { 
     amount: orderData.amount, 
@@ -92,12 +100,14 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
   let responseText: string;
   
   try {
+    // Razorpay API expects specific header format
+    // Don't include Accept header as it might cause 406
     response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json",
         "Authorization": `Basic ${auth}`,
+        "User-Agent": "Cuephoria-Booking-System/1.0",
       },
       body: JSON.stringify(orderData),
     });
