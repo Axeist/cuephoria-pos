@@ -39,6 +39,13 @@ function getRazorpayCredentials() {
     ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
     : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
 
+  // Validate key format
+  if (isLive && !keyId.startsWith("rzp_live_")) {
+    console.warn("⚠️ Live mode but key doesn't start with 'rzp_live_'");
+  } else if (!isLive && !keyId.startsWith("rzp_test_")) {
+    console.warn("⚠️ Test mode but key doesn't start with 'rzp_test_'");
+  }
+
   return { keyId, keySecret, isLive };
 }
 
@@ -56,25 +63,42 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
     throw new Error(`Configuration error: ${err?.message || "Missing Razorpay credentials"}`);
   }
   
-  // Validate amount
-  const amountInPaise = Math.round(amount * 100);
+  // Validate amount and ensure it's an integer
+  const amountInPaise = Math.round(Number(amount) * 100);
   if (amountInPaise < 100) {
     throw new Error("Amount must be at least ₹1.00 (100 paise)");
   }
+  if (!Number.isInteger(amountInPaise)) {
+    throw new Error("Amount must be a valid number");
+  }
 
-  // Ensure notes is an object (not null/undefined)
-  const orderNotes = notes && typeof notes === 'object' ? notes : {};
-  
   // Build order data according to Razorpay API spec
-  const orderData: any = {
-    amount: amountInPaise, // Amount in paise (smallest currency unit)
+  // Keep it minimal - only required fields first
+  // Razorpay is very strict about data types
+  const orderData: {
+    amount: number;
+    currency: string;
+    receipt: string;
+    notes?: Record<string, string>;
+  } = {
+    amount: amountInPaise, // Must be integer in paise
     currency: "INR",
-    receipt: receipt.substring(0, 40), // Razorpay has 40 char limit
+    receipt: receipt.substring(0, 40).trim(), // Razorpay has 40 char limit, remove whitespace
   };
   
-  // Only include notes if it has content (Razorpay may reject empty objects)
-  if (orderNotes && Object.keys(orderNotes).length > 0) {
-    orderData.notes = orderNotes;
+  // Only include notes if it has content and is a valid object
+  // Some Razorpay endpoints reject empty notes objects
+  if (notes && typeof notes === 'object' && Object.keys(notes).length > 0) {
+    // Validate notes - each value must be string and max 256 chars
+    const validNotes: Record<string, string> = {};
+    for (const [key, value] of Object.entries(notes)) {
+      if (key && value && typeof value === 'string' && value.length <= 256) {
+        validNotes[key] = value;
+      }
+    }
+    if (Object.keys(validNotes).length > 0) {
+      orderData.notes = validNotes;
+    }
   }
 
   console.log("📤 Creating Razorpay order:", { 
@@ -86,33 +110,77 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
   });
 
   // Basic auth: keyId:keySecret
-  const auth = btoa(`${keyId}:${keySecret}`);
+  // Edge Runtime has btoa available
+  const credentials = `${keyId}:${keySecret}`;
+  const auth = btoa(credentials);
+  
+  // Verify auth was created correctly
+  if (!auth || auth.length < 10) {
+    throw new Error("Failed to create authentication token");
+  }
   
   // Log request details (without sensitive data)
   console.log("📋 Request details:", {
     url: "https://api.razorpay.com/v1/orders",
     method: "POST",
     hasAuth: !!auth,
-    bodySize: JSON.stringify(orderData).length
+    authLength: auth.length,
+    bodySize: JSON.stringify(orderData).length,
+    bodyPreview: JSON.stringify(orderData).substring(0, 100)
   });
 
   let response: Response;
   let responseText: string;
   
   try {
-    // Razorpay API expects specific header format
-    // Don't include Accept header as it might cause 406
+    // Razorpay API - minimal headers as per their documentation
+    // Only include essential headers
+    const requestBody = JSON.stringify(orderData);
+    
+    console.log("🔍 Final request body:", requestBody);
+    console.log("🔍 Auth header length:", auth.length);
+    
     response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Basic ${auth}`,
-        "User-Agent": "Cuephoria-Booking-System/1.0",
       },
-      body: JSON.stringify(orderData),
+      body: requestBody,
     });
 
     responseText = await response.text();
+    
+    // If we get 406, try without notes as a diagnostic
+    if (response.status === 406 && orderData.notes) {
+      console.log("⚠️ Got 406 with notes, trying without notes...");
+      const orderDataWithoutNotes = {
+        amount: orderData.amount,
+        currency: orderData.currency,
+        receipt: orderData.receipt,
+      };
+      
+      const retryResponse = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Basic ${auth}`,
+        },
+        body: JSON.stringify(orderDataWithoutNotes),
+      });
+      
+      const retryText = await retryResponse.text();
+      console.log("🔄 Retry response:", {
+        status: retryResponse.status,
+        body: retryText.substring(0, 200)
+      });
+      
+      // If retry works, use that response
+      if (retryResponse.ok) {
+        response = retryResponse;
+        responseText = retryText;
+      }
+    }
   } catch (fetchErr: any) {
     console.error("❌ Network error calling Razorpay:", fetchErr);
     throw new Error(`Network error: ${fetchErr?.message || "Failed to connect to Razorpay"}`);
