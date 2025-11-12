@@ -56,22 +56,37 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
     throw new Error(`Configuration error: ${err?.message || "Missing Razorpay credentials"}`);
   }
   
+  // Validate amount
+  const amountInPaise = Math.round(amount * 100);
+  if (amountInPaise < 100) {
+    throw new Error("Amount must be at least ₹1.00 (100 paise)");
+  }
+
   const orderData = {
-    amount: Math.round(amount * 100), // Convert to paise
+    amount: amountInPaise, // Convert to paise
     currency: "INR",
-    receipt: receipt,
+    receipt: receipt.substring(0, 40), // Razorpay has 40 char limit
     notes: notes || {},
   };
 
   console.log("📤 Creating Razorpay order:", { 
     amount: orderData.amount, 
-    receipt, 
-    currency: "INR",
-    keyIdPrefix: keyId?.substring(0, 10) + "..."
+    receipt: orderData.receipt, 
+    currency: orderData.currency,
+    keyIdPrefix: keyId?.substring(0, 10) + "...",
+    hasNotes: !!notes && Object.keys(notes).length > 0
   });
 
   // Basic auth: keyId:keySecret
   const auth = btoa(`${keyId}:${keySecret}`);
+  
+  // Log request details (without sensitive data)
+  console.log("📋 Request details:", {
+    url: "https://api.razorpay.com/v1/orders",
+    method: "POST",
+    hasAuth: !!auth,
+    bodySize: JSON.stringify(orderData).length
+  });
 
   let response: Response;
   let responseText: string;
@@ -81,6 +96,7 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Accept": "application/json",
         "Authorization": `Basic ${auth}`,
       },
       body: JSON.stringify(orderData),
@@ -92,30 +108,55 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
     throw new Error(`Network error: ${fetchErr?.message || "Failed to connect to Razorpay"}`);
   }
 
+  // Log the raw response for debugging
+  console.log("📥 Razorpay response:", {
+    status: response.status,
+    statusText: response.statusText,
+    headers: Object.fromEntries(response.headers.entries()),
+    bodyLength: responseText.length,
+    bodyPreview: responseText.substring(0, 200)
+  });
+
   let data: any = {};
   
-  try {
-    data = JSON.parse(responseText);
-  } catch (parseErr) {
-    console.error("❌ Failed to parse Razorpay response:", {
+  // Try to parse as JSON, but handle non-JSON responses
+  if (responseText.trim()) {
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error("❌ Failed to parse Razorpay response as JSON:", {
+        status: response.status,
+        statusText: response.statusText,
+        responseText: responseText
+      });
+      
+      // If it's not JSON, include the raw text in the error
+      throw new Error(`Invalid response from Razorpay (Status: ${response.status}): ${responseText.substring(0, 500)}`);
+    }
+  } else {
+    // Empty response
+    console.error("❌ Empty response from Razorpay:", {
       status: response.status,
-      statusText: response.statusText,
-      responseText: responseText.substring(0, 500)
+      statusText: response.statusText
     });
-    throw new Error(`Invalid response from Razorpay (Status: ${response.status}): ${responseText.substring(0, 200)}`);
+    throw new Error(`Empty response from Razorpay (Status: ${response.status})`);
   }
 
   if (!response.ok) {
     console.error("❌ Razorpay order creation failed:", {
       status: response.status,
       statusText: response.statusText,
-      error: data
+      error: data,
+      fullResponse: responseText
     });
     
+    // Provide more detailed error message
     const errorMsg = data.error?.description || 
                     data.error?.message || 
+                    data.error?.code ||
                     data.description ||
-                    `Razorpay API error (Status: ${response.status})`;
+                    data.message ||
+                    `Razorpay API error (Status: ${response.status}${response.statusText ? `: ${response.statusText}` : ''})`;
     throw new Error(errorMsg);
   }
 
