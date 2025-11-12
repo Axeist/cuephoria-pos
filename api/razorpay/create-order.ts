@@ -282,7 +282,42 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const payload = await req.json().catch(() => ({} as any));
+    // Handle request body parsing for Node.js runtime
+    let payload: any = {};
+    try {
+      if (req.body) {
+        // Node.js runtime - body might be a stream or already parsed
+        if (typeof req.body === 'string') {
+          payload = JSON.parse(req.body);
+        } else if (req.body instanceof ReadableStream) {
+          const reader = req.body.getReader();
+          const chunks: Uint8Array[] = [];
+          let done = false;
+          while (!done) {
+            const { value, done: streamDone } = await reader.read();
+            done = streamDone;
+            if (value) chunks.push(value);
+          }
+          const bodyText = new TextDecoder().decode(new Uint8Array(chunks.reduce((acc, chunk) => [...acc, ...chunk], [])));
+          payload = JSON.parse(bodyText);
+        } else {
+          payload = req.body;
+        }
+      } else {
+        // Try req.json() for Edge runtime compatibility
+        if (typeof (req as any).json === 'function') {
+          payload = await (req as any).json();
+        } else {
+          // Fallback: read as text and parse
+          const text = await req.text();
+          if (text) payload = JSON.parse(text);
+        }
+      }
+    } catch (parseErr) {
+      console.error("❌ Failed to parse request body:", parseErr);
+      payload = {};
+    }
+    
     const {
       amount,
       receipt,
