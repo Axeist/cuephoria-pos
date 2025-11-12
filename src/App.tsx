@@ -38,6 +38,12 @@ import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
 import PublicPaymentFailed from "./pages/PublicPaymentFailed";
 import PhonePeDebug from "./pages/PhonePeDebug";
 
+// Policy pages
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import Contact from "./pages/Contact";
+import ShippingAndDelivery from "./pages/ShippingAndDelivery";
+
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
@@ -130,6 +136,16 @@ const App = () => (
                 <Route path="/public/tournaments" element={<PublicTournaments />} />
                 <Route path="/public/stations" element={<PublicStations />} />
                 <Route path="/public/booking" element={<PublicBooking />} />
+
+                {/* Policy pages - Public routes for Razorpay compliance */}
+                <Route path="/privacy-policy" element={<Privacy />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms-and-conditions" element={<Terms />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/contact-us" element={<Contact />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/shipping-delivery" element={<ShippingAndDelivery />} />
+                <Route path="/shipping-and-delivery" element={<ShippingAndDelivery />} />
 
                 {/* Payment routes */}
                 <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
