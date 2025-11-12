@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 interface LegalDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  type: 'terms' | 'privacy' | 'contact';
+  type: 'terms' | 'privacy' | 'contact' | 'shipping';
 }
 
 const LegalDialog: React.FC<LegalDialogProps> = ({ isOpen, onClose, type }) => {
@@ -201,6 +201,99 @@ const LegalDialog: React.FC<LegalDialogProps> = ({ isOpen, onClose, type }) => {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+          )
+        };
+
+      case 'shipping':
+        return {
+          title: 'Shipping and Delivery Policy',
+          content: (
+            <div className="space-y-6 text-gray-300">
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">1. Service Delivery</h3>
+                <p className="text-sm">
+                  Cuephoria operates as a gaming lounge and rental facility. Our services are delivered on-site at our physical location. 
+                  We do not ship physical products or equipment to customer addresses.
+                </p>
+                <p className="text-sm">
+                  All gaming sessions, equipment rentals, and services must be accessed at our premises located at Cuephoria Gaming Lounge.
+                </p>
+              </section>
+              
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">2. Booking Fulfillment</h3>
+                <p className="text-sm">
+                  When you make a booking through our website or booking system:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  <li>Your booking is confirmed immediately upon successful payment</li>
+                  <li>You will receive a confirmation notification with booking details</li>
+                  <li>Services are available at the scheduled time slot you selected</li>
+                  <li>You must arrive at our premises to access your booked services</li>
+                </ul>
+              </section>
+              
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">3. Equipment Availability</h3>
+                <p className="text-sm">
+                  All gaming equipment, including PlayStation 5 consoles, VR headsets, and 8-ball pool tables, are available on-site only. 
+                  Equipment is maintained and serviced regularly to ensure optimal performance during your rental period.
+                </p>
+                <p className="text-sm">
+                  Equipment availability is subject to prior bookings and maintenance schedules. We recommend booking in advance to secure 
+                  your preferred time slot and equipment.
+                </p>
+              </section>
+              
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">4. Service Access</h3>
+                <p className="text-sm">
+                  To access your booked services:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  <li>Arrive at our premises at your scheduled time</li>
+                  <li>Present your booking confirmation (digital or printed)</li>
+                  <li>Our staff will assist you in accessing your booked station or equipment</li>
+                  <li>Services begin at the scheduled start time and end at the scheduled end time</li>
+                </ul>
+              </section>
+              
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">5. No Physical Shipping</h3>
+                <p className="text-sm">
+                  Cuephoria does not offer shipping or delivery services for any physical products or equipment. All services must be 
+                  accessed at our physical location. We do not ship gaming consoles, controllers, or any other equipment to customer addresses.
+                </p>
+              </section>
+              
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">6. Digital Services</h3>
+                <p className="text-sm">
+                  While we do not ship physical items, certain digital services such as tournament registrations, membership activations, 
+                  and booking confirmations are delivered electronically via email or SMS upon successful payment.
+                </p>
+              </section>
+              
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">7. Changes to This Policy</h3>
+                <p className="text-sm">
+                  Cuephoria reserves the right to update this shipping and delivery policy at any time. Changes will be posted on our website, 
+                  and your continued use of our services after such modifications constitutes acceptance of the updated policy.
+                </p>
+              </section>
+              
+              <section className="space-y-3">
+                <h3 className="text-lg font-semibold text-white">8. Contact for Questions</h3>
+                <p className="text-sm">
+                  If you have any questions about our shipping and delivery policy, please contact us at:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  <li>Phone: +91 86376 25155</li>
+                  <li>Email: contact@cuephoria.in</li>
+                  <li>Visit us at our premises during business hours (11:00 AM - 11:00 PM)</li>
+                </ul>
+              </section>
             </div>
           )
         };

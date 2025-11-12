@@ -174,7 +174,7 @@ export default function PublicBooking() {
   const [bookingConfirmationData, setBookingConfirmationData] = useState<any>(null);
   const [showLegalDialog, setShowLegalDialog] = useState(false);
   const [legalDialogType, setLegalDialogType] = useState<
-    "terms" | "privacy" | "contact"
+    "terms" | "privacy" | "contact" | "shipping"
   >("terms");
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
@@ -2093,7 +2093,7 @@ export default function PublicBooking() {
           </div>
         </div>
 
-        <section className="mt-10 grid gap-4 md:grid-cols-2">
+        <section className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <h3 className="text-white font-semibold mb-2">
               Terms & Conditions (Summary)
@@ -2131,6 +2131,25 @@ export default function PublicBooking() {
               className="mt-3 text-sm text-cuephoria-lightpurple hover:underline"
             >
               View full Privacy Policy
+            </button>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <h3 className="text-white font-semibold mb-2">Shipping & Delivery (Summary)</h3>
+            <ul className="ml-5 list-disc text-sm text-gray-300 space-y-1.5">
+              <li>All services are delivered on-site at our physical location.</li>
+              <li>We do not ship physical products or equipment to addresses.</li>
+              <li>Bookings are confirmed immediately upon successful payment.</li>
+              <li>You must arrive at our premises to access your booked services.</li>
+              <li>Equipment is available on-site only during your scheduled time slot.</li>
+            </ul>
+            <button
+              onClick={() => {
+                setLegalDialogType("shipping");
+                setShowLegalDialog(true);
+              }}
+              className="mt-3 text-sm text-cuephoria-lightpurple hover:underline"
+            >
+              View full Shipping & Delivery Policy
             </button>
           </div>
         </section>
@@ -2256,6 +2275,15 @@ export default function PublicBooking() {
                 className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
               >
                 Refund Policy
+              </button>
+              <button
+                onClick={() => {
+                  setLegalDialogType("shipping");
+                  setShowLegalDialog(true);
+                }}
+                className="text-gray-400 hover:text-white hover:underline text-sm flex items-center gap-1 transition"
+              >
+                Shipping & Delivery
               </button>
             </div>
 
