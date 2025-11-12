@@ -34,16 +34,28 @@ export default function BookingConfirmationDialog({
   };
 
   const handleShare = async () => {
-    const shareText = `🎮 Booking Confirmed! 
-Booking ID: ${bookingData.bookingId}
-Customer: ${bookingData.customerName}
-Stations: ${bookingData.stationNames.join(', ')}
-Date: ${format(new Date(bookingData.date), 'EEEE, MMMM d, yyyy')}
-Time: ${bookingData.startTime} - ${bookingData.endTime}
-Total: ₹${bookingData.totalAmount}
-${bookingData.couponCode ? `Coupon: ${bookingData.couponCode}` : ''}
+    const shareText = `🎮 Booking Confirmed at Cuephoria Gaming Lounge! 
 
-🎯 Cuephoria Gaming Lounge`;
+Booking ID: ${bookingData.bookingId}
+
+Customer: ${bookingData.customerName}
+
+Stations: ${bookingData.stationNames.join(', ')}
+
+Date: ${format(new Date(bookingData.date), 'EEEE, MMMM d, yyyy')}
+
+Time: ${bookingData.startTime} - ${bookingData.endTime}
+
+Total Amount: ₹${bookingData.totalAmount}
+${bookingData.couponCode ? `\nCoupon: ${bookingData.couponCode}` : ''}
+
+📍 Cuephoria Gaming Lounge
+
+📞 Contact: +91 86376 25155
+
+🌐 Visit: https://cuephoria.in
+
+Please arrive on time and show this confirmation at reception.`;
 
     if (navigator.share) {
       try {
