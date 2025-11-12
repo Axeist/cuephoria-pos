@@ -1895,19 +1895,6 @@ export default function PublicBooking() {
                       <div className="inline-flex items-center justify-center gap-2 relative z-10">
                         {paymentMethod === "razorpay" ? (
                           <>
-                            {/* Razorpay Logo - Layered Design */}
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="flex-shrink-0"
-                            >
-                              <rect x="4" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.9"/>
-                              <rect x="14" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.7"/>
-                              <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" fillOpacity="0.5"/>
-                            </svg>
                             <Shield className="h-3.5 w-3.5 flex-shrink-0" />
                             <span className="font-semibold">Razorpay</span>
                           </>
@@ -2040,22 +2027,7 @@ export default function PublicBooking() {
                 >
                   <div className="inline-flex items-center justify-center gap-2 relative z-10">
                     {paymentMethod === "razorpay" && !loading && (
-                      <>
-                        {/* Razorpay Logo - Layered Design */}
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="flex-shrink-0"
-                        >
-                          <rect x="4" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.9"/>
-                          <rect x="14" y="4" width="6" height="16" rx="1" fill="currentColor" fillOpacity="0.7"/>
-                          <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" fillOpacity="0.5"/>
-                        </svg>
-                        <Shield className="h-4 w-4 flex-shrink-0" />
-                      </>
+                      <Shield className="h-4 w-4 flex-shrink-0" />
                     )}
                     <span className="font-semibold">
                       {loading
