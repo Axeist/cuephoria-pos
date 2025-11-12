@@ -1,16 +1,30 @@
 // Using Node.js runtime to use Razorpay SDK
 // export const config = { runtime: "edge" };
 
-function j(res: unknown, status = 200) {
-  return new Response(JSON.stringify(res), {
-    status,
-    headers: { 
-      "content-type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type",
-    },
-  });
+// Vercel Node.js runtime types
+type VercelRequest = {
+  method?: string;
+  body?: any;
+  query?: Record<string, string>;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+type VercelResponse = {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => VercelResponse;
+  json: (data: any) => void;
+  end: () => void;
+};
+
+function setCorsHeaders(res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+}
+
+function j(res: VercelResponse, data: unknown, status = 200) {
+  setCorsHeaders(res);
+  res.status(status).json(data);
 }
 
 // Environment variable getter (Node.js runtime)
@@ -136,42 +150,40 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
   }
 }
 
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return j({}, 200);
+    setCorsHeaders(res);
+    return res.status(200).end();
   }
 
   if (req.method !== "POST") {
-    return j({ ok: false, error: "Method not allowed" }, 405);
+    return j(res, { ok: false, error: "Method not allowed" }, 405);
   }
 
   try {
-    // Parse request body - Vercel supports req.json() in both Edge and Node.js runtime
-    const payload = await req.json().catch((err: any) => {
-      console.error("❌ Failed to parse request body:", err?.message);
-      throw new Error(`Invalid request body: ${err?.message}`);
-    });
+    // In Vercel Node.js runtime, body is already parsed and available as req.body
+    const payload = req.body || {};
     
     const {
       amount,
       receipt,
       notes,
-    } = payload || {};
+    } = payload;
 
     console.log("💳 Razorpay order request:", { amount, receipt });
 
     if (!amount || Number(amount) <= 0) {
-      return j({ ok: false, error: "Amount must be > 0" }, 400);
+      return j(res, { ok: false, error: "Amount must be > 0" }, 400);
     }
 
     if (!receipt) {
-      return j({ ok: false, error: "Receipt ID is required" }, 400);
+      return j(res, { ok: false, error: "Receipt ID is required" }, 400);
     }
 
     const order = await createRazorpayOrder(Number(amount), receipt, notes);
 
-    return j({
+    return j(res, {
       ok: true,
       orderId: order.id,
       amount: order.amount,
@@ -188,7 +200,7 @@ export default async function handler(req: Request) {
     
     // Return detailed error for debugging
     const errorMessage = err?.message || String(err);
-    return j({ 
+    return j(res, { 
       ok: false, 
       error: errorMessage,
       // Include error type for debugging (remove in production if needed)
