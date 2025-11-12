@@ -1751,16 +1751,16 @@ export default function PublicBooking() {
                     </div>
                     {selectedStations.length > 0 && (
                       <div>
+                        <div className="mb-3 bg-cuephoria-blue/10 border border-cuephoria-blue/20 rounded-lg p-2.5">
+                          <p className="text-xs text-cuephoria-blue flex items-center gap-2">
+                            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span><span className="font-medium">Multiple Slot Selection:</span> Click multiple time slots to book consecutive sessions. Click again to deselect.</span>
+                          </p>
+                        </div>
                         <Label className="text-base font-medium text-gray-200">
                           Available Time Slots
                         </Label>
                         <div className="mt-2">
-                          <div className="mb-3 bg-cuephoria-blue/10 border border-cuephoria-blue/20 rounded-lg p-3">
-                            <p className="text-sm text-cuephoria-blue flex items-center gap-2">
-                              <Sparkles className="h-4 w-4" />
-                              <span className="font-medium">Multiple Slot Selection:</span> Click multiple time slots to book consecutive sessions. Click again to deselect.
-                            </p>
-                          </div>
                           <TimeSlotPicker
                             slots={availableSlots}
                             selectedSlot={selectedSlot}

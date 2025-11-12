@@ -27,19 +27,38 @@ BEGIN
     END IF;
     
     -- Check if this time slot overlaps with any existing booking
-    is_available := NOT EXISTS (
-      SELECT 1 
-      FROM public.bookings b
-      WHERE b.station_id = p_station_id 
-        AND b.booking_date = p_date
-        AND b.status IN ('confirmed', 'in-progress')
-        AND (
-          -- Check for time overlap using proper time comparison
-          (b.start_time <= curr_time AND b.end_time > curr_time) OR
-          (b.start_time < slot_end_time AND b.end_time >= slot_end_time) OR
-          (b.start_time >= curr_time AND b.end_time <= slot_end_time)
-        )
-    );
+    -- Special handling for midnight crossover (end_time = 00:00:00)
+    IF slot_end_time = '00:00:00' THEN
+      -- For 23:00-00:00 slot, check for bookings that overlap
+      -- A booking overlaps if:
+      -- 1. It starts at 23:00 (regardless of end time, since it's same date)
+      -- 2. It starts before 23:00 and ends after 23:00
+      is_available := NOT EXISTS (
+        SELECT 1 
+        FROM public.bookings b
+        WHERE b.station_id = p_station_id 
+          AND b.booking_date = p_date
+          AND b.status IN ('confirmed', 'in-progress')
+          AND (
+            b.start_time = '23:00:00' OR
+            (b.start_time < '23:00:00' AND (b.end_time > '23:00:00' OR b.end_time = '00:00:00'))
+          )
+      );
+    ELSE
+      is_available := NOT EXISTS (
+        SELECT 1 
+        FROM public.bookings b
+        WHERE b.station_id = p_station_id 
+          AND b.booking_date = p_date
+          AND b.status IN ('confirmed', 'in-progress')
+          AND (
+            -- Check for time overlap using proper time comparison
+            (b.start_time <= curr_time AND b.end_time > curr_time) OR
+            (b.start_time < slot_end_time AND b.end_time >= slot_end_time) OR
+            (b.start_time >= curr_time AND b.end_time <= slot_end_time)
+          )
+      );
+    END IF;
     
     -- Also check if there's an active session during this time for today
     IF p_date = CURRENT_DATE AND is_available THEN
@@ -53,6 +72,11 @@ BEGIN
     END IF;
     
     RETURN QUERY SELECT curr_time, slot_end_time, is_available;
+    
+    -- Exit after processing the 23:00 slot (which ends at 00:00:00)
+    IF curr_time = '23:00:00' THEN
+      EXIT;
+    END IF;
     
     -- Move to next slot
     curr_time := curr_time + (p_slot_duration || ' minutes')::interval;
