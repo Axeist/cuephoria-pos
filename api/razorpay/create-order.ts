@@ -1,4 +1,4 @@
-// Using Node.js runtime instead of Edge to avoid 406 issues with Razorpay API
+// Using Node.js runtime to use Razorpay SDK
 // export const config = { runtime: "edge" };
 
 function j(res: unknown, status = 200) {
@@ -13,14 +13,12 @@ function j(res: unknown, status = 200) {
   });
 }
 
-// Environment variable getter (works in both Edge and Node.js)
+// Environment variable getter (Node.js runtime)
 function getEnv(name: string): string | undefined {
-  // Try Node.js process.env first (for Node.js runtime)
   if (typeof process !== "undefined" && process.env) {
-    const value = (process.env as any)[name];
-    if (value) return value;
+    return (process.env as any)[name];
   }
-  // Fallback to Deno env (for Edge runtime)
+  // Fallback for Edge runtime
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
   return fromDeno;
 }
@@ -55,8 +53,11 @@ function getRazorpayCredentials() {
   return { keyId, keySecret, isLive };
 }
 
-// Create Razorpay order using Orders API
+// Create Razorpay order using Razorpay SDK (Node.js runtime)
 async function createRazorpayOrder(amount: number, receipt: string, notes?: Record<string, string>) {
+  // Import Razorpay SDK
+  const Razorpay = (await import('razorpay')).default;
+  
   let keyId: string;
   let keySecret: string;
   
@@ -78,22 +79,20 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
     throw new Error("Amount must be a valid number");
   }
 
-  // Build order data according to Razorpay API spec
-  // Keep it minimal - only required fields first
-  // Razorpay is very strict about data types
-  const orderData: {
-    amount: number;
-    currency: string;
-    receipt: string;
-    notes?: Record<string, string>;
-  } = {
-    amount: amountInPaise, // Must be integer in paise
+  // Initialize Razorpay client
+  const razorpay = new Razorpay({
+    key_id: keyId,
+    key_secret: keySecret,
+  });
+
+  // Build order options
+  const orderOptions: any = {
+    amount: amountInPaise, // Amount in paise
     currency: "INR",
-    receipt: receipt.substring(0, 40).trim(), // Razorpay has 40 char limit, remove whitespace
+    receipt: receipt.substring(0, 40).trim(), // Razorpay has 40 char limit
   };
   
   // Only include notes if it has content and is a valid object
-  // Some Razorpay endpoints reject empty notes objects
   if (notes && typeof notes === 'object' && Object.keys(notes).length > 0) {
     // Validate notes - each value must be string and max 256 chars
     const validNotes: Record<string, string> = {};
@@ -103,172 +102,38 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
       }
     }
     if (Object.keys(validNotes).length > 0) {
-      orderData.notes = validNotes;
+      orderOptions.notes = validNotes;
     }
   }
 
-  console.log("📤 Creating Razorpay order:", { 
-    amount: orderData.amount, 
-    receipt: orderData.receipt, 
-    currency: orderData.currency,
-    keyIdPrefix: keyId?.substring(0, 10) + "...",
-    hasNotes: !!notes && Object.keys(notes).length > 0
+  console.log("📤 Creating Razorpay order with SDK:", { 
+    amount: orderOptions.amount, 
+    receipt: orderOptions.receipt, 
+    currency: orderOptions.currency,
+    hasNotes: !!orderOptions.notes
   });
 
-  // Basic auth: keyId:keySecret
-  // Edge Runtime has btoa available
-  // Trim to ensure no whitespace issues
-  const credentials = `${keyId.trim()}:${keySecret.trim()}`;
-  let auth: string;
-  
   try {
-    auth = btoa(credentials);
-  } catch (e) {
-    console.error("❌ Base64 encoding failed:", e);
-    throw new Error("Failed to encode credentials");
-  }
-  
-  // Verify auth was created correctly
-  // Expected: cnpwX3Rlc3RfUmV2SXVvOGQ4TUtzYXU6eEszV0haV0JIZVk0Nnh2YVdQbkZhMHR5 (64 chars)
-  if (!auth || auth.length < 10) {
-    throw new Error("Failed to create authentication token");
-  }
-  
-  console.log("🔐 Auth encoding check:", {
-    keyIdLength: keyId.length,
-    keySecretLength: keySecret.length,
-    authLength: auth.length,
-    authMatchesExpected: auth === "cnpwX3Rlc3RfUmV2SXVvOGQ4TUtzYXU6eEszV0haV0JIZVk0Nnh2YVdQbkZhMHR5"
-  });
-  
-  // Log request details (without sensitive data)
-  console.log("📋 Request details:", {
-    url: "https://api.razorpay.com/v1/orders",
-    method: "POST",
-    hasAuth: !!auth,
-    authLength: auth.length,
-    bodySize: JSON.stringify(orderData).length,
-    bodyPreview: JSON.stringify(orderData).substring(0, 100)
-  });
-
-  let response: Response;
-  let responseText: string;
-  
-  try {
-    // Razorpay API - match the exact format that works with curl
-    const requestBody = JSON.stringify(orderData);
+    // Create order using Razorpay SDK
+    const order = await razorpay.orders.create(orderOptions);
     
-    console.log("🔍 Final request body:", requestBody);
-    console.log("🔍 Auth header length:", auth.length);
-    
-    // Create headers object - minimal set that Razorpay accepts
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "Authorization": `Basic ${auth}`,
-    };
-    
-    // Try with Accept header first (as per Razorpay docs)
-    headers["Accept"] = "application/json";
-    
-    console.log("🔍 Making request with headers:", Object.keys(headers));
-    
-    response = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: headers,
-      body: requestBody,
-    });
-
-    responseText = await response.text();
-    
-    // If we get 406, try without notes as a diagnostic
-    if (response.status === 406 && orderData.notes) {
-      console.log("⚠️ Got 406 with notes, trying without notes...");
-      const orderDataWithoutNotes = {
-        amount: orderData.amount,
-        currency: orderData.currency,
-        receipt: orderData.receipt,
-      };
-      
-      const retryResponse = await fetch("https://api.razorpay.com/v1/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Basic ${auth}`,
-        },
-        body: JSON.stringify(orderDataWithoutNotes),
-      });
-      
-      const retryText = await retryResponse.text();
-      console.log("🔄 Retry response:", {
-        status: retryResponse.status,
-        body: retryText.substring(0, 200)
-      });
-      
-      // If retry works, use that response
-      if (retryResponse.ok) {
-        response = retryResponse;
-        responseText = retryText;
-      }
-    }
-  } catch (fetchErr: any) {
-    console.error("❌ Network error calling Razorpay:", fetchErr);
-    throw new Error(`Network error: ${fetchErr?.message || "Failed to connect to Razorpay"}`);
-  }
-
-  // Log the raw response for debugging
-  console.log("📥 Razorpay response:", {
-    status: response.status,
-    statusText: response.statusText,
-    headers: Object.fromEntries(response.headers.entries()),
-    bodyLength: responseText.length,
-    bodyPreview: responseText.substring(0, 200)
-  });
-
-  let data: any = {};
-  
-  // Try to parse as JSON, but handle non-JSON responses
-  if (responseText.trim()) {
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseErr) {
-      console.error("❌ Failed to parse Razorpay response as JSON:", {
-        status: response.status,
-        statusText: response.statusText,
-        responseText: responseText
-      });
-      
-      // If it's not JSON, include the raw text in the error
-      throw new Error(`Invalid response from Razorpay (Status: ${response.status}): ${responseText.substring(0, 500)}`);
-    }
-  } else {
-    // Empty response
-    console.error("❌ Empty response from Razorpay:", {
-      status: response.status,
-      statusText: response.statusText
-    });
-    throw new Error(`Empty response from Razorpay (Status: ${response.status})`);
-  }
-
-  if (!response.ok) {
-    console.error("❌ Razorpay order creation failed:", {
-      status: response.status,
-      statusText: response.statusText,
-      error: data,
-      fullResponse: responseText
+    console.log("✅ Razorpay order created:", order.id);
+    return order;
+  } catch (err: any) {
+    console.error("❌ Razorpay SDK error:", {
+      error: err,
+      message: err?.message,
+      description: err?.error?.description,
+      code: err?.error?.code,
+      field: err?.error?.field
     });
     
-    // Provide more detailed error message
-    const errorMsg = data.error?.description || 
-                    data.error?.message || 
-                    data.error?.code ||
-                    data.description ||
-                    data.message ||
-                    `Razorpay API error (Status: ${response.status}${response.statusText ? `: ${response.statusText}` : ''})`;
+    const errorMsg = err?.error?.description || 
+                    err?.error?.message || 
+                    err?.message ||
+                    "Failed to create Razorpay order";
     throw new Error(errorMsg);
   }
-
-  console.log("✅ Razorpay order created:", data.id);
-  return data;
 }
 
 export default async function handler(req: Request) {
@@ -282,24 +147,11 @@ export default async function handler(req: Request) {
   }
 
   try {
-    // Handle request body parsing - works in both Edge and Node.js runtime
-    let payload: any = {};
-    try {
-      // Try req.json() first (Edge runtime)
-      if (typeof (req as any).json === 'function') {
-        payload = await (req as any).json();
-      } else {
-        // Node.js runtime - read as text and parse
-        const text = await req.text();
-        if (text) {
-          payload = JSON.parse(text);
-        }
-      }
-    } catch (parseErr: any) {
-      console.error("❌ Failed to parse request body:", parseErr?.message);
-      // Return error instead of empty payload
-      return j({ ok: false, error: "Invalid request body" }, 400);
-    }
+    // Parse request body - Vercel supports req.json() in both Edge and Node.js runtime
+    const payload = await req.json().catch((err: any) => {
+      console.error("❌ Failed to parse request body:", err?.message);
+      throw new Error(`Invalid request body: ${err?.message}`);
+    });
     
     const {
       amount,
