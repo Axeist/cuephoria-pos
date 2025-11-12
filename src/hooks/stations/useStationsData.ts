@@ -74,7 +74,7 @@ export const useStationsData = () => {
           return {
             id: item.id,
             name: item.name,
-            type: String(item.type),
+            type: item.type as 'ps5' | '8ball' | 'vr',
             hourlyRate: item.hourly_rate,
             isOccupied: item.is_occupied,
             currentSession: currentSession
@@ -105,7 +105,7 @@ export const useStationsData = () => {
     }
   };
   
-  const updateStation = async (stationId: string, name: string, type: string, hourlyRate: number) => {
+  const updateStation = async (stationId: string, name: string, hourlyRate: number) => {
     try {
       const station = stations.find(s => s.id === stationId);
       if (!station) {
@@ -120,7 +120,6 @@ export const useStationsData = () => {
       
       const updateData = {
         name,
-        type,
         hourly_rate: hourlyRate
       };
       
@@ -141,7 +140,7 @@ export const useStationsData = () => {
       
       setStations(prev => prev.map(s => 
         s.id === stationId 
-          ? { ...s, name, type, hourlyRate } 
+          ? { ...s, name, hourlyRate } 
           : s
       ));
       

@@ -37,7 +37,7 @@ export interface Customer {
 export interface Station {
   id: string;
   name: string;
-  type: string;
+  type: 'ps5' | '8ball' | 'vr'; // UPDATED: Added 'vr'
   hourlyRate: number;
   isOccupied: boolean;
   currentSession: Session | null;
@@ -140,7 +140,7 @@ export interface POSContextType {
   startSession: (stationId: string, customerId: string, hourlyRate?: number, couponCode?: string) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
   deleteStation: (stationId: string) => Promise<boolean>;
-  updateStation: (stationId: string, name: string, type: string, hourlyRate: number) => Promise<boolean>;
+  updateStation: (stationId: string, name: string, hourlyRate: number) => Promise<boolean>;
   
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
   updateCustomer: (customer: Customer) => void;

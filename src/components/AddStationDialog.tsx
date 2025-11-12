@@ -13,10 +13,12 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
 import { generateId } from '@/utils/pos.utils';
 
-// Create a schema for station validation - allow custom type
+// Create a schema for station validation - Updated to include 'vr'
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
-  type: z.string().min(1, { message: 'Please enter a station type.' }),
+  type: z.enum(['ps5', '8ball', 'vr'], { 
+    required_error: 'Please select a station type.' 
+  }),
   hourlyRate: z.coerce.number()
     .min(10, { message: 'Rate must be at least ₹10.' })
     .max(5000, { message: 'Rate cannot exceed ₹5000.' })
@@ -27,25 +29,19 @@ type StationFormValues = z.infer<typeof stationSchema>;
 interface AddStationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialType?: string;
 }
 
-const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange, initialType }) => {
+const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange }) => {
   const { toast } = useToast();
   const { stations, setStations } = usePOS();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showCustomType, setShowCustomType] = useState(false);
-  const [customType, setCustomType] = useState('');
-  
-  // Existing station types for suggestions
-  const existingTypes = Array.from(new Set(stations.map(s => s.type))).sort((a, b) => a.localeCompare(b));
   
   // Initialize the form
   const form = useForm<StationFormValues>({
     resolver: zodResolver(stationSchema),
     defaultValues: {
       name: '',
-      type: initialType || 'ps5',
+      type: 'ps5',
       hourlyRate: 100,
     },
   });
@@ -57,27 +53,14 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange,
     setIsSubmitting(true);
     
     try {
-      const finalName = values.name.trim();
-      const finalType = (initialType || (showCustomType ? customType : values.type) || '').trim();
-      
-      if (!finalType) {
-        toast({
-          title: "Type required",
-          description: "Please select or enter a station type.",
-          variant: "destructive"
-        });
-        setIsSubmitting(false);
-        return;
-      }
-      
       // Generate a proper UUID for the new station
       const stationId = crypto.randomUUID();
       
       // Create a new station object
       const newStation = {
         id: stationId,
-        name: finalName,
-        type: finalType,
+        name: values.name,
+        type: values.type,
         hourlyRate: values.hourlyRate,
         isOccupied: false,
         currentSession: null
@@ -88,8 +71,8 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange,
         .from('stations')
         .insert({
           id: stationId,
-          name: finalName,
-          type: finalType,
+          name: values.name,
+          type: values.type,
           hourly_rate: values.hourlyRate,
           is_occupied: false
         });
@@ -111,7 +94,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange,
       // Show success toast
       toast({
         title: "Station Added",
-        description: `${finalName} has been added successfully.`,
+        description: `${values.name} has been added successfully.`,
       });
       
       // Reset form and close dialog
@@ -158,50 +141,18 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange,
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Station Type</FormLabel>
-                  {initialType ? (
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <Input value={initialType} disabled readOnly />
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select station type" />
+                      </SelectTrigger>
                     </FormControl>
-                  ) : (
-                    <>
-                      <Select
-                        onValueChange={(val) => {
-                          if (val === '__custom__') {
-                            setShowCustomType(true);
-                            field.onChange('');
-                          } else {
-                            setShowCustomType(false);
-                            setCustomType('');
-                            field.onChange(val);
-                          }
-                        }}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a station type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {existingTypes.map((t) => (
-                            <SelectItem key={t} value={t}>
-                              {t}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="__custom__">Custom...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {showCustomType && (
-                        <div className="mt-2">
-                          <Input 
-                            placeholder="Enter new type"
-                            value={customType}
-                            onChange={(e) => setCustomType(e.target.value)}
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
+                    <SelectContent>
+                      <SelectItem value="ps5">PlayStation 5</SelectItem>
+                      <SelectItem value="8ball">8-Ball Table</SelectItem>
+                      <SelectItem value="vr">VR Gaming</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
