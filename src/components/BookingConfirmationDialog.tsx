@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle2, Download, Share2, Copy, Calendar, Clock, MapPin, Tag } from 'lucide-react';
+import { CheckCircle2, Download, Share2, Copy, Calendar, Clock, MapPin, Tag, CreditCard, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -21,6 +21,8 @@ interface BookingConfirmationDialogProps {
     totalAmount: number;
     couponCode?: string;
     discountAmount?: number;
+    paymentMode?: string; // 'venue', 'razorpay', etc.
+    paymentTxnId?: string; // Payment transaction ID
   };
 }
 
@@ -48,6 +50,8 @@ Time: ${bookingData.startTime} - ${bookingData.endTime}
 
 Total Amount: ₹${bookingData.totalAmount}
 ${bookingData.couponCode ? `\nCoupon: ${bookingData.couponCode}` : ''}
+${bookingData.paymentMode && bookingData.paymentMode !== 'venue' ? `\nPayment: ${bookingData.paymentMode === 'razorpay' ? 'Razorpay (Online)' : bookingData.paymentMode}` : '\nPayment: At Venue'}
+${bookingData.paymentTxnId ? `\nTransaction ID: ${bookingData.paymentTxnId}` : ''}
 
 📍 Cuephoria Gaming Lounge
 
@@ -148,15 +152,63 @@ Please arrive on time and show this confirmation at reception.`;
 
             <Separator className="bg-border" />
 
+            {/* Payment Information */}
+            {bookingData.paymentMode && bookingData.paymentMode !== 'venue' && (
+              <div className="space-y-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-green-400" />
+                  <span className="text-sm font-medium text-green-400">
+                    Payment Method: {bookingData.paymentMode === 'razorpay' ? 'Razorpay (Online)' : bookingData.paymentMode}
+                  </span>
+                </div>
+                {bookingData.paymentTxnId && (
+                  <div className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-green-300" />
+                    <div className="flex-1">
+                      <span className="text-xs text-gray-400">Transaction ID: </span>
+                      <span className="text-xs font-mono text-green-300 break-all">
+                        {bookingData.paymentTxnId}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        navigator.clipboard.writeText(bookingData.paymentTxnId!);
+                        toast.success('Transaction ID copied!');
+                      }}
+                      className="h-6 w-6 p-0 hover:bg-green-500/20"
+                    >
+                      <Copy className="h-3 w-3 text-green-300" />
+                    </Button>
+                  </div>
+                )}
+                <Badge variant="outline" className="bg-green-500/20 border-green-500/30 text-green-400 text-xs">
+                  ✅ Payment Completed
+                </Badge>
+              </div>
+            )}
+
             {/* Total Amount */}
             <div className="text-center">
               <p className="text-sm text-gray-400">Total Amount</p>
               <p className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
                 ₹{bookingData.totalAmount}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
-                Payment at venue
-              </p>
+              {!bookingData.paymentMode || bookingData.paymentMode === 'venue' ? (
+                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded">
+                  <p className="text-xs text-yellow-400 font-medium">
+                    💰 Payment at Venue
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Please pay when you arrive
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-green-400 mt-1 font-medium">
+                  ✅ Payment Received
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -181,6 +181,8 @@ export default function PublicPaymentSuccess() {
         couponCode: pb.pricing.coupons || undefined,
         discountAmount: pb.pricing.discount > 0 ? pb.pricing.discount : undefined,
         sessionDuration: pb.duration === 15 ? "15 minutes" : "60 minutes",
+        paymentMode: "razorpay", // Online payment via Razorpay
+        paymentTxnId: paymentId, // Razorpay payment ID
       };
 
       localStorage.setItem("bookingConfirmation", JSON.stringify(confirmationData));

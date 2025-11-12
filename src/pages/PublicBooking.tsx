@@ -972,6 +972,8 @@ export default function PublicBooking() {
         couponCode: couponCodes || undefined,
         discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
         sessionDuration: sessionDuration,
+        paymentMode: "venue", // Venue payment
+        paymentTxnId: undefined, // No transaction ID for venue payments
       });
       setShowConfirmationDialog(true);
 
