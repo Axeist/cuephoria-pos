@@ -54,14 +54,21 @@ export default async function handler(req: Request) {
     const base = "https://admin.cuephoria.in";
 
     // Determine if payment was successful
-    // Razorpay typically returns success when payment_id is present
-    const isSuccess = Boolean(finalPaymentId && finalOrderId) && 
+    // Razorpay typically returns success when payment_id is present and status is not failed/cancelled
+    const isSuccess = Boolean(finalPaymentId && finalOrderId && finalSignature) && 
                      finalStatus !== "failed" && 
-                     finalStatus !== "cancelled";
+                     finalStatus !== "cancelled" &&
+                     finalStatus !== "error";
+
+    // Extract error message if available
+    const errorParam = url.searchParams.get("error") || postData.error || 
+                      (finalStatus === "failed" ? "Payment was declined" : 
+                       finalStatus === "cancelled" ? "Payment was cancelled" : 
+                       finalStatus === "error" ? "Payment error occurred" : "");
 
     const redirectUrl = isSuccess
       ? `${base}/public/payment/success?payment_id=${encodeURIComponent(finalPaymentId || '')}&order_id=${encodeURIComponent(finalOrderId || '')}&signature=${encodeURIComponent(finalSignature || '')}`
-      : `${base}/public/payment/failed?order_id=${encodeURIComponent(finalOrderId || 'unknown')}`;
+      : `${base}/public/payment/failed?order_id=${encodeURIComponent(finalOrderId || 'unknown')}${errorParam ? `&error=${encodeURIComponent(errorParam)}` : ''}`;
 
     console.log("🚀 Redirecting to:", redirectUrl, { isSuccess, paymentId: finalPaymentId });
 

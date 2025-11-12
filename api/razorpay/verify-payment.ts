@@ -1,22 +1,40 @@
-export const config = { runtime: "edge" };
+// Using Node.js runtime to use Razorpay SDK
+// export const config = { runtime: "edge" };
 
-function j(res: unknown, status = 200) {
-  return new Response(JSON.stringify(res), {
-    status,
-    headers: { 
-      "content-type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type",
-    },
-  });
+// Vercel Node.js runtime types
+type VercelRequest = {
+  method?: string;
+  body?: any;
+  query?: Record<string, string>;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+type VercelResponse = {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => VercelResponse;
+  json: (data: any) => void;
+  end: () => void;
+};
+
+function setCorsHeaders(res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
 }
 
-// Edge-safe env getter
+function j(res: VercelResponse, data: unknown, status = 200) {
+  setCorsHeaders(res);
+  res.status(status).json(data);
+}
+
+// Environment variable getter (Node.js runtime)
 function getEnv(name: string): string | undefined {
+  if (typeof process !== "undefined" && process.env) {
+    return (process.env as any)[name];
+  }
+  // Fallback for Edge runtime
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
-  const fromProcess = typeof process !== "undefined" ? (process.env as any)?.[name] : undefined;
-  return fromDeno ?? fromProcess;
+  return fromDeno;
 }
 
 function need(name: string): string {
@@ -62,8 +80,11 @@ function verifyPaymentSignature(
   return true; // Will be verified via API call below
 }
 
-// Fetch payment status from Razorpay API
+// Fetch payment status from Razorpay API using SDK
 async function fetchPaymentStatus(paymentId: string) {
+  // Import Razorpay SDK
+  const Razorpay = (await import('razorpay')).default;
+  
   const mode = getEnv("RAZORPAY_MODE") || "test";
   const isLive = mode === "live";
   
@@ -75,42 +96,46 @@ async function fetchPaymentStatus(paymentId: string) {
     ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
     : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
 
-  const auth = btoa(`${keyId}:${keySecret}`);
-
-  const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
-    method: "GET",
-    headers: {
-      "Authorization": `Basic ${auth}`,
-    },
+  // Initialize Razorpay client
+  const razorpay = new Razorpay({
+    key_id: keyId,
+    key_secret: keySecret,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("❌ Failed to fetch payment status:", errorText);
-    throw new Error("Failed to fetch payment status");
+  try {
+    // Fetch payment using Razorpay SDK
+    const payment = await razorpay.payments.fetch(paymentId);
+    return payment;
+  } catch (err: any) {
+    console.error("❌ Failed to fetch payment status:", {
+      error: err,
+      message: err?.message,
+      description: err?.error?.description,
+      code: err?.error?.code
+    });
+    throw new Error(err?.error?.description || err?.message || "Failed to fetch payment status");
   }
-
-  const payment = await response.json();
-  return payment;
 }
 
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return j({}, 200);
+    setCorsHeaders(res);
+    return res.status(200).end();
   }
 
   if (req.method !== "POST") {
-    return j({ ok: false, error: "Method not allowed" }, 405);
+    return j(res, { ok: false, error: "Method not allowed" }, 405);
   }
 
   try {
-    const payload = await req.json().catch(() => ({} as any));
+    // In Vercel Node.js runtime, body is already parsed
+    const payload = req.body || {};
     const {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-    } = payload || {};
+    } = payload;
 
     console.log("🔍 Verifying Razorpay payment:", {
       orderId: razorpay_order_id,
@@ -118,25 +143,41 @@ export default async function handler(req: Request) {
     });
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return j({ 
+      return j(res, { 
         ok: false, 
         error: "Missing required payment parameters" 
       }, 400);
     }
 
     // Fetch payment status from Razorpay API
-    const payment = await fetchPaymentStatus(razorpay_payment_id);
+    let payment;
+    try {
+      payment = await fetchPaymentStatus(razorpay_payment_id);
+    } catch (fetchErr: any) {
+      // If payment doesn't exist or fetch fails, it's likely a failed payment
+      console.error("❌ Failed to fetch payment:", fetchErr?.message);
+      return j(res, {
+        ok: false,
+        success: false,
+        status: "failed",
+        error: fetchErr?.message || "Payment not found or failed",
+      });
+    }
 
     // Check if payment is successful
     const isSuccess = payment.status === "captured" || payment.status === "authorized";
     
     if (!isSuccess) {
       console.log("❌ Payment not successful:", payment.status);
-      return j({
+      const errorMsg = payment.error_description || 
+                      payment.error_reason || 
+                      payment.error_code ||
+                      `Payment status: ${payment.status}`;
+      return j(res, {
         ok: false,
         success: false,
         status: payment.status,
-        error: payment.error_description || "Payment not successful",
+        error: errorMsg,
       });
     }
 
@@ -154,7 +195,7 @@ export default async function handler(req: Request) {
       amount: payment.amount,
     });
 
-    return j({
+    return j(res, {
       ok: true,
       success: true,
       paymentId: razorpay_payment_id,
@@ -166,7 +207,7 @@ export default async function handler(req: Request) {
     });
   } catch (err: any) {
     console.error("💥 Payment verification error:", err);
-    return j({ 
+    return j(res, { 
       ok: false, 
       success: false,
       error: String(err?.message || err) 
