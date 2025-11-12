@@ -1,4 +1,5 @@
-export const config = { runtime: "edge" };
+// Using Node.js runtime instead of Edge to avoid 406 issues with Razorpay API
+// export const config = { runtime: "edge" };
 
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
@@ -12,11 +13,16 @@ function j(res: unknown, status = 200) {
   });
 }
 
-// Edge-safe env getter
+// Environment variable getter (works in both Edge and Node.js)
 function getEnv(name: string): string | undefined {
+  // Try Node.js process.env first (for Node.js runtime)
+  if (typeof process !== "undefined" && process.env) {
+    const value = (process.env as any)[name];
+    if (value) return value;
+  }
+  // Fallback to Deno env (for Edge runtime)
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
-  const fromProcess = typeof process !== "undefined" ? (process.env as any)?.[name] : undefined;
-  return fromDeno ?? fromProcess;
+  return fromDeno;
 }
 
 function need(name: string): string {
@@ -111,13 +117,29 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
 
   // Basic auth: keyId:keySecret
   // Edge Runtime has btoa available
-  const credentials = `${keyId}:${keySecret}`;
-  const auth = btoa(credentials);
+  // Trim to ensure no whitespace issues
+  const credentials = `${keyId.trim()}:${keySecret.trim()}`;
+  let auth: string;
+  
+  try {
+    auth = btoa(credentials);
+  } catch (e) {
+    console.error("❌ Base64 encoding failed:", e);
+    throw new Error("Failed to encode credentials");
+  }
   
   // Verify auth was created correctly
+  // Expected: cnpwX3Rlc3RfUmV2SXVvOGQ4TUtzYXU6eEszV0haV0JIZVk0Nnh2YVdQbkZhMHR5 (64 chars)
   if (!auth || auth.length < 10) {
     throw new Error("Failed to create authentication token");
   }
+  
+  console.log("🔐 Auth encoding check:", {
+    keyIdLength: keyId.length,
+    keySecretLength: keySecret.length,
+    authLength: auth.length,
+    authMatchesExpected: auth === "cnpwX3Rlc3RfUmV2SXVvOGQ4TUtzYXU6eEszV0haV0JIZVk0Nnh2YVdQbkZhMHR5"
+  });
   
   // Log request details (without sensitive data)
   console.log("📋 Request details:", {
@@ -133,19 +155,26 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
   let responseText: string;
   
   try {
-    // Razorpay API - minimal headers as per their documentation
-    // Only include essential headers
+    // Razorpay API - match the exact format that works with curl
     const requestBody = JSON.stringify(orderData);
     
     console.log("🔍 Final request body:", requestBody);
     console.log("🔍 Auth header length:", auth.length);
     
+    // Create headers object - minimal set that Razorpay accepts
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Basic ${auth}`,
+    };
+    
+    // Try with Accept header first (as per Razorpay docs)
+    headers["Accept"] = "application/json";
+    
+    console.log("🔍 Making request with headers:", Object.keys(headers));
+    
     response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Basic ${auth}`,
-      },
+      headers: headers,
       body: requestBody,
     });
 
