@@ -235,6 +235,29 @@ export default function PublicBooking() {
     }
   }, [selectedStations, selectedDate]);
 
+  // Check for booking confirmation from payment success redirect
+  useEffect(() => {
+    const bookingSuccess = searchParams.get("booking_success");
+    
+    if (bookingSuccess === "true") {
+      const confirmationData = localStorage.getItem("bookingConfirmation");
+      if (confirmationData) {
+        try {
+          const data = JSON.parse(confirmationData);
+          setBookingConfirmationData(data);
+          setShowConfirmationDialog(true);
+          // Clear the data after showing
+          localStorage.removeItem("bookingConfirmation");
+          // Clean up URL
+          window.history.replaceState({}, "", "/public/booking");
+          toast.success("🎉 Booking confirmed! Get ready to game! 🎮");
+        } catch (e) {
+          console.error("Error parsing booking confirmation:", e);
+        }
+      }
+    }
+  }, [searchParams]);
+
   async function fetchStations() {
     try {
       const { data, error } = await supabase

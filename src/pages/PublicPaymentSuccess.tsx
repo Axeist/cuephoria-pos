@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 type PendingBooking = {
@@ -13,6 +13,7 @@ type PendingBooking = {
 
 export default function PublicPaymentSuccess() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const paymentId = searchParams.get("payment_id") || "";
   const orderId = searchParams.get("order_id") || "";
   const signature = searchParams.get("signature") || "";
@@ -144,9 +145,49 @@ export default function PublicPaymentSuccess() {
 
       console.log("✅ Bookings created:", insertedBookings?.length || 0);
 
+      // 5) Fetch station names for confirmation dialog
+      const stationIds = [...new Set(pb.selectedStations)];
+      const { data: stationsData, error: stationsError } = await supabase
+        .from("stations")
+        .select("id, name")
+        .in("id", stationIds);
+
+      if (stationsError) {
+        console.error("Error fetching stations:", stationsError);
+      }
+
+      const stationNames = stationsData?.map(s => s.name) || pb.selectedStations;
+      const firstSlot = pb.slots[0];
+      const lastSlot = pb.slots[pb.slots.length - 1];
+
+      // Format times
+      const formatTime = (timeString: string) => {
+        return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true
+        });
+      };
+
+      // Store confirmation data in localStorage for the booking page to pick up
+      const confirmationData = {
+        bookingId: insertedBookings?.[0]?.id?.slice(0, 8).toUpperCase() || "BOOKING",
+        customerName: pb.customer.name,
+        stationNames: stationNames,
+        date: pb.selectedDateISO,
+        startTime: formatTime(firstSlot.start_time),
+        endTime: formatTime(lastSlot.end_time),
+        totalAmount: pb.pricing.final,
+        couponCode: pb.pricing.coupons || undefined,
+        discountAmount: pb.pricing.discount > 0 ? pb.pricing.discount : undefined,
+        sessionDuration: pb.duration === 15 ? "15 minutes" : "60 minutes",
+      };
+
+      localStorage.setItem("bookingConfirmation", JSON.stringify(confirmationData));
       localStorage.removeItem("pendingBooking");
-      setStatus("done");
-      setMsg("Booking confirmed! You can head back.");
+
+      // Redirect to booking page with success flag
+      navigate("/public/booking?booking_success=true");
     };
 
     run();
@@ -162,9 +203,9 @@ export default function PublicPaymentSuccess() {
       <div className="max-w-md w-full rounded-xl border border-white/10 bg-white/5 p-6 text-center">
         <h1 className="text-xl font-bold mb-2">{title}</h1>
         <p className="text-sm mb-6">{msg}</p>
-        <Link to="/public/booking" className="inline-flex rounded-md bg-cuephoria-purple/80 hover:bg-cuephoria-purple px-4 py-2 text-white">
-          Back to Booking
-        </Link>
+        {status === "done" && (
+          <p className="text-xs text-gray-400 mb-4">Redirecting to booking confirmation...</p>
+        )}
       </div>
     </div>
   );
