@@ -5,20 +5,25 @@ CREATE OR REPLACE FUNCTION public.get_available_slots(p_date date, p_station_id 
 AS $function$
 DECLARE
   opening_time TIME := '11:00:00';  -- 11 AM opening time
-  closing_time TIME := '23:00:00';  -- 11 PM closing time
+  closing_time TIME := '23:00:00';  -- 11 PM (last regular slot start)
   curr_time TIME;
   slot_end_time TIME;
 BEGIN
-  -- Generate time slots from opening to closing
+  -- Generate time slots from opening to closing (including 11 PM - 12 AM slot)
   curr_time := opening_time;
   
-  WHILE curr_time < closing_time LOOP
+  WHILE curr_time <= closing_time LOOP
     -- Calculate the end time for this slot
     slot_end_time := curr_time + (p_slot_duration || ' minutes')::interval;
     
-    -- Don't create slots that go past closing time
-    IF slot_end_time > closing_time THEN
-      EXIT;
+    -- Handle midnight crossover: if slot_end_time wraps around (becomes less than curr_time), it's 00:00:00
+    IF slot_end_time < curr_time THEN
+      slot_end_time := '00:00:00';
+    END IF;
+    
+    -- For the 11 PM slot, ensure end_time is 00:00:00 (midnight)
+    IF curr_time = '23:00:00' THEN
+      slot_end_time := '00:00:00';
     END IF;
     
     -- Check if this time slot overlaps with any existing booking

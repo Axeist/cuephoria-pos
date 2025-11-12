@@ -12,6 +12,7 @@ interface TimeSlot {
 interface TimeSlotPickerProps {
   slots: TimeSlot[];
   selectedSlot: TimeSlot | null;
+  selectedSlots?: TimeSlot[];
   onSlotSelect: (slot: TimeSlot) => void;
   loading?: boolean;
 }
@@ -31,6 +32,7 @@ const formatTime = (timeString: string) => {
 export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
   slots,
   selectedSlot,
+  selectedSlots = [],
   onSlotSelect,
   loading = false,
 }) => {
@@ -69,20 +71,34 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         {slots.map((slot, index) => {
           const isSelected = selectedSlot?.start_time === slot.start_time;
+          const isInMultipleSelection = selectedSlots.some(
+            s => s.start_time === slot.start_time && s.end_time === slot.end_time
+          );
 
           return (
             <Button
               key={index}
-              variant={isSelected ? "default" : slot.is_available ? "outline" : "ghost"}
+              variant={isSelected || isInMultipleSelection ? "default" : slot.is_available ? "outline" : "ghost"}
               disabled={!slot.is_available}
               onClick={() => slot.is_available && onSlotSelect(slot)}
               className={`h-12 flex flex-col items-center justify-center text-xs relative ${
                 !slot.is_available ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              aria-pressed={isSelected}
+              } ${isInMultipleSelection ? "ring-2 ring-primary ring-offset-2" : ""}`}
+              aria-pressed={isSelected || isInMultipleSelection}
             >
               <div className="font-medium">{formatTime(slot.start_time)}</div>
               <div className="text-xs opacity-70">{formatTime(slot.end_time)}</div>
+
+              {isInMultipleSelection && (
+                <div className="absolute -top-1 -right-1">
+                  <Badge
+                    variant="default"
+                    className="text-xs px-1 py-0 text-[10px] leading-3 bg-primary"
+                  >
+                    ✓
+                  </Badge>
+                </div>
+              )}
 
               {!slot.is_available && (
                 <div className="absolute -top-1 -right-1">

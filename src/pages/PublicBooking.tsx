@@ -139,6 +139,7 @@ export default function PublicBooking() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
 
   const [customerNumber, setCustomerNumber] = useState("");
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -149,6 +150,18 @@ export default function PublicBooking() {
   const [isReturningCustomer, setIsReturningCustomer] = useState(false);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // Auto-search when phone number reaches 10 digits
+  useEffect(() => {
+    const normalized = normalizePhoneNumber(customerNumber);
+    if (normalized.length === 10 && !hasSearched) {
+      const validation = validatePhoneNumber(normalized);
+      if (validation.valid) {
+        searchCustomer();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerNumber]);
 
   const [appliedCoupons, setAppliedCoupons] = useState<Record<string, string>>({});
   const [couponCode, setCouponCode] = useState("");
@@ -268,23 +281,42 @@ export default function PublicBooking() {
       }
       
       const bookingDuration = getBookingDuration(pendingBooking.selectedStations, stations);
-      const bookingRows = pendingBooking.selectedStations.map((stationId: string) => ({
-        station_id: stationId,
-        customer_id: customerId,
-        booking_date: pendingBooking.selectedDateISO,
+      
+      // Handle both old format (single slot) and new format (multiple slots)
+      const slots = pendingBooking.slots || (pendingBooking.start_time ? [{
         start_time: pendingBooking.start_time,
-        end_time: pendingBooking.end_time,
-        duration: bookingDuration,
-        status: "confirmed",
-        original_price: pendingBooking.pricing.original,
-        discount_percentage: pendingBooking.pricing.discount > 0 
-          ? (pendingBooking.pricing.discount / pendingBooking.pricing.original) * 100 
-          : null,
-        final_price: pendingBooking.pricing.final,
-        coupon_code: pendingBooking.pricing.coupons || null,
-        payment_mode: "phonepe",
-        payment_txn_id: txnId,
-      }));
+        end_time: pendingBooking.end_time
+      }] : []);
+      
+      if (slots.length === 0) {
+        throw new Error("No time slots found in pending booking");
+      }
+      
+      // Calculate price per slot
+      const pricePerSlot = pendingBooking.pricing.final / slots.length;
+      const originalPerSlot = pendingBooking.pricing.original / slots.length;
+      const discountPerSlot = pendingBooking.pricing.discount / slots.length;
+      
+      // Create bookings for each slot and station combination
+      const bookingRows = slots.flatMap((slot: { start_time: string; end_time: string }) =>
+        pendingBooking.selectedStations.map((stationId: string) => ({
+          station_id: stationId,
+          customer_id: customerId,
+          booking_date: pendingBooking.selectedDateISO,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          duration: bookingDuration,
+          status: "confirmed",
+          original_price: originalPerSlot,
+          discount_percentage: discountPerSlot > 0 
+            ? (discountPerSlot / originalPerSlot) * 100 
+            : null,
+          final_price: pricePerSlot,
+          coupon_code: pendingBooking.pricing.coupons || null,
+          payment_mode: "phonepe",
+          payment_txn_id: txnId,
+        }))
+      );
       
       console.log("💾 Creating booking records:", bookingRows);
       
@@ -360,6 +392,7 @@ export default function PublicBooking() {
     else {
       setAvailableSlots([]);
       setSelectedSlot(null);
+      setSelectedSlots([]);
     }
   }, [selectedStations, selectedDate]);
 
@@ -504,7 +537,18 @@ export default function PublicBooking() {
         )
       ) {
         setSelectedSlot(null);
+        setSelectedSlots([]);
       }
+      
+      // Also clear selectedSlots that are no longer available
+      setSelectedSlots(prev => prev.filter(slot =>
+        availableSlots.some(
+          (s) =>
+            s.start_time === slot.start_time &&
+            s.end_time === slot.end_time &&
+            s.is_available
+        )
+      ));
     } catch (e) {
       console.error(e);
       toast.error("Failed to load time slots");
@@ -587,6 +631,7 @@ export default function PublicBooking() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
     setSelectedSlot(null);
+    setSelectedSlots([]);
   };
 
   async function filterStationsForSlot(slot: TimeSlot) {
@@ -635,15 +680,35 @@ export default function PublicBooking() {
       return;
     }
     
+    // Check if slot is already selected (for multiple selection)
+    const isAlreadySelected = selectedSlots.some(
+      s => s.start_time === slot.start_time && s.end_time === slot.end_time
+    );
+    
+    if (isAlreadySelected) {
+      // Deselect the slot
+      setSelectedSlots(prev => prev.filter(
+        s => !(s.start_time === slot.start_time && s.end_time === slot.end_time)
+      ));
+      // Also clear single selection if it matches
+      if (selectedSlot?.start_time === slot.start_time) {
+        setSelectedSlot(null);
+      }
+      return;
+    }
+    
     if (selectedStations.length > 0) {
       const filtered = await filterStationsForSlot(slot);
       if (filtered.length === 0) {
         toast.error("That time isn't available for the selected stations.");
-        setSelectedSlot(null);
         return;
       }
       if (filtered.length !== selectedStations.length) setSelectedStations(filtered);
     }
+    
+    // Add to multiple selection
+    setSelectedSlots(prev => [...prev, slot]);
+    // Also set as single selection for backward compatibility
     setSelectedSlot(slot);
   }
 
@@ -975,19 +1040,39 @@ export default function PublicBooking() {
 
       const couponCodes = Object.values(appliedCoupons).join(",");
       const bookingDuration = getBookingDuration(selectedStations, stations);
-      const rows = selectedStations.map((stationId) => ({
-        station_id: stationId,
-        customer_id: customerId!,
-        booking_date: format(selectedDate, "yyyy-MM-dd"),
-        start_time: selectedSlot!.start_time,
-        end_time: selectedSlot!.end_time,
-        duration: bookingDuration,
-        status: "confirmed",
-        original_price: originalPrice,
-        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-        final_price: finalPrice,
-        coupon_code: couponCodes || null,
-      }));
+      
+      // Use selectedSlots if available, otherwise fall back to single selectedSlot
+      const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+      
+      if (slotsToBook.length === 0) {
+        toast.error("Please select at least one time slot");
+        setLoading(false);
+        return;
+      }
+      
+      // Calculate total price for all slots
+      const slotsCount = slotsToBook.length;
+      const totalOriginalPrice = originalPrice * slotsCount;
+      const totalDiscountAmount = discount * slotsCount;
+      const totalFinalPrice = finalPrice * slotsCount;
+      
+      // Create bookings for each selected slot
+      // Price per booking = price per slot (since each slot is independent)
+      const rows = slotsToBook.flatMap((slot) =>
+        selectedStations.map((stationId) => ({
+          station_id: stationId,
+          customer_id: customerId!,
+          booking_date: format(selectedDate, "yyyy-MM-dd"),
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          duration: bookingDuration,
+          status: "confirmed",
+          original_price: originalPrice,
+          discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+          final_price: finalPrice,
+          coupon_code: couponCodes || null,
+        }))
+      );
 
       const { data: inserted, error: bookingError } = await supabase
         .from("bookings")
@@ -1005,22 +1090,25 @@ export default function PublicBooking() {
       );
       const sessionDuration = hasVR ? "15 minutes" : "60 minutes";
       
+      // Use first slot for confirmation display (or selectedSlot if available)
+      const displaySlot = selectedSlot || slotsToBook[0];
+      
       setBookingConfirmationData({
         bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
         stationNames: stationObjects.map((s) => s.name),
         date: format(selectedDate, "yyyy-MM-dd"),
-        startTime: new Date(`2000-01-01T${selectedSlot!.start_time}`).toLocaleTimeString(
+        startTime: new Date(`2000-01-01T${displaySlot.start_time}`).toLocaleTimeString(
           "en-US",
           { hour: "numeric", minute: "2-digit", hour12: true }
         ),
-        endTime: new Date(`2000-01-01T${selectedSlot!.end_time}`).toLocaleTimeString(
+        endTime: new Date(`2000-01-01T${displaySlot.end_time}`).toLocaleTimeString(
           "en-US",
           { hour: "numeric", minute: "2-digit", hour12: true }
         ),
-        totalAmount: finalPrice,
+        totalAmount: totalFinalPrice, // Total for all slots
         couponCode: couponCodes || undefined,
-        discountAmount: discount > 0 ? discount : undefined,
+        discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
         sessionDuration: sessionDuration,
       });
       setShowConfirmationDialog(true);
@@ -1029,6 +1117,7 @@ export default function PublicBooking() {
 
       setSelectedStations([]);
       setSelectedSlot(null);
+      setSelectedSlots([]);
       setCustomerNumber("");
       setCustomerInfo({ name: "", phone: "", email: "" });
       setIsReturningCustomer(false);
@@ -1045,7 +1134,17 @@ export default function PublicBooking() {
   }
 
   const initiatePhonePe = async () => {
-    if (finalPrice <= 0) {
+    // Use selectedSlots if available, otherwise fall back to single selectedSlot
+    const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+    
+    if (slotsToBook.length === 0) {
+      toast.error("Please select at least one time slot");
+      return;
+    }
+    
+    const totalPrice = finalPrice * slotsToBook.length;
+    
+    if (totalPrice <= 0) {
       toast.error("Amount must be greater than 0 for online payment.");
       return;
     }
@@ -1062,17 +1161,20 @@ export default function PublicBooking() {
     setLoading(true);
     try {
       const bookingDuration = getBookingDuration(selectedStations, stations);
+      // Store all slots for booking creation after payment
       const pendingBooking = {
         selectedStations,
         selectedDateISO: format(selectedDate, "yyyy-MM-dd"),
-        start_time: selectedSlot!.start_time,
-        end_time: selectedSlot!.end_time,
+        slots: slotsToBook.map(slot => ({
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+        })),
         duration: bookingDuration,
         customer: customerInfo,
         pricing: {
-          original: originalPrice,
-          discount: discount,
-          final: finalPrice,
+          original: originalPrice * slotsToBook.length,
+          discount: discount * slotsToBook.length,
+          final: totalPrice,
           coupons: Object.values(appliedCoupons).join(","),
         },
       };
@@ -1082,7 +1184,7 @@ export default function PublicBooking() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          amount: finalPrice,
+          amount: totalPrice,
           customerPhone: customerInfo.phone,
           merchantTransactionId: txnId,
           successUrl,
@@ -1151,8 +1253,9 @@ export default function PublicBooking() {
       toast.error("Please select at least one station");
       return;
     }
-    if (!selectedSlot) {
-      toast.error("Please select a time slot");
+    const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+    if (slotsToBook.length === 0) {
+      toast.error("Please select at least one time slot");
       return;
     }
     if (!customerInfo.name.trim()) {
@@ -1414,17 +1517,20 @@ export default function PublicBooking() {
                       
                       if (normalized.length <= 10) {
                         setCustomerNumber(normalized);
-                        setHasSearched(false);
-                        setIsReturningCustomer(false);
-                        setCustomerInfo((prev) => ({
-                          ...prev,
-                          name: "",
-                          email: "",
-                          phone: normalized,
-                        }));
+                        // Don't reset hasSearched here - let auto-search handle it
+                        if (normalized.length < 10) {
+                          setHasSearched(false);
+                          setIsReturningCustomer(false);
+                          setCustomerInfo((prev) => ({
+                            ...prev,
+                            name: "",
+                            email: "",
+                            phone: normalized,
+                          }));
+                        }
                       }
                     }}
-                    placeholder="Enter 10-digit phone number"
+                    placeholder="Enter 10-digit phone number (auto-searches)"
                     className="bg-black/30 border-white/10 text-white placeholder:text-gray-400 rounded-xl flex-1"
                     maxLength={10}
                   />
@@ -1436,6 +1542,9 @@ export default function PublicBooking() {
                     {searchingCustomer ? "Searching..." : "Search"}
                   </Button>
                 </div>
+                <p className="text-xs text-gray-400 italic">
+                  💡 Phone number will be automatically searched when you enter 10 digits
+                </p>
 
                 {hasSearched && (
                   <div className="grid md:grid-cols-2 gap-4">
@@ -1646,9 +1755,16 @@ export default function PublicBooking() {
                           Available Time Slots
                         </Label>
                         <div className="mt-2">
+                          <div className="mb-3 bg-cuephoria-blue/10 border border-cuephoria-blue/20 rounded-lg p-3">
+                            <p className="text-sm text-cuephoria-blue flex items-center gap-2">
+                              <Sparkles className="h-4 w-4" />
+                              <span className="font-medium">Multiple Slot Selection:</span> Click multiple time slots to book consecutive sessions. Click again to deselect.
+                            </p>
+                          </div>
                           <TimeSlotPicker
                             slots={availableSlots}
                             selectedSlot={selectedSlot}
+                            selectedSlots={selectedSlots}
                             onSlotSelect={handleSlotSelect}
                             loading={slotsLoading}
                           />
@@ -1708,7 +1824,7 @@ export default function PublicBooking() {
                   </div>
                 )}
 
-                {selectedSlot && (
+                {(selectedSlot || selectedSlots.length > 0) && (
                   <div>
                     <Label className="text-xs font-semibold text-gray-400 uppercase">
                       Session Duration & Time
@@ -1717,17 +1833,38 @@ export default function PublicBooking() {
                       {selectedStations.some(id => stations.find(s => s.id === id && s.type === 'vr')) 
                         ? '15 minutes' : '60 minutes'}
                     </p>
-                    <p className="text-sm text-gray-200">
-                      {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString(
-                        "en-US",
-                        { hour: "numeric", minute: "2-digit", hour12: true }
-                      )}{" "}
-                      —{" "}
-                      {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString(
-                        "en-US",
-                        { hour: "numeric", minute: "2-digit", hour12: true }
-                      )}
-                    </p>
+                    {selectedSlots.length > 0 ? (
+                      <div className="mt-2 space-y-1">
+                        {selectedSlots.map((slot, idx) => (
+                          <p key={idx} className="text-sm text-gray-200">
+                            {new Date(`2000-01-01T${slot.start_time}`).toLocaleTimeString(
+                              "en-US",
+                              { hour: "numeric", minute: "2-digit", hour12: true }
+                            )}{" "}
+                            —{" "}
+                            {new Date(`2000-01-01T${slot.end_time}`).toLocaleTimeString(
+                              "en-US",
+                              { hour: "numeric", minute: "2-digit", hour12: true }
+                            )}
+                          </p>
+                        ))}
+                        <p className="text-xs text-cuephoria-lightpurple mt-1">
+                          {selectedSlots.length} slot{selectedSlots.length !== 1 ? 's' : ''} selected
+                        </p>
+                      </div>
+                    ) : selectedSlot ? (
+                      <p className="text-sm text-gray-200">
+                        {new Date(`2000-01-01T${selectedSlot.start_time}`).toLocaleTimeString(
+                          "en-US",
+                          { hour: "numeric", minute: "2-digit", hour12: true }
+                        )}{" "}
+                        —{" "}
+                        {new Date(`2000-01-01T${selectedSlot.end_time}`).toLocaleTimeString(
+                          "en-US",
+                          { hour: "numeric", minute: "2-digit", hour12: true }
+                        )}
+                      </p>
+                    ) : null}
                   </div>
                 )}
 
@@ -1844,46 +1981,86 @@ export default function PublicBooking() {
                   <>
                     <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-sm text-gray-300">Subtotal</Label>
-                        <span className="text-sm text-gray-200">
-                          {INR(originalPrice)}
-                        </span>
-                      </div>
+                      {(() => {
+                        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
+                        const totalOriginal = originalPrice * slotsCount;
+                        const totalDiscount = discount * slotsCount;
+                        const totalFinal = finalPrice * slotsCount;
+                        
+                        return (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <Label className="text-sm text-gray-300">Price per slot</Label>
+                              <span className="text-sm text-gray-200">
+                                {INR(originalPrice)}
+                              </span>
+                            </div>
+                            {slotsCount > 1 && (
+                              <div className="flex justify-between items-center text-xs text-gray-400">
+                                <Label>× {slotsCount} slot{slotsCount !== 1 ? 's' : ''}</Label>
+                                <span>{INR(totalOriginal)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center">
+                              <Label className="text-sm text-gray-300">Subtotal</Label>
+                              <span className="text-sm text-gray-200">
+                                {INR(totalOriginal)}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
 
-                      {discount > 0 && (
-                        <>
-                          <div className="border p-2 rounded bg-black/10 text-green-400">
-                            <Label className="font-semibold text-xs uppercase">
-                              Discount Breakdown
-                            </Label>
-                            <ul className="list-disc ml-5 mt-1 text-sm">
-                              {Object.entries(discountBreakdown).map(([k, v]) => (
-                                <li key={k}>
-                                  {k}: -{INR(v)}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <Label className="text-sm text-green-400">
-                              Total Discount
-                            </Label>
-                            <span className="text-sm text-green-400">-{INR(discount)}</span>
-                          </div>
-                        </>
-                      )}
+                      {(() => {
+                        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
+                        const totalOriginal = originalPrice * slotsCount;
+                        const totalDiscount = discount * slotsCount;
+                        const totalFinal = finalPrice * slotsCount;
+                        
+                        return (
+                          <>
+                            {discount > 0 && (
+                              <>
+                                <div className="border p-2 rounded bg-black/10 text-green-400">
+                                  <Label className="font-semibold text-xs uppercase">
+                                    Discount Breakdown (per slot)
+                                  </Label>
+                                  <ul className="list-disc ml-5 mt-1 text-sm">
+                                    {Object.entries(discountBreakdown).map(([k, v]) => (
+                                      <li key={k}>
+                                        {k}: -{INR(v)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                                {slotsCount > 1 && (
+                                  <div className="flex justify-between items-center text-xs text-gray-400">
+                                    <Label>× {slotsCount} slot{slotsCount !== 1 ? 's' : ''}</Label>
+                                    <span>-{INR(totalDiscount)}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center">
+                                  <Label className="text-sm text-green-400">
+                                    Total Discount
+                                  </Label>
+                                  <span className="text-sm text-green-400">-{INR(totalDiscount)}</span>
+                                </div>
+                              </>
+                            )}
 
-                      <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                            <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-                      <div className="flex justify-between items-center">
-                        <Label className="text-base font-semibold text-gray-100">
-                          Total Amount
-                        </Label>
-                        <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
-                          {INR(finalPrice)}
-                        </span>
-                      </div>
+                            <div className="flex justify-between items-center">
+                              <Label className="text-base font-semibold text-gray-100">
+                                Total Amount
+                              </Label>
+                              <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
+                                {INR(totalFinal)}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </>
                 )}
@@ -1891,7 +2068,7 @@ export default function PublicBooking() {
                 <Button
                   onClick={handleConfirm}
                   disabled={
-                    !selectedSlot || selectedStations.length === 0 || !customerNumber || loading
+                    (selectedSlots.length === 0 && !selectedSlot) || selectedStations.length === 0 || !customerNumber || loading
                   }
                   className="w-full rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
                   size="lg"
