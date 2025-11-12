@@ -549,13 +549,20 @@ export default function PublicBooking() {
     
     if (isAlreadySelected) {
       // Deselect the slot
-      setSelectedSlots(prev => prev.filter(
-        s => !(s.start_time === slot.start_time && s.end_time === slot.end_time)
-      ));
-      // Also clear single selection if it matches
-      if (selectedSlot?.start_time === slot.start_time) {
-        setSelectedSlot(null);
-      }
+      setSelectedSlots(prev => {
+        const updated = prev.filter(
+          s => !(s.start_time === slot.start_time && s.end_time === slot.end_time)
+        );
+        // If we removed the current selectedSlot, set it to the first remaining slot (if any)
+        if (selectedSlot?.start_time === slot.start_time) {
+          if (updated.length > 0) {
+            setSelectedSlot(updated[0]);
+          } else {
+            setSelectedSlot(null);
+          }
+        }
+        return updated;
+      });
       return;
     }
     
@@ -720,7 +727,9 @@ export default function PublicBooking() {
   };
 
   const calculateOriginalPrice = () => {
-    if (selectedStations.length === 0 || !selectedSlot) return 0;
+    if (selectedStations.length === 0) return 0;
+    // Check if we have any slots selected (either single or multiple)
+    if (!selectedSlot && selectedSlots.length === 0) return 0;
     return stations
       .filter((s) => selectedStations.includes(s.id))
       .reduce((sum, s) => {
