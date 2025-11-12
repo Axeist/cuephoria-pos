@@ -2249,8 +2249,10 @@ export default function BookingManagement() {
                 <div className="max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-background space-y-2 pr-2">
                   {Object.entries(groupedBookings)
                     .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
-                    .map(([date, customerBookings]) => (
-                      <Collapsible key={date}>
+                    .map(([date, customerBookings]) => {
+                      const bookingIds = Object.values(customerBookings).flat().map(b => b.id).join('-');
+                      return (
+                      <Collapsible key={`${date}-${bookingIds}`}>
                         <CollapsibleTrigger 
                           onClick={() => toggleDateExpansion(date)}
                           className="flex items-center gap-2 w-full p-3 text-left bg-muted/50 rounded-lg hover:bg-muted transition-colors"
@@ -2272,7 +2274,7 @@ export default function BookingManagement() {
                         
                         <CollapsibleContent>
                           {expandedDates.has(date) && (
-                            <div className="ml-6 mt-2 space-y-2">
+                            <div key={`${date}-content-${bookingIds}`} className="ml-6 mt-2 space-y-2">
                               {Object.entries(customerBookings).map(([customerName, bookingsForCustomer]) => {
                                 const key = `${date}::${customerName}`;
                                 const couponBookings = bookingsForCustomer.filter(b => b.coupon_code);
@@ -2305,7 +2307,7 @@ export default function BookingManagement() {
                                     
                                     <CollapsibleContent>
                                       {expandedCustomers.has(key) && (
-                                        <div className="ml-6 mt-2 space-y-2">
+                                        <div key={`${key}-bookings-${bookingsForCustomer.map(b => b.id).join('-')}`} className="ml-6 mt-2 space-y-2">
                                           {bookingsForCustomer
                                             .sort((a, b) => a.start_time.localeCompare(b.start_time))
                                             .map(booking => (
@@ -2430,7 +2432,8 @@ export default function BookingManagement() {
                           )}
                         </CollapsibleContent>
                       </Collapsible>
-                    ))}
+                      );
+                    })}
                 </div>
               )}
             </CardContent>
