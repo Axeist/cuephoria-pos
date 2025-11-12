@@ -2251,10 +2251,24 @@ export default function BookingManagement() {
                     .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
                     .map(([date, customerBookings]) => {
                       const bookingIds = Object.values(customerBookings).flat().map(b => b.id).join('-');
+                      const isDateExpanded = expandedDates.has(date);
                       return (
-                      <Collapsible key={`${date}-${bookingIds}`}>
+                      <Collapsible 
+                        key={date}
+                        open={isDateExpanded}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            setExpandedDates(prev => new Set(prev).add(date));
+                          } else {
+                            setExpandedDates(prev => {
+                              const next = new Set(prev);
+                              next.delete(date);
+                              return next;
+                            });
+                          }
+                        }}
+                      >
                         <CollapsibleTrigger 
-                          onClick={() => toggleDateExpansion(date)}
                           className="flex items-center gap-2 w-full p-3 text-left bg-muted/50 rounded-lg hover:bg-muted transition-colors"
                         >
                           {expandedDates.has(date) ? (
@@ -2273,19 +2287,32 @@ export default function BookingManagement() {
                         </CollapsibleTrigger>
                         
                         <CollapsibleContent>
-                          {expandedDates.has(date) && (
-                            <div key={`${date}-content-${bookingIds}`} className="ml-6 mt-2 space-y-2">
+                          <div key={`${date}-content-${bookingIds}`} className="ml-6 mt-2 space-y-2">
                               {Object.entries(customerBookings).map(([customerName, bookingsForCustomer]) => {
                                 const key = `${date}::${customerName}`;
                                 const couponBookings = bookingsForCustomer.filter(b => b.coupon_code);
                                 
+                                const isCustomerExpanded = expandedCustomers.has(key);
                                 return (
-                                  <Collapsible key={key}>
+                                  <Collapsible 
+                                    key={key}
+                                    open={isCustomerExpanded}
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        setExpandedCustomers(prev => new Set(prev).add(key));
+                                      } else {
+                                        setExpandedCustomers(prev => {
+                                          const next = new Set(prev);
+                                          next.delete(key);
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                  >
                                     <CollapsibleTrigger 
-                                      onClick={() => toggleCustomerExpansion(key)}
                                       className="flex items-center gap-2 w-full p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors"
                                     >
-                                      {expandedCustomers.has(key) ? (
+                                      {isCustomerExpanded ? (
                                         <ChevronDown className="h-3 w-3" />
                                       ) : (
                                         <ChevronRight className="h-3 w-3" />
@@ -2306,8 +2333,7 @@ export default function BookingManagement() {
                                     </CollapsibleTrigger>
                                     
                                     <CollapsibleContent>
-                                      {expandedCustomers.has(key) && (
-                                        <div key={`${key}-bookings-${bookingsForCustomer.map(b => b.id).join('-')}`} className="ml-6 mt-2 space-y-2">
+                                      <div key={`${key}-bookings-${bookingsForCustomer.map(b => b.id).join('-')}`} className="ml-6 mt-2 space-y-2">
                                           {bookingsForCustomer
                                             .sort((a, b) => a.start_time.localeCompare(b.start_time))
                                             .map(booking => (
@@ -2423,13 +2449,11 @@ export default function BookingManagement() {
                                               </div>
                                             ))}
                                         </div>
-                                      )}
                                     </CollapsibleContent>
                                   </Collapsible>
                                 );
                               })}
                             </div>
-                          )}
                         </CollapsibleContent>
                       </Collapsible>
                       );
