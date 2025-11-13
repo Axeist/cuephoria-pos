@@ -81,9 +81,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Normalize phone number (convert to string first in case it comes as a number)
     const phoneString = String(customer_phone || '');
-    const normalizedPhone = phoneString.replace(/\D/g, '');
-    if (normalizedPhone.length < 10) {
-      return j(res, { ok: false, error: "Invalid phone number" }, 400);
+    let normalizedPhone = phoneString.replace(/\D/g, '');
+    
+    // Handle Indian phone numbers: remove country code if present (91 or +91)
+    if (normalizedPhone.length === 12 && normalizedPhone.startsWith('91')) {
+      normalizedPhone = normalizedPhone.substring(2);
+    } else if (normalizedPhone.length === 13 && normalizedPhone.startsWith('9191')) {
+      normalizedPhone = normalizedPhone.substring(2);
+    }
+    
+    // Validate: Must be exactly 10 digits for Indian numbers
+    if (normalizedPhone.length !== 10) {
+      return j(res, { 
+        ok: false, 
+        error: "Invalid phone number. Indian mobile numbers must be exactly 10 digits",
+        provided: phoneString,
+        normalized: normalizedPhone
+      }, 400);
+    }
+    
+    // Validate: Indian mobile numbers start with 6, 7, 8, or 9
+    const firstDigit = normalizedPhone[0];
+    if (!['6', '7', '8', '9'].includes(firstDigit)) {
+      return j(res, { 
+        ok: false, 
+        error: "Invalid phone number. Indian mobile numbers must start with 6, 7, 8, or 9",
+        provided: phoneString
+      }, 400);
     }
 
     // Handle single station, array of stations, or comma-separated string
