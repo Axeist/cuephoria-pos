@@ -41,6 +41,13 @@ function j(res: VercelResponse, data: unknown, status = 200) {
   res.status(status).json(data);
 }
 
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUUID(uuid: string): boolean {
+  return UUID_REGEX.test(uuid);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -91,6 +98,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       stationIds = [station_id];
     }
+
+    // Validate that all station IDs are valid UUIDs
+    const validStationIds = stationIds.filter(id => isValidUUID(String(id)));
+    const invalidStationIds = stationIds.filter(id => !isValidUUID(String(id)));
+
+    if (invalidStationIds.length > 0) {
+      return j(res, {
+        ok: false,
+        error: "Invalid station ID format. Station IDs must be valid UUIDs",
+        invalid_station_ids: invalidStationIds,
+        example_format: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      }, 400);
+    }
+
+    if (validStationIds.length === 0) {
+      return j(res, {
+        ok: false,
+        error: "No valid station IDs provided"
+      }, 400);
+    }
+
+    // Use only valid station IDs
+    stationIds = validStationIds;
 
     // Check for existing bookings that overlap with the requested time slot
     // We need to fetch all bookings for the date and check overlaps in code
