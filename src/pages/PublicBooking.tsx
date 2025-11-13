@@ -14,6 +14,7 @@ import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
 import LegalDialog from "@/components/dialog/LegalDialog";
+import OnlinePaymentPromoDialog from "@/components/OnlinePaymentPromoDialog";
 import {
   CalendarIcon,
   Clock,
@@ -183,6 +184,7 @@ export default function PublicBooking() {
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
+  const [showOnlinePaymentPromo, setShowOnlinePaymentPromo] = useState(false);
   
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
@@ -1206,6 +1208,25 @@ export default function PublicBooking() {
     }
   };
 
+  // Helper function to determine service type for promo
+  const getServiceTypeForPromo = (): 'ps5' | '8ball' | null => {
+    if (selectedStations.length === 0) return null;
+    
+    // Find the first non-VR station type
+    const selectedStationTypes = selectedStations
+      .map(id => stations.find(s => s.id === id))
+      .filter(s => s && s.type !== 'vr')
+      .map(s => s!.type);
+    
+    if (selectedStationTypes.length === 0) return null;
+    
+    // Prioritize PS5, then 8-ball
+    if (selectedStationTypes.includes('ps5')) return 'ps5';
+    if (selectedStationTypes.includes('8ball')) return '8ball';
+    
+    return null;
+  };
+
   async function handleConfirm() {
     if (!isCustomerInfoComplete()) {
       toast.error("Please complete customer information first");
@@ -1225,12 +1246,34 @@ export default function PublicBooking() {
       return;
     }
 
+    // Show promotional popup if paying at venue and service type is PS5 or 8-ball
     if (paymentMethod === "venue") {
-      await createVenueBooking();
+      const serviceType = getServiceTypeForPromo();
+      if (serviceType) {
+        setShowOnlinePaymentPromo(true);
+        return;
+      } else {
+        // If no eligible service type, proceed directly with venue booking
+        await createVenueBooking();
+      }
     } else {
       await initiateRazorpay();
     }
   }
+
+  const handlePromoAccept = async () => {
+    setShowOnlinePaymentPromo(false);
+    // Switch to online payment and proceed
+    setPaymentMethod("razorpay");
+    // initiateRazorpay doesn't depend on paymentMethod state, so we can call it directly
+    await initiateRazorpay();
+  };
+
+  const handlePromoDecline = async () => {
+    setShowOnlinePaymentPromo(false);
+    // Proceed with venue booking
+    await createVenueBooking();
+  };
 
   function maskPhone(p?: string) {
     if (!p) return "";
@@ -2390,6 +2433,14 @@ export default function PublicBooking() {
           bookingData={bookingConfirmationData}
         />
       )}
+
+      <OnlinePaymentPromoDialog
+        isOpen={showOnlinePaymentPromo}
+        onClose={() => setShowOnlinePaymentPromo(false)}
+        onAccept={handlePromoAccept}
+        onDecline={handlePromoDecline}
+        serviceType={getServiceTypeForPromo()}
+      />
 
       <LegalDialog 
         isOpen={showLegalDialog}
