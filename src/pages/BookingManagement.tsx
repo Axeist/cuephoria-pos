@@ -2423,14 +2423,14 @@ export default function BookingManagement() {
                                                     
                                                     <div>
                                                       <div className="text-sm text-muted-foreground">Status</div>
-                                                      <div className="flex items-center gap-2 mt-1">
+                                                      <div className="flex flex-col gap-1.5 mt-1">
                                                         <BookingStatusBadge status={booking.status} />
                                                         {booking.payment_mode && booking.payment_mode !== 'venue' ? (
-                                                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20 w-fit">
                                                             💳 Paid
                                                           </Badge>
                                                         ) : (
-                                                          <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                                          <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20 w-fit">
                                                             💰 Unpaid
                                                           </Badge>
                                                         )}
