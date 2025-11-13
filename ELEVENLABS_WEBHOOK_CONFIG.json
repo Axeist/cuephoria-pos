@@ -14,71 +14,92 @@
       "required": true,
       "properties": [
         {
+          "id": "customer_name",
           "name": "customer_name",
           "type": "string",
           "description": "Full name of the customer making the booking",
-          "required": true
+          "required": true,
+          "dynamic_variable": "customer_name"
         },
         {
+          "id": "customer_phone",
           "name": "customer_phone",
           "type": "string",
           "description": "Customer phone number (10 digits, can include country code or formatting)",
-          "required": true
+          "required": true,
+          "dynamic_variable": "customer_phone"
         },
         {
+          "id": "customer_email",
           "name": "customer_email",
           "type": "string",
           "description": "Customer email address (optional)",
-          "required": false
+          "required": false,
+          "dynamic_variable": "customer_email"
         },
         {
+          "id": "station_id",
           "name": "station_id",
           "type": "string",
           "description": "Station ID to book. For multiple stations, make separate requests or pass comma-separated IDs",
-          "required": true
+          "required": true,
+          "dynamic_variable": "station_id"
         },
         {
+          "id": "booking_date",
           "name": "booking_date",
           "type": "string",
           "description": "Booking date in YYYY-MM-DD format (e.g., 2025-01-15)",
-          "required": true
+          "required": true,
+          "dynamic_variable": "booking_date"
         },
         {
+          "id": "start_time",
           "name": "start_time",
           "type": "string",
           "description": "Start time in HH:MM format (24-hour, e.g., 14:00 for 2:00 PM)",
-          "required": true
+          "required": true,
+          "dynamic_variable": "start_time"
         },
         {
+          "id": "end_time",
           "name": "end_time",
           "type": "string",
           "description": "End time in HH:MM format (24-hour, e.g., 15:00 for 3:00 PM)",
-          "required": true
+          "required": true,
+          "dynamic_variable": "end_time"
         },
         {
+          "id": "duration",
           "name": "duration",
           "type": "integer",
           "description": "Duration in minutes (optional, defaults to 60 minutes)",
-          "required": false
+          "required": false,
+          "dynamic_variable": "duration"
         },
         {
+          "id": "notes",
           "name": "notes",
           "type": "string",
           "description": "Additional notes for the booking (optional)",
-          "required": false
+          "required": false,
+          "dynamic_variable": "notes"
         }
       ]
     },
     "request_headers": [
       {
         "name": "Content-Type",
+        "type": "value",
         "value": "application/json"
       }
     ],
     "auth_connection": null
   },
   "response_timeout_secs": 30,
-  "dynamic_variables": {},
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": []
+  },
   "assignments": [],
   "disable_interruptions": false,
   "force_pre_tool_speech": "auto",
