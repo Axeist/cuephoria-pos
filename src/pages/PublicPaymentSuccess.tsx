@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { CheckCircle2, Loader2, AlertCircle, Sparkles } from "lucide-react";
 
 type PendingBooking = {
   selectedStations: string[];
@@ -196,18 +197,121 @@ export default function PublicPaymentSuccess() {
   }, [paymentId, orderId, signature]);
 
   const title =
-    status === "done" ? "Payment Success"
+    status === "done" ? "Payment Successful!"
     : status === "failed" ? "Payment Issue"
-    : "Processing…";
+    : "Processing Payment…";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black text-gray-200 p-6">
-      <div className="max-w-md w-full rounded-xl border border-white/10 bg-white/5 p-6 text-center">
-        <h1 className="text-xl font-bold mb-2">{title}</h1>
-        <p className="text-sm mb-6">{msg}</p>
-        {status === "done" && (
-          <p className="text-xs text-gray-400 mb-4">Redirecting to booking confirmation...</p>
-        )}
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] flex items-center justify-center p-6">
+      {/* Animated background gradients */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl animate-pulse" />
+        <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
+
+      <div className="max-w-md w-full relative z-10">
+        {/* Logo Section */}
+        <div className="flex justify-center mb-8 animate-fade-in">
+          <div className="relative">
+            <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-cuephoria-purple/30 to-cuephoria-lightpurple/30 blur-xl animate-pulse"></div>
+            <img
+              src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
+              alt="Cuephoria Logo"
+              className="h-20 md:h-24 relative z-10 drop-shadow-[0_0_25px_rgba(155,135,245,0.5)] animate-float"
+            />
+          </div>
+        </div>
+
+        {/* Main Card */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 text-center shadow-2xl animate-scale-in">
+          {/* Status Icon */}
+          <div className="flex justify-center mb-6">
+            {status === "checking" || status === "creating" ? (
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-cuephoria-lightpurple/20 animate-ping"></div>
+                <div className="relative w-20 h-20 flex items-center justify-center">
+                  <div className="w-16 h-16 border-t-4 border-cuephoria-lightpurple border-solid rounded-full animate-spin"></div>
+                  <div className="absolute w-12 h-12 border-t-4 border-r-4 border-transparent border-solid rounded-full border-r-cuephoria-purple animate-spin-slow"></div>
+                  <Loader2 className="absolute w-8 h-8 text-cuephoria-lightpurple animate-spin" />
+                </div>
+              </div>
+            ) : status === "done" ? (
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping"></div>
+                <div className="relative w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-green-500/20 to-emerald-500/20 animate-pulse"></div>
+                  <CheckCircle2 className="w-20 h-20 text-green-500 relative z-10 animate-scale-in" />
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping"></div>
+                <AlertCircle className="w-20 h-20 text-red-500 relative z-10 animate-scale-in" />
+              </div>
+            )}
+          </div>
+
+          {/* Title */}
+          <h1 className="text-3xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-purple animate-text-gradient">
+            {title}
+          </h1>
+
+          {/* Message */}
+          <p className="text-gray-300 mb-6 text-base leading-relaxed">{msg}</p>
+
+          {/* Loading Progress Indicator */}
+          {(status === "checking" || status === "creating") && (
+            <div className="mb-6">
+              <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple rounded-full animate-shimmer" style={{
+                  width: status === "checking" ? "40%" : "70%",
+                  transition: "width 0.5s ease-in-out"
+                }}></div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2 flex items-center justify-center gap-2">
+                <Sparkles className="h-3 w-3 text-cuephoria-lightpurple animate-pulse" />
+                {status === "checking" ? "Verifying payment details..." : "Creating your booking..."}
+              </p>
+            </div>
+          )}
+
+          {/* Success State */}
+          {status === "done" && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-4 mb-4">
+                <p className="text-sm text-green-400 flex items-center justify-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Payment verified and booking confirmed!
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin text-cuephoria-lightpurple" />
+                <span>Redirecting to booking confirmation...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Failed State */}
+          {status === "failed" && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl p-4">
+                <p className="text-sm text-red-400 flex items-center justify-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  {msg}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Decorative Elements */}
+          <div className="mt-8 pt-6 border-t border-white/10">
+            <p className="text-xs text-gray-500 flex items-center justify-center gap-2">
+              <Sparkles className="h-3 w-3 text-cuephoria-lightpurple/50" />
+              Powered by Cuephoria Gaming Lounge
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

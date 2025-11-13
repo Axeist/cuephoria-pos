@@ -1,6 +1,11 @@
 // Using Node.js runtime to use Razorpay SDK
 // export const config = { runtime: "edge" };
 
+// Increase timeout to 30 seconds to handle Razorpay API calls
+export const config = {
+  maxDuration: 30, // 30 seconds (default is 10s, max is 60s for Pro plan)
+};
+
 // Vercel Node.js runtime types
 type VercelRequest = {
   method?: string;
