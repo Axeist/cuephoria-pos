@@ -236,17 +236,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Check for active sessions (for today's bookings)
+    // Only block if the session's start time overlaps with the requested time slot
     const today = new Date().toISOString().split('T')[0];
     if (booking_date === today) {
       const { data: activeSessions, error: sessionError } = await supabase
         .from("sessions")
-        .select("station_id")
+        .select("station_id, start_time")
         .in("station_id", stationIds)
         .is("end_time", null); // Active sessions only
 
       if (!sessionError && activeSessions) {
+        // Filter sessions to only those that overlap with the requested time slot
+        const timeToMinutes = (timeStr: string) => {
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          return hours * 60 + minutes;
+        };
+
+        const requestedStart = timeToMinutes(start_time);
+        const requestedEnd = timeToMinutes(end_time);
+        const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
+
         activeSessions.forEach(session => {
-          if (!unavailableStations.includes(session.station_id)) {
+          // Extract time from session start_time (which is a timestamp)
+          const sessionStartTime = new Date(session.start_time);
+          const sessionTimeStr = `${sessionStartTime.getHours().toString().padStart(2, '0')}:${sessionStartTime.getMinutes().toString().padStart(2, '0')}`;
+          const sessionStart = timeToMinutes(sessionTimeStr);
+
+          // Only block if session start time falls within the requested time slot
+          const overlaps = sessionStart >= requestedStart && sessionStart < requestedEndMinutes;
+          
+          if (overlaps && !unavailableStations.includes(session.station_id)) {
             unavailableStations.push(session.station_id);
           }
         });

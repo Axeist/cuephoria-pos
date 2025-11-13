@@ -71,7 +71,7 @@ BEGIN
           WHERE s.station_id = p_station_id
           AND s.end_time IS NULL
           AND DATE(s.start_time) = p_date
-          AND TIME(s.start_time) = '23:00:00'
+          AND s.start_time::time = '23:00:00'
         );
       ELSE
         -- For regular slots, only block if session start time falls within THIS slot's time range
@@ -83,8 +83,8 @@ BEGIN
           WHERE s.station_id = p_station_id
           AND s.end_time IS NULL
           AND DATE(s.start_time) = p_date
-          AND TIME(s.start_time) >= curr_time
-          AND TIME(s.start_time) < slot_end_time
+          AND s.start_time::time >= curr_time
+          AND s.start_time::time < slot_end_time
         );
       END IF;
     END IF;
@@ -147,11 +147,11 @@ BEGIN
       -- Only block if the session's start time overlaps with the requested time slot
       AND (
         -- Session started during the requested time slot
-        (TIME(s.start_time) >= p_start_time AND TIME(s.start_time) < p_end_time) OR
+        (s.start_time::time >= p_start_time AND s.start_time::time < p_end_time) OR
         -- Handle midnight crossover: if requested slot ends at 00:00:00
-        (p_end_time = '00:00:00' AND TIME(s.start_time) >= p_start_time) OR
+        (p_end_time = '00:00:00' AND s.start_time::time >= p_start_time) OR
         -- Handle midnight crossover: if session started at 23:00 or later and requested slot includes that time
-        (TIME(s.start_time) >= '23:00:00' AND p_start_time <= '23:00:00' AND (p_end_time = '00:00:00' OR p_end_time > '23:00:00'))
+        (s.start_time::time >= '23:00:00' AND p_start_time <= '23:00:00' AND (p_end_time = '00:00:00' OR p_end_time > '23:00:00'))
       )
   )
   SELECT 
