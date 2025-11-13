@@ -1,6 +1,6 @@
 // src/pages/PublicPaymentFailed.tsx
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, XCircle, RefreshCw, CreditCard, Sparkles } from 'lucide-react';
+import { AlertCircle, XCircle, RefreshCw, Sparkles } from 'lucide-react';
 
 export default function PublicPaymentFailed() {
   const [searchParams] = useSearchParams();
@@ -72,21 +72,14 @@ export default function PublicPaymentFailed() {
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+          {/* Action Button */}
+          <div className="flex justify-center mt-8">
             <Link 
               to="/public/booking" 
               className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 px-6 py-3 text-white text-sm font-semibold transition-all duration-300 shadow-lg shadow-cuephoria-purple/30 hover:shadow-cuephoria-purple/50 hover:scale-105"
             >
               <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
               Try Again
-            </Link>
-            <Link 
-              to="/public/booking" 
-              className="group inline-flex items-center justify-center gap-2 rounded-xl border-2 border-white/20 hover:border-white/40 hover:bg-white/5 px-6 py-3 text-sm font-semibold transition-all duration-300 hover:scale-105"
-            >
-              <CreditCard className="h-4 w-4" />
-              Pay at Venue
             </Link>
           </div>
 
