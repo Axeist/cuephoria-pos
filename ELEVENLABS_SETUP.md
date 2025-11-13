@@ -20,25 +20,21 @@ Make sure these are deployed to your production environment.
 
 ### 2. Get Your Deployment URL
 
-Your webhook URL will be:
+Your webhook URL is:
 ```
-https://your-domain.vercel.app/api/webhooks/elevenlabs-booking
+https://admin.cuephoria.in/api/webhooks/elevenlabs-booking
 ```
 
-Replace `your-domain.vercel.app` with your actual Vercel deployment URL.
+The domain is already configured in the JSON configuration file.
 
 ### 3. Configure ElevenLabs Webhook Tool
 
 1. Go to ElevenLabs Dashboard → **Tools** → **Add webhook tool**
 2. Click **"JSON Mode"** 
 3. Open the file `ELEVENLABS_WEBHOOK_CONFIG.json` in this repository
-4. Copy the entire JSON content
-5. **IMPORTANT**: Update the `url` field in the `api_schema` section:
-   ```json
-   "url": "https://your-actual-domain.vercel.app/api/webhooks/elevenlabs-booking"
-   ```
-6. Paste the JSON into the ElevenLabs JSON editor
-7. Click **"Add tool"**
+4. Copy the entire JSON content (the URL is already configured to `https://admin.cuephoria.in/api/webhooks/elevenlabs-booking`)
+5. Paste the JSON into the ElevenLabs JSON editor
+6. Click **"Add tool"**
 
 ### 4. Test the Webhook
 
@@ -122,7 +118,7 @@ To get available station IDs, you can:
 
 1. **Use the helper endpoint** (GET request):
    ```
-   https://your-domain.vercel.app/api/webhooks/available-stations
+   https://admin.cuephoria.in/api/webhooks/available-stations
    ```
    This returns a list of all stations with their IDs, names, types, and rates.
 

@@ -3,64 +3,87 @@
   "name": "create_booking",
   "description": "Create a gaming station booking at Cuephoria. Requires customer name, phone, station ID, date, and time slot.",
   "api_schema": {
-    "url": "https://your-domain.vercel.app/api/webhooks/elevenlabs-booking",
+    "url": "https://admin.cuephoria.in/api/webhooks/elevenlabs-booking",
     "method": "POST",
-    "path_params_schema": {},
-    "query_params_schema": {},
+    "path_params_schema": [],
+    "query_params_schema": [],
     "request_body_schema": {
+      "id": "booking_request",
       "type": "object",
-      "properties": {
-        "customer_name": {
+      "description": "Request body for creating a gaming station booking",
+      "required": true,
+      "properties": [
+        {
+          "name": "customer_name",
           "type": "string",
-          "description": "Full name of the customer making the booking"
+          "description": "Full name of the customer making the booking",
+          "required": true
         },
-        "customer_phone": {
+        {
+          "name": "customer_phone",
           "type": "string",
-          "description": "Customer phone number (10 digits, can include country code or formatting)"
+          "description": "Customer phone number (10 digits, can include country code or formatting)",
+          "required": true
         },
-        "customer_email": {
+        {
+          "name": "customer_email",
           "type": "string",
-          "description": "Customer email address (optional)"
+          "description": "Customer email address (optional)",
+          "required": false
         },
-        "station_id": {
-          "type": ["string", "array"],
-          "description": "Station ID(s) to book. Can be a single station ID string or array of station IDs for multiple stations"
-        },
-        "booking_date": {
+        {
+          "name": "station_id",
           "type": "string",
-          "description": "Booking date in YYYY-MM-DD format (e.g., 2025-01-15)"
+          "description": "Station ID to book. For multiple stations, make separate requests or pass comma-separated IDs",
+          "required": true
         },
-        "start_time": {
+        {
+          "name": "booking_date",
           "type": "string",
-          "description": "Start time in HH:MM format (24-hour, e.g., 14:00 for 2:00 PM)"
+          "description": "Booking date in YYYY-MM-DD format (e.g., 2025-01-15)",
+          "required": true
         },
-        "end_time": {
+        {
+          "name": "start_time",
           "type": "string",
-          "description": "End time in HH:MM format (24-hour, e.g., 15:00 for 3:00 PM)"
+          "description": "Start time in HH:MM format (24-hour, e.g., 14:00 for 2:00 PM)",
+          "required": true
         },
-        "duration": {
+        {
+          "name": "end_time",
+          "type": "string",
+          "description": "End time in HH:MM format (24-hour, e.g., 15:00 for 3:00 PM)",
+          "required": true
+        },
+        {
+          "name": "duration",
           "type": "integer",
-          "description": "Duration in minutes (optional, defaults to 60 minutes)"
+          "description": "Duration in minutes (optional, defaults to 60 minutes)",
+          "required": false
         },
-        "notes": {
+        {
+          "name": "notes",
           "type": "string",
-          "description": "Additional notes for the booking (optional)"
+          "description": "Additional notes for the booking (optional)",
+          "required": false
         }
-      },
-      "required": ["customer_name", "customer_phone", "station_id", "booking_date", "start_time", "end_time"]
+      ]
     },
-    "request_headers": {
-      "Content-Type": "application/json"
-    },
+    "request_headers": [
+      {
+        "name": "Content-Type",
+        "value": "application/json"
+      }
+    ],
     "auth_connection": null
   },
   "response_timeout_secs": 30,
-  "dynamic_variables": [],
-  "assignments": {},
+  "dynamic_variables": {},
+  "assignments": [],
   "disable_interruptions": false,
-  "force_pre_tool_speech": false,
+  "force_pre_tool_speech": "auto",
   "tool_call_sound": null,
   "tool_call_sound_behavior": "always",
-  "execution_mode": "synchronous"
+  "execution_mode": "immediate"
 }
 

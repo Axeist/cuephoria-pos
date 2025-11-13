@@ -54,8 +54,16 @@ export default async function handler(req: Request) {
       return j({ ok: false, error: "Invalid phone number" }, 400);
     }
 
-    // Handle single station or array of stations
-    const stationIds = Array.isArray(station_id) ? station_id : [station_id];
+    // Handle single station, array of stations, or comma-separated string
+    let stationIds: string[];
+    if (Array.isArray(station_id)) {
+      stationIds = station_id;
+    } else if (typeof station_id === 'string' && station_id.includes(',')) {
+      // Handle comma-separated station IDs
+      stationIds = station_id.split(',').map(id => id.trim()).filter(id => id.length > 0);
+    } else {
+      stationIds = [station_id];
+    }
     
     // Validate date format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
