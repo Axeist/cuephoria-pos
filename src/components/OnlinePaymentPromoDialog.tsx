@@ -2,7 +2,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Gift, Zap, Clock, Gamepad2, Trophy } from 'lucide-react';
+import { Sparkles, Gift, Zap, Clock, Gamepad2, Trophy, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OnlinePaymentPromoDialogProps {
@@ -85,21 +85,31 @@ export default function OnlinePaymentPromoDialog({
 
         <div className="space-y-6 text-center px-2 relative z-10">
           <div className="space-y-3">
+            {/* Prominent "Pay Online" callout */}
             <div className={cn(
-              "p-4 rounded-xl bg-gradient-to-r",
+              "p-5 rounded-xl bg-gradient-to-r border-2",
               serviceInfo.bgGradient,
-              "border",
-              serviceInfo.borderColor
+              serviceInfo.borderColor,
+              "shadow-lg"
             )}>
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <ServiceIcon className={cn("h-6 w-6", serviceInfo.textColor)} />
+              <div className="flex items-center justify-center gap-3 mb-3">
+                <CreditCard className={cn("h-7 w-7", serviceInfo.textColor)} />
+                <span className={cn(
+                  "text-2xl font-extrabold uppercase tracking-wide",
+                  serviceInfo.textColor
+                )}>
+                  Pay Online
+                </span>
+              </div>
+              <p className="text-base font-semibold text-white mb-2">
+                and get
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <ServiceIcon className={cn("h-5 w-5", serviceInfo.textColor)} />
                 <span className={cn("text-lg font-bold", serviceInfo.textColor)}>
                   {serviceInfo.name}
                 </span>
               </div>
-              <p className="text-sm text-gray-200">
-                Pay online and get
-              </p>
             </div>
 
             <div className="relative">
