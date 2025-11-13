@@ -31,6 +31,9 @@ import {
   CreditCard,
   Headset,
   Shield,
+  CheckCircle2,
+  Zap,
+  BadgeCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parse, getDay } from "date-fns";
@@ -1943,14 +1946,80 @@ export default function PublicBooking() {
                     </button>
                   </div>
                   {paymentMethod === "razorpay" && (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-[11px] text-gray-400">
-                        You'll complete payment securely via Razorpay. Booking is created only after
-                        payment success.
-                      </p>
-                      <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/80">
-                        <Shield className="h-3 w-3" />
-                        <span>Secured by Razorpay</span>
+                    <div className="mt-3 space-y-3 animate-fade-in">
+                      {/* Razorpay Branding Card */}
+                      <div className="rounded-xl border border-[#3395FF]/30 bg-gradient-to-br from-[#3395FF]/10 via-[#2563EB]/10 to-[#1E40AF]/10 p-4 backdrop-blur-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0">
+                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#3395FF] to-[#2563EB] flex items-center justify-center shadow-lg shadow-[#3395FF]/30">
+                              <Shield className="h-6 w-6 text-white" />
+                            </div>
+                          </div>
+                          <div className="flex-1 space-y-2">
+                            <div>
+                              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                <span>Powered by Razorpay</span>
+                                <BadgeCheck className="h-4 w-4 text-[#3395FF]" />
+                              </h4>
+                              <p className="text-xs text-gray-300 mt-1">
+                                India's most trusted payment gateway trusted by 8M+ businesses
+                              </p>
+                            </div>
+                            
+                            {/* Security Features */}
+                            <div className="grid grid-cols-2 gap-2 mt-3">
+                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
+                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                                <span>PCI-DSS Compliant</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
+                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                                <span>256-bit SSL Encryption</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
+                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                                <span>Bank-level Security</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
+                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                                <span>Instant Confirmation</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Trust Indicators */}
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-black/20 border border-white/5">
+                        <div className="flex items-center gap-2 text-[10px] text-gray-300">
+                          <Lock className="h-3 w-3 text-green-400" />
+                          <span>Your payment data is encrypted and secure</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[9px] text-[#3395FF]/70">
+                          <Zap className="h-3 w-3" />
+                          <span>Fast & Secure</span>
+                        </div>
+                      </div>
+
+                      {/* Benefits */}
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-medium text-gray-300">
+                          Why pay online?
+                        </p>
+                        <ul className="space-y-1 text-[10px] text-gray-400 ml-4">
+                          <li className="flex items-start gap-2">
+                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
+                            <span>Instant booking confirmation - no waiting at venue</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
+                            <span>Multiple payment options: Cards, UPI, Netbanking, Wallets</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
+                            <span>Your booking is created only after successful payment</span>
+                          </li>
+                        </ul>
                       </div>
                     </div>
                   )}
@@ -2076,12 +2145,27 @@ export default function PublicBooking() {
                   )}
                 </Button>
 
-                <p className="text-xs text-gray-400 text-center">
-                  All prices are shown in <span className="font-semibold">INR (₹)</span>.{" "}
-                  {paymentMethod === "razorpay"
-                    ? "You will complete payment securely via Razorpay."
-                    : "Payment will be collected at the venue."}
-                </p>
+                <div className="text-center space-y-2">
+                  <p className="text-xs text-gray-400">
+                    All prices are shown in <span className="font-semibold">INR (₹)</span>.{" "}
+                    {paymentMethod === "razorpay"
+                      ? "You will complete payment securely via Razorpay."
+                      : "Payment will be collected at the venue."}
+                  </p>
+                  {paymentMethod === "razorpay" && (
+                    <div className="flex items-center justify-center gap-4 pt-2 border-t border-white/5">
+                      <div className="flex items-center gap-1.5 text-[9px] text-[#3395FF]/70">
+                        <Shield className="h-3 w-3" />
+                        <span>Secured by Razorpay</span>
+                      </div>
+                      <div className="h-3 w-px bg-white/10"></div>
+                      <div className="flex items-center gap-1.5 text-[9px] text-gray-500">
+                        <Lock className="h-3 w-3" />
+                        <span>100% Secure Payment</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
