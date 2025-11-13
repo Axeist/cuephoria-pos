@@ -60,21 +60,23 @@ BEGIN
       );
     END IF;
     
-    -- Also check if there's an active session that overlaps with THIS SPECIFIC time slot (not all slots)
-    -- Only block the slot if the session's start time falls within this slot's time range
+    -- FIXED: Only block the slot where the active session is CURRENTLY running
+    -- Don't block all slots - only block the specific slot that contains the session start time
     IF p_date = CURRENT_DATE AND is_available THEN
       IF slot_end_time = '00:00:00' THEN
-        -- For 23:00-00:00 slot, check if session started at 23:00 or later
+        -- For 23:00-00:00 slot, only block if session started at exactly 23:00
         is_available := NOT EXISTS (
           SELECT 1
           FROM public.sessions s
           WHERE s.station_id = p_station_id
           AND s.end_time IS NULL
           AND DATE(s.start_time) = p_date
-          AND TIME(s.start_time) >= '23:00:00'
+          AND TIME(s.start_time) = '23:00:00'
         );
       ELSE
-        -- For regular slots, check if session start time falls within this slot
+        -- For regular slots, only block if session start time falls within THIS slot's time range
+        -- Example: If checking 14:00-15:00 slot and session started at 14:30, block it
+        -- But if checking 15:00-16:00 slot and session started at 14:30, don't block it
         is_available := NOT EXISTS (
           SELECT 1
           FROM public.sessions s
