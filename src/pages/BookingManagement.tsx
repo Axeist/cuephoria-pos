@@ -320,7 +320,8 @@ export default function BookingManagement() {
         `)
         .gte('booking_date', analyticsFromDate)
         .order('booking_date', { ascending: false })
-        .order('start_time', { ascending: false });
+        .order('start_time', { ascending: false })
+        .limit(100000); // Remove 1000 record limit - allow up to 100k records
 
       const { data: bookingsData, error } = await query;
       if (error) throw error;
@@ -362,6 +363,8 @@ export default function BookingManagement() {
           booking_group_id: b.booking_group_id ?? null,
           status_updated_at: b.status_updated_at ?? null,
           status_updated_by: b.status_updated_by ?? null,
+          payment_mode: b.payment_mode ?? null,
+          payment_txn_id: b.payment_txn_id ?? null,
           created_at: b.created_at,
           booking_views: b.booking_views || [],
           station: { name: station?.name || 'Unknown', type: station?.type || 'unknown' },
@@ -2399,7 +2402,18 @@ export default function BookingManagement() {
                                                     
                                                     <div>
                                                       <div className="text-sm text-muted-foreground">Status</div>
-                                                      <BookingStatusBadge status={booking.status} />
+                                                      <div className="flex items-center gap-2 mt-1">
+                                                        <BookingStatusBadge status={booking.status} />
+                                                        {booking.payment_mode && booking.payment_mode !== 'venue' ? (
+                                                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                                            💳 Paid
+                                                          </Badge>
+                                                        ) : (
+                                                          <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                                            💰 Unpaid
+                                                          </Badge>
+                                                        )}
+                                                      </div>
                                                     </div>
                                                     
                                                     <div>
