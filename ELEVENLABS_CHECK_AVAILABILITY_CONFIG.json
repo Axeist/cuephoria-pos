@@ -1,0 +1,70 @@
+{
+  "type": "webhook",
+  "name": "check_availability",
+  "description": "Check if specific gaming stations are available for a requested date and time slot. This checks for existing bookings and active sessions to prevent double bookings.",
+  "api_schema": {
+    "url": "https://admin.cuephoria.in/api/webhooks/check-availability",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "availability_check_request",
+      "type": "object",
+      "description": "Request body for checking station availability",
+      "required": true,
+      "properties": [
+        {
+          "id": "station_id",
+          "name": "station_id",
+          "type": "string",
+          "description": "Station ID(s) to check. Can be a single station ID or comma-separated IDs for multiple stations (e.g., 'station-id-1,station-id-2')",
+          "required": true,
+          "dynamic_variable": "station_id"
+        },
+        {
+          "id": "booking_date",
+          "name": "booking_date",
+          "type": "string",
+          "description": "Booking date in YYYY-MM-DD format (e.g., 2025-01-20)",
+          "required": true,
+          "dynamic_variable": "booking_date"
+        },
+        {
+          "id": "start_time",
+          "name": "start_time",
+          "type": "string",
+          "description": "Start time in HH:MM format using 24-hour clock (e.g., 14:00 for 2:00 PM, 09:00 for 9:00 AM)",
+          "required": true,
+          "dynamic_variable": "start_time"
+        },
+        {
+          "id": "end_time",
+          "name": "end_time",
+          "type": "string",
+          "description": "End time in HH:MM format using 24-hour clock (e.g., 15:00 for 3:00 PM, 10:00 for 10:00 AM)",
+          "required": true,
+          "dynamic_variable": "end_time"
+        }
+      ]
+    },
+    "request_headers": [
+      {
+        "name": "Content-Type",
+        "type": "value",
+        "value": "application/json"
+      }
+    ],
+    "auth_connection": null
+  },
+  "response_timeout_secs": 30,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+  },
+  "assignments": [],
+  "disable_interruptions": false,
+  "force_pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "always",
+  "execution_mode": "immediate"
+}
+

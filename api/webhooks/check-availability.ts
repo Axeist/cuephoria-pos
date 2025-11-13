@@ -93,13 +93,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Check for existing bookings that overlap with the requested time slot
-    const { data: conflictingBookings, error: bookingError } = await supabase
+    // We need to fetch all bookings for the date and check overlaps in code
+    const { data: allBookings, error: bookingError } = await supabase
       .from("bookings")
       .select("id, station_id, start_time, end_time, status")
       .in("station_id", stationIds)
       .eq("booking_date", booking_date)
-      .in("status", ["confirmed", "in-progress"])
-      .or(`start_time.lte.${start_time},end_time.gt.${start_time},start_time.lt.${end_time},end_time.gte.${end_time},start_time.gte.${start_time},end_time.lte.${end_time},start_time.lte.${start_time},end_time.gte.${end_time}`);
+      .in("status", ["confirmed", "in-progress"]);
+
+    // Check for time overlaps in code
+    const conflictingBookings: any[] = [];
+    if (allBookings && allBookings.length > 0) {
+      const timeToMinutes = (timeStr: string) => {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+      };
+
+      const requestedStart = timeToMinutes(start_time);
+      const requestedEnd = timeToMinutes(end_time);
+      const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
+
+      allBookings.forEach(booking => {
+        const existingStart = timeToMinutes(booking.start_time);
+        const existingEnd = timeToMinutes(booking.end_time);
+        const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
+
+        const overlaps = (
+          (requestedStart >= existingStart && requestedStart < existingEndMinutes) ||
+          (requestedEndMinutes > existingStart && requestedEndMinutes <= existingEndMinutes) ||
+          (requestedStart <= existingStart && requestedEndMinutes >= existingEndMinutes) ||
+          (existingStart <= requestedStart && existingEndMinutes >= requestedEndMinutes)
+        );
+
+        if (overlaps) {
+          conflictingBookings.push(booking);
+        }
+      });
+    }
 
     if (bookingError) {
       console.error("❌ Error checking bookings:", bookingError);
