@@ -115,47 +115,47 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-2 border-yellow-400/50 text-white max-w-md animate-scale-in shadow-2xl shadow-yellow-400/20">
-        <DialogHeader className="text-center space-y-4 pt-2">
+      <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-2 border-yellow-400/50 text-white max-w-[90vw] sm:max-w-md w-full mx-auto animate-scale-in shadow-2xl shadow-yellow-400/20 overflow-hidden p-4 sm:p-6">
+        <DialogHeader className="text-center space-y-2 sm:space-y-4 pt-1 sm:pt-2">
           <div className="flex justify-center">
-            <Badge className={`bg-gradient-to-r ${currentContent.bgColor} text-black font-bold text-lg px-4 py-2 animate-pulse`}>
-              <currentContent.icon className="mr-2 h-5 w-5" />
+            <Badge className={`bg-gradient-to-r ${currentContent.bgColor} text-black font-bold text-sm sm:text-lg px-3 sm:px-4 py-1.5 sm:py-2 animate-pulse`}>
+              <currentContent.icon className="mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
               {currentContent.discountText}
             </Badge>
           </div>
           
-          <DialogTitle className="text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 animate-text-gradient">
+          <DialogTitle className="text-lg sm:text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 animate-text-gradient">
             🔥 {currentContent.title} 🔥
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 text-center px-2">
+        <div className="space-y-4 sm:space-y-6 text-center px-1 sm:px-2">
           <div className="space-y-2">
-            <p className="text-lg font-semibold text-yellow-200">
+            <p className="text-sm sm:text-lg font-semibold text-yellow-200">
               {currentContent.description}
             </p>
             
             {/* Happy Hour Indicator for HH99 */}
             {currentPopup === 3 && (
-              <div className={`mt-2 p-3 rounded-lg border ${
+              <div className={`mt-2 p-2 sm:p-3 rounded-lg border ${
                 isHappyHour 
                   ? 'bg-green-900/40 border-green-400/50 text-green-200' 
                   : 'bg-orange-900/40 border-orange-400/50 text-orange-200'
               }`}>
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-1.5 sm:gap-2">
                   {isHappyHour ? (
                     <>
-                      <Clock className="h-4 w-4 text-green-400" />
-                      <span className="font-semibold">✅ Happy Hours Active!</span>
+                      <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-400" />
+                      <span className="text-xs sm:text-sm font-semibold">✅ Happy Hours Active!</span>
                     </>
                   ) : (
                     <>
-                      <AlertCircle className="h-4 w-4 text-orange-400" />
-                      <span className="font-semibold">⏰ Outside Happy Hours (11 AM - 4 PM)</span>
+                      <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-400" />
+                      <span className="text-xs sm:text-sm font-semibold">⏰ Outside Happy Hours (11 AM - 4 PM)</span>
                     </>
                   )}
                 </div>
-                <p className="text-sm mt-1">
+                <p className="text-xs sm:text-sm mt-1">
                   {isHappyHour 
                     ? "Perfect timing! Apply this coupon now." 
                     : "You can still apply this coupon, but it will only work during Happy Hours."
@@ -164,36 +164,36 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
               </div>
             )}
             
-            <div className="mt-4 p-4 bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-lg border border-purple-400/30">
-              <p className="text-sm text-purple-200 font-medium mb-2">
+            <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-lg border border-purple-400/30">
+              <p className="text-xs sm:text-sm text-purple-200 font-medium mb-1.5 sm:mb-2">
                 💫 Coupon Code:
               </p>
-              <div className="bg-black/30 rounded-lg px-4 py-2 border border-yellow-400/50">
-                <p className="text-xl font-bold text-yellow-400 tracking-wider">
+              <div className="bg-black/30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 border border-yellow-400/50">
+                <p className="text-base sm:text-xl font-bold text-yellow-400 tracking-wider">
                   {currentContent.couponCode}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-red-400 font-medium">
-            <Clock className="h-4 w-4 animate-pulse" />
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-red-400 font-medium text-xs sm:text-sm">
+            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-pulse" />
             <span>Limited time offer!</span>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             <Button
               onClick={() => handleUseCoupon(currentContent.couponCode)}
-              className={`w-full bg-gradient-to-r ${currentContent.bgColor} hover:from-yellow-500 hover:to-orange-500 text-black font-bold py-3 text-lg transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-yellow-400/30`}
+              className={`w-full bg-gradient-to-r ${currentContent.bgColor} hover:from-yellow-500 hover:to-orange-500 text-black font-bold py-2.5 sm:py-3 text-sm sm:text-lg transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-yellow-400/30`}
             >
-              <Percent className="mr-2 h-5 w-5" />
+              <Percent className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
               Use This Coupon
             </Button>
             
             <Button
               onClick={handleClose}
               variant="outline"
-              className="w-full border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-grey/10 hover:text-white"
+              className="w-full border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-grey/10 hover:text-white py-2.5 sm:py-3 text-sm sm:text-base"
             >
               Maybe Later
             </Button>
