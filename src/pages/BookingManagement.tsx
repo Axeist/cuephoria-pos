@@ -288,43 +288,64 @@ export default function BookingManagement() {
         ? '2020-01-01' 
         : format(subDays(new Date(), 60), 'yyyy-MM-dd');
       
-      let query = supabase
-        .from('bookings')
-        .select(`
-          id,
-          booking_date,
-          start_time,
-          end_time,
-          duration,
-          status,
-          notes,
-          original_price,
-          final_price,
-          discount_percentage,
-          coupon_code,
-          booking_group_id,
-          status_updated_at,
-          status_updated_by,
-          payment_mode,
-          payment_txn_id,
-          station_id,
-          customer_id,
-          created_at,
-          booking_views!booking_id (
-            id,
-            booking_id,
-            access_code,
-            created_at,
-            last_accessed_at
-          )
-        `)
-        .gte('booking_date', analyticsFromDate)
-        .order('booking_date', { ascending: false })
-        .order('start_time', { ascending: false })
-        .limit(100000); // Remove 1000 record limit - allow up to 100k records
+      // Fetch all bookings using pagination to bypass 1000 record limit
+      let page = 0;
+      const pageSize = 1000;
+      let allBookingsData: any[] = [];
+      let finished = false;
 
-      const { data: bookingsData, error } = await query;
-      if (error) throw error;
+      while (!finished) {
+        const { data: bookingsData, error } = await supabase
+          .from('bookings')
+          .select(`
+            id,
+            booking_date,
+            start_time,
+            end_time,
+            duration,
+            status,
+            notes,
+            original_price,
+            final_price,
+            discount_percentage,
+            coupon_code,
+            booking_group_id,
+            status_updated_at,
+            status_updated_by,
+            payment_mode,
+            payment_txn_id,
+            station_id,
+            customer_id,
+            created_at,
+            booking_views!booking_id (
+              id,
+              booking_id,
+              access_code,
+              created_at,
+              last_accessed_at
+            )
+          `)
+          .gte('booking_date', analyticsFromDate)
+          .order('booking_date', { ascending: false })
+          .order('start_time', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) throw error;
+
+        if (bookingsData && bookingsData.length > 0) {
+          allBookingsData = [...allBookingsData, ...bookingsData];
+          // If we got less than pageSize, we've reached the end
+          if (bookingsData.length < pageSize) {
+            finished = true;
+          } else {
+            page++;
+          }
+        } else {
+          finished = true;
+        }
+      }
+
+      const bookingsData = allBookingsData;
 
       if (!bookingsData || bookingsData.length === 0) {
         setBookings([]);
