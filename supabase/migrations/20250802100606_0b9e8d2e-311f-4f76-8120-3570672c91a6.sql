@@ -60,15 +60,31 @@ BEGIN
       );
     END IF;
     
-    -- Also check if there's an active session during this time for today
+    -- Also check if there's an active session that overlaps with THIS SPECIFIC time slot (not all slots)
+    -- Only block the slot if the session's start time falls within this slot's time range
     IF p_date = CURRENT_DATE AND is_available THEN
-      is_available := NOT EXISTS (
-        SELECT 1
-        FROM public.sessions s
-        WHERE s.station_id = p_station_id
-        AND s.end_time IS NULL
-        AND DATE(s.start_time) = p_date
-      );
+      IF slot_end_time = '00:00:00' THEN
+        -- For 23:00-00:00 slot, check if session started at 23:00 or later
+        is_available := NOT EXISTS (
+          SELECT 1
+          FROM public.sessions s
+          WHERE s.station_id = p_station_id
+          AND s.end_time IS NULL
+          AND DATE(s.start_time) = p_date
+          AND TIME(s.start_time) >= '23:00:00'
+        );
+      ELSE
+        -- For regular slots, check if session start time falls within this slot
+        is_available := NOT EXISTS (
+          SELECT 1
+          FROM public.sessions s
+          WHERE s.station_id = p_station_id
+          AND s.end_time IS NULL
+          AND DATE(s.start_time) = p_date
+          AND TIME(s.start_time) >= curr_time
+          AND TIME(s.start_time) < slot_end_time
+        );
+      END IF;
     END IF;
     
     RETURN QUERY SELECT curr_time, slot_end_time, is_available;
@@ -126,6 +142,15 @@ BEGIN
       s.end_time IS NULL -- Active sessions
       AND DATE(s.start_time) = p_date
       AND s.station_id = ANY(p_station_ids)
+      -- Only block if the session's start time overlaps with the requested time slot
+      AND (
+        -- Session started during the requested time slot
+        (TIME(s.start_time) >= p_start_time AND TIME(s.start_time) < p_end_time) OR
+        -- Handle midnight crossover: if requested slot ends at 00:00:00
+        (p_end_time = '00:00:00' AND TIME(s.start_time) >= p_start_time) OR
+        -- Handle midnight crossover: if session started at 23:00 or later and requested slot includes that time
+        (TIME(s.start_time) >= '23:00:00' AND p_start_time <= '23:00:00' AND (p_end_time = '00:00:00' OR p_end_time > '23:00:00'))
+      )
   )
   SELECT 
     s.id AS station_id,

@@ -1,4 +1,6 @@
--- Update get_available_slots function to include 11 PM - 12 AM slot
+-- Fix get_available_slots function to only block slots that overlap with active sessions
+-- Currently it blocks ALL slots if there's any active session - this fixes it to only block overlapping slots
+
 CREATE OR REPLACE FUNCTION public.get_available_slots(p_date date, p_station_id uuid, p_slot_duration integer DEFAULT 60)
 RETURNS TABLE(start_time time without time zone, end_time time without time zone, is_available boolean)
 LANGUAGE plpgsql
@@ -30,9 +32,6 @@ BEGIN
     -- Special handling for midnight crossover (end_time = 00:00:00)
     IF slot_end_time = '00:00:00' THEN
       -- For 23:00-00:00 slot, check for bookings that overlap
-      -- A booking overlaps if:
-      -- 1. It starts at 23:00 (regardless of end time, since it's same date)
-      -- 2. It starts before 23:00 and ends after 23:00
       is_available := NOT EXISTS (
         SELECT 1 
         FROM public.bookings b
