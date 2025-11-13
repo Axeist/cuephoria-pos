@@ -86,37 +86,39 @@ export default function OnlinePaymentPromoDialog({
         <div className="space-y-6 text-center px-2 relative z-10">
           <div className="space-y-4">
             {/* Shiny "Pay Online" Badge */}
-            <div className="flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center justify-center w-full">
               <div className={cn(
-                "relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl",
+                "relative inline-flex items-center justify-center gap-3 px-10 py-5 rounded-2xl",
                 "bg-gradient-to-r shadow-2xl border-2",
                 serviceInfo.gradient,
                 serviceInfo.borderColor,
-                "transform transition-all duration-300 hover:scale-105",
-                "before:absolute before:inset-0 before:rounded-2xl",
-                "before:bg-gradient-to-r before:from-white/20 before:to-transparent",
-                "before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
+                "transform transition-all duration-300",
+                "overflow-hidden"
               )}>
                 {/* Shine effect overlay */}
-                <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer bg-[length:200%_100%]" />
+                <div className="absolute inset-0 overflow-hidden rounded-2xl">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer bg-[length:200%_100%]" />
+                  {/* Additional shine layers for depth */}
+                  <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
                 </div>
                 
-                <CreditCard className={cn("h-8 w-8 relative z-10 drop-shadow-lg", "text-white")} />
+                {/* Inner glow */}
+                <div className="absolute inset-[2px] rounded-2xl bg-gradient-to-br from-white/5 to-transparent" />
+                
+                <CreditCard className={cn("h-9 w-9 relative z-10 drop-shadow-lg", "text-white")} />
                 <span className={cn(
                   "text-3xl font-black uppercase tracking-wider relative z-10",
-                  "text-white drop-shadow-lg",
-                  "bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/90"
+                  "text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
                 )}>
                   Pay Online
                 </span>
                 
                 {/* Sparkle effects */}
-                <Sparkles className="absolute -top-1 -right-1 h-4 w-4 text-yellow-400 animate-pulse z-10" />
-                <Sparkles className="absolute -bottom-1 -left-1 h-3 w-3 text-yellow-300 animate-pulse z-10" style={{ animationDelay: '0.5s' }} />
+                <Sparkles className="absolute -top-1 -right-1 h-5 w-5 text-yellow-400 animate-pulse z-10 drop-shadow-lg" />
+                <Sparkles className="absolute -bottom-1 -left-1 h-4 w-4 text-yellow-300 animate-pulse z-10 drop-shadow-lg" style={{ animationDelay: '0.5s' }} />
               </div>
               
-              <p className="text-lg font-semibold text-white mt-4 mb-2">
+              <p className="text-lg font-semibold text-white mt-5 mb-3">
                 and get
               </p>
               
