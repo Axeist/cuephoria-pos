@@ -183,6 +183,7 @@ export default function PublicBooking() {
   
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
 
   // Old PhonePe payment handling removed - now using Razorpay with separate success page
 
@@ -1007,22 +1008,41 @@ export default function PublicBooking() {
     }
   }
 
-  // Load Razorpay script dynamically
+  // Load Razorpay script and key ID when payment method is set to razorpay
   useEffect(() => {
-    if (paymentMethod === "razorpay" && !(window as any).Razorpay) {
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.async = true;
-      script.onload = () => {
-        console.log("✅ Razorpay script loaded");
-      };
-      script.onerror = () => {
-        console.error("❌ Failed to load Razorpay script");
-        toast.error("Failed to load payment gateway. Please refresh the page.");
-      };
-      document.body.appendChild(script);
+    if (paymentMethod === "razorpay") {
+      // Load Razorpay script if not already loaded
+      if (!(window as any).Razorpay) {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => {
+          console.log("✅ Razorpay script loaded");
+        };
+        script.onerror = () => {
+          console.error("❌ Failed to load Razorpay script");
+          toast.error("Failed to load payment gateway. Please refresh the page.");
+        };
+        document.body.appendChild(script);
+      }
+      
+      // Pre-fetch Razorpay key ID for faster payment initiation
+      if (!razorpayKeyId) {
+        fetch("/api/razorpay/get-key-id")
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.ok && data.keyId) {
+              setRazorpayKeyId(data.keyId);
+              console.log("✅ Razorpay key ID pre-loaded");
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to pre-load Razorpay key ID:", err);
+            // Don't show error to user yet, will retry during payment
+          });
+      }
     }
-  }, [paymentMethod]);
+  }, [paymentMethod, razorpayKeyId]);
 
   const initiateRazorpay = async () => {
     // Use selectedSlots if available, otherwise fall back to single selectedSlot
@@ -1090,7 +1110,17 @@ export default function PublicBooking() {
         }),
       });
 
-      const orderData = await orderRes.json().catch(() => null);
+      // Fetch key ID in parallel with order creation if not already cached
+      const keyPromise = razorpayKeyId 
+        ? Promise.resolve({ keyId: razorpayKeyId })
+        : fetch("/api/razorpay/get-key-id")
+            .then((res) => res.json())
+            .catch(() => ({ keyId: "" }));
+
+      const [orderData, keyData] = await Promise.all([
+        orderRes.json().catch(() => null),
+        keyPromise
+      ]);
 
       if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
         const error = orderData?.error || "Failed to create payment order";
@@ -1102,15 +1132,17 @@ export default function PublicBooking() {
 
       console.log("✅ Razorpay order created:", orderData.orderId);
 
-      // Get Razorpay key ID (we'll need to fetch this from server or use env)
-      // For now, we'll create an endpoint to get the key ID
-      const keyRes = await fetch("/api/razorpay/get-key-id");
-      const keyData = await keyRes.json().catch(() => ({ keyId: "" }));
-      const razorpayKeyId = keyData.keyId || "";
+      // Use cached key ID or fetch result
+      const finalKeyId = keyData.keyId || razorpayKeyId;
+      
+      // Cache the key ID for future use
+      if (keyData.keyId && !razorpayKeyId) {
+        setRazorpayKeyId(keyData.keyId);
+      }
 
-      if (!razorpayKeyId) {
+      if (!finalKeyId) {
         toast.error("Payment gateway configuration error. Please contact support.");
-            setLoading(false);
+        setLoading(false);
         return;
       }
 
@@ -1119,7 +1151,7 @@ export default function PublicBooking() {
 
       // Razorpay checkout options
       const options = {
-        key: razorpayKeyId,
+        key: finalKeyId,
         amount: orderData.amount, // Amount in paise
         currency: orderData.currency || "INR",
         name: "Cuephoria Gaming Lounge",
