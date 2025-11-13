@@ -88,7 +88,7 @@ export default function OnlinePaymentPromoDialog({
             {/* Shiny "Pay Online" Badge */}
             <div className="flex flex-col items-center justify-center w-full">
               <div className={cn(
-                "relative inline-flex items-center justify-center gap-3 px-10 py-5 rounded-2xl",
+                "relative inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl",
                 "bg-gradient-to-r shadow-2xl border-2",
                 serviceInfo.gradient,
                 serviceInfo.borderColor,
@@ -105,17 +105,17 @@ export default function OnlinePaymentPromoDialog({
                 {/* Inner glow */}
                 <div className="absolute inset-[2px] rounded-2xl bg-gradient-to-br from-white/5 to-transparent" />
                 
-                <CreditCard className={cn("h-9 w-9 relative z-10 drop-shadow-lg", "text-white")} />
+                <CreditCard className={cn("h-5 w-5 relative z-10 drop-shadow-lg", "text-white")} />
                 <span className={cn(
-                  "text-3xl font-black uppercase tracking-wider relative z-10",
+                  "text-xl font-bold uppercase tracking-wide relative z-10",
                   "text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
                 )}>
                   Pay Online
                 </span>
                 
                 {/* Sparkle effects */}
-                <Sparkles className="absolute -top-1 -right-1 h-5 w-5 text-yellow-400 animate-pulse z-10 drop-shadow-lg" />
-                <Sparkles className="absolute -bottom-1 -left-1 h-4 w-4 text-yellow-300 animate-pulse z-10 drop-shadow-lg" style={{ animationDelay: '0.5s' }} />
+                <Sparkles className="absolute -top-1 -right-1 h-4 w-4 text-yellow-400 animate-pulse z-10 drop-shadow-lg" />
+                <Sparkles className="absolute -bottom-1 -left-1 h-3 w-3 text-yellow-300 animate-pulse z-10 drop-shadow-lg" style={{ animationDelay: '0.5s' }} />
               </div>
               
               <p className="text-lg font-semibold text-white mt-5 mb-3">
