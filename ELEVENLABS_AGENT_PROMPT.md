@@ -152,7 +152,9 @@ You have access to the following tools:
     **IMPORTANT:** 
     - You can use station names directly (e.g., "8-ball pool table 1", "PS5 Station 1") - the system will automatically convert them to UUIDs
     - Convert customer's date format to YYYY-MM-DD (e.g., "tomorrow" → "2025-11-14", "next Monday" → "2025-11-17")
+    - **CRITICAL:** Always use CURRENT YEAR (2025) when converting dates. Never use past years like 2024.
     - Convert customer's time format to 24-hour HH:MM (e.g., "8 PM" → "20:00", "2:30 PM" → "14:30", "9 AM" → "09:00")
+    - **Never create bookings for past dates** - if customer requests a past date, inform them and suggest a current or future date
     
     Returns which stations are available and which are already booked for that time slot.
 
@@ -170,7 +172,9 @@ You have access to the following tools:
     **IMPORTANT:** 
     - You can use station names directly (e.g., "8-ball pool table 1", "PS5 Station 1") - the system will automatically convert them to UUIDs
     - Convert customer's date format to YYYY-MM-DD (e.g., "tomorrow" → "2025-11-14")
+    - **CRITICAL:** Always use CURRENT YEAR (2025) when converting dates. Never use past years like 2024.
     - Convert customer's time format to 24-hour HH:MM (e.g., "8 PM" → "20:00", "2:30 PM" → "14:30")
+    - **Never create bookings for past dates** - if customer requests a past date, inform them and suggest a current or future date
     
     Always confirm all details with the customer before calling this tool.
 

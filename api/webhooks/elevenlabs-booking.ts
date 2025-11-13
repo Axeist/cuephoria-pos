@@ -208,6 +208,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Invalid date format. Use YYYY-MM-DD" }, 400);
     }
 
+    // Validate that booking date is not in the past
+    const bookingDateObj = new Date(booking_date + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+    
+    if (bookingDateObj < today) {
+      const todayStr = today.toISOString().split('T')[0];
+      console.warn("⚠️ Attempted to book for past date:", booking_date, "Today is:", todayStr);
+      return j(res, { 
+        ok: false, 
+        error: "Cannot create bookings for past dates",
+        booking_date: booking_date,
+        today: todayStr,
+        help: "Please provide a current or future date for the booking"
+      }, 400);
+    }
+
     // Validate time format
     const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
     if (!timeRegex.test(start_time) || !timeRegex.test(end_time)) {
@@ -406,6 +423,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }));
 
     console.log("💾 Inserting booking records:", rows.length, "records");
+    console.log("📋 Booking details:", {
+      customer_id: customerId,
+      booking_date,
+      start_time,
+      end_time,
+      stations: finalStationIds,
+      price: basePrice
+    });
 
     const { data: inserted, error: bookingError } = await supabase
       .from("bookings")
@@ -414,14 +439,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (bookingError) {
       console.error("❌ Booking creation failed:", bookingError);
+      console.error("❌ Failed booking data:", rows);
       return j(res, { 
         ok: false, 
         error: "Failed to create booking", 
-        details: bookingError.message 
+        details: bookingError.message,
+        booking_data: rows
+      }, 500);
+    }
+
+    if (!inserted || inserted.length === 0) {
+      console.error("❌ No bookings were inserted despite no error");
+      return j(res, {
+        ok: false,
+        error: "Booking creation returned no records",
+        details: "The booking may not have been created"
       }, 500);
     }
 
     console.log("✅ Booking created successfully:", inserted.length, "records");
+    console.log("✅ Created booking IDs:", inserted.map(b => b.id));
 
     // Return success response
     return j(res, { 
