@@ -6,49 +6,65 @@ import { Star, Clock, Percent, GraduationCap, Sparkles, Trophy, AlertCircle } fr
 
 interface CouponPromotionalPopupProps {
   onCouponSelect?: (coupon: string) => void;
+  blockWhenOpen?: boolean; // Block showing when another popup is open
 }
 
-const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCouponSelect }) => {
+const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCouponSelect, blockWhenOpen = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCount, setShowCount] = useState(0);
   const [currentPopup, setCurrentPopup] = useState<1 | 2 | 3>(3);
 
   useEffect(() => {
+    // Don't show if blocked by another popup
+    if (blockWhenOpen) return;
+    
     // First popup (HH99) after 30 seconds
     const firstTimeout = setTimeout(() => {
-      setIsOpen(true);
-      setShowCount(1);
-      setCurrentPopup(3); // HH99 popup first
+      if (!blockWhenOpen) {
+        setIsOpen(true);
+        setShowCount(1);
+        setCurrentPopup(3); // HH99 popup first
+      }
     }, 30000);
 
     return () => clearTimeout(firstTimeout);
-  }, []);
+  }, [blockWhenOpen]);
 
   useEffect(() => {
+    // Don't show if blocked by another popup
+    if (blockWhenOpen) return;
+    
     // Second popup (CUEPHORIA25) after 30 seconds from the first one
     if (showCount === 1) {
       const secondTimeout = setTimeout(() => {
-        setIsOpen(true);
-        setShowCount(2);
-        setCurrentPopup(1); // CUEPHORIA25 popup second
+        if (!blockWhenOpen) {
+          setIsOpen(true);
+          setShowCount(2);
+          setCurrentPopup(1); // CUEPHORIA25 popup second
+        }
       }, 30000);
 
       return () => clearTimeout(secondTimeout);
     }
-  }, [showCount]);
+  }, [showCount, blockWhenOpen]);
 
   useEffect(() => {
+    // Don't show if blocked by another popup
+    if (blockWhenOpen) return;
+    
     // Third popup (NIT50) after 30 seconds from the second one
     if (showCount === 2) {
       const thirdTimeout = setTimeout(() => {
-        setIsOpen(true);
-        setShowCount(3);
-        setCurrentPopup(2); // NIT50 popup third
+        if (!blockWhenOpen) {
+          setIsOpen(true);
+          setShowCount(3);
+          setCurrentPopup(2); // NIT50 popup third
+        }
       }, 30000);
 
       return () => clearTimeout(thirdTimeout);
     }
-  }, [showCount]);
+  }, [showCount, blockWhenOpen]);
 
   const handleClose = () => {
     setIsOpen(false);

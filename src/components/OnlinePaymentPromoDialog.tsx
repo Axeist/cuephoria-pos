@@ -84,29 +84,45 @@ export default function OnlinePaymentPromoDialog({
         </DialogHeader>
 
         <div className="space-y-6 text-center px-2 relative z-10">
-          <div className="space-y-3">
-            {/* Prominent "Pay Online" callout */}
-            <div className={cn(
-              "p-5 rounded-xl bg-gradient-to-r border-2",
-              serviceInfo.bgGradient,
-              serviceInfo.borderColor,
-              "shadow-lg"
-            )}>
-              <div className="flex items-center justify-center gap-3 mb-3">
-                <CreditCard className={cn("h-7 w-7", serviceInfo.textColor)} />
+          <div className="space-y-4">
+            {/* Shiny "Pay Online" Badge */}
+            <div className="flex flex-col items-center justify-center">
+              <div className={cn(
+                "relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl",
+                "bg-gradient-to-r shadow-2xl border-2",
+                serviceInfo.gradient,
+                serviceInfo.borderColor,
+                "transform transition-all duration-300 hover:scale-105",
+                "before:absolute before:inset-0 before:rounded-2xl",
+                "before:bg-gradient-to-r before:from-white/20 before:to-transparent",
+                "before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
+              )}>
+                {/* Shine effect overlay */}
+                <div className="absolute inset-0 rounded-2xl overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer bg-[length:200%_100%]" />
+                </div>
+                
+                <CreditCard className={cn("h-8 w-8 relative z-10 drop-shadow-lg", "text-white")} />
                 <span className={cn(
-                  "text-2xl font-extrabold uppercase tracking-wide",
-                  serviceInfo.textColor
+                  "text-3xl font-black uppercase tracking-wider relative z-10",
+                  "text-white drop-shadow-lg",
+                  "bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/90"
                 )}>
                   Pay Online
                 </span>
+                
+                {/* Sparkle effects */}
+                <Sparkles className="absolute -top-1 -right-1 h-4 w-4 text-yellow-400 animate-pulse z-10" />
+                <Sparkles className="absolute -bottom-1 -left-1 h-3 w-3 text-yellow-300 animate-pulse z-10" style={{ animationDelay: '0.5s' }} />
               </div>
-              <p className="text-base font-semibold text-white mb-2">
+              
+              <p className="text-lg font-semibold text-white mt-4 mb-2">
                 and get
               </p>
-              <div className="flex items-center justify-center gap-2">
+              
+              <div className="flex items-center justify-center gap-2 text-gray-200">
                 <ServiceIcon className={cn("h-5 w-5", serviceInfo.textColor)} />
-                <span className={cn("text-lg font-bold", serviceInfo.textColor)}>
+                <span className={cn("text-lg font-semibold", serviceInfo.textColor)}>
                   {serviceInfo.name}
                 </span>
               </div>

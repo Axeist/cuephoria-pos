@@ -1442,7 +1442,10 @@ export default function PublicBooking() {
         <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
       </div>
 
-      <CouponPromotionalPopup onCouponSelect={applyCoupon} />
+      <CouponPromotionalPopup 
+        onCouponSelect={applyCoupon} 
+        blockWhenOpen={showOnlinePaymentPromo}
+      />
 
       <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
         <div className="max-w-7xl mx-auto">
