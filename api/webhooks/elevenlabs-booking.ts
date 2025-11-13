@@ -79,8 +79,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }, 400);
     }
 
-    // Normalize phone number
-    const normalizedPhone = customer_phone.replace(/\D/g, '');
+    // Normalize phone number (convert to string first in case it comes as a number)
+    const phoneString = String(customer_phone || '');
+    const normalizedPhone = phoneString.replace(/\D/g, '');
     if (normalizedPhone.length < 10) {
       return j(res, { ok: false, error: "Invalid phone number" }, 400);
     }
