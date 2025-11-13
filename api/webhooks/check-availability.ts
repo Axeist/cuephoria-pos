@@ -61,6 +61,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const payload = req.body || {};
+    console.log("📥 Check availability request payload:", JSON.stringify(payload, null, 2));
+    
     const { 
       station_id, // Can be single station ID, array, or comma-separated string
       booking_date, // Format: YYYY-MM-DD
@@ -70,23 +72,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Validate required fields
     if (!station_id || !booking_date || !start_time || !end_time) {
+      console.error("❌ Missing required fields:", {
+        has_station_id: !!station_id,
+        has_booking_date: !!booking_date,
+        has_start_time: !!start_time,
+        has_end_time: !!end_time
+      });
       return j(res, { 
         ok: false, 
         error: "Missing required fields",
-        required: ["station_id", "booking_date", "start_time", "end_time"]
+        required: ["station_id", "booking_date", "start_time", "end_time"],
+        received: {
+          station_id: station_id || null,
+          booking_date: booking_date || null,
+          start_time: start_time || null,
+          end_time: end_time || null
+        }
       }, 400);
     }
 
     // Validate date format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(booking_date)) {
-      return j(res, { ok: false, error: "Invalid date format. Use YYYY-MM-DD" }, 400);
+      console.error("❌ Invalid date format:", booking_date);
+      return j(res, { 
+        ok: false, 
+        error: "Invalid date format. Use YYYY-MM-DD",
+        received: booking_date,
+        example: "2025-01-20"
+      }, 400);
     }
 
     // Validate time format
     const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
     if (!timeRegex.test(start_time) || !timeRegex.test(end_time)) {
-      return j(res, { ok: false, error: "Invalid time format. Use HH:MM (24-hour)" }, 400);
+      console.error("❌ Invalid time format:", { start_time, end_time });
+      return j(res, { 
+        ok: false, 
+        error: "Invalid time format. Use HH:MM (24-hour)",
+        received: { start_time, end_time },
+        examples: { start_time: "14:00", end_time: "15:00" }
+      }, 400);
     }
 
     // Handle single station, array of stations, or comma-separated string
@@ -104,11 +130,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const invalidStationIds = stationIds.filter(id => !isValidUUID(String(id)));
 
     if (invalidStationIds.length > 0) {
+      console.error("❌ Invalid station IDs received:", invalidStationIds);
+      console.error("💡 Tip: Use 'get_available_stations' webhook to get valid station UUIDs");
       return j(res, {
         ok: false,
         error: "Invalid station ID format. Station IDs must be valid UUIDs",
         invalid_station_ids: invalidStationIds,
-        example_format: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        example_format: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        help: "Use the 'get_available_stations' webhook first to retrieve valid station UUIDs, then use those UUIDs in this request"
       }, 400);
     }
 
