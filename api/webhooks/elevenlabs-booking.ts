@@ -162,12 +162,109 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Invalid station ID(s)" }, 400);
     }
 
-    // Calculate price (hourly_rate * hours)
-    const hours = bookingDuration / 60;
-    const basePrice = stationsData[0].hourly_rate * hours; // Use first station's rate
+    // Check for existing bookings that overlap with the requested time slot
+    const { data: conflictingBookings, error: conflictError } = await supabase
+      .from("bookings")
+      .select("id, station_id, start_time, end_time, status")
+      .in("station_id", stationIds)
+      .eq("booking_date", booking_date)
+      .in("status", ["confirmed", "in-progress"]);
 
-    // Create booking records
-    const rows = stationIds.map((stationId: string) => ({
+    if (conflictError) {
+      console.error("❌ Error checking for conflicts:", conflictError);
+      return j(res, { ok: false, error: "Failed to check booking availability" }, 500);
+    }
+
+    // Check for time overlaps
+    const unavailableStations: string[] = [];
+    if (conflictingBookings && conflictingBookings.length > 0) {
+      conflictingBookings.forEach(booking => {
+        // Convert time strings to minutes for comparison
+        const timeToMinutes = (timeStr: string) => {
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          return hours * 60 + minutes;
+        };
+
+        const requestedStart = timeToMinutes(start_time);
+        const requestedEnd = timeToMinutes(end_time);
+        const existingStart = timeToMinutes(booking.start_time);
+        const existingEnd = timeToMinutes(booking.end_time);
+
+        // Handle midnight crossover (end_time = 00:00 means 24:00)
+        const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
+        const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
+
+        const overlaps = (
+          // Case 1: Requested slot starts during existing booking
+          (requestedStart >= existingStart && requestedStart < existingEndMinutes) ||
+          // Case 2: Requested slot ends during existing booking
+          (requestedEndMinutes > existingStart && requestedEndMinutes <= existingEndMinutes) ||
+          // Case 3: Requested slot completely contains existing booking
+          (requestedStart <= existingStart && requestedEndMinutes >= existingEndMinutes) ||
+          // Case 4: Existing booking completely contains requested slot
+          (existingStart <= requestedStart && existingEndMinutes >= requestedEndMinutes)
+        );
+
+        if (overlaps && !unavailableStations.includes(booking.station_id)) {
+          unavailableStations.push(booking.station_id);
+        }
+      });
+    }
+
+    // Check for active sessions (for today's bookings)
+    const today = new Date().toISOString().split('T')[0];
+    if (booking_date === today) {
+      const { data: activeSessions, error: sessionError } = await supabase
+        .from("sessions")
+        .select("station_id")
+        .in("station_id", stationIds)
+        .is("end_time", null); // Active sessions only
+
+      if (!sessionError && activeSessions) {
+        activeSessions.forEach(session => {
+          if (!unavailableStations.includes(session.station_id)) {
+            unavailableStations.push(session.station_id);
+          }
+        });
+      }
+    }
+
+    // Filter out unavailable stations
+    const availableStationIds = stationIds.filter(id => !unavailableStations.includes(id));
+    
+    if (availableStationIds.length === 0) {
+      const unavailableNames = stationsData
+        .filter(s => unavailableStations.includes(s.id))
+        .map(s => s.name)
+        .join(", ");
+      return j(res, { 
+        ok: false, 
+        error: "Selected stations are not available for the requested time slot",
+        unavailable_stations: unavailableNames,
+        requested_time: `${start_time} - ${end_time}`
+      }, 400);
+    }
+
+    // If some stations are unavailable, use only available ones
+    if (availableStationIds.length < stationIds.length) {
+      const unavailableNames = stationsData
+        .filter(s => unavailableStations.includes(s.id))
+        .map(s => s.name)
+        .join(", ");
+      console.log(`⚠️ Some stations unavailable: ${unavailableNames}. Using available stations only.`);
+      // Continue with available stations only
+    }
+
+    // Use only available stations
+    const finalStationIds = availableStationIds;
+    const finalStationsData = stationsData.filter(s => finalStationIds.includes(s.id));
+
+    // Calculate price (hourly_rate * hours) - use first available station's rate
+    const hours = bookingDuration / 60;
+    const basePrice = finalStationsData[0]?.hourly_rate * hours || 0;
+
+    // Create booking records (only for available stations)
+    const rows = finalStationIds.map((stationId: string) => ({
       station_id: stationId,
       customer_id: customerId,
       booking_date: booking_date,
@@ -210,13 +307,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: "Booking created successfully",
       booking: {
         customer_name,
-        stations: stationsData.map(s => s.name),
+        stations: finalStationsData.map(s => s.name),
         date: booking_date,
         time: `${start_time} - ${end_time}`,
         duration: `${bookingDuration} minutes`,
         price: `₹${basePrice}`,
         booking_ids: inserted.map(b => b.id)
-      }
+      },
+      unavailable_stations: unavailableStations.length > 0 
+        ? stationsData.filter(s => unavailableStations.includes(s.id)).map(s => s.name)
+        : []
     }, 200);
 
   } catch (error: any) {

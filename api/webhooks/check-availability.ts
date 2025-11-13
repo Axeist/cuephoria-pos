@@ -1,0 +1,175 @@
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = "https://apltkougkglbsfphbghi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwbHRrb3Vna2dsYnNmcGhiZ2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1OTE3MDMsImV4cCI6MjA1OTE2NzcwM30.Kk38S9Hl9tIwv_a3VPgUaq1cSCCPmlGJOR5R98tREeU";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  },
+  global: {
+    headers: {
+      'x-application-name': 'cuephoria-api'
+    }
+  }
+});
+
+// Vercel Node.js runtime types
+type VercelRequest = {
+  method?: string;
+  body?: any;
+  query?: Record<string, string>;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+type VercelResponse = {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => VercelResponse;
+  json: (data: any) => void;
+  end: () => void;
+};
+
+function setCorsHeaders(res: VercelResponse) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, authorization");
+}
+
+function j(res: VercelResponse, data: unknown, status = 200) {
+  setCorsHeaders(res);
+  res.status(status).json(data);
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    setCorsHeaders(res);
+    return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
+    return j(res, { ok: false, error: "Method not allowed" }, 405);
+  }
+
+  try {
+    const payload = req.body || {};
+    const { 
+      station_id, // Can be single station ID, array, or comma-separated string
+      booking_date, // Format: YYYY-MM-DD
+      start_time, // Format: HH:MM (24-hour)
+      end_time // Format: HH:MM (24-hour)
+    } = payload;
+
+    // Validate required fields
+    if (!station_id || !booking_date || !start_time || !end_time) {
+      return j(res, { 
+        ok: false, 
+        error: "Missing required fields",
+        required: ["station_id", "booking_date", "start_time", "end_time"]
+      }, 400);
+    }
+
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(booking_date)) {
+      return j(res, { ok: false, error: "Invalid date format. Use YYYY-MM-DD" }, 400);
+    }
+
+    // Validate time format
+    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (!timeRegex.test(start_time) || !timeRegex.test(end_time)) {
+      return j(res, { ok: false, error: "Invalid time format. Use HH:MM (24-hour)" }, 400);
+    }
+
+    // Handle single station, array of stations, or comma-separated string
+    let stationIds: string[];
+    if (Array.isArray(station_id)) {
+      stationIds = station_id;
+    } else if (typeof station_id === 'string' && station_id.includes(',')) {
+      stationIds = station_id.split(',').map(id => id.trim()).filter(id => id.length > 0);
+    } else {
+      stationIds = [station_id];
+    }
+
+    // Check for existing bookings that overlap with the requested time slot
+    const { data: conflictingBookings, error: bookingError } = await supabase
+      .from("bookings")
+      .select("id, station_id, start_time, end_time, status")
+      .in("station_id", stationIds)
+      .eq("booking_date", booking_date)
+      .in("status", ["confirmed", "in-progress"])
+      .or(`start_time.lte.${start_time},end_time.gt.${start_time},start_time.lt.${end_time},end_time.gte.${end_time},start_time.gte.${start_time},end_time.lte.${end_time},start_time.lte.${start_time},end_time.gte.${end_time}`);
+
+    if (bookingError) {
+      console.error("❌ Error checking bookings:", bookingError);
+      return j(res, { ok: false, error: "Failed to check availability" }, 500);
+    }
+
+    // Check for active sessions (for today's bookings)
+    const today = new Date().toISOString().split('T')[0];
+    let activeSessions: any[] = [];
+    if (booking_date === today) {
+      const { data: sessions, error: sessionError } = await supabase
+        .from("sessions")
+        .select("station_id")
+        .in("station_id", stationIds)
+        .is("end_time", null); // Active sessions only
+
+      if (!sessionError && sessions) {
+        activeSessions = sessions;
+      }
+    }
+
+    // Get station details
+    const { data: stationsData, error: stationsError } = await supabase
+      .from("stations")
+      .select("id, name, type, hourly_rate")
+      .in("id", stationIds);
+
+    if (stationsError || !stationsData) {
+      return j(res, { ok: false, error: "Failed to fetch station details" }, 500);
+    }
+
+    // Build availability response
+    const availability = stationsData.map(station => {
+      const hasBookingConflict = conflictingBookings?.some(
+        booking => booking.station_id === station.id
+      ) || false;
+
+      const hasActiveSession = activeSessions.some(
+        session => session.station_id === station.id
+      );
+
+      const isAvailable = !hasBookingConflict && !hasActiveSession;
+
+      return {
+        station_id: station.id,
+        station_name: station.name,
+        station_type: station.type,
+        hourly_rate: station.hourly_rate,
+        is_available: isAvailable,
+        conflict_reason: !isAvailable 
+          ? (hasBookingConflict ? "Already booked for this time slot" : "Currently in use")
+          : null
+      };
+    });
+
+    return j(res, {
+      ok: true,
+      booking_date,
+      time_slot: `${start_time} - ${end_time}`,
+      availability,
+      available_count: availability.filter(a => a.is_available).length,
+      total_count: availability.length
+    }, 200);
+
+  } catch (error: any) {
+    console.error("💥 Check availability error:", error);
+    return j(res, {
+      ok: false,
+      error: error.message || "Failed to check availability"
+    }, 500);
+  }
+}
+
