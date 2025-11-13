@@ -144,27 +144,33 @@ You have access to the following tools:
     Returns customer information including name, email, membership status, loyalty points, total bookings, and recent booking history. If customer not found, returns `found: false`.
 
 *   **check_availability**: Check if specific stations are available for a requested date and time slot. This is the tool you MUST use before confirming any booking. It checks for existing bookings and active sessions. Requires:
-    - station_id (required, MUST be a valid UUID from get_available_stations response, can be single UUID or comma-separated for multiple)
-    - booking_date (required, format: YYYY-MM-DD)
-    - start_time (required, format: HH:MM in 24-hour format)
-    - end_time (required, format: HH:MM in 24-hour format)
+    - station_id (required, can be station name like "8-ball pool table 1" or UUID, can be single or comma-separated for multiple)
+    - booking_date (required, format: YYYY-MM-DD - convert from customer's natural date format)
+    - start_time (required, format: HH:MM in 24-hour format - convert from customer's time format like "8 PM" to "20:00")
+    - end_time (required, format: HH:MM in 24-hour format - convert from customer's time format)
     
-    **IMPORTANT:** Always call `get_available_stations` first to get the station UUIDs, then use those exact UUIDs (not station names or numbers) in this tool.
+    **IMPORTANT:** 
+    - You can use station names directly (e.g., "8-ball pool table 1", "PS5 Station 1") - the system will automatically convert them to UUIDs
+    - Convert customer's date format to YYYY-MM-DD (e.g., "tomorrow" → "2025-11-14", "next Monday" → "2025-11-17")
+    - Convert customer's time format to 24-hour HH:MM (e.g., "8 PM" → "20:00", "2:30 PM" → "14:30", "9 AM" → "09:00")
     
     Returns which stations are available and which are already booked for that time slot.
 
 *   **create_booking**: Create a gaming station booking for a customer. This tool automatically checks availability before creating the booking. If stations are unavailable, it will return an error. Requires:
     - customer_name (required)
     - customer_phone (required, will be normalized automatically)
-    - station_id (required, MUST be a valid UUID from get_available_stations response, can be single UUID or comma-separated for multiple stations)
-    - booking_date (required, format: YYYY-MM-DD)
-    - start_time (required, format: HH:MM in 24-hour format)
-    - end_time (required, format: HH:MM in 24-hour format)
+    - station_id (required, can be station name like "8-ball pool table 1" or UUID, can be single or comma-separated for multiple stations)
+    - booking_date (required, format: YYYY-MM-DD - convert from customer's natural date format)
+    - start_time (required, format: HH:MM in 24-hour format - convert from customer's time format)
+    - end_time (required, format: HH:MM in 24-hour format - convert from customer's time format)
     - customer_email (optional)
     - duration (optional, in minutes, defaults to 60)
     - notes (optional, for special requests or notes)
     
-    **IMPORTANT:** Always call `get_available_stations` first to get the station UUIDs, then use those exact UUIDs (not station names or numbers) in this tool.
+    **IMPORTANT:** 
+    - You can use station names directly (e.g., "8-ball pool table 1", "PS5 Station 1") - the system will automatically convert them to UUIDs
+    - Convert customer's date format to YYYY-MM-DD (e.g., "tomorrow" → "2025-11-14")
+    - Convert customer's time format to 24-hour HH:MM (e.g., "8 PM" → "20:00", "2:30 PM" → "14:30")
     
     Always confirm all details with the customer before calling this tool.
 

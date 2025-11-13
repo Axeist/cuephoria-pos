@@ -118,38 +118,89 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Handle single station, array of stations, or comma-separated string
-    let stationIds: string[];
+    let stationInputs: string[];
     if (Array.isArray(station_id)) {
-      stationIds = station_id;
+      stationInputs = station_id;
     } else if (typeof station_id === 'string' && station_id.includes(',')) {
       // Handle comma-separated station IDs
-      stationIds = station_id.split(',').map(id => id.trim()).filter(id => id.length > 0);
+      stationInputs = station_id.split(',').map(id => id.trim()).filter(id => id.length > 0);
     } else {
-      stationIds = [station_id];
+      stationInputs = [station_id];
     }
 
-    // Validate that all station IDs are valid UUIDs
-    const validStationIds = stationIds.filter(id => isValidUUID(String(id)));
-    const invalidStationIds = stationIds.filter(id => !isValidUUID(String(id)));
+    // Separate UUIDs from potential station names
+    const validUUIDs = stationInputs.filter(id => isValidUUID(String(id)));
+    const potentialNames = stationInputs.filter(id => !isValidUUID(String(id)));
 
-    if (invalidStationIds.length > 0) {
+    let stationIds: string[] = [...validUUIDs];
+
+    // If we have station names, fetch all stations and match by name
+    if (potentialNames.length > 0) {
+      console.log("🔍 Looking up station names:", potentialNames);
+      
+      const { data: allStations, error: stationsError } = await supabase
+        .from("stations")
+        .select("id, name");
+
+      if (stationsError) {
+        console.error("❌ Error fetching stations:", stationsError);
+        return j(res, {
+          ok: false,
+          error: "Failed to fetch stations for name lookup",
+          details: stationsError.message
+        }, 500);
+      }
+
+      // Match station names (case-insensitive, flexible matching)
+      const matchedStations: string[] = [];
+      const unmatchedNames: string[] = [];
+
+      potentialNames.forEach(inputName => {
+        // Try exact match first (case-insensitive)
+        let matched = allStations?.find(s => 
+          s.name.toLowerCase() === inputName.toLowerCase()
+        );
+
+        // If no exact match, try partial match
+        if (!matched) {
+          matched = allStations?.find(s => 
+            s.name.toLowerCase().includes(inputName.toLowerCase()) ||
+            inputName.toLowerCase().includes(s.name.toLowerCase())
+          );
+        }
+
+        if (matched) {
+          matchedStations.push(matched.id);
+          console.log(`✅ Matched "${inputName}" to station "${matched.name}" (${matched.id})`);
+        } else {
+          unmatchedNames.push(inputName);
+          console.error(`❌ Could not find station matching "${inputName}"`);
+        }
+      });
+
+      if (unmatchedNames.length > 0) {
+        return j(res, {
+          ok: false,
+          error: "Could not find stations matching the provided names",
+          unmatched_station_names: unmatchedNames,
+          available_stations: allStations?.map(s => ({ id: s.id, name: s.name })) || [],
+          help: "Use exact station names or valid UUIDs. Call 'get_available_stations' to see all available stations."
+        }, 400);
+      }
+
+      stationIds = [...stationIds, ...matchedStations];
+    }
+
+    if (stationIds.length === 0) {
       return j(res, {
         ok: false,
-        error: "Invalid station ID format. Station IDs must be valid UUIDs",
-        invalid_station_ids: invalidStationIds,
-        example_format: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        error: "No valid station IDs or names provided"
       }, 400);
     }
 
-    if (validStationIds.length === 0) {
-      return j(res, {
-        ok: false,
-        error: "No valid station IDs provided"
-      }, 400);
-    }
-
-    // Use only valid station IDs
-    stationIds = validStationIds;
+    // Remove duplicates
+    stationIds = [...new Set(stationIds)];
+    console.log("✅ Final station IDs for booking:", stationIds);
     
     // Validate date format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
