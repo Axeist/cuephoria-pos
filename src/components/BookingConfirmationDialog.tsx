@@ -19,6 +19,8 @@ interface BookingConfirmationDialogProps {
     startTime: string;
     endTime: string;
     totalAmount: number;
+    transactionFee?: number;
+    totalWithFee?: number;
     couponCode?: string;
     discountAmount?: number;
     paymentMode?: string; // 'venue', 'razorpay', etc.
@@ -49,6 +51,8 @@ Date: ${format(new Date(bookingData.date), 'EEEE, MMMM d, yyyy')}
 Time: ${bookingData.startTime} - ${bookingData.endTime}
 
 Total Amount: ₹${bookingData.totalAmount}
+${bookingData.transactionFee ? `\nTransaction Fee (2.5%): ₹${bookingData.transactionFee}` : ''}
+${bookingData.totalWithFee && bookingData.totalWithFee !== bookingData.totalAmount ? `\nAmount Paid: ₹${bookingData.totalWithFee}` : ''}
 ${bookingData.couponCode ? `\nCoupon: ${bookingData.couponCode}` : ''}
 ${bookingData.paymentMode && bookingData.paymentMode !== 'venue' ? `\nPayment: ${bookingData.paymentMode === 'razorpay' ? 'Razorpay (Online)' : bookingData.paymentMode}` : '\nPayment: At Venue'}
 ${bookingData.paymentTxnId ? `\nTransaction ID: ${bookingData.paymentTxnId}` : ''}
@@ -190,11 +194,39 @@ Please arrive on time and show this confirmation at reception.`;
             )}
 
             {/* Total Amount */}
-            <div className="text-center">
-              <p className="text-sm text-gray-400">Total Amount</p>
-              <p className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
-                ₹{bookingData.totalAmount}
-              </p>
+            <div className="text-center space-y-2">
+              <div>
+                <p className="text-sm text-gray-400">Booking Amount</p>
+                <p className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
+                  ₹{bookingData.totalAmount}
+                </p>
+              </div>
+              
+              {bookingData.transactionFee && bookingData.transactionFee > 0 && (
+                <>
+                  <Separator className="bg-border" />
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-400">Transaction Fee (2.5%)</span>
+                      <span className="text-gray-300">+₹{bookingData.transactionFee}</span>
+                    </div>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded p-2 mt-2">
+                      <p className="text-xs text-blue-300/90">
+                        💡 Includes 15 mins free gameplay bonus
+                      </p>
+                    </div>
+                    {bookingData.totalWithFee && bookingData.totalWithFee !== bookingData.totalAmount && (
+                      <div className="pt-2 border-t border-border/50">
+                        <p className="text-sm text-gray-400">Amount Paid</p>
+                        <p className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                          ₹{bookingData.totalWithFee}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              
               {!bookingData.paymentMode || bookingData.paymentMode === 'venue' ? (
                 <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded">
                   <p className="text-xs text-yellow-400 font-medium">

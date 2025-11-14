@@ -9,7 +9,7 @@ type PendingBooking = {
   slots: Array<{ start_time: string; end_time: string }>;
   duration: number;
   customer: { id?: string; name: string; phone: string; email?: string };
-  pricing: { original: number; discount: number; final: number; coupons: string };
+  pricing: { original: number; discount: number; final: number; transactionFee?: number; totalWithFee?: number; coupons: string };
 };
 
 // Phone number normalization (matches PublicBooking.tsx)
@@ -236,6 +236,8 @@ export default function PublicPaymentSuccess() {
         startTime: formatTime(firstSlot.start_time),
         endTime: formatTime(lastSlot.end_time),
         totalAmount: pb.pricing.final,
+        transactionFee: pb.pricing.transactionFee,
+        totalWithFee: pb.pricing.totalWithFee || pb.pricing.final,
         couponCode: pb.pricing.coupons || undefined,
         discountAmount: pb.pricing.discount > 0 ? pb.pricing.discount : undefined,
         sessionDuration: pb.duration === 15 ? "15 minutes" : "60 minutes",

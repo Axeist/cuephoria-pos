@@ -1074,6 +1074,10 @@ export default function PublicBooking() {
       return;
     }
 
+    // Calculate 2.5% transaction fee for Razorpay
+    const transactionFee = Math.round((totalPrice * 0.025) * 100) / 100; // Round to 2 decimal places
+    const totalWithFee = totalPrice + transactionFee;
+
     const txnId = genTxnId();
     setLoading(true);
 
@@ -1093,17 +1097,19 @@ export default function PublicBooking() {
           original: originalPrice * slotsToBook.length,
           discount: discount * slotsToBook.length,
           final: totalPrice,
+          transactionFee: transactionFee,
+          totalWithFee: totalWithFee,
           coupons: Object.values(appliedCoupons).join(","),
         },
       };
       localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
 
-      // Create order on server
+      // Create order on server with total including transaction fee
       const orderRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          amount: totalPrice,
+          amount: totalWithFee,
           receipt: txnId,
           notes: {
             customer_name: customerInfo.name,
@@ -2152,6 +2158,40 @@ export default function PublicBooking() {
                                 {INR(totalFinal)}
                               </span>
                             </div>
+
+                            {paymentMethod === "razorpay" && (
+                              <>
+                                <Separator className="bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center text-sm">
+                                    <div className="flex flex-col">
+                                      <Label className="text-gray-300">
+                                        Online Payment Transaction Fee
+                                      </Label>
+                                      <span className="text-xs text-gray-400 mt-0.5">
+                                        (2.5% of total) • Includes 15 mins free gameplay
+                                      </span>
+                                    </div>
+                                    <span className="text-sm text-gray-200 font-medium">
+                                      +{INR(Math.round((totalFinal * 0.025) * 100) / 100)}
+                                    </span>
+                                  </div>
+                                  <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-2.5">
+                                    <p className="text-xs text-blue-300/90 leading-relaxed">
+                                      💡 <strong>Good news!</strong> All online payments include <strong>15 minutes of free gameplay</strong> as a bonus. The small transaction fee helps us provide secure payment processing.
+                                    </p>
+                                  </div>
+                                  <div className="flex justify-between items-center pt-1 border-t border-white/10">
+                                    <Label className="text-base font-semibold text-gray-100">
+                                      Amount to Pay
+                                    </Label>
+                                    <span className="text-xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                                      {INR(Math.round((totalFinal + (totalFinal * 0.025)) * 100) / 100)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </>
+                            )}
                           </>
                         );
                       })()}

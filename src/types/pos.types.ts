@@ -83,6 +83,7 @@ export interface Bill {
   isSplitPayment?: boolean;
   cashAmount?: number;
   upiAmount?: number;
+  transactionFee?: number; // Transaction fee for online payments (2.5% of total)
   createdAt: Date;
 }
 
