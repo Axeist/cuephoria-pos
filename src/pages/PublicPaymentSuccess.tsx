@@ -12,6 +12,19 @@ type PendingBooking = {
   pricing: { original: number; discount: number; final: number; coupons: string };
 };
 
+// Phone number normalization (matches PublicBooking.tsx)
+const normalizePhoneNumber = (phone: string): string => {
+  return phone.replace(/\D/g, '');
+};
+
+// Generate unique Customer ID (matches PublicBooking.tsx)
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
 export default function PublicPaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -74,21 +87,44 @@ export default function PublicPaymentSuccess() {
       // 3) Ensure customer exists (by phone); create if needed
       let customerId = pb.customer.id;
       if (!customerId) {
-        const { data, error } = await supabase
+        // Normalize phone number before searching (matches venue booking flow)
+        const normalizedPhone = normalizePhoneNumber(pb.customer.phone);
+        
+        // Validate customer name is provided
+        if (!pb.customer.name || !pb.customer.name.trim()) {
+          setStatus("failed");
+          setMsg("Customer name is required. Please contact support or rebook.");
+          return;
+        }
+
+        // Check for existing customer with normalized phone
+        const { data: existingCustomer, error: searchError } = await supabase
           .from("customers")
-          .select("id")
-          .eq("phone", pb.customer.phone)
+          .select("id, name, custom_id")
+          .eq("phone", normalizedPhone)
           .maybeSingle();
 
-        if (!error && data?.id) {
-          customerId = data.id;
+        if (searchError && searchError.code !== "PGRST116") {
+          console.error("Customer search error:", searchError);
+          setStatus("failed");
+          setMsg("Could not search for customer. Please contact support or rebook.");
+          return;
+        }
+
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+          console.log(`✅ Found existing customer: ${existingCustomer.name} (${existingCustomer.custom_id || existingCustomer.id})`);
         } else {
+          // Create new customer with normalized phone and custom_id (matches venue booking flow)
+          const customerID = generateCustomerID(normalizedPhone);
+
           const { data: created, error: cErr } = await supabase
             .from("customers")
             .insert({
-              name: pb.customer.name,
-              phone: pb.customer.phone,
-              email: pb.customer.email || null,
+              name: pb.customer.name.trim(),
+              phone: normalizedPhone,
+              email: pb.customer.email?.trim() || null,
+              custom_id: customerID,
               is_member: false,
               loyalty_points: 0,
               total_spent: 0,
@@ -98,11 +134,32 @@ export default function PublicPaymentSuccess() {
             .single();
 
           if (cErr) {
-            setStatus("failed");
-            setMsg("Could not create customer. Please contact support or rebook.");
-            return;
+            console.error("Customer creation error:", cErr);
+            if (cErr.code === '23505') {
+              // Duplicate phone number - try to find the existing customer again
+              const { data: retryCustomer } = await supabase
+                .from("customers")
+                .select("id")
+                .eq("phone", normalizedPhone)
+                .maybeSingle();
+              
+              if (retryCustomer) {
+                customerId = retryCustomer.id;
+                console.log("✅ Found existing customer on retry:", customerId);
+              } else {
+                setStatus("failed");
+                setMsg("This phone number is already registered. Please contact support.");
+                return;
+              }
+            } else {
+              setStatus("failed");
+              setMsg("Could not create customer. Please contact support or rebook.");
+              return;
+            }
+          } else {
+            customerId = created!.id;
+            console.log(`✅ New customer created: ${pb.customer.name.trim()} (${customerID})`);
           }
-          customerId = created!.id;
         }
       }
 
