@@ -339,107 +339,50 @@ const PublicTournaments = () => {
   };
 
   // Initiate Razorpay payment for tournament registration
-  const initiateRazorpayPayment = useCallback(async () => {
-    if (!selectedTournament) return;
+  // Replicated exactly from booking page
+  const initiateRazorpayPayment = async () => {
+    if (!selectedTournament) {
+      toast({
+        title: "Error",
+        description: "No tournament selected",
+        variant: "destructive"
+      });
+      return;
+    }
 
     const entryFee = 250; // Tournament entry fee
     const transactionFee = Math.round((entryFee * 0.025) * 100) / 100; // 2.5% transaction fee
     const totalWithFee = entryFee + transactionFee;
 
-    // Wait for Razorpay script to load if not already loaded
-    if (!(window as any).Razorpay) {
-      console.log('⏳ Razorpay script not loaded, loading now...');
-      // Check if script is already in the DOM
-      let script = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]') as HTMLScriptElement;
-      
-      if (!script) {
-        // Create and load the script
-        script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.async = true;
-        document.body.appendChild(script);
-      }
-      
-      // Wait for script to load
-      await new Promise((resolve, reject) => {
-        // If already loaded, resolve immediately
-        if ((window as any).Razorpay) {
-          console.log('✅ Razorpay already available');
-          resolve(true);
-          return;
-        }
-        
-        const checkInterval = setInterval(() => {
-          if ((window as any).Razorpay) {
-            clearInterval(checkInterval);
-            clearTimeout(timeoutId);
-            console.log('✅ Razorpay script loaded');
-            resolve(true);
-          }
-        }, 100);
-        
-        const timeoutId = setTimeout(() => {
-          clearInterval(checkInterval);
-          if (!(window as any).Razorpay) {
-            console.error('❌ Razorpay script loading timeout');
-            reject(new Error('Payment gateway loading timeout. Please refresh the page and try again.'));
-          }
-        }, 10000);
-        
-        script.onload = () => {
-          clearInterval(checkInterval);
-          clearTimeout(timeoutId);
-          console.log('✅ Razorpay script loaded via onload');
-          resolve(true);
-        };
-        
-        script.onerror = () => {
-          clearInterval(checkInterval);
-          clearTimeout(timeoutId);
-          console.error('❌ Failed to load Razorpay script');
-          reject(new Error('Failed to load payment gateway. Please check your internet connection and try again.'));
-        };
-      });
-    }
-
-    // Get Razorpay key ID if not already loaded
-    let finalKeyId = razorpayKeyId;
-    if (!finalKeyId) {
-      try {
-        const keyRes = await fetch('/api/razorpay/get-key-id');
-        const keyData = await keyRes.json();
-        if (keyData.ok && keyData.keyId) {
-          finalKeyId = keyData.keyId;
-          setRazorpayKeyId(finalKeyId);
-        } else if (keyData.keyId) {
-          finalKeyId = keyData.keyId;
-          setRazorpayKeyId(finalKeyId);
-        } else {
-          throw new Error('Failed to get payment gateway key');
-        }
-      } catch (err) {
-        toast({
-          title: "Payment Error",
-          description: "Failed to initialize payment gateway. Please try again.",
-          variant: "destructive"
-        });
-        setIsLoadingPayment(false);
-        return;
-      }
-    }
-
-    if (!finalKeyId) {
+    if (totalWithFee <= 0) {
       toast({
         title: "Payment Error",
-        description: "Payment gateway is not ready. Please try again.",
+        description: "Amount must be greater than 0 for online payment.",
         variant: "destructive"
       });
-      setIsLoadingPayment(false);
       return;
     }
 
-    setIsLoadingPayment(true);
+    if (!registrationForm.customer_phone.trim()) {
+      toast({
+        title: "Payment Error",
+        description: "Customer phone is required for payment.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!(window as any).Razorpay) {
+      toast({
+        title: "Payment Gateway Loading",
+        description: "Payment gateway is loading. Please wait a moment and try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const txnId = genTxnId();
+    setIsLoadingPayment(true);
 
     try {
       // Store pending registration data
@@ -459,8 +402,7 @@ const PublicTournaments = () => {
       };
       localStorage.setItem("pendingTournamentRegistration", JSON.stringify(pendingRegistration));
 
-      // Create Razorpay order
-      console.log('📤 Creating Razorpay order with amount:', totalWithFee);
+      // Create order on server with total including transaction fee
       const orderRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -478,28 +420,49 @@ const PublicTournaments = () => {
         }),
       });
 
-      console.log('📥 Order creation response status:', orderRes.status, orderRes.ok);
+      // Fetch key ID in parallel with order creation if not already cached
+      const keyPromise = razorpayKeyId 
+        ? Promise.resolve({ keyId: razorpayKeyId })
+        : fetch("/api/razorpay/get-key-id")
+            .then((res) => res.json())
+            .catch(() => ({ keyId: "" }));
 
-      const orderData = await orderRes.json().catch((err) => {
-        console.error('❌ Failed to parse order response:', err);
-        return null;
-      });
-
-      console.log('📦 Order data received:', orderData);
+      const [orderData, keyData] = await Promise.all([
+        orderRes.json().catch(() => null),
+        keyPromise
+      ]);
 
       if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
-        const error = orderData?.error || `Failed to create payment order (Status: ${orderRes.status})`;
-        console.error("❌ Order creation failed:", error, orderData);
+        const error = orderData?.error || "Failed to create payment order";
+        console.error("❌ Order creation failed:", error);
         toast({
           title: "Payment Error",
-          description: error,
+          description: `Payment setup failed: ${error}`,
           variant: "destructive"
         });
         setIsLoadingPayment(false);
-        return; // IMPORTANT: Return early to prevent registration
+        return;
       }
 
       console.log("✅ Razorpay order created:", orderData.orderId);
+
+      // Use cached key ID or fetch result
+      const finalKeyId = keyData.keyId || razorpayKeyId;
+      
+      // Cache the key ID for future use
+      if (keyData.keyId && !razorpayKeyId) {
+        setRazorpayKeyId(keyData.keyId);
+      }
+
+      if (!finalKeyId) {
+        toast({
+          title: "Payment Error",
+          description: "Payment gateway configuration error. Please contact support.",
+          variant: "destructive"
+        });
+        setIsLoadingPayment(false);
+        return;
+      }
 
       const origin = window.location.origin;
       const callbackUrl = `${origin}/api/razorpay/callback`;
@@ -507,7 +470,7 @@ const PublicTournaments = () => {
       // Razorpay checkout options
       const options = {
         key: finalKeyId,
-        amount: orderData.amount,
+        amount: orderData.amount, // Amount in paise
         currency: orderData.currency || "INR",
         name: "Cuephoria Gaming Lounge",
         description: `Tournament Registration: ${selectedTournament.name}`,
@@ -544,7 +507,6 @@ const PublicTournaments = () => {
         },
       };
 
-      console.log('🔧 Creating Razorpay instance with options:', { key: finalKeyId, orderId: orderData.orderId, amount: orderData.amount });
       const rzp = new (window as any).Razorpay(options);
       
       rzp.on("payment.failed", function (response: any) {
@@ -560,21 +522,19 @@ const PublicTournaments = () => {
         window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}`;
       });
 
-      console.log('🚀 Opening Razorpay payment modal...');
       rzp.open();
-      console.log('✅ Razorpay modal open() called');
     } catch (e: any) {
       console.error("💥 Razorpay payment error:", e);
       toast({
         title: "Payment Error",
-        description: e?.message || "An error occurred while initiating payment. Please try again.",
+        description: `Unable to start payment: ${e?.message || e}`,
         variant: "destructive"
       });
       setIsLoadingPayment(false);
     }
-  }, [selectedTournament, registrationForm, razorpayKeyId, toast]);
+  };
 
-  const handleRegistration = useCallback(async () => {
+  const handleRegistration = async () => {
     if (!selectedTournament) return;
 
     // Validate form
@@ -588,19 +548,10 @@ const PublicTournaments = () => {
     }
 
     // If payment method is Razorpay, initiate payment flow and STOP here
-    // Do NOT proceed with regular registration
+    // Do NOT proceed with regular registration - exactly like booking page
     if (paymentMethod === 'razorpay') {
-      console.log('🚀 Initiating Razorpay payment flow...');
-      try {
-        await initiateRazorpayPayment();
-        // If payment initiation succeeds, the modal should open
-        // If it fails, the error is handled inside initiateRazorpayPayment
-        return; // IMPORTANT: Return early to prevent regular registration
-      } catch (error) {
-        console.error('💥 Error in payment initiation:', error);
-        // Error already handled in initiateRazorpayPayment, just return
-        return; // IMPORTANT: Return early to prevent regular registration
-      }
+      await initiateRazorpayPayment();
+      return; // CRITICAL: Return immediately - no registration happens
     }
 
     // Double-check for duplicate registration before proceeding
@@ -742,7 +693,7 @@ const PublicTournaments = () => {
     } finally {
       setIsRegistering(false);
     }
-  }, [selectedTournament, registrationForm, toast, fetchTournaments]);
+  };
 
   const resetForm = useCallback(() => {
     setRegistrationForm({
