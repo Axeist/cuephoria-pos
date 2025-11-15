@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -70,6 +71,7 @@ const PublicTournaments = () => {
   const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
+  const [showVenuePaymentWarning, setShowVenuePaymentWarning] = useState(false);
   const [activeTab, setActiveTab] = useState('upcoming');
   const [paymentMethod, setPaymentMethod] = useState<'venue' | 'razorpay'>('razorpay'); // Default to online payment
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>('');
@@ -104,7 +106,7 @@ const PublicTournaments = () => {
             customerPhone: details.customerPhone || '',
             tournamentName: details.tournamentName || '',
             paymentMethod: 'razorpay',
-            entryFee: details.entryFee || 1
+            entryFee: details.entryFee || 250
           });
           // Clear URL params
           setSearchParams({});
@@ -441,7 +443,7 @@ const PublicTournaments = () => {
       }
     }
 
-    const entryFee = 1; // Tournament entry fee (TEMPORARY: Testing payment)
+    const entryFee = 250; // Tournament entry fee
     const transactionFee = Math.round((entryFee * 0.025) * 100) / 100; // 2.5% transaction fee
     const totalWithFee = entryFee + transactionFee;
 
@@ -799,7 +801,7 @@ const PublicTournaments = () => {
         customerPhone: normalizePhoneNumber(registrationForm.customer_phone.trim()),
         tournamentName: selectedTournament.name,
         paymentMethod: 'venue',
-        entryFee: 1 // TEMPORARY: Testing amount
+        entryFee: 250
       });
 
       // Reset form and close registration dialog
@@ -1053,7 +1055,7 @@ const PublicTournaments = () => {
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
             <p className="text-sm text-blue-300 flex items-center gap-2">
               <Trophy className="h-4 w-4" />
-              Entry Fee: ₹1 (Pay at venue) [TEST MODE]
+              Entry Fee: ₹250 (Pay at venue)
             </p>
           </div>
 
@@ -1667,7 +1669,11 @@ const PublicTournaments = () => {
                 {/* Pay at Venue */}
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('venue')}
+                  onClick={() => {
+                    if (paymentMethod !== 'venue') {
+                      setShowVenuePaymentWarning(true);
+                    }
+                  }}
                   className={`p-2.5 rounded-lg border-2 transition-all duration-300 ${
                     paymentMethod === 'venue'
                       ? 'border-cuephoria-lightpurple bg-gradient-to-br from-cuephoria-lightpurple/30 to-cuephoria-blue/20 text-white shadow-md shadow-cuephoria-lightpurple/20'
@@ -1677,7 +1683,7 @@ const PublicTournaments = () => {
                   <div className="flex flex-col items-center gap-1">
                     <MapPin className={`h-4 w-4 ${paymentMethod === 'venue' ? 'text-cuephoria-lightpurple' : ''}`} />
                     <div className="text-xs font-semibold">Pay at Venue</div>
-                    <div className="text-[10px] font-bold text-yellow-400">₹1</div>
+                    <div className="text-[10px] font-bold text-yellow-400">₹250</div>
                   </div>
                 </button>
                 
@@ -1698,7 +1704,7 @@ const PublicTournaments = () => {
                   <div className="flex flex-col items-center gap-1 relative z-10">
                     <Zap className={`h-4 w-4 ${paymentMethod === 'razorpay' ? 'text-yellow-400' : ''}`} />
                     <div className="text-xs font-bold">Pay Online</div>
-                    <div className="text-[10px] font-bold text-yellow-400">₹1</div>
+                    <div className="text-[10px] font-bold text-yellow-400">₹250</div>
                     {paymentMethod === 'razorpay' && (
                       <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full animate-pulse">
                         BEST
@@ -1739,7 +1745,7 @@ const PublicTournaments = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold text-blue-300">Entry Fee</p>
-                  <p className="text-lg font-bold text-white mt-0.5">₹1</p>
+                  <p className="text-lg font-bold text-white mt-0.5">₹250</p>
                 </div>
                 {paymentMethod === 'venue' && (
                   <div className="text-right">
@@ -1798,6 +1804,42 @@ const PublicTournaments = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Venue Payment Warning Dialog */}
+      <AlertDialog open={showVenuePaymentWarning} onOpenChange={setShowVenuePaymentWarning}>
+        <AlertDialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-cuephoria-lightpurple/30 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg">
+              <Trophy className="h-5 w-5" />
+              Miss the Training Session?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-cuephoria-grey pt-2">
+              Do you want to miss the <span className="font-bold text-yellow-400">15 minutes training session</span> which increases your chance of winning?
+              <br /><br />
+              <span className="text-sm text-yellow-300/80">
+                Paying online gives you exclusive access to a FREE 15-minute training session before the tournament starts!
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel 
+              onClick={() => setShowVenuePaymentWarning(false)}
+              className="bg-cuephoria-dark/50 border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-dark/70 hover:text-white"
+            >
+              Go Back
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPaymentMethod('venue');
+                setShowVenuePaymentWarning(false);
+              }}
+              className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
+            >
+              Continue with Venue Payment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Registration Success Dialog */}
       <Dialog open={!!registrationSuccessData} onOpenChange={(open) => !open && setRegistrationSuccessData(null)}>
