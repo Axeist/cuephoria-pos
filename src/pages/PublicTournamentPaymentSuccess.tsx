@@ -158,28 +158,69 @@ export default function PublicTournamentPaymentSuccess() {
         }
       }
 
-      // 4) Register for tournament
-      const { error: registrationError } = await supabase
+      // 4) Check for duplicate registration before inserting
+      const normalizedPhone = normalizePhoneNumber(pr.customer.phone);
+      const { data: existingRegistration, error: checkError } = await supabase
         .from('tournament_public_registrations')
-        .insert({
-          tournament_id: pr.tournamentId,
-          customer_name: pr.customer.name.trim(),
-          customer_phone: normalizePhoneNumber(pr.customer.phone),
-          customer_email: pr.customer.email?.trim() || null,
-          registration_source: 'public_website',
-          status: 'registered',
-          entry_fee: pr.entryFee,
-          payment_status: 'paid'
-        });
+        .select('id')
+        .eq('tournament_id', pr.tournamentId)
+        .eq('customer_phone', normalizedPhone)
+        .maybeSingle();
 
-      if (registrationError) {
-        console.error('Registration error:', registrationError);
-        setStatus("failed");
-        setMsg("Payment successful but registration failed. Please contact support.");
-        return;
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking for duplicate registration:', checkError);
+        // Continue anyway - might be a transient error
       }
 
-      // 5) Add player to tournament players array
+      if (existingRegistration) {
+        console.log('⚠️ Registration already exists, updating payment status...');
+        // Update existing registration to mark as paid
+        const { error: updateError } = await supabase
+          .from('tournament_public_registrations')
+          .update({
+            payment_status: 'paid',
+            entry_fee: pr.entryFee
+          })
+          .eq('id', existingRegistration.id);
+
+        if (updateError) {
+          console.error('Error updating registration:', updateError);
+          setStatus("failed");
+          setMsg(`Payment successful but registration update failed: ${updateError.message || 'Unknown error'}. Please contact support.`);
+          return;
+        }
+        console.log('✅ Registration updated successfully');
+      } else {
+        // 5) Register for tournament (new registration)
+        const { error: registrationError } = await supabase
+          .from('tournament_public_registrations')
+          .insert({
+            tournament_id: pr.tournamentId,
+            customer_name: pr.customer.name.trim(),
+            customer_phone: normalizedPhone,
+            customer_email: pr.customer.email?.trim() || null,
+            registration_source: 'public_website',
+            status: 'registered',
+            entry_fee: pr.entryFee,
+            payment_status: 'paid'
+          });
+
+        if (registrationError) {
+          console.error('Registration error details:', {
+            error: registrationError,
+            code: registrationError.code,
+            message: registrationError.message,
+            details: registrationError.details,
+            hint: registrationError.hint
+          });
+          setStatus("failed");
+          setMsg(`Payment successful but registration failed: ${registrationError.message || 'Unknown error'}. Please contact support.`);
+          return;
+        }
+        console.log('✅ New registration created successfully');
+      }
+
+      // 6) Add player to tournament players array (if not already present)
       const { data: tournamentData, error: tournamentFetchError } = await supabase
         .from('tournaments')
         .select('players')
@@ -189,27 +230,41 @@ export default function PublicTournamentPaymentSuccess() {
       if (tournamentFetchError) {
         console.error('Error fetching tournament:', tournamentFetchError);
       } else {
-        const playerId = generateId();
-        const updatedPlayers = [
-          ...(Array.isArray(tournamentData.players) ? tournamentData.players : []),
-          {
-            id: playerId,
-            name: pr.customer.name.trim(),
-            customerId: customerId,
-            customer_id: customerId
+        const currentPlayers = Array.isArray(tournamentData.players) ? tournamentData.players : [];
+        
+        // Check if player already exists in the array (by customerId)
+        const playerExists = customerId && currentPlayers.some((player: any) => 
+          player.customerId === customerId || player.customer_id === customerId
+        );
+
+        if (!playerExists) {
+          const playerId = generateId();
+          const updatedPlayers = [
+            ...currentPlayers,
+            {
+              id: playerId,
+              name: pr.customer.name.trim(),
+              customerId: customerId,
+              customer_id: customerId
+            }
+          ];
+
+          const { error: tournamentUpdateError } = await supabase
+            .from('tournaments')
+            .update({
+              players: updatedPlayers,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', pr.tournamentId);
+
+          if (tournamentUpdateError) {
+            console.error('Tournament update error:', tournamentUpdateError);
+            // Don't fail the whole registration if this fails - registration is already done
+          } else {
+            console.log('✅ Player added to tournament players array');
           }
-        ];
-
-        const { error: tournamentUpdateError } = await supabase
-          .from('tournaments')
-          .update({
-            players: updatedPlayers,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', pr.tournamentId);
-
-        if (tournamentUpdateError) {
-          console.error('Tournament update error:', tournamentUpdateError);
+        } else {
+          console.log('⚠️ Player already exists in tournament players array, skipping add');
         }
       }
 

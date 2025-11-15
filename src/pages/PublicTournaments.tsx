@@ -73,6 +73,7 @@ const PublicTournaments = () => {
   const [paymentMethod, setPaymentMethod] = useState<'venue' | 'razorpay'>('venue');
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>('');
   const [isLoadingPayment, setIsLoadingPayment] = useState(false);
+  const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -544,6 +545,8 @@ const PublicTournaments = () => {
           ondismiss: function() {
             console.log("Payment cancelled by user");
             setIsLoadingPayment(false);
+            setIsRazorpayOpen(false);
+            document.body.style.overflow = ''; // Restore scroll
             toast({
               title: "Payment Cancelled",
               description: "Payment was cancelled. You can try again.",
@@ -556,9 +559,15 @@ const PublicTournaments = () => {
       const rzp = new (window as any).Razorpay(options);
       console.log('✅ Razorpay instance created:', rzp);
       
+      // Freeze the page when Razorpay opens
+      setIsRazorpayOpen(true);
+      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      
       rzp.on("payment.failed", function (response: any) {
         console.error("❌ Razorpay payment failed:", response);
         const error = response.error?.description || response.error?.reason || "Payment failed";
+        setIsRazorpayOpen(false);
+        document.body.style.overflow = ''; // Restore scroll
         toast({
           title: "Payment Failed",
           description: error,
@@ -580,10 +589,14 @@ const PublicTournaments = () => {
           description: `Failed to open payment gateway: ${openError?.message || 'Unknown error'}`,
           variant: "destructive"
         });
+        setIsRazorpayOpen(false);
+        document.body.style.overflow = ''; // Restore scroll
         setIsLoadingPayment(false);
       }
     } catch (e: any) {
       console.error("💥 Razorpay payment error:", e);
+      setIsRazorpayOpen(false);
+      document.body.style.overflow = ''; // Restore scroll
       toast({
         title: "Payment Error",
         description: `Unable to start payment: ${e?.message || e}`,
@@ -592,6 +605,15 @@ const PublicTournaments = () => {
       setIsLoadingPayment(false);
     }
   };
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      if (isRazorpayOpen) {
+        document.body.style.overflow = ''; // Restore scroll on unmount
+      }
+    };
+  }, [isRazorpayOpen]);
 
   const handleRegistration = async () => {
     if (!selectedTournament) return;
@@ -1707,6 +1729,33 @@ const PublicTournaments = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Razorpay Overlay - Freezes page when payment gateway is open */}
+      {isRazorpayOpen && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9998]"
+          style={{ 
+            pointerEvents: 'auto',
+            cursor: 'not-allowed'
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Prevent any clicks from going through
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-white text-center">
+              <Activity className="h-8 w-8 animate-spin mx-auto mb-2 text-cuephoria-lightpurple" />
+              <p className="text-sm">Payment gateway is open. Please complete or cancel the payment.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Terms & Conditions Dialog */}
       <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>

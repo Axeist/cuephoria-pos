@@ -29,27 +29,28 @@ WHERE registration_date >= '2024-11-01 00:00:00+00'
 
 -- Option 5: Clear players array from tournaments that are scheduled in November
 -- This updates tournaments where the tournament date is in November
+-- Note: date column is TEXT/VARCHAR, so we need to cast it to DATE
 UPDATE public.tournaments
 SET 
   players = '[]'::jsonb,
   updated_at = now()
-WHERE EXTRACT(MONTH FROM date) = 11;
+WHERE EXTRACT(MONTH FROM date::date) = 11;
 
 -- Option 6: Clear players array from tournaments in November 2024 specifically
 UPDATE public.tournaments
 SET 
   players = '[]'::jsonb,
   updated_at = now()
-WHERE EXTRACT(YEAR FROM date) = 2024
-  AND EXTRACT(MONTH FROM date) = 11;
+WHERE EXTRACT(YEAR FROM date::date) = 2024
+  AND EXTRACT(MONTH FROM date::date) = 11;
 
 -- Option 7: Clear players array from tournaments in November 2025 specifically
 UPDATE public.tournaments
 SET 
   players = '[]'::jsonb,
   updated_at = now()
-WHERE EXTRACT(YEAR FROM date) = 2025
-  AND EXTRACT(MONTH FROM date) = 11;
+WHERE EXTRACT(YEAR FROM date::date) = 2025
+  AND EXTRACT(MONTH FROM date::date) = 11;
 
 -- =====================================================
 -- Preview/Check before deleting (SAFE - Read Only)
@@ -68,6 +69,7 @@ WHERE EXTRACT(MONTH FROM registration_date) = 11
 ORDER BY registration_date DESC;
 
 -- Preview tournaments that will be affected (November, any year)
+-- Note: date column is TEXT/VARCHAR, so we need to cast it to DATE
 SELECT 
   id,
   name,
@@ -75,8 +77,8 @@ SELECT
   jsonb_array_length(players) as player_count,
   players
 FROM public.tournaments
-WHERE EXTRACT(MONTH FROM date) = 11
-ORDER BY date DESC;
+WHERE EXTRACT(MONTH FROM date::date) = 11
+ORDER BY date::date DESC;
 
 -- Count how many registrations will be deleted
 SELECT COUNT(*) as total_registrations_to_delete
@@ -86,5 +88,5 @@ WHERE EXTRACT(MONTH FROM registration_date) = 11;
 -- Count how many tournaments will be affected
 SELECT COUNT(*) as total_tournaments_to_update
 FROM public.tournaments
-WHERE EXTRACT(MONTH FROM date) = 11;
+WHERE EXTRACT(MONTH FROM date::date) = 11;
 
