@@ -89,7 +89,7 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     fetchCustomers();
   }, [toast]);
 
-  const addPlayer = () => {
+  const addPlayer = async () => {
     if (!playerName.trim() && !selectedCustomerId) return;
     
     // Check if maximum players limit is reached
@@ -183,9 +183,9 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     const updatedPlayers = [...players, newPlayer];
     setPlayers(updatedPlayers);
     
-    // Update the tournament's players array in the database
+    // Update the tournament's players array in the database immediately
     if (tournamentId) {
-      updateTournamentPlayers(updatedPlayers);
+      await updateTournamentPlayers(updatedPlayers);
     }
     
     toast({
@@ -198,25 +198,38 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     if (!tournamentId) return;
     
     try {
-      // Convert players to JSON-compatible format
+      // Convert players to JSON-compatible format matching the format expected by public page
       const jsonPlayers = updatedPlayers.map(player => ({
         id: player.id,
         name: player.name,
-        ...(player.customerId && { customerId: player.customerId })
+        ...(player.customerId && { customerId: player.customerId, customer_id: player.customerId })
       }));
 
       const { error } = await supabase
         .from('tournaments')
-        .update({ players: jsonPlayers })
+        .update({ 
+          players: jsonPlayers,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', tournamentId);
 
       if (error) {
         console.error('Error updating tournament players:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save player. Please try again.',
+          variant: 'destructive'
+        });
       } else {
         console.log('Successfully updated tournament players in database');
       }
     } catch (error) {
       console.error('Unexpected error updating tournament players:', error);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred while saving.',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -230,9 +243,9 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     const updatedPlayers = players.filter(player => player.id !== id);
     setPlayers(updatedPlayers);
 
-    // Update the tournament's players array in the database
+    // Update the tournament's players array in the database immediately
     if (tournamentId) {
-      updateTournamentPlayers(updatedPlayers);
+      await updateTournamentPlayers(updatedPlayers);
     }
 
     // If we have a tournament ID and the player has a customerId, 
@@ -276,7 +289,7 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     setEditingPlayer(null);
   };
   
-  const handleSaveEdit = (playerId: string) => {
+  const handleSaveEdit = async (playerId: string) => {
     if (!editingPlayer || editingPlayer.name.trim() === '') return;
     
     // Check if name is duplicate
@@ -302,9 +315,9 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     );
     setPlayers(updatedPlayers);
 
-    // Update the tournament's players array in the database
+    // Update the tournament's players array in the database immediately
     if (tournamentId) {
-      updateTournamentPlayers(updatedPlayers);
+      await updateTournamentPlayers(updatedPlayers);
     }
     
     // Update matches if the callback is provided

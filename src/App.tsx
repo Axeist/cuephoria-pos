@@ -36,6 +36,7 @@ import ChatAI from "./pages/ChatAI";
 // Payment routes
 import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
 import PublicPaymentFailed from "./pages/PublicPaymentFailed";
+import PublicTournamentPaymentSuccess from "./pages/PublicTournamentPaymentSuccess";
 
 // Policy pages
 import Privacy from "./pages/Privacy";
@@ -149,6 +150,7 @@ const App = () => (
                 {/* Payment routes */}
                 <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
                 <Route path="/public/payment/failed" element={<PublicPaymentFailed />} />
+                <Route path="/public/payment/tournament-success" element={<PublicTournamentPaymentSuccess />} />
 
                 {/* Debug routes */}
 

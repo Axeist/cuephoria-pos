@@ -17,6 +17,7 @@ import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHi
 import PublicLeaderboard from '@/components/tournaments/PublicLeaderboard';
 import TournamentImageGallery from '@/components/tournaments/TournamentImageGallery';
 import PromotionalPopup from '@/components/PromotionalPopup';
+import { generateId } from '@/utils/pos.utils';
 
 interface Tournament {
   id: string;
@@ -69,6 +70,9 @@ const PublicTournaments = () => {
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'razorpay'>('venue');
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string>('');
+  const [isLoadingPayment, setIsLoadingPayment] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -144,6 +148,33 @@ const PublicTournaments = () => {
       supabase.removeChannel(channel);
     };
   }, [fetchTournaments]);
+
+  // Load Razorpay script and get key ID
+  useEffect(() => {
+    if (paymentMethod === 'razorpay' && !razorpayKeyId) {
+      // Load Razorpay script
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+
+      // Fetch Razorpay key ID
+      fetch('/api/razorpay/get-key-id')
+        .then(res => res.json())
+        .then(data => {
+          if (data.keyId) {
+            setRazorpayKeyId(data.keyId);
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching Razorpay key:', err);
+        });
+
+      return () => {
+        document.body.removeChild(script);
+      };
+    }
+  }, [paymentMethod, razorpayKeyId]);
 
   // Check for existing customer by phone number and prevent duplicates
   const checkExistingCustomer = useCallback(async (phone: string) => {
@@ -286,6 +317,158 @@ const PublicTournaments = () => {
     }));
   }, [existingCustomer]);
 
+  // Generate transaction ID
+  const genTxnId = () => {
+    return `TXN${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+  };
+
+  // Initiate Razorpay payment for tournament registration
+  const initiateRazorpayPayment = useCallback(async () => {
+    if (!selectedTournament) return;
+
+    const entryFee = 250; // Tournament entry fee
+    const transactionFee = Math.round((entryFee * 0.025) * 100) / 100; // 2.5% transaction fee
+    const totalWithFee = entryFee + transactionFee;
+
+    if (!(window as any).Razorpay) {
+      toast({
+        title: "Payment Gateway Loading",
+        description: "Payment gateway is loading. Please wait a moment and try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!razorpayKeyId) {
+      toast({
+        title: "Payment Error",
+        description: "Payment gateway is not ready. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoadingPayment(true);
+    const txnId = genTxnId();
+
+    try {
+      // Store pending registration data
+      const pendingRegistration = {
+        tournamentId: selectedTournament.id,
+        tournamentName: selectedTournament.name,
+        customer: {
+          name: registrationForm.customer_name.trim(),
+          phone: registrationForm.customer_phone.trim(),
+          email: registrationForm.customer_email.trim() || '',
+          id: registrationForm.customer_id,
+          is_existing_customer: registrationForm.is_existing_customer
+        },
+        entryFee: entryFee,
+        transactionFee: transactionFee,
+        totalWithFee: totalWithFee
+      };
+      localStorage.setItem("pendingTournamentRegistration", JSON.stringify(pendingRegistration));
+
+      // Create Razorpay order
+      const orderRes = await fetch("/api/razorpay/create-order", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          amount: totalWithFee,
+          receipt: txnId,
+          notes: {
+            customer_name: registrationForm.customer_name.trim(),
+            customer_phone: registrationForm.customer_phone.trim(),
+            customer_email: registrationForm.customer_email.trim() || "",
+            tournament_id: selectedTournament.id,
+            tournament_name: selectedTournament.name,
+            type: "tournament_registration"
+          },
+        }),
+      });
+
+      const orderData = await orderRes.json().catch(() => null);
+
+      if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
+        toast({
+          title: "Payment Error",
+          description: orderData?.error || "Failed to create payment order. Please try again.",
+          variant: "destructive"
+        });
+        setIsLoadingPayment(false);
+        return;
+      }
+
+      const origin = window.location.origin;
+      const callbackUrl = `${origin}/api/razorpay/callback`;
+
+      // Razorpay checkout options
+      const options = {
+        key: razorpayKeyId,
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
+        name: "Cuephoria Gaming Lounge",
+        description: `Tournament Registration: ${selectedTournament.name}`,
+        order_id: orderData.orderId,
+        handler: function (response: any) {
+          console.log("✅ Razorpay payment success:", response);
+          // Redirect to success page with payment details
+          window.location.href = `/public/payment/tournament-success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}`;
+        },
+        prefill: {
+          name: registrationForm.customer_name.trim(),
+          email: registrationForm.customer_email.trim() || "",
+          contact: registrationForm.customer_phone.trim(),
+        },
+        notes: {
+          transaction_id: txnId,
+          customer_name: registrationForm.customer_name.trim(),
+          customer_phone: registrationForm.customer_phone.trim(),
+          tournament_id: selectedTournament.id,
+          type: "tournament_registration"
+        },
+        theme: {
+          color: "#8B5CF6", // Cuephoria purple
+        },
+        modal: {
+          ondismiss: function() {
+            console.log("Payment cancelled by user");
+            setIsLoadingPayment(false);
+            toast({
+              title: "Payment Cancelled",
+              description: "Payment was cancelled. You can try again.",
+            });
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      
+      rzp.on("payment.failed", function (response: any) {
+        console.error("❌ Razorpay payment failed:", response);
+        const error = response.error?.description || response.error?.reason || "Payment failed";
+        toast({
+          title: "Payment Failed",
+          description: error,
+          variant: "destructive"
+        });
+        setIsLoadingPayment(false);
+        // Redirect to failure page
+        window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}`;
+      });
+
+      rzp.open();
+    } catch (e: any) {
+      console.error("💥 Razorpay payment error:", e);
+      toast({
+        title: "Payment Error",
+        description: e?.message || "An error occurred while initiating payment. Please try again.",
+        variant: "destructive"
+      });
+      setIsLoadingPayment(false);
+    }
+  }, [selectedTournament, registrationForm, razorpayKeyId, toast]);
+
   const handleRegistration = useCallback(async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
@@ -301,6 +484,12 @@ const PublicTournaments = () => {
         description: "Please fill in all required fields.",
         variant: "destructive"
       });
+      return;
+    }
+
+    // If payment method is Razorpay, initiate payment flow
+    if (paymentMethod === 'razorpay') {
+      await initiateRazorpayPayment();
       return;
     }
 
@@ -389,15 +578,15 @@ const PublicTournaments = () => {
       }
 
       // Add player to tournament players array with proper customer identification
+      // Use generateId to create a unique player ID (matching the format used in manual addition)
+      const playerId = generateId();
+      
       const updatedPlayers = [
-        ...selectedTournament.players,
+        ...(Array.isArray(selectedTournament.players) ? selectedTournament.players : []),
         {
-          id: customerId,
+          id: playerId,
           name: registrationForm.customer_name.trim(),
-          phone: registrationForm.customer_phone.trim(),
-          email: registrationForm.customer_email.trim() || null,
-          registration_date: new Date().toISOString(),
-          is_existing_customer: registrationForm.is_existing_customer,
+          customerId: customerId,
           customer_id: customerId
         }
       ];
@@ -405,7 +594,8 @@ const PublicTournaments = () => {
       const { error: tournamentUpdateError } = await supabase
         .from('tournaments')
         .update({
-          players: updatedPlayers
+          players: updatedPlayers,
+          updated_at: new Date().toISOString()
         })
         .eq('id', selectedTournament.id);
 
@@ -1254,18 +1444,58 @@ const PublicTournaments = () => {
               />
             </div>
 
+            {/* Payment Method Selection */}
+            <div className="space-y-3">
+              <Label className="text-cuephoria-grey">Payment Method *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('venue')}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    paymentMethod === 'venue'
+                      ? 'border-cuephoria-lightpurple bg-cuephoria-lightpurple/20 text-white'
+                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-cuephoria-lightpurple/50'
+                  }`}
+                >
+                  <div className="text-sm font-medium">Pay at Venue</div>
+                  <div className="text-xs mt-1">₹250</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('razorpay')}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    paymentMethod === 'razorpay'
+                      ? 'border-cuephoria-lightpurple bg-cuephoria-lightpurple/20 text-white'
+                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-cuephoria-lightpurple/50'
+                  }`}
+                >
+                  <div className="text-sm font-medium">Pay Online</div>
+                  <div className="text-xs mt-1">₹250 + fees</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Payment Info */}
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
               <p className="text-sm text-blue-300">
-                Entry Fee: ₹250 (to be paid at the venue)
+                Entry Fee: ₹250
+                {paymentMethod === 'razorpay' && (
+                  <span className="block mt-1 text-xs">
+                    + ₹{Math.round((250 * 0.025) * 100) / 100} transaction fee = ₹{250 + Math.round((250 * 0.025) * 100) / 100}
+                  </span>
+                )}
+                {paymentMethod === 'venue' && (
+                  <span className="block mt-1 text-xs">(to be paid at the venue)</span>
+                )}
               </p>
             </div>
             
             <Button 
               type="submit"
-              disabled={isRegistering || isCheckingCustomer}
+              disabled={isRegistering || isCheckingCustomer || isLoadingPayment}
               className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
             >
-              {isRegistering ? 'Registering...' : 'Confirm Registration'}
+              {isLoadingPayment ? 'Processing Payment...' : isRegistering ? 'Registering...' : paymentMethod === 'razorpay' ? 'Pay & Register' : 'Confirm Registration'}
             </Button>
           </form>
         </DialogContent>
