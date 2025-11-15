@@ -594,12 +594,19 @@ const PublicTournaments = () => {
             setIsLoadingPayment(false);
             setIsRazorpayOpen(false);
             document.body.style.overflow = ''; // Restore scroll
+            // Cleanup observer
+            if ((window as any).__razorpayObserver) {
+              (window as any).__razorpayObserver.disconnect();
+              delete (window as any).__razorpayObserver;
+            }
             toast({
               title: "Payment Cancelled",
               description: "Payment was cancelled. You can try again.",
             });
           },
         },
+        // Ensure Razorpay modal has highest z-index and stays active
+        zIndex: 99999,
       };
 
       console.log('🔧 Creating Razorpay instance...');
@@ -615,6 +622,11 @@ const PublicTournaments = () => {
         const error = response.error?.description || response.error?.reason || "Payment failed";
         setIsRazorpayOpen(false);
         document.body.style.overflow = ''; // Restore scroll
+        // Cleanup observer
+        if ((window as any).__razorpayObserver) {
+          (window as any).__razorpayObserver.disconnect();
+          delete (window as any).__razorpayObserver;
+        }
         toast({
           title: "Payment Failed",
           description: error,
@@ -629,6 +641,72 @@ const PublicTournaments = () => {
       try {
         rzp.open();
         console.log('✅ rzp.open() called successfully - payment gateway should be visible now');
+        
+        // Ensure Razorpay iframe stays active by setting z-index after opening
+        const ensureRazorpayActive = () => {
+          // Find all Razorpay-related elements
+          const razorpayIframe = document.querySelector('iframe[src*="razorpay"]') as HTMLElement;
+          const razorpayModal = document.querySelector('.razorpay-checkout-frame') as HTMLElement;
+          const razorpayContainer = document.querySelector('[class*="razorpay"]') as HTMLElement;
+          
+          if (razorpayIframe) {
+            razorpayIframe.style.zIndex = '99999';
+            razorpayIframe.style.position = 'fixed';
+            razorpayIframe.setAttribute('data-razorpay', 'true');
+            razorpayIframe.style.pointerEvents = 'auto';
+            console.log('✅ Razorpay iframe z-index set to 99999');
+          }
+          
+          if (razorpayModal) {
+            razorpayModal.style.zIndex = '99999';
+            razorpayModal.setAttribute('data-razorpay', 'true');
+            razorpayModal.style.pointerEvents = 'auto';
+            console.log('✅ Razorpay modal z-index set to 99999');
+          }
+          
+          if (razorpayContainer) {
+            razorpayContainer.style.zIndex = '99999';
+            razorpayContainer.setAttribute('data-razorpay', 'true');
+            razorpayContainer.style.pointerEvents = 'auto';
+          }
+        };
+        
+        // Set z-index immediately and after delays
+        setTimeout(ensureRazorpayActive, 100);
+        setTimeout(ensureRazorpayActive, 500);
+        setTimeout(ensureRazorpayActive, 1000);
+        
+        // Use MutationObserver to watch for Razorpay DOM changes
+        const observer = new MutationObserver(() => {
+          if (isRazorpayOpen) {
+            ensureRazorpayActive();
+          }
+        });
+        
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class']
+        });
+        
+        // Store observer to disconnect later
+        (window as any).__razorpayObserver = observer;
+        
+        // Cleanup observer when payment closes
+        rzp.on("payment.failed", () => {
+          if ((window as any).__razorpayObserver) {
+            (window as any).__razorpayObserver.disconnect();
+            delete (window as any).__razorpayObserver;
+          }
+        });
+        
+        rzp.on("payment.success", () => {
+          if ((window as any).__razorpayObserver) {
+            (window as any).__razorpayObserver.disconnect();
+            delete (window as any).__razorpayObserver;
+          }
+        });
       } catch (openError: any) {
         console.error('❌ Error calling rzp.open():', openError);
         toast({
@@ -1940,22 +2018,39 @@ const PublicTournaments = () => {
       {/* Razorpay Overlay - Freezes page when payment gateway is open */}
       {isRazorpayOpen && (
         <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9998]"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9997]"
           style={{ 
             pointerEvents: 'auto',
-            cursor: 'not-allowed'
+            cursor: 'not-allowed',
+            touchAction: 'none',
+            WebkitTouchCallout: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none'
           }}
           onClick={(e) => {
+            // Allow clicks on Razorpay iframe to pass through
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'IFRAME' || target.closest('iframe') || target.closest('[data-razorpay]')) {
+              return;
+            }
             e.preventDefault();
             e.stopPropagation();
-            // Prevent any clicks from going through
+          }}
+          onTouchStart={(e) => {
+            // Allow touches on Razorpay iframe to pass through
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'IFRAME' || target.closest('iframe') || target.closest('[data-razorpay]')) {
+              return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
           }}
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
           }}
         >
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-white text-center">
               <Activity className="h-8 w-8 animate-spin mx-auto mb-2 text-cuephoria-lightpurple" />
               <p className="text-sm">Payment gateway is open. Please complete or cancel the payment.</p>
