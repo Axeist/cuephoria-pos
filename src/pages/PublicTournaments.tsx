@@ -460,6 +460,7 @@ const PublicTournaments = () => {
       localStorage.setItem("pendingTournamentRegistration", JSON.stringify(pendingRegistration));
 
       // Create Razorpay order
+      console.log('📤 Creating Razorpay order with amount:', totalWithFee);
       const orderRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -477,17 +478,28 @@ const PublicTournaments = () => {
         }),
       });
 
-      const orderData = await orderRes.json().catch(() => null);
+      console.log('📥 Order creation response status:', orderRes.status, orderRes.ok);
+
+      const orderData = await orderRes.json().catch((err) => {
+        console.error('❌ Failed to parse order response:', err);
+        return null;
+      });
+
+      console.log('📦 Order data received:', orderData);
 
       if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
+        const error = orderData?.error || `Failed to create payment order (Status: ${orderRes.status})`;
+        console.error("❌ Order creation failed:", error, orderData);
         toast({
           title: "Payment Error",
-          description: orderData?.error || "Failed to create payment order. Please try again.",
+          description: error,
           variant: "destructive"
         });
         setIsLoadingPayment(false);
-        return;
+        return; // IMPORTANT: Return early to prevent registration
       }
+
+      console.log("✅ Razorpay order created:", orderData.orderId);
 
       const origin = window.location.origin;
       const callbackUrl = `${origin}/api/razorpay/callback`;
@@ -562,12 +574,7 @@ const PublicTournaments = () => {
     }
   }, [selectedTournament, registrationForm, razorpayKeyId, toast]);
 
-  const handleRegistration = useCallback(async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    
+  const handleRegistration = useCallback(async () => {
     if (!selectedTournament) return;
 
     // Validate form
@@ -584,8 +591,16 @@ const PublicTournaments = () => {
     // Do NOT proceed with regular registration
     if (paymentMethod === 'razorpay') {
       console.log('🚀 Initiating Razorpay payment flow...');
-      await initiateRazorpayPayment();
-      return; // IMPORTANT: Return early to prevent regular registration
+      try {
+        await initiateRazorpayPayment();
+        // If payment initiation succeeds, the modal should open
+        // If it fails, the error is handled inside initiateRazorpayPayment
+        return; // IMPORTANT: Return early to prevent regular registration
+      } catch (error) {
+        console.error('💥 Error in payment initiation:', error);
+        // Error already handled in initiateRazorpayPayment, just return
+        return; // IMPORTANT: Return early to prevent regular registration
+      }
     }
 
     // Double-check for duplicate registration before proceeding
@@ -1475,7 +1490,7 @@ const PublicTournaments = () => {
             </DialogTitle>
           </DialogHeader>
           
-          <form onSubmit={handleRegistration} className="space-y-4">
+          <div className="space-y-4">
             {/* Phone Number Field (First) */}
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-cuephoria-grey">Phone Number *</Label>
@@ -1586,13 +1601,14 @@ const PublicTournaments = () => {
             </div>
             
             <Button 
-              type="submit"
+              type="button"
+              onClick={handleRegistration}
               disabled={isRegistering || isCheckingCustomer || isLoadingPayment}
               className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
             >
               {isLoadingPayment ? 'Processing Payment...' : isRegistering ? 'Registering...' : paymentMethod === 'razorpay' ? 'Pay & Register' : 'Confirm Registration'}
             </Button>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
 
