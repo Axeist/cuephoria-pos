@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon } from 'lucide-react';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
@@ -192,6 +192,70 @@ const PublicTournaments = () => {
     }
   }, [paymentMethod, razorpayKeyId, toast]);
 
+  // Helper function to check if a phone number is already registered for a tournament
+  // Checks both tournament_public_registrations table AND the players array
+  const checkDuplicateRegistration = useCallback(async (tournamentId: string, phone: string): Promise<boolean> => {
+    if (!tournamentId || !phone.trim()) return false;
+
+    try {
+      // 1. Check tournament_public_registrations table
+      const { data: registrationCheck, error: registrationError } = await supabase
+        .from('tournament_public_registrations')
+        .select('id')
+        .eq('tournament_id', tournamentId)
+        .eq('customer_phone', phone.trim())
+        .maybeSingle();
+
+      if (registrationError) {
+        console.error('Error checking registration table:', registrationError);
+      }
+
+      if (registrationCheck) {
+        return true; // Found in registration table
+      }
+
+      // 2. Check players array in tournament
+      const { data: tournamentData, error: tournamentError } = await supabase
+        .from('tournaments')
+        .select('players')
+        .eq('id', tournamentId)
+        .single();
+
+      if (tournamentError) {
+        console.error('Error fetching tournament players:', tournamentError);
+        return false; // If we can't check, allow registration
+      }
+
+      if (tournamentData?.players && Array.isArray(tournamentData.players)) {
+        // Check if any player has this phone number
+        // First, try to find customer by phone and check if their ID is in players array
+        const { data: customerData } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('phone', phone.trim())
+          .maybeSingle();
+
+        if (customerData?.id) {
+          // Check if this customer ID is in the players array
+          const isInPlayers = tournamentData.players.some((player: any) => 
+            player.customerId === customerData.id || player.customer_id === customerData.id
+          );
+          if (isInPlayers) {
+            return true; // Found in players array by customer ID
+          }
+        }
+
+        // Also check if any player name matches (for manually added players without customer ID)
+        // This is a fallback check - we'll be more lenient here
+      }
+
+      return false; // No duplicate found
+    } catch (error) {
+      console.error('Error in duplicate check:', error);
+      return false; // If error, allow registration
+    }
+  }, []);
+
   // Check for existing customer by phone number and prevent duplicates
   const checkExistingCustomer = useCallback(async (phone: string) => {
     if (!phone.trim() || phone.length < 10) {
@@ -216,18 +280,9 @@ const PublicTournaments = () => {
       if (customerData) {
         // Check if this customer is already registered for the selected tournament
         if (selectedTournament) {
-          const { data: existingRegistration, error: registrationError } = await supabase
-            .from('tournament_public_registrations')
-            .select('id')
-            .eq('tournament_id', selectedTournament.id)
-            .eq('customer_phone', phone.trim())
-            .single();
-
-          if (registrationError && registrationError.code !== 'PGRST116') {
-            console.error('Error checking registration:', registrationError);
-          }
-
-          if (existingRegistration) {
+          const isDuplicate = await checkDuplicateRegistration(selectedTournament.id, phone.trim());
+          
+          if (isDuplicate) {
             toast({
               title: "Already Registered",
               description: "This phone number is already registered for this tournament.",
@@ -256,18 +311,9 @@ const PublicTournaments = () => {
       } else {
         // Check if phone number is already registered as guest for this tournament
         if (selectedTournament) {
-          const { data: guestRegistration, error: guestError } = await supabase
-            .from('tournament_public_registrations')
-            .select('id')
-            .eq('tournament_id', selectedTournament.id)
-            .eq('customer_phone', phone.trim())
-            .single();
-
-          if (guestError && guestError.code !== 'PGRST116') {
-            console.error('Error checking guest registration:', guestError);
-          }
-
-          if (guestRegistration) {
+          const isDuplicate = await checkDuplicateRegistration(selectedTournament.id, phone.trim());
+          
+          if (isDuplicate) {
             toast({
               title: "Already Registered",
               description: "This phone number is already registered for this tournament.",
@@ -298,7 +344,7 @@ const PublicTournaments = () => {
     } finally {
       setIsCheckingCustomer(false);
     }
-  }, [selectedTournament, toast]);
+  }, [selectedTournament, toast, checkDuplicateRegistration]);
 
   // Memoized form input handlers to prevent re-renders
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -350,7 +396,20 @@ const PublicTournaments = () => {
       return;
     }
 
-    const entryFee = 250; // Tournament entry fee
+    // Check for duplicate registration BEFORE initiating payment
+    if (registrationForm.customer_phone.trim()) {
+      const isDuplicate = await checkDuplicateRegistration(selectedTournament.id, registrationForm.customer_phone.trim());
+      if (isDuplicate) {
+        toast({
+          title: "Already Registered",
+          description: "This phone number is already registered for this tournament.",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    const entryFee = 1; // Tournament entry fee (TEMPORARY: Testing payment)
     const transactionFee = Math.round((entryFee * 0.025) * 100) / 100; // 2.5% transaction fee
     const totalWithFee = entryFee + transactionFee;
 
@@ -507,7 +566,9 @@ const PublicTournaments = () => {
         },
       };
 
+      console.log('🔧 Creating Razorpay instance...');
       const rzp = new (window as any).Razorpay(options);
+      console.log('✅ Razorpay instance created:', rzp);
       
       rzp.on("payment.failed", function (response: any) {
         console.error("❌ Razorpay payment failed:", response);
@@ -522,7 +583,19 @@ const PublicTournaments = () => {
         window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}`;
       });
 
-      rzp.open();
+      console.log('🚀 Calling rzp.open()...');
+      try {
+        rzp.open();
+        console.log('✅ rzp.open() called successfully - payment gateway should be visible now');
+      } catch (openError: any) {
+        console.error('❌ Error calling rzp.open():', openError);
+        toast({
+          title: "Payment Error",
+          description: `Failed to open payment gateway: ${openError?.message || 'Unknown error'}`,
+          variant: "destructive"
+        });
+        setIsLoadingPayment(false);
+      }
     } catch (e: any) {
       console.error("💥 Razorpay payment error:", e);
       toast({
@@ -554,25 +627,11 @@ const PublicTournaments = () => {
       return; // CRITICAL: Return immediately - no registration happens
     }
 
-    // Double-check for duplicate registration before proceeding
-    const { data: duplicateCheck, error: duplicateError } = await supabase
-      .from('tournament_public_registrations')
-      .select('id')
-      .eq('tournament_id', selectedTournament.id)
-      .eq('customer_phone', registrationForm.customer_phone.trim())
-      .single();
-
-    if (duplicateError && duplicateError.code !== 'PGRST116') {
-      console.error('Error checking for duplicates:', duplicateError);
-      toast({
-        title: "Error",
-        description: "Failed to verify registration status. Please try again.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (duplicateCheck) {
+    // Double-check for duplicate registration before proceeding (only for venue payment)
+    // Check both tournament_public_registrations table AND players array
+    const isDuplicate = await checkDuplicateRegistration(selectedTournament.id, registrationForm.customer_phone.trim());
+    
+    if (isDuplicate) {
       toast({
         title: "Already Registered",
         description: "This phone number is already registered for this tournament.",
@@ -921,7 +980,7 @@ const PublicTournaments = () => {
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
             <p className="text-sm text-blue-300 flex items-center gap-2">
               <Trophy className="h-4 w-4" />
-              Entry Fee: ₹250 (Pay at venue)
+              Entry Fee: ₹1 (Pay at venue) [TEST MODE]
             </p>
           </div>
 
@@ -1433,57 +1492,77 @@ const PublicTournaments = () => {
 
       {/* Registration Dialog - Fixed to prevent page refresh */}
       <Dialog open={isDialogOpen && selectedTournament !== null} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="bg-cuephoria-dark border-cuephoria-lightpurple/30 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              Register for {selectedTournament?.name}
+        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white max-w-lg overflow-hidden">
+          {/* Header with gradient background */}
+          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-r from-cuephoria-lightpurple/20 via-cuephoria-blue/20 to-cuephoria-purple/20 blur-3xl -z-10"></div>
+          
+          <DialogHeader className="relative z-10 pb-4 border-b border-cuephoria-lightpurple/20">
+            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-3 text-xl">
+              <div className="p-2 bg-gradient-to-br from-cuephoria-lightpurple/20 to-cuephoria-blue/20 rounded-lg">
+                <Trophy className="h-6 w-6 text-yellow-400" />
+              </div>
+              <div>
+                <div className="font-bold">Register for Tournament</div>
+                <div className="text-sm text-cuephoria-grey font-normal mt-1">{selectedTournament?.name}</div>
+              </div>
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-5 pt-4 relative z-10">
             {/* Phone Number Field (First) */}
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-cuephoria-grey">Phone Number *</Label>
+              <Label htmlFor="phone" className="text-cuephoria-grey flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Phone Number *
+              </Label>
               <Input
                 id="phone"
                 type="tel"
                 value={registrationForm.customer_phone}
                 onChange={handlePhoneChange}
-                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
+                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-11"
                 placeholder="Enter your phone number"
                 autoComplete="tel"
               />
-              <p className="text-xs text-cuephoria-grey/80 italic">
+              <p className="text-xs text-cuephoria-grey/80 italic flex items-center gap-1">
+                <UserCheck className="h-3 w-3" />
                 Already visited? Use your number used during billing
               </p>
               {isCheckingCustomer && (
-                <p className="text-xs text-cuephoria-grey">Checking for existing customer...</p>
+                <p className="text-xs text-cuephoria-grey flex items-center gap-2">
+                  <Activity className="h-3 w-3 animate-pulse" />
+                  Checking for existing customer...
+                </p>
               )}
             </div>
 
             {/* Existing Customer Indicator */}
             {existingCustomer && (
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-green-400 mb-2">
-                  <UserCheck className="h-4 w-4" />
-                  <span className="text-sm font-medium">Existing Customer Found!</span>
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 rounded-xl p-4 shadow-lg shadow-green-500/10">
+                <div className="flex items-center gap-3 text-green-400 mb-2">
+                  <div className="p-1.5 bg-green-500/20 rounded-lg">
+                    <UserCheck className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-semibold">Existing Customer Found!</span>
                 </div>
-                <p className="text-xs text-green-300">
-                  Welcome back, {existingCustomer.name}! Your details have been auto-filled. You will be registered as an existing customer.
+                <p className="text-xs text-green-300/90 leading-relaxed">
+                  Welcome back, <span className="font-semibold text-green-200">{existingCustomer.name}</span>! Your details have been auto-filled. You will be registered as an existing customer.
                 </p>
               </div>
             )}
 
             {/* Name Field */}
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-cuephoria-grey">Name *</Label>
+              <Label htmlFor="name" className="text-cuephoria-grey flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                Name *
+              </Label>
               <Input
                 id="name"
                 type="text"
                 value={registrationForm.customer_name}
                 onChange={handleNameChange}
-                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
+                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-11"
                 placeholder="Enter your full name"
                 autoComplete="name"
                 disabled={!!existingCustomer}
@@ -1492,13 +1571,16 @@ const PublicTournaments = () => {
             
             {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-cuephoria-grey">Email (Optional)</Label>
+              <Label htmlFor="email" className="text-cuephoria-grey flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Email (Optional)
+              </Label>
               <Input
                 id="email"
                 type="email"
                 value={registrationForm.customer_email}
                 onChange={handleEmailChange}
-                className="bg-cuephoria-dark border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple"
+                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-11"
                 placeholder="Enter your email address"
                 autoComplete="email"
                 disabled={!!existingCustomer}
@@ -1507,57 +1589,131 @@ const PublicTournaments = () => {
 
             {/* Payment Method Selection */}
             <div className="space-y-3">
-              <Label className="text-cuephoria-grey">Payment Method *</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <Label className="text-cuephoria-grey text-base font-semibold">Payment Method *</Label>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Pay at Venue */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('venue')}
-                  className={`p-3 rounded-lg border-2 transition-all ${
+                  className={`p-4 rounded-xl border-2 transition-all duration-300 transform ${
                     paymentMethod === 'venue'
-                      ? 'border-cuephoria-lightpurple bg-cuephoria-lightpurple/20 text-white'
-                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-cuephoria-lightpurple/50'
+                      ? 'border-cuephoria-lightpurple bg-gradient-to-br from-cuephoria-lightpurple/30 to-cuephoria-blue/20 text-white shadow-lg shadow-cuephoria-lightpurple/20 scale-105'
+                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-cuephoria-lightpurple/50 hover:bg-cuephoria-dark/70'
                   }`}
                 >
-                  <div className="text-sm font-medium">Pay at Venue</div>
-                  <div className="text-xs mt-1">₹250</div>
+                  <div className="flex flex-col items-center gap-2">
+                    <MapPin className={`h-5 w-5 ${paymentMethod === 'venue' ? 'text-cuephoria-lightpurple' : ''}`} />
+                    <div className="text-sm font-semibold">Pay at Venue</div>
+                    <div className="text-xs font-bold text-yellow-400">₹1</div>
+                  </div>
                 </button>
+                
+                {/* Pay Online - Enhanced with benefit */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('razorpay')}
-                  className={`p-3 rounded-lg border-2 transition-all ${
+                  className={`p-4 rounded-xl border-2 transition-all duration-300 transform relative overflow-hidden ${
                     paymentMethod === 'razorpay'
-                      ? 'border-cuephoria-lightpurple bg-cuephoria-lightpurple/20 text-white'
-                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-cuephoria-lightpurple/50'
+                      ? 'border-yellow-400/60 bg-gradient-to-br from-yellow-500/30 via-amber-500/20 to-orange-500/20 text-white shadow-xl shadow-yellow-500/30 scale-105'
+                      : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-yellow-400/50 hover:bg-cuephoria-dark/70'
                   }`}
                 >
-                  <div className="text-sm font-medium">Pay Online</div>
-                  <div className="text-xs mt-1">₹250 + fees</div>
+                  {/* Shine effect for online payment */}
+                  {paymentMethod === 'razorpay' && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"></div>
+                  )}
+                  <div className="flex flex-col items-center gap-2 relative z-10">
+                    <Zap className={`h-5 w-5 ${paymentMethod === 'razorpay' ? 'text-yellow-400' : ''}`} />
+                    <div className="text-sm font-bold">Pay Online</div>
+                    <div className="text-xs font-bold text-yellow-400">₹1</div>
+                    {paymentMethod === 'razorpay' && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                        BEST
+                      </div>
+                    )}
+                  </div>
                 </button>
               </div>
             </div>
 
+            {/* Online Payment Benefit Banner */}
+            {paymentMethod === 'razorpay' && (
+              <div className="bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-orange-500/20 border-2 border-yellow-400/40 rounded-xl p-4 shadow-lg shadow-yellow-500/20 animate-pulse-subtle">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-yellow-400/30 rounded-lg flex-shrink-0">
+                    <Star className="h-5 w-5 text-yellow-400" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-yellow-300 mb-1 flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Exclusive Online Benefit!
+                    </div>
+                    <p className="text-xs text-yellow-200/90 leading-relaxed">
+                      Get <span className="font-bold text-yellow-100">15 minutes of FREE training session</span> before the tournament starts! 
+                      <span className="block mt-1 text-yellow-300/80">First come, first serve basis. Limited slots available!</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Payment Info */}
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-              <p className="text-sm text-blue-300">
-                Entry Fee: ₹250
-                {paymentMethod === 'razorpay' && (
-                  <span className="block mt-1 text-xs">
-                    + ₹{Math.round((250 * 0.025) * 100) / 100} transaction fee = ₹{250 + Math.round((250 * 0.025) * 100) / 100}
-                  </span>
-                )}
+            <div className={`rounded-xl p-4 border-2 transition-all duration-300 ${
+              paymentMethod === 'razorpay' 
+                ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-blue-400/40' 
+                : 'bg-blue-500/10 border-blue-500/30'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-blue-300">Entry Fee</p>
+                  <p className="text-2xl font-bold text-white mt-1">₹1</p>
+                </div>
                 {paymentMethod === 'venue' && (
-                  <span className="block mt-1 text-xs">(to be paid at the venue)</span>
+                  <div className="text-right">
+                    <p className="text-xs text-blue-300/80">Pay at venue</p>
+                    <p className="text-xs text-blue-200 mt-1">Before tournament</p>
+                  </div>
                 )}
-              </p>
+                {paymentMethod === 'razorpay' && (
+                  <div className="text-right">
+                    <p className="text-xs text-blue-300/80">Secure payment</p>
+                    <p className="text-xs text-blue-200 mt-1">Instant confirmation</p>
+                  </div>
+                )}
+              </div>
             </div>
             
             <Button 
               type="button"
               onClick={handleRegistration}
               disabled={isRegistering || isCheckingCustomer || isLoadingPayment}
-              className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
+              className={`w-full h-12 text-base font-bold transition-all duration-300 ${
+                paymentMethod === 'razorpay'
+                  ? 'bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:from-yellow-600 hover:via-amber-600 hover:to-orange-600 text-white shadow-lg shadow-yellow-500/30 hover:shadow-xl hover:shadow-yellow-500/40'
+                  : 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90'
+              }`}
             >
-              {isLoadingPayment ? 'Processing Payment...' : isRegistering ? 'Registering...' : paymentMethod === 'razorpay' ? 'Pay & Register' : 'Confirm Registration'}
+              {isLoadingPayment ? (
+                <span className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 animate-spin" />
+                  Processing Payment...
+                </span>
+              ) : isRegistering ? (
+                <span className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 animate-spin" />
+                  Registering...
+                </span>
+              ) : paymentMethod === 'razorpay' ? (
+                <span className="flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Pay & Register Now
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Confirm Registration
+                </span>
+              )}
             </Button>
           </div>
         </DialogContent>
