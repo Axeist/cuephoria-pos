@@ -381,14 +381,19 @@ const PublicTournaments = () => {
 
   const handlePhoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const phone = e.target.value;
-    setRegistrationForm(prev => ({ ...prev, customer_phone: phone }));
+    const value = e.target.value;
+    const normalized = normalizePhoneNumber(value);
     
-    // Check for existing customer when phone number is entered
-    if (phone.length >= 10) {
-      checkExistingCustomer(phone);
-    } else {
-      setExistingCustomer(null);
+    // Limit to 10 digits (Indian phone numbers)
+    if (normalized.length <= 10) {
+      setRegistrationForm(prev => ({ ...prev, customer_phone: normalized }));
+      
+      // Check for existing customer when phone number is entered
+      if (normalized.length >= 10) {
+        checkExistingCustomer(normalized);
+      } else {
+        setExistingCustomer(null);
+      }
     }
   }, [checkExistingCustomer]);
 
@@ -1674,8 +1679,9 @@ const PublicTournaments = () => {
                 value={registrationForm.customer_phone}
                 onChange={handlePhoneChange}
                 className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm"
-                placeholder="Enter your phone number"
+                placeholder="Enter 10-digit phone number"
                 autoComplete="tel"
+                maxLength={10}
               />
               <p className="text-xs text-cuephoria-grey/80 italic flex items-center gap-1">
                 <UserCheck className="h-3 w-3" />
