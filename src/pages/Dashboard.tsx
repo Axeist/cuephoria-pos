@@ -327,7 +327,7 @@ const Dashboard = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
-          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 items-stretch">
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>

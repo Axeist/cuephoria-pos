@@ -438,7 +438,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   return (
-    <Card className={`bg-[#1A1F2C] border-gray-700 shadow-xl ${className}`}>
+    <Card className={`bg-[#1A1F2C] border-gray-700 shadow-xl h-full flex flex-col ${className}`}>
       <CardHeader className="space-y-4">
         <div>
           <CardTitle className="text-xl font-bold text-white font-heading">Recent Transactions</CardTitle>
@@ -454,9 +454,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
           <Search className="absolute right-2 h-4 w-4 text-gray-400" />
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 flex-1 flex flex-col min-h-0">
         {sortedBills.length > 0 ? (
-          <ScrollArea className="h-[400px] pr-4">
+          <ScrollArea className="flex-1 pr-4">
             <div className="space-y-4">
               {sortedBills.map(bill => {
                 const customer = customers.find(c => c.id === bill.customerId);

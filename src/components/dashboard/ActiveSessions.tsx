@@ -26,7 +26,7 @@ const ActiveSessions = () => {
   };
   
   return (
-    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
+    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl h-full flex flex-col">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -38,7 +38,7 @@ const ActiveSessions = () => {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 flex-1">
         {activeStations.length > 0 ? (
           activeStations.map(station => {
             const session = station.currentSession;
