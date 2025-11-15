@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
-import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet, Gift } from 'lucide-react';
+import { User, Trash2, Search, Edit2, Plus, X, Save, CreditCard, Wallet, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { usePOS } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -66,7 +66,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     products, 
     updateProduct, 
     updateCustomer,
-    updateBill 
+    updateBill,
+    stations
   } = usePOS();
   
   const { toast } = useToast();
@@ -74,6 +75,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   const [billToDelete, setBillToDelete] = useState<Bill | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
@@ -135,6 +137,26 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   
+  // Calculate items per page based on active sessions count
+  const activeSessionsCount = stations.filter(station => station.isOccupied && station.currentSession).length;
+  const itemsPerPage = Math.max(activeSessionsCount, 5); // Minimum 5 items, or match active sessions
+  
+  // Calculate pagination
+  const totalPages = Math.ceil(sortedBills.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedBills = sortedBills.slice(startIndex, endIndex);
+  
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+  
+  // Reset to page 1 when active sessions count changes (items per page changes)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeSessionsCount]);
+  
   const getCurrentCustomerInfo = () => {
     if (!editingBill) return null;
     return customers.find(c => c.id === editingBill.customerId);
@@ -147,8 +169,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     const maxPoints = currentCustomer.loyaltyPoints + (editingBill?.loyaltyPointsUsed || 0);
     return Math.min(value, maxPoints);
   };
-  
-  const recentBills = sortedBills.slice(0, 5);
   
   const handleOpenAddItemDialog = () => {
     setSelectedProductId('');
@@ -456,9 +476,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       </CardHeader>
       <CardContent className="space-y-4 flex-1 flex flex-col min-h-0">
         {sortedBills.length > 0 ? (
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4">
-              {sortedBills.map(bill => {
+          <>
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-4">
+                {paginatedBills.map(bill => {
                 const customer = customers.find(c => c.id === bill.customerId);
                 const date = new Date(bill.createdAt);
                 const isComplimentary = bill.paymentMethod === 'complimentary';
@@ -533,9 +554,42 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          </ScrollArea>
+                })}
+              </div>
+            </ScrollArea>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-gray-700">
+                <div className="text-sm text-gray-400">
+                  Showing {startIndex + 1}-{Math.min(endIndex, sortedBills.length)} of {sortedBills.length} transactions
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="text-sm text-gray-400 px-2">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex items-center justify-center p-6 text-gray-400">
             <p>No transactions found</p>
