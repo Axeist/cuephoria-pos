@@ -193,12 +193,14 @@ const PublicTournaments = () => {
   }, [paymentMethod, razorpayKeyId, toast]);
 
   // Helper function to check if a phone number is already registered for a tournament
-  // Checks both tournament_public_registrations table AND the players array
+  // Only checks tournament_public_registrations table (not players array)
+  // This allows re-registration if the registration was deleted, even if player remains in array
   const checkDuplicateRegistration = useCallback(async (tournamentId: string, phone: string): Promise<boolean> => {
     if (!tournamentId || !phone.trim()) return false;
 
     try {
-      // 1. Check tournament_public_registrations table
+      // Only check tournament_public_registrations table
+      // If registration was deleted, player can re-register even if they're still in players array
       const { data: registrationCheck, error: registrationError } = await supabase
         .from('tournament_public_registrations')
         .select('id')
@@ -208,48 +210,12 @@ const PublicTournaments = () => {
 
       if (registrationError) {
         console.error('Error checking registration table:', registrationError);
+        return false; // If error, allow registration
       }
 
-      if (registrationCheck) {
-        return true; // Found in registration table
-      }
-
-      // 2. Check players array in tournament
-      const { data: tournamentData, error: tournamentError } = await supabase
-        .from('tournaments')
-        .select('players')
-        .eq('id', tournamentId)
-        .single();
-
-      if (tournamentError) {
-        console.error('Error fetching tournament players:', tournamentError);
-        return false; // If we can't check, allow registration
-      }
-
-      if (tournamentData?.players && Array.isArray(tournamentData.players)) {
-        // Check if any player has this phone number
-        // First, try to find customer by phone and check if their ID is in players array
-        const { data: customerData } = await supabase
-          .from('customers')
-          .select('id')
-          .eq('phone', phone.trim())
-          .maybeSingle();
-
-        if (customerData?.id) {
-          // Check if this customer ID is in the players array
-          const isInPlayers = tournamentData.players.some((player: any) => 
-            player.customerId === customerData.id || player.customer_id === customerData.id
-          );
-          if (isInPlayers) {
-            return true; // Found in players array by customer ID
-          }
-        }
-
-        // Also check if any player name matches (for manually added players without customer ID)
-        // This is a fallback check - we'll be more lenient here
-      }
-
-      return false; // No duplicate found
+      // Only return true if there's an active registration record
+      // This allows re-registration if the registration was deleted
+      return !!registrationCheck;
     } catch (error) {
       console.error('Error in duplicate check:', error);
       return false; // If error, allow registration
@@ -1492,27 +1458,27 @@ const PublicTournaments = () => {
 
       {/* Registration Dialog - Fixed to prevent page refresh */}
       <Dialog open={isDialogOpen && selectedTournament !== null} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white max-w-lg overflow-hidden">
+        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
           {/* Header with gradient background */}
-          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-r from-cuephoria-lightpurple/20 via-cuephoria-blue/20 to-cuephoria-purple/20 blur-3xl -z-10"></div>
+          <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-cuephoria-lightpurple/20 via-cuephoria-blue/20 to-cuephoria-purple/20 blur-3xl -z-10"></div>
           
-          <DialogHeader className="relative z-10 pb-4 border-b border-cuephoria-lightpurple/20">
-            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-3 text-xl">
-              <div className="p-2 bg-gradient-to-br from-cuephoria-lightpurple/20 to-cuephoria-blue/20 rounded-lg">
-                <Trophy className="h-6 w-6 text-yellow-400" />
+          <DialogHeader className="relative z-10 pb-3 border-b border-cuephoria-lightpurple/20 flex-shrink-0">
+            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg">
+              <div className="p-1.5 bg-gradient-to-br from-cuephoria-lightpurple/20 to-cuephoria-blue/20 rounded-lg">
+                <Trophy className="h-5 w-5 text-yellow-400" />
               </div>
               <div>
-                <div className="font-bold">Register for Tournament</div>
-                <div className="text-sm text-cuephoria-grey font-normal mt-1">{selectedTournament?.name}</div>
+                <div className="font-bold text-base">Register for Tournament</div>
+                <div className="text-xs text-cuephoria-grey font-normal mt-0.5">{selectedTournament?.name}</div>
               </div>
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-5 pt-4 relative z-10">
+          <div className="space-y-3 pt-3 relative z-10 overflow-y-auto flex-1 pr-2">
             {/* Phone Number Field (First) */}
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-cuephoria-grey flex items-center gap-2">
-                <Phone className="h-4 w-4" />
+            <div className="space-y-1.5">
+              <Label htmlFor="phone" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+                <Phone className="h-3.5 w-3.5" />
                 Phone Number *
               </Label>
               <Input
@@ -1520,7 +1486,7 @@ const PublicTournaments = () => {
                 type="tel"
                 value={registrationForm.customer_phone}
                 onChange={handlePhoneChange}
-                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-11"
+                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm"
                 placeholder="Enter your phone number"
                 autoComplete="tel"
               />
@@ -1538,23 +1504,23 @@ const PublicTournaments = () => {
 
             {/* Existing Customer Indicator */}
             {existingCustomer && (
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 rounded-xl p-4 shadow-lg shadow-green-500/10">
-                <div className="flex items-center gap-3 text-green-400 mb-2">
-                  <div className="p-1.5 bg-green-500/20 rounded-lg">
-                    <UserCheck className="h-4 w-4" />
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 rounded-lg p-2.5 shadow-lg shadow-green-500/10">
+                <div className="flex items-center gap-2 text-green-400 mb-1">
+                  <div className="p-1 bg-green-500/20 rounded">
+                    <UserCheck className="h-3.5 w-3.5" />
                   </div>
-                  <span className="text-sm font-semibold">Existing Customer Found!</span>
+                  <span className="text-xs font-semibold">Existing Customer Found!</span>
                 </div>
                 <p className="text-xs text-green-300/90 leading-relaxed">
-                  Welcome back, <span className="font-semibold text-green-200">{existingCustomer.name}</span>! Your details have been auto-filled. You will be registered as an existing customer.
+                  Welcome back, <span className="font-semibold text-green-200">{existingCustomer.name}</span>! Your details have been auto-filled.
                 </p>
               </div>
             )}
 
             {/* Name Field */}
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-cuephoria-grey flex items-center gap-2">
-                <UserCheck className="h-4 w-4" />
+            <div className="space-y-1.5">
+              <Label htmlFor="name" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+                <UserCheck className="h-3.5 w-3.5" />
                 Name *
               </Label>
               <Input
@@ -1562,7 +1528,7 @@ const PublicTournaments = () => {
                 type="text"
                 value={registrationForm.customer_name}
                 onChange={handleNameChange}
-                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-11"
+                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm"
                 placeholder="Enter your full name"
                 autoComplete="name"
                 disabled={!!existingCustomer}
@@ -1570,9 +1536,9 @@ const PublicTournaments = () => {
             </div>
             
             {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-cuephoria-grey flex items-center gap-2">
-                <Mail className="h-4 w-4" />
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+                <Mail className="h-3.5 w-3.5" />
                 Email (Optional)
               </Label>
               <Input
@@ -1580,7 +1546,7 @@ const PublicTournaments = () => {
                 type="email"
                 value={registrationForm.customer_email}
                 onChange={handleEmailChange}
-                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-11"
+                className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm"
                 placeholder="Enter your email address"
                 autoComplete="email"
                 disabled={!!existingCustomer}
@@ -1588,23 +1554,23 @@ const PublicTournaments = () => {
             </div>
 
             {/* Payment Method Selection */}
-            <div className="space-y-3">
-              <Label className="text-cuephoria-grey text-base font-semibold">Payment Method *</Label>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-cuephoria-grey text-sm font-semibold">Payment Method *</Label>
+              <div className="grid grid-cols-2 gap-2.5">
                 {/* Pay at Venue */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('venue')}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 transform ${
+                  className={`p-2.5 rounded-lg border-2 transition-all duration-300 ${
                     paymentMethod === 'venue'
-                      ? 'border-cuephoria-lightpurple bg-gradient-to-br from-cuephoria-lightpurple/30 to-cuephoria-blue/20 text-white shadow-lg shadow-cuephoria-lightpurple/20 scale-105'
+                      ? 'border-cuephoria-lightpurple bg-gradient-to-br from-cuephoria-lightpurple/30 to-cuephoria-blue/20 text-white shadow-md shadow-cuephoria-lightpurple/20'
                       : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-cuephoria-lightpurple/50 hover:bg-cuephoria-dark/70'
                   }`}
                 >
-                  <div className="flex flex-col items-center gap-2">
-                    <MapPin className={`h-5 w-5 ${paymentMethod === 'venue' ? 'text-cuephoria-lightpurple' : ''}`} />
-                    <div className="text-sm font-semibold">Pay at Venue</div>
-                    <div className="text-xs font-bold text-yellow-400">₹1</div>
+                  <div className="flex flex-col items-center gap-1">
+                    <MapPin className={`h-4 w-4 ${paymentMethod === 'venue' ? 'text-cuephoria-lightpurple' : ''}`} />
+                    <div className="text-xs font-semibold">Pay at Venue</div>
+                    <div className="text-[10px] font-bold text-yellow-400">₹1</div>
                   </div>
                 </button>
                 
@@ -1612,9 +1578,9 @@ const PublicTournaments = () => {
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('razorpay')}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 transform relative overflow-hidden ${
+                  className={`p-2.5 rounded-lg border-2 transition-all duration-300 relative overflow-hidden ${
                     paymentMethod === 'razorpay'
-                      ? 'border-yellow-400/60 bg-gradient-to-br from-yellow-500/30 via-amber-500/20 to-orange-500/20 text-white shadow-xl shadow-yellow-500/30 scale-105'
+                      ? 'border-yellow-400/60 bg-gradient-to-br from-yellow-500/30 via-amber-500/20 to-orange-500/20 text-white shadow-md shadow-yellow-500/30'
                       : 'border-cuephoria-grey/30 bg-cuephoria-dark/50 text-cuephoria-grey hover:border-yellow-400/50 hover:bg-cuephoria-dark/70'
                   }`}
                 >
@@ -1622,12 +1588,12 @@ const PublicTournaments = () => {
                   {paymentMethod === 'razorpay' && (
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"></div>
                   )}
-                  <div className="flex flex-col items-center gap-2 relative z-10">
-                    <Zap className={`h-5 w-5 ${paymentMethod === 'razorpay' ? 'text-yellow-400' : ''}`} />
-                    <div className="text-sm font-bold">Pay Online</div>
-                    <div className="text-xs font-bold text-yellow-400">₹1</div>
+                  <div className="flex flex-col items-center gap-1 relative z-10">
+                    <Zap className={`h-4 w-4 ${paymentMethod === 'razorpay' ? 'text-yellow-400' : ''}`} />
+                    <div className="text-xs font-bold">Pay Online</div>
+                    <div className="text-[10px] font-bold text-yellow-400">₹1</div>
                     {paymentMethod === 'razorpay' && (
-                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                      <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full animate-pulse">
                         BEST
                       </div>
                     )}
@@ -1638,19 +1604,19 @@ const PublicTournaments = () => {
 
             {/* Online Payment Benefit Banner */}
             {paymentMethod === 'razorpay' && (
-              <div className="bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-orange-500/20 border-2 border-yellow-400/40 rounded-xl p-4 shadow-lg shadow-yellow-500/20 animate-pulse-subtle">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-yellow-400/30 rounded-lg flex-shrink-0">
-                    <Star className="h-5 w-5 text-yellow-400" />
+              <div className="bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-orange-500/20 border-2 border-yellow-400/40 rounded-lg p-2.5 shadow-md shadow-yellow-500/20 animate-pulse-subtle">
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 bg-yellow-400/30 rounded flex-shrink-0">
+                    <Star className="h-4 w-4 text-yellow-400" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-yellow-300 mb-1 flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
+                    <div className="text-xs font-bold text-yellow-300 mb-0.5 flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />
                       Exclusive Online Benefit!
                     </div>
-                    <p className="text-xs text-yellow-200/90 leading-relaxed">
+                    <p className="text-[11px] text-yellow-200/90 leading-relaxed">
                       Get <span className="font-bold text-yellow-100">15 minutes of FREE training session</span> before the tournament starts! 
-                      <span className="block mt-1 text-yellow-300/80">First come, first serve basis. Limited slots available!</span>
+                      <span className="block mt-0.5 text-yellow-300/80">First come, first serve basis. Limited slots available!</span>
                     </p>
                   </div>
                 </div>
@@ -1658,59 +1624,62 @@ const PublicTournaments = () => {
             )}
 
             {/* Payment Info */}
-            <div className={`rounded-xl p-4 border-2 transition-all duration-300 ${
+            <div className={`rounded-lg p-2.5 border-2 transition-all duration-300 ${
               paymentMethod === 'razorpay' 
                 ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-blue-400/40' 
                 : 'bg-blue-500/10 border-blue-500/30'
             }`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-blue-300">Entry Fee</p>
-                  <p className="text-2xl font-bold text-white mt-1">₹1</p>
+                  <p className="text-xs font-semibold text-blue-300">Entry Fee</p>
+                  <p className="text-lg font-bold text-white mt-0.5">₹1</p>
                 </div>
                 {paymentMethod === 'venue' && (
                   <div className="text-right">
-                    <p className="text-xs text-blue-300/80">Pay at venue</p>
-                    <p className="text-xs text-blue-200 mt-1">Before tournament</p>
+                    <p className="text-[10px] text-blue-300/80">Pay at venue</p>
+                    <p className="text-[10px] text-blue-200 mt-0.5">Before tournament</p>
                   </div>
                 )}
                 {paymentMethod === 'razorpay' && (
                   <div className="text-right">
-                    <p className="text-xs text-blue-300/80">Secure payment</p>
-                    <p className="text-xs text-blue-200 mt-1">Instant confirmation</p>
+                    <p className="text-[10px] text-blue-300/80">Secure payment</p>
+                    <p className="text-[10px] text-blue-200 mt-0.5">Instant confirmation</p>
                   </div>
                 )}
               </div>
             </div>
-            
+          </div>
+          
+          {/* Fixed button at bottom */}
+          <div className="pt-3 border-t border-cuephoria-lightpurple/20 flex-shrink-0">
             <Button 
               type="button"
               onClick={handleRegistration}
               disabled={isRegistering || isCheckingCustomer || isLoadingPayment}
-              className={`w-full h-12 text-base font-bold transition-all duration-300 ${
+              className={`w-full h-10 text-sm font-bold transition-all duration-300 ${
                 paymentMethod === 'razorpay'
-                  ? 'bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:from-yellow-600 hover:via-amber-600 hover:to-orange-600 text-white shadow-lg shadow-yellow-500/30 hover:shadow-xl hover:shadow-yellow-500/40'
+                  ? 'bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:from-yellow-600 hover:via-amber-600 hover:to-orange-600 text-white shadow-md shadow-yellow-500/30 hover:shadow-lg hover:shadow-yellow-500/40'
                   : 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90'
               }`}
             >
               {isLoadingPayment ? (
-                <span className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 animate-spin" />
+                <span className="flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5 animate-spin" />
                   Processing Payment...
                 </span>
               ) : isRegistering ? (
-                <span className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 animate-spin" />
+                <span className="flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5 animate-spin" />
                   Registering...
                 </span>
               ) : paymentMethod === 'razorpay' ? (
-                <span className="flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
+                <span className="flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5" />
                   Pay & Register Now
                 </span>
               ) : (
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
                   Confirm Registration
                 </span>
               )}
