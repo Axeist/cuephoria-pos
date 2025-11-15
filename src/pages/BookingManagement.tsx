@@ -1814,25 +1814,25 @@ export default function BookingManagement() {
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
+                <Card className="bg-[#1A1F2C] border-gray-700">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-white">
                       <UserCheck className="h-5 w-5" />
                       Customer Acquisition via Coupons
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/50 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-green-900/30 border border-green-700/50 rounded-lg">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          <span className="font-medium">New Customers with Coupons</span>
+                          <span className="font-medium text-white">New Customers with Coupons</span>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-bold text-green-600">
+                          <p className="text-2xl font-bold text-green-400">
                             {analytics.coupons.customerSegmentation.newCustomersWithCoupons}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-gray-400">
                             {analytics.coupons.totalCouponsUsed > 0 
                               ? ((analytics.coupons.customerSegmentation.newCustomersWithCoupons / analytics.coupons.totalCouponsUsed) * 100).toFixed(1)
                               : 0
@@ -1841,16 +1841,16 @@ export default function BookingManagement() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                          <span className="font-medium">Returning Customers with Coupons</span>
+                          <span className="font-medium text-white">Returning Customers with Coupons</span>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-bold text-blue-600">
+                          <p className="text-2xl font-bold text-blue-400">
                             {analytics.coupons.customerSegmentation.returningCustomersWithCoupons}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-gray-400">
                             {analytics.coupons.totalCouponsUsed > 0 
                               ? ((analytics.coupons.customerSegmentation.returningCustomersWithCoupons / analytics.coupons.totalCouponsUsed) * 100).toFixed(1)
                               : 0
@@ -1862,50 +1862,50 @@ export default function BookingManagement() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="bg-[#1A1F2C] border-gray-700">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-white">
                       <Zap className="h-5 w-5" />
                       Marketing Campaign Insights
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="p-3 bg-purple-50 dark:bg-purple-950/50 rounded-lg">
+                      <div className="p-3 bg-purple-900/30 border border-purple-700/50 rounded-lg">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">Coupon Adoption Rate</span>
-                          <span className="text-2xl font-bold text-purple-600">
+                          <span className="font-medium text-white">Coupon Adoption Rate</span>
+                          <span className="text-2xl font-bold text-purple-400">
                             {analytics.coupons.couponConversionRate.toFixed(1)}%
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-gray-400 mt-1">
                           Customers using coupons vs total bookings
                         </p>
                       </div>
 
-                      <div className="p-3 bg-orange-50 dark:bg-orange-950/50 rounded-lg">
+                      <div className="p-3 bg-orange-900/30 border border-orange-700/50 rounded-lg">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">Average Discount Impact</span>
-                          <span className="text-2xl font-bold text-orange-600">
+                          <span className="font-medium text-white">Average Discount Impact</span>
+                          <span className="text-2xl font-bold text-orange-400">
                             {analytics.coupons.averageDiscountPercentage.toFixed(1)}%
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-gray-400 mt-1">
                           Average discount percentage across all coupons
                         </p>
                       </div>
 
-                      <div className="p-3 bg-teal-50 dark:bg-teal-950/50 rounded-lg">
+                      <div className="p-3 bg-teal-900/30 border border-teal-700/50 rounded-lg">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">Revenue Efficiency</span>
-                          <span className="text-2xl font-bold text-teal-600">
+                          <span className="font-medium text-white">Revenue Efficiency</span>
+                          <span className="text-2xl font-bold text-teal-400">
                             ₹{analytics.coupons.totalCouponsUsed > 0 
                               ? Math.round(analytics.coupons.revenueWithCoupons / analytics.coupons.totalCouponsUsed)
                               : 0
                             }
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-gray-400 mt-1">
                           Average revenue per coupon redemption
                         </p>
                       </div>
@@ -2181,17 +2181,17 @@ export default function BookingManagement() {
 
             <TabsContent value="stations" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="bg-background border-border">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-t-lg border-b border-border">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Building2 className="h-5 w-5 text-blue-600" />
+                <Card className="bg-[#1A1F2C] border-gray-700">
+                  <CardHeader className="bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-b border-gray-700">
+                    <CardTitle className="flex items-center gap-2 text-lg text-white">
+                      <Building2 className="h-5 w-5 text-blue-400" />
                       Station Performance Analytics
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6">
                     <div className="space-y-6">
                       {Object.entries(analytics.stations.utilization).map(([station, stats], index) => (
-                        <div key={station} className="space-y-3 p-4 bg-muted/20 rounded-lg border border-border">
+                        <div key={station} className="space-y-3 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
@@ -2199,24 +2199,24 @@ export default function BookingManagement() {
                                 {index + 1}
                               </div>
                               <div>
-                                <span className="font-semibold text-lg text-foreground">{station}</span>
-                                <Badge variant="outline" className="ml-2 text-xs">{stats.bookings} bookings</Badge>
+                                <span className="font-semibold text-lg text-white">{station}</span>
+                                <Badge variant="outline" className="ml-2 text-xs bg-gray-700 border-gray-600 text-gray-200">{stats.bookings} bookings</Badge>
                               </div>
                             </div>
                           </div>
 
                           <div className="grid grid-cols-3 gap-6">
-                            <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Revenue</p>
-                              <p className="text-xl font-bold text-green-600">₹{stats.revenue.toLocaleString()}</p>
+                            <div className="text-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 shadow-sm">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Revenue</p>
+                              <p className="text-xl font-bold text-green-400">₹{stats.revenue.toLocaleString()}</p>
                             </div>
-                            <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Avg Duration</p>
-                              <p className="text-xl font-bold text-blue-600">{stats.avgDuration}min</p>
+                            <div className="text-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 shadow-sm">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Avg Duration</p>
+                              <p className="text-xl font-bold text-blue-400">{stats.avgDuration}min</p>
                             </div>
-                            <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Avg/Booking</p>
-                              <p className="text-xl font-bold text-purple-600">₹{Math.round((stats.revenue / stats.bookings) || 0)}</p>
+                            <div className="text-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 shadow-sm">
+                              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Avg/Booking</p>
+                              <p className="text-xl font-bold text-purple-400">₹{Math.round((stats.revenue / stats.bookings) || 0)}</p>
                             </div>
                           </div>
                         </div>
@@ -2225,10 +2225,10 @@ export default function BookingManagement() {
                   </CardContent>
                 </Card>
 
-                <Card className="bg-background border-border">
-                  <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 rounded-t-lg border-b border-border">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <BarChart3 className="h-5 w-5 text-orange-600" />
+                <Card className="bg-[#1A1F2C] border-gray-700">
+                  <CardHeader className="bg-gradient-to-r from-orange-900/30 to-amber-900/30 border-b border-gray-700">
+                    <CardTitle className="flex items-center gap-2 text-lg text-white">
+                      <BarChart3 className="h-5 w-5 text-orange-400" />
                       Hourly Distribution Analytics
                     </CardTitle>
                   </CardHeader>
@@ -2243,7 +2243,7 @@ export default function BookingManagement() {
                           const isPeak = index < 3;
 
                           return (
-                            <div key={hour} className="group hover:bg-muted/50 rounded-lg p-3 transition-colors border border-transparent hover:border-border">
+                            <div key={hour} className="group hover:bg-gray-800/50 rounded-lg p-3 transition-colors border border-gray-700 hover:border-gray-600">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
@@ -2251,18 +2251,18 @@ export default function BookingManagement() {
                                   }`}>
                                     {hour}
                                   </div>
-                                  <span className="text-sm font-medium text-foreground">
+                                  <span className="text-sm font-medium text-white">
                                     {parseInt(hour) === 0 ? '12:00 AM' : parseInt(hour) < 12 ? `${hour}:00 AM` : parseInt(hour) === 12 ? '12:00 PM' : `${parseInt(hour) - 12}:00 PM`}
                                   </span>
                                   {isPeak && <Badge variant="destructive" className="text-xs px-2 py-1">Peak Hour</Badge>}
                                 </div>
                                 <div className="text-right">
-                                  <span className="text-lg font-bold text-foreground">{count}</span>
-                                  <span className="text-xs text-muted-foreground ml-1">bookings</span>
+                                  <span className="text-lg font-bold text-white">{count}</span>
+                                  <span className="text-xs text-gray-400 ml-1">bookings</span>
                                 </div>
                               </div>
                               <div className="relative">
-                                <div className="w-full h-3 bg-muted rounded-full overflow-hidden border border-border">
+                                <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
                                   <div 
                                     className={`h-full rounded-full transition-all duration-500 ease-in-out ${
                                       isPeak ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-blue-400 to-blue-600'
