@@ -536,31 +536,48 @@ export default function BookingManagement() {
     
     return dayBookings.map(booking => {
       const startTime = new Date(`2000-01-01T${booking.start_time}`);
-      const endTime = new Date(`2000-01-01T${booking.end_time}`);
+      let endTime = new Date(`2000-01-01T${booking.end_time}`);
+      
+      // Handle midnight crossover (00:00:00 means next day)
+      if (booking.end_time === '00:00:00' || (endTime.getHours() === 0 && endTime.getMinutes() === 0)) {
+        endTime = new Date(`2000-01-02T00:00:00`);
+      }
       
       const startHour = startTime.getHours();
-      const endHour = endTime.getHours();
+      let endHour = endTime.getHours();
       const startMinute = startTime.getMinutes();
-      const endMinute = endTime.getMinutes();
+      let endMinute = endTime.getMinutes();
+      
+      // If end time is midnight (next day), set to 24:00 (end of day)
+      if (endTime.getDate() === 2) {
+        endHour = 24;
+        endMinute = 0;
+      }
       
       // Calculate position and height as percentage of the calendar view (11 AM to 11 PM = 12 hours)
-      const startMinutesFromEleven = (startHour - 11) * 60 + startMinute;
-      const endMinutesFromEleven = (endHour - 11) * 60 + endMinute;
-      const totalMinutesInView = 12 * 60; // 11 AM to 11 PM
+      // For bookings that extend past 11 PM, cap them at 11 PM
+      const startMinutesFromEleven = Math.max(0, (startHour - 11) * 60 + startMinute);
+      const endMinutesFromEleven = Math.min(12 * 60, (endHour - 11) * 60 + endMinute);
+      const totalMinutesInView = 12 * 60; // 11 AM to 11 PM = 720 minutes
       
-      const topPercentage = Math.max(0, (startMinutesFromEleven / totalMinutesInView) * 100);
-      const heightPercentage = Math.min(100 - topPercentage, ((endMinutesFromEleven - startMinutesFromEleven) / totalMinutesInView) * 100);
+      const durationMinutes = Math.max(0, endMinutesFromEleven - startMinutesFromEleven);
+      
+      const topPercentage = (startMinutesFromEleven / totalMinutesInView) * 100;
+      const heightPercentage = (durationMinutes / totalMinutesInView) * 100;
       
       return {
         ...booking,
         startHour,
-        endHour,
+        endHour: Math.min(endHour, 23), // Cap at 23 for display
         startMinute,
         endMinute,
-        topPercentage,
-        heightPercentage
+        topPercentage: Math.max(0, Math.min(100, topPercentage)),
+        heightPercentage: Math.max(0.5, Math.min(100 - topPercentage, heightPercentage)) // Minimum 0.5% for visibility
       };
-    }).filter(booking => booking.startHour >= 11 && booking.startHour <= 23);
+    }).filter(booking => {
+      // Only show bookings that start between 11 AM and 11 PM
+      return booking.startHour >= 11 && booking.startHour <= 23;
+    });
   }, [allBookings, selectedCalendarDate]);
 
   const toggleCalendarBookingExpansion = (bookingId: string) => {
@@ -637,13 +654,13 @@ export default function BookingManagement() {
               <p>Select a different date or check your filters</p>
             </div>
           ) : (
-            <div className="flex">
-              {/* Time Labels */}
-              <div className="w-20 border-r border-border bg-muted/20">
-                <div className="h-12 border-b border-border"></div> {/* Header spacer */}
+            <div className="flex overflow-x-auto">
+              {/* Time Labels - Fixed width for better alignment */}
+              <div className="w-24 flex-shrink-0 border-r border-border bg-muted/20 sticky left-0 z-10">
+                <div className="h-12 border-b border-border bg-muted/30"></div> {/* Header spacer */}
                 {timeSlots.map(slot => (
-                  <div key={slot.hour} className="h-16 border-b border-border flex items-start justify-end pr-3 pt-1">
-                    <span className="text-sm font-medium text-muted-foreground">
+                  <div key={slot.hour} className="h-16 border-b border-border flex items-start justify-end pr-3 pt-1.5 bg-background/50">
+                    <span className="text-sm font-semibold text-foreground">
                       {slot.label}
                     </span>
                   </div>
@@ -654,9 +671,12 @@ export default function BookingManagement() {
               <div className="flex-1 relative">
                 {/* Hour Grid Lines */}
                 <div className="absolute inset-0 pointer-events-none">
-                  <div className="h-12 border-b border-border bg-muted/10"></div> {/* Header spacer */}
-                  {timeSlots.map(slot => (
-                    <div key={slot.hour} className="h-16 border-b border-border"></div>
+                  <div className="h-12 border-b-2 border-border bg-muted/10"></div> {/* Header spacer */}
+                  {timeSlots.map((slot, index) => (
+                    <div 
+                      key={slot.hour} 
+                      className={`h-16 border-b ${index === timeSlots.length - 1 ? 'border-b-2' : 'border-b'} border-border/50`}
+                    ></div>
                   ))}
                 </div>
                 
@@ -668,12 +688,15 @@ export default function BookingManagement() {
                   
                   if (currentHour >= 11 && currentHour <= 23) {
                     const minutesFromEleven = (currentHour - 11) * 60 + currentMinute;
-                    const topPosition = ((minutesFromEleven / (12 * 60)) * 100) + 3; // +3 for header offset
+                    // Calculate position: header (3rem) + percentage of grid area (48rem)
+                    const headerHeightRem = 3; // h-12 = 3rem
+                    const gridHeightRem = 48; // 12 * 4rem = 48rem
+                    const topPositionRem = headerHeightRem + (minutesFromEleven / (12 * 60)) * gridHeightRem;
                     
                     return (
                       <div 
                         className="absolute left-0 right-0 h-0.5 bg-red-500 z-30 shadow-sm"
-                        style={{ top: `${topPosition}%` }}
+                        style={{ top: `${topPositionRem}rem` }}
                       >
                         <div className="absolute -left-2 -top-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>
                         <div className="absolute left-2 -top-6 bg-red-500 text-white text-xs px-2 py-1 rounded shadow-lg">
@@ -685,31 +708,53 @@ export default function BookingManagement() {
                   return null;
                 })()}
                 
-                {/* Bookings */}
-                <div className="relative" style={{ paddingTop: '3rem', height: `${12 * 4}rem` }}>
-                  {calendarBookings.map((booking, index) => {
+                {/* Bookings Container - Fixed height matching grid */}
+                <div className="relative" style={{ paddingTop: '3rem', height: '48rem' }}>
+                  {calendarBookings.map((booking) => {
                     const isExpanded = expandedCalendarBookings.has(booking.id);
-                    const overlappingBookings = calendarBookings.filter(b => 
-                      b.id !== booking.id &&
-                      ((b.startHour < booking.endHour && b.endHour > booking.startHour) ||
-                       (booking.startHour < b.endHour && booking.endHour > b.startHour))
-                    );
                     
+                    // Find all bookings that overlap with this one (including itself)
+                    const overlappingBookings = calendarBookings.filter(b => {
+                      if (b.id === booking.id) return true;
+                      // Check if bookings overlap in time
+                      const bStart = b.startHour * 60 + b.startMinute;
+                      const bEnd = b.endHour * 60 + (b.endMinute || 0);
+                      const bookingStart = booking.startHour * 60 + booking.startMinute;
+                      const bookingEnd = booking.endHour * 60 + (booking.endMinute || 0);
+                      
+                      return (bStart < bookingEnd && bEnd > bookingStart);
+                    }).sort((a, b) => {
+                      // Sort by start time, then by booking ID for consistent ordering
+                      const aStart = a.startHour * 60 + a.startMinute;
+                      const bStart = b.startHour * 60 + b.startMinute;
+                      if (aStart !== bStart) return aStart - bStart;
+                      return a.id.localeCompare(b.id);
+                    });
+                    
+                    const overlapIndex = overlappingBookings.findIndex(b => b.id === booking.id);
                     const overlapCount = overlappingBookings.length;
-                    const width = overlapCount > 0 ? `${90 / (overlapCount + 1)}%` : '90%';
-                    const left = overlapCount > 0 ? `${(index % (overlapCount + 1)) * (90 / (overlapCount + 1)) + 5}%` : '5%';
+                    
+                    // Calculate width and left position for overlapping bookings
+                    const width = overlapCount > 1 ? `${95 / overlapCount}%` : '95%';
+                    const left = overlapCount > 1 ? `${(overlapIndex * (95 / overlapCount)) + 2.5}%` : '2.5%';
+                    
+                    // Calculate top position: header (3rem) + percentage of grid (48rem)
+                    const headerHeightRem = 3; // h-12 = 3rem
+                    const gridHeightRem = 48; // 12 * 4rem = 48rem
+                    const topPositionRem = headerHeightRem + (booking.topPercentage / 100) * gridHeightRem;
+                    const heightPositionRem = (booking.heightPercentage / 100) * gridHeightRem;
                     
                     return (
                       <div
                         key={booking.id}
                         className={`absolute rounded-lg border-2 cursor-pointer transition-all duration-200 z-20 ${
                           booking.coupon_code 
-                            ? 'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-300 shadow-purple-100' 
-                            : 'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-300 shadow-blue-100'
+                            ? 'bg-gradient-to-r from-purple-100 to-purple-50 border-purple-300 shadow-purple-100 dark:from-purple-900/30 dark:to-purple-800/20 dark:border-purple-500' 
+                            : 'bg-gradient-to-r from-blue-100 to-blue-50 border-blue-300 shadow-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 dark:border-blue-500'
                         } ${isExpanded ? 'shadow-lg z-30' : 'shadow-sm hover:shadow-md'}`}
                         style={{
-                          top: `${booking.topPercentage}%`,
-                          height: `${Math.max(booking.heightPercentage, 8)}%`, // Minimum height for visibility
+                          top: `${topPositionRem}rem`,
+                          height: `${Math.max(heightPositionRem, 2)}rem`, // Minimum 2rem for visibility
                           left,
                           width
                         }}
