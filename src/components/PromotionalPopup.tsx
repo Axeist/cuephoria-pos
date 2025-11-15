@@ -7,9 +7,10 @@ import { Star, Clock, ExternalLink, Crown } from 'lucide-react';
 
 interface PromotionalPopupProps {
   isMember?: boolean;
+  blockWhenOpen?: boolean; // Block showing when another popup/dialog is open
 }
 
-const PromotionalPopup: React.FC<PromotionalPopupProps> = ({ isMember = false }) => {
+const PromotionalPopup: React.FC<PromotionalPopupProps> = ({ isMember = false, blockWhenOpen = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCount, setShowCount] = useState(0);
 
@@ -18,34 +19,53 @@ const PromotionalPopup: React.FC<PromotionalPopupProps> = ({ isMember = false })
   const membershipText = isMember ? 'EXCLUSIVE MEMBER DEAL!' : 'SPECIAL OFFER!';
 
   useEffect(() => {
+    // Close popup if blocked by another popup/dialog
+    if (blockWhenOpen && isOpen) {
+      setIsOpen(false);
+    }
+  }, [blockWhenOpen, isOpen]);
+
+  useEffect(() => {
+    // Don't show if blocked by another popup/dialog
+    if (blockWhenOpen) return;
+    
     // First popup after 20 seconds
     const firstTimeout = setTimeout(() => {
-      setIsOpen(true);
-      setShowCount(1);
+      if (!blockWhenOpen) {
+        setIsOpen(true);
+        setShowCount(1);
+      }
     }, 20000);
 
     return () => clearTimeout(firstTimeout);
-  }, []);
+  }, [blockWhenOpen]);
 
   useEffect(() => {
+    // Don't show if blocked by another popup/dialog
+    if (blockWhenOpen) return;
+    
     // Recurring popup every 45 seconds after the second instance
     if (showCount >= 2) {
       const recurringInterval = setInterval(() => {
-        setIsOpen(true);
-        setShowCount(prev => prev + 1);
+        if (!blockWhenOpen) {
+          setIsOpen(true);
+          setShowCount(prev => prev + 1);
+        }
       }, 45000);
 
       return () => clearInterval(recurringInterval);
     }
-  }, [showCount]);
+  }, [showCount, blockWhenOpen]);
 
   const handleClose = () => {
     setIsOpen(false);
     if (showCount === 1) {
-      // Set up the second popup after 45 seconds
+      // Set up the second popup after 45 seconds (only if not blocked)
       setTimeout(() => {
-        setIsOpen(true);
-        setShowCount(2);
+        if (!blockWhenOpen) {
+          setIsOpen(true);
+          setShowCount(2);
+        }
       }, 45000);
     }
   };

@@ -1213,7 +1213,7 @@ const PublicTournaments = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-cuephoria-dark via-black to-cuephoria-darkpurple text-white overflow-hidden">
       {/* Promotional Popup */}
-      <PromotionalPopup />
+      <PromotionalPopup blockWhenOpen={isDialogOpen || showVenuePaymentWarning || !!registrationSuccessData} />
 
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -1822,21 +1822,24 @@ const PublicTournaments = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel 
-              onClick={() => setShowVenuePaymentWarning(false)}
-              className="bg-cuephoria-dark/50 border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-dark/70 hover:text-white"
-            >
-              Go Back
-            </AlertDialogCancel>
             <AlertDialogAction
+              onClick={() => {
+                setPaymentMethod('razorpay');
+                setShowVenuePaymentWarning(false);
+              }}
+              className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:from-yellow-600 hover:via-amber-600 hover:to-orange-600 text-white shadow-md shadow-yellow-500/30 hover:shadow-lg hover:shadow-yellow-500/40 font-bold"
+            >
+              Claim the Offer
+            </AlertDialogAction>
+            <AlertDialogCancel 
               onClick={() => {
                 setPaymentMethod('venue');
                 setShowVenuePaymentWarning(false);
               }}
-              className="bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue hover:from-cuephoria-lightpurple/90 hover:to-cuephoria-blue/90"
+              className="bg-cuephoria-dark/50 border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-dark/70 hover:text-white"
             >
-              Continue with Venue Payment
-            </AlertDialogAction>
+              Miss the Offer
+            </AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
