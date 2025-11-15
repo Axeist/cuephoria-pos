@@ -151,30 +151,46 @@ const PublicTournaments = () => {
 
   // Load Razorpay script and get key ID
   useEffect(() => {
-    if (paymentMethod === 'razorpay' && !razorpayKeyId) {
-      // Load Razorpay script
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      document.body.appendChild(script);
-
-      // Fetch Razorpay key ID
-      fetch('/api/razorpay/get-key-id')
-        .then(res => res.json())
-        .then(data => {
-          if (data.keyId) {
-            setRazorpayKeyId(data.keyId);
-          }
-        })
-        .catch(err => {
-          console.error('Error fetching Razorpay key:', err);
-        });
-
-      return () => {
-        document.body.removeChild(script);
-      };
+    if (paymentMethod === 'razorpay') {
+      // Load Razorpay script if not already loaded
+      if (!(window as any).Razorpay) {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        script.onload = () => {
+          console.log('✅ Razorpay script loaded');
+        };
+        script.onerror = () => {
+          console.error('❌ Failed to load Razorpay script');
+          toast({
+            title: "Payment Gateway Error",
+            description: "Failed to load payment gateway. Please refresh the page.",
+            variant: "destructive"
+          });
+        };
+        document.body.appendChild(script);
+      }
+      
+      // Pre-fetch Razorpay key ID for faster payment initiation
+      if (!razorpayKeyId) {
+        fetch('/api/razorpay/get-key-id')
+          .then(res => res.json())
+          .then(data => {
+            if (data.ok && data.keyId) {
+              setRazorpayKeyId(data.keyId);
+              console.log('✅ Razorpay key ID pre-loaded');
+            } else if (data.keyId) {
+              // Fallback for different response format
+              setRazorpayKeyId(data.keyId);
+            }
+          })
+          .catch(err => {
+            console.error('Failed to pre-load Razorpay key ID:', err);
+            // Don't show error to user yet, will retry during payment
+          });
+      }
     }
-  }, [paymentMethod, razorpayKeyId]);
+  }, [paymentMethod, razorpayKeyId, toast]);
 
   // Check for existing customer by phone number and prevent duplicates
   const checkExistingCustomer = useCallback(async (phone: string) => {
@@ -330,21 +346,95 @@ const PublicTournaments = () => {
     const transactionFee = Math.round((entryFee * 0.025) * 100) / 100; // 2.5% transaction fee
     const totalWithFee = entryFee + transactionFee;
 
+    // Wait for Razorpay script to load if not already loaded
     if (!(window as any).Razorpay) {
-      toast({
-        title: "Payment Gateway Loading",
-        description: "Payment gateway is loading. Please wait a moment and try again.",
-        variant: "destructive"
+      console.log('⏳ Razorpay script not loaded, loading now...');
+      // Check if script is already in the DOM
+      let script = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]') as HTMLScriptElement;
+      
+      if (!script) {
+        // Create and load the script
+        script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        document.body.appendChild(script);
+      }
+      
+      // Wait for script to load
+      await new Promise((resolve, reject) => {
+        // If already loaded, resolve immediately
+        if ((window as any).Razorpay) {
+          console.log('✅ Razorpay already available');
+          resolve(true);
+          return;
+        }
+        
+        const checkInterval = setInterval(() => {
+          if ((window as any).Razorpay) {
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            console.log('✅ Razorpay script loaded');
+            resolve(true);
+          }
+        }, 100);
+        
+        const timeoutId = setTimeout(() => {
+          clearInterval(checkInterval);
+          if (!(window as any).Razorpay) {
+            console.error('❌ Razorpay script loading timeout');
+            reject(new Error('Payment gateway loading timeout. Please refresh the page and try again.'));
+          }
+        }, 10000);
+        
+        script.onload = () => {
+          clearInterval(checkInterval);
+          clearTimeout(timeoutId);
+          console.log('✅ Razorpay script loaded via onload');
+          resolve(true);
+        };
+        
+        script.onerror = () => {
+          clearInterval(checkInterval);
+          clearTimeout(timeoutId);
+          console.error('❌ Failed to load Razorpay script');
+          reject(new Error('Failed to load payment gateway. Please check your internet connection and try again.'));
+        };
       });
-      return;
     }
 
-    if (!razorpayKeyId) {
+    // Get Razorpay key ID if not already loaded
+    let finalKeyId = razorpayKeyId;
+    if (!finalKeyId) {
+      try {
+        const keyRes = await fetch('/api/razorpay/get-key-id');
+        const keyData = await keyRes.json();
+        if (keyData.ok && keyData.keyId) {
+          finalKeyId = keyData.keyId;
+          setRazorpayKeyId(finalKeyId);
+        } else if (keyData.keyId) {
+          finalKeyId = keyData.keyId;
+          setRazorpayKeyId(finalKeyId);
+        } else {
+          throw new Error('Failed to get payment gateway key');
+        }
+      } catch (err) {
+        toast({
+          title: "Payment Error",
+          description: "Failed to initialize payment gateway. Please try again.",
+          variant: "destructive"
+        });
+        setIsLoadingPayment(false);
+        return;
+      }
+    }
+
+    if (!finalKeyId) {
       toast({
         title: "Payment Error",
         description: "Payment gateway is not ready. Please try again.",
         variant: "destructive"
       });
+      setIsLoadingPayment(false);
       return;
     }
 
@@ -404,7 +494,7 @@ const PublicTournaments = () => {
 
       // Razorpay checkout options
       const options = {
-        key: razorpayKeyId,
+        key: finalKeyId,
         amount: orderData.amount,
         currency: orderData.currency || "INR",
         name: "Cuephoria Gaming Lounge",
@@ -442,6 +532,7 @@ const PublicTournaments = () => {
         },
       };
 
+      console.log('🔧 Creating Razorpay instance with options:', { key: finalKeyId, orderId: orderData.orderId, amount: orderData.amount });
       const rzp = new (window as any).Razorpay(options);
       
       rzp.on("payment.failed", function (response: any) {
@@ -457,7 +548,9 @@ const PublicTournaments = () => {
         window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}`;
       });
 
+      console.log('🚀 Opening Razorpay payment modal...');
       rzp.open();
+      console.log('✅ Razorpay modal open() called');
     } catch (e: any) {
       console.error("💥 Razorpay payment error:", e);
       toast({
@@ -487,10 +580,12 @@ const PublicTournaments = () => {
       return;
     }
 
-    // If payment method is Razorpay, initiate payment flow
+    // If payment method is Razorpay, initiate payment flow and STOP here
+    // Do NOT proceed with regular registration
     if (paymentMethod === 'razorpay') {
+      console.log('🚀 Initiating Razorpay payment flow...');
       await initiateRazorpayPayment();
-      return;
+      return; // IMPORTANT: Return early to prevent regular registration
     }
 
     // Double-check for duplicate registration before proceeding
