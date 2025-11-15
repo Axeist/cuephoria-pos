@@ -192,6 +192,11 @@ const PublicTournaments = () => {
     }
   }, [paymentMethod, razorpayKeyId, toast]);
 
+  // Helper function to normalize phone number (remove all non-digits)
+  const normalizePhoneNumber = (phone: string): string => {
+    return phone.replace(/\D/g, '');
+  };
+
   // Helper function to check if a phone number is already registered for a tournament
   // Only checks tournament_public_registrations table (not players array)
   // This allows re-registration if the registration was deleted, even if player remains in array
@@ -199,25 +204,40 @@ const PublicTournaments = () => {
     if (!tournamentId || !phone.trim()) return false;
 
     try {
+      // Normalize phone number to match database format
+      const normalizedPhone = normalizePhoneNumber(phone.trim());
+      
+      console.log('🔍 Checking duplicate registration:', {
+        tournamentId,
+        originalPhone: phone.trim(),
+        normalizedPhone,
+      });
+
       // Only check tournament_public_registrations table
       // If registration was deleted, player can re-register even if they're still in players array
       const { data: registrationCheck, error: registrationError } = await supabase
         .from('tournament_public_registrations')
-        .select('id')
+        .select('id, customer_phone, customer_name')
         .eq('tournament_id', tournamentId)
-        .eq('customer_phone', phone.trim())
+        .eq('customer_phone', normalizedPhone)
         .maybeSingle();
 
       if (registrationError) {
-        console.error('Error checking registration table:', registrationError);
+        console.error('❌ Error checking registration table:', registrationError);
         return false; // If error, allow registration
       }
 
+      if (registrationCheck) {
+        console.log('⚠️ Duplicate found:', registrationCheck);
+        return true; // Found active registration
+      }
+
+      console.log('✅ No duplicate found - registration allowed');
       // Only return true if there's an active registration record
       // This allows re-registration if the registration was deleted
-      return !!registrationCheck;
+      return false;
     } catch (error) {
-      console.error('Error in duplicate check:', error);
+      console.error('❌ Error in duplicate check:', error);
       return false; // If error, allow registration
     }
   }, []);
@@ -641,13 +661,13 @@ const PublicTournaments = () => {
         customerId = newCustomer.id;
       }
 
-      // Register for tournament
+      // Register for tournament (normalize phone number for consistency)
       const { error: registrationError } = await supabase
         .from('tournament_public_registrations')
         .insert({
           tournament_id: selectedTournament.id,
           customer_name: registrationForm.customer_name.trim(),
-          customer_phone: registrationForm.customer_phone.trim(),
+          customer_phone: normalizePhoneNumber(registrationForm.customer_phone.trim()),
           customer_email: registrationForm.customer_email.trim() || null,
           registration_source: 'public_website',
           status: 'registered'
