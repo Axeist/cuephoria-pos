@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash, Edit2, Check, X } from 'lucide-react';
+import { Plus, Trash, Edit2, Check, X, Search, Zap, UserCheck, User } from 'lucide-react';
 import { Player } from '@/types/tournament.types';
 import { generateId } from '@/utils/pos.utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 interface TournamentPlayerSectionProps {
   players: Player[];
@@ -52,11 +53,21 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [editingPlayer, setEditingPlayer] = useState<EditingPlayer | null>(null);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [tournamentRegistrations, setTournamentRegistrations] = useState<Array<{
+    customer_phone: string;
+    payment_status: string;
+  }>>([]);
   const [registrationForm, setRegistrationForm] = useState<RegistrationForm>({
     customer_phone: '',
     is_existing_customer: false
   });
   const { toast } = useToast();
+
+  // Normalize phone number helper
+  const normalizePhoneNumber = (phone: string): string => {
+    return phone.replace(/\D/g, '');
+  };
 
   // Fetch customers from Supabase
   useEffect(() => {
@@ -88,6 +99,50 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
     
     fetchCustomers();
   }, [toast]);
+
+  // Fetch tournament registrations to check payment status
+  useEffect(() => {
+    const fetchRegistrations = async () => {
+      if (!tournamentId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('tournament_public_registrations')
+          .select('customer_phone, payment_status')
+          .eq('tournament_id', tournamentId);
+          
+        if (error) {
+          console.error('Error fetching registrations:', error);
+          return;
+        }
+        
+        if (data) {
+          setTournamentRegistrations(data);
+        }
+      } catch (error) {
+        console.error('Error in fetchRegistrations:', error);
+      }
+    };
+    
+    fetchRegistrations();
+  }, [tournamentId]);
+
+  // Filter customers based on search query (name or phone)
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearchQuery.trim()) return customers;
+    
+    const query = customerSearchQuery.toLowerCase().trim();
+    const normalizedQuery = normalizePhoneNumber(customerSearchQuery);
+    
+    return customers.filter(customer => {
+      const normalizedPhone = normalizePhoneNumber(customer.phone);
+      return (
+        customer.name.toLowerCase().includes(query) ||
+        normalizedPhone.includes(normalizedQuery) ||
+        customer.phone.includes(query)
+      );
+    });
+  }, [customers, customerSearchQuery]);
 
   const addPlayer = async () => {
     if (!playerName.trim() && !selectedCustomerId) return;
@@ -352,20 +407,42 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
       <div className="space-y-4">
         <div className="flex flex-col space-y-2">
           <label className="text-sm font-medium">Add Existing Customer</label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or phone number..."
+              value={customerSearchQuery}
+              onChange={(e) => setCustomerSearchQuery(e.target.value)}
+              className="pl-10 mb-2"
+              disabled={matchesExist || isMaxPlayersReached}
+            />
+          </div>
           <Select
             value={selectedCustomerId}
-            onValueChange={setSelectedCustomerId}
+            onValueChange={(value) => {
+              setSelectedCustomerId(value);
+              setCustomerSearchQuery(''); // Clear search when customer is selected
+            }}
             disabled={matchesExist || isMaxPlayersReached}
           >
             <SelectTrigger>
-              <SelectValue placeholder={isMaxPlayersReached ? "Maximum players reached" : "Select a customer"} />
+              <SelectValue placeholder={isMaxPlayersReached ? "Maximum players reached" : filteredCustomers.length > 0 ? "Select a customer" : "No customers found"} />
             </SelectTrigger>
-            <SelectContent>
-              {customers.map(customer => (
-                <SelectItem key={customer.id} value={customer.id}>
-                  {customer.name} ({customer.phone})
-                </SelectItem>
-              ))}
+            <SelectContent className="max-h-[200px]">
+              {filteredCustomers.length > 0 ? (
+                filteredCustomers.map(customer => (
+                  <SelectItem key={customer.id} value={customer.id}>
+                    <div className="flex items-center justify-between w-full">
+                      <span>{customer.name}</span>
+                      <span className="text-xs text-muted-foreground ml-2">({customer.phone})</span>
+                    </div>
+                  </SelectItem>
+                ))
+              ) : (
+                <div className="p-2 text-sm text-muted-foreground text-center">
+                  {customerSearchQuery ? "No customers found" : "Start typing to search"}
+                </div>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -423,7 +500,39 @@ const TournamentPlayerSection: React.FC<TournamentPlayerSectionProps> = ({
                   )}
                 </TableCell>
                 <TableCell>
-                  {player.customerId ? 'Customer' : 'Guest'}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(() => {
+                      // Check if player paid online
+                      const customer = player.customerId ? customers.find(c => c.id === player.customerId) : null;
+                      const customerPhone = customer?.phone ? normalizePhoneNumber(customer.phone) : null;
+                      const registration = customerPhone 
+                        ? tournamentRegistrations.find(r => normalizePhoneNumber(r.customer_phone) === customerPhone)
+                        : null;
+                      const paidOnline = registration?.payment_status === 'paid';
+                      
+                      return (
+                        <>
+                          {paidOnline && (
+                            <Badge variant="outline" className="bg-yellow-500/20 border-yellow-400/40 text-yellow-300 text-xs px-2 py-0.5">
+                              <Zap className="h-3 w-3 mr-1" />
+                              Online Paid
+                            </Badge>
+                          )}
+                          {player.customerId ? (
+                            <Badge variant="outline" className="bg-green-500/20 border-green-400/40 text-green-300 text-xs px-2 py-0.5">
+                              <UserCheck className="h-3 w-3 mr-1" />
+                              Customer
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-blue-500/20 border-blue-400/40 text-blue-300 text-xs px-2 py-0.5">
+                              <User className="h-3 w-3 mr-1" />
+                              Guest
+                            </Badge>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {editingPlayer && editingPlayer.id === player.id ? (

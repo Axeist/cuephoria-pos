@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,12 +71,49 @@ const PublicTournaments = () => {
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
   const [activeTab, setActiveTab] = useState('upcoming');
-  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'razorpay'>('venue');
+  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'razorpay'>('razorpay'); // Default to online payment
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>('');
   const [isLoadingPayment, setIsLoadingPayment] = useState(false);
   const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
+  const [registrationSuccessData, setRegistrationSuccessData] = useState<{
+    registrationId: string;
+    customerName: string;
+    customerPhone: string;
+    tournamentName: string;
+    paymentMethod: 'venue' | 'razorpay';
+    entryFee: number;
+  } | null>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Check for registration success from payment page
+  useEffect(() => {
+    const regSuccess = searchParams.get('registration_success');
+    const regId = searchParams.get('reg_id');
+    
+    if (regSuccess === 'true' && regId) {
+      // Get registration details from localStorage
+      const regDetails = localStorage.getItem('lastRegistrationDetails');
+      if (regDetails) {
+        try {
+          const details = JSON.parse(regDetails);
+          setRegistrationSuccessData({
+            registrationId: regId,
+            customerName: details.customerName || '',
+            customerPhone: details.customerPhone || '',
+            tournamentName: details.tournamentName || '',
+            paymentMethod: 'razorpay',
+            entryFee: details.entryFee || 1
+          });
+          // Clear URL params
+          setSearchParams({});
+        } catch (e) {
+          console.error('Error parsing registration details:', e);
+        }
+      }
+    }
+  }, [searchParams, setSearchParams]);
 
   const fetchTournaments = useCallback(async () => {
     try {
@@ -369,6 +407,13 @@ const PublicTournaments = () => {
   // Generate transaction ID
   const genTxnId = () => {
     return `TXN${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+  };
+
+  // Generate unique registration ID
+  const generateRegistrationId = (): string => {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substr(2, 6).toUpperCase();
+    return `REG-${timestamp}-${random}`;
   };
 
   // Initiate Razorpay payment for tournament registration
@@ -732,12 +777,20 @@ const PublicTournaments = () => {
         // Don't fail the registration for this error, just log it
       }
 
-      toast({
-        title: "Registration Successful!",
-        description: `You have been registered for ${selectedTournament.name}. We'll contact you with more details.`,
+      // Generate unique registration ID
+      const registrationId = generateRegistrationId();
+
+      // Show success dialog with registration details
+      setRegistrationSuccessData({
+        registrationId,
+        customerName: registrationForm.customer_name.trim(),
+        customerPhone: normalizePhoneNumber(registrationForm.customer_phone.trim()),
+        tournamentName: selectedTournament.name,
+        paymentMethod: 'venue',
+        entryFee: 1 // TEMPORARY: Testing amount
       });
 
-      // Reset form and close dialog
+      // Reset form and close registration dialog
       setRegistrationForm({
         customer_name: '',
         customer_phone: '',
@@ -1686,6 +1739,10 @@ const PublicTournaments = () => {
                   <div className="text-right">
                     <p className="text-[10px] text-blue-300/80">Secure payment</p>
                     <p className="text-[10px] text-blue-200 mt-0.5">Instant confirmation</p>
+                    <div className="flex items-center justify-end gap-1 mt-1">
+                      <span className="text-[9px] text-blue-400/60">Powered by</span>
+                      <span className="text-[10px] font-bold text-blue-400">Razorpay</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1727,6 +1784,99 @@ const PublicTournaments = () => {
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Registration Success Dialog */}
+      <Dialog open={!!registrationSuccessData} onOpenChange={(open) => !open && setRegistrationSuccessData(null)}>
+        <DialogContent className="bg-gradient-to-br from-green-500/10 via-emerald-500/10 to-green-500/10 border-green-500/30 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-green-400 flex items-center gap-2 text-lg">
+              <div className="p-1.5 bg-green-500/20 rounded-lg">
+                <CheckCircle2 className="h-5 w-5 text-green-400" />
+              </div>
+              <div>
+                <div className="font-bold text-base">Registration Successful!</div>
+                <div className="text-xs text-green-300/80 font-normal mt-0.5">Save your registration ID</div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          
+          {registrationSuccessData && (
+            <div className="space-y-4 pt-3">
+              {/* Unique Registration ID - Highlighted */}
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-400/40 rounded-lg p-4 text-center">
+                <p className="text-xs text-green-300/80 mb-2">Your Registration ID</p>
+                <p className="text-2xl font-bold text-green-200 font-mono tracking-wider">
+                  {registrationSuccessData.registrationId}
+                </p>
+                <p className="text-[10px] text-green-300/70 mt-2">
+                  📸 Screenshot this for your records
+                </p>
+              </div>
+
+              {/* Registration Details */}
+              <div className="space-y-2 bg-cuephoria-dark/50 rounded-lg p-3 border border-cuephoria-grey/20">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-cuephoria-grey">Tournament:</span>
+                  <span className="text-sm font-semibold text-white">{registrationSuccessData.tournamentName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-cuephoria-grey">Name:</span>
+                  <span className="text-sm font-semibold text-white">{registrationSuccessData.customerName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-cuephoria-grey">Phone:</span>
+                  <span className="text-sm font-semibold text-white">{registrationSuccessData.customerPhone}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-cuephoria-grey">Payment Method:</span>
+                  <span className="text-sm font-semibold text-white capitalize">
+                    {registrationSuccessData.paymentMethod === 'razorpay' ? 'Online (Paid)' : 'Pay at Venue'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-cuephoria-grey">Entry Fee:</span>
+                  <span className="text-sm font-semibold text-yellow-400">₹{registrationSuccessData.entryFee}</span>
+                </div>
+              </div>
+
+              {/* Customer Type Badge */}
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                {registrationSuccessData.paymentMethod === 'razorpay' && (
+                  <div className="bg-yellow-500/20 border border-yellow-400/40 rounded-full px-3 py-1">
+                    <span className="text-xs font-semibold text-yellow-300 flex items-center gap-1">
+                      <Zap className="h-3 w-3" />
+                      Online Payment
+                    </span>
+                  </div>
+                )}
+                {registrationSuccessData.paymentMethod === 'venue' && (
+                  <div className="bg-blue-500/20 border border-blue-400/40 rounded-full px-3 py-1">
+                    <span className="text-xs font-semibold text-blue-300 flex items-center gap-1">
+                      <UserCheck className="h-3 w-3" />
+                      Guest Registration
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Important Note */}
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2.5">
+                <p className="text-xs text-blue-300 leading-relaxed">
+                  <span className="font-semibold">Important:</span> Please save your Registration ID. You'll need it to track your registration status.
+                </p>
+              </div>
+
+              <Button
+                onClick={() => setRegistrationSuccessData(null)}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Got it!
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

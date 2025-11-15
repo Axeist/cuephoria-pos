@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Loader2, AlertCircle, Sparkles, Trophy } from "lucide-react";
+import { CheckCircle2, Loader2, AlertCircle, Sparkles, Trophy, Zap } from "lucide-react";
 import { generateId } from '@/utils/pos.utils';
 
 type PendingTournamentRegistration = {
@@ -268,14 +268,34 @@ export default function PublicTournamentPaymentSuccess() {
         }
       }
 
+      // Generate unique registration ID
+      const generateRegistrationId = (): string => {
+        const timestamp = Date.now().toString(36).toUpperCase();
+        const random = Math.random().toString(36).substr(2, 6).toUpperCase();
+        return `REG-${timestamp}-${random}`;
+      };
+
+      const registrationId = generateRegistrationId();
+
       localStorage.removeItem("pendingTournamentRegistration");
       setStatus("done");
-      setMsg("Registration completed successfully!");
+      setMsg(`Registration completed successfully! Your Registration ID: ${registrationId}`);
+
+      // Store registration ID in localStorage for display
+      localStorage.setItem("lastRegistrationId", registrationId);
+      localStorage.setItem("lastRegistrationDetails", JSON.stringify({
+        registrationId,
+        customerName: pr.customer.name.trim(),
+        customerPhone: normalizePhoneNumber(pr.customer.phone),
+        tournamentName: pr.tournamentName,
+        paymentMethod: 'razorpay',
+        entryFee: pr.entryFee
+      }));
 
       // Redirect after a short delay
       setTimeout(() => {
-        navigate("/public/tournaments?registration_success=true");
-      }, 2000);
+        navigate("/public/tournaments?registration_success=true&reg_id=" + encodeURIComponent(registrationId));
+      }, 3000); // Increased delay to show registration ID
     };
 
     run();
@@ -365,10 +385,52 @@ export default function PublicTournamentPaymentSuccess() {
           {status === "done" && (
             <div className="space-y-4 animate-fade-in">
               <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-4 mb-4">
-                <p className="text-sm text-green-400 flex items-center justify-center gap-2">
+                <p className="text-sm text-green-400 flex items-center justify-center gap-2 mb-3">
                   <CheckCircle2 className="h-4 w-4" />
                   Payment verified and registration confirmed!
                 </p>
+                {/* Registration ID Display */}
+                {(() => {
+                  const regId = localStorage.getItem("lastRegistrationId");
+                  const regDetails = localStorage.getItem("lastRegistrationDetails");
+                  const details = regDetails ? JSON.parse(regDetails) : null;
+                  
+                  return regId ? (
+                    <div className="mt-4 space-y-3">
+                      <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-400/40 rounded-lg p-3 text-center">
+                        <p className="text-xs text-green-300/80 mb-1">Your Registration ID</p>
+                        <p className="text-xl font-bold text-green-200 font-mono tracking-wider">
+                          {regId}
+                        </p>
+                        <p className="text-[10px] text-green-300/70 mt-1">
+                          📸 Screenshot this for your records
+                        </p>
+                      </div>
+                      {details && (
+                        <div className="bg-cuephoria-dark/50 rounded-lg p-2 border border-cuephoria-grey/20 text-left">
+                          <div className="text-xs space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Tournament:</span>
+                              <span className="text-white font-semibold">{details.tournamentName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Name:</span>
+                              <span className="text-white font-semibold">{details.customerName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Payment:</span>
+                              <span className="text-yellow-400 font-semibold">Online (Paid)</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="bg-yellow-500/20 border border-yellow-400/40 rounded-full px-3 py-1 inline-flex items-center gap-1">
+                        <Zap className="h-3 w-3 text-yellow-300" />
+                        <span className="text-xs font-semibold text-yellow-300">Online Payment</span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
               </div>
               <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
                 <Loader2 className="h-4 w-4 animate-spin text-cuephoria-lightpurple" />
