@@ -38,13 +38,15 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           
           setCustomers(customersWithDates);
           
-          // ✅ Sync to database with customer_id
+          // ✅ Sync to database with custom_id and customer_id
           for (const customer of customersWithDates) {
+            const customerID = customer.customerId || generateCustomerID(customer.phone);
             await supabase.from('customers').upsert({
                 id: customer.id,
-                customer_id: customer.customerId, // ✅ Include customer_id
+                custom_id: customerID, // ✅ Include custom_id (required)
+                customer_id: customerID, // ✅ Also include customer_id for backward compatibility
                 name: customer.name,
-                phone: customer.phone,
+                phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
                 email: customer.email,
                 is_member: customer.isMember,
                 membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
@@ -209,7 +211,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       const { data, error } = await supabase
         .from('customers')
         .insert({
-          customer_id: customerID, // ✅ Include customer_id
+          custom_id: customerID, // ✅ Use custom_id (required field)
+          customer_id: customerID, // Also set customer_id for backward compatibility
           name: customer.name,
           phone: normalizedPhone, // ✅ Store normalized phone
           email: customer.email,
@@ -365,24 +368,28 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         loyaltyPoints: customer.loyaltyPoints
       });
       
-      // ✅ Update with normalized phone and customer_id
+      // ✅ Update with normalized phone, custom_id, and customer_id
+      const customerID = customer.customerId || generateCustomerID(customer.phone);
+      const updateData: any = {
+        custom_id: customerID, // ✅ Ensure custom_id is set (required field)
+        customer_id: customerID, // ✅ Also update customer_id for backward compatibility
+        name: customer.name,
+        phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
+        email: customer.email,
+        is_member: customer.isMember,
+        membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
+        membership_start_date: customer.membershipStartDate?.toISOString(),
+        membership_plan: customer.membershipPlan,
+        membership_hours_left: customer.membershipHoursLeft,
+        membership_duration: customer.membershipDuration,
+        loyalty_points: customer.loyaltyPoints,
+        total_spent: customer.totalSpent,
+        total_play_time: customer.totalPlayTime
+      };
+      
       const { error } = await supabase
         .from('customers')
-        .update({
-          customer_id: customer.customerId, // ✅ Include customer_id
-          name: customer.name,
-          phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
-          email: customer.email,
-          is_member: customer.isMember,
-          membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
-          membership_start_date: customer.membershipStartDate?.toISOString(),
-          membership_plan: customer.membershipPlan,
-          membership_hours_left: customer.membershipHoursLeft,
-          membership_duration: customer.membershipDuration,
-          loyalty_points: customer.loyaltyPoints,
-          total_spent: customer.totalSpent,
-          total_play_time: customer.totalPlayTime
-        })
+        .update(updateData)
         .eq('id', customer.id);
         
       if (error) {

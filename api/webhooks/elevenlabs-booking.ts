@@ -48,6 +48,14 @@ function isValidUUID(uuid: string): boolean {
   return UUID_REGEX.test(uuid);
 }
 
+// Generate unique Customer ID
+const generateCustomerID = (phone: string): string => {
+  const normalized = phone.replace(/\D/g, '');
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -251,13 +259,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customerId = existingCustomer.id;
       console.log("✅ Found existing customer:", customerId);
     } else {
-      // Create new customer
+      // Create new customer with custom_id
+      const customerID = generateCustomerID(normalizedPhone);
+      
       const { data: newCustomer, error: customerError } = await supabase
         .from("customers")
         .insert({
-          name: customer_name,
+          name: customer_name.trim(),
           phone: normalizedPhone,
-          email: customer_email || null,
+          email: customer_email?.trim() || null,
+          custom_id: customerID,
           is_member: false,
           loyalty_points: 0,
           total_spent: 0,
@@ -271,7 +282,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return j(res, { ok: false, error: "Failed to create customer" }, 500);
       }
       customerId = newCustomer.id;
-      console.log("✅ New customer created:", customerId);
+      console.log("✅ New customer created:", customerId, "with custom_id:", customerID);
     }
 
     // Fetch station details to calculate price

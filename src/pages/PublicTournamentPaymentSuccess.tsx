@@ -24,6 +24,14 @@ const normalizePhoneNumber = (phone: string): string => {
   return phone.replace(/\D/g, '');
 };
 
+// Generate unique Customer ID (matches PublicPaymentSuccess.tsx)
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
 export default function PublicTournamentPaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -112,13 +120,16 @@ export default function PublicTournamentPaymentSuccess() {
           customerId = existingCustomer.id;
           console.log(`✅ Found existing customer: ${existingCustomer.name}`);
         } else {
-          // Create new customer
+          // Create new customer with normalized phone and custom_id
+          const customerID = generateCustomerID(normalizedPhone);
+          
           const { data: created, error: cErr } = await supabase
             .from("customers")
             .insert({
               name: pr.customer.name.trim(),
               phone: normalizedPhone,
               email: pr.customer.email?.trim() || null,
+              custom_id: customerID,
               is_member: false,
               loyalty_points: 0,
               total_spent: 0,

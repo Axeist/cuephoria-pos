@@ -7,6 +7,19 @@ function j(res: unknown, status = 200) {
   });
 }
 
+// Phone number normalization
+const normalizePhoneNumber = (phone: string): string => {
+  return phone.replace(/\D/g, '');
+};
+
+// Generate unique Customer ID
+const generateCustomerID = (phone: string): string => {
+  const normalized = normalizePhoneNumber(phone);
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const phoneHash = normalized.slice(-4);
+  return `CUE${phoneHash}${timestamp}`;
+};
+
 export default async function handler(req: Request) {
   if (req.method !== "POST") {
     return j({ ok: false, error: "Method not allowed" }, 405);
@@ -43,13 +56,15 @@ export default async function handler(req: Request) {
     // Create customer if new
     let customerId = customerInfo.id;
     if (!customerId) {
-      console.log("🔍 Searching for existing customer with phone:", customerInfo.phone);
+      // Normalize phone number before searching
+      const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
+      console.log("🔍 Searching for existing customer with phone:", normalizedPhone);
       
       const { data: existingCustomer, error: searchError } = await supabase
         .from("customers")
         .select("id")
-        .eq("phone", customerInfo.phone)
-        .single();
+        .eq("phone", normalizedPhone)
+        .maybeSingle();
       
       if (searchError && searchError.code !== "PGRST116") {
         console.error("❌ Customer search error:", searchError);
@@ -61,12 +76,15 @@ export default async function handler(req: Request) {
         console.log("✅ Found existing customer:", customerId);
       } else {
         console.log("👤 Creating new customer");
+        const customerID = generateCustomerID(normalizedPhone);
+        
         const { data: newCustomer, error: customerError } = await supabase
           .from("customers")
           .insert({
-            name: customerInfo.name,
-            phone: customerInfo.phone,
-            email: customerInfo.email || null,
+            name: customerInfo.name.trim(),
+            phone: normalizedPhone,
+            email: customerInfo.email?.trim() || null,
+            custom_id: customerID,
             is_member: false,
             loyalty_points: 0,
             total_spent: 0,
@@ -80,7 +98,7 @@ export default async function handler(req: Request) {
           return j({ ok: false, error: "Failed to create customer" }, 500);
         }
         customerId = newCustomer.id;
-        console.log("✅ New customer created:", customerId);
+        console.log("✅ New customer created:", customerId, "with custom_id:", customerID);
       }
     }
 

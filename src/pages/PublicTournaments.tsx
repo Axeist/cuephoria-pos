@@ -700,12 +700,24 @@ const PublicTournaments = () => {
 
       // Create new customer if not existing
       if (!registrationForm.is_existing_customer || !customerId) {
+        // Generate unique Customer ID
+        const generateCustomerID = (phone: string): string => {
+          const normalized = normalizePhoneNumber(phone);
+          const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+          const phoneHash = normalized.slice(-4);
+          return `CUE${phoneHash}${timestamp}`;
+        };
+        
+        const normalizedPhone = normalizePhoneNumber(registrationForm.customer_phone.trim());
+        const customerID = generateCustomerID(normalizedPhone);
+        
         const { data: newCustomer, error: customerError } = await supabase
           .from('customers')
           .insert({
             name: registrationForm.customer_name.trim(),
-            phone: registrationForm.customer_phone.trim(),
+            phone: normalizedPhone,
             email: registrationForm.customer_email.trim() || null,
+            custom_id: customerID,
             is_member: false,
             loyalty_points: 0,
             total_spent: 0,
