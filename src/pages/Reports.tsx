@@ -21,6 +21,7 @@ import SalesWidgets from '@/components/reports/SalesWidgets';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -47,6 +48,7 @@ const ReportsPage: React.FC = () => {
   } = useSessionsData();
   
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   // Set default range to "this month"
   const today = new Date();
@@ -1315,12 +1317,12 @@ const ReportsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 min-h-screen text-white bg-transparent">
-      <div className="flex justify-between items-center pb-2">
-        <h1 className="text-4xl font-bold gradient-text font-heading">Reports</h1>
-        <div className="flex items-center gap-4">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 min-h-screen text-white bg-transparent">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
+        <h1 className="text-2xl sm:text-4xl font-bold gradient-text font-heading">Reports</h1>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
           <Select value={dateRangeKey} onValueChange={handleDateRangeChange}>
-            <SelectTrigger className="w-[180px] bg-gray-800 border-gray-700 text-white">
+            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700 text-white text-sm">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent className="bg-gray-800 border-gray-700 text-white">
@@ -1336,36 +1338,38 @@ const ReportsPage: React.FC = () => {
           
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2 bg-gray-800 border-gray-700 text-white">
+              <Button variant="outline" className="gap-2 bg-gray-800 border-gray-700 text-white text-xs sm:text-sm flex-1 sm:flex-initial">
                 <CalendarIcon className="h-4 w-4" />
-                {dateRangeString}
+                <span className="hidden sm:inline">{dateRangeString}</span>
+                <span className="sm:hidden">Date</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700" align="end">
+            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700" align={isMobile ? "start" : "end"}>
               <Calendar
                 initialFocus
                 mode="range"
                 defaultMonth={date?.from}
                 selected={date}
                 onSelect={handleCalendarSelect}
-                numberOfMonths={2}
+                numberOfMonths={isMobile ? 1 : 2}
                 className="p-3 pointer-events-auto bg-gray-800 text-white"
               />
             </PopoverContent>
           </Popover>
           
-          <Button onClick={handleDownloadReport} className="gap-2 bg-purple-500 hover:bg-purple-600 text-white">
+          <Button onClick={handleDownloadReport} className="gap-2 bg-purple-500 hover:bg-purple-600 text-white text-xs sm:text-sm flex-1 sm:flex-initial">
             <Download className="h-4 w-4" />
-            Export
+            <span className="hidden sm:inline">Export</span>
+            <span className="sm:hidden">Export</span>
           </Button>
         </div>
       </div>
       
-      <div className="bg-gray-800/60 rounded-lg p-1 flex gap-2 w-fit">
+      <div className="bg-gray-800/60 rounded-lg p-1 flex gap-2 overflow-x-auto scrollbar-hide">
         <Button
           onClick={() => setActiveTab('bills')}
           variant={activeTab === 'bills' ? 'default' : 'ghost'}
-          className={`gap-2 ${activeTab === 'bills' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'bills' ? 'bg-gray-700' : 'text-gray-400'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1379,7 +1383,7 @@ const ReportsPage: React.FC = () => {
         <Button
           onClick={() => setActiveTab('customers')}
           variant={activeTab === 'customers' ? 'default' : 'ghost'}
-          className={`gap-2 ${activeTab === 'customers' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'customers' ? 'bg-gray-700' : 'text-gray-400'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -1391,7 +1395,7 @@ const ReportsPage: React.FC = () => {
         <Button
           onClick={() => setActiveTab('sessions')}
           variant={activeTab === 'sessions' ? 'default' : 'ghost'}
-          className={`gap-2 ${activeTab === 'sessions' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'sessions' ? 'bg-gray-700' : 'text-gray-400'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -1402,7 +1406,7 @@ const ReportsPage: React.FC = () => {
         <Button
           onClick={() => setActiveTab('summary')}
           variant={activeTab === 'summary' ? 'default' : 'ghost'}
-          className={`gap-2 ${activeTab === 'summary' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'summary' ? 'bg-gray-700' : 'text-gray-400'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect width="20" height="14" x="2" y="5" rx="2" />

@@ -1,5 +1,5 @@
 // src/components/AppSidebar.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar, Users2, UserCircle, Bot } from 'lucide-react';
 import { 
@@ -29,6 +29,7 @@ const AppSidebar: React.FC = () => {
   const shouldHide = hideOnPaths.some(path => location.pathname.includes(path));
   const isMobile = useIsMobile();
   const { toggleSidebar } = useSidebar();
+  const [sheetOpen, setSheetOpen] = useState(false);
   
   const isAdmin = user?.isAdmin || false;
 
@@ -63,7 +64,7 @@ const AppSidebar: React.FC = () => {
       <>
         <div className="fixed top-0 left-0 w-full z-30 bg-[#1A1F2C] p-3 sm:p-4 flex justify-between items-center shadow-md">
           <div className="flex items-center gap-2">
-            <Sheet>
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="text-white h-10 w-10">
                   <Menu className="h-5 w-5" />
@@ -85,7 +86,8 @@ const AppSidebar: React.FC = () => {
                       {menuItems.map((item, index) => (
                         <Link 
                           key={item.path}
-                          to={item.path} 
+                          to={item.path}
+                          onClick={() => setSheetOpen(false)}
                           className={`flex items-center py-3 px-3 rounded-md my-1 ${location.pathname === item.path ? 'bg-cuephoria-dark text-cuephoria-lightpurple' : 'text-white hover:bg-cuephoria-dark/50'}`}
                         >
                           <item.icon className={`mr-3 h-5 w-5 ${location.pathname === item.path ? 'text-cuephoria-lightpurple animate-pulse-soft' : ''}`} />
@@ -113,7 +115,10 @@ const AppSidebar: React.FC = () => {
                           </div>
                         </div>
                         <button 
-                          onClick={logout}
+                          onClick={() => {
+                            setSheetOpen(false);
+                            logout();
+                          }}
                           className="p-2 rounded-md bg-cuephoria-darker hover:bg-red-500 transition-all duration-300 group-hover:shadow-lg"
                           title="Logout"
                         >

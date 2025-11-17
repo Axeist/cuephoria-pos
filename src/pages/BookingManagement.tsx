@@ -1578,12 +1578,12 @@ export default function BookingManagement() {
 
           {/* Analytics Dashboard */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="revenue">Revenue</TabsTrigger>
-              <TabsTrigger value="customers">Customers</TabsTrigger>
-              <TabsTrigger value="coupons">Coupons & Marketing</TabsTrigger>
-              <TabsTrigger value="stations">Stations</TabsTrigger>
+            <TabsList className="flex w-full overflow-x-auto scrollbar-hide gap-1 sm:grid sm:grid-cols-5">
+              <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Overview</TabsTrigger>
+              <TabsTrigger value="revenue" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Revenue</TabsTrigger>
+              <TabsTrigger value="customers" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Customers</TabsTrigger>
+              <TabsTrigger value="coupons" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Coupons & Marketing</TabsTrigger>
+              <TabsTrigger value="stations" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Stations</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">

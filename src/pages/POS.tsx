@@ -526,41 +526,41 @@ const POS = () => {
               onValueChange={setActiveTab}
               className="flex flex-col flex-grow min-h-0 animate-scale-in"
             >
-              <div className="px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
-                <TabsList className="grid w-full grid-cols-6 gap-1 mb-4 h-auto p-1">
+              <div className="px-3 sm:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
+                <TabsList className="flex w-full overflow-x-auto scrollbar-hide gap-1 mb-4 h-auto p-1 sm:grid sm:grid-cols-6">
                   <TabsTrigger
                     value="all"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white"
+                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white"
                   >
                     All ({categoryCounts.all || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="food"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white"
+                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white"
                   >
                     Food ({categoryCounts.food || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="drinks"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white"
+                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white"
                   >
                     Drinks ({categoryCounts.drinks || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="tobacco"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-red-500 data-[state=active]:text-white"
+                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-red-500 data-[state=active]:text-white"
                   >
                     Tobacco ({categoryCounts.tobacco || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="challenges"
-                    className="text-xs px-2 py-2 data-[state=active]:bg-green-500 data-[state=active]:text-white"
+                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-green-500 data-[state=active]:text-white"
                   >
                     Challenges ({categoryCounts.challenges || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="membership"
-                    className="text-xs px-1 py-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white flex items-center gap-1"
+                    className="text-xs px-1 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white flex items-center gap-1"
                   >
                     <Award className="h-3 w-3" />
                     Membership ({categoryCounts.membership || 0})

@@ -472,6 +472,15 @@
   display: none !important;        /* Chrome, Safari, Opera */
 }
 
+/* Scrollbar hide utility class */
+.scrollbar-hide {
+  -ms-overflow-style: none;        /* IE and Edge */
+  scrollbar-width: none;           /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important;        /* Chrome, Safari, Opera */
+}
+
 /* --- Product Filter Tag Custom Styling --- */
 .cuephoria-filter-tag {
   background: transparent;

@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Product } from '@/types/pos.types';
 import ProductCard from '@/components/ProductCard';
 import NoProductsFound from './NoProductsFound';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ProductTabsProps {
   products: Product[];
@@ -28,6 +29,7 @@ const ProductTabs: React.FC<ProductTabsProps> = ({
   showManagementActions = false,
   isAdmin = false
 }) => {
+  const isMobile = useIsMobile();
   // Get unique categories from products
   const categories = Array.from(new Set(products.map(p => p.category))).sort();
 
@@ -61,12 +63,14 @@ const ProductTabs: React.FC<ProductTabsProps> = ({
 
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="grid w-full overflow-x-auto" style={{ gridTemplateColumns: `repeat(${categories.length + 1}, minmax(120px, 1fr))` }}>
-        <TabsTrigger value="all" className="whitespace-nowrap">
+      <TabsList className={`w-full gap-1 ${isMobile ? 'flex overflow-x-auto scrollbar-hide' : 'grid'}`} style={!isMobile ? { 
+        gridTemplateColumns: `repeat(${categories.length + 1}, minmax(120px, 1fr))` 
+      } : undefined}>
+        <TabsTrigger value="all" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">
           All ({categoryCounts.all || 0})
         </TabsTrigger>
         {categories.map(category => (
-          <TabsTrigger key={category} value={category} className="whitespace-nowrap capitalize">
+          <TabsTrigger key={category} value={category} className="whitespace-nowrap flex-shrink-0 capitalize text-xs sm:text-sm">
             {category} ({categoryCounts[category] || 0})
           </TabsTrigger>
         ))}
