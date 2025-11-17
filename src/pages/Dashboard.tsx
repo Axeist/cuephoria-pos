@@ -22,11 +22,13 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeBills, isBetween } from '@/lib/date';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Dashboard = () => {
   const { customers, bills, stations, sessions, products } = usePOS();
   const { expenses, businessSummary } = useExpenses();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const billsN = useMemo(() => normalizeBills(bills), [bills]);
 
@@ -293,11 +295,11 @@ const Dashboard = () => {
         className="w-full"
       >
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 sm:mb-6">
-          <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:flex">
-            <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-            <TabsTrigger value="analytics" className="text-xs sm:text-sm">Analytics</TabsTrigger>
-            <TabsTrigger value="expenses" className="text-xs sm:text-sm">Expenses</TabsTrigger>
-            <TabsTrigger value="cash" className="text-xs sm:text-sm">Vault</TabsTrigger>
+          <TabsList className={`w-full sm:w-auto gap-1 ${isMobile ? 'flex overflow-x-auto scrollbar-hide' : 'grid grid-cols-2 sm:flex'}`}>
+            <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="analytics" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Analytics</TabsTrigger>
+            <TabsTrigger value="expenses" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Expenses</TabsTrigger>
+            <TabsTrigger value="cash" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Vault</TabsTrigger>
           </TabsList>
 
           {currentDashboardTab === 'expenses' && (

@@ -777,14 +777,14 @@ const Login = () => {
             <CardContent className="space-y-4 relative z-10 p-4 sm:p-6 pt-4 sm:pt-6">
               <div className="flex justify-center mb-6 sm:mb-4">
                 <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full max-w-xs">
-                  <TabsList className="grid w-full grid-cols-2 h-10 sm:h-auto">
-                    <TabsTrigger value="admin" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2">
-                      <Shield size={12} className="sm:w-3.5 sm:h-3.5" />
-                      Admin
+                  <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10 gap-1 p-1">
+                    <TabsTrigger value="admin" className="flex items-center justify-center gap-1 sm:gap-2 text-[11px] sm:text-sm py-1.5 sm:py-2 px-2 sm:px-3">
+                      <Shield size={10} className="sm:w-3.5 sm:h-3.5" />
+                      <span>Admin</span>
                     </TabsTrigger>
-                    <TabsTrigger value="staff" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2">
-                      <Users size={12} className="sm:w-3.5 sm:h-3.5" />
-                      Staff
+                    <TabsTrigger value="staff" className="flex items-center justify-center gap-1 sm:gap-2 text-[11px] sm:text-sm py-1.5 sm:py-2 px-2 sm:px-3">
+                      <Users size={10} className="sm:w-3.5 sm:h-3.5" />
+                      <span>Staff</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
