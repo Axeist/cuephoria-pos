@@ -774,15 +774,15 @@ const Login = () => {
           </CardHeader>
           
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4 relative z-10 p-4 sm:p-6 pt-0 sm:pt-0">
-              <div className="flex justify-center mb-4">
+            <CardContent className="space-y-4 relative z-10 p-4 sm:p-6 pt-4 sm:pt-6">
+              <div className="flex justify-center mb-6 sm:mb-4">
                 <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full max-w-xs">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="admin" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                  <TabsList className="grid w-full grid-cols-2 h-10 sm:h-auto">
+                    <TabsTrigger value="admin" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2">
                       <Shield size={12} className="sm:w-3.5 sm:h-3.5" />
                       Admin
                     </TabsTrigger>
-                    <TabsTrigger value="staff" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                    <TabsTrigger value="staff" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2">
                       <Users size={12} className="sm:w-3.5 sm:h-3.5" />
                       Staff
                     </TabsTrigger>
@@ -790,7 +790,7 @@ const Login = () => {
                 </Tabs>
               </div>
 
-              <div className="space-y-2 group">
+              <div className="space-y-2 group mt-2">
                 <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
                   <User size={12} className="sm:w-3.5 sm:h-3.5 inline-block" />
                   Username
