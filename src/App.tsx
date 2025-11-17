@@ -10,6 +10,7 @@ import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Pages
@@ -76,6 +77,7 @@ const ProtectedRoute = ({
 }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
+  const isMobile = useIsMobile();
 
   if (isLoading) {
     return (
@@ -105,7 +107,7 @@ const ProtectedRoute = ({
           <div className="hidden md:block">
             <SidebarTrigger />
           </div>
-          <div className="flex-1 pb-16 sm:pb-0">
+          <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
             {children}
           </div>
           <footer className="fixed sm:relative bottom-0 left-0 right-0 w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-40 sm:z-50">
