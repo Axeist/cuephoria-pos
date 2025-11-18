@@ -16,7 +16,7 @@ import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
   CalendarDays, Target, UserCheck, Edit2, Trash2, Hash, BarChart3, Building2, Eye, Timer, Star, 
-  GamepadIcon, TrendingUp as TrendingUpIcon, CalendarIcon, Expand, Minimize2
+  GamepadIcon, TrendingUp as TrendingUpIcon, CalendarIcon, Expand, Minimize2, Bell, X, CheckCircle2
 } from 'lucide-react';
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, isToday, isYesterday, isTomorrow
@@ -153,6 +153,14 @@ interface CalendarBooking extends Booking {
   topPercentage: number;
 }
 
+// Add new interface for notifications
+interface BookingNotification {
+  id: string;
+  booking: Booking;
+  timestamp: Date;
+  isPaid: boolean;
+}
+
 const getDateRangeFromPreset = (preset: string) => {
   const now = new Date();
   
@@ -217,8 +225,63 @@ export default function BookingManagement() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [expandedCalendarBookings, setExpandedCalendarBookings] = useState<Set<string>>(new Set());
 
+  // Notification state
+  const [notifications, setNotifications] = useState<BookingNotification[]>([]);
+  const [previousBookingIds, setPreviousBookingIds] = useState<Set<string>>(new Set());
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+
+  // Function to play notification sound
+  const playNotificationSound = (isPaid: boolean) => {
+    if (!soundEnabled) return;
+    
+    // Create audio context for notification sound
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Different frequencies for paid vs unpaid
+    oscillator.frequency.value = isPaid ? 1000 : 600; // Higher pitch for paid bookings
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.3);
+  };
+
+  // Function to add notification
+  const addNotification = (booking: Booking) => {
+    const isPaid = !!(booking.payment_mode && booking.payment_mode !== 'venue' && booking.payment_txn_id);
+    
+    const notification: BookingNotification = {
+      id: `${booking.id}-${Date.now()}`,
+      booking,
+      timestamp: new Date(),
+      isPaid
+    };
+    
+    setNotifications(prev => [notification, ...prev]);
+    
+    // Play sound
+    playNotificationSound(isPaid);
+  };
+
+  // Remove notification function
+  const removeNotification = (notificationId: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  };
+
+  // Clear all notifications
+  const clearAllNotifications = () => {
+    setNotifications([]);
+  };
 
   useEffect(() => {
     fetchBookings();
@@ -413,6 +476,19 @@ export default function BookingManagement() {
         )
       ) as string[];
       setCouponOptions(presentCodes.sort());
+
+      // After setting bookings, check for new ones
+      const currentBookingIds = new Set(transformed.map(b => b.id));
+      const newBookings = transformed.filter(b => !previousBookingIds.has(b.id));
+      
+      // Only show notifications if we have previous bookings (not on initial load)
+      if (previousBookingIds.size > 0 && newBookings.length > 0) {
+        newBookings.forEach(booking => {
+          addNotification(booking);
+        });
+      }
+      
+      setPreviousBookingIds(currentBookingIds);
 
     } catch (err) {
       console.error('Error fetching bookings:', err);
@@ -1322,6 +1398,112 @@ export default function BookingManagement() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
+      {/* Notification Bar */}
+      {notifications.length > 0 && (
+        <Card className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-border/50 sticky top-4 z-50 shadow-lg">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-cuephoria-lightpurple" />
+                <CardTitle className="text-lg">New Bookings</CardTitle>
+                <Badge variant="secondary" className="ml-2">
+                  {notifications.length}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className="text-xs"
+                  title={soundEnabled ? 'Disable sound' : 'Enable sound'}
+                >
+                  {soundEnabled ? '🔊' : '🔇'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllNotifications}
+                  className="text-xs"
+                >
+                  Clear All
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {notifications.map((notification) => {
+                const { booking, timestamp, isPaid } = notification;
+                return (
+                  <div
+                    key={notification.id}
+                    className={`p-3 rounded-lg border transition-all duration-200 ${
+                      isPaid
+                        ? 'bg-gradient-to-r from-green-500/10 via-background to-green-500/10 border-green-500/30'
+                        : 'bg-background border-border/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          {isPaid ? (
+                            <DollarSign className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                          )}
+                          <span className="font-semibold text-sm">
+                            {booking.customer.name}
+                          </span>
+                          {isPaid && (
+                            <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/50 text-xs">
+                              Paid
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <div>
+                            <span className="font-medium">Station:</span> {booking.station.name}
+                          </div>
+                          <div>
+                            <span className="font-medium">Date:</span> {format(new Date(booking.booking_date), 'MMM dd, yyyy')} • {booking.start_time} - {booking.end_time}
+                          </div>
+                          {booking.final_price && (
+                            <div>
+                              <span className="font-medium">Amount:</span> ₹{booking.final_price}
+                            </div>
+                          )}
+                          {isPaid && booking.payment_mode && (
+                            <div>
+                              <span className="font-medium">Payment:</span> {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
+                              {booking.payment_txn_id && (
+                                <span className="ml-2 font-mono text-[10px]">({booking.payment_txn_id.slice(-8)})</span>
+                              )}
+                            </div>
+                          )}
+                          <div className="text-[10px] opacity-70">
+                            {format(timestamp, 'MMM dd, yyyy HH:mm:ss')}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeNotification(notification.id)}
+                        className="h-6 w-6 p-0"
+                        title="Close notification"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header - Modified to include calendar toggle */}
       <div className="flex items-center justify-between">
         <div>
