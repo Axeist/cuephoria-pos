@@ -12,6 +12,7 @@ import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
@@ -159,6 +160,7 @@ interface BookingNotification {
   booking: Booking;
   timestamp: Date;
   isPaid: boolean;
+  isRead?: boolean;
 }
 
 const getDateRangeFromPreset = (preset: string) => {
@@ -229,6 +231,7 @@ export default function BookingManagement() {
   const [notifications, setNotifications] = useState<BookingNotification[]>([]);
   const [previousBookingIds, setPreviousBookingIds] = useState<Set<string>>(new Set());
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
@@ -264,7 +267,8 @@ export default function BookingManagement() {
       id: `${booking.id}-${Date.now()}`,
       booking,
       timestamp: new Date(),
-      isPaid
+      isPaid,
+      isRead: false
     };
     
     setNotifications(prev => [notification, ...prev]);
@@ -278,10 +282,25 @@ export default function BookingManagement() {
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
   };
 
+  // Mark notification as read
+  const markAsRead = (notificationId: string) => {
+    setNotifications(prev => 
+      prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+    );
+  };
+
+  // Mark all as read
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  };
+
   // Clear all notifications
   const clearAllNotifications = () => {
     setNotifications([]);
   };
+
+  // Get unread count
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   useEffect(() => {
     fetchBookings();
@@ -1398,112 +1417,6 @@ export default function BookingManagement() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
-      {/* Notification Bar */}
-      {notifications.length > 0 && (
-        <Card className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-border/50 sticky top-4 z-50 shadow-lg">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-cuephoria-lightpurple" />
-                <CardTitle className="text-lg">New Bookings</CardTitle>
-                <Badge variant="secondary" className="ml-2">
-                  {notifications.length}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSoundEnabled(!soundEnabled)}
-                  className="text-xs"
-                  title={soundEnabled ? 'Disable sound' : 'Enable sound'}
-                >
-                  {soundEnabled ? '🔊' : '🔇'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllNotifications}
-                  className="text-xs"
-                >
-                  Clear All
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {notifications.map((notification) => {
-                const { booking, timestamp, isPaid } = notification;
-                return (
-                  <div
-                    key={notification.id}
-                    className={`p-3 rounded-lg border transition-all duration-200 ${
-                      isPaid
-                        ? 'bg-gradient-to-r from-green-500/10 via-background to-green-500/10 border-green-500/30'
-                        : 'bg-background border-border/50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          {isPaid ? (
-                            <DollarSign className="h-4 w-4 text-green-500" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 text-blue-500" />
-                          )}
-                          <span className="font-semibold text-sm">
-                            {booking.customer.name}
-                          </span>
-                          {isPaid && (
-                            <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/50 text-xs">
-                              Paid
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          <div>
-                            <span className="font-medium">Station:</span> {booking.station.name}
-                          </div>
-                          <div>
-                            <span className="font-medium">Date:</span> {format(new Date(booking.booking_date), 'MMM dd, yyyy')} • {booking.start_time} - {booking.end_time}
-                          </div>
-                          {booking.final_price && (
-                            <div>
-                              <span className="font-medium">Amount:</span> ₹{booking.final_price}
-                            </div>
-                          )}
-                          {isPaid && booking.payment_mode && (
-                            <div>
-                              <span className="font-medium">Payment:</span> {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
-                              {booking.payment_txn_id && (
-                                <span className="ml-2 font-mono text-[10px]">({booking.payment_txn_id.slice(-8)})</span>
-                              )}
-                            </div>
-                          )}
-                          <div className="text-[10px] opacity-70">
-                            {format(timestamp, 'MMM dd, yyyy HH:mm:ss')}
-                          </div>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeNotification(notification.id)}
-                        className="h-6 w-6 p-0"
-                        title="Close notification"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Header - Modified to include calendar toggle */}
       <div className="flex items-center justify-between">
         <div>
@@ -1515,6 +1428,165 @@ export default function BookingManagement() {
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Notification Bell */}
+          <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="relative">
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-96 p-0" align="end">
+              <div className="flex flex-col max-h-[600px]">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-cuephoria-lightpurple" />
+                    <h3 className="font-semibold">Booking Notifications</h3>
+                    {unreadCount > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {unreadCount} new
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSoundEnabled(!soundEnabled)}
+                      className="h-7 w-7 p-0"
+                      title={soundEnabled ? 'Disable sound' : 'Enable sound'}
+                    >
+                      {soundEnabled ? '🔊' : '🔇'}
+                    </Button>
+                    {notifications.length > 0 && (
+                      <>
+                        {unreadCount > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={markAllAsRead}
+                            className="text-xs h-7"
+                          >
+                            Mark all read
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearAllNotifications}
+                          className="text-xs h-7"
+                        >
+                          Clear All
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notifications List */}
+                <div className="overflow-y-auto flex-1">
+                  {notifications.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground">
+                      <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No notifications yet</p>
+                      <p className="text-xs mt-1">New bookings will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {notifications.map((notification) => {
+                        const { booking, timestamp, isPaid, isRead } = notification;
+                        return (
+                          <div
+                            key={notification.id}
+                            className={`p-4 transition-all duration-200 hover:bg-accent/50 ${
+                              !isRead ? 'bg-blue-500/5 border-l-2 border-l-blue-500' : ''
+                            } ${
+                              isPaid
+                                ? 'bg-gradient-to-r from-green-500/5 via-transparent to-green-500/5'
+                                : ''
+                            }`}
+                            onClick={() => !isRead && markAsRead(notification.id)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {isPaid ? (
+                                    <DollarSign className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                  )}
+                                  <span className="font-semibold text-sm truncate">
+                                    {booking.customer.name}
+                                  </span>
+                                  {isPaid && (
+                                    <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/50 text-xs flex-shrink-0">
+                                      Paid
+                                    </Badge>
+                                  )}
+                                  {!isRead && (
+                                    <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground space-y-1">
+                                  <div>
+                                    <span className="font-medium">Station:</span> {booking.station.name}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Date:</span> {format(new Date(booking.booking_date), 'MMM dd, yyyy')} • {booking.start_time} - {booking.end_time}
+                                  </div>
+                                  {booking.final_price && (
+                                    <div>
+                                      <span className="font-medium">Amount:</span> ₹{booking.final_price}
+                                    </div>
+                                  )}
+                                  {isPaid && booking.payment_mode && (
+                                    <div>
+                                      <span className="font-medium">Payment:</span> {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
+                                      {booking.payment_txn_id && (
+                                        <span className="ml-2 font-mono text-[10px]">({booking.payment_txn_id.slice(-8)})</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="text-[10px] opacity-70">
+                                    {format(timestamp, 'MMM dd, yyyy HH:mm:ss')}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeNotification(notification.id);
+                                }}
+                                className="h-6 w-6 p-0 flex-shrink-0"
+                                title="Remove notification"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                {notifications.length > 0 && (
+                  <div className="p-2 border-t text-xs text-muted-foreground text-center">
+                    {notifications.length} {notifications.length === 1 ? 'notification' : 'notifications'}
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <Button 
             onClick={() => setCalendarView(!calendarView)} 
             variant={calendarView ? "default" : "outline"} 
