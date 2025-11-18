@@ -13,6 +13,7 @@ import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useBookingNotifications } from '@/context/BookingNotificationContext';
 import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
@@ -154,14 +155,6 @@ interface CalendarBooking extends Booking {
   topPercentage: number;
 }
 
-// Add new interface for notifications
-interface BookingNotification {
-  id: string;
-  booking: Booking;
-  timestamp: Date;
-  isPaid: boolean;
-  isRead?: boolean;
-}
 
 const getDateRangeFromPreset = (preset: string) => {
   const now = new Date();
@@ -227,232 +220,37 @@ export default function BookingManagement() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [expandedCalendarBookings, setExpandedCalendarBookings] = useState<Set<string>>(new Set());
 
-  // Notification state - load from localStorage on mount
-  const [notifications, setNotifications] = useState<BookingNotification[]>(() => {
-    try {
-      const saved = localStorage.getItem('booking-notifications');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const now = new Date();
-        const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000); // 24 hours in milliseconds
-        
-        // Convert timestamp strings back to Date objects and filter out old notifications
-        const loaded = parsed
-          .map((n: any) => ({
-            ...n,
-            timestamp: new Date(n.timestamp),
-            booking: {
-              ...n.booking,
-              booking_date: n.booking.booking_date,
-              created_at: n.booking.created_at
-            }
-          }))
-          .filter((n: BookingNotification) => {
-            // Keep notifications from the last 24 hours
-            return n.timestamp.getTime() > oneDayAgo;
-          });
-        
-        // If we filtered out some notifications, save the cleaned list
-        if (loaded.length < parsed.length) {
-          localStorage.setItem('booking-notifications', JSON.stringify(loaded));
-        }
-        
-        return loaded;
-      }
-    } catch (error) {
-      console.error('Error loading notifications from localStorage:', error);
-    }
-    return [];
-  });
-  
-  const [previousBookingIds, setPreviousBookingIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('booking-previous-ids');
-      if (saved) {
-        return new Set(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.error('Error loading previous booking IDs from localStorage:', error);
-    }
-    return new Set();
-  });
-  
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    try {
-      const saved = localStorage.getItem('booking-sound-enabled');
-      return saved !== null ? JSON.parse(saved) : true;
-    } catch {
-      return true;
-    }
-  });
+  // Use global notification context
+  const {
+    notifications,
+    unreadCount,
+    soundEnabled,
+    setSoundEnabled,
+    removeNotification,
+    markAsRead,
+    markAllAsRead,
+    clearAllNotifications
+  } = useBookingNotifications();
   
   const [notificationOpen, setNotificationOpen] = useState(false);
 
-  // Save notifications to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('booking-notifications', JSON.stringify(notifications));
-    } catch (error) {
-      console.error('Error saving notifications to localStorage:', error);
-    }
-  }, [notifications]);
-
-  // Save previousBookingIds to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('booking-previous-ids', JSON.stringify(Array.from(previousBookingIds)));
-    } catch (error) {
-      console.error('Error saving previous booking IDs to localStorage:', error);
-    }
-  }, [previousBookingIds]);
-
-  // Save soundEnabled to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('booking-sound-enabled', JSON.stringify(soundEnabled));
-    } catch (error) {
-      console.error('Error saving sound setting to localStorage:', error);
-    }
-  }, [soundEnabled]);
-
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
-
-  // Function to play notification sound
-  const playNotificationSound = (isPaid: boolean) => {
-    if (!soundEnabled) return;
-    
-    // Create audio context for notification sound
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Different frequencies for paid vs unpaid
-    oscillator.frequency.value = isPaid ? 1000 : 600; // Higher pitch for paid bookings
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.3);
-  };
-
-  // Function to add notification
-  const addNotification = (booking: Booking, playSound: boolean = true) => {
-    const isPaid = !!(booking.payment_mode && booking.payment_mode !== 'venue' && booking.payment_txn_id);
-    
-    setNotifications(prev => {
-      // Check if notification already exists for this booking
-      const existingNotification = prev.find(n => n.booking.id === booking.id);
-      if (existingNotification) {
-        console.log('🔔 Notification already exists for booking:', booking.id);
-        return prev; // Return unchanged state
-      }
-      
-      const notification: BookingNotification = {
-        id: `${booking.id}-${Date.now()}`,
-        booking,
-        timestamp: new Date(),
-        isPaid,
-        isRead: false
-      };
-      
-      // Play sound only if requested (not when loading from localStorage)
-      if (playSound) {
-        playNotificationSound(isPaid);
-      }
-      
-      return [notification, ...prev];
-    });
-  };
-
-  // Remove notification function
-  const removeNotification = (notificationId: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
-  };
-
-  // Mark notification as read
-  const markAsRead = (notificationId: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
-    );
-  };
-
-  // Mark all as read
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  };
-
-  // Clear all notifications
-  const clearAllNotifications = () => {
-    setNotifications([]);
-    setPreviousBookingIds(new Set());
-    try {
-      localStorage.removeItem('booking-notifications');
-      localStorage.removeItem('booking-previous-ids');
-    } catch (error) {
-      console.error('Error clearing localStorage:', error);
-    }
-  };
-
-  // Get unread count
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  // Test function to create a fake notification
-  const createTestNotification = () => {
-    const testBooking: Booking = {
-      id: `test-${Date.now()}`,
-      booking_date: format(new Date(), 'yyyy-MM-dd'),
-      start_time: '10:00:00',
-      end_time: '11:00:00',
-      duration: 60,
-      status: 'confirmed',
-      final_price: 500,
-      payment_mode: 'razorpay',
-      payment_txn_id: 'test_txn_12345',
-      station: {
-        name: 'Test Station',
-        type: 'ps5'
-      },
-      customer: {
-        name: 'Test Customer',
-        phone: '1234567890',
-        email: 'test@example.com'
-      },
-      booking_views: []
-    };
-    addNotification(testBooking);
-    toast.success('Test notification created!');
-  };
 
   useEffect(() => {
     fetchBookings();
   }, []);
 
   useEffect(() => {
+    // Real-time subscription for booking updates (notifications handled globally)
     const channel = supabase
       .channel('booking-management-changes')
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'bookings' 
-      }, (payload) => {
-        console.log('🔔 Real-time INSERT event received:', payload.new);
-        // Small delay to ensure booking is fully committed
-        setTimeout(() => {
-          fetchBookings();
-        }, 500);
-      })
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'bookings' 
       }, () => {
-        // Also listen to all changes for updates/deletes
+        // Refresh bookings list when changes occur
         fetchBookings();
       })
       .subscribe();
@@ -639,36 +437,8 @@ export default function BookingManagement() {
       ) as string[];
       setCouponOptions(presentCodes.sort());
 
-      // After setting bookings, check for new ones
-      const currentBookingIds = new Set(transformed.map(b => b.id));
-      const newBookings = transformed.filter(b => !previousBookingIds.has(b.id));
-      
-      // Only show notifications if we have previous bookings (not on initial load)
-      // OR if the booking was created very recently (within last 30 seconds)
-      const now = new Date();
-      const recentBookings = newBookings.filter(b => {
-        if (!b.created_at) return false;
-        const createdTime = new Date(b.created_at);
-        const timeDiff = now.getTime() - createdTime.getTime();
-        return timeDiff < 30000; // 30 seconds
-      });
-      
-      if (previousBookingIds.size > 0 && newBookings.length > 0) {
-        console.log('🔔 New bookings detected:', newBookings.length);
-        newBookings.forEach(booking => {
-          console.log('🔔 Adding notification for booking:', booking.id, booking.customer.name);
-          addNotification(booking, true); // Play sound for new bookings
-        });
-      } else if (previousBookingIds.size === 0 && recentBookings.length > 0) {
-        // On initial load, only notify about very recent bookings (created in last 30 seconds)
-        console.log('🔔 Recent bookings detected on initial load:', recentBookings.length);
-        recentBookings.forEach(booking => {
-          console.log('🔔 Adding notification for recent booking:', booking.id, booking.customer.name);
-          addNotification(booking, true); // Play sound for recent bookings
-        });
-      }
-      
-      setPreviousBookingIds(currentBookingIds);
+      // Note: Notifications are now handled globally by BookingNotificationContext
+      // No need to check for new bookings here as the global context handles it
 
     } catch (err) {
       console.error('Error fetching bookings:', err);
@@ -1589,17 +1359,6 @@ export default function BookingManagement() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* Test Notification Button (for testing) */}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={createTestNotification}
-            className="text-xs"
-            title="Create test notification"
-          >
-            🧪 Test
-          </Button>
-
           {/* Notification Bell */}
           <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
             <PopoverTrigger asChild>

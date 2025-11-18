@@ -8,8 +8,10 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
+import { BookingNotificationProvider } from "@/context/BookingNotificationContext";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
+import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
@@ -104,8 +106,9 @@ const ProtectedRoute = ({
       <div className="flex min-h-screen w-full overflow-x-hidden relative">
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-x-hidden">
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center justify-between px-4 py-2 border-b">
             <SidebarTrigger />
+            <GlobalNotificationBell />
           </div>
           <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
             {children}
@@ -124,11 +127,12 @@ const App = () => (
     <AuthProvider>
       <POSProvider>
         <ExpenseProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            {/* REMOVED: <AutoRefreshApp> wrapper */}
-            <BrowserRouter>
+          <BookingNotificationProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              {/* REMOVED: <AutoRefreshApp> wrapper */}
+              <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
@@ -277,6 +281,7 @@ const App = () => (
             </BrowserRouter>
             {/* REMOVED: </AutoRefreshApp> wrapper */}
           </TooltipProvider>
+          </BookingNotificationProvider>
         </ExpenseProvider>
       </POSProvider>
     </AuthProvider>

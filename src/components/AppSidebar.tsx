@@ -21,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { GlobalNotificationBell } from '@/components/GlobalNotificationBell';
 
 const AppSidebar: React.FC = () => {
   const location = useLocation();
@@ -80,6 +81,9 @@ const AppSidebar: React.FC = () => {
                     />
                     <span className="text-lg sm:text-xl font-bold gradient-text font-heading">Cuephoria</span>
                   </div>
+                  <div className="px-3 pb-2">
+                    <GlobalNotificationBell />
+                  </div>
                   <div className="mx-4 h-px bg-cuephoria-purple/30" />
                   <div className="flex-1 overflow-auto py-2">
                     <div className="px-2">
@@ -132,6 +136,7 @@ const AppSidebar: React.FC = () => {
             </Sheet>
             <span className="text-lg sm:text-xl font-bold gradient-text font-heading">Cuephoria</span>
           </div>
+          <GlobalNotificationBell />
         </div>
         <div className="pt-[64px] sm:pt-16"></div>
       </>
