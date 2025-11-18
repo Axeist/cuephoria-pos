@@ -172,8 +172,8 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     }
   }, [soundEnabled]);
 
-  // Fetch booking details when a new booking is detected
-  const fetchBookingDetails = useCallback(async (bookingId: string): Promise<Booking | null> => {
+  // Fetch booking details when a new booking is detected - use ref to avoid recreation
+  const fetchBookingDetailsRef = useRef(async (bookingId: string): Promise<Booking | null> => {
     try {
       const { data: bookingData, error } = await supabase
         .from('bookings')
@@ -253,10 +253,16 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       console.error('Error fetching booking details:', error);
       return null;
     }
-  }, []);
+  });
 
-  // Add notification function
-  const addNotification = useCallback((booking: Booking) => {
+  // Use ref to track soundEnabled without causing subscription recreation
+  const soundEnabledRef = useRef(soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  // Add notification function - use ref to avoid recreation
+  const addNotificationRef = useRef((booking: Booking) => {
     const isPaid = !!(booking.payment_mode && booking.payment_mode !== 'venue' && booking.payment_txn_id);
     
     setNotifications(prev => {
@@ -275,8 +281,28 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         isRead: false
       };
       
-      // Play sound
-      playNotificationSound(isPaid);
+      // Play sound using ref to get current value
+      if (soundEnabledRef.current) {
+        try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          oscillator.frequency.value = isPaid ? 1000 : 600;
+          oscillator.type = 'sine';
+          
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+          
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.3);
+        } catch (error) {
+          console.error('Error playing notification sound:', error);
+        }
+      }
       
       // Show toast notification
       toast.success(
@@ -289,7 +315,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       
       return [notification, ...prev];
     });
-  }, [playNotificationSound]);
+  });
 
   // Set up real-time subscription
   useEffect(() => {
@@ -323,10 +349,10 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         // Small delay to ensure booking is fully committed
         setTimeout(async () => {
           try {
-            const booking = await fetchBookingDetails(bookingId);
+            const booking = await fetchBookingDetailsRef.current(bookingId);
             if (booking) {
               console.log('🔔 Booking details fetched, adding notification:', booking.customer.name);
-              addNotification(booking);
+              addNotificationRef.current(booking);
               setPreviousBookingIds(prev => {
                 const newSet = new Set([...prev, bookingId]);
                 previousBookingIdsRef.current = newSet;
@@ -357,7 +383,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       console.log('🔔 Cleaning up global booking notification subscription');
       supabase.removeChannel(channel);
     };
-  }, [fetchBookingDetails, addNotification]);
+  }, []); // Empty deps - use refs for functions to avoid recreation
 
   // Load existing bookings on mount to populate previousBookingIds
   useEffect(() => {
