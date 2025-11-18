@@ -227,11 +227,93 @@ export default function BookingManagement() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [expandedCalendarBookings, setExpandedCalendarBookings] = useState<Set<string>>(new Set());
 
-  // Notification state
-  const [notifications, setNotifications] = useState<BookingNotification[]>([]);
-  const [previousBookingIds, setPreviousBookingIds] = useState<Set<string>>(new Set());
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  // Notification state - load from localStorage on mount
+  const [notifications, setNotifications] = useState<BookingNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('booking-notifications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const now = new Date();
+        const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000); // 24 hours in milliseconds
+        
+        // Convert timestamp strings back to Date objects and filter out old notifications
+        const loaded = parsed
+          .map((n: any) => ({
+            ...n,
+            timestamp: new Date(n.timestamp),
+            booking: {
+              ...n.booking,
+              booking_date: n.booking.booking_date,
+              created_at: n.booking.created_at
+            }
+          }))
+          .filter((n: BookingNotification) => {
+            // Keep notifications from the last 24 hours
+            return n.timestamp.getTime() > oneDayAgo;
+          });
+        
+        // If we filtered out some notifications, save the cleaned list
+        if (loaded.length < parsed.length) {
+          localStorage.setItem('booking-notifications', JSON.stringify(loaded));
+        }
+        
+        return loaded;
+      }
+    } catch (error) {
+      console.error('Error loading notifications from localStorage:', error);
+    }
+    return [];
+  });
+  
+  const [previousBookingIds, setPreviousBookingIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('booking-previous-ids');
+      if (saved) {
+        return new Set(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('Error loading previous booking IDs from localStorage:', error);
+    }
+    return new Set();
+  });
+  
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem('booking-sound-enabled');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+  
   const [notificationOpen, setNotificationOpen] = useState(false);
+
+  // Save notifications to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('booking-notifications', JSON.stringify(notifications));
+    } catch (error) {
+      console.error('Error saving notifications to localStorage:', error);
+    }
+  }, [notifications]);
+
+  // Save previousBookingIds to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('booking-previous-ids', JSON.stringify(Array.from(previousBookingIds)));
+    } catch (error) {
+      console.error('Error saving previous booking IDs to localStorage:', error);
+    }
+  }, [previousBookingIds]);
+
+  // Save soundEnabled to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('booking-sound-enabled', JSON.stringify(soundEnabled));
+    } catch (error) {
+      console.error('Error saving sound setting to localStorage:', error);
+    }
+  }, [soundEnabled]);
 
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
@@ -260,21 +342,32 @@ export default function BookingManagement() {
   };
 
   // Function to add notification
-  const addNotification = (booking: Booking) => {
+  const addNotification = (booking: Booking, playSound: boolean = true) => {
     const isPaid = !!(booking.payment_mode && booking.payment_mode !== 'venue' && booking.payment_txn_id);
     
-    const notification: BookingNotification = {
-      id: `${booking.id}-${Date.now()}`,
-      booking,
-      timestamp: new Date(),
-      isPaid,
-      isRead: false
-    };
-    
-    setNotifications(prev => [notification, ...prev]);
-    
-    // Play sound
-    playNotificationSound(isPaid);
+    setNotifications(prev => {
+      // Check if notification already exists for this booking
+      const existingNotification = prev.find(n => n.booking.id === booking.id);
+      if (existingNotification) {
+        console.log('🔔 Notification already exists for booking:', booking.id);
+        return prev; // Return unchanged state
+      }
+      
+      const notification: BookingNotification = {
+        id: `${booking.id}-${Date.now()}`,
+        booking,
+        timestamp: new Date(),
+        isPaid,
+        isRead: false
+      };
+      
+      // Play sound only if requested (not when loading from localStorage)
+      if (playSound) {
+        playNotificationSound(isPaid);
+      }
+      
+      return [notification, ...prev];
+    });
   };
 
   // Remove notification function
@@ -297,6 +390,13 @@ export default function BookingManagement() {
   // Clear all notifications
   const clearAllNotifications = () => {
     setNotifications([]);
+    setPreviousBookingIds(new Set());
+    try {
+      localStorage.removeItem('booking-notifications');
+      localStorage.removeItem('booking-previous-ids');
+    } catch (error) {
+      console.error('Error clearing localStorage:', error);
+    }
   };
 
   // Get unread count
@@ -557,14 +657,14 @@ export default function BookingManagement() {
         console.log('🔔 New bookings detected:', newBookings.length);
         newBookings.forEach(booking => {
           console.log('🔔 Adding notification for booking:', booking.id, booking.customer.name);
-          addNotification(booking);
+          addNotification(booking, true); // Play sound for new bookings
         });
       } else if (previousBookingIds.size === 0 && recentBookings.length > 0) {
         // On initial load, only notify about very recent bookings (created in last 30 seconds)
         console.log('🔔 Recent bookings detected on initial load:', recentBookings.length);
         recentBookings.forEach(booking => {
           console.log('🔔 Adding notification for recent booking:', booking.id, booking.customer.name);
-          addNotification(booking);
+          addNotification(booking, true); // Play sound for recent bookings
         });
       }
       
