@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -100,6 +100,14 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     }
     return new Set();
   });
+
+  // Use ref to track previousBookingIds without causing subscription re-creation
+  const previousBookingIdsRef = useRef<Set<string>>(previousBookingIds);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    previousBookingIdsRef.current = previousBookingIds;
+  }, [previousBookingIds]);
 
   const [soundEnabled, setSoundEnabledState] = useState(() => {
     try {
@@ -287,6 +295,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
   useEffect(() => {
     console.log('🔔 Setting up global booking notification subscription');
     
+    // Use consistent channel name
     const channel = supabase
       .channel('global-booking-notifications')
       .on('postgres_changes', { 
@@ -294,31 +303,53 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         schema: 'public', 
         table: 'bookings' 
       }, async (payload) => {
-        console.log('🔔 Real-time INSERT event received:', payload.new);
-        const bookingId = (payload.new as any).id;
+        console.log('🔔 Real-time INSERT event received:', payload);
+        console.log('🔔 Payload new:', payload.new);
+        const bookingId = (payload.new as any)?.id;
         
-        if (!bookingId) return;
+        if (!bookingId) {
+          console.log('🔔 No booking ID in payload');
+          return;
+        }
         
-        // Check if we've already seen this booking
-        if (previousBookingIds.has(bookingId)) {
+        // Check if we've already seen this booking using ref
+        if (previousBookingIdsRef.current.has(bookingId)) {
           console.log('🔔 Booking already processed:', bookingId);
           return;
         }
         
+        console.log('🔔 New booking detected, fetching details:', bookingId);
+        
         // Small delay to ensure booking is fully committed
         setTimeout(async () => {
-          const booking = await fetchBookingDetails(bookingId);
-          if (booking) {
-            addNotification(booking);
-            setPreviousBookingIds(prev => new Set([...prev, bookingId]));
+          try {
+            const booking = await fetchBookingDetails(bookingId);
+            if (booking) {
+              console.log('🔔 Booking details fetched, adding notification:', booking.customer.name);
+              addNotification(booking);
+              setPreviousBookingIds(prev => {
+                const newSet = new Set([...prev, bookingId]);
+                previousBookingIdsRef.current = newSet;
+                return newSet;
+              });
+            } else {
+              console.error('🔔 Failed to fetch booking details for:', bookingId);
+            }
+          } catch (error) {
+            console.error('🔔 Error processing booking notification:', error);
           }
         }, 500);
       })
       .subscribe((status) => {
+        console.log('🔔 Subscription status changed:', status);
         if (status === 'SUBSCRIBED') {
           console.log('✅ Successfully subscribed to global booking notifications');
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Failed to subscribe to global booking notifications');
+        } else if (status === 'TIMED_OUT') {
+          console.error('❌ Subscription timed out');
+        } else if (status === 'CLOSED') {
+          console.log('🔔 Subscription closed');
         }
       });
 
@@ -326,7 +357,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
       console.log('🔔 Cleaning up global booking notification subscription');
       supabase.removeChannel(channel);
     };
-  }, [fetchBookingDetails, addNotification, previousBookingIds]);
+  }, [fetchBookingDetails, addNotification]);
 
   // Load existing bookings on mount to populate previousBookingIds
   useEffect(() => {
@@ -343,6 +374,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         if (bookings) {
           const ids = new Set(bookings.map(b => b.id));
           setPreviousBookingIds(ids);
+          previousBookingIdsRef.current = ids;
           console.log('🔔 Loaded', ids.size, 'existing booking IDs');
         }
       } catch (error) {
