@@ -317,43 +317,8 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     });
   });
 
-  // Verify replication is enabled
-  useEffect(() => {
-    const checkReplication = async () => {
-      try {
-        const { data, error } = await supabase
-          .rpc('exec_sql', {
-            query: `
-              SELECT tablename 
-              FROM pg_publication_tables 
-              WHERE pubname = 'supabase_realtime' 
-              AND tablename = 'bookings';
-            `
-          });
-        
-        if (error) {
-          // Try alternative method
-          const { data: altData } = await supabase
-            .from('_realtime')
-            .select('*')
-            .limit(1);
-          
-          console.log('🔔 Replication check - using alternative method');
-        } else {
-          console.log('🔔 Replication status:', data);
-        }
-      } catch (err) {
-        console.log('🔔 Could not verify replication status (this is okay)');
-      }
-    };
-    
-    checkReplication();
-  }, []);
-
   // Set up real-time subscription - match exact pattern from sessions which works
   useEffect(() => {
-    console.log('🔔 Setting up global booking notification subscription');
-    
     let isSubscribed = false;
     
     // Match the exact pattern used by sessions subscription which works
@@ -369,35 +334,25 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         async (payload) => {
           // Only process INSERT events
           if (payload.eventType !== 'INSERT') {
-            console.log('🔔 Ignoring non-INSERT event:', payload.eventType);
             return;
           }
-          
-          console.log('🔔 Real-time INSERT event received:', payload);
-          console.log('🔔 Event type:', payload.eventType);
-          console.log('🔔 Payload new:', payload.new);
           
           const bookingId = (payload.new as any)?.id;
           
           if (!bookingId) {
-            console.log('🔔 No booking ID in payload');
             return;
           }
           
           // Check if we've already seen this booking using ref
           if (previousBookingIdsRef.current.has(bookingId)) {
-            console.log('🔔 Booking already processed:', bookingId);
             return;
           }
-          
-          console.log('🔔 New booking detected, fetching details:', bookingId);
           
           // Small delay to ensure booking is fully committed
           setTimeout(async () => {
             try {
               const booking = await fetchBookingDetailsRef.current(bookingId);
               if (booking) {
-                console.log('🔔 Booking details fetched, adding notification:', booking.customer.name);
                 addNotificationRef.current(booking);
                 setPreviousBookingIds(prev => {
                   const newSet = new Set([...prev, bookingId]);
@@ -414,27 +369,20 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         }
       )
       .subscribe((status) => {
-        console.log('🔔 Subscription status changed:', status);
         if (status === 'SUBSCRIBED') {
           isSubscribed = true;
-          console.log('✅ Successfully subscribed to global booking notifications');
-          console.log('🔔 Listening for INSERT events on bookings table...');
-          console.log('💡 If no events are received, verify replication is enabled in Supabase Dashboard');
+          console.log('✅ Booking notifications: Real-time subscription active');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Failed to subscribe to global booking notifications');
-          console.error('💡 Make sure replication is enabled for the bookings table in Supabase');
-          console.error('💡 Go to: Database → Replication → Enable for bookings table');
-          console.error('💡 Or run SQL: ALTER PUBLICATION supabase_realtime ADD TABLE public.bookings;');
+          console.error('❌ Failed to subscribe to booking notifications');
+          console.error('💡 Enable replication for bookings table in Supabase Dashboard');
         } else if (status === 'TIMED_OUT') {
-          console.error('❌ Subscription timed out');
+          console.error('❌ Booking notifications subscription timed out');
         } else if (status === 'CLOSED') {
           isSubscribed = false;
-          console.log('🔔 Subscription closed');
         }
       });
 
     return () => {
-      console.log('🔔 Cleaning up global booking notification subscription');
       if (isSubscribed) {
         supabase.removeChannel(channel);
       }
