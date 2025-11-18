@@ -302,6 +302,33 @@ export default function BookingManagement() {
   // Get unread count
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
+  // Test function to create a fake notification
+  const createTestNotification = () => {
+    const testBooking: Booking = {
+      id: `test-${Date.now()}`,
+      booking_date: format(new Date(), 'yyyy-MM-dd'),
+      start_time: '10:00:00',
+      end_time: '11:00:00',
+      duration: 60,
+      status: 'confirmed',
+      final_price: 500,
+      payment_mode: 'razorpay',
+      payment_txn_id: 'test_txn_12345',
+      station: {
+        name: 'Test Station',
+        type: 'ps5'
+      },
+      customer: {
+        name: 'Test Customer',
+        phone: '1234567890',
+        email: 'test@example.com'
+      },
+      booking_views: []
+    };
+    addNotification(testBooking);
+    toast.success('Test notification created!');
+  };
+
   useEffect(() => {
     fetchBookings();
   }, []);
@@ -309,7 +336,23 @@ export default function BookingManagement() {
   useEffect(() => {
     const channel = supabase
       .channel('booking-management-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'bookings' 
+      }, (payload) => {
+        console.log('🔔 Real-time INSERT event received:', payload.new);
+        // Small delay to ensure booking is fully committed
+        setTimeout(() => {
+          fetchBookings();
+        }, 500);
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'bookings' 
+      }, () => {
+        // Also listen to all changes for updates/deletes
         fetchBookings();
       })
       .subscribe();
@@ -501,8 +544,26 @@ export default function BookingManagement() {
       const newBookings = transformed.filter(b => !previousBookingIds.has(b.id));
       
       // Only show notifications if we have previous bookings (not on initial load)
+      // OR if the booking was created very recently (within last 30 seconds)
+      const now = new Date();
+      const recentBookings = newBookings.filter(b => {
+        if (!b.created_at) return false;
+        const createdTime = new Date(b.created_at);
+        const timeDiff = now.getTime() - createdTime.getTime();
+        return timeDiff < 30000; // 30 seconds
+      });
+      
       if (previousBookingIds.size > 0 && newBookings.length > 0) {
+        console.log('🔔 New bookings detected:', newBookings.length);
         newBookings.forEach(booking => {
+          console.log('🔔 Adding notification for booking:', booking.id, booking.customer.name);
+          addNotification(booking);
+        });
+      } else if (previousBookingIds.size === 0 && recentBookings.length > 0) {
+        // On initial load, only notify about very recent bookings (created in last 30 seconds)
+        console.log('🔔 Recent bookings detected on initial load:', recentBookings.length);
+        recentBookings.forEach(booking => {
+          console.log('🔔 Adding notification for recent booking:', booking.id, booking.customer.name);
           addNotification(booking);
         });
       }
@@ -1428,6 +1489,17 @@ export default function BookingManagement() {
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Test Notification Button (for testing) */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={createTestNotification}
+            className="text-xs"
+            title="Create test notification"
+          >
+            🧪 Test
+          </Button>
+
           {/* Notification Bell */}
           <Popover open={notificationOpen} onOpenChange={setNotificationOpen}>
             <PopoverTrigger asChild>
