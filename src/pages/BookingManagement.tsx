@@ -214,6 +214,7 @@ export default function BookingManagement() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
+  const [groupByCustomer, setGroupByCustomer] = useState(true); // true = by customer, false = by time
 
   // NEW: Calendar view state
   const [calendarView, setCalendarView] = useState(false);
@@ -1334,13 +1335,24 @@ export default function BookingManagement() {
     const byDate: Record<string, Record<string, Booking[]>> = {};
     bookings.forEach(b => {
       const d = b.booking_date;
-      const cust = b.customer.name || 'Unknown';
+      let groupKey: string;
+      
+      if (groupByCustomer) {
+        // Group by customer (default)
+        groupKey = b.customer.name || 'Unknown';
+      } else {
+        // Group by time slot (hour)
+        const startHour = parseInt(b.start_time.split(':')[0]);
+        const hourLabel = `${startHour.toString().padStart(2, '0')}:00`;
+        groupKey = hourLabel;
+      }
+      
       byDate[d] ||= {};
-      byDate[d][cust] ||= [];
-      byDate[d][cust].push(b);
+      byDate[d][groupKey] ||= [];
+      byDate[d][groupKey].push(b);
     });
     return byDate;
-  }, [bookings]);
+  }, [bookings, groupByCustomer]);
 
   const topStations = Object.entries(analytics.stations.utilization)
     .sort((a, b) => b[1].revenue - a[1].revenue)
@@ -2497,6 +2509,32 @@ export default function BookingManagement() {
               <div className="flex items-center justify-between">
                 <CardTitle>Bookings ({bookings.length})</CardTitle>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="group-toggle" className="text-xs font-medium cursor-pointer">
+                      Group by:
+                    </Label>
+                    <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                      <Button
+                        id="group-toggle"
+                        variant={groupByCustomer ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setGroupByCustomer(true)}
+                        className="h-7 px-3 text-xs"
+                      >
+                        <Users className="h-3 w-3 mr-1" />
+                        Customer
+                      </Button>
+                      <Button
+                        variant={!groupByCustomer ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setGroupByCustomer(false)}
+                        className="h-7 px-3 text-xs"
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        Time
+                      </Button>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-1">
                     <Gift className="h-4 w-4" />
                     {analytics.coupons.totalCouponsUsed} with coupons
@@ -2564,15 +2602,25 @@ export default function BookingManagement() {
                         
                         <CollapsibleContent>
                           <div key={`${date}-content-${bookingIds}`} className="ml-6 mt-2 space-y-2">
-                              {Object.entries(customerBookings).map(([customerName, bookingsForCustomer]) => {
-                                const key = `${date}::${customerName}`;
-                                const couponBookings = bookingsForCustomer.filter(b => b.coupon_code);
+                              {Object.entries(customerBookings)
+                                .sort((a, b) => {
+                                  if (groupByCustomer) {
+                                    // Sort alphabetically by customer name
+                                    return a[0].localeCompare(b[0]);
+                                  } else {
+                                    // Sort chronologically by time
+                                    return a[0].localeCompare(b[0]);
+                                  }
+                                })
+                                .map(([groupKey, bookingsForGroup]) => {
+                                const key = `${date}::${groupKey}`;
+                                const couponBookings = bookingsForGroup.filter(b => b.coupon_code);
                                 
-                                const isCustomerExpanded = expandedCustomers.has(key);
+                                const isGroupExpanded = expandedCustomers.has(key);
                                 return (
                                   <Collapsible 
                                     key={key}
-                                    open={isCustomerExpanded}
+                                    open={isGroupExpanded}
                                     onOpenChange={(open) => {
                                       if (open) {
                                         setExpandedCustomers(prev => new Set(prev).add(key));
@@ -2588,16 +2636,22 @@ export default function BookingManagement() {
                                     <CollapsibleTrigger 
                                       className="flex items-center gap-2 w-full p-2 text-left bg-background rounded border hover:bg-muted/50 transition-colors"
                                     >
-                                      {isCustomerExpanded ? (
+                                      {isGroupExpanded ? (
                                         <ChevronDown className="h-3 w-3" />
                                       ) : (
                                         <ChevronRight className="h-3 w-3" />
                                       )}
-                                      <Users className="h-3 w-3" />
-                                      <span className="font-medium">{customerName}</span>
+                                      {groupByCustomer ? (
+                                        <Users className="h-3 w-3" />
+                                      ) : (
+                                        <Clock className="h-3 w-3" />
+                                      )}
+                                      <span className="font-medium">
+                                        {groupByCustomer ? groupKey : `${groupKey} - ${(parseInt(groupKey.split(':')[0]) + 1).toString().padStart(2, '0')}:00`}
+                                      </span>
                                       <div className="ml-auto flex items-center gap-2">
                                         <Badge variant="secondary" className="text-xs">
-                                          {bookingsForCustomer.length} booking{bookingsForCustomer.length !== 1 ? 's' : ''}
+                                          {bookingsForGroup.length} booking{bookingsForGroup.length !== 1 ? 's' : ''}
                                         </Badge>
                                         {couponBookings.length > 0 && (
                                           <Badge variant="outline" className="text-xs flex items-center gap-1">
@@ -2605,13 +2659,23 @@ export default function BookingManagement() {
                                             {couponBookings.length} coupon{couponBookings.length !== 1 ? 's' : ''}
                                           </Badge>
                                         )}
+                                        {!groupByCustomer && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {new Set(bookingsForGroup.map(b => b.customer.name)).size} customer{new Set(bookingsForGroup.map(b => b.customer.name)).size !== 1 ? 's' : ''}
+                                          </Badge>
+                                        )}
                                       </div>
                                     </CollapsibleTrigger>
                                     
                                     <CollapsibleContent>
-                                      <div key={`${key}-bookings-${bookingsForCustomer.map(b => b.id).join('-')}`} className="ml-6 mt-2 space-y-2">
-                                          {bookingsForCustomer
-                                            .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                                      <div key={`${key}-bookings-${bookingsForGroup.map(b => b.id).join('-')}`} className="ml-6 mt-2 space-y-2">
+                                          {bookingsForGroup
+                                            .sort((a, b) => {
+                                              // Sort by time first, then by customer name
+                                              const timeCompare = a.start_time.localeCompare(b.start_time);
+                                              if (timeCompare !== 0) return timeCompare;
+                                              return a.customer.name.localeCompare(b.customer.name);
+                                            })
                                             .map(booking => (
                                               <div 
                                                 key={booking.id} 
