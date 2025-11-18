@@ -1612,20 +1612,24 @@ export default function BookingManagement() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-96 p-0" align="end">
+            <PopoverContent 
+              className="w-[420px] max-w-[calc(100vw-2rem)] p-0 z-[100]" 
+              align="end"
+              sideOffset={8}
+            >
               <div className="flex flex-col max-h-[600px]">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-5 w-5 text-cuephoria-lightpurple" />
-                    <h3 className="font-semibold">Booking Notifications</h3>
+                <div className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Bell className="h-5 w-5 text-cuephoria-lightpurple flex-shrink-0" />
+                    <h3 className="font-semibold text-sm truncate">Booking Notifications</h3>
                     {unreadCount > 0 && (
-                      <Badge variant="secondary" className="ml-2">
+                      <Badge variant="secondary" className="ml-1 flex-shrink-0 text-xs px-1.5 py-0">
                         {unreadCount} new
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1642,18 +1646,18 @@ export default function BookingManagement() {
                             variant="ghost"
                             size="sm"
                             onClick={markAllAsRead}
-                            className="text-xs h-7"
+                            className="text-xs h-7 px-2"
                           >
-                            Mark all read
+                            Mark read
                           </Button>
                         )}
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={clearAllNotifications}
-                          className="text-xs h-7"
+                          className="text-xs h-7 px-2"
                         >
-                          Clear All
+                          Clear
                         </Button>
                       </>
                     )}
@@ -1661,42 +1665,50 @@ export default function BookingManagement() {
                 </div>
 
                 {/* Notifications List */}
-                <div className="overflow-y-auto flex-1">
+                <div className="overflow-y-auto flex-1 overscroll-contain">
                   {notifications.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">
                       <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>No notifications yet</p>
+                      <p className="text-sm">No notifications yet</p>
                       <p className="text-xs mt-1">New bookings will appear here</p>
                     </div>
                   ) : (
-                    <div className="divide-y">
+                    <div className="divide-y divide-border/50">
                       {notifications.map((notification) => {
                         const { booking, timestamp, isPaid, isRead } = notification;
                         return (
                           <div
                             key={notification.id}
-                            className={`p-4 transition-all duration-200 hover:bg-accent/50 ${
-                              !isRead ? 'bg-blue-500/5 border-l-2 border-l-blue-500' : ''
+                            className={`p-3 transition-all duration-200 hover:bg-accent/50 cursor-pointer ${
+                              !isRead ? 'bg-blue-500/5 border-l-2 border-l-blue-500' : 'bg-background'
                             } ${
-                              isPaid
-                                ? 'bg-gradient-to-r from-green-500/5 via-transparent to-green-500/5'
+                              isPaid && !isRead
+                                ? 'bg-gradient-to-r from-green-500/5 via-blue-500/5 to-green-500/5'
+                                : isPaid
+                                ? 'bg-gradient-to-r from-green-500/3 via-transparent to-green-500/3'
                                 : ''
                             }`}
                             onClick={() => !isRead && markAsRead(notification.id)}
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  {isPaid ? (
-                                    <DollarSign className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                  ) : (
-                                    <CheckCircle2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                                  )}
-                                  <span className="font-semibold text-sm truncate">
+                            <div className="flex items-start gap-2">
+                              {/* Icon */}
+                              <div className="flex-shrink-0 mt-0.5">
+                                {isPaid ? (
+                                  <DollarSign className="h-4 w-4 text-green-500" />
+                                ) : (
+                                  <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                                )}
+                              </div>
+                              
+                              {/* Content */}
+                              <div className="flex-1 min-w-0 space-y-1.5">
+                                {/* Header Row */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-sm text-foreground">
                                     {booking.customer.name}
                                   </span>
                                   {isPaid && (
-                                    <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/50 text-xs flex-shrink-0">
+                                    <Badge variant="outline" className="bg-green-500/20 text-green-400 border-green-500/50 text-[10px] px-1.5 py-0 h-4">
                                       Paid
                                     </Badge>
                                   )}
@@ -1704,31 +1716,41 @@ export default function BookingManagement() {
                                     <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0"></span>
                                   )}
                                 </div>
-                                <div className="text-xs text-muted-foreground space-y-1">
-                                  <div>
-                                    <span className="font-medium">Station:</span> {booking.station.name}
+                                
+                                {/* Details */}
+                                <div className="text-xs text-muted-foreground space-y-0.5">
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="font-medium text-foreground/70">Station:</span>
+                                    <span className="break-words">{booking.station.name}</span>
                                   </div>
-                                  <div>
-                                    <span className="font-medium">Date:</span> {format(new Date(booking.booking_date), 'MMM dd, yyyy')} • {booking.start_time} - {booking.end_time}
+                                  <div className="flex items-start gap-1.5 flex-wrap">
+                                    <span className="font-medium text-foreground/70">Date:</span>
+                                    <span>
+                                      {format(new Date(booking.booking_date), 'MMM dd, yyyy')} • {booking.start_time} - {booking.end_time}
+                                    </span>
                                   </div>
                                   {booking.final_price && (
-                                    <div>
-                                      <span className="font-medium">Amount:</span> ₹{booking.final_price}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-medium text-foreground/70">Amount:</span>
+                                      <span className="font-semibold text-foreground">₹{booking.final_price}</span>
                                     </div>
                                   )}
                                   {isPaid && booking.payment_mode && (
-                                    <div>
-                                      <span className="font-medium">Payment:</span> {booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}
+                                    <div className="flex items-start gap-1.5 flex-wrap">
+                                      <span className="font-medium text-foreground/70">Payment:</span>
+                                      <span>{booking.payment_mode === 'razorpay' ? 'Razorpay' : booking.payment_mode}</span>
                                       {booking.payment_txn_id && (
-                                        <span className="ml-2 font-mono text-[10px]">({booking.payment_txn_id.slice(-8)})</span>
+                                        <span className="font-mono text-[10px] opacity-60">({booking.payment_txn_id.slice(-8)})</span>
                                       )}
                                     </div>
                                   )}
-                                  <div className="text-[10px] opacity-70">
+                                  <div className="text-[10px] opacity-60 pt-0.5">
                                     {format(timestamp, 'MMM dd, yyyy HH:mm:ss')}
                                   </div>
                                 </div>
                               </div>
+                              
+                              {/* Close Button */}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1736,10 +1758,10 @@ export default function BookingManagement() {
                                   e.stopPropagation();
                                   removeNotification(notification.id);
                                 }}
-                                className="h-6 w-6 p-0 flex-shrink-0"
+                                className="h-6 w-6 p-0 flex-shrink-0 opacity-60 hover:opacity-100"
                                 title="Remove notification"
                               >
-                                <X className="h-3 w-3" />
+                                <X className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </div>
@@ -1751,7 +1773,7 @@ export default function BookingManagement() {
 
                 {/* Footer */}
                 {notifications.length > 0 && (
-                  <div className="p-2 border-t text-xs text-muted-foreground text-center">
+                  <div className="p-2.5 border-t bg-muted/30 text-xs text-muted-foreground text-center">
                     {notifications.length} {notifications.length === 1 ? 'notification' : 'notifications'}
                   </div>
                 )}
