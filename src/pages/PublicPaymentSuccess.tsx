@@ -34,6 +34,20 @@ export default function PublicPaymentSuccess() {
   const [status, setStatus] = useState<"checking" | "creating" | "done" | "failed">("checking");
   const [msg, setMsg] = useState("Verifying your payment…");
 
+  // Warn user not to close/refresh the page
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (status === "checking" || status === "creating") {
+        e.preventDefault();
+        e.returnValue = "Your booking is being processed. Closing this page may prevent your booking from being created. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [status]);
+
   useEffect(() => {
     const run = async () => {
       if (!paymentId || !orderId || !signature) {
@@ -163,45 +177,59 @@ export default function PublicPaymentSuccess() {
         }
       }
 
-      // 4) Insert booking rows directly (one per station per slot)
-      const rows: any[] = [];
-      pb.selectedStations.forEach((station_id) => {
-        pb.slots.forEach((slot) => {
-          rows.push({
-            station_id,
-            customer_id: customerId!,
-            booking_date: pb.selectedDateISO,
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-            duration: pb.duration,
-            status: "confirmed",
-            original_price: pb.pricing.original / pb.slots.length,
-            discount_percentage:
-              pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
-            final_price: pb.pricing.final / pb.slots.length,
-            coupon_code: pb.pricing.coupons || null,
-            payment_mode: "razorpay",
-            payment_txn_id: paymentId, // Store Razorpay payment ID
-            notes: `Razorpay Order: ${orderId}`, // Store order ID in notes for reference
+      // 4) Check if booking already exists (created by webhook)
+      const { data: existingBookings } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("payment_txn_id", paymentId)
+        .limit(1);
+
+      let insertedBookings;
+      if (existingBookings && existingBookings.length > 0) {
+        console.log("✅ Booking already exists (created by webhook):", existingBookings[0].id);
+        insertedBookings = existingBookings;
+      } else {
+        // 5) Insert booking rows directly (one per station per slot)
+        const rows: any[] = [];
+        pb.selectedStations.forEach((station_id) => {
+          pb.slots.forEach((slot) => {
+            rows.push({
+              station_id,
+              customer_id: customerId!,
+              booking_date: pb.selectedDateISO,
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              duration: pb.duration,
+              status: "confirmed",
+              original_price: pb.pricing.original / pb.slots.length,
+              discount_percentage:
+                pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
+              final_price: pb.pricing.final / pb.slots.length,
+              coupon_code: pb.pricing.coupons || null,
+              payment_mode: "razorpay",
+              payment_txn_id: paymentId, // Store Razorpay payment ID
+              notes: `Razorpay Order: ${orderId}`, // Store order ID in notes for reference
+            });
           });
         });
-      });
 
-      const { error: bErr, data: insertedBookings } = await supabase
-        .from("bookings")
-        .insert(rows)
-        .select("id");
+        const { error: bErr, data: inserted } = await supabase
+          .from("bookings")
+          .insert(rows)
+          .select("id");
 
-      if (bErr) {
-        console.error("Booking creation error:", bErr);
-        setStatus("failed");
-        setMsg(
-          `Payment ok, but booking creation failed: ${bErr.message || "Database error"}. Please contact support or rebook.`
-        );
-        return;
+        if (bErr) {
+          console.error("Booking creation error:", bErr);
+          setStatus("failed");
+          setMsg(
+            `Payment ok, but booking creation failed: ${bErr.message || "Database error"}. Please contact support or rebook.`
+          );
+          return;
+        }
+        insertedBookings = inserted;
       }
 
-      console.log("✅ Bookings created:", insertedBookings?.length || 0);
+      console.log("✅ Bookings created/found:", insertedBookings?.length || 0);
 
       // 5) Fetch station names for confirmation dialog
       const stationIds = [...new Set(pb.selectedStations)];
@@ -318,6 +346,23 @@ export default function PublicPaymentSuccess() {
 
           {/* Message */}
           <p className="text-gray-300 mb-6 text-base leading-relaxed">{msg}</p>
+
+          {/* Critical Warning - Do not close/refresh */}
+          {(status === "checking" || status === "creating") && (
+            <div className="mb-6 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 rounded-xl p-4 animate-pulse">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-yellow-300 mb-1">
+                    ⚠️ Please Do Not Close or Refresh This Page
+                  </p>
+                  <p className="text-xs text-yellow-200/80 leading-relaxed">
+                    Your booking is being processed. Closing this browser window or refreshing the page may prevent your booking from being created. Please wait until you see the confirmation message.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Loading Progress Indicator */}
           {(status === "checking" || status === "creating") && (

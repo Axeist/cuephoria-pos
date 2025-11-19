@@ -1120,6 +1120,39 @@ export default function PublicBooking() {
       };
       localStorage.setItem("pendingBooking", JSON.stringify(pendingBooking));
 
+      // Serialize booking data for order notes (compact format to fit 256 char limit per field)
+      // Use minimal keys to save space
+      const bookingDataCompact = JSON.stringify({
+        s: selectedStations, // stations
+        d: format(selectedDate, "yyyy-MM-dd"), // date
+        t: slotsToBook.map(s => ({ s: s.start_time, e: s.end_time })), // time slots
+        du: bookingDuration, // duration
+        c: { n: customerInfo.name, p: customerInfo.phone, e: customerInfo.email || "", i: customerInfo.id || "" }, // customer
+        p: { o: originalPrice * slotsToBook.length, d: discount * slotsToBook.length, f: totalPrice, tf: transactionFee, twf: totalWithFee }, // pricing
+        cp: Object.values(appliedCoupons).join(","), // coupons
+      });
+
+      // Split booking_data across multiple note fields if needed (each field max 256 chars)
+      const bookingDataStr = bookingDataCompact;
+      const notes: Record<string, string> = {
+        customer_name: customerInfo.name,
+        customer_phone: customerInfo.phone,
+        customer_email: customerInfo.email || "",
+        booking_date: format(selectedDate, "yyyy-MM-dd"),
+        stations: selectedStations.join(","),
+      };
+
+      // Store booking_data, split if necessary
+      if (bookingDataStr.length <= 256) {
+        notes.booking_data = bookingDataStr;
+      } else {
+        // Split into multiple fields
+        notes.booking_data_1 = bookingDataStr.substring(0, 256);
+        if (bookingDataStr.length > 256) {
+          notes.booking_data_2 = bookingDataStr.substring(256, 512);
+        }
+      }
+
       // Create order on server with total including transaction fee
       const orderRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
@@ -1127,13 +1160,7 @@ export default function PublicBooking() {
         body: JSON.stringify({
           amount: totalWithFee,
           receipt: txnId,
-          notes: {
-            customer_name: customerInfo.name,
-            customer_phone: customerInfo.phone,
-            customer_email: customerInfo.email || "",
-            booking_date: format(selectedDate, "yyyy-MM-dd"),
-            stations: selectedStations.join(","),
-          },
+          notes: notes,
         }),
       });
 
