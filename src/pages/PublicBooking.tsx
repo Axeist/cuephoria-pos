@@ -15,6 +15,7 @@ import CouponPromotionalPopup from "@/components/CouponPromotionalPopup";
 import BookingConfirmationDialog from "@/components/BookingConfirmationDialog";
 import LegalDialog from "@/components/dialog/LegalDialog";
 import OnlinePaymentPromoDialog from "@/components/OnlinePaymentPromoDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CalendarIcon,
   Clock,
@@ -35,6 +36,7 @@ import {
   CheckCircle2,
   Zap,
   BadgeCheck,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parse, getDay } from "date-fns";
@@ -185,6 +187,7 @@ export default function PublicBooking() {
   const [todayRows, setTodayRows] = useState<TodayBookingRow[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
   const [showOnlinePaymentPromo, setShowOnlinePaymentPromo] = useState(false);
+  const [showPaymentWarning, setShowPaymentWarning] = useState(false);
   
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
@@ -1306,16 +1309,16 @@ export default function PublicBooking() {
         await createVenueBooking();
       }
     } else {
-      await initiateRazorpay();
+      // Show warning modal before opening payment gateway
+      setShowPaymentWarning(true);
     }
   }
 
   const handlePromoAccept = async () => {
     setShowOnlinePaymentPromo(false);
-    // Switch to online payment and proceed
+    // Switch to online payment and show warning modal
     setPaymentMethod("razorpay");
-    // initiateRazorpay doesn't depend on paymentMethod state, so we can call it directly
-    await initiateRazorpay();
+    setShowPaymentWarning(true);
   };
 
   const handlePromoDecline = async () => {
@@ -1323,6 +1326,19 @@ export default function PublicBooking() {
     // Proceed with venue booking
     await createVenueBooking();
   };
+
+  // Auto-close payment warning modal and proceed with payment after 3 seconds
+  useEffect(() => {
+    if (showPaymentWarning) {
+      const timer = setTimeout(async () => {
+        setShowPaymentWarning(false);
+        await initiateRazorpay();
+      }, 3000); // 3 seconds
+
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPaymentWarning]);
 
   function maskPhone(p?: string) {
     if (!p) return "";
@@ -2527,6 +2543,55 @@ export default function PublicBooking() {
         onDecline={handlePromoDecline}
         serviceType={getServiceTypeForPromo()}
       />
+
+      {/* Payment Warning Modal */}
+      <Dialog open={showPaymentWarning} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-yellow-500/20 animate-ping"></div>
+                <AlertTriangle className="h-6 w-6 text-yellow-400 relative z-10" />
+              </div>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-orange-400">
+                Important: Don't Close or Refresh
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm font-semibold text-yellow-300">
+                    ⚠️ Please Keep This Window Open
+                  </p>
+                  <p className="text-xs text-yellow-200/90 leading-relaxed">
+                    Your booking will be created automatically after successful payment. 
+                    <strong className="text-yellow-300"> Do not close or refresh this browser window</strong> until you receive the booking confirmation.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-300/90 leading-relaxed">
+                  The payment gateway will open in a moment. After completing payment, you'll be redirected back here to see your booking confirmation.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Loader2 className="h-4 w-4 text-cuephoria-lightpurple animate-spin" />
+              <span className="text-xs text-gray-400">
+                Opening payment gateway...
+              </span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <LegalDialog 
         isOpen={showLegalDialog}
