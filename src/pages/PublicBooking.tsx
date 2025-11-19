@@ -595,6 +595,7 @@ export default function PublicBooking() {
     "NIT50",
     "ALMA50",
     "AXEIST",
+    "TEST210198$",
   ];
 
   function validateStudentID() {
@@ -726,6 +727,16 @@ export default function PublicBooking() {
       toast.success(msg);
       return;
     }
+
+    if (code === "TEST210198$") {
+      const ok = window.confirm(
+        "🧪 TEST210198$ is a test coupon that sets the transaction value to ₹1 for payment flow testing. Apply?"
+      );
+      if (!ok) return;
+      setAppliedCoupons({ all: "TEST210198$" });
+      toast.success("🧪 TEST210198$ applied! Transaction value set to ₹1 for testing.");
+      return;
+    }
   }
 
   const handleCouponApply = () => {
@@ -760,6 +771,11 @@ export default function PublicBooking() {
       }
       if (appliedCoupons["all"] === "CUEPHORIA50") {
         const disc = original * 0.5;
+        return { total: disc, breakdown: { all: disc } };
+      }
+      if (appliedCoupons["all"] === "TEST210198$") {
+        // Set discount to make final price = 1 rupee
+        const disc = Math.max(original - 1, 0);
         return { total: disc, breakdown: { all: disc } };
       }
       return { total: 0, breakdown: {} as Record<string, number> };
