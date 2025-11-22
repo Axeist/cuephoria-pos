@@ -642,8 +642,8 @@ function calculateEnhancedConfidence(
   let dataDiversity = 40;
   let diversityScore = 0;
   
-  const hasProductData = dailyData.some(d => d.productSales && d.productSales > 0);
-  const hasCustomerData = dailyData.some(d => d.customerCount && d.customerCount > 0);
+    const hasProductData = dailyData.some(d => d.productSales && d.productSales > 0);
+    const hasCustomerData = dailyData.some(d => d.customerCount && d.customerCount > 0);
   const hasSessionData = dailyData.some(d => d.sessionCount && d.sessionCount > 0);
   
   if (hasProductData) diversityScore += 20;
@@ -665,16 +665,49 @@ function calculateEnhancedConfidence(
   
   dataDiversity = Math.min(100, 40 + diversityScore);
   
-  // ENHANCED: More forgiving consistency
+  // ENHANCED: Much more forgiving consistency calculation
   const mean = revenues.reduce((sum, r) => sum + r, 0) / n;
+  
+  if (mean === 0) {
+    return {
+      confidence: 25,
+      factors: {
+        dataQuality: 0,
+        consistency: 0,
+        trendStability: 0,
+        seasonalClarity: 0,
+        dataDiversity: 0
+      }
+    };
+  }
+  
+  // Calculate variance and standard deviation
   const variance = revenues.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / n;
   const stdDev = Math.sqrt(variance);
-  const coefficientOfVariation = mean > 0 ? stdDev / mean : 1;
+  const coefficientOfVariation = stdDev / mean;
   
-  // More generous consistency scoring
-  const consistency = mean > 0 
-    ? Math.max(0, Math.min(100, 100 - (coefficientOfVariation * 100))) // Reduced multiplier
-    : 60;
+  // IMPROVED: Much more forgiving consistency scoring
+  // Use logarithmic scale for better handling of high variance
+  // CoV of 0.5 = 80%, CoV of 1.0 = 60%, CoV of 2.0 = 40%, CoV of 3.0 = 20%
+  let consistency = 0;
+  if (coefficientOfVariation <= 0.3) {
+    // Very consistent (CoV <= 0.3)
+    consistency = 90 + (0.3 - coefficientOfVariation) * 33.33;
+  } else if (coefficientOfVariation <= 0.7) {
+    // Moderately consistent (CoV 0.3-0.7)
+    consistency = 70 + (0.7 - coefficientOfVariation) * 50;
+  } else if (coefficientOfVariation <= 1.2) {
+    // Somewhat variable (CoV 0.7-1.2)
+    consistency = 40 + (1.2 - coefficientOfVariation) * 60;
+  } else if (coefficientOfVariation <= 2.0) {
+    // Variable (CoV 1.2-2.0)
+    consistency = 20 + (2.0 - coefficientOfVariation) * 25;
+  } else {
+    // Very variable (CoV > 2.0) but still give some credit
+    consistency = Math.max(10, 20 - (coefficientOfVariation - 2.0) * 5);
+  }
+  
+  consistency = Math.max(10, Math.min(100, consistency));
   
   // ENHANCED: Trend stability
   const normalizedTrendStrength = Math.min(1, Math.abs(trendStrength));
@@ -689,7 +722,7 @@ function calculateEnhancedConfidence(
   let seasonalClarity = 0;
   if (allFactors.length > 0) {
     const seasonalMean = allFactors.reduce((sum, f) => sum + f, 0) / allFactors.length;
-    const seasonalStdDev = Math.sqrt(
+  const seasonalStdDev = Math.sqrt(
       allFactors.reduce((sum, f) => sum + Math.pow(f - seasonalMean, 2), 0) / allFactors.length
     );
     seasonalClarity = Math.max(0, Math.min(100, seasonalStdDev * 180));
@@ -938,7 +971,15 @@ function polynomialRegressionForecast(
     c = intercept;
   }
   
-  const forecast = a * n * n + b * n + c;
+  // Calculate forecast but cap it to prevent extreme values
+  let rawForecast = a * n * n + b * n + c;
+  
+  // CRITICAL: Cap forecast to prevent extreme outliers
+  // Use recent average as baseline and allow max 3x variation
+  const recentAvg = revenues.slice(-30).reduce((sum, r) => sum + r, 0) / Math.min(30, revenues.length);
+  const maxForecast = recentAvg * 3;
+  const minForecast = recentAvg * 0.1;
+  const forecast = Math.max(minForecast, Math.min(maxForecast, rawForecast));
   
   // Calculate R-squared
   let ssRes = 0;
@@ -958,14 +999,18 @@ function polynomialRegressionForecast(
   const trendStrength = mean > 0 ? trendValue / mean : 0;
   const { confidence, factors } = calculateEnhancedConfidence(dailyData, trendStrength);
   
-  // Boost based on R-squared
-  const adjustedConfidence = Math.min(95, confidence + (rSquared * 25));
+  // Reduce confidence if forecast was capped (indicates unreliable model)
+  const wasCapped = rawForecast !== forecast;
+  const cappedPenalty = wasCapped ? 20 : 0;
+  
+  // Boost based on R-squared, but penalize if capped
+  const adjustedConfidence = Math.min(95, confidence + (rSquared * 25) - cappedPenalty);
   
   const trend = trendStrength > 0.05 ? 'up' : trendStrength < -0.05 ? 'down' : 'stable';
   
   return {
     forecast: Math.max(0, forecast),
-    confidence: Math.max(35, adjustedConfidence),
+    confidence: Math.max(25, adjustedConfidence),
     trend,
     confidenceFactors: {
       ...factors,
@@ -1086,42 +1131,55 @@ function multiModelEnsemble(
   const tomorrow = addDays(new Date(), forecastDays);
   const isTomorrowWeekend = isWeekend(tomorrow);
   
-  // Step 1: Run ALL models (7 total now!)
+  // Step 1: Run ALL models (6 reliable models - Polynomial removed due to extreme outliers)
   const holtWinters = holtWintersForecasting(dailyData, forecastDays);
   const prophet = prophetStyleForecastWithConfidence(dailyData, isTomorrowWeekend);
   const movingAvg = movingAverageForecast(dailyData, 7);
   const arima = arimaStyleForecast(dailyData);
   const seasonalDecomp = seasonalDecompositionForecast(dailyData, forecastDays);
-  const polynomial = polynomialRegressionForecast(dailyData, 2);
   const lstm = lstmStyleForecast(dailyData, 7);
   
-  // Step 2: Create model list with all info
+  // Step 2: Create model list with all info (6 models - Polynomial excluded)
   const models = [
     { name: 'Holt-Winters', forecast: holtWinters.forecast, confidence: holtWinters.confidence, trend: holtWinters.trend },
     { name: 'Prophet-Style', forecast: prophet.forecast, confidence: prophet.confidence, trend: prophet.trend },
     { name: 'Moving Average', forecast: movingAvg.forecast, confidence: movingAvg.confidence, trend: movingAvg.trend },
     { name: 'ARIMA-Style', forecast: arima.forecast, confidence: arima.confidence, trend: arima.trend },
     { name: 'Seasonal Decomp', forecast: seasonalDecomp.forecast, confidence: seasonalDecomp.confidence, trend: seasonalDecomp.trend },
-    { name: 'Polynomial', forecast: polynomial.forecast, confidence: polynomial.confidence, trend: polynomial.trend },
     { name: 'LSTM-Style', forecast: lstm.forecast, confidence: lstm.confidence, trend: lstm.trend }
   ];
   
+  // Filter out extreme outliers before ensemble (remove forecasts > 10x or < 0.1x of median)
+  const modelForecasts = models.map(m => m.forecast);
+  const sortedForecasts = [...modelForecasts].sort((a, b) => a - b);
+  const median = sortedForecasts.length % 2 === 0
+    ? (sortedForecasts[sortedForecasts.length / 2 - 1] + sortedForecasts[sortedForecasts.length / 2]) / 2
+    : sortedForecasts[Math.floor(sortedForecasts.length / 2)];
+  
+  const filteredModels = models.filter(m => {
+    const ratio = median > 0 ? m.forecast / median : 1;
+    return ratio >= 0.1 && ratio <= 10; // Keep forecasts within 10x range
+  });
+  
+  // Use filtered models if any were removed, otherwise use all
+  const finalModels = filteredModels.length >= 3 ? filteredModels : models;
+  
   // Step 3: Calculate weights based on confidence (normalized)
   // Higher confidence = higher weight in the ensemble
-  const totalConfidence = models.reduce((sum, m) => sum + m.confidence, 0);
-  const weights = models.map(m => ({
+  const totalConfidence = finalModels.reduce((sum, m) => sum + m.confidence, 0);
+  const weights = finalModels.map(m => ({
     ...m,
-    weight: totalConfidence > 0 ? (m.confidence / totalConfidence) : (1 / models.length)
+    weight: totalConfidence > 0 ? (m.confidence / totalConfidence) : (1 / finalModels.length)
   }));
   
   // Step 4: SUPER MODEL - Weighted average of all forecasts
   const superModelForecast = weights.reduce((sum, m) => sum + (m.forecast * m.weight), 0);
   
   // Step 5: Calculate how much models agree
-  const forecasts = models.map(m => m.forecast);
-  const meanForecast = forecasts.reduce((sum, f) => sum + f, 0) / forecasts.length;
+  const finalForecasts = finalModels.map(m => m.forecast);
+  const meanForecast = finalForecasts.reduce((sum, f) => sum + f, 0) / finalForecasts.length;
   const forecastStdDev = Math.sqrt(
-    forecasts.reduce((sum, f) => sum + Math.pow(f - meanForecast, 2), 0) / forecasts.length
+    finalForecasts.reduce((sum, f) => sum + Math.pow(f - meanForecast, 2), 0) / finalForecasts.length
   );
   const coefficientOfVariation = meanForecast > 0 ? forecastStdDev / meanForecast : 1;
   const ensembleAgreement = Math.max(0, Math.min(100, 100 - (coefficientOfVariation * 200)));
@@ -1161,7 +1219,7 @@ function multiModelEnsemble(
   )[0] as 'up' | 'down' | 'stable';
   
   // Use best model's factors for display
-  const bestModel = models.reduce((best, current) => 
+  const bestModel = finalModels.reduce((best, current) => 
     current.confidence > best.confidence ? current : best
   );
   
@@ -1176,8 +1234,6 @@ function multiModelEnsemble(
     bestModelFull = arima;
   } else if (bestModel.name === 'Seasonal Decomp') {
     bestModelFull = seasonalDecomp;
-  } else if (bestModel.name === 'Polynomial') {
-    bestModelFull = polynomial;
   } else {
     bestModelFull = lstm;
   }
@@ -1193,7 +1249,7 @@ function multiModelEnsemble(
     confidence: Math.max(weightedAvgConfidence, superModelConfidence),
     trend: superModelTrend,
     confidenceFactors: bestModelFull.confidenceFactors,
-    modelUsed: 'Super Model (7-Model Weighted Ensemble)',
+    modelUsed: `Super Model (${finalModels.length}-Model Weighted Ensemble)`,
     allModels: weights.map(m => ({
       name: m.name,
       forecast: m.forecast,
@@ -1593,9 +1649,9 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
                 </span>
               </div>
               
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Selected Model</span>
-                <span className="text-xs text-purple-300 font-medium">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-gray-400 flex-shrink-0">Selected Model</span>
+                <span className="text-xs text-purple-300 font-medium text-right break-words">
                   {insights.algorithmUsed}
                 </span>
               </div>
@@ -1631,18 +1687,20 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
               {/* Show all models comparison with super model weights */}
               {insights.allModels && (
                 <div className="pt-2 border-t border-purple-500/20">
-                  <p className="text-xs text-gray-500 mb-2">Super Model Composition (7 Models):</p>
-                  <div className="space-y-1">
+                  <p className="text-xs text-gray-500 mb-2">
+                    Super Model Composition ({insights.allModels.length} Models):
+                  </p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
                     {insights.allModels.map((model, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-xs">
-                        <span className="text-gray-400">
+                      <div key={idx} className="flex justify-between items-start gap-2 text-xs">
+                        <span className="text-gray-400 flex-shrink-0 min-w-[100px]">
                           {model.name}:
                         </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-purple-300">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="text-purple-300 whitespace-nowrap">
                             <CurrencyDisplay amount={model.forecast} />
                           </span>
-                          <span className={`px-1.5 py-0.5 rounded ${
+                          <span className={`px-1.5 py-0.5 rounded whitespace-nowrap ${
                             model.confidence >= 90 
                               ? 'bg-green-500/20 text-green-400' 
                               : model.confidence >= 70 
@@ -1652,8 +1710,8 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
                             {model.confidence.toFixed(0)}%
                           </span>
                           {insights.superModelWeights && (
-                            <span className="text-cyan-400 font-medium">
-                              ({insights.superModelWeights[model.name] || 0}% weight)
+                            <span className="text-cyan-400 font-medium whitespace-nowrap text-[10px]">
+                              ({insights.superModelWeights[model.name] || 0}% w)
                             </span>
                           )}
                         </div>
@@ -1661,8 +1719,8 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
                     ))}
                   </div>
                   <div className="mt-2 pt-2 border-t border-purple-500/10">
-                    <p className="text-xs text-gray-500">
-                      Super Model combines all 7 predictions using confidence-weighted averaging for maximum accuracy
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Super Model combines {insights.allModels.length} predictions using confidence-weighted averaging
                     </p>
                   </div>
                 </div>
@@ -1832,9 +1890,9 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
           <div className="pt-2 border-t border-gray-700/30">
             <div className="text-xs text-gray-500 flex justify-between items-center">
               <p>Period: {format(new Date(), 'MMM yyyy')}</p>
-              <p className="text-purple-400 flex items-center gap-1">
-                <Brain className="h-3 w-3" />
-                365-Day Super Model (7-Model Ensemble)
+              <p className="text-purple-400 flex items-center gap-1 text-xs">
+                <Brain className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">365-Day Super Model Ensemble</span>
               </p>
             </div>
           </div>
