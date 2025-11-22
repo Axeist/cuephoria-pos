@@ -1533,13 +1533,85 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
     
     const daysRemaining = totalDaysInMonth - daysElapsed;
     const currentMonthDailyAvg = currentMonthSales / daysElapsed;
+    const currentMonth = getMonth(new Date());
     
+    // ENHANCED: Use historical same-month patterns for better accuracy
+    const sameMonthHistoricalData = dailyData.filter(d => getMonth(d.date) === currentMonth);
+    const historicalSameMonthAvg = sameMonthHistoricalData.length > 0
+      ? sameMonthHistoricalData.reduce((sum, d) => sum + d.revenue, 0) / sameMonthHistoricalData.length
+      : currentMonthDailyAvg;
+    
+    // Calculate month-end adjustment (last 3 days often have different patterns)
+    const last3DaysOfMonth = dailyData
+      .filter(d => {
+        const dayOfMonth = getDate(d.date);
+        const month = getMonth(d.date);
+        return month === currentMonth && dayOfMonth >= totalDaysInMonth - 3;
+      })
+      .map(d => d.revenue);
+    const monthEndMultiplier = last3DaysOfMonth.length > 0
+      ? last3DaysOfMonth.reduce((sum, r) => sum + r, 0) / (last3DaysOfMonth.length * historicalSameMonthAvg)
+      : 1;
+    
+    // ENHANCED: Use Super Model ensemble for each remaining day (more accurate than just Prophet)
     let projectedRemainingSales = 0;
+    const dailyForecasts: Array<{forecast: number; confidence: number}> = [];
+    
+    // Pre-calculate holiday multiplier for efficiency
+    const holidayDays = dailyData.filter(d => d.isHoliday);
+    const holidayAvg = holidayDays.length > 0
+      ? holidayDays.reduce((sum, d) => sum + d.revenue, 0) / holidayDays.length
+      : 0;
+    const regularAvg = dailyData.reduce((sum, d) => sum + d.revenue, 0) / dailyData.length;
+    const holidayMultiplier = regularAvg > 0 && holidayAvg > 0 ? holidayAvg / regularAvg : 1;
+    
     for (let i = 0; i < daysRemaining; i++) {
-      const futureDate = new Date(Date.now() + (i + 1) * 86400000);
-      const isWeekendDay = [0, 6].includes(getDay(futureDate));
-      const prophetResult = prophetStyleForecastWithConfidence(dailyData, isWeekendDay);
-      projectedRemainingSales += prophetResult.forecast;
+      const futureDate = addDays(new Date(), i + 1);
+      const dayOfMonth = getDate(futureDate);
+      const isMonthEnd = dayOfMonth >= totalDaysInMonth - 3;
+      
+      // Use super model ensemble for better accuracy
+      const ensembleResult = multiModelEnsemble(dailyData, i + 1);
+      let dayForecast = ensembleResult.forecast;
+      
+      // Apply month-end adjustment if applicable
+      if (isMonthEnd && monthEndMultiplier !== 1) {
+        dayForecast = dayForecast * monthEndMultiplier;
+      }
+      
+      // Account for holidays (holidays often have different revenue patterns)
+      const features = extractFeatures(futureDate, dailyData);
+      if (features.isHoliday && holidayMultiplier !== 1) {
+        dayForecast = dayForecast * holidayMultiplier;
+      }
+      
+      dailyForecasts.push({ forecast: dayForecast, confidence: ensembleResult.confidence });
+      projectedRemainingSales += dayForecast;
+    }
+    
+    // ENHANCED: Apply trend adjustment based on current month performance vs historical
+    const trendAdjustment = historicalSameMonthAvg > 0 
+      ? currentMonthDailyAvg / historicalSameMonthAvg 
+      : 1;
+    
+    // If current month is performing differently than historical, adjust projection
+    if (trendAdjustment > 1.1 || trendAdjustment < 0.9) {
+      // Significant deviation - apply partial adjustment (50% weight to avoid overcorrection)
+      const adjustedProjection = projectedRemainingSales * (1 + (trendAdjustment - 1) * 0.5);
+      projectedRemainingSales = adjustedProjection;
+    }
+    
+    // ENHANCED: Confidence-based adjustment (if confidence is low, be more conservative)
+    const avgConfidence = dailyForecasts.length > 0
+      ? dailyForecasts.reduce((sum, d) => sum + d.confidence, 0) / dailyForecasts.length
+      : 70;
+    
+    // If confidence is low, use more conservative estimate (blend with historical average)
+    if (avgConfidence < 70 && daysRemaining > 0) {
+      const conservativeProjection = historicalSameMonthAvg * daysRemaining;
+      const confidenceWeight = avgConfidence / 100;
+      projectedRemainingSales = projectedRemainingSales * confidenceWeight + 
+                                conservativeProjection * (1 - confidenceWeight);
     }
     
     const monthlyTarget = currentMonthSales + projectedRemainingSales;
