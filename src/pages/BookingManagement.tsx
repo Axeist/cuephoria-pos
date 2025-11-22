@@ -78,6 +78,13 @@ interface CustomerInsight {
   completionRate: number;
   favoriteStationType: string;
   bookingFrequency: 'High' | 'Medium' | 'Low';
+  preferredGameType: 'ps5' | '8-ball' | 'mixed' | 'none';
+  daysSinceLastVisit: number;
+  activityStatus: 'active' | 'inactive' | 'churned';
+  customerSegment: 'VIP' | 'Regular' | 'Occasional';
+  avgDaysBetweenBookings: number;
+  churnRiskScore: number;
+  firstBookingDate: string;
 }
 
 interface Filters {
@@ -225,6 +232,14 @@ export default function BookingManagement() {
   // Customer insights filtering state
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [selectedFrequencyFilter, setSelectedFrequencyFilter] = useState<'High' | 'Medium' | 'Low' | 'All'>('All');
+  const [selectedGameTypeFilter, setSelectedGameTypeFilter] = useState<'ps5' | '8-ball' | 'all'>('all');
+  const [selectedTimeSlotFilter, setSelectedTimeSlotFilter] = useState<string>('all');
+  const [selectedActivityFilter, setSelectedActivityFilter] = useState<'active' | 'inactive' | 'churned' | 'all'>('all');
+  const [selectedSegmentFilter, setSelectedSegmentFilter] = useState<'VIP' | 'Regular' | 'Occasional' | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'revenue' | 'bookings' | 'lastVisit' | 'name'>('revenue');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
 
   // Use global notification context
   const {
@@ -1026,7 +1041,10 @@ export default function BookingManagement() {
           lastBookingDate: '',
           completionRate: 0,
           favoriteStationType: '',
-          bookingFrequency: 'Low'
+          bookingFrequency: 'Low',
+          preferredGameType: 'none',
+          daysSinceLastVisit: 0,
+          activityStatus: 'active'
         });
       }
 
@@ -1034,8 +1052,9 @@ export default function BookingManagement() {
       customer.totalBookings++;
       customer.totalDuration += booking.duration;
       // Use revenue contribution helper to properly handle payment_txn_id grouping
-      // Use bookings (filtered) for revenue calculation to ensure we only count bookings in the filtered period
-      customer.totalSpent += getBookingRevenueContribution(booking, bookings);
+      // Use allBookings for correct grouping, but only count revenue from bookings in filtered period
+      // This ensures we correctly handle cases where some bookings with same txn_id might be outside filter
+      customer.totalSpent += getBookingRevenueContribution(booking, allBookings);
       
       if (!customer.lastBookingDate || booking.booking_date > customer.lastBookingDate) {
         customer.lastBookingDate = booking.booking_date;
@@ -1048,6 +1067,40 @@ export default function BookingManagement() {
       const customerBookings = bookings.filter(b => b.customer.name === customerId);
       const completedBookings = customerBookings.filter(b => b.status === 'completed').length;
       customer.completionRate = Math.round((completedBookings / customer.totalBookings) * 100);
+
+      // Find first booking date and calculate average days between bookings
+      const sortedBookings = [...customerBookings].sort((a, b) => 
+        new Date(a.booking_date).getTime() - new Date(b.booking_date).getTime()
+      );
+      if (sortedBookings.length > 0) {
+        customer.firstBookingDate = sortedBookings[0].booking_date;
+        
+        // Calculate average days between bookings
+        if (sortedBookings.length > 1) {
+          const bookingDates = sortedBookings.map(b => new Date(b.booking_date).getTime());
+          const totalDays = bookingDates[bookingDates.length - 1] - bookingDates[0];
+          customer.avgDaysBetweenBookings = Math.round(totalDays / (bookingDates.length - 1) / (1000 * 60 * 60 * 24));
+        } else {
+          customer.avgDaysBetweenBookings = 0;
+        }
+      }
+
+      // Find first booking date
+      const sortedBookings = [...customerBookings].sort((a, b) => 
+        new Date(a.booking_date).getTime() - new Date(b.booking_date).getTime()
+      );
+      if (sortedBookings.length > 0) {
+        customer.firstBookingDate = sortedBookings[0].booking_date;
+      }
+
+      // Calculate average days between bookings
+      if (customerBookings.length > 1) {
+        const bookingDates = sortedBookings.map(b => new Date(b.booking_date).getTime());
+        const totalDays = bookingDates[bookingDates.length - 1] - bookingDates[0];
+        customer.avgDaysBetweenBookings = Math.round(totalDays / (bookingDates.length - 1) / (1000 * 60 * 60 * 24));
+      } else {
+        customer.avgDaysBetweenBookings = 0;
+      }
       
       const timeMap = new Map<number, number>();
       customerBookings.forEach(b => {
@@ -1101,18 +1154,107 @@ export default function BookingManagement() {
       if (bookingsPerWeek >= 2) customer.bookingFrequency = 'High';
       else if (bookingsPerWeek >= 0.5) customer.bookingFrequency = 'Medium';
       else customer.bookingFrequency = 'Low';
+
+      // Calculate days since last visit
+      const daysSinceLastVisit = Math.floor((new Date().getTime() - new Date(customer.lastBookingDate).getTime()) / (1000 * 60 * 60 * 24));
+      customer.daysSinceLastVisit = daysSinceLastVisit;
+
+      // Determine activity status
+      if (daysSinceLastVisit <= 7) {
+        customer.activityStatus = 'active';
+      } else if (daysSinceLastVisit <= 30) {
+        customer.activityStatus = 'inactive';
+      } else {
+        customer.activityStatus = 'churned';
+      }
+
+      // Determine preferred game type
+      const ps5Bookings = customerBookings.filter(b => 
+        b.station.type.toLowerCase().includes('ps5') || 
+        b.station.type.toLowerCase().includes('playstation')
+      ).length;
+      const poolBookings = customerBookings.filter(b => 
+        b.station.type.toLowerCase().includes('8-ball') || 
+        b.station.type.toLowerCase().includes('pool')
+      ).length;
+
+      if (ps5Bookings > poolBookings && ps5Bookings > 0) {
+        customer.preferredGameType = 'ps5';
+      } else if (poolBookings > ps5Bookings && poolBookings > 0) {
+        customer.preferredGameType = '8-ball';
+      } else if (ps5Bookings > 0 || poolBookings > 0) {
+        customer.preferredGameType = 'mixed';
+      } else {
+        customer.preferredGameType = 'none';
+      }
+
+      // Determine customer segment based on spending and frequency
+      const avgRevenuePerBooking = customer.totalBookings > 0 ? customer.totalSpent / customer.totalBookings : 0;
+      if (customer.totalSpent >= 50000 || (customer.totalSpent >= 30000 && customer.bookingFrequency === 'High')) {
+        customer.customerSegment = 'VIP';
+      } else if (customer.totalSpent >= 15000 || customer.totalBookings >= 10) {
+        customer.customerSegment = 'Regular';
+      } else {
+        customer.customerSegment = 'Occasional';
+      }
+
+      // Calculate churn risk score (0-100, higher = more risk)
+      let riskScore = 0;
+      if (customer.daysSinceLastVisit > 30) riskScore += 40;
+      else if (customer.daysSinceLastVisit > 14) riskScore += 20;
+      
+      if (customer.bookingFrequency === 'Low') riskScore += 30;
+      else if (customer.bookingFrequency === 'Medium') riskScore += 10;
+      
+      if (customer.completionRate < 50) riskScore += 20;
+      else if (customer.completionRate < 80) riskScore += 10;
+      
+      if (customer.avgDaysBetweenBookings > 14 && customer.avgDaysBetweenBookings > 0) riskScore += 10;
+      
+      customer.churnRiskScore = Math.min(100, riskScore);
     });
 
     return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  }, [bookings]);
+  }, [bookings, allBookings]);
 
-  // Filter customer insights based on search and frequency
+  // Get available time slots from customer preferences
+  const availableTimeSlots = useMemo(() => {
+    const slots = new Set<string>();
+    customerInsights.forEach(c => {
+      if (c.preferredTime) {
+        slots.add(c.preferredTime);
+      }
+    });
+    return Array.from(slots).sort();
+  }, [customerInsights]);
+
+  // Filter customer insights based on all filters
   const filteredCustomerInsights = useMemo(() => {
     let filtered = customerInsights;
 
     // Filter by frequency
     if (selectedFrequencyFilter !== 'All') {
       filtered = filtered.filter(c => c.bookingFrequency === selectedFrequencyFilter);
+    }
+
+    // Filter by game type
+    if (selectedGameTypeFilter !== 'all') {
+      filtered = filtered.filter(c => c.preferredGameType === selectedGameTypeFilter);
+    }
+
+    // Filter by time slot
+    if (selectedTimeSlotFilter !== 'all') {
+      filtered = filtered.filter(c => c.preferredTime === selectedTimeSlotFilter);
+    }
+
+    // Filter by activity status
+    if (selectedActivityFilter !== 'all') {
+      filtered = filtered.filter(c => c.activityStatus === selectedActivityFilter);
+    }
+
+    // Filter by customer segment
+    if (selectedSegmentFilter !== 'all') {
+      filtered = filtered.filter(c => c.customerSegment === selectedSegmentFilter);
     }
 
     // Filter by search query (name, phone, or email)
@@ -1126,8 +1268,109 @@ export default function BookingManagement() {
       });
     }
 
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'revenue':
+          comparison = a.totalSpent - b.totalSpent;
+          break;
+        case 'bookings':
+          comparison = a.totalBookings - b.totalBookings;
+          break;
+        case 'lastVisit':
+          comparison = new Date(a.lastBookingDate).getTime() - new Date(b.lastBookingDate).getTime();
+          break;
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
     return filtered;
-  }, [customerInsights, customerSearchQuery, selectedFrequencyFilter]);
+  }, [customerInsights, customerSearchQuery, selectedFrequencyFilter, selectedGameTypeFilter, selectedTimeSlotFilter, selectedActivityFilter, selectedSegmentFilter, sortBy, sortOrder]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredCustomerInsights.length / itemsPerPage);
+  const paginatedCustomers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredCustomerInsights.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredCustomerInsights, currentPage, itemsPerPage]);
+
+  // Calculate quick stats for filtered customers
+  const filteredStats = useMemo(() => {
+    if (filteredCustomerInsights.length === 0) return null;
+    
+    const totalRevenue = filteredCustomerInsights.reduce((sum, c) => sum + c.totalSpent, 0);
+    const totalBookings = filteredCustomerInsights.reduce((sum, c) => sum + c.totalBookings, 0);
+    const avgRevenue = totalRevenue / filteredCustomerInsights.length;
+    const avgBookings = totalBookings / filteredCustomerInsights.length;
+    const activeCount = filteredCustomerInsights.filter(c => c.activityStatus === 'active').length;
+    const vipCount = filteredCustomerInsights.filter(c => c.customerSegment === 'VIP').length;
+    
+    return {
+      totalRevenue,
+      totalBookings,
+      avgRevenue,
+      avgBookings,
+      activeCount,
+      vipCount,
+      totalCustomers: filteredCustomerInsights.length
+    };
+  }, [filteredCustomerInsights]);
+
+  // Export customer insights to CSV
+  const exportCustomerInsightsToCSV = () => {
+    const csvContent = "data:text/csv;charset=utf-8,";
+    let csv = csvContent;
+    
+    // Header row
+    csv += "Name,Phone,Email,Total Bookings,Total Revenue (₹),Avg Revenue/Booking (₹),Total Play Time (h),Avg Play Time/Booking (h),Preferred Time,Preferred Game Type,Favorite Station,Most Used Coupon,Completion Rate (%),Booking Frequency,Activity Status,Customer Segment,Churn Risk Score (%),Avg Days Between Bookings,Days Since Last Visit,First Booking Date,Last Booking Date\n";
+    
+    // Data rows
+    filteredCustomerInsights.forEach(customer => {
+      const avgSpendPerBooking = customer.totalBookings > 0 ? Math.round(customer.totalSpent / customer.totalBookings) : 0;
+      const totalHours = Math.round(customer.totalDuration / 60);
+      const avgHoursPerBooking = customer.totalBookings > 0 ? (customer.totalDuration / 60 / customer.totalBookings).toFixed(1) : '0';
+      
+      const row = [
+        `"${customer.name}"`,
+        customer.phone,
+        customer.email || '',
+        customer.totalBookings,
+        customer.totalSpent,
+        avgSpendPerBooking,
+        totalHours,
+        avgHoursPerBooking,
+        customer.preferredTime || 'Various',
+        customer.preferredGameType === 'ps5' ? 'PS5' : customer.preferredGameType === '8-ball' ? '8-Ball Pool' : customer.preferredGameType === 'mixed' ? 'Mixed' : 'None',
+        customer.preferredStation || '',
+        customer.mostUsedCoupon || 'None',
+        customer.completionRate,
+        customer.bookingFrequency,
+        customer.activityStatus === 'active' ? 'Active' : customer.activityStatus === 'inactive' ? 'Inactive' : 'Churned',
+        customer.customerSegment,
+        customer.churnRiskScore,
+        customer.avgDaysBetweenBookings,
+        customer.daysSinceLastVisit,
+        format(new Date(customer.firstBookingDate), 'yyyy-MM-dd'),
+        format(new Date(customer.lastBookingDate), 'yyyy-MM-dd')
+      ];
+      csv += row.join(",") + "\n";
+    });
+    
+    // Create download link
+    const encodedUri = encodeURI(csv);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `customer_insights_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success(`Exported ${filteredCustomerInsights.length} customers to CSV`);
+  };
 
   const analytics = useMemo((): Analytics => {
     const currentPeriodData = bookings;
@@ -2463,31 +2706,91 @@ export default function BookingManagement() {
                 </Card>
               </div>
 
+              {/* Quick Stats for Filtered Customers */}
+              {filteredStats && filteredCustomerInsights.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">Filtered Revenue</p>
+                      <p className="text-lg font-bold text-blue-600">₹{Math.round(filteredStats.totalRevenue).toLocaleString()}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/20 dark:to-green-900/20">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">Avg Revenue</p>
+                      <p className="text-lg font-bold text-green-600">₹{Math.round(filteredStats.avgRevenue).toLocaleString()}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/20">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">Total Bookings</p>
+                      <p className="text-lg font-bold text-purple-600">{filteredStats.totalBookings}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">Avg Bookings</p>
+                      <p className="text-lg font-bold text-orange-600">{filteredStats.avgBookings.toFixed(1)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950/20 dark:to-teal-900/20">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">Active</p>
+                      <p className="text-lg font-bold text-teal-600">{filteredStats.activeCount}</p>
+                      <p className="text-xs text-muted-foreground">{((filteredStats.activeCount / filteredStats.totalCustomers) * 100).toFixed(0)}%</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950/20 dark:to-yellow-900/20">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">VIP Customers</p>
+                      <p className="text-lg font-bold text-yellow-600">{filteredStats.vipCount}</p>
+                      <p className="text-xs text-muted-foreground">{((filteredStats.vipCount / filteredStats.totalCustomers) * 100).toFixed(0)}%</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               <Card>
-                <CardHeader>
+                <CardHeader className="space-y-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                       <Users className="h-5 w-5" />
                       Customer Insights & Analytics
                     </CardTitle>
                     <div className="flex items-center gap-2">
-                      {(selectedFrequencyFilter !== 'All' || customerSearchQuery) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={exportCustomerInsightsToCSV}
+                        className="text-xs"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Export CSV
+                      </Button>
+                      {(selectedFrequencyFilter !== 'All' || selectedGameTypeFilter !== 'all' || selectedTimeSlotFilter !== 'all' || selectedActivityFilter !== 'all' || selectedSegmentFilter !== 'all' || customerSearchQuery) && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
                             setSelectedFrequencyFilter('All');
+                            setSelectedGameTypeFilter('all');
+                            setSelectedTimeSlotFilter('all');
+                            setSelectedActivityFilter('all');
+                            setSelectedSegmentFilter('all');
                             setCustomerSearchQuery('');
+                            setCurrentPage(1);
                           }}
                           className="text-xs"
                         >
                           <X className="h-3 w-3 mr-1" />
-                          Clear Filters
+                          Clear All
                         </Button>
                       )}
                     </div>
                   </div>
-                  <div className="mt-4">
+                  
+                  {/* Search Bar - Better Placement */}
+                  <div className="space-y-2">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -2497,35 +2800,127 @@ export default function BookingManagement() {
                         className="pl-10"
                       />
                     </div>
-                    {filteredCustomerInsights.length !== customerInsights.length && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Showing {filteredCustomerInsights.length} of {customerInsights.length} customers
-                      </p>
-                    )}
                   </div>
+
+                  {/* Additional Filters and Sorting */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-3 pt-2 border-t">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Game Type</Label>
+                      <Select value={selectedGameTypeFilter} onValueChange={(value: 'ps5' | '8-ball' | 'all') => setSelectedGameTypeFilter(value)}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Game Types</SelectItem>
+                          <SelectItem value="ps5">PS5</SelectItem>
+                          <SelectItem value="8-ball">8-Ball Pool</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Preferred Time Slot</Label>
+                      <Select value={selectedTimeSlotFilter} onValueChange={setSelectedTimeSlotFilter}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Time Slots</SelectItem>
+                          {availableTimeSlots.map(slot => (
+                            <SelectItem key={slot} value={slot}>{slot}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Recent Activity</Label>
+                      <Select value={selectedActivityFilter} onValueChange={(value: 'active' | 'inactive' | 'churned' | 'all') => setSelectedActivityFilter(value)}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Activity</SelectItem>
+                          <SelectItem value="active">Active (Last 7 days)</SelectItem>
+                          <SelectItem value="inactive">Inactive (8-30 days)</SelectItem>
+                          <SelectItem value="churned">Churned (30+ days)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Customer Segment</Label>
+                      <Select value={selectedSegmentFilter} onValueChange={(value: 'VIP' | 'Regular' | 'Occasional' | 'all') => setSelectedSegmentFilter(value)}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Segments</SelectItem>
+                          <SelectItem value="VIP">VIP</SelectItem>
+                          <SelectItem value="Regular">Regular</SelectItem>
+                          <SelectItem value="Occasional">Occasional</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Sort By</Label>
+                      <div className="flex gap-1">
+                        <Select value={sortBy} onValueChange={(value: 'revenue' | 'bookings' | 'lastVisit' | 'name') => { setSortBy(value); setCurrentPage(1); }}>
+                          <SelectTrigger className="h-9 text-xs flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="revenue">Revenue</SelectItem>
+                            <SelectItem value="bookings">Bookings</SelectItem>
+                            <SelectItem value="lastVisit">Last Visit</SelectItem>
+                            <SelectItem value="name">Name</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 px-2"
+                          onClick={() => {
+                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                            setCurrentPage(1);
+                          }}
+                        >
+                          {sortOrder === 'asc' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filteredCustomerInsights.length !== customerInsights.length && (
+                    <p className="text-xs text-muted-foreground">
+                      Showing {filteredCustomerInsights.length} of {customerInsights.length} customers
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent>
                   {filteredCustomerInsights.length === 0 ? (
                     <div className="text-center py-8">
                       <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground">No customers found matching your criteria</p>
-                      {(selectedFrequencyFilter !== 'All' || customerSearchQuery) && (
+                      {(selectedFrequencyFilter !== 'All' || selectedGameTypeFilter !== 'all' || selectedTimeSlotFilter !== 'all' || selectedActivityFilter !== 'all' || selectedSegmentFilter !== 'all' || customerSearchQuery) && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
                             setSelectedFrequencyFilter('All');
+                            setSelectedGameTypeFilter('all');
+                            setSelectedTimeSlotFilter('all');
+                            setSelectedActivityFilter('all');
+                            setSelectedSegmentFilter('all');
                             setCustomerSearchQuery('');
+                            setCurrentPage(1);
                           }}
                           className="mt-4"
                         >
-                          Clear Filters
+                          Clear All Filters
                         </Button>
                       )}
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {filteredCustomerInsights.map((customer, index) => {
+                      {paginatedCustomers.map((customer, index) => {
                         // Calculate additional insights
                         const avgSpendPerBooking = customer.totalBookings > 0 
                           ? Math.round(customer.totalSpent / customer.totalBookings) 
@@ -2534,9 +2929,8 @@ export default function BookingManagement() {
                         const avgHoursPerBooking = customer.totalBookings > 0
                           ? (customer.totalDuration / 60 / customer.totalBookings).toFixed(1)
                           : '0';
-                        const daysSinceLastVisit = customer.lastBookingDate
-                          ? Math.floor((new Date().getTime() - new Date(customer.lastBookingDate).getTime()) / (1000 * 60 * 60 * 24))
-                          : null;
+                        const daysSinceLastVisit = customer.daysSinceLastVisit;
+                        const displayIndex = (currentPage - 1) * itemsPerPage + index + 1;
                         
                         return (
                         <div key={`${customer.name}-${customer.phone}`} className="p-4 border rounded-lg bg-card hover:shadow-md transition-shadow">
@@ -2544,8 +2938,8 @@ export default function BookingManagement() {
                             <div className="lg:col-span-2">
                               <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
-                                  ${index < 3 ? 'bg-yellow-500' : index < 10 ? 'bg-blue-500' : 'bg-gray-500'}`}>
-                                  {index + 1}
+                                  ${displayIndex <= 3 ? 'bg-yellow-500' : displayIndex <= 10 ? 'bg-blue-500' : 'bg-gray-500'}`}>
+                                  {displayIndex}
                                 </div>
                                 <div className="flex-1">
                                   <h4 className="font-semibold text-lg">{customer.name}</h4>
@@ -2559,12 +2953,28 @@ export default function BookingManagement() {
                                       {customer.email}
                                     </div>
                                   )}
-                                  <Badge 
-                                    variant={customer.bookingFrequency === 'High' ? 'default' : customer.bookingFrequency === 'Medium' ? 'secondary' : 'destructive'} 
-                                    className="text-xs mt-1"
-                                  >
-                                    {customer.bookingFrequency} Frequency
-                                  </Badge>
+                                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                    <Badge 
+                                      variant={customer.bookingFrequency === 'High' ? 'default' : customer.bookingFrequency === 'Medium' ? 'secondary' : 'destructive'} 
+                                      className="text-xs"
+                                    >
+                                      {customer.bookingFrequency} Frequency
+                                    </Badge>
+                                    <Badge 
+                                      variant={customer.customerSegment === 'VIP' ? 'default' : customer.customerSegment === 'Regular' ? 'secondary' : 'outline'}
+                                      className={`text-xs ${
+                                        customer.customerSegment === 'VIP' ? 'bg-yellow-500 text-white' : 
+                                        customer.customerSegment === 'Regular' ? 'bg-blue-500 text-white' : ''
+                                      }`}
+                                    >
+                                      {customer.customerSegment}
+                                    </Badge>
+                                    {customer.churnRiskScore >= 50 && (
+                                      <Badge variant="destructive" className="text-xs">
+                                        ⚠️ High Risk
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -2636,30 +3046,107 @@ export default function BookingManagement() {
                               <p className="text-xs text-muted-foreground">
                                 Last: {format(new Date(customer.lastBookingDate), 'MMM d, yyyy')}
                               </p>
-                              {daysSinceLastVisit !== null && (
-                                <p className={`text-xs ${
-                                  daysSinceLastVisit <= 7 ? 'text-green-600' : 
-                                  daysSinceLastVisit <= 30 ? 'text-yellow-600' : 
-                                  'text-red-600'
-                                }`}>
-                                  {daysSinceLastVisit === 0 ? 'Today' : 
-                                   daysSinceLastVisit === 1 ? 'Yesterday' : 
-                                   `${daysSinceLastVisit} days ago`}
+                              <p className={`text-xs ${
+                                daysSinceLastVisit <= 7 ? 'text-green-600' : 
+                                daysSinceLastVisit <= 30 ? 'text-yellow-600' : 
+                                'text-red-600'
+                              }`}>
+                                {daysSinceLastVisit === 0 ? 'Today' : 
+                                 daysSinceLastVisit === 1 ? 'Yesterday' : 
+                                 `${daysSinceLastVisit} days ago`}
+                              </p>
+                              <Badge 
+                                variant={customer.activityStatus === 'active' ? 'default' : customer.activityStatus === 'inactive' ? 'secondary' : 'destructive'}
+                                className="text-xs mt-1"
+                              >
+                                {customer.activityStatus === 'active' ? 'Active' : customer.activityStatus === 'inactive' ? 'Inactive' : 'Churned'}
+                              </Badge>
+                              {customer.avgDaysBetweenBookings > 0 && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Avg: {customer.avgDaysBetweenBookings} days between bookings
                                 </p>
                               )}
-                              <div className="flex items-center gap-1 mt-1">
-                                <Activity className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">
-                                  {customer.totalBookings > 0 
-                                    ? Math.round((customer.totalBookings / Math.max(1, daysSinceLastVisit || 1)) * 7)
-                                    : 0} bookings/week
-                                </span>
-                              </div>
+                              {customer.churnRiskScore > 0 && (
+                                <div className="mt-2">
+                                  <div className="flex items-center justify-between text-xs mb-1">
+                                    <span className="text-muted-foreground">Churn Risk</span>
+                                    <span className={`font-medium ${
+                                      customer.churnRiskScore >= 70 ? 'text-red-600' :
+                                      customer.churnRiskScore >= 40 ? 'text-yellow-600' :
+                                      'text-green-600'
+                                    }`}>
+                                      {customer.churnRiskScore}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-muted rounded-full h-1.5">
+                                    <div 
+                                      className={`h-1.5 rounded-full ${
+                                        customer.churnRiskScore >= 70 ? 'bg-red-500' :
+                                        customer.churnRiskScore >= 40 ? 'bg-yellow-500' :
+                                        'bg-green-500'
+                                      }`}
+                                      style={{ width: `${customer.churnRiskScore}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                       );
                       })}
+                      
+                      {/* Pagination */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-4 border-t">
+                          <p className="text-sm text-muted-foreground">
+                            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredCustomerInsights.length)} of {filteredCustomerInsights.length} customers
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                              disabled={currentPage === 1}
+                            >
+                              Previous
+                            </Button>
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (totalPages <= 5) {
+                                  pageNum = i + 1;
+                                } else if (currentPage <= 3) {
+                                  pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 2) {
+                                  pageNum = totalPages - 4 + i;
+                                } else {
+                                  pageNum = currentPage - 2 + i;
+                                }
+                                return (
+                                  <Button
+                                    key={pageNum}
+                                    variant={currentPage === pageNum ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => setCurrentPage(pageNum)}
+                                    className="w-8 h-8 p-0"
+                                  >
+                                    {pageNum}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                              disabled={currentPage === totalPages}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
