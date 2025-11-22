@@ -665,7 +665,7 @@ function calculateEnhancedConfidence(
   
   dataDiversity = Math.min(100, 40 + diversityScore);
   
-  // ENHANCED: Much more forgiving consistency calculation
+  // ENHANCED: Improved consistency with seasonal adjustment and robust statistics
   const mean = revenues.reduce((sum, r) => sum + r, 0) / n;
   
   if (mean === 0) {
@@ -681,30 +681,112 @@ function calculateEnhancedConfidence(
     };
   }
   
-  // Calculate variance and standard deviation
-  const variance = revenues.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / n;
-  const stdDev = Math.sqrt(variance);
-  const coefficientOfVariation = stdDev / mean;
+  // STEP 1: Apply seasonal adjustment (normalize by day-of-week patterns)
+  // This removes weekend/weekday variance which inflates CoV
+  const consistencySeasonalFactors = calculateSeasonalFactors(dailyData);
+  const seasonallyAdjustedRevenues = revenues.map((rev, idx) => {
+    const day = dailyData[idx];
+    const dayOfWeek = day.dayOfWeek;
+    const dayFactor = consistencySeasonalFactors.dayOfWeek.get(dayOfWeek) || 1;
+    // Normalize: if weekends are 1.5x average, divide by 1.5
+    return dayFactor > 0 ? rev / dayFactor : rev;
+  });
   
-  // IMPROVED: Much more forgiving consistency scoring
-  // Use logarithmic scale for better handling of high variance
-  // CoV of 0.5 = 80%, CoV of 1.0 = 60%, CoV of 2.0 = 40%, CoV of 3.0 = 20%
+  // STEP 2: Use Interquartile Range (IQR) instead of standard deviation
+  // IQR is more robust to outliers
+  const sorted = [...seasonallyAdjustedRevenues].sort((a, b) => a - b);
+  const q1Index = Math.floor(sorted.length * 0.25);
+  const q3Index = Math.floor(sorted.length * 0.75);
+  const q1 = sorted[q1Index] || mean;
+  const q3 = sorted[q3Index] || mean;
+  const iqr = q3 - q1;
+  
+  // Convert IQR to approximate stdDev (IQR ≈ 1.35 * stdDev for normal distribution)
+  const robustStdDev = iqr > 0 ? iqr / 1.35 : Math.sqrt(
+    seasonallyAdjustedRevenues.reduce((sum, r) => {
+      const adjMean = seasonallyAdjustedRevenues.reduce((s, x) => s + x, 0) / seasonallyAdjustedRevenues.length;
+      return sum + Math.pow(r - adjMean, 2);
+    }, 0) / seasonallyAdjustedRevenues.length
+  );
+  
+  const adjustedMean = seasonallyAdjustedRevenues.reduce((sum, r) => sum + r, 0) / seasonallyAdjustedRevenues.length;
+  const coefficientOfVariation = adjustedMean > 0 ? robustStdDev / adjustedMean : 1;
+  
+  // STEP 3: Calculate base consistency
   let consistency = 0;
   if (coefficientOfVariation <= 0.3) {
-    // Very consistent (CoV <= 0.3)
     consistency = 90 + (0.3 - coefficientOfVariation) * 33.33;
   } else if (coefficientOfVariation <= 0.7) {
-    // Moderately consistent (CoV 0.3-0.7)
     consistency = 70 + (0.7 - coefficientOfVariation) * 50;
   } else if (coefficientOfVariation <= 1.2) {
-    // Somewhat variable (CoV 0.7-1.2)
     consistency = 40 + (1.2 - coefficientOfVariation) * 60;
   } else if (coefficientOfVariation <= 2.0) {
-    // Variable (CoV 1.2-2.0)
     consistency = 20 + (2.0 - coefficientOfVariation) * 25;
   } else {
-    // Very variable (CoV > 2.0) but still give some credit
     consistency = Math.max(10, 20 - (coefficientOfVariation - 2.0) * 5);
+  }
+  
+  // STEP 4: Add bonuses for explainable patterns
+  // Bonus 1: Strong seasonal patterns = variance is explainable
+  const consistencyDayOfWeekFactors = Array.from(consistencySeasonalFactors.dayOfWeek.values());
+  if (consistencyDayOfWeekFactors.length >= 5) {
+    const seasonalMean = consistencyDayOfWeekFactors.reduce((sum, f) => sum + f, 0) / consistencyDayOfWeekFactors.length;
+    const seasonalStdDev = Math.sqrt(
+      consistencyDayOfWeekFactors.reduce((sum, f) => sum + Math.pow(f - seasonalMean, 2), 0) / consistencyDayOfWeekFactors.length
+    );
+    // If clear day-of-week patterns exist, variance is "explainable"
+    if (seasonalStdDev > 0.08) { // Clear patterns
+      consistency = Math.min(100, consistency + 15); // Big boost!
+    } else if (seasonalStdDev > 0.05) {
+      consistency = Math.min(100, consistency + 8);
+    }
+  }
+  
+  // Bonus 2: Data stability over time (recent variance similar to historical)
+  if (n >= 30) {
+    const recent30 = revenues.slice(-30);
+    const historical30 = revenues.slice(0, 30);
+    const recentMean = recent30.reduce((sum, r) => sum + r, 0) / recent30.length;
+    const historicalMean = historical30.reduce((sum, r) => sum + r, 0) / historical30.length;
+    const meanRatio = historicalMean > 0 ? recentMean / historicalMean : 1;
+    // If recent and historical are similar (within 20%), boost consistency
+    if (meanRatio >= 0.8 && meanRatio <= 1.2) {
+      consistency = Math.min(100, consistency + 10);
+    }
+  }
+  
+  // Bonus 3: Low outlier percentage (data is well-behaved)
+  const outlierThreshold = adjustedMean + 2 * robustStdDev;
+  const outlierCount = seasonallyAdjustedRevenues.filter(r => r > outlierThreshold).length;
+  const outlierPercentage = outlierCount / n;
+  if (outlierPercentage < 0.05) { // Less than 5% outliers
+    consistency = Math.min(100, consistency + 8);
+  } else if (outlierPercentage < 0.10) { // Less than 10% outliers
+    consistency = Math.min(100, consistency + 4);
+  }
+  
+  // Bonus 4: Consistent trend (not too much volatility in direction)
+  if (n >= 14) {
+    const weeklyAverages: number[] = [];
+    for (let i = 0; i < revenues.length; i += 7) {
+      const week = revenues.slice(i, i + 7);
+      if (week.length > 0) {
+        weeklyAverages.push(week.reduce((sum, r) => sum + r, 0) / week.length);
+      }
+    }
+    if (weeklyAverages.length >= 4) {
+      const weekVariance = weeklyAverages.reduce((sum, w) => {
+        const weekMean = weeklyAverages.reduce((s, x) => s + x, 0) / weeklyAverages.length;
+        return sum + Math.pow(w - weekMean, 2);
+      }, 0) / weeklyAverages.length;
+      const weekStdDev = Math.sqrt(weekVariance);
+      const weekMean = weeklyAverages.reduce((sum, w) => sum + w, 0) / weeklyAverages.length;
+      const weekCoV = weekMean > 0 ? weekStdDev / weekMean : 1;
+      // If weekly averages are consistent, boost
+      if (weekCoV < 0.5) {
+        consistency = Math.min(100, consistency + 5);
+      }
+    }
   }
   
   consistency = Math.max(10, Math.min(100, consistency));
@@ -1249,7 +1331,7 @@ function multiModelEnsemble(
     confidence: Math.max(weightedAvgConfidence, superModelConfidence),
     trend: superModelTrend,
     confidenceFactors: bestModelFull.confidenceFactors,
-    modelUsed: `Super Model (${finalModels.length}-Model Weighted Ensemble)`,
+    modelUsed: `Cuephoria Quantum AI`,
     allModels: weights.map(m => ({
       name: m.name,
       forecast: m.forecast,
@@ -1477,15 +1559,16 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
     const avgDailyExpenses = last30DaysExpenseTotal / 30;
     const breakEvenPoint = avgDailyExpenses;
 
+    // Cuephoria-branded model name
     let algorithmUsedDisplay = algorithmUsed;
     if (daysWithData >= 270) {
-      algorithmUsedDisplay = `Advanced: ${algorithmUsed} (365 days, ${daysWithData} days with data)`;
+      algorithmUsedDisplay = `Cuephoria Quantum AI`;
     } else if (daysWithData >= 180) {
-      algorithmUsedDisplay = `Enhanced: ${algorithmUsed} (365 days, ${daysWithData} days with data)`;
+      algorithmUsedDisplay = `Cuephoria Quantum AI`;
     } else if (daysWithData >= 90) {
-      algorithmUsedDisplay = `${algorithmUsed} (365 days, ${daysWithData} days with data)`;
+      algorithmUsedDisplay = `Cuephoria Quantum AI`;
     } else {
-      algorithmUsedDisplay = `Basic: ${algorithmUsed} (${daysWithData} days with data)`;
+      algorithmUsedDisplay = `Cuephoria Quantum AI`;
     }
 
     return {
