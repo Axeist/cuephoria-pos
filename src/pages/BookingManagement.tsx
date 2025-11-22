@@ -221,6 +221,10 @@ export default function BookingManagement() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [expandedCalendarBookings, setExpandedCalendarBookings] = useState<Set<string>>(new Set());
 
+  // Customer insights filtering state
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [selectedFrequencyFilter, setSelectedFrequencyFilter] = useState<'High' | 'Medium' | 'Low' | 'All'>('All');
+
   // Use global notification context
   const {
     notifications,
@@ -616,13 +620,100 @@ export default function BookingManagement() {
     });
   };
 
+  // Helper function to get revenue contribution for a single booking, accounting for payment_txn_id grouping
+  // This is used when we need to attribute revenue to specific bookings (e.g., per station, per coupon, per customer)
+  // For bookings with the same payment_txn_id, we divide the total payment proportionally
+  const getBookingRevenueContribution = (booking: Booking, allBookings: Booking[]): number => {
+    if (!booking.payment_txn_id) {
+      // No payment_txn_id: use final_price directly
+      return booking.final_price || 0;
+    }
+    
+    // Find all bookings with the same payment_txn_id
+    const sameTxnBookings = allBookings.filter(b => b.payment_txn_id === booking.payment_txn_id);
+    
+    if (sameTxnBookings.length === 1) {
+      // Only one booking with this txn_id: use final_price directly
+      return booking.final_price || 0;
+    }
+    
+    // Multiple bookings share the same payment_txn_id
+    const prices = sameTxnBookings.map(b => b.final_price || 0);
+    const totalPayment = prices.reduce((sum, p) => sum + p, 0);
+    
+    // Check if all prices are the same (each booking has the total payment)
+    const allSame = prices.every(p => Math.abs(p - prices[0]) < 0.01);
+    
+    if (allSame && prices.length > 1) {
+      // Each booking has the total payment: divide equally
+      return totalPayment / prices.length;
+    } else {
+      // Each booking has a portion: use the booking's final_price (already a portion)
+      return booking.final_price || 0;
+    }
+  };
+
+  // Helper function to calculate revenue correctly by grouping by payment_txn_id
+  // When multiple bookings share the same payment_txn_id, they should be counted as one payment
+  // The final_price on each booking may be:
+  // - A portion of the total payment (sum all to get total)
+  // - The total payment amount (count once, not per booking)
+  // To handle both cases, we sum all final_price values for bookings with the same payment_txn_id
+  // and then divide by the number of bookings to get the average, then multiply by unique transactions
+  // Actually, simpler: sum all final_price for bookings with same payment_txn_id to get total payment
+  // This works whether each booking has a portion or the full amount
+  const calculateRevenue = (bookings: Booking[]): number => {
+    // Group bookings by payment_txn_id
+    const bookingsByTxnId = new Map<string | null, Booking[]>();
+    
+    bookings.forEach(booking => {
+      const txnId = booking.payment_txn_id || null;
+      if (!bookingsByTxnId.has(txnId)) {
+        bookingsByTxnId.set(txnId, []);
+      }
+      bookingsByTxnId.get(txnId)!.push(booking);
+    });
+    
+    // Calculate revenue: for each unique payment_txn_id, sum the final_price of all bookings
+    // For bookings without payment_txn_id (null), count each booking separately
+    let totalRevenue = 0;
+    
+    bookingsByTxnId.forEach((bookingsInGroup, txnId) => {
+      if (txnId === null) {
+        // Bookings without payment_txn_id: count each booking separately
+        totalRevenue += bookingsInGroup.reduce((sum, b) => sum + (b.final_price || 0), 0);
+      } else {
+        // Bookings with same payment_txn_id: sum all final_price values
+        // If each booking has a portion, summing gives the total payment
+        // If each booking has the total, we need to only count it once
+        // To handle both cases: sum all, but if all values are the same, divide by count
+        const prices = bookingsInGroup.map(b => b.final_price || 0);
+        const sum = prices.reduce((s, p) => s + p, 0);
+        
+        // If all prices are the same (within small tolerance), it means each booking has the total
+        // In that case, we should only count it once, not sum them
+        const allSame = prices.length > 0 && prices.every(p => Math.abs(p - prices[0]) < 0.01);
+        
+        if (allSame && prices.length > 1) {
+          // All bookings have the same final_price (the total payment), count once
+          totalRevenue += prices[0];
+        } else {
+          // Each booking has a portion of the total, sum them
+          totalRevenue += sum;
+        }
+      }
+    });
+    
+    return totalRevenue;
+  };
+
   // NEW: Enhanced calendar day view component
   const CalendarDayView = () => {
     const timeSlots = generateTimeSlots();
     const totalBookings = calendarBookings.length;
     const completedBookings = calendarBookings.filter(b => b.status === 'completed').length;
     const couponBookings = calendarBookings.filter(b => b.coupon_code).length;
-    const totalRevenue = calendarBookings.reduce((sum, b) => sum + (b.final_price || 0), 0);
+    const totalRevenue = calculateRevenue(calendarBookings);
 
     return (
       <Card className="bg-background border-border shadow-lg">
@@ -914,6 +1005,8 @@ export default function BookingManagement() {
   const customerInsights = useMemo((): CustomerInsight[] => {
     const customerMap = new Map<string, CustomerInsight>();
 
+    // Use allBookings for complete customer lifetime data, but calculate revenue contribution
+    // based on the filtered bookings to show accurate period-specific revenue
     bookings.forEach(booking => {
       const customerId = booking.customer.name;
       
@@ -939,7 +1032,9 @@ export default function BookingManagement() {
       const customer = customerMap.get(customerId)!;
       customer.totalBookings++;
       customer.totalDuration += booking.duration;
-      customer.totalSpent += booking.final_price || 0;
+      // Use revenue contribution helper to properly handle payment_txn_id grouping
+      // Use bookings (filtered) for revenue calculation to ensure we only count bookings in the filtered period
+      customer.totalSpent += getBookingRevenueContribution(booking, bookings);
       
       if (!customer.lastBookingDate || booking.booking_date > customer.lastBookingDate) {
         customer.lastBookingDate = booking.booking_date;
@@ -1010,6 +1105,29 @@ export default function BookingManagement() {
     return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
   }, [bookings]);
 
+  // Filter customer insights based on search and frequency
+  const filteredCustomerInsights = useMemo(() => {
+    let filtered = customerInsights;
+
+    // Filter by frequency
+    if (selectedFrequencyFilter !== 'All') {
+      filtered = filtered.filter(c => c.bookingFrequency === selectedFrequencyFilter);
+    }
+
+    // Filter by search query (name, phone, or email)
+    if (customerSearchQuery.trim()) {
+      const query = customerSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter(customer => {
+        const nameMatch = customer.name.toLowerCase().includes(query);
+        const phoneMatch = customer.phone.toLowerCase().includes(query);
+        const emailMatch = customer.email?.toLowerCase().includes(query);
+        return nameMatch || phoneMatch || emailMatch;
+      });
+    }
+
+    return filtered;
+  }, [customerInsights, customerSearchQuery, selectedFrequencyFilter]);
+
   const analytics = useMemo((): Analytics => {
     const currentPeriodData = bookings;
     const previousPeriodStart = format(subDays(new Date(filters.dateFrom), 
@@ -1039,8 +1157,8 @@ export default function BookingManagement() {
     const returningCustomers = totalCustomers - newCustomersCount;
     const retentionRate = totalCustomers ? (returningCustomers / totalCustomers) * 100 : 0;
 
-    const currentRevenue = currentPeriodData.reduce((sum, b) => sum + (b.final_price || 0), 0);
-    const previousRevenue = previousPeriodData.reduce((sum, b) => sum + (b.final_price || 0), 0);
+    const currentRevenue = calculateRevenue(currentPeriodData);
+    const previousRevenue = calculateRevenue(previousPeriodData);
     const revenueTrend = previousRevenue ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
 
     const currentBookingCount = currentPeriodData.length;
@@ -1062,7 +1180,8 @@ export default function BookingManagement() {
       }
       
       stationStats[stationKey].bookings += 1;
-      stationStats[stationKey].revenue += b.final_price || 0;
+      // Use revenue contribution helper to properly handle payment_txn_id grouping
+      stationStats[stationKey].revenue += getBookingRevenueContribution(b, currentPeriodData);
       stationStats[stationKey].avgDuration += b.duration;
 
       const hour = new Date(`2000-01-01T${b.start_time}`).getHours();
@@ -1097,7 +1216,8 @@ export default function BookingManagement() {
           };
         }
         couponStats[code].usageCount += 1;
-        couponStats[code].totalRevenue += b.final_price || 0;
+        // Use revenue contribution helper to properly handle payment_txn_id grouping
+        couponStats[code].totalRevenue += getBookingRevenueContribution(b, currentPeriodData);
         couponStats[code].uniqueCustomers.add(b.customer.name);
         couponStats[code].bookings.push(b);
         if (b.discount_percentage && b.final_price) {
@@ -2266,7 +2386,12 @@ export default function BookingManagement() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
+                <Card 
+                  className={`cursor-pointer transition-all hover:shadow-lg ${
+                    selectedFrequencyFilter === 'High' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950/20' : ''
+                  }`}
+                  onClick={() => setSelectedFrequencyFilter(selectedFrequencyFilter === 'High' ? 'All' : 'High')}
+                >
                   <CardContent className="p-6">
                     <div className="text-center">
                       <p className="text-sm font-medium text-muted-foreground">High Frequency</p>
@@ -2274,11 +2399,19 @@ export default function BookingManagement() {
                         {customerInsights.filter(c => c.bookingFrequency === 'High').length}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">2+ bookings/week</p>
+                      {selectedFrequencyFilter === 'High' && (
+                        <p className="text-xs text-green-600 font-medium mt-2">✓ Active Filter</p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card 
+                  className={`cursor-pointer transition-all hover:shadow-lg ${
+                    selectedFrequencyFilter === 'Medium' ? 'ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' : ''
+                  }`}
+                  onClick={() => setSelectedFrequencyFilter(selectedFrequencyFilter === 'Medium' ? 'All' : 'Medium')}
+                >
                   <CardContent className="p-6">
                     <div className="text-center">
                       <p className="text-sm font-medium text-muted-foreground">Medium Frequency</p>
@@ -2286,11 +2419,19 @@ export default function BookingManagement() {
                         {customerInsights.filter(c => c.bookingFrequency === 'Medium').length}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">0.5-2 bookings/week</p>
+                      {selectedFrequencyFilter === 'Medium' && (
+                        <p className="text-xs text-yellow-600 font-medium mt-2">✓ Active Filter</p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card 
+                  className={`cursor-pointer transition-all hover:shadow-lg ${
+                    selectedFrequencyFilter === 'Low' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : ''
+                  }`}
+                  onClick={() => setSelectedFrequencyFilter(selectedFrequencyFilter === 'Low' ? 'All' : 'Low')}
+                >
                   <CardContent className="p-6">
                     <div className="text-center">
                       <p className="text-sm font-medium text-muted-foreground">Low Frequency</p>
@@ -2298,6 +2439,9 @@ export default function BookingManagement() {
                         {customerInsights.filter(c => c.bookingFrequency === 'Low').length}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">&lt;0.5 bookings/week</p>
+                      {selectedFrequencyFilter === 'Low' && (
+                        <p className="text-xs text-red-600 font-medium mt-2">✓ Active Filter</p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -2305,95 +2449,203 @@ export default function BookingManagement() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Customer Insights & Analytics
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Customer Insights & Analytics
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      {(selectedFrequencyFilter !== 'All' || customerSearchQuery) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedFrequencyFilter('All');
+                            setCustomerSearchQuery('');
+                          }}
+                          className="text-xs"
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Clear Filters
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by name, phone, or email..."
+                        value={customerSearchQuery}
+                        onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    {filteredCustomerInsights.length !== customerInsights.length && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Showing {filteredCustomerInsights.length} of {customerInsights.length} customers
+                      </p>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {customerInsights.slice(0, 20).map((customer, index) => (
-                      <div key={customer.name} className="p-4 border rounded-lg bg-card hover:shadow-md transition-shadow">
-                        <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
-                          <div className="lg:col-span-2">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
-                                ${index < 3 ? 'bg-yellow-500' : index < 10 ? 'bg-blue-500' : 'bg-gray-500'}`}>
-                                {index + 1}
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-lg">{customer.name}</h4>
-                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                  <Phone className="h-3 w-3" />
-                                  {customer.phone}
+                  {filteredCustomerInsights.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">No customers found matching your criteria</p>
+                      {(selectedFrequencyFilter !== 'All' || customerSearchQuery) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedFrequencyFilter('All');
+                            setCustomerSearchQuery('');
+                          }}
+                          className="mt-4"
+                        >
+                          Clear Filters
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {filteredCustomerInsights.map((customer, index) => {
+                        // Calculate additional insights
+                        const avgSpendPerBooking = customer.totalBookings > 0 
+                          ? Math.round(customer.totalSpent / customer.totalBookings) 
+                          : 0;
+                        const totalHours = Math.round(customer.totalDuration / 60);
+                        const avgHoursPerBooking = customer.totalBookings > 0
+                          ? (customer.totalDuration / 60 / customer.totalBookings).toFixed(1)
+                          : '0';
+                        const daysSinceLastVisit = customer.lastBookingDate
+                          ? Math.floor((new Date().getTime() - new Date(customer.lastBookingDate).getTime()) / (1000 * 60 * 60 * 24))
+                          : null;
+                        
+                        return (
+                        <div key={`${customer.name}-${customer.phone}`} className="p-4 border rounded-lg bg-card hover:shadow-md transition-shadow">
+                          <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
+                            <div className="lg:col-span-2">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm
+                                  ${index < 3 ? 'bg-yellow-500' : index < 10 ? 'bg-blue-500' : 'bg-gray-500'}`}>
+                                  {index + 1}
                                 </div>
-                                {customer.email && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Mail className="h-3 w-3" />
-                                    {customer.email}
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-lg">{customer.name}</h4>
+                                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                    <Phone className="h-3 w-3" />
+                                    {customer.phone}
                                   </div>
-                                )}
+                                  {customer.email && (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Mail className="h-3 w-3" />
+                                      {customer.email}
+                                    </div>
+                                  )}
+                                  <Badge 
+                                    variant={customer.bookingFrequency === 'High' ? 'default' : customer.bookingFrequency === 'Medium' ? 'secondary' : 'destructive'} 
+                                    className="text-xs mt-1"
+                                  >
+                                    {customer.bookingFrequency} Frequency
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Bookings</p>
-                            <p className="text-2xl font-bold text-blue-600">{customer.totalBookings}</p>
-                            <Badge variant={customer.bookingFrequency === 'High' ? 'default' : customer.bookingFrequency === 'Medium' ? 'secondary' : 'destructive'} className="text-xs">
-                              {customer.bookingFrequency} Frequency
-                            </Badge>
-                          </div>
-
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue</p>
-                            <p className="text-xl font-bold text-green-600">₹{customer.totalSpent.toLocaleString()}</p>
-                            <p className="text-xs text-muted-foreground">₹{Math.round(customer.totalSpent / customer.totalBookings)}/booking</p>
-                          </div>
-
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Preferences</p>
-                            <div className="flex items-center gap-1 text-sm">
-                              <Clock className="h-3 w-3" />
-                              {customer.preferredTime || 'Various'}
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Bookings</p>
+                              <p className="text-2xl font-bold text-blue-600">{customer.totalBookings}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {customer.completionRate}% completed
+                              </p>
                             </div>
-                            <div className="flex items-center gap-1 text-sm">
-                              <GamepadIcon className="h-3 w-3" />
-                              {getStationTypeLabel(customer.favoriteStationType)}
-                            </div>
-                          </div>
 
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Usage</p>
-                            <div className="flex items-center gap-1 text-sm">
-                              <Timer className="h-3 w-3" />
-                              {Math.round(customer.totalDuration / 60)}h total
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue</p>
+                              <p className="text-xl font-bold text-green-600">₹{customer.totalSpent.toLocaleString()}</p>
+                              <p className="text-xs text-muted-foreground">₹{avgSpendPerBooking}/booking</p>
+                              <p className="text-xs text-muted-foreground">
+                                {analytics.revenue.total > 0 
+                                  ? ((customer.totalSpent / analytics.revenue.total) * 100).toFixed(1) 
+                                  : 0}% of total
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">{customer.averageBookingDuration}min avg</p>
-                            <div className="flex items-center gap-1">
-                              <Star className="h-3 w-3 text-yellow-500" />
-                              <span className="text-sm">{customer.completionRate}% completion</span>
-                            </div>
-                          </div>
 
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Marketing</p>
-                            {customer.mostUsedCoupon ? (
-                              <Badge variant="outline" className="text-xs">
-                                <Gift className="h-2 w-2 mr-1" />
-                                {customer.mostUsedCoupon}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No coupons used</span>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              Last visit: {format(new Date(customer.lastBookingDate), 'MMM d, yyyy')}
-                            </p>
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Play Time</p>
+                              <div className="flex items-center gap-1 text-sm font-semibold">
+                                <Timer className="h-3 w-3" />
+                                {totalHours}h total
+                              </div>
+                              <p className="text-xs text-muted-foreground">{avgHoursPerBooking}h avg/booking</p>
+                              <p className="text-xs text-muted-foreground">{customer.averageBookingDuration}min avg</p>
+                            </div>
+
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Preferences</p>
+                              <div className="flex items-center gap-1 text-sm">
+                                <Clock className="h-3 w-3" />
+                                {customer.preferredTime || 'Various'}
+                              </div>
+                              <div className="flex items-center gap-1 text-sm">
+                                <GamepadIcon className="h-3 w-3" />
+                                {getStationTypeLabel(customer.favoriteStationType)}
+                              </div>
+                              {customer.preferredStation && (
+                                <p className="text-xs text-muted-foreground truncate" title={customer.preferredStation}>
+                                  Fav: {customer.preferredStation}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Marketing</p>
+                              {customer.mostUsedCoupon ? (
+                                <Badge variant="outline" className="text-xs">
+                                  <Gift className="h-2 w-2 mr-1" />
+                                  {customer.mostUsedCoupon}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">No coupons</span>
+                              )}
+                              <div className="flex items-center gap-1 mt-1">
+                                <Star className="h-3 w-3 text-yellow-500" />
+                                <span className="text-xs">{customer.completionRate}% completion</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Activity</p>
+                              <p className="text-xs text-muted-foreground">
+                                Last: {format(new Date(customer.lastBookingDate), 'MMM d, yyyy')}
+                              </p>
+                              {daysSinceLastVisit !== null && (
+                                <p className={`text-xs ${
+                                  daysSinceLastVisit <= 7 ? 'text-green-600' : 
+                                  daysSinceLastVisit <= 30 ? 'text-yellow-600' : 
+                                  'text-red-600'
+                                }`}>
+                                  {daysSinceLastVisit === 0 ? 'Today' : 
+                                   daysSinceLastVisit === 1 ? 'Yesterday' : 
+                                   `${daysSinceLastVisit} days ago`}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-1 mt-1">
+                                <Activity className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">
+                                  {customer.totalBookings > 0 
+                                    ? Math.round((customer.totalBookings / Math.max(1, daysSinceLastVisit || 1)) * 7)
+                                    : 0} bookings/week
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
