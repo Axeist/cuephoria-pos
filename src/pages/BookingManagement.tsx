@@ -1084,23 +1084,6 @@ export default function BookingManagement() {
           customer.avgDaysBetweenBookings = 0;
         }
       }
-
-      // Find first booking date
-      const sortedBookings = [...customerBookings].sort((a, b) => 
-        new Date(a.booking_date).getTime() - new Date(b.booking_date).getTime()
-      );
-      if (sortedBookings.length > 0) {
-        customer.firstBookingDate = sortedBookings[0].booking_date;
-      }
-
-      // Calculate average days between bookings
-      if (customerBookings.length > 1) {
-        const bookingDates = sortedBookings.map(b => new Date(b.booking_date).getTime());
-        const totalDays = bookingDates[bookingDates.length - 1] - bookingDates[0];
-        customer.avgDaysBetweenBookings = Math.round(totalDays / (bookingDates.length - 1) / (1000 * 60 * 60 * 24));
-      } else {
-        customer.avgDaysBetweenBookings = 0;
-      }
       
       const timeMap = new Map<number, number>();
       customerBookings.forEach(b => {
