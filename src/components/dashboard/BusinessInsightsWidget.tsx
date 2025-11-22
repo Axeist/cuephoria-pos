@@ -391,7 +391,21 @@ function movingAverageForecast(
 
   const revenues = dailyData.map(d => d.revenue);
   const recentRevenues = revenues.slice(-window);
-  const forecast = recentRevenues.reduce((sum, r) => sum + r, 0) / window;
+  let forecast = recentRevenues.reduce((sum, r) => sum + r, 0) / window;
+
+  // ENHANCED: Apply seasonal adjustment for weekends/weekdays
+  const tomorrow = addDays(new Date(), 1);
+  const isTomorrowWeekend = isWeekend(tomorrow);
+  const seasonalFactors = calculateSeasonalFactors(dailyData);
+  
+  if (isTomorrowWeekend) {
+    const weekendFactor = seasonalFactors.weekend;
+    forecast = forecast * weekendFactor;
+  } else {
+    const dayOfWeek = getDay(tomorrow);
+    const dayFactor = seasonalFactors.dayOfWeek.get(dayOfWeek) || 1;
+    forecast = forecast * dayFactor;
+  }
 
   // Calculate trend
   const firstHalf = revenues.slice(-window * 2, -window);
@@ -424,7 +438,7 @@ function movingAverageForecast(
   };
 }
 
-// NEW: ARIMA-like Auto-Regressive Model
+// ENHANCED: ARIMA-like Auto-Regressive Model with seasonal adjustment
 function arimaStyleForecast(
   dailyData: EnhancedDailyData[],
   p: number = 3,
@@ -456,17 +470,29 @@ function arimaStyleForecast(
 
   const revenues = dailyData.map(d => d.revenue);
   
-  // Differencing
+  // ENHANCED: Use recent 7-day average as baseline (accounts for current week performance)
+  const recent7Days = revenues.slice(-7);
+  const recent7DayAvg = recent7Days.reduce((sum, r) => sum + r, 0) / recent7Days.length;
+  const overallAvg = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
+  
+  // If recent week is significantly better, use it as stronger baseline
+  const recentPerformanceRatio = overallAvg > 0 ? recent7DayAvg / overallAvg : 1;
+  const useRecentBaseline = recentPerformanceRatio > 1.1; // 10%+ better than average
+  
+  // Differencing (but use recent baseline if week was strong)
   const differenced: number[] = [];
   for (let i = d; i < revenues.length; i++) {
     differenced.push(revenues[i] - revenues[i - d]);
   }
 
-  // Auto-regressive component with better weights
+  // ENHANCED: Auto-regressive component with emphasis on recent trends
   let arComponent = 0;
   if (differenced.length >= p) {
     const recentDiff = differenced.slice(-p);
-    const weights = [0.4, 0.3, 0.2, 0.1].slice(0, p);
+    // Give more weight to most recent changes if week was strong
+    const weights = useRecentBaseline 
+      ? [0.5, 0.3, 0.15, 0.05].slice(0, p) // More weight on recent
+      : [0.4, 0.3, 0.2, 0.1].slice(0, p);
     arComponent = recentDiff.reduce((sum, val, idx) => sum + val * weights[idx], 0);
   }
 
@@ -478,7 +504,33 @@ function arimaStyleForecast(
   }
 
   const lastValue = revenues[revenues.length - 1];
-  const forecast = lastValue + arComponent + maComponent * 0.4;
+  
+  // ENHANCED: Use recent 7-day average as baseline if week was strong
+  const baseline = useRecentBaseline 
+    ? recent7DayAvg * 0.6 + lastValue * 0.4 // Blend recent avg with last value
+    : lastValue;
+  
+  let forecast = baseline + arComponent + maComponent * 0.4;
+  
+  // ENHANCED: Apply seasonal adjustment for weekends
+  const tomorrow = addDays(new Date(), 1);
+  const isTomorrowWeekend = isWeekend(tomorrow);
+  const seasonalFactors = calculateSeasonalFactors(dailyData);
+  
+  if (isTomorrowWeekend) {
+    const weekendFactor = seasonalFactors.weekend;
+    forecast = forecast * weekendFactor;
+  } else {
+    const dayOfWeek = getDay(tomorrow);
+    const dayFactor = seasonalFactors.dayOfWeek.get(dayOfWeek) || 1;
+    forecast = forecast * dayFactor;
+  }
+  
+  // ENHANCED: If recent week was strong, don't let ARIMA overcorrect downward
+  if (useRecentBaseline && forecast < recent7DayAvg * 0.7) {
+    // If forecast is way below recent average, blend with recent average
+    forecast = forecast * 0.5 + recent7DayAvg * 0.5;
+  }
 
   const mean = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
   const trendValue = arComponent;
@@ -490,10 +542,15 @@ function arimaStyleForecast(
   // Model fit boost
   const modelFit = calculateModelFit(revenues, differenced);
   const adjustedConfidence = Math.min(95, confidence + modelFit * 15);
+  
+  // Boost confidence if using recent baseline (means we have strong recent data)
+  const finalConfidence = useRecentBaseline 
+    ? Math.min(95, adjustedConfidence + 5)
+    : adjustedConfidence;
 
   return {
     forecast: Math.max(0, forecast),
-    confidence: Math.max(35, adjustedConfidence),
+    confidence: Math.max(35, finalConfidence),
     trend,
     confidenceFactors: {
       ...factors,
@@ -573,11 +630,46 @@ function prophetStyleForecastWithConfidence(
     ? weekdayRevenues.reduce((sum, r) => sum + r, 0) / weekdayRevenues.length 
     : meanY;
 
-  const seasonalAdjustment = isWeekend 
+  // ENHANCED: Use recent 7-day average if week was strong
+  const recent7Days = revenues.slice(-7);
+  const recent7DayAvg = recent7Days.reduce((sum, r) => sum + r, 0) / recent7Days.length;
+  const recentPerformanceRatio = meanY > 0 ? recent7DayAvg / meanY : 1;
+  const useRecentBaseline = recentPerformanceRatio > 1.1; // 10%+ better than average
+  
+  let seasonalAdjustment = isWeekend 
     ? (weekendAvg / meanY) 
     : (weekdayAvg / meanY);
+  
+  // If recent week was strong, blend with recent seasonal patterns
+  if (useRecentBaseline) {
+    const recentWeekendAvg = dailyData
+      .filter((d, idx) => idx >= dailyData.length - 7 && [0, 6].includes(getDay(d.date)))
+      .map(d => d.revenue);
+    const recentWeekdayAvg = dailyData
+      .filter((d, idx) => idx >= dailyData.length - 7 && ![0, 6].includes(getDay(d.date)))
+      .map(d => d.revenue);
+    
+    const recentWeekendMean = recentWeekendAvg.length > 0
+      ? recentWeekendAvg.reduce((sum, r) => sum + r, 0) / recentWeekendAvg.length
+      : recent7DayAvg;
+    const recentWeekdayMean = recentWeekdayAvg.length > 0
+      ? recentWeekdayAvg.reduce((sum, r) => sum + r, 0) / recentWeekdayAvg.length
+      : recent7DayAvg;
+    
+    const recentSeasonalAdjustment = isWeekend 
+      ? recentWeekendMean / recent7DayAvg
+      : recentWeekdayMean / recent7DayAvg;
+    
+    // Blend historical and recent seasonal adjustments
+    seasonalAdjustment = seasonalAdjustment * 0.6 + recentSeasonalAdjustment * 0.4;
+  }
 
-  const forecast = Math.max(0, trendForecast * seasonalAdjustment);
+  let forecast = Math.max(0, trendForecast * seasonalAdjustment);
+  
+  // If recent week was strong, don't let forecast drop too low
+  if (useRecentBaseline && forecast < recent7DayAvg * 0.8) {
+    forecast = forecast * 0.7 + recent7DayAvg * 0.3;
+  }
   
   // Calculate R-squared for confidence boost
   let ssRes = 0;
@@ -867,16 +959,30 @@ function holtWintersForecasting(
 
   const revenues = dailyData.map(d => d.revenue);
   
+  // ENHANCED: Consider recent 7-day performance
+  const recent7Days = revenues.slice(-7);
+  const recent7DayAvg = recent7Days.reduce((sum, r) => sum + r, 0) / recent7Days.length;
+  const overallAvg = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
+  const recentPerformanceRatio = overallAvg > 0 ? recent7DayAvg / overallAvg : 1;
+  const useRecentBaseline = recentPerformanceRatio > 1.1; // 10%+ better than average
+  
   // IMPROVED: Use more sophisticated seasonal adjustment
   const seasonalFactors = calculateSeasonalFactors(dailyData);
   const tomorrowDayOfWeek = getDay(new Date(Date.now() + 86400000));
   const seasonalIndex = seasonalFactors.dayOfWeek.get(tomorrowDayOfWeek) || 1;
 
   // IMPROVED: Exponential smoothing with better alpha adjustment based on data length
-  const alpha = dailyData.length >= 30 ? 0.3 : dailyData.length >= 14 ? 0.4 : 0.5;
+  // Use higher alpha (more responsive) if recent week was strong
+  const baseAlpha = dailyData.length >= 30 ? 0.3 : dailyData.length >= 14 ? 0.4 : 0.5;
+  const alpha = useRecentBaseline ? Math.min(0.5, baseAlpha + 0.1) : baseAlpha;
   const { forecast: baselineForecast, trend: trendValue } = exponentialSmoothing(revenues, alpha);
   
-  const seasonalForecast = baselineForecast * seasonalIndex;
+  // ENHANCED: Blend with recent average if week was strong
+  let seasonalForecast = baselineForecast * seasonalIndex;
+  if (useRecentBaseline) {
+    // Blend 60% exponential smoothing + 40% recent average
+    seasonalForecast = seasonalForecast * 0.6 + (recent7DayAvg * seasonalIndex) * 0.4;
+  }
   
   const mean = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
   const trendStrength = mean > 0 ? trendValue / mean : 0;
@@ -1168,9 +1274,34 @@ function lstmStyleForecast(
     }
   });
   
-  const forecast = similarPatterns.length > 0
+  let forecast = similarPatterns.length > 0
     ? similarPatterns.reduce((sum, val) => sum + val, 0) / similarPatterns.length
     : bestMatch;
+  
+  // ENHANCED: Apply seasonal adjustment for weekends/weekdays
+  const tomorrow = addDays(new Date(), 1);
+  const isTomorrowWeekend = isWeekend(tomorrow);
+  const seasonalFactors = calculateSeasonalFactors(dailyData);
+  
+  if (isTomorrowWeekend) {
+    const weekendFactor = seasonalFactors.weekend;
+    forecast = forecast * weekendFactor;
+  } else {
+    const dayOfWeek = getDay(tomorrow);
+    const dayFactor = seasonalFactors.dayOfWeek.get(dayOfWeek) || 1;
+    forecast = forecast * dayFactor;
+  }
+  
+  // ENHANCED: If recent week was strong, don't let pattern matching under-predict
+  const recent7Days = revenues.slice(-7);
+  const recent7DayAvg = recent7Days.reduce((sum, r) => sum + r, 0) / recent7Days.length;
+  const overallAvg = revenues.reduce((sum, r) => sum + r, 0) / revenues.length;
+  const recentPerformanceRatio = overallAvg > 0 ? recent7DayAvg / overallAvg : 1;
+  
+  // If recent week is 10%+ better than average, blend with recent average
+  if (recentPerformanceRatio > 1.1 && forecast < recent7DayAvg * 0.8) {
+    forecast = forecast * 0.6 + recent7DayAvg * 0.4;
+  }
   
   // Calculate confidence based on pattern similarity
   const mean = revenues.reduce((sum, r) => sum + r, 0) / n;
@@ -1257,14 +1388,73 @@ function multiModelEnsemble(
   // Step 4: SUPER MODEL - Weighted average of all forecasts
   const superModelForecast = weights.reduce((sum, m) => sum + (m.forecast * m.weight), 0);
   
-  // Step 5: Calculate how much models agree
+  // Step 5: Calculate how much models agree (IMPROVED: More forgiving calculation)
+  // Model Agreement measures how close the 6 models' predictions are to each other
+  // Higher agreement = models are predicting similar values = more reliable forecast
   const finalForecasts = finalModels.map(m => m.forecast);
   const meanForecast = finalForecasts.reduce((sum, f) => sum + f, 0) / finalForecasts.length;
+  
+  if (meanForecast === 0) {
+    return {
+      forecast: 0,
+      confidence: 0,
+      trend: 'stable' as const,
+      confidenceFactors: {},
+      modelUsed: `Cuephoria Quantum AI`,
+      allModels: [],
+      ensembleAgreement: 0,
+      superModelWeights: {}
+    };
+  }
+  
+  // Calculate standard deviation of forecasts
   const forecastStdDev = Math.sqrt(
     finalForecasts.reduce((sum, f) => sum + Math.pow(f - meanForecast, 2), 0) / finalForecasts.length
   );
-  const coefficientOfVariation = meanForecast > 0 ? forecastStdDev / meanForecast : 1;
-  const ensembleAgreement = Math.max(0, Math.min(100, 100 - (coefficientOfVariation * 200)));
+  const coefficientOfVariation = forecastStdDev / meanForecast;
+  
+  // IMPROVED: More forgiving and realistic agreement calculation
+  // CoV of 0.0 = perfect agreement (100%)
+  // CoV of 0.2 = very good agreement (80%)
+  // CoV of 0.5 = moderate agreement (50%)
+  // CoV of 1.0 = poor agreement (20%)
+  // CoV of 2.0+ = very poor agreement (0%)
+  let ensembleAgreement = 0;
+  if (coefficientOfVariation <= 0.1) {
+    // Excellent agreement (CoV <= 0.1)
+    ensembleAgreement = 95 + (0.1 - coefficientOfVariation) * 50;
+  } else if (coefficientOfVariation <= 0.3) {
+    // Very good agreement (CoV 0.1-0.3)
+    ensembleAgreement = 70 + (0.3 - coefficientOfVariation) * 125;
+  } else if (coefficientOfVariation <= 0.6) {
+    // Good agreement (CoV 0.3-0.6)
+    ensembleAgreement = 40 + (0.6 - coefficientOfVariation) * 100;
+  } else if (coefficientOfVariation <= 1.0) {
+    // Moderate agreement (CoV 0.6-1.0)
+    ensembleAgreement = 20 + (1.0 - coefficientOfVariation) * 50;
+  } else if (coefficientOfVariation <= 1.5) {
+    // Poor agreement (CoV 1.0-1.5)
+    ensembleAgreement = 10 + (1.5 - coefficientOfVariation) * 20;
+  } else {
+    // Very poor agreement (CoV > 1.5)
+    ensembleAgreement = Math.max(0, 10 - (coefficientOfVariation - 1.5) * 5);
+  }
+  
+  ensembleAgreement = Math.max(0, Math.min(100, ensembleAgreement));
+  
+  // BONUS: If models are within 30% of each other, that's actually good agreement
+  // (Different models naturally have different approaches, so some variance is expected)
+  const minForecast = Math.min(...finalForecasts);
+  const maxForecast = Math.max(...finalForecasts);
+  const forecastRange = maxForecast - minForecast;
+  const rangeRatio = meanForecast > 0 ? forecastRange / meanForecast : 1;
+  
+  // If all forecasts are within 30% range, boost agreement
+  if (rangeRatio <= 0.3) {
+    ensembleAgreement = Math.min(100, ensembleAgreement + 15);
+  } else if (rangeRatio <= 0.5) {
+    ensembleAgreement = Math.min(100, ensembleAgreement + 8);
+  }
   
   // Step 6: Calculate super model confidence
   // Weighted average of all confidences
