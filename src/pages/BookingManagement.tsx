@@ -98,6 +98,7 @@ interface Filters {
 interface CouponAnalytics {
   totalCouponsUsed: number;
   uniqueCoupons: number;
+  uniqueBookingsWithCoupons: number;
   totalDiscountGiven: number;
   revenueWithCoupons: number;
   revenueWithoutCoupons: number;
@@ -1229,6 +1230,16 @@ export default function BookingManagement() {
 
     const totalCouponsUsed = Object.values(couponStats).reduce((sum, stat) => sum + stat.usageCount, 0);
     const uniqueCoupons = Object.keys(couponStats).length;
+    
+    // Count unique bookings that used coupons (not total coupon usages, since one booking can have multiple coupons)
+    const bookingsWithCoupons = new Set<string>();
+    currentPeriodData.forEach(b => {
+      if (b.coupon_code) {
+        bookingsWithCoupons.add(b.id);
+      }
+    });
+    const uniqueBookingsWithCoupons = bookingsWithCoupons.size;
+    
     const revenueWithCoupons = Object.values(couponStats).reduce((sum, stat) => sum + stat.totalRevenue, 0);
     const revenueWithoutCoupons = currentRevenue - revenueWithCoupons;
     const totalDiscountGiven = Object.values(couponStats).reduce((sum, stat) => sum + stat.totalDiscount, 0);
@@ -1242,7 +1253,8 @@ export default function BookingManagement() {
       }, 0) / totalCouponsUsed
       : 0;
 
-    const couponConversionRate = currentBookingCount > 0 ? (totalCouponsUsed / currentBookingCount) * 100 : 0;
+    // Fix: Use unique bookings with coupons, not total coupon usages (which can exceed 100% if bookings have multiple coupons)
+    const couponConversionRate = currentBookingCount > 0 ? (uniqueBookingsWithCoupons / currentBookingCount) * 100 : 0;
 
     const newCustomersWithCoupons = Object.values(couponStats)
       .reduce((set, stat) => {
@@ -1290,6 +1302,7 @@ export default function BookingManagement() {
     const couponAnalytics: CouponAnalytics = {
       totalCouponsUsed,
       uniqueCoupons,
+      uniqueBookingsWithCoupons,
       totalDiscountGiven,
       revenueWithCoupons,
       revenueWithoutCoupons,
@@ -1968,7 +1981,10 @@ export default function BookingManagement() {
                           {analytics.coupons.couponConversionRate.toFixed(1)}%
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {analytics.coupons.totalCouponsUsed} of {analytics.bookings.total} bookings
+                          {analytics.coupons.uniqueBookingsWithCoupons} of {analytics.bookings.total} bookings
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ({analytics.coupons.totalCouponsUsed} total coupon usages)
                         </p>
                       </div>
                       <Gift className="h-8 w-8 text-purple-600" />
