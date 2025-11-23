@@ -248,6 +248,62 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
       }
     }
 
+    // Check for existing bookings and slot blocks before creating
+    const timeToMinutes = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    // Check for conflicting bookings
+    for (const slot of slots) {
+      const requestedStart = timeToMinutes(slot.start_time);
+      const requestedEnd = timeToMinutes(slot.end_time);
+      const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
+
+      const { data: existingBookings } = await supabase
+        .from("bookings")
+        .select("id, station_id, start_time, end_time")
+        .in("station_id", selectedStations)
+        .eq("booking_date", selectedDateISO)
+        .in("status", ["confirmed", "in-progress"]);
+
+      if (existingBookings) {
+        const conflicts = existingBookings.filter(booking => {
+          const existingStart = timeToMinutes(booking.start_time);
+          const existingEnd = timeToMinutes(booking.end_time);
+          const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
+
+          return (
+            (requestedStart >= existingStart && requestedStart < existingEndMinutes) ||
+            (requestedEndMinutes > existingStart && requestedEndMinutes <= existingEndMinutes) ||
+            (requestedStart <= existingStart && requestedEndMinutes >= existingEndMinutes) ||
+            (existingStart <= requestedStart && existingEndMinutes >= requestedEndMinutes)
+          );
+        });
+
+        if (conflicts.length > 0) {
+          console.error("❌ Slot conflicts detected in webhook:", conflicts);
+          throw new Error("Selected slot is no longer available. Please select another time slot.");
+        }
+      }
+
+      // Check for active slot blocks (excluding our own if we have session info)
+      const { data: activeBlocks } = await supabase
+        .from("slot_blocks")
+        .select("id, station_id")
+        .in("station_id", selectedStations)
+        .eq("booking_date", selectedDateISO)
+        .eq("start_time", slot.start_time)
+        .eq("end_time", slot.end_time)
+        .gt("expires_at", new Date().toISOString())
+        .eq("is_confirmed", false);
+
+      if (activeBlocks && activeBlocks.length > 0) {
+        console.error("❌ Slot is blocked in webhook:", activeBlocks);
+        throw new Error("This slot is currently being booked by another customer.");
+      }
+    }
+
     // Create booking rows
     const rows: any[] = [];
     selectedStations.forEach((station_id: string) => {
@@ -275,6 +331,21 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
       .from("bookings")
       .insert(rows)
       .select("id");
+
+    // Confirm slot blocks after successful booking creation
+    if (!bErr && insertedBookings) {
+      for (const slot of slots) {
+        await supabase
+          .from("slot_blocks")
+          .update({ is_confirmed: true })
+          .in("station_id", selectedStations)
+          .eq("booking_date", selectedDateISO)
+          .eq("start_time", slot.start_time)
+          .eq("end_time", slot.end_time)
+          .gt("expires_at", new Date().toISOString())
+          .eq("is_confirmed", false);
+      }
+    }
 
     if (bErr) {
       console.error("❌ Booking creation error:", bErr);

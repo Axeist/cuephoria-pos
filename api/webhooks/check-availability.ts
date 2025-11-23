@@ -243,6 +243,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Failed to check availability" }, 500);
     }
 
+    // Check for active slot blocks (temporary reservations)
+    const { data: activeBlocks, error: blockError } = await supabase
+      .from("slot_blocks")
+      .select("id, station_id, expires_at, is_confirmed")
+      .in("station_id", stationIds)
+      .eq("booking_date", booking_date)
+      .eq("start_time", start_time)
+      .eq("end_time", end_time)
+      .gt("expires_at", new Date().toISOString())
+      .eq("is_confirmed", false);
+
+    if (blockError) {
+      console.error("❌ Error checking slot blocks:", blockError);
+    }
+
     // Check for active sessions (for today's bookings)
     // Only block if the session's start time overlaps with the requested time slot
     const today = new Date().toISOString().split('T')[0];
@@ -293,11 +308,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         booking => booking.station_id === station.id
       ) || false;
 
+      const hasActiveBlock = activeBlocks?.some(
+        block => block.station_id === station.id
+      ) || false;
+
       const hasActiveSession = activeSessions.some(
         session => session.station_id === station.id
       );
 
-      const isAvailable = !hasBookingConflict && !hasActiveSession;
+      const isAvailable = !hasBookingConflict && !hasActiveBlock && !hasActiveSession;
 
       return {
         station_id: station.id,
@@ -306,7 +325,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hourly_rate: station.hourly_rate,
         is_available: isAvailable,
         conflict_reason: !isAvailable 
-          ? (hasBookingConflict ? "Already booked for this time slot" : "Currently in use")
+          ? (hasBookingConflict 
+              ? "Already booked for this time slot" 
+              : hasActiveBlock 
+                ? "Currently being booked by another customer" 
+                : "Currently in use")
           : null
       };
     });
