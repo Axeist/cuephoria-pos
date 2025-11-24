@@ -775,22 +775,24 @@ const Login = () => {
           
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4 relative z-10 p-4 sm:p-6 pt-4 sm:pt-6">
-              <div className="flex justify-center mb-4 sm:mb-6">
-                <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 h-10 sm:h-11 gap-1 p-1">
-                    <TabsTrigger value="admin" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3">
-                      <Shield size={14} className="sm:w-4 sm:h-4" />
-                      <span>Admin</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="staff" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3">
-                      <Users size={14} className="sm:w-4 sm:h-4" />
-                      <span>Staff</span>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+              <div className="flex justify-center mb-6 sm:mb-6 pb-2 sm:pb-0 overflow-x-auto">
+                <div className="w-full min-w-0">
+                  <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 h-10 sm:h-11 gap-1 p-1 min-w-[200px]">
+                      <TabsTrigger value="admin" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3 whitespace-nowrap">
+                        <Shield size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span>Admin</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="staff" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3 whitespace-nowrap">
+                        <Users size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span>Staff</span>
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
               </div>
 
-              <div className="space-y-2 group">
+              <div className="space-y-2 group mt-2">
                 <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
                   <User size={14} className="sm:w-4 sm:h-4" />
                   <span>Username</span>
