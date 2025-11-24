@@ -128,6 +128,196 @@ async function fetchOrderDetails(orderId: string) {
   }
 }
 
+// Create bill from booking data
+// NOTE: This function is ONLY called for online Razorpay payments via webhook
+// It is NOT called for venue payments, AI bookings, or any other payment methods
+async function createBillFromBooking(
+  customerId: string,
+  bookings: any[],
+  pricing: any,
+  selectedStations: string[],
+  selectedDateISO: string,
+  slots: any[]
+) {
+  const supabase = await getSupabaseClient();
+  
+  try {
+    // Validate customerId exists
+    if (!customerId) {
+      throw new Error("Customer ID is required to create bill");
+    }
+    
+    // Verify customer exists (important for new customers)
+    const { data: customerCheck, error: customerCheckError } = await supabase
+      .from("customers")
+      .select("id, total_spent")
+      .eq("id", customerId)
+      .single();
+    
+    if (customerCheckError || !customerCheck) {
+      console.error("❌ Customer not found for bill creation:", customerId, customerCheckError);
+      throw new Error(`Customer not found: ${customerId}`);
+    }
+    
+    console.log("✅ Customer verified for bill creation:", {
+      customerId,
+      currentTotalSpent: customerCheck.total_spent || 0
+    });
+    
+    // Check if bill already exists for these bookings (by checking payment_txn_id in bookings)
+    const { data: existingBillCheck } = await supabase
+      .from("bookings")
+      .select("payment_txn_id")
+      .in("id", bookings.map(b => b.id))
+      .limit(1);
+    
+    if (existingBillCheck && existingBillCheck.length > 0 && existingBillCheck[0].payment_txn_id) {
+      // Check if a bill exists for this customer with razorpay payment method around the same time
+      const { data: existingBills } = await supabase
+        .from("bills")
+        .select("id")
+        .eq("customer_id", customerId)
+        .eq("payment_method", "razorpay")
+        .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Within last 5 minutes
+        .limit(1);
+      
+      if (existingBills && existingBills.length > 0) {
+        console.log("✅ Bill already exists for this payment");
+        return { success: true, billId: existingBills[0].id, alreadyExists: true };
+      }
+    }
+    
+    // Fetch station names
+    const { data: stationsData, error: stationsError } = await supabase
+      .from("stations")
+      .select("id, name")
+      .in("id", selectedStations);
+    
+    if (stationsError) {
+      console.error("❌ Error fetching stations:", stationsError);
+      throw stationsError;
+    }
+    
+    const stationMap = new Map(stationsData?.map((s: any) => [s.id, s.name]) || []);
+    
+    // Calculate bill totals from actual bookings (sum of all booking prices)
+    // This ensures accuracy when there are multiple stations/slots
+    const totalFromBookings = bookings.reduce((sum, booking) => sum + (Number(booking.final_price) || 0), 0);
+    const originalFromBookings = bookings.reduce((sum, booking) => {
+      // Calculate original price per booking (reverse the discount if needed)
+      // If we have discount_percentage, we can calculate original
+      const bookingOriginal = booking.original_price || booking.final_price;
+      return sum + (Number(bookingOriginal) || 0);
+    }, 0);
+    
+    // Use calculated values, fallback to pricing if needed
+    const subtotal = originalFromBookings > 0 ? originalFromBookings : pricing.original;
+    const total = totalFromBookings > 0 ? totalFromBookings : pricing.final; // This is the amount without transaction fee
+    const discountValue = subtotal - total;
+    
+    // Create the bill
+    const { data: billData, error: billError } = await supabase
+      .from("bills")
+      .insert({
+        customer_id: customerId,
+        subtotal: subtotal,
+        discount: discountValue > 0 ? (discountValue / subtotal) * 100 : 0, // discount percentage
+        discount_value: discountValue,
+        discount_type: "fixed",
+        loyalty_points_used: 0,
+        loyalty_points_earned: 0,
+        total: total,
+        payment_method: "razorpay",
+        status: "completed",
+        is_split_payment: false,
+        cash_amount: 0,
+        upi_amount: 0,
+      })
+      .select()
+      .single();
+    
+    if (billError) {
+      console.error("❌ Bill creation error:", billError);
+      throw billError;
+    }
+    
+    console.log("✅ Bill created successfully:", billData.id);
+    
+    // Create bill items for each booking
+    const billItems: any[] = [];
+    
+    for (const booking of bookings) {
+      const stationName = stationMap.get(booking.station_id) || "Unknown Station";
+      
+      // Find matching slot for this booking
+      const slot = slots.find(
+        (s: any) => s.start_time === booking.start_time && s.end_time === booking.end_time
+      );
+      
+      // Format date for display
+      const bookingDate = new Date(selectedDateISO);
+      const dateStr = bookingDate.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      });
+      
+      // Create descriptive name: "Station Name - Date (Start Time - End Time)"
+      const itemName = `${stationName} - ${dateStr} (${slot?.start_time || booking.start_time} - ${slot?.end_time || booking.end_time})`;
+      
+      billItems.push({
+        bill_id: billData.id,
+        item_id: booking.id, // Use booking ID as item_id
+        name: itemName,
+        price: booking.final_price,
+        quantity: 1,
+        total: booking.final_price,
+        item_type: "session", // Use "session" to match existing pattern
+      });
+    }
+    
+    // Insert bill items
+    const { error: itemsError } = await supabase
+      .from("bill_items")
+      .insert(billItems);
+    
+    if (itemsError) {
+      console.error("❌ Bill items creation error:", itemsError);
+      // Rollback: delete the bill if items creation fails
+      await supabase.from("bills").delete().eq("id", billData.id);
+      throw itemsError;
+    }
+    
+    console.log("✅ Bill items created successfully:", billItems.length);
+    
+    // Update customer total_spent (using the customer data we already fetched)
+    const currentTotalSpent = customerCheck.total_spent || 0;
+    const newTotalSpent = currentTotalSpent + total;
+    
+    const { error: updateError } = await supabase
+      .from("customers")
+      .update({ total_spent: newTotalSpent })
+      .eq("id", customerId);
+    
+    if (updateError) {
+      console.error("❌ Error updating customer total_spent:", updateError);
+      // Don't throw - bill is already created, this is just a side effect
+    } else {
+      console.log("✅ Customer total_spent updated:", {
+        customerId,
+        oldTotal: currentTotalSpent,
+        newTotal: newTotalSpent,
+        billAmount: total
+      });
+    }
+    
+    return { success: true, billId: billData.id };
+  } catch (error: any) {
+    console.error("💥 Error creating bill from booking:", error);
+    throw error;
+  }
+}
+
 // Create booking from webhook data
 async function createBookingFromWebhook(orderId: string, paymentId: string, bookingData?: any) {
   const supabase = await getSupabaseClient();
@@ -320,7 +510,7 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
           discount_percentage: pricing.discount > 0 ? (pricing.discount / pricing.original) * 100 : null,
           final_price: pricing.final / slots.length,
           coupon_code: pricing.coupons || null,
-          payment_mode: "razorpay",
+          payment_mode: "razorpay", // Only online Razorpay payments trigger bill creation
           payment_txn_id: paymentId,
           notes: `Razorpay Order: ${orderId}`,
         });
@@ -353,6 +543,41 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
     }
 
     console.log("✅ Bookings created via webhook:", insertedBookings?.length || 0);
+    
+    // Create bill for the booking (ONLY for online Razorpay payments)
+    // This ensures bills are automatically created when customers pay online
+    // Venue payments and other payment methods do NOT trigger automatic bill creation
+    if (!customerId) {
+      console.error("❌ Cannot create bill: customerId is missing");
+    } else {
+      try {
+        // Fetch the created bookings with all details needed for bill creation
+        const { data: bookingsWithDetails } = await supabase
+          .from("bookings")
+          .select("id, station_id, start_time, end_time, final_price, original_price")
+          .in("id", insertedBookings?.map(b => b.id) || []);
+        
+        if (bookingsWithDetails && bookingsWithDetails.length > 0) {
+          console.log("📝 Creating bill for customer:", customerId, "with", bookingsWithDetails.length, "bookings");
+          const billResult = await createBillFromBooking(
+            customerId,
+            bookingsWithDetails,
+            pricing,
+            selectedStations,
+            selectedDateISO,
+            slots
+          );
+          console.log("✅ Bill created for booking:", billResult);
+        } else {
+          console.warn("⚠️ No booking details found for bill creation");
+        }
+      } catch (billError: any) {
+        console.error("❌ Failed to create bill from booking:", billError);
+        // Don't fail the webhook - booking is already created
+        // Bill can be created manually if needed
+      }
+    }
+    
     return { success: true, bookingIds: insertedBookings?.map(b => b.id) || [] };
   } catch (error: any) {
     console.error("💥 Error creating booking from webhook:", error);

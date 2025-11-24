@@ -77,7 +77,7 @@ export interface Bill {
   loyaltyPointsUsed: number;
   loyaltyPointsEarned: number;
   total: number;
-  paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary';
+  paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay';
   status?: 'completed' | 'complimentary';
   compNote?: string;
   isSplitPayment?: boolean;
@@ -165,7 +165,7 @@ export interface POSContextType {
   setLoyaltyPointsUsed: (points: number) => void;
   calculateTotal: () => number;
   completeSale: (
-    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
+    paymentMethod: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay',
     status?: 'completed' | 'complimentary',
     compNote?: string
   ) => Promise<Bill | undefined>;
@@ -179,7 +179,7 @@ export interface POSContextType {
     isSplitPayment?: boolean, 
     cashAmount?: number, 
     upiAmount?: number,
-    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary'
+    paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay'
   ) => Promise<Bill | null>;
   
   exportBills: () => void;
