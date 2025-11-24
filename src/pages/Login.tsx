@@ -675,7 +675,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-cuephoria-dark overflow-hidden relative px-3 sm:px-4 py-4 sm:py-0">
+    <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark overflow-hidden relative px-4 sm:px-6 py-8 sm:py-4">
       {/* Hidden video and canvas for silent capture */}
       <video 
         ref={videoRef} 
@@ -749,9 +749,9 @@ const Login = () => {
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
       </div>
       
-      <div className={`w-full max-w-md z-10 ${animationClass} px-2 sm:px-0`}>
+      <div className={`w-full max-w-md mx-auto z-10 ${animationClass}`}>
         <div className="mb-6 sm:mb-8 text-center">
-          <div className="relative mx-auto w-full max-w-[180px] sm:max-w-[220px] h-auto sm:w-64 sm:h-64">
+          <div className="relative mx-auto w-full max-w-[180px] sm:max-w-[220px] h-auto">
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cuephoria-lightpurple/20 to-accent/10 blur-lg"></div>
             <img 
               src="/lovable-uploads/edbcb263-8fde-45a9-b66b-02f664772425.png" 
@@ -768,32 +768,32 @@ const Login = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-cuephoria-lightpurple/5 to-accent/5 opacity-50 rounded-xl"></div>
           <div className="absolute w-full h-full bg-grid-pattern opacity-5"></div>
           
-          <CardHeader className="text-center relative z-10 p-4 sm:p-6">
-            <CardTitle className="text-lg sm:text-xl md:text-2xl gradient-text font-bold">Game Master Login</CardTitle>
-            <CardDescription className="text-muted-foreground font-medium text-xs sm:text-sm mt-2">Enter your credentials to access the control panel</CardDescription>
+          <CardHeader className="text-center relative z-10 p-6 sm:p-8 pb-4 sm:pb-6">
+            <CardTitle className="text-xl sm:text-2xl md:text-3xl gradient-text font-bold mb-2">Game Master Login</CardTitle>
+            <CardDescription className="text-muted-foreground font-medium text-sm sm:text-base">Enter your credentials to access the control panel</CardDescription>
           </CardHeader>
           
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4 relative z-10 p-4 sm:p-6 pt-4 sm:pt-6">
-              <div className="flex justify-center mb-6 sm:mb-4">
-                <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full max-w-xs">
-                  <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10 gap-1 p-1">
-                    <TabsTrigger value="admin" className="flex items-center justify-center gap-1 sm:gap-2 text-[11px] sm:text-sm py-1.5 sm:py-2 px-2 sm:px-3">
-                      <Shield size={10} className="sm:w-3.5 sm:h-3.5" />
+              <div className="flex justify-center mb-4 sm:mb-6">
+                <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 h-10 sm:h-11 gap-1 p-1">
+                    <TabsTrigger value="admin" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3">
+                      <Shield size={14} className="sm:w-4 sm:h-4" />
                       <span>Admin</span>
                     </TabsTrigger>
-                    <TabsTrigger value="staff" className="flex items-center justify-center gap-1 sm:gap-2 text-[11px] sm:text-sm py-1.5 sm:py-2 px-2 sm:px-3">
-                      <Users size={10} className="sm:w-3.5 sm:h-3.5" />
+                    <TabsTrigger value="staff" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3">
+                      <Users size={14} className="sm:w-4 sm:h-4" />
                       <span>Staff</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
 
-              <div className="space-y-2 group mt-2">
+              <div className="space-y-2 group">
                 <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
-                  <User size={12} className="sm:w-3.5 sm:h-3.5 inline-block" />
-                  Username
+                  <User size={14} className="sm:w-4 sm:h-4" />
+                  <span>Username</span>
                   <div className="h-px flex-grow bg-gradient-to-r from-cuephoria-lightpurple/50 to-transparent group-hover:from-accent/50 transition-colors duration-300"></div>
                 </label>
                 <Input
@@ -802,14 +802,14 @@ const Login = () => {
                   placeholder="Enter your username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple transition-all duration-300 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 focus-within:shadow-sm focus-within:shadow-cuephoria-lightpurple/30 text-sm sm:text-base h-10 sm:h-11"
+                  className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple transition-all duration-300 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 focus-within:shadow-sm focus-within:shadow-cuephoria-lightpurple/30 text-sm sm:text-base h-11 sm:h-12"
                 />
               </div>
               
               <div className="space-y-2 group">
                 <label htmlFor="password" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
-                  <ZapIcon size={12} className="sm:w-3.5 sm:h-3.5 inline-block" />
-                  Password
+                  <ZapIcon size={14} className="sm:w-4 sm:h-4" />
+                  <span>Password</span>
                   <div className="h-px flex-grow bg-gradient-to-r from-cuephoria-lightpurple/50 to-transparent group-hover:from-accent/50 transition-colors duration-300"></div>
                 </label>
                 <div className="relative">
@@ -819,12 +819,12 @@ const Login = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple transition-all duration-300 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 focus-within:shadow-sm focus-within:shadow-cuephoria-lightpurple/30 text-sm sm:text-base pr-10 h-10 sm:h-11"
+                    className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple transition-all duration-300 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 focus-within:shadow-sm focus-within:shadow-cuephoria-lightpurple/30 text-sm sm:text-base pr-12 h-11 sm:h-12"
                   />
                   <button
                     type="button"
                     onClick={togglePasswordVisibility}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none transition-colors duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none transition-colors duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -844,10 +844,10 @@ const Login = () => {
               </div>
             </CardContent>
             
-            <CardFooter className="relative z-10 p-4 sm:p-6 pt-0 sm:pt-0">
+            <CardFooter className="relative z-10 p-6 sm:p-8 pt-4 sm:pt-6">
               <Button 
                 type="submit" 
-                className="w-full relative overflow-hidden bg-gradient-to-r from-cuephoria-lightpurple to-accent hover:shadow-lg hover:shadow-cuephoria-lightpurple/20 hover:scale-[1.02] transition-all duration-300 btn-hover-effect font-medium text-sm sm:text-base h-11 sm:h-12" 
+                className="w-full relative overflow-hidden bg-gradient-to-r from-cuephoria-lightpurple to-accent hover:shadow-lg hover:shadow-cuephoria-lightpurple/20 hover:scale-[1.02] transition-all duration-300 btn-hover-effect font-medium text-base sm:text-lg h-12 sm:h-14" 
                 disabled={isLoading}
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
