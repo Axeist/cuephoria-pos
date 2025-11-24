@@ -110,10 +110,27 @@ async function getSupabaseClient() {
                       getEnv("NEXT_PUBLIC_SUPABASE_URL") || 
                       getEnv("VITE_SUPABASE_URL") ||
                       "https://apltkougkglbsfphbghi.supabase.co"; // Fallback to hardcoded URL
-  const supabaseKey = need("SUPABASE_SERVICE_ROLE_KEY");
+  
+  // Try service role key first (required for admin operations like creating bookings/bills)
+  // Fallback to anon key if service role key is not available (may not work for all operations)
+  const supabaseKey = getEnv("SUPABASE_SERVICE_ROLE_KEY") || 
+                      getEnv("SUPABASE_ANON_KEY") ||
+                      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwbHRrb3Vna2dsYnNmcGhiZ2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1OTE3MDMsImV4cCI6MjA1OTE2NzcwM30.Kk38S9Hl9tIwv_a3VPgUaq1cSCCPmlGJOR5R98tREeU"; // Fallback to anon key
   
   if (!supabaseUrl) {
     throw new Error("Supabase URL not found in environment variables");
+  }
+  
+  if (!supabaseKey) {
+    throw new Error("Supabase key not found. Please set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY in environment variables");
+  }
+  
+  // Log which key is being used (for debugging)
+  const isServiceRole = !!getEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (isServiceRole) {
+    console.log("✅ Using SUPABASE_SERVICE_ROLE_KEY for admin operations");
+  } else {
+    console.warn("⚠️ Using SUPABASE_ANON_KEY instead of SUPABASE_SERVICE_ROLE_KEY. Some operations may fail due to RLS policies.");
   }
   
   return createClient(supabaseUrl, supabaseKey, {
