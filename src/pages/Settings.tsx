@@ -281,7 +281,7 @@ const Settings = () => {
             <TabsTrigger value="staff" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <Shield className="h-3 w-3 text-amber-500" />
-              Staff Management
+              User Management
             </TabsTrigger>
           )}
         </TabsList>

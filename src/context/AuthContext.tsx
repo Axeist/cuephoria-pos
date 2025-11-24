@@ -361,11 +361,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const addStaffMember = async (username: string, password: string): Promise<boolean> => {
+  const addStaffMember = async (username: string, password: string, isAdmin: boolean = false): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
-        console.error("Only admins can add staff members");
-        toast.error("Only admins can add staff members");
+        console.error("Only admins can add users");
+        toast.error("Only admins can add users");
         return false;
       }
 
@@ -384,7 +384,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const basicUserData = {
         username,
         password,
-        is_admin: false
+        is_admin: isAdmin
       };
       
       const { error } = await supabase
@@ -392,16 +392,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .insert(basicUserData);
       
       if (error) {
-        console.error('Error creating staff member:', error);
-        toast.error('Error creating staff member');
+        console.error('Error creating user:', error);
+        toast.error('Error creating user');
         return false;
       }
       
-      toast.success('Staff member added successfully');
+      toast.success(`${isAdmin ? 'Admin' : 'Staff'} user added successfully`);
       return true;
     } catch (error) {
-      console.error('Error adding staff member:', error);
-      toast.error('Error adding staff member');
+      console.error('Error adding user:', error);
+      toast.error('Error adding user');
       return false;
     }
   };
@@ -409,19 +409,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getStaffMembers = async (): Promise<AdminUser[]> => {
     try {
       if (!user?.isAdmin) {
-        console.error("Only admins can view staff members");
-        toast.error("Only admins can view staff members");
+        console.error("Only admins can view users");
+        toast.error("Only admins can view users");
         return [];
       }
       
       const { data, error } = await supabase
         .from('admin_users')
         .select('id, username, is_admin')
-        .eq('is_admin', false);
+        .order('is_admin', { ascending: false })
+        .order('username', { ascending: true });
       
       if (error) {
-        console.error('Error fetching staff members:', error);
-        toast.error('Error fetching staff members');
+        console.error('Error fetching users:', error);
+        toast.error('Error fetching users');
         return [];
       }
         
@@ -429,16 +430,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return [];
       }
       
-      const staffMembers: AdminUser[] = data.map(staff => ({
-        id: staff.id || '',
-        username: staff.username || '',
-        isAdmin: staff.is_admin === true,
+      const allUsers: AdminUser[] = data.map(user => ({
+        id: user.id || '',
+        username: user.username || '',
+        isAdmin: user.is_admin === true,
       }));
       
-      return staffMembers;
+      return allUsers;
     } catch (error) {
-      console.error('Error fetching staff members:', error);
-      toast.error('Error fetching staff members');
+      console.error('Error fetching users:', error);
+      toast.error('Error fetching users');
       return [];
     }
   };

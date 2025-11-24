@@ -10,6 +10,9 @@ import { Shield, UserPlus, Trash2, Users, User, Edit } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Badge } from '@/components/ui/badge';
 
 interface AdminUser {
   id: string;
@@ -21,6 +24,7 @@ const StaffManagement: React.FC = () => {
   const [staffMembers, setStaffMembers] = useState<AdminUser[]>([]);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [userRole, setUserRole] = useState<'admin' | 'staff'>('staff');
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingStaff, setIsAddingStaff] = useState(false);
   const [isEditingStaff, setIsEditingStaff] = useState(false);
@@ -60,27 +64,28 @@ const StaffManagement: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const success = await addStaffMember(newUsername, newPassword);
+      const isAdmin = userRole === 'admin';
+      const success = await addStaffMember(newUsername, newPassword, isAdmin);
       
       if (success) {
         toast({
           title: 'Success',
-          description: 'Staff member added successfully',
+          description: `${isAdmin ? 'Admin' : 'Staff'} user added successfully`,
         });
         resetForm();
         setIsAddingStaff(false);
-        loadStaffMembers(); // Refresh staff list
+        loadStaffMembers(); // Refresh user list
       } else {
         toast({
           title: 'Error',
-          description: 'Failed to add staff member',
+          description: `Failed to add ${userRole} user`,
           variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'An error occurred while adding staff member',
+        description: `An error occurred while adding ${userRole} user`,
         variant: 'destructive',
       });
     } finally {
@@ -132,7 +137,8 @@ const StaffManagement: React.FC = () => {
   };
 
   const handleDeleteStaff = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this staff member?')) {
+    const userToDelete = staffMembers.find(u => u.id === id);
+    if (!confirm(`Are you sure you want to delete ${userToDelete?.username}?`)) {
       return;
     }
 
@@ -142,20 +148,20 @@ const StaffManagement: React.FC = () => {
       if (success) {
         toast({
           title: 'Success',
-          description: 'Staff member deleted successfully',
+          description: 'User deleted successfully',
         });
-        loadStaffMembers(); // Refresh staff list
+        loadStaffMembers(); // Refresh user list
       } else {
         toast({
           title: 'Error',
-          description: 'Failed to delete staff member',
+          description: 'Failed to delete user',
           variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'An error occurred while deleting staff member',
+        description: 'An error occurred while deleting user',
         variant: 'destructive',
       });
     }
@@ -164,6 +170,7 @@ const StaffManagement: React.FC = () => {
   const resetForm = () => {
     setNewUsername('');
     setNewPassword('');
+    setUserRole('staff');
     setCurrentEditStaff(null);
   };
 
@@ -176,7 +183,7 @@ const StaffManagement: React.FC = () => {
             <Shield className="h-4 w-4 text-cuephoria-orange" />
             <AlertTitle>Access Restricted</AlertTitle>
             <AlertDescription>
-              Only administrators can manage staff accounts.
+              Only administrators can manage user accounts.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -189,10 +196,10 @@ const StaffManagement: React.FC = () => {
       <CardHeader className="pb-3">
         <CardTitle className="text-xl flex items-center gap-2">
           <Users className="h-5 w-5 text-cuephoria-lightpurple" />
-          Staff Management
+          User Management
         </CardTitle>
         <CardDescription>
-          Add and manage staff accounts
+          Add and manage admin and staff accounts
         </CardDescription>
       </CardHeader>
       
@@ -207,18 +214,42 @@ const StaffManagement: React.FC = () => {
               className="w-full bg-gradient-to-r from-cuephoria-lightpurple to-accent hover:shadow-lg hover:shadow-cuephoria-lightpurple/20"
             >
               <UserPlus className="mr-2 h-4 w-4" />
-              Add New Staff Member
+              Add New User
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30">
             <DialogHeader>
-              <DialogTitle className="text-xl">Add New Staff Member</DialogTitle>
+              <DialogTitle className="text-xl">Add New User</DialogTitle>
               <DialogDescription>
-                Create login credentials for a new staff member
+                Create login credentials for a new admin or staff user
               </DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4 py-4">
+              {/* User Role Selection */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple">
+                  <Shield className="h-4 w-4" />
+                  User Role*
+                </Label>
+                <RadioGroup value={userRole} onValueChange={(value) => setUserRole(value as 'admin' | 'staff')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="admin" id="admin" />
+                    <Label htmlFor="admin" className="flex items-center gap-2 cursor-pointer">
+                      <Shield className="h-4 w-4 text-amber-500" />
+                      Admin
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="staff" id="staff" />
+                    <Label htmlFor="staff" className="flex items-center gap-2 cursor-pointer">
+                      <User className="h-4 w-4" />
+                      Staff
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               {/* Basic Info - Only Username and Password */}
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple">
@@ -257,7 +288,7 @@ const StaffManagement: React.FC = () => {
                 disabled={isLoading}
                 className="bg-cuephoria-lightpurple hover:bg-cuephoria-purple"
               >
-                {isLoading ? 'Adding...' : 'Add Staff Member'}
+                {isLoading ? 'Adding...' : `Add ${userRole === 'admin' ? 'Admin' : 'Staff'} User`}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -270,9 +301,9 @@ const StaffManagement: React.FC = () => {
         }}>
           <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30">
             <DialogHeader>
-              <DialogTitle className="text-xl">Edit Staff Member</DialogTitle>
+              <DialogTitle className="text-xl">Edit User</DialogTitle>
               <DialogDescription>
-                Update staff member details
+                Update user details
               </DialogDescription>
             </DialogHeader>
             
@@ -290,6 +321,26 @@ const StaffManagement: React.FC = () => {
                   className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
                 />
               </div>
+              {currentEditStaff && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-cuephoria-lightpurple">Role</label>
+                  <div>
+                    <Badge variant={currentEditStaff.isAdmin ? "default" : "secondary"} className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                      {currentEditStaff.isAdmin ? (
+                        <>
+                          <Shield className="h-3 w-3 mr-1" />
+                          Admin
+                        </>
+                      ) : (
+                        <>
+                          <User className="h-3 w-3 mr-1" />
+                          Staff
+                        </>
+                      )}
+                    </Badge>
+                  </div>
+                </div>
+              )}
             </div>
             
             <DialogFooter>
@@ -301,27 +352,43 @@ const StaffManagement: React.FC = () => {
                 disabled={isLoading}
                 className="bg-cuephoria-lightpurple hover:bg-cuephoria-purple"
               >
-                {isLoading ? 'Updating...' : 'Update Staff Member'}
+                {isLoading ? 'Updating...' : 'Update User'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">Current Staff Members</h3>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">Current Users</h3>
           <ScrollArea className="h-[320px] rounded-md border border-cuephoria-lightpurple/20 p-2">
             {staffMembers.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Username</TableHead>
+                    <TableHead>Role</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {staffMembers.map((staff) => (
                     <TableRow key={staff.id}>
-                      <TableCell>{staff.username}</TableCell>
+                      <TableCell className="font-medium">{staff.username}</TableCell>
+                      <TableCell>
+                        <Badge variant={staff.isAdmin ? "default" : "secondary"} className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                          {staff.isAdmin ? (
+                            <>
+                              <Shield className="h-3 w-3 mr-1" />
+                              Admin
+                            </>
+                          ) : (
+                            <>
+                              <User className="h-3 w-3 mr-1" />
+                              Staff
+                            </>
+                          )}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
                           <Button 
@@ -349,7 +416,7 @@ const StaffManagement: React.FC = () => {
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-4">
                 <Users className="h-8 w-8 text-muted-foreground mb-2 opacity-50" />
-                <p className="text-muted-foreground text-sm">No staff members yet</p>
+                <p className="text-muted-foreground text-sm">No users yet</p>
               </div>
             )}
           </ScrollArea>
