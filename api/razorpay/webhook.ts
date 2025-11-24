@@ -105,9 +105,28 @@ function getRazorpayCredentials() {
 // Get Supabase client
 async function getSupabaseClient() {
   const { createClient } = await import('@supabase/supabase-js');
-  const supabaseUrl = need("VITE_SUPABASE_URL");
+  // Try multiple environment variable names (VITE_ prefix is for client-side, not available in server)
+  const supabaseUrl = getEnv("SUPABASE_URL") || 
+                      getEnv("NEXT_PUBLIC_SUPABASE_URL") || 
+                      getEnv("VITE_SUPABASE_URL") ||
+                      "https://apltkougkglbsfphbghi.supabase.co"; // Fallback to hardcoded URL
   const supabaseKey = need("SUPABASE_SERVICE_ROLE_KEY");
-  return createClient(supabaseUrl, supabaseKey);
+  
+  if (!supabaseUrl) {
+    throw new Error("Supabase URL not found in environment variables");
+  }
+  
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    },
+    global: {
+      headers: {
+        'x-application-name': 'cuephoria-razorpay-webhook'
+      }
+    }
+  });
 }
 
 // Fetch order details from Razorpay to get full booking data
