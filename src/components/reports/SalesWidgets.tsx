@@ -63,6 +63,11 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
     .filter(bill => bill.paymentMethod === 'credit')
     .reduce((sum, bill) => sum + bill.total, 0);
 
+  // Calculate Razorpay sales (EXCLUDING complimentary)
+  const razorpaySales = paidBills
+    .filter(bill => bill.paymentMethod === 'razorpay')
+    .reduce((sum, bill) => sum + bill.total, 0);
+
   // Calculate split payment details (EXCLUDING complimentary)
   const splitPaymentBills = paidBills.filter(bill => bill.paymentMethod === 'split' || bill.isSplitPayment);
   const splitCashAmount = splitPaymentBills.reduce((sum, bill) => sum + (bill.cashAmount || 0), 0);
@@ -169,6 +174,20 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         <CardContent>
           <div className="text-2xl font-bold text-white">
             <CurrencyDisplay amount={creditSales} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-indigo-500/30 hover:border-indigo-400/40 transition-all duration-300 backdrop-blur-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <CardTitle className="text-sm font-medium text-white/90">Razorpay Sales</CardTitle>
+          <div className="h-10 w-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
+            <CreditCard className="h-5 w-5 text-indigo-400" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-white">
+            <CurrencyDisplay amount={razorpaySales} />
           </div>
         </CardContent>
       </Card>

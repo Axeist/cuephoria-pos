@@ -433,9 +433,21 @@ const ReceiptContent: React.FC<ReceiptContentProps> = ({
                   ? 'bg-green-100 text-green-800' 
                   : bill.paymentMethod === 'upi'
                   ? 'bg-blue-100 text-blue-800'
-                  : 'bg-orange-100 text-orange-800'
+                  : bill.paymentMethod === 'razorpay'
+                  ? 'bg-indigo-100 text-indigo-800'
+                  : bill.paymentMethod === 'credit'
+                  ? 'bg-orange-100 text-orange-800'
+                  : 'bg-gray-100 text-gray-800'
               }`}>
-                {bill.paymentMethod === 'cash' ? 'CASH' : bill.paymentMethod === 'upi' ? 'UPI' : 'CREDIT'}
+                {bill.paymentMethod === 'cash' 
+                  ? 'CASH' 
+                  : bill.paymentMethod === 'upi' 
+                  ? 'UPI' 
+                  : bill.paymentMethod === 'razorpay'
+                  ? 'RAZORPAY'
+                  : bill.paymentMethod === 'credit'
+                  ? 'CREDIT'
+                  : bill.paymentMethod?.toUpperCase() || 'CASH'}
               </span>
             )}
           </div>

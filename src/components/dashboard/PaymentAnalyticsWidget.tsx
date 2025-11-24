@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePOS } from '@/context/POSContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CreditCard, TrendingUp } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
@@ -43,9 +43,11 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     let totalCashAmount = 0;
     let totalUpiAmount = 0;
     let totalCreditAmount = 0;
+    let totalRazorpayAmount = 0;
     let cashOnlyCount = 0;
     let upiOnlyCount = 0;
     let creditOnlyCount = 0;
+    let razorpayOnlyCount = 0;
     let splitCount = 0;
     let splitCashTotal = 0;
     let splitUpiTotal = 0;
@@ -85,11 +87,14 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       } else if (bill.paymentMethod === 'credit') {
         totalCreditAmount += bill.total;
         creditOnlyCount++;
+      } else if (bill.paymentMethod === 'razorpay') {
+        totalRazorpayAmount += bill.total;
+        razorpayOnlyCount++;
       }
     });
 
     // Total revenue is the sum of all payment amounts
-    const totalRevenue = totalCashAmount + totalUpiAmount + totalCreditAmount;
+    const totalRevenue = totalCashAmount + totalUpiAmount + totalCreditAmount + totalRazorpayAmount;
     
     // Calculate additional insights
     const totalTransactions = filteredBills.length;
@@ -99,17 +104,20 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
     const cashPreference = totalRevenue > 0 ? (totalCashAmount / totalRevenue) * 100 : 0;
     const upiPreference = totalRevenue > 0 ? (totalUpiAmount / totalRevenue) * 100 : 0;
     const creditPreference = totalRevenue > 0 ? (totalCreditAmount / totalRevenue) * 100 : 0;
+    const razorpayPreference = totalRevenue > 0 ? (totalRazorpayAmount / totalRevenue) * 100 : 0;
     
     // Calculate average amounts per payment method
     const avgCashTransaction = cashOnlyCount > 0 ? (totalCashAmount - splitCashTotal) / cashOnlyCount : 0;
     const avgUpiTransaction = upiOnlyCount > 0 ? (totalUpiAmount - splitUpiTotal) / upiOnlyCount : 0;
     const avgCreditTransaction = creditOnlyCount > 0 ? totalCreditAmount / creditOnlyCount : 0;
+    const avgRazorpayTransaction = razorpayOnlyCount > 0 ? totalRazorpayAmount / razorpayOnlyCount : 0;
     const avgSplitTransaction = splitCount > 0 ? (splitCashTotal + splitUpiTotal) / splitCount : 0;
     
     console.log('Final calculation breakdown:', {
       cashOnlyBills: { count: cashOnlyCount, amount: totalCashAmount - splitCashTotal },
       upiOnlyBills: { count: upiOnlyCount, amount: totalUpiAmount - splitUpiTotal },
       creditOnlyBills: { count: creditOnlyCount, amount: totalCreditAmount },
+      razorpayOnlyBills: { count: razorpayOnlyCount, amount: totalRazorpayAmount },
       splitBills: { count: splitCount, cashPortion: splitCashTotal, upiPortion: splitUpiTotal },
       totals: {
         totalCashAmount,
@@ -127,6 +135,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
         avgCashTransaction,
         avgUpiTransaction,
         avgCreditTransaction,
+        avgRazorpayTransaction,
         avgSplitTransaction
       }
     });
@@ -137,7 +146,8 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       chartData: [
         { method: 'Cash', amount: totalCashAmount, count: cashOnlyCount + splitCount, color: '#10B981' },
         { method: 'UPI', amount: totalUpiAmount, count: upiOnlyCount + splitCount, color: '#8B5CF6' },
-        { method: 'Credit', amount: totalCreditAmount, count: creditOnlyCount, color: '#F59E0B' }
+        { method: 'Credit', amount: totalCreditAmount, count: creditOnlyCount, color: '#F59E0B' },
+        { method: 'Razorpay', amount: totalRazorpayAmount, count: razorpayOnlyCount, color: '#6366F1' }
       ].filter(item => item.amount > 0), // Only show payment methods that have been used
       totalRevenue,
       totalTransactions,
@@ -148,6 +158,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       avgCashTransaction,
       avgUpiTransaction,
       avgCreditTransaction,
+      avgRazorpayTransaction,
       avgSplitTransaction,
       splitBreakdown: {
         cash: splitCashTotal,
@@ -159,8 +170,10 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
         cashOnly: cashOnlyCount,
         upiOnly: upiOnlyCount,
         creditOnly: creditOnlyCount,
+        razorpayOnly: razorpayOnlyCount,
         split: splitCount
-      }
+      },
+      razorpayPreference
     };
   }, [bills, startDate, endDate]);
 
@@ -214,9 +227,12 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                 />
                 <Bar 
                   dataKey="amount" 
-                  fill="#10B981"
                   radius={[4, 4, 0, 0]}
-                />
+                >
+                  {paymentData.chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -329,6 +345,17 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
                   <span className="text-gray-400">Avg Credit Only:</span>
                   <span className="font-medium text-white">
                     <CurrencyDisplay amount={paymentData.avgCreditTransaction} />
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {paymentData.paymentMethodCounts.razorpayOnly > 0 && (
+              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Avg Razorpay Only:</span>
+                  <span className="font-medium text-white">
+                    <CurrencyDisplay amount={paymentData.avgRazorpayTransaction} />
                   </span>
                 </div>
               </div>

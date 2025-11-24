@@ -91,7 +91,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   const [editingDiscount, setEditingDiscount] = useState<number>(0);
   const [editingDiscountType, setEditingDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [editingLoyaltyPointsUsed, setEditingLoyaltyPointsUsed] = useState<number>(0);
-  const [editingPaymentMethod, setEditingPaymentMethod] = useState<'cash' | 'upi' | 'split' | 'credit' | 'complimentary'>('cash');
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState<'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay'>('cash');
   const [isEditing, setIsEditing] = useState<boolean>(false);
   
   const [editingSplitPayment, setEditingSplitPayment] = useState<boolean>(false);
@@ -350,7 +350,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setIsAddItemDialogOpen(false);
   };
   
-  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary') => {
+  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay') => {
     setEditingPaymentMethod(value);
     
     if (value === 'split') {
@@ -483,6 +483,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 const customer = customers.find(c => c.id === bill.customerId);
                 const date = new Date(bill.createdAt);
                 const isComplimentary = bill.paymentMethod === 'complimentary';
+                const isRazorpay = bill.paymentMethod === 'razorpay';
                 
                 return (
                   <div 
@@ -490,6 +491,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     className={`flex items-center justify-between p-4 rounded-lg border ${
                       isComplimentary 
                         ? 'bg-orange-950/20 border-orange-800/50' 
+                        : isRazorpay
+                        ? 'bg-indigo-950/20 border-indigo-800/50'
                         : 'bg-gray-800 border-gray-700'
                     }`}
                   >
@@ -497,10 +500,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
                         isComplimentary 
                           ? 'bg-orange-500/30' 
+                          : isRazorpay
+                          ? 'bg-indigo-500/30'
                           : 'bg-[#6E59A5]/30'
                       }`}>
                         {isComplimentary ? (
                           <Gift className="h-5 w-5 text-orange-400" />
+                        ) : isRazorpay ? (
+                          <CreditCard className="h-5 w-5 text-indigo-400" />
                         ) : (
                           <User className="h-5 w-5 text-purple-400" />
                         )}
@@ -511,6 +518,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                           {isComplimentary && (
                             <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50 text-xs px-2 py-0.5">
                               Comp
+                            </Badge>
+                          )}
+                          {isRazorpay && (
+                            <Badge className="bg-indigo-500/20 text-indigo-400 border-indigo-500/50 text-xs px-2 py-0.5">
+                              Razorpay
                             </Badge>
                           )}
                         </div>
@@ -527,7 +539,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     </div>
                     <div className="flex items-center gap-3">
                       <div className={`font-semibold ${
-                        isComplimentary ? 'text-orange-400' : 'text-white'
+                        isComplimentary ? 'text-orange-400' : isRazorpay ? 'text-indigo-400' : 'text-white'
                       }`}>
                         <CurrencyDisplay amount={bill.total} />
                       </div>
@@ -780,7 +792,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                   <h3 className="text-sm font-medium text-gray-300">Payment Method</h3>
                   <RadioGroup 
                     value={editingPaymentMethod} 
-                    onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split' | 'credit' | 'complimentary')}
+                    onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay')}
                     className="flex flex-col space-y-2"
                   >
                     <div className="flex items-center space-x-2">
@@ -799,6 +811,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       <RadioGroupItem value="credit" id="credit" className="text-purple-400" />
                       <Label htmlFor="credit" className="flex items-center gap-1 cursor-pointer">
                         <CreditCard className="h-4 w-4" /> Credit
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="razorpay" id="razorpay" className="text-purple-400" />
+                      <Label htmlFor="razorpay" className="flex items-center gap-1 cursor-pointer">
+                        <CreditCard className="h-4 w-4" /> Razorpay
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">

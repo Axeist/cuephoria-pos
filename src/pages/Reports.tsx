@@ -764,6 +764,7 @@ const ReportsPage: React.FC = () => {
                 <SelectItem value="upi">UPI</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
                 <SelectItem value="credit">Credit</SelectItem>
+                <SelectItem value="razorpay">Razorpay</SelectItem>
                 <SelectItem value="complimentary">Complimentary</SelectItem>
                 <SelectItem value="split">Split Payment</SelectItem>
               </SelectContent>

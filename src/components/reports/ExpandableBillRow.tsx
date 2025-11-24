@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronRight, Trash2, Gift, Download, Eye } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Gift, Download, Eye, CreditCard } from 'lucide-react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -190,6 +190,11 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
             <Badge className="bg-amber-900/30 text-amber-400 border-amber-700">
               <Gift className="h-3 w-3 mr-1" />
               Complimentary
+            </Badge>
+          ) : bill.paymentMethod === 'razorpay' ? (
+            <Badge className="bg-indigo-900/30 text-indigo-300 border-indigo-600">
+              <CreditCard className="h-3 w-3 mr-1" />
+              Razorpay
             </Badge>
           ) : isSplit ? (
             <Badge variant="outline" className="bg-purple-900/30 text-purple-400 border-purple-800">
