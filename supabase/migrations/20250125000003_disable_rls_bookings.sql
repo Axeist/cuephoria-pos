@@ -15,3 +15,5 @@ ALTER TABLE public.bookings DISABLE ROW LEVEL SECURITY;
 -- Disable Row Level Security on booking_views table
 ALTER TABLE public.booking_views DISABLE ROW LEVEL SECURITY;
 
+
+

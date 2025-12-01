@@ -22,7 +22,7 @@ interface SalesChartProps {
 const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const { bills } = usePOS();
   const { expenses } = useExpenses();
-  const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; }[]>([]);
+  const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; withdrawals: number; }[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
@@ -56,6 +56,20 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const generateChartData = () => {
     const now = new Date();
     
+    // Helper function to normalize category (same as ExpenseContext)
+    const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
+    
+    // Helper function to prorate recurring expenses
+    const prorate = (e: typeof expenses[0]) => {
+      if (!e.isRecurring) return e.amount;
+      switch (e.frequency) {
+        case 'monthly': return e.amount;
+        case 'quarterly': return e.amount / 3;
+        case 'yearly': return e.amount / 12;
+        default: return e.amount;
+      }
+    };
+    
     if (activeTab === 'hourly') {
       // Show revenue for the current day (24 hours)
       const todayStart = startOfDay(now);
@@ -63,7 +77,6 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       
       const hours = Array.from({ length: 24 }, (_, i) => i);
       const hourlyTotals = new Map();
-      const hourlyExpenses = new Map();
       
       filteredBills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
@@ -74,14 +87,22 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         }
       });
 
-      // For hourly view, distribute daily expenses evenly across hours
+      // For hourly view, distribute daily expenses and withdrawals evenly across hours
       const todayExpenses = expenses.filter(expense => {
         const expenseDate = new Date(expense.date);
         return expenseDate >= todayStart && expenseDate <= todayEnd;
       });
       
-      const totalTodayExpenses = todayExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-      const hourlyExpenseAmount = totalTodayExpenses / 24;
+      const todayOperatingExpenses = todayExpenses
+        .filter(e => normalizeCategory(e.category) !== 'withdrawal')
+        .reduce((sum, expense) => sum + prorate(expense), 0);
+      
+      const todayWithdrawals = todayExpenses
+        .filter(e => normalizeCategory(e.category) === 'withdrawal')
+        .reduce((sum, expense) => sum + prorate(expense), 0);
+      
+      const hourlyExpenseAmount = todayOperatingExpenses / 24;
+      const hourlyWithdrawalAmount = todayWithdrawals / 24;
       
       return hours.map(hour => {
         const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -91,7 +112,8 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         return {
           name: formattedHour,
           sales: hourlyTotals.get(hour) || 0,
-          expenses: hourlyExpenseAmount
+          expenses: hourlyExpenseAmount,
+          withdrawals: hourlyWithdrawalAmount
         };
       });
       
@@ -102,6 +124,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const dailyTotals = new Map();
       const dailyExpenses = new Map();
+      const dailyWithdrawals = new Map();
       
       filteredBills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
@@ -116,15 +139,21 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         const expenseDate = new Date(expense.date);
         if (expenseDate >= weekStart && expenseDate <= weekEnd) {
           const dayOfWeek = expenseDate.getDay();
-          const current = dailyExpenses.get(dayOfWeek) || 0;
-          dailyExpenses.set(dayOfWeek, current + expense.amount);
+          if (normalizeCategory(expense.category) === 'withdrawal') {
+            const current = dailyWithdrawals.get(dayOfWeek) || 0;
+            dailyWithdrawals.set(dayOfWeek, current + prorate(expense));
+          } else {
+            const current = dailyExpenses.get(dayOfWeek) || 0;
+            dailyExpenses.set(dayOfWeek, current + prorate(expense));
+          }
         }
       });
       
       return days.map((day, index) => ({
         name: day,
         sales: dailyTotals.get(index) || 0,
-        expenses: dailyExpenses.get(index) || 0
+        expenses: dailyExpenses.get(index) || 0,
+        withdrawals: dailyWithdrawals.get(index) || 0
       }));
       
     } else if (activeTab === 'weekly') {
@@ -150,6 +179,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       
       const weeklyTotals = new Map();
       const weeklyExpenses = new Map();
+      const weeklyWithdrawals = new Map();
       
       filteredBills.forEach(bill => {
         const billDate = new Date(bill.createdAt);
@@ -167,8 +197,13 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
         if (expenseDate >= monthStart && expenseDate <= monthEnd) {
           const week = weeks.find(w => expenseDate >= w.start && expenseDate <= w.end);
           if (week) {
-            const current = weeklyExpenses.get(week.index) || 0;
-            weeklyExpenses.set(week.index, current + expense.amount);
+            if (normalizeCategory(expense.category) === 'withdrawal') {
+              const current = weeklyWithdrawals.get(week.index) || 0;
+              weeklyWithdrawals.set(week.index, current + prorate(expense));
+            } else {
+              const current = weeklyExpenses.get(week.index) || 0;
+              weeklyExpenses.set(week.index, current + prorate(expense));
+            }
           }
         }
       });
@@ -176,7 +211,8 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       return weeks.map(week => ({
         name: week.label,
         sales: weeklyTotals.get(week.index) || 0,
-        expenses: weeklyExpenses.get(week.index) || 0
+        expenses: weeklyExpenses.get(week.index) || 0,
+        withdrawals: weeklyWithdrawals.get(week.index) || 0
       }));
       
     } else {
@@ -184,6 +220,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthlyTotals = new Map();
       const monthlyExpenses = new Map();
+      const monthlyWithdrawals = new Map();
       
       filteredBills.forEach(bill => {
         const date = new Date(bill.createdAt);
@@ -195,14 +232,20 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       expenses.forEach(expense => {
         const date = new Date(expense.date);
         const month = months[date.getMonth()];
-        const current = monthlyExpenses.get(month) || 0;
-        monthlyExpenses.set(month, current + expense.amount);
+        if (normalizeCategory(expense.category) === 'withdrawal') {
+          const current = monthlyWithdrawals.get(month) || 0;
+          monthlyWithdrawals.set(month, current + prorate(expense));
+        } else {
+          const current = monthlyExpenses.get(month) || 0;
+          monthlyExpenses.set(month, current + prorate(expense));
+        }
       });
       
       return months.map(month => ({
         name: month,
         sales: monthlyTotals.get(month) || 0,
-        expenses: monthlyExpenses.get(month) || 0
+        expenses: monthlyExpenses.get(month) || 0,
+        withdrawals: monthlyWithdrawals.get(month) || 0
       }));
     }
   };
@@ -304,6 +347,13 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                   dark: "#ef4444",
                 },
               },
+              withdrawals: {
+                label: "Withdrawals",
+                theme: {
+                  light: "#f59e0b",
+                  dark: "#f59e0b",
+                },
+              },
             }}
             className="h-full w-full"
           >
@@ -320,6 +370,10 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                   <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorWithdrawals" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
@@ -350,14 +404,14 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                                 {payload[0].payload.name}
                               </span>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-3 gap-2">
                               <div className="flex flex-col">
                                 <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
                                   <div className="w-2 h-2 rounded-full bg-[#9b87f5]"></div>
                                   Sales
                                 </span>
                                 <span className="font-bold">
-                                  <CurrencyDisplay amount={payload[0].value as number} />
+                                  <CurrencyDisplay amount={payload.find(p => p.dataKey === 'sales')?.value as number || 0} />
                                 </span>
                               </div>
                               <div className="flex flex-col">
@@ -366,7 +420,16 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                                   Expenses
                                 </span>
                                 <span className="font-bold">
-                                  <CurrencyDisplay amount={payload[1]?.value as number || 0} />
+                                  <CurrencyDisplay amount={payload.find(p => p.dataKey === 'expenses')?.value as number || 0} />
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[0.70rem] uppercase text-muted-foreground flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full bg-[#f59e0b]"></div>
+                                  Withdrawals
+                                </span>
+                                <span className="font-bold">
+                                  <CurrencyDisplay amount={payload.find(p => p.dataKey === 'withdrawals')?.value as number || 0} />
                                 </span>
                               </div>
                             </div>
@@ -389,6 +452,10 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
                         <span className="text-sm text-gray-300">Expenses</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#f59e0b]"></div>
+                        <span className="text-sm text-gray-300">Withdrawals</span>
                       </div>
                     </div>
                   )}
@@ -431,6 +498,27 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                   fillOpacity={1}
                   fill="url(#colorExpenses)"
                   animationBegin={200}
+                  animationDuration={800}
+                  animationEasing="ease-in-out"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="withdrawals"
+                  name="Withdrawals"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  dot={{ r: 4, fill: "#f59e0b", strokeWidth: 0 }}
+                  activeDot={{ 
+                    r: 6, 
+                    fill: "#f59e0b", 
+                    stroke: "#1A1F2C", 
+                    strokeWidth: 2,
+                    className: "transition-all duration-200 hover:r-8"
+                  }}
+                  fillOpacity={1}
+                  fill="url(#colorWithdrawals)"
+                  animationBegin={400}
                   animationDuration={800}
                   animationEasing="ease-in-out"
                 />
