@@ -84,7 +84,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         newRate = baseRate * 0.50;
         break;
       
-      case 'ALMA50':
+      case 'AAVEG50':
         newRate = baseRate * 0.50;
         break;
       
@@ -245,8 +245,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   <SelectItem value="NIT50">
                     🏫 NIT50 - 50% OFF (NIT Students)
                   </SelectItem>
-                  <SelectItem value="ALMA50">
-                    🎓 ALMA50 - 50% OFF (Alumni)
+                  <SelectItem value="AAVEG50">
+                    🎓 AAVEG50 - 50% OFF (Alumni)
                   </SelectItem>
                   <SelectItem value="AXEIST">
                     👑 AXEIST - 100% OFF (VIP)

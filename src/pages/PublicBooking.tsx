@@ -621,7 +621,7 @@ export default function PublicBooking() {
     "CUEPHORIA50",
     "HH99",
     "NIT50",
-    "ALMA50",
+    "AAVEG50",
     "AXEIST",
     "TEST210198$",
   ];
@@ -732,21 +732,21 @@ export default function PublicBooking() {
       return;
     }
 
-    if (code === "ALMA50") {
+    if (code === "AAVEG50") {
       if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
         toast.error(
-          "ALMA50 can be applied to PS5, 8-Ball, or VR stations in your selection."
+          "AAVEG50 can be applied to PS5, 8-Ball, or VR stations in your selection."
         );
         return;
       }
       setAppliedCoupons((prev) => {
         let updated = { ...prev };
-        if (selectedHasPS5) updated["ps5"] = "ALMA50";
-        if (selectedHas8Ball) updated["8ball"] = "ALMA50";
-        if (selectedHasVR) updated["vr"] = "ALMA50";
+        if (selectedHasPS5) updated["ps5"] = "AAVEG50";
+        if (selectedHas8Ball) updated["8ball"] = "AAVEG50";
+        if (selectedHasVR) updated["vr"] = "AAVEG50";
         return updated;
       });
-      let msg = "🏫 ALMA50 applied! 50% OFF for ";
+      let msg = "🏫 AAVEG50 applied! 50% OFF for ";
       const types = [];
       if (selectedHasPS5) types.push("PS5");
       if (selectedHas8Ball) types.push("8-Ball");
@@ -857,7 +857,7 @@ export default function PublicBooking() {
         }
       }
 
-      if (appliedCoupons["8ball"] === "NIT50" || appliedCoupons["8ball"] === "ALMA50") {
+      if (appliedCoupons["8ball"] === "NIT50" || appliedCoupons["8ball"] === "AAVEG50") {
         const balls = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "8ball"
         );
@@ -867,7 +867,7 @@ export default function PublicBooking() {
         breakdown[`8-Ball (${appliedCoupons["8ball"]})`] = d;
       }
 
-      if (appliedCoupons["ps5"] === "NIT50" || appliedCoupons["ps5"] === "ALMA50") {
+      if (appliedCoupons["ps5"] === "NIT50" || appliedCoupons["ps5"] === "AAVEG50") {
         const ps5s = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "ps5"
         );
@@ -877,7 +877,7 @@ export default function PublicBooking() {
         breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
       }
 
-      if (appliedCoupons["vr"] === "NIT50" || appliedCoupons["vr"] === "ALMA50") {
+      if (appliedCoupons["vr"] === "NIT50" || appliedCoupons["vr"] === "AAVEG50") {
         const vrStations = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "vr"
         );
@@ -2137,7 +2137,7 @@ export default function PublicBooking() {
                   </p>
                   <p className="mt-2 text-xs text-cuephoria-lightpurple">
                     📝 Coupon rules:<br />
-                    NIT50/ALMA50: 50% off for students;<br />
+                    NIT50/AAVEG50: 50% off for students;<br />
                     HH99: PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM (not VR);<br />
                     CUEPHORIA50: 50% off for students (ID required);<br />
                     CUEPHORIA25: 25% off for everyone!
@@ -2151,7 +2151,7 @@ export default function PublicBooking() {
                         else if (val === "NIT50") emoji = "🎓";
                         else if (val === "CUEPHORIA25") emoji = "🎉";
                         else if (val === "CUEPHORIA50") emoji = "📚";
-                        else if (val === "ALMA50") emoji = "🏫";
+                        else if (val === "AAVEG50") emoji = "🏫";
                         else if (val === "AXEIST") emoji = "🥷";
                         return (
                           <div
