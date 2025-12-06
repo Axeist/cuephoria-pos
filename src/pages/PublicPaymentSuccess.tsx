@@ -190,6 +190,8 @@ export default function PublicPaymentSuccess() {
         insertedBookings = existingBookings;
       } else {
         // 5) Insert booking rows directly (one per station per slot)
+        // Calculate total number of bookings (stations × slots) to properly divide pricing
+        const totalBookings = pb.selectedStations.length * pb.slots.length;
         const rows: any[] = [];
         pb.selectedStations.forEach((station_id) => {
           pb.slots.forEach((slot) => {
@@ -201,10 +203,10 @@ export default function PublicPaymentSuccess() {
               end_time: slot.end_time,
               duration: pb.duration,
               status: "confirmed",
-              original_price: pb.pricing.original / pb.slots.length,
+              original_price: pb.pricing.original / totalBookings,
               discount_percentage:
                 pb.pricing.discount > 0 ? (pb.pricing.discount / pb.pricing.original) * 100 : null,
-              final_price: pb.pricing.final / pb.slots.length,
+              final_price: pb.pricing.final / totalBookings,
               coupon_code: pb.pricing.coupons || null,
               payment_mode: "razorpay",
               payment_txn_id: paymentId, // Store Razorpay payment ID

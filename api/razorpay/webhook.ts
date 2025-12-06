@@ -531,6 +531,8 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
     }
 
     // Create booking rows
+    // Calculate total number of bookings (stations × slots) to properly divide pricing
+    const totalBookings = selectedStations.length * slots.length;
     const rows: any[] = [];
     selectedStations.forEach((station_id: string) => {
       slots.forEach((slot: any) => {
@@ -542,9 +544,9 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
           end_time: slot.end_time,
           duration: duration,
           status: "confirmed",
-          original_price: pricing.original / slots.length,
+          original_price: pricing.original / totalBookings,
           discount_percentage: pricing.discount > 0 ? (pricing.discount / pricing.original) * 100 : null,
-          final_price: pricing.final / slots.length,
+          final_price: pricing.final / totalBookings,
           coupon_code: pricing.coupons || null,
           payment_mode: "razorpay", // Only online Razorpay payments trigger bill creation
           payment_txn_id: paymentId,
