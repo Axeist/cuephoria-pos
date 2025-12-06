@@ -2137,7 +2137,7 @@ export default function PublicBooking() {
                   </p>
                   <p className="mt-2 text-xs text-cuephoria-lightpurple">
                     📝 Coupon rules:<br />
-                    NIT50/AAVEG50: 50% off for students;<br />
+                    NIT50/AAVEG50: 50% off for NIT College Freshers;<br />
                     HH99: PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM (not VR);<br />
                     CUEPHORIA50: 50% off for students (ID required);<br />
                     CUEPHORIA25: 25% off for everyone!

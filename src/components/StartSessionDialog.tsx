@@ -246,7 +246,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                     🏫 NIT50 - 50% OFF (NIT Students)
                   </SelectItem>
                   <SelectItem value="AAVEG50">
-                    🎓 AAVEG50 - 50% OFF (Alumni)
+                    🎓 AAVEG50 - 50% OFF (NIT College Freshers)
                   </SelectItem>
                   <SelectItem value="AXEIST">
                     👑 AXEIST - 100% OFF (VIP)
