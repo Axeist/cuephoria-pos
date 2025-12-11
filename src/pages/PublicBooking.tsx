@@ -2148,17 +2148,90 @@ export default function PublicBooking() {
                   <p className="mt-1 text-[11px] text-gray-400">
                     All discounts and totals are calculated in INR (₹).
                   </p>
-                  <p className="mt-2 text-xs text-cuephoria-lightpurple">
-                    📝 Coupon rules:<br />
-                    OP15: 50% OFF + 15 mins FREE (collab with @ordinaryperson.official);<br />
-                    NIT50/AAVEG50: 50% off for NIT College Freshers;<br />
-                    HH99: PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM (not VR);<br />
-                    CUEPHORIA50: 50% off for students (ID required);<br />
-                    CUEPHORIA25: 25% off for everyone!
-                  </p>
+                  
+                  {/* Coupon Rules - Redesigned */}
+                  <div className="mt-3 space-y-2">
+                    <Label className="text-xs font-semibold text-gray-400 uppercase mb-2 block">
+                      📝 Available Coupons
+                    </Label>
+                    
+                    <div className="space-y-2.5">
+                      {/* OP15 - Special Highlighted */}
+                      <div className="p-2.5 rounded-lg bg-gradient-to-r from-pink-900/40 via-purple-900/40 to-indigo-900/40 border border-pink-400/50 shadow-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="text-base">✨</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-pink-300 text-sm">OP15</span>
+                              <span className="text-xs text-gray-300">•</span>
+                              <span className="text-xs font-semibold text-yellow-300">50% OFF</span>
+                              <span className="text-xs text-gray-300">+</span>
+                              <span className="text-xs font-semibold text-green-300">15 mins FREE</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="text-[10px] text-gray-400">Collab with</span>
+                              <a 
+                                href="https://www.instagram.com/ordinaryperson.official" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-semibold text-pink-400 hover:text-pink-300 transition-colors underline flex items-center gap-0.5"
+                              >
+                                <span>📷</span>
+                                <span>@ordinaryperson.official</span>
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Other Coupons */}
+                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm">🎓</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-gray-200 text-xs">NIT50 / AAVEG50</span>
+                            <span className="text-xs text-gray-400 ml-1.5">• 50% off for NIT College Freshers</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm">⏰</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-gray-200 text-xs">HH99</span>
+                            <span className="text-xs text-gray-400 ml-1.5">• PS5 & 8-Ball @ ₹99/hr (Mon–Fri 11 AM–4 PM, not VR)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm">📚</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-gray-200 text-xs">CUEPHORIA50</span>
+                            <span className="text-xs text-gray-400 ml-1.5">• 50% off for students (ID required)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
+                        <div className="flex items-start gap-2">
+                          <span className="text-sm">🎉</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-gray-200 text-xs">CUEPHORIA25</span>
+                            <span className="text-xs text-gray-400 ml-1.5">• 25% off for everyone!</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {Object.entries(appliedCoupons).length > 0 && (
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-3 space-y-2">
+                      <Label className="text-xs font-semibold text-gray-400 uppercase mb-1 block">
+                        ✅ Applied Coupons
+                      </Label>
                       {Object.entries(appliedCoupons).map(([key, val]) => {
                         let emoji = "🏷️";
                         let instagramBadge = null;
@@ -2175,7 +2248,7 @@ export default function PublicBooking() {
                               href="https://www.instagram.com/ordinaryperson.official" 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="ml-2 text-xs font-semibold text-pink-400 hover:text-pink-300 transition-colors flex items-center gap-1"
+                              className="ml-2 text-xs font-semibold text-pink-300 hover:text-pink-200 transition-colors flex items-center gap-1 underline"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <span>📷</span>
@@ -2186,27 +2259,27 @@ export default function PublicBooking() {
                         return (
                           <div
                             key={key}
-                            className="flex items-center justify-between px-4 py-2 rounded-xl shadow-sm font-semibold"
-                            style={{
-                              background: val === "OP15" 
-                                ? "linear-gradient(90deg,#8B2A9B 10%,#5B1A6B 100%)"
-                                : "linear-gradient(90deg,#231743 10%,#181121 100%)",
-                              border: val === "OP15" 
-                                ? "1px solid #E91E63"
-                                : "1px solid #A37CFF",
-                              color: "#F7CBFF",
-                              letterSpacing: "1.5px"
-                            }}
+                            className={`flex items-center justify-between px-3 py-2.5 rounded-lg shadow-md font-semibold ${
+                              val === "OP15" 
+                                ? "bg-gradient-to-r from-pink-600/80 via-purple-600/80 to-indigo-600/80 border-2 border-pink-400/70" 
+                                : "bg-gradient-to-r from-purple-900/60 to-indigo-900/60 border border-purple-400/50"
+                            }`}
                           >
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xl">{emoji}</span>
-                              <span className="font-extrabold uppercase tracking-widest">{val}</span>
+                            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                              <span className="text-lg flex-shrink-0">{emoji}</span>
+                              <span className={`font-extrabold uppercase tracking-wider ${
+                                val === "OP15" ? "text-white" : "text-purple-200"
+                              } flex-shrink-0`}>
+                                {val}
+                              </span>
                               {instagramBadge}
-                              <span className="ml-2 text-xs font-semibold text-green-400">
-                                Applied!
+                              <span className={`ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded ${
+                                val === "OP15" ? "bg-green-500/30 text-green-200" : "text-green-400"
+                              }`}>
+                                ✓ Applied
                               </span>
                               {val === "OP15" && (
-                                <span className="text-xs font-semibold text-yellow-300">
+                                <span className="text-xs font-bold text-yellow-200 bg-yellow-500/20 px-1.5 py-0.5 rounded flex-shrink-0">
                                   + 15 mins FREE
                                 </span>
                               )}
@@ -2214,9 +2287,13 @@ export default function PublicBooking() {
                             <button
                               onClick={() => removeCoupon(key)}
                               aria-label="Remove coupon"
-                              className="ml-2 p-1 hover:bg-[#3B2159] rounded-full"
+                              className={`ml-2 p-1.5 hover:bg-black/20 rounded-full transition-colors flex-shrink-0 ${
+                                val === "OP15" ? "hover:bg-pink-500/20" : "hover:bg-purple-500/20"
+                              }`}
                             >
-                              <X className="h-4 w-4 text-purple-200" />
+                              <X className={`h-4 w-4 ${
+                                val === "OP15" ? "text-pink-200" : "text-purple-200"
+                              }`} />
                             </button>
                           </div>
                         );
