@@ -623,6 +623,7 @@ export default function PublicBooking() {
     "NIT50",
     "AAVEG50",
     "AXEIST",
+    "OP15",
     "TEST210198$",
   ];
 
@@ -756,6 +757,14 @@ export default function PublicBooking() {
       return;
     }
 
+    if (code === "OP15") {
+      setAppliedCoupons({ all: "OP15" });
+      toast.success(
+        "🎉 OP15 applied! 50% OFF + 15 mins FREE gaming session!\nIn collaboration with @ordinaryperson.official on Instagram ✨\nVisit: instagram.com/ordinaryperson.official"
+      );
+      return;
+    }
+
     if (code === "TEST210198$") {
       const ok = window.confirm(
         "🧪 TEST210198$ is a test coupon that sets the transaction value to ₹1 for payment flow testing. Apply?"
@@ -798,6 +807,10 @@ export default function PublicBooking() {
         return { total: disc, breakdown: { all: disc } };
       }
       if (appliedCoupons["all"] === "CUEPHORIA50") {
+        const disc = original * 0.5;
+        return { total: disc, breakdown: { all: disc } };
+      }
+      if (appliedCoupons["all"] === "OP15") {
         const disc = original * 0.5;
         return { total: disc, breakdown: { all: disc } };
       }
@@ -2137,6 +2150,7 @@ export default function PublicBooking() {
                   </p>
                   <p className="mt-2 text-xs text-cuephoria-lightpurple">
                     📝 Coupon rules:<br />
+                    OP15: 50% OFF + 15 mins FREE (collab with @ordinaryperson.official);<br />
                     NIT50/AAVEG50: 50% off for NIT College Freshers;<br />
                     HH99: PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM (not VR);<br />
                     CUEPHORIA50: 50% off for students (ID required);<br />
@@ -2147,29 +2161,55 @@ export default function PublicBooking() {
                     <div className="mt-2 space-y-2">
                       {Object.entries(appliedCoupons).map(([key, val]) => {
                         let emoji = "🏷️";
+                        let instagramBadge = null;
                         if (val === "HH99") emoji = "⏰";
                         else if (val === "NIT50") emoji = "🎓";
                         else if (val === "CUEPHORIA25") emoji = "🎉";
                         else if (val === "CUEPHORIA50") emoji = "📚";
                         else if (val === "AAVEG50") emoji = "🏫";
                         else if (val === "AXEIST") emoji = "🥷";
+                        else if (val === "OP15") {
+                          emoji = "✨";
+                          instagramBadge = (
+                            <a 
+                              href="https://www.instagram.com/ordinaryperson.official" 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="ml-2 text-xs font-semibold text-pink-400 hover:text-pink-300 transition-colors flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span>📷</span>
+                              <span>@ordinaryperson.official</span>
+                            </a>
+                          );
+                        }
                         return (
                           <div
                             key={key}
                             className="flex items-center justify-between px-4 py-2 rounded-xl shadow-sm font-semibold"
                             style={{
-                              background: "linear-gradient(90deg,#231743 10%,#181121 100%)",
-                              border: "1px solid #A37CFF",
+                              background: val === "OP15" 
+                                ? "linear-gradient(90deg,#8B2A9B 10%,#5B1A6B 100%)"
+                                : "linear-gradient(90deg,#231743 10%,#181121 100%)",
+                              border: val === "OP15" 
+                                ? "1px solid #E91E63"
+                                : "1px solid #A37CFF",
                               color: "#F7CBFF",
                               letterSpacing: "1.5px"
                             }}
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xl">{emoji}</span>
                               <span className="font-extrabold uppercase tracking-widest">{val}</span>
+                              {instagramBadge}
                               <span className="ml-2 text-xs font-semibold text-green-400">
                                 Applied!
                               </span>
+                              {val === "OP15" && (
+                                <span className="text-xs font-semibold text-yellow-300">
+                                  + 15 mins FREE
+                                </span>
+                              )}
                             </div>
                             <button
                               onClick={() => removeCoupon(key)}

@@ -20,3 +20,4 @@ ALTER TABLE public.booking_views DISABLE ROW LEVEL SECURITY;
 
 
 
+
