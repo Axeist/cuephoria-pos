@@ -37,6 +37,10 @@ import {
   Zap,
   BadgeCheck,
   Loader2,
+  ChevronDown,
+  ChevronUp,
+  Instagram,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parse, getDay } from "date-fns";
@@ -190,6 +194,10 @@ export default function PublicBooking() {
   const [todayLoading, setTodayLoading] = useState(false);
   const [showOnlinePaymentPromo, setShowOnlinePaymentPromo] = useState(false);
   const [showPaymentWarning, setShowPaymentWarning] = useState(false);
+  const [showInstagramFollowDialog, setShowInstagramFollowDialog] = useState(false);
+  const [instagramLinkClicked, setInstagramLinkClicked] = useState(false);
+  const [showFollowConfirmation, setShowFollowConfirmation] = useState(false);
+  const [expandedCoupons, setExpandedCoupons] = useState<Record<string, boolean>>({});
   
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
@@ -758,10 +766,9 @@ export default function PublicBooking() {
     }
 
     if (code === "OP15") {
-      setAppliedCoupons({ all: "OP15" });
-      toast.success(
-        "🎉 OP15 applied! 50% OFF + 15 mins FREE gaming session!\nIn collaboration with @ordinaryperson.official on Instagram ✨\nVisit: instagram.com/ordinaryperson.official"
-      );
+      // Show Instagram follow dialog instead of directly applying
+      setShowInstagramFollowDialog(true);
+      setInstagramLinkClicked(false);
       return;
     }
 
@@ -2149,26 +2156,58 @@ export default function PublicBooking() {
                     All discounts and totals are calculated in INR (₹).
                   </p>
                   
-                  {/* Coupon Rules - Redesigned */}
+                  {/* Coupon Rules - Redesigned with Apply Buttons and Expandable */}
                   <div className="mt-3 space-y-2">
                     <Label className="text-xs font-semibold text-gray-400 uppercase mb-2 block">
                       📝 Available Coupons
                     </Label>
                     
                     <div className="space-y-2.5">
-                      {/* OP15 - Special Highlighted */}
-                      <div className="p-2.5 rounded-lg bg-gradient-to-r from-pink-900/40 via-purple-900/40 to-indigo-900/40 border border-pink-400/50 shadow-sm">
-                        <div className="flex items-start gap-2">
-                          <span className="text-base">✨</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-pink-300 text-sm">OP15</span>
-                              <span className="text-xs text-gray-300">•</span>
-                              <span className="text-xs font-semibold text-yellow-300">50% OFF</span>
-                              <span className="text-xs text-gray-300">+</span>
-                              <span className="text-xs font-semibold text-green-300">15 mins FREE</span>
+                      {/* OP15 - Special Highlighted with Expandable */}
+                      <div className="rounded-lg bg-gradient-to-r from-pink-900/40 via-purple-900/40 to-indigo-900/40 border border-pink-400/50 shadow-sm overflow-hidden">
+                        <div 
+                          className="p-2.5 cursor-pointer flex items-center justify-between"
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, OP15: !prev.OP15 }))}
+                        >
+                          <div className="flex items-start gap-2 flex-1">
+                            <span className="text-base">✨</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-pink-300 text-sm">OP15</span>
+                                <span className="text-xs text-gray-300">•</span>
+                                <span className="text-xs font-semibold text-yellow-300">50% OFF</span>
+                                <span className="text-xs text-gray-300">+</span>
+                                <span className="text-xs font-semibold text-green-300">15 mins FREE</span>
+                              </div>
+                              {!expandedCoupons.OP15 && (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-[10px] text-gray-400">Collab with</span>
+                                  <span className="text-[10px] font-semibold text-pink-400">@ordinaryperson.official</span>
+                                </div>
+                              )}
                             </div>
-                            <div className="flex items-center gap-1.5 mt-1">
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                applyCoupon("OP15");
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
+                            >
+                              Apply
+                            </Button>
+                            {expandedCoupons.OP15 ? (
+                              <ChevronUp className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-400" />
+                            )}
+                          </div>
+                        </div>
+                        {expandedCoupons.OP15 && (
+                          <div className="px-2.5 pb-2.5 pt-0 border-t border-pink-400/30">
+                            <div className="flex items-center gap-1.5 mt-2">
                               <span className="text-[10px] text-gray-400">Collab with</span>
                               <a 
                                 href="https://www.instagram.com/ordinaryperson.official" 
@@ -2181,48 +2220,167 @@ export default function PublicBooking() {
                               </a>
                             </div>
                           </div>
-                        </div>
+                        )}
                       </div>
 
-                      {/* Other Coupons */}
-                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
-                        <div className="flex items-start gap-2">
-                          <span className="text-sm">🎓</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-gray-200 text-xs">NIT50 / AAVEG50</span>
-                            <span className="text-xs text-gray-400 ml-1.5">• 50% off for NIT College Freshers</span>
+                      {/* NIT50 / AAVEG50 - Expandable */}
+                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
+                        <div 
+                          className="p-2 cursor-pointer flex items-center justify-between"
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, NIT50: !prev.NIT50 }))}
+                        >
+                          <div className="flex items-start gap-2 flex-1">
+                            <span className="text-sm">🎓</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-gray-200 text-xs">NIT50 / AAVEG50</span>
+                              {!expandedCoupons.NIT50 && (
+                                <span className="text-xs text-gray-400 ml-1.5">• 50% off for NIT College Freshers</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                applyCoupon("NIT50");
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
+                            >
+                              Apply
+                            </Button>
+                            {expandedCoupons.NIT50 ? (
+                              <ChevronUp className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-400" />
+                            )}
                           </div>
                         </div>
+                        {expandedCoupons.NIT50 && (
+                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
+                            <p className="text-xs text-gray-400 mt-2">50% off for NIT College Freshers</p>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
-                        <div className="flex items-start gap-2">
-                          <span className="text-sm">⏰</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-gray-200 text-xs">HH99</span>
-                            <span className="text-xs text-gray-400 ml-1.5">• PS5 & 8-Ball @ ₹99/hr (Mon–Fri 11 AM–4 PM, not VR)</span>
+                      {/* HH99 - Expandable */}
+                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
+                        <div 
+                          className="p-2 cursor-pointer flex items-center justify-between"
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, HH99: !prev.HH99 }))}
+                        >
+                          <div className="flex items-start gap-2 flex-1">
+                            <span className="text-sm">⏰</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-gray-200 text-xs">HH99</span>
+                              {!expandedCoupons.HH99 && (
+                                <span className="text-xs text-gray-400 ml-1.5">• PS5 & 8-Ball @ ₹99/hr (Mon–Fri 11 AM–4 PM, not VR)</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                applyCoupon("HH99");
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
+                            >
+                              Apply
+                            </Button>
+                            {expandedCoupons.HH99 ? (
+                              <ChevronUp className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-400" />
+                            )}
                           </div>
                         </div>
+                        {expandedCoupons.HH99 && (
+                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
+                            <p className="text-xs text-gray-400 mt-2">PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM (not VR)</p>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
-                        <div className="flex items-start gap-2">
-                          <span className="text-sm">📚</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-gray-200 text-xs">CUEPHORIA50</span>
-                            <span className="text-xs text-gray-400 ml-1.5">• 50% off for students (ID required)</span>
+                      {/* CUEPHORIA50 - Expandable */}
+                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
+                        <div 
+                          className="p-2 cursor-pointer flex items-center justify-between"
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA50: !prev.CUEPHORIA50 }))}
+                        >
+                          <div className="flex items-start gap-2 flex-1">
+                            <span className="text-sm">📚</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA50</span>
+                              {!expandedCoupons.CUEPHORIA50 && (
+                                <span className="text-xs text-gray-400 ml-1.5">• 50% off for students (ID required)</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                applyCoupon("CUEPHORIA50");
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
+                            >
+                              Apply
+                            </Button>
+                            {expandedCoupons.CUEPHORIA50 ? (
+                              <ChevronUp className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-400" />
+                            )}
                           </div>
                         </div>
+                        {expandedCoupons.CUEPHORIA50 && (
+                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
+                            <p className="text-xs text-gray-400 mt-2">50% off for students (ID required)</p>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="p-2 rounded-lg bg-gray-800/30 border border-gray-700/50">
-                        <div className="flex items-start gap-2">
-                          <span className="text-sm">🎉</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-gray-200 text-xs">CUEPHORIA25</span>
-                            <span className="text-xs text-gray-400 ml-1.5">• 25% off for everyone!</span>
+                      {/* CUEPHORIA25 - Expandable */}
+                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
+                        <div 
+                          className="p-2 cursor-pointer flex items-center justify-between"
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA25: !prev.CUEPHORIA25 }))}
+                        >
+                          <div className="flex items-start gap-2 flex-1">
+                            <span className="text-sm">🎉</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA25</span>
+                              {!expandedCoupons.CUEPHORIA25 && (
+                                <span className="text-xs text-gray-400 ml-1.5">• 25% off for everyone!</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                applyCoupon("CUEPHORIA25");
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
+                            >
+                              Apply
+                            </Button>
+                            {expandedCoupons.CUEPHORIA25 ? (
+                              <ChevronUp className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-400" />
+                            )}
                           </div>
                         </div>
+                        {expandedCoupons.CUEPHORIA25 && (
+                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
+                            <p className="text-xs text-gray-400 mt-2">25% off for everyone!</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2832,6 +2990,127 @@ export default function PublicBooking() {
         onDecline={handlePromoDecline}
         serviceType={getServiceTypeForPromo()}
       />
+
+      {/* Instagram Follow Dialog for OP15 */}
+      <Dialog open={showInstagramFollowDialog} onOpenChange={setShowInstagramFollowDialog}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-2 border-pink-400/50 text-white"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 9999,
+          margin: 0
+        }}>
+          <DialogHeader>
+            <DialogTitle className="text-xl sm:text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400">
+              ✨ Follow Us on Instagram ✨
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-center space-y-3">
+              <p className="text-sm sm:text-base text-gray-200">
+                To apply the <span className="font-bold text-pink-300">OP15</span> coupon, please follow our Instagram profile first!
+              </p>
+              <div className="flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 rounded-lg border border-pink-400/30">
+                <Instagram className="h-5 w-5 text-pink-400" />
+                <a 
+                  href="https://www.instagram.com/cuephoriaclub/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  onClick={() => setInstagramLinkClicked(true)}
+                  className="text-base sm:text-lg font-bold text-pink-300 hover:text-pink-200 transition-colors underline flex items-center gap-2"
+                >
+                  @cuephoriaclub
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+              {instagramLinkClicked && (
+                <div className="mt-3 p-3 bg-green-500/20 border border-green-400/50 rounded-lg">
+                  <p className="text-sm text-green-300 flex items-center gap-2 justify-center">
+                    <CheckCircle className="h-4 w-4" />
+                    Link opened! Please follow us and come back.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                onClick={() => {
+                  if (instagramLinkClicked) {
+                    setShowFollowConfirmation(true);
+                  } else {
+                    toast.error("Please click the Instagram link first!");
+                  }
+                }}
+                className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-bold"
+                disabled={!instagramLinkClicked}
+              >
+                {instagramLinkClicked ? "Yes, I've Followed - Apply Coupon" : "Click Instagram Link First"}
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowInstagramFollowDialog(false);
+                  setInstagramLinkClicked(false);
+                }}
+                variant="outline"
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Follow Confirmation Dialog */}
+      <Dialog open={showFollowConfirmation} onOpenChange={setShowFollowConfirmation}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-white/10 text-white"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 9999,
+          margin: 0
+        }}>
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl font-bold text-center">
+              Have you followed us on Instagram?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-300 text-center">
+              Please confirm that you have followed <span className="font-bold text-pink-300">@cuephoriaclub</span> on Instagram to proceed with applying the OP15 coupon.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={() => {
+                  setAppliedCoupons({ all: "OP15" });
+                  setShowInstagramFollowDialog(false);
+                  setShowFollowConfirmation(false);
+                  setInstagramLinkClicked(false);
+                  toast.success(
+                    "🎉 OP15 applied! 50% OFF + 15 mins FREE gaming session!"
+                  );
+                }}
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold"
+              >
+                Yes, I've Followed
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowFollowConfirmation(false);
+                }}
+                variant="outline"
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                Not Yet
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment Warning Modal */}
       <Dialog open={showPaymentWarning} onOpenChange={() => {}}>
