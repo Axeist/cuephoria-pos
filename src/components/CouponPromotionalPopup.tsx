@@ -97,6 +97,13 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
     setIsOpen(open);
   };
 
+  // Debug: Log when popup should be visible
+  useEffect(() => {
+    if (isOpen) {
+      console.log('CouponPromotionalPopup is open, currentPopup:', currentPopup);
+    }
+  }, [isOpen, currentPopup]);
+
   const popup1Content = {
     title: "SPECIAL DISCOUNT OFFER! 🎮",
     discountText: "25% OFF",
@@ -155,7 +162,7 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
   const isOP15Popup = currentPopup === 4;
   
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange} modal={true}>
       <DialogContent className={`${
         isOP15Popup 
           ? 'bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-4 border-pink-400 shadow-2xl shadow-pink-500/50' 
