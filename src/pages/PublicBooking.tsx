@@ -766,6 +766,20 @@ export default function PublicBooking() {
     }
 
     if (code === "OP15") {
+      // Check if any other dialog is open - don't show Instagram popup if so
+      const isAnyDialogOpen = 
+        showConfirmationDialog || 
+        showLegalDialog || 
+        showRefundDialog || 
+        showOnlinePaymentPromo || 
+        showPaymentWarning ||
+        showFollowConfirmation;
+      
+      if (isAnyDialogOpen) {
+        // Don't show popup when other dialogs are open to avoid disrupting the flow
+        return;
+      }
+      
       // Show Instagram follow dialog instead of directly applying
       setShowInstagramFollowDialog(true);
       setInstagramLinkClicked(false);
@@ -1492,6 +1506,13 @@ export default function PublicBooking() {
 
     // Show promotional popup if paying at venue and service type is PS5 or 8-ball
     if (paymentMethod === "venue") {
+      // Don't show online payment promo if Instagram pop-up is open
+      if (showInstagramFollowDialog || showFollowConfirmation) {
+        // If Instagram pop-up is open, proceed directly with venue booking
+        await createVenueBooking();
+        return;
+      }
+      
       const serviceType = getServiceTypeForPromo();
       if (serviceType) {
         setShowOnlinePaymentPromo(true);
@@ -1501,6 +1522,11 @@ export default function PublicBooking() {
         await createVenueBooking();
       }
     } else {
+      // Don't show payment warning if Instagram pop-up is open
+      if (showInstagramFollowDialog || showFollowConfirmation) {
+        // If Instagram pop-up is open, proceed directly with online booking
+        return;
+      }
       // Show warning modal before opening payment gateway
       setShowPaymentWarning(true);
     }
@@ -1701,7 +1727,7 @@ export default function PublicBooking() {
 
       <CouponPromotionalPopup 
         onCouponSelect={applyCoupon} 
-        blockWhenOpen={showOnlinePaymentPromo}
+        blockWhenOpen={showOnlinePaymentPromo || showInstagramFollowDialog || showFollowConfirmation}
       />
 
       <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
