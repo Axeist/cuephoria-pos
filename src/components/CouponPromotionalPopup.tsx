@@ -167,7 +167,15 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
         isOP15Popup 
           ? 'bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-4 border-pink-400 shadow-2xl shadow-pink-500/50' 
           : 'bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-2 border-yellow-400/50 shadow-2xl shadow-yellow-400/20'
-      } text-white max-w-[90vw] sm:max-w-md w-full mx-auto animate-scale-in overflow-hidden p-4 sm:p-6 relative`}>
+      } text-white max-w-[90vw] sm:max-w-md animate-scale-in overflow-hidden p-4 sm:p-6 relative`}
+      style={{
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 9999,
+        margin: 0
+      }}>
         {/* Special glow effect for OP15 */}
         {isOP15Popup && (
           <div className="absolute inset-0 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 animate-pulse pointer-events-none" />
