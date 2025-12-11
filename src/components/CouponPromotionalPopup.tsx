@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,75 +13,75 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
   const [isOpen, setIsOpen] = useState(false);
   const [showCount, setShowCount] = useState(0);
   const [currentPopup, setCurrentPopup] = useState<1 | 2 | 3 | 4>(4);
+  const hasShownRef = useRef(false);
 
+  // Effect to close popup when blocked
   useEffect(() => {
-    // Don't show if blocked by another popup
-    if (blockWhenOpen) return;
+    if (blockWhenOpen && isOpen) {
+      setIsOpen(false);
+    }
+  }, [blockWhenOpen, isOpen]);
+
+  // Main effect to show OP15 popup first
+  useEffect(() => {
+    // Skip if already shown or blocked
+    if (hasShownRef.current || blockWhenOpen) {
+      return;
+    }
     
-    // First popup (OP15) after 5 seconds - prioritize influencer collaboration
-    const firstTimeout = setTimeout(() => {
-      if (!blockWhenOpen) {
+    // Show OP15 popup after 2 seconds
+    const timer = setTimeout(() => {
+      if (!blockWhenOpen && !hasShownRef.current) {
         setIsOpen(true);
         setShowCount(1);
         setCurrentPopup(4); // OP15 popup first
+        hasShownRef.current = true;
       }
-    }, 5000);
+    }, 2000);
 
-    return () => clearTimeout(firstTimeout);
+    return () => clearTimeout(timer);
   }, [blockWhenOpen]);
 
+  // Subsequent popups
   useEffect(() => {
-    // Don't show if blocked by another popup
-    if (blockWhenOpen) return;
+    if (blockWhenOpen || showCount === 0) return;
     
-    // Second popup (HH99) after 30 seconds from the first one
     if (showCount === 1) {
-      const secondTimeout = setTimeout(() => {
+      const timer = setTimeout(() => {
         if (!blockWhenOpen) {
           setIsOpen(true);
           setShowCount(2);
-          setCurrentPopup(3); // HH99 popup second
+          setCurrentPopup(3); // HH99
         }
       }, 30000);
-
-      return () => clearTimeout(secondTimeout);
+      return () => clearTimeout(timer);
     }
   }, [showCount, blockWhenOpen]);
 
   useEffect(() => {
-    // Don't show if blocked by another popup
-    if (blockWhenOpen) return;
+    if (blockWhenOpen || showCount !== 2) return;
     
-    // Third popup (CUEPHORIA25) after 30 seconds from the second one
-    if (showCount === 2) {
-      const thirdTimeout = setTimeout(() => {
-        if (!blockWhenOpen) {
-          setIsOpen(true);
-          setShowCount(3);
-          setCurrentPopup(1); // CUEPHORIA25 popup third
-        }
-      }, 30000);
-
-      return () => clearTimeout(thirdTimeout);
-    }
+    const timer = setTimeout(() => {
+      if (!blockWhenOpen) {
+        setIsOpen(true);
+        setShowCount(3);
+        setCurrentPopup(1); // CUEPHORIA25
+      }
+    }, 30000);
+    return () => clearTimeout(timer);
   }, [showCount, blockWhenOpen]);
 
   useEffect(() => {
-    // Don't show if blocked by another popup
-    if (blockWhenOpen) return;
+    if (blockWhenOpen || showCount !== 3) return;
     
-    // Fourth popup (NIT50) after 30 seconds from the third one
-    if (showCount === 3) {
-      const fourthTimeout = setTimeout(() => {
-        if (!blockWhenOpen) {
-          setIsOpen(true);
-          setShowCount(4);
-          setCurrentPopup(2); // NIT50 popup fourth
-        }
-      }, 30000);
-
-      return () => clearTimeout(fourthTimeout);
-    }
+    const timer = setTimeout(() => {
+      if (!blockWhenOpen) {
+        setIsOpen(true);
+        setShowCount(4);
+        setCurrentPopup(2); // NIT50
+      }
+    }, 30000);
+    return () => clearTimeout(timer);
   }, [showCount, blockWhenOpen]);
 
   const handleClose = () => {
@@ -91,6 +91,10 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
   const handleUseCoupon = (coupon: string) => {
     onCouponSelect?.(coupon);
     setIsOpen(false);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
   };
 
   const popup1Content = {
@@ -151,7 +155,7 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
   const isOP15Popup = currentPopup === 4;
   
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className={`${
         isOP15Popup 
           ? 'bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-4 border-pink-400 shadow-2xl shadow-pink-500/50' 
