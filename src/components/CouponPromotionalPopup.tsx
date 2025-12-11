@@ -143,7 +143,7 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
   const popup4Content = {
     title: "🔥 EXCLUSIVE INSTAGRAM COLLAB! 🔥",
     discountText: "50% OFF + 15 MINS FREE",
-    description: `🎮 Special collaboration with @ordinaryperson.official! 🎮\n\nGet 50% OFF on your booking + 15 minutes FREE gaming session!\n\n✨ Don't miss this exclusive influencer offer! ✨`,
+    description: `Get 50% OFF + 15 minutes FREE gaming session!`,
     couponCode: "OP15",
     bgColor: "from-pink-500 via-purple-500 to-indigo-500",
     iconColor: "text-pink-400",
@@ -212,7 +212,7 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
           <div className="space-y-2">
             <p className={`${
               isOP15Popup 
-                ? 'text-base sm:text-xl font-bold text-white leading-relaxed whitespace-pre-line' 
+                ? 'text-base sm:text-lg font-semibold text-white' 
                 : 'text-sm sm:text-lg font-semibold text-yellow-200'
             }`}>
               {currentContent.description}
@@ -247,34 +247,20 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
               </div>
             )}
 
-            {/* Instagram Branding for OP15 - Enhanced */}
+            {/* Instagram Branding for OP15 - Simplified */}
             {currentPopup === 4 && popup4Content.instagramHandle && (
-              <div className="mt-4 p-4 sm:p-5 rounded-xl border-2 bg-gradient-to-br from-pink-500/30 via-purple-500/30 to-indigo-500/30 border-pink-400/80 text-white shadow-lg shadow-pink-500/30 backdrop-blur-sm animate-pulse-slow">
-                <div className="flex flex-col items-center gap-3 mb-3">
-                  <div className="flex items-center justify-center gap-3 mb-2">
-                    <Instagram className="h-6 w-6 sm:h-8 sm:w-8 text-pink-400 animate-pulse" />
-                    <a 
-                      href={popup4Content.instagramUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-lg sm:text-2xl font-extrabold text-pink-200 hover:text-white transition-all duration-300 underline decoration-2 hover:scale-110 inline-block"
-                    >
-                      @{popup4Content.instagramHandle}
-                    </a>
-                  </div>
-                  <div className="flex items-center justify-center gap-2 text-sm sm:text-base bg-purple-500/40 px-4 py-2 rounded-full">
-                    <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-300 animate-spin-slow" />
-                    <span className="font-bold text-yellow-200">Influencer Collaboration</span>
-                    <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-300 animate-spin-slow" />
-                  </div>
+              <div className="mt-3 p-3 sm:p-4 rounded-xl border-2 bg-gradient-to-br from-pink-500/30 via-purple-500/30 to-indigo-500/30 border-pink-400/80 text-white shadow-lg shadow-pink-500/30 backdrop-blur-sm">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Instagram className="h-5 w-5 sm:h-6 sm:w-6 text-pink-400" />
+                  <a 
+                    href={popup4Content.instagramUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-base sm:text-lg font-bold text-pink-200 hover:text-white transition-colors underline"
+                  >
+                    @{popup4Content.instagramHandle}
+                  </a>
                 </div>
-                <div className="flex items-center justify-center gap-2 text-sm sm:text-lg mb-3 bg-gradient-to-r from-purple-600/50 to-pink-600/50 px-4 py-3 rounded-lg border border-purple-300/50">
-                  <Gift className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-300 animate-bounce" />
-                  <span className="font-bold text-yellow-100">15 minutes FREE gaming session included! 🎁</span>
-                </div>
-                <p className="text-xs sm:text-sm text-center text-pink-100 font-medium">
-                  ✨ Exclusive offer in collaboration with Ordinary Person ✨
-                </p>
               </div>
             )}
             
