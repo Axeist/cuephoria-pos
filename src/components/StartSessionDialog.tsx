@@ -231,7 +231,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 <SelectTrigger>
                   <SelectValue placeholder="No coupon (regular price)" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[10000]">
                   <SelectItem value="none">No coupon - Regular Price</SelectItem>
                   <SelectItem value="HH99">
                     🎮 HH99 - ₹99/hour (Mon-Fri 11AM-4PM)
