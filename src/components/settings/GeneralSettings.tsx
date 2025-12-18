@@ -414,7 +414,7 @@ const GeneralSettings = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Receipt Template</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select template" />
@@ -793,7 +793,7 @@ const GeneralSettings = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date Format</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select format" />
@@ -815,7 +815,7 @@ const GeneralSettings = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Time Format</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select format" />

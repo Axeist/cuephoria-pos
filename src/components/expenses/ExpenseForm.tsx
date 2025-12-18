@@ -74,7 +74,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, initialData, onCanc
         <FormField control={form.control} name="category" render={({ field }) => (
           <FormItem>
             <FormLabel>Category</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <Select onValueChange={field.onChange} value={field.value}>
               <FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl>
               <SelectContent>
                 <SelectItem value="inventory">Stock and supplies</SelectItem>
@@ -109,7 +109,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, initialData, onCanc
           <FormField control={form.control} name="frequency" render={({ field }) => (
             <FormItem>
               <FormLabel>Frequency</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl><SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="monthly">Monthly</SelectItem>
