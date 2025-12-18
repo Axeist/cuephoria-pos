@@ -264,7 +264,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
             <SelectTrigger className={validationErrors.category ? 'border-destructive' : ''}>
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
-            <SelectContent className="z-[10000]" position="popper">
+            <SelectContent>
               {categories.map(category => <SelectItem key={category} value={category}>
                   {category.charAt(0).toUpperCase() + category.slice(1)}
                 </SelectItem>)}
@@ -350,7 +350,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 <SelectTrigger className={validationErrors.duration ? 'border-destructive' : ''}>
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
-                <SelectContent className="z-[10000]" position="popper">
+                <SelectContent>
                   <SelectItem value="weekly">Weekly</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                 </SelectContent>

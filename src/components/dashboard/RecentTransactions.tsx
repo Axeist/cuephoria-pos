@@ -943,7 +943,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 </Button>
                 
                 {isCommandOpen && (
-                  <div className="absolute top-full mt-2 w-full z-50">
+                  <div className="absolute top-full mt-2 w-full z-[10000]">
                     <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white shadow-md">
                       <CommandInput 
                         placeholder="Search products..." 

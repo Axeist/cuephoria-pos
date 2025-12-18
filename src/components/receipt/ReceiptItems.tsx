@@ -366,7 +366,7 @@ const ReceiptItems: React.FC<ReceiptItemsProps> = ({ bill, onUpdateItems, editab
                 </Button>
                 
                 {isCommandOpen && (
-                  <div className="absolute mt-1 w-full z-50 rounded-md border border-gray-700 bg-gray-800 shadow-lg">
+                  <div className="absolute mt-1 w-full z-[10000] rounded-md border border-gray-700 bg-gray-800 shadow-lg">
                     <Command className="rounded-lg overflow-hidden">
                       <CommandInput 
                         placeholder="Search products..." 
