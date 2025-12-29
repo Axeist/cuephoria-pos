@@ -15,84 +15,135 @@ const generateCustomerID = (phone: string): string => {
   return `CUE${phoneHash}${timestamp}`;
 };
 
+// ✅ CACHE CONFIGURATION
+const CUSTOMERS_CACHE_KEY = 'cuephoria_customers_cache';
+const CUSTOMERS_CACHE_TIMESTAMP_KEY = 'cuephoria_customers_cache_timestamp';
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes cache
+const DUPLICATE_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Run cleanup once per day
+const LAST_DUPLICATE_CLEANUP_KEY = 'cuephoria_last_duplicate_cleanup';
+
+// ✅ MEMORY CACHE (for current session)
+let memoryCache: { customers: Customer[]; timestamp: number } | null = null;
+
 export const useCustomers = (initialCustomers: Customer[]) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
   
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
+        setIsLoading(true);
+        
+        // ✅ STEP 1: Check memory cache first (fastest)
+        if (memoryCache && Date.now() - memoryCache.timestamp < CACHE_DURATION_MS) {
+          console.log('📦 Using memory cache for customers');
+          setCustomers(memoryCache.customers);
+          setIsLoading(false);
+          return;
+        }
+        
+        // ✅ STEP 2: Check localStorage cache
+        const cachedTimestamp = localStorage.getItem(CUSTOMERS_CACHE_TIMESTAMP_KEY);
+        const cachedData = localStorage.getItem(CUSTOMERS_CACHE_KEY);
+        
+        if (cachedData && cachedTimestamp) {
+          const cacheAge = Date.now() - parseInt(cachedTimestamp, 10);
+          
+          if (cacheAge < CACHE_DURATION_MS) {
+            console.log('💾 Using localStorage cache for customers');
+            const parsedCustomers = JSON.parse(cachedData);
+            const customersWithDates = parsedCustomers.map((customer: any) => ({
+              ...customer,
+              customerId: customer.customerId || generateCustomerID(customer.phone),
+              phone: normalizePhoneNumber(customer.phone),
+              createdAt: new Date(customer.createdAt),
+              membershipStartDate: customer.membershipStartDate ? new Date(customer.membershipStartDate) : undefined,
+              membershipExpiryDate: customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate) : undefined
+            }));
+            
+            setCustomers(customersWithDates);
+            memoryCache = { customers: customersWithDates, timestamp: Date.now() };
+            setIsLoading(false);
+            
+            // ✅ Background refresh if cache is older than 2 minutes
+            if (cacheAge > 2 * 60 * 1000) {
+              fetchCustomersFromDB(true); // Silent background refresh
+            }
+            return;
+          }
+        }
+        
+        // ✅ STEP 3: Handle legacy localStorage migration
         const storedCustomers = localStorage.getItem('cuephoriaCustomers');
         if (storedCustomers) {
           const parsedCustomers = JSON.parse(storedCustomers);
-          
           const customersWithDates = parsedCustomers.map((customer: any) => ({
             ...customer,
-            customerId: customer.customerId || generateCustomerID(customer.phone), // ✅ Generate if missing
-            phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
+            customerId: customer.customerId || generateCustomerID(customer.phone),
+            phone: normalizePhoneNumber(customer.phone),
             createdAt: new Date(customer.createdAt),
             membershipStartDate: customer.membershipStartDate ? new Date(customer.membershipStartDate) : undefined,
             membershipExpiryDate: customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate) : undefined
           }));
           
           setCustomers(customersWithDates);
-          
-          // ✅ Sync to database with custom_id and customer_id
-          for (const customer of customersWithDates) {
-            const customerID = customer.customerId || generateCustomerID(customer.phone);
-            await supabase.from('customers').upsert({
-                id: customer.id,
-                custom_id: customerID, // ✅ Include custom_id (required)
-                customer_id: customerID, // ✅ Also include customer_id for backward compatibility
-                name: customer.name,
-                phone: normalizePhoneNumber(customer.phone), // ✅ Normalize phone
-                email: customer.email,
-                is_member: customer.isMember,
-                membership_expiry_date: customer.membershipExpiryDate?.toISOString(),
-                membership_start_date: customer.membershipStartDate?.toISOString(),
-                membership_plan: customer.membershipPlan,
-                membership_hours_left: customer.membershipHoursLeft,
-                membership_duration: customer.membershipDuration,
-                loyalty_points: customer.loyaltyPoints,
-                total_spent: customer.totalSpent,
-                total_play_time: customer.totalPlayTime,
-                created_at: customer.createdAt.toISOString()
-              }, 
-              { onConflict: 'id' }
-            );
-          }
-          
           localStorage.removeItem('cuephoriaCustomers');
+          
+          // Sync to database in background
+          fetchCustomersFromDB(true);
           return;
         }
         
-        // Fetch all customers using pagination to bypass 1000 record limit
+        // ✅ STEP 4: Fetch from database
+        await fetchCustomersFromDB(false);
+      } catch (error) {
+        console.error('Error in fetchCustomers:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load customers',
+          variant: 'destructive'
+        });
+        setCustomers([]);
+        setIsLoading(false);
+      }
+    };
+    
+    const fetchCustomersFromDB = async (silent: boolean = false) => {
+      try {
+        if (!silent) setIsLoading(true);
+        
+        // ✅ OPTIMIZED: Select only needed columns (reduces data transfer)
+        const selectFields = 'id,customer_id,custom_id,name,phone,email,is_member,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
+        
+        // Fetch all customers using pagination
         let page = 0;
         const pageSize = 1000;
         let allCustomersData: any[] = [];
         let finished = false;
 
         while (!finished) {
-        const { data, error } = await supabase
-          .from('customers')
-            .select('*')
+          const { data, error } = await supabase
+            .from('customers')
+            .select(selectFields) // ✅ Only fetch needed columns
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
           
-        if (error) {
-          console.error('Error fetching customers:', error);
-          toast({
-            title: 'Database Error',
-            description: 'Failed to fetch customers from database',
-            variant: 'destructive'
-          });
-          return;
-        }
+          if (error) {
+            console.error('Error fetching customers:', error);
+            if (!silent) {
+              toast({
+                title: 'Database Error',
+                description: 'Failed to fetch customers from database',
+                variant: 'destructive'
+              });
+            }
+            return;
+          }
         
-        if (data && data.length > 0) {
+          if (data && data.length > 0) {
             allCustomersData = [...allCustomersData, ...data];
-            // If we got less than pageSize, we've reached the end
             if (data.length < pageSize) {
               finished = true;
             } else {
@@ -106,7 +157,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         if (allCustomersData.length > 0) {
           const transformedCustomers = allCustomersData.map(item => ({
             id: item.id,
-            customerId: (item as any).customer_id || generateCustomerID(item.phone), // ✅ Map customer_id
+            customerId: (item as any).customer_id || generateCustomerID(item.phone),
             name: item.name,
             phone: item.phone,
             email: item.email || undefined,
@@ -122,88 +173,115 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             createdAt: new Date(item.created_at)
           }));
           
-          // ✅ AUTOMATIC DUPLICATE CLEANUP: Clean up duplicates after fetching
-          const { cleaned, merged } = await cleanupDuplicates(transformedCustomers);
+          // ✅ OPTIMIZED: Run duplicate cleanup only once per day
+          const lastCleanup = localStorage.getItem(LAST_DUPLICATE_CLEANUP_KEY);
+          const shouldRunCleanup = !lastCleanup || (Date.now() - parseInt(lastCleanup, 10)) > DUPLICATE_CLEANUP_INTERVAL_MS;
           
-          if (cleaned > 0) {
-            // Re-fetch customers after cleanup
-            page = 0;
-            allCustomersData = [];
-            finished = false;
-            
-            while (!finished) {
-              const { data, error } = await supabase
-                .from('customers')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .range(page * pageSize, (page + 1) * pageSize - 1);
-                
-              if (error) {
-                console.error('Error re-fetching customers after cleanup:', error);
-                break;
-              }
-              
-              if (data && data.length > 0) {
-                allCustomersData = [...allCustomersData, ...data];
-                if (data.length < pageSize) {
-                  finished = true;
-                } else {
-                  page++;
-                }
-              } else {
-                finished = true;
-              }
-            }
-            
-            // Transform again after cleanup
-            const cleanedCustomers = allCustomersData.map(item => ({
-              id: item.id,
-              customerId: (item as any).customer_id || generateCustomerID(item.phone),
-              name: item.name,
-              phone: item.phone,
-              email: item.email || undefined,
-              isMember: item.is_member,
-              membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
-              membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
-              membershipPlan: item.membership_plan || undefined,
-              membershipHoursLeft: item.membership_hours_left || undefined,
-              membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
-              loyaltyPoints: item.loyalty_points,
-              totalSpent: item.total_spent,
-              totalPlayTime: item.total_play_time,
-              createdAt: new Date(item.created_at)
-            }));
-            
-            setCustomers(cleanedCustomers);
-            console.log(`✅ Loaded ${cleanedCustomers.length} customers after cleaning ${cleaned} duplicates`);
+          if (shouldRunCleanup) {
+            console.log('🔧 Running scheduled duplicate cleanup...');
+            const { cleaned, merged } = await cleanupDuplicates(transformedCustomers);
             
             if (cleaned > 0) {
-              toast({
-                title: 'Duplicates Cleaned',
-                description: `Automatically merged ${cleaned} duplicate customer(s) into ${merged} account(s). Oldest accounts were retained.`,
-                duration: 5000
-              });
+              // Re-fetch only if duplicates were cleaned
+              page = 0;
+              allCustomersData = [];
+              finished = false;
+              
+              while (!finished) {
+                const { data, error } = await supabase
+                  .from('customers')
+                  .select(selectFields)
+                  .order('created_at', { ascending: false })
+                  .range(page * pageSize, (page + 1) * pageSize - 1);
+                  
+                if (error) {
+                  console.error('Error re-fetching customers after cleanup:', error);
+                  break;
+                }
+                
+                if (data && data.length > 0) {
+                  allCustomersData = [...allCustomersData, ...data];
+                  if (data.length < pageSize) {
+                    finished = true;
+                  } else {
+                    page++;
+                  }
+                } else {
+                  finished = true;
+                }
+              }
+              
+              // Transform again after cleanup
+              const cleanedCustomers = allCustomersData.map(item => ({
+                id: item.id,
+                customerId: (item as any).customer_id || generateCustomerID(item.phone),
+                name: item.name,
+                phone: item.phone,
+                email: item.email || undefined,
+                isMember: item.is_member,
+                membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
+                membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
+                membershipPlan: item.membership_plan || undefined,
+                membershipHoursLeft: item.membership_hours_left || undefined,
+                membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
+                loyaltyPoints: item.loyalty_points,
+                totalSpent: item.total_spent,
+                totalPlayTime: item.total_play_time,
+                createdAt: new Date(item.created_at)
+              }));
+              
+              setCustomers(cleanedCustomers);
+              saveToCache(cleanedCustomers);
+              
+              if (!silent && cleaned > 0) {
+                toast({
+                  title: 'Duplicates Cleaned',
+                  description: `Automatically merged ${cleaned} duplicate customer(s) into ${merged} account(s).`,
+                  duration: 5000
+                });
+              }
+              
+              localStorage.setItem(LAST_DUPLICATE_CLEANUP_KEY, Date.now().toString());
+            } else {
+              setCustomers(transformedCustomers);
+              saveToCache(transformedCustomers);
             }
           } else {
-          setCustomers(transformedCustomers);
-            console.log(`Loaded ${transformedCustomers.length} customers from database`);
+            setCustomers(transformedCustomers);
+            saveToCache(transformedCustomers);
+            console.log(`✅ Loaded ${transformedCustomers.length} customers from database (cleanup skipped - ran recently)`);
           }
         } else {
           setCustomers([]);
+          saveToCache([]);
         }
       } catch (error) {
-        console.error('Error in fetchCustomers:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load customers',
-          variant: 'destructive'
-        });
-        setCustomers([]);
+        console.error('Error fetching from DB:', error);
+        if (!silent) {
+          toast({
+            title: 'Error',
+            description: 'Failed to load customers',
+            variant: 'destructive'
+          });
+        }
+      } finally {
+        setIsLoading(false);
       }
     };
     
     fetchCustomers();
   }, []);
+  
+  // ✅ Shared cache save function
+  const saveToCache = (customersList: Customer[]) => {
+    try {
+      memoryCache = { customers: customersList, timestamp: Date.now() };
+      localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(customersList));
+      localStorage.setItem(CUSTOMERS_CACHE_TIMESTAMP_KEY, Date.now().toString());
+    } catch (error) {
+      console.error('Error saving to cache:', error);
+    }
+  };
   
   useEffect(() => {
     const now = new Date();
@@ -992,17 +1070,85 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     return true;
   };
   
+  // ✅ Cache invalidation helper
+  const invalidateCache = () => {
+    memoryCache = null;
+    localStorage.removeItem(CUSTOMERS_CACHE_KEY);
+    localStorage.removeItem(CUSTOMERS_CACHE_TIMESTAMP_KEY);
+  };
+  
+  // ✅ Wrapper functions that invalidate cache on mutations
+  const addCustomerWithCacheInvalidation = async (customer: Omit<Customer, 'id' | 'createdAt'>) => {
+    const result = await addCustomer(customer);
+    if (result) {
+      invalidateCache();
+      // Refresh customers in background
+      setTimeout(() => {
+        const fetchCustomers = async () => {
+          const { data } = await supabase
+            .from('customers')
+            .select('id,customer_id,custom_id,name,phone,email,is_member,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at')
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (data && data.length > 0) {
+            const newCustomer = {
+              id: data[0].id,
+              customerId: (data[0] as any).customer_id || generateCustomerID(data[0].phone),
+              name: data[0].name,
+              phone: data[0].phone,
+              email: data[0].email || undefined,
+              isMember: data[0].is_member,
+              membershipExpiryDate: data[0].membership_expiry_date ? new Date(data[0].membership_expiry_date) : undefined,
+              membershipStartDate: data[0].membership_start_date ? new Date(data[0].membership_start_date) : undefined,
+              membershipPlan: data[0].membership_plan || undefined,
+              membershipHoursLeft: data[0].membership_hours_left || undefined,
+              membershipDuration: data[0].membership_duration as 'weekly' | 'monthly' | undefined,
+              loyaltyPoints: data[0].loyalty_points,
+              totalSpent: data[0].total_spent,
+              totalPlayTime: data[0].total_play_time,
+              createdAt: new Date(data[0].created_at)
+            };
+            setCustomers(prev => [newCustomer, ...prev]);
+            saveToCache([newCustomer, ...customers]);
+          }
+        };
+        fetchCustomers();
+      }, 500);
+    }
+    return result;
+  };
+  
+  const updateCustomerWithCacheInvalidation = async (customer: Customer) => {
+    const result = await updateCustomer(customer);
+    if (result) {
+      invalidateCache();
+      setCustomers(prev => prev.map(c => c.id === customer.id ? customer : c));
+      saveToCache(customers.map(c => c.id === customer.id ? customer : c));
+    }
+    return result;
+  };
+  
+  const deleteCustomerWithCacheInvalidation = async (id: string) => {
+    await deleteCustomer(id);
+    invalidateCache();
+    const updatedCustomers = customers.filter(c => c.id !== id);
+    saveToCache(updatedCustomers);
+  };
+  
   return {
     customers,
     setCustomers,
     selectedCustomer,
     setSelectedCustomer,
-    addCustomer,
-    updateCustomer,
+    addCustomer: addCustomerWithCacheInvalidation,
+    updateCustomer: updateCustomerWithCacheInvalidation,
     updateCustomerMembership,
-    deleteCustomer,
+    deleteCustomer: deleteCustomerWithCacheInvalidation,
     selectCustomer,
     checkMembershipValidity,
-    deductMembershipHours
+    deductMembershipHours,
+    isLoading,
+    invalidateCache
   };
 };

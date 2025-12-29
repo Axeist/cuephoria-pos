@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Bill, CartItem, Customer, Product } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -18,16 +19,56 @@ export const useBills = (
   useEffect(() => {
     const loadBills = async () => {
       try {
+        // ✅ Check cache first
+        const cachedBills = getCachedData<Bill[]>(CACHE_KEYS.BILLS);
+        
+        if (cachedBills && cachedBills.length > 0) {
+          console.log('📦 Using cached bills');
+          setBills(cachedBills);
+          
+          // Background refresh if cache is stale
+          if (isCacheStale(CACHE_KEYS.BILLS)) {
+            loadBillsFromDB(true).catch(err => {
+              console.error('Error refreshing bills in background:', err);
+            });
+          }
+          return;
+        }
+        
+        await loadBillsFromDB(false);
+      } catch (error) {
+        console.error('Error in loadBills:', error);
+      }
+    };
+    
+    const loadBillsFromDB = async (silent: boolean = false) => {
+      try {
         let page = 0;
         const pageSize = 1000;
         let allBillsData = [];
         let finished = false;
 
         while (!finished) {
+          // ✅ OPTIMIZED: Select only needed columns (reduces nested query size)
           const { data: billsData, error: billsError } = await supabase
             .from('bills')
             .select(`
-              *,
+              id,
+              customer_id,
+              subtotal,
+              discount,
+              discount_value,
+              discount_type,
+              loyalty_points_used,
+              loyalty_points_earned,
+              total,
+              payment_method,
+              status,
+              comp_note,
+              is_split_payment,
+              cash_amount,
+              upi_amount,
+              created_at,
               bill_items (
                 id,
                 item_id,
@@ -43,12 +84,23 @@ export const useBills = (
 
           if (billsError) {
             console.error('Error loading bills:', billsError);
+            if (!silent) {
+              toast({
+                title: 'Error',
+                description: 'Failed to load bills from database',
+                variant: 'destructive'
+              });
+            }
             return;
           }
 
           if (billsData && billsData.length > 0) {
             allBillsData = [...allBillsData, ...billsData];
-            page++;
+            if (billsData.length < pageSize) {
+              finished = true;
+            } else {
+              page++;
+            }
           } else {
             finished = true;
           }
@@ -82,9 +134,18 @@ export const useBills = (
         }));
 
         setBills(transformedBills);
-        console.log('Bills loaded from database:', transformedBills.length);
+        // ✅ Save to cache
+        saveToCache(CACHE_KEYS.BILLS, transformedBills);
+        console.log('✅ Bills loaded from database:', transformedBills.length);
       } catch (error) {
-        console.error('Error in loadBills:', error);
+        console.error('Error in loadBillsFromDB:', error);
+        if (!silent) {
+          toast({
+            title: 'Error',
+            description: 'Failed to load bills',
+            variant: 'destructive'
+          });
+        }
       }
     };
 
@@ -262,7 +323,15 @@ export const useBills = (
         createdAt: billTimestamp  // ✅ UPDATED: Use billTimestamp
       };
 
-      setBills(prevBills => [completeBill, ...prevBills]);
+      setBills(prevBills => {
+        const updated = [completeBill, ...prevBills];
+        // ✅ Update cache
+        saveToCache(CACHE_KEYS.BILLS, updated);
+        return updated;
+      });
+      
+      // ✅ Invalidate cache to ensure fresh data
+      invalidateCache(CACHE_KEYS.BILLS);
       
       console.log('Sale completed successfully, bill created:', completeBill);
       
@@ -390,9 +459,15 @@ export const useBills = (
         upiAmount: isSplitPayment ? upiAmount : (finalPaymentMethod === 'upi' ? total : 0)
       };
 
-      setBills(prevBills =>
-        prevBills.map(bill => bill.id === originalBill.id ? updatedBill : bill)
-      );
+      setBills(prevBills => {
+        const updated = prevBills.map(bill => bill.id === originalBill.id ? updatedBill : bill);
+        // ✅ Update cache
+        saveToCache(CACHE_KEYS.BILLS, updated);
+        return updated;
+      });
+      
+      // ✅ Invalidate cache
+      invalidateCache(CACHE_KEYS.BILLS);
 
       toast({
         title: 'Bill Updated',
@@ -452,7 +527,15 @@ export const useBills = (
 
       console.log('Bill deleted successfully');
 
-      setBills(prevBills => prevBills.filter(bill => bill.id !== billId));
+      setBills(prevBills => {
+        const updated = prevBills.filter(bill => bill.id !== billId);
+        // ✅ Update cache
+        saveToCache(CACHE_KEYS.BILLS, updated);
+        return updated;
+      });
+      
+      // ✅ Invalidate cache
+      invalidateCache(CACHE_KEYS.BILLS);
 
       toast({
         title: 'Bill Deleted',

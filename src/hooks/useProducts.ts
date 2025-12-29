@@ -3,6 +3,7 @@ import { Product } from '@/types/pos.types';
 import { supabase, handleSupabaseError, convertFromSupabaseProduct, convertToSupabaseProduct } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { generateId } from '@/utils/pos.utils';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
 
 export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -15,9 +16,29 @@ export const useProducts = () => {
   useEffect(() => {
     console.log('useProducts initialized with', products.length, 'products');
     
-    refreshFromDB().catch(err => {
-      console.error('Error loading products from DB:', err);
-    });
+    const loadProducts = async () => {
+      // ✅ Check cache first
+      const cachedProducts = getCachedData<Product[]>(CACHE_KEYS.PRODUCTS);
+      
+      if (cachedProducts && cachedProducts.length > 0) {
+        console.log('📦 Using cached products');
+        setProducts(cachedProducts);
+        setLoading(false);
+        
+        // Background refresh if cache is stale
+        if (isCacheStale(CACHE_KEYS.PRODUCTS)) {
+          refreshFromDB(true).catch(err => {
+            console.error('Error refreshing products in background:', err);
+          });
+        }
+        return;
+      }
+      
+      // Load from database
+      await refreshFromDB(false);
+    };
+    
+    loadProducts();
   }, []);
   
   const isProductDuplicate = (productName: string, excludeId?: string): boolean => {
@@ -48,6 +69,9 @@ export const useProducts = () => {
       
       setProducts(prev => [...prev, newProduct]);
       
+      // ✅ Invalidate cache
+      invalidateCache(CACHE_KEYS.PRODUCTS);
+      
       supabase
         .from('products')
         .insert(convertToSupabaseProduct(newProduct))
@@ -62,6 +86,12 @@ export const useProducts = () => {
             });
           } else {
             console.log('Product added to DB:', newProduct.name);
+            // Update cache after successful DB insert
+            setProducts(prev => {
+              const updated = [...prev];
+              saveToCache(CACHE_KEYS.PRODUCTS, updated);
+              return updated;
+            });
           }
         });
       
@@ -105,7 +135,15 @@ export const useProducts = () => {
         // Note: profit will be calculated by the database trigger
       };
       
-      setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+      setProducts(prev => {
+        const updated = prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+        // ✅ Update cache
+        saveToCache(CACHE_KEYS.PRODUCTS, updated);
+        return updated;
+      });
+      
+      // ✅ Invalidate cache
+      invalidateCache(CACHE_KEYS.PRODUCTS);
       
       supabase
         .from('products')
@@ -125,6 +163,12 @@ export const useProducts = () => {
               .insert(convertToSupabaseProduct(updatedProduct));
           } else {
             console.log('Product updated in DB:', updatedProduct.name);
+            // Update cache after successful DB update
+            setProducts(prev => {
+              const updated = prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+              saveToCache(CACHE_KEYS.PRODUCTS, updated);
+              return updated;
+            });
           }
         })
         .then(result => {
@@ -158,7 +202,15 @@ export const useProducts = () => {
   
   const deleteProduct = (id: string) => {
     try {
-      setProducts(prev => prev.filter(p => p.id !== id));
+      setProducts(prev => {
+        const updated = prev.filter(p => p.id !== id);
+        // ✅ Update cache
+        saveToCache(CACHE_KEYS.PRODUCTS, updated);
+        return updated;
+      });
+      
+      // ✅ Invalidate cache
+      invalidateCache(CACHE_KEYS.PRODUCTS);
       
       supabase
         .from('products')
@@ -175,6 +227,12 @@ export const useProducts = () => {
             });
           } else {
             console.log('Product deleted from DB:', id);
+            // Update cache after successful DB delete
+            setProducts(prev => {
+              const updated = prev.filter(p => p.id !== id);
+              saveToCache(CACHE_KEYS.PRODUCTS, updated);
+              return updated;
+            });
           }
         });
       
@@ -201,10 +259,15 @@ export const useProducts = () => {
     return [];
   };
   
-  const refreshFromDB = async () => {
+  const refreshFromDB = async (silent: boolean = false) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
+      
+      // ✅ OPTIMIZED: Select only needed columns
+      const selectFields = 'id,name,category,price,buying_price,selling_price,profit,stock,image,original_price,offer_price,student_price,duration,membership_hours,created_at';
       
       // Fetch all products using pagination to bypass 1000 record limit
       let page = 0;
@@ -215,18 +278,20 @@ export const useProducts = () => {
       while (!finished) {
         const { data, error } = await supabase
           .from('products')
-          .select('*')
+          .select(selectFields) // ✅ Only fetch needed columns
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
         if (error) {
           console.error('Error fetching products:', error);
-          setError(`Failed to fetch products: ${error.message}`);
-          toast({
-            title: 'Error',
-            description: 'Failed to fetch products from database',
-            variant: 'destructive'
-          });
+          if (!silent) {
+            setError(`Failed to fetch products: ${error.message}`);
+            toast({
+              title: 'Error',
+              description: 'Failed to fetch products from database',
+              variant: 'destructive'
+            });
+          }
           return products;
         }
         
@@ -279,31 +344,40 @@ export const useProducts = () => {
         
         const allProducts = Array.from(uniqueProductsById.values());
         setProducts(allProducts);
-        console.log('Refreshed from DB:', allProducts.length);
+        console.log('✅ Refreshed from DB:', allProducts.length);
         
-        localStorage.setItem('cuephoriaProducts', JSON.stringify(allProducts));
+        // ✅ Save to cache
+        saveToCache(CACHE_KEYS.PRODUCTS, allProducts);
         
         return allProducts;
       } else {
         console.log('No products in DB, using empty products array');
-        toast({
-          title: 'Info',
-          description: 'No products found in database.',
-        });
+        if (!silent) {
+          toast({
+            title: 'Info',
+            description: 'No products found in database.',
+          });
+        }
         
-        return resetToInitialProducts();
+        const emptyProducts = resetToInitialProducts();
+        saveToCache(CACHE_KEYS.PRODUCTS, emptyProducts);
+        return emptyProducts;
       }
     } catch (error) {
       console.error('Error refreshing products:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error refreshing products');
-      toast({
-        title: 'Error',
-        description: 'An error occurred while refreshing products',
-        variant: 'destructive'
-      });
+      if (!silent) {
+        setError(error instanceof Error ? error.message : 'Unknown error refreshing products');
+        toast({
+          title: 'Error',
+          description: 'An error occurred while refreshing products',
+          variant: 'destructive'
+        });
+      }
       return products;
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
   

@@ -3,6 +3,7 @@ import { Session } from '@/types/pos.types';
 import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
 
 /**
  * ✅ OPTIMIZED: Hook to load and manage session data from Supabase
@@ -14,9 +15,32 @@ export const useSessionsData = () => {
   const [sessionsError, setSessionsError] = useState<Error | null>(null);
   const { toast } = useToast();
   
-  const refreshSessions = useCallback(async () => {
-    setSessionsLoading(true);
-    setSessionsError(null);
+  const refreshSessions = useCallback(async (silent: boolean = false) => {
+    // ✅ Check cache first
+    const cachedSessions = getCachedData<Session[]>(CACHE_KEYS.SESSIONS);
+    
+    if (cachedSessions && cachedSessions.length > 0 && !silent) {
+      console.log('📦 Using cached sessions');
+      setSessions(cachedSessions);
+      setSessionsLoading(false);
+      
+      // Background refresh if cache is stale
+      if (isCacheStale(CACHE_KEYS.SESSIONS)) {
+        refreshSessionsFromDB(true).catch(err => {
+          console.error('Error refreshing sessions in background:', err);
+        });
+      }
+      return;
+    }
+    
+    await refreshSessionsFromDB(silent);
+  }, []);
+  
+  const refreshSessionsFromDB = useCallback(async (silent: boolean = false) => {
+    if (!silent) {
+      setSessionsLoading(true);
+      setSessionsError(null);
+    }
     
     try {
       // ✅ OPTIMIZED: Select only required fields instead of '*'
@@ -29,12 +53,14 @@ export const useSessionsData = () => {
         
       if (error) {
         console.error('Error fetching sessions:', error);
-        setSessionsError(new Error(`Failed to fetch sessions: ${error.message}`));
-        toast({
-          title: 'Database Error',
-          description: 'Failed to fetch sessions from database',
-          variant: 'destructive'
-        });
+        if (!silent) {
+          setSessionsError(new Error(`Failed to fetch sessions: ${error.message}`));
+          toast({
+            title: 'Database Error',
+            description: 'Failed to fetch sessions from database',
+            variant: 'destructive'
+          });
+        }
         return;
       }
       
@@ -54,8 +80,10 @@ export const useSessionsData = () => {
           discountAmount: item.discount_amount
         }));
         
-        console.log(`Loaded ${transformedSessions.length} sessions from Supabase (limited to 100)`);
+        console.log(`✅ Loaded ${transformedSessions.length} sessions from Supabase (limited to 100)`);
         setSessions(transformedSessions);
+        // ✅ Save to cache
+        saveToCache(CACHE_KEYS.SESSIONS, transformedSessions);
         
         const activeSessions = transformedSessions.filter(s => !s.endTime);
         console.log(`Found ${activeSessions.length} active sessions in loaded data`);
@@ -68,17 +96,22 @@ export const useSessionsData = () => {
       } else {
         console.log("No sessions found in Supabase");
         setSessions([]);
+        saveToCache(CACHE_KEYS.SESSIONS, []);
       }
     } catch (error) {
       console.error('Error in fetchSessions:', error);
-      setSessionsError(error instanceof Error ? error : new Error('Unknown error fetching sessions'));
-      toast({
-        title: 'Error',
-        description: 'Failed to load sessions',
-        variant: 'destructive'
-      });
+      if (!silent) {
+        setSessionsError(error instanceof Error ? error : new Error('Unknown error fetching sessions'));
+        toast({
+          title: 'Error',
+          description: 'Failed to load sessions',
+          variant: 'destructive'
+        });
+      }
     } finally {
-      setSessionsLoading(false);
+      if (!silent) {
+        setSessionsLoading(false);
+      }
     }
   }, [toast]);
   
@@ -95,7 +128,15 @@ export const useSessionsData = () => {
         throw new Error(handleSupabaseError(error, 'delete session'));
       }
       
-      setSessions(prevSessions => prevSessions.filter(session => session.id !== sessionId));
+      setSessions(prevSessions => {
+        const updated = prevSessions.filter(session => session.id !== sessionId);
+        // ✅ Update cache
+        saveToCache(CACHE_KEYS.SESSIONS, updated);
+        return updated;
+      });
+      
+      // ✅ Invalidate cache
+      invalidateCache(CACHE_KEYS.SESSIONS);
       
       toast({
         title: 'Success',

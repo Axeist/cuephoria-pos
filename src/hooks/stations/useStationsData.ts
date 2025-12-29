@@ -3,6 +3,7 @@ import { Station, Session } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { generateId } from '@/utils/pos.utils';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
 
 /**
  * Hook to load and manage station data from Supabase
@@ -13,11 +14,37 @@ export const useStationsData = () => {
   const [stationsError, setStationsError] = useState<Error | null>(null);
   const { toast } = useToast();
   
-  const refreshStations = async () => {
-    setStationsLoading(true);
-    setStationsError(null);
+  const refreshStations = async (silent: boolean = false) => {
+    // ✅ Check cache first
+    const cachedStations = getCachedData<Station[]>(CACHE_KEYS.STATIONS);
+    
+    if (cachedStations && cachedStations.length > 0 && !silent) {
+      console.log('📦 Using cached stations');
+      setStations(cachedStations);
+      setStationsLoading(false);
+      
+      // Background refresh if cache is stale
+      if (isCacheStale(CACHE_KEYS.STATIONS)) {
+        refreshStationsFromDB(true).catch(err => {
+          console.error('Error refreshing stations in background:', err);
+        });
+      }
+      return;
+    }
+    
+    await refreshStationsFromDB(silent);
+  };
+  
+  const refreshStationsFromDB = async (silent: boolean = false) => {
+    if (!silent) {
+      setStationsLoading(true);
+      setStationsError(null);
+    }
     
     try {
+      // ✅ OPTIMIZED: Select only needed columns
+      const selectFields = 'id,name,type,hourly_rate,is_occupied,currentsession,created_at';
+      
       // Fetch all stations using pagination to bypass 1000 record limit
       let page = 0;
       const pageSize = 1000;
@@ -27,7 +54,7 @@ export const useStationsData = () => {
       while (!finished) {
         const { data, error } = await supabase
           .from('stations')
-          .select('*')
+          .select(selectFields) // ✅ Only fetch needed columns
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
           
@@ -104,26 +131,35 @@ export const useStationsData = () => {
         });
         
         setStations(transformedStations);
+        // ✅ Save to cache
+        saveToCache(CACHE_KEYS.STATIONS, transformedStations);
         console.log("✅ Loaded stations from Supabase:", transformedStations.length, "stations");
       } else {
         console.log("No stations found in Supabase");
-        toast({
-          title: 'Info',
-          description: 'No stations found in database. Please add stations.',
-        });
+        if (!silent) {
+          toast({
+            title: 'Info',
+            description: 'No stations found in database. Please add stations.',
+          });
+        }
         setStations([]);
+        saveToCache(CACHE_KEYS.STATIONS, []);
       }
     } catch (error) {
       console.error('Error in fetchStations:', error);
-      setStationsError(error instanceof Error ? error : new Error('Unknown error fetching stations'));
-      toast({
-        title: 'Error',
-        description: 'Failed to load stations',
-        variant: 'destructive'
-      });
+      if (!silent) {
+        setStationsError(error instanceof Error ? error : new Error('Unknown error fetching stations'));
+        toast({
+          title: 'Error',
+          description: 'Failed to load stations',
+          variant: 'destructive'
+        });
+      }
       setStations([]);
     } finally {
-      setStationsLoading(false);
+      if (!silent) {
+        setStationsLoading(false);
+      }
     }
   };
   
