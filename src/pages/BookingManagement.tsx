@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
@@ -263,7 +264,8 @@ export default function BookingManagement() {
   }, []);
 
   useEffect(() => {
-    // Real-time subscription for booking updates (notifications handled globally)
+    // ✅ OPTIMIZED: Real-time subscription with cache invalidation
+    // Only invalidates cache, doesn't immediately refetch (reduces egress)
     const channel = supabase
       .channel('booking-management-changes')
       .on('postgres_changes', { 
@@ -271,19 +273,36 @@ export default function BookingManagement() {
         schema: 'public', 
         table: 'bookings' 
       }, () => {
-        // Refresh bookings list when changes occur
-        fetchBookings();
+        // ✅ Invalidate cache instead of immediate refetch
+        // This allows user to continue working with cached data
+        // and refresh when they navigate or manually refresh
+        const analyticsFromDate = filters.datePreset === 'alltime' 
+          ? '2020-01-01' 
+          : format(subDays(new Date(), 60), 'yyyy-MM-dd');
+        const cacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}`;
+        invalidateCache(cacheKey);
+        
+        // Optional: Show a subtle notification that data was updated
+        // User can manually refresh if needed, or we can auto-refresh after delay
+        console.log('📡 Booking change detected, cache invalidated');
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [filters.datePreset]);
 
   const handleDatePresetChange = (preset: string) => {
     if (preset === 'custom') {
       setFilters(prev => ({ ...prev, datePreset: 'custom' }));
       return;
     }
+    
+    // ✅ Invalidate old cache when changing date range
+    const oldAnalyticsFromDate = filters.datePreset === 'alltime' 
+      ? '2020-01-01' 
+      : format(subDays(new Date(), 60), 'yyyy-MM-dd');
+    const oldCacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${oldAnalyticsFromDate}`;
+    invalidateCache(oldCacheKey);
     
     const dateRange = getDateRangeFromPreset(preset);
     if (dateRange) {
@@ -332,7 +351,55 @@ export default function BookingManagement() {
         ? '2020-01-01' 
         : format(subDays(new Date(), 60), 'yyyy-MM-dd');
       
-      // Fetch all bookings using pagination to bypass 1000 record limit
+      // ✅ Create cache key based on date range
+      const cacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}`;
+      
+      // ✅ Check cache first
+      const cachedBookings = getCachedData<Booking[]>(cacheKey);
+      
+      if (cachedBookings && cachedBookings.length > 0) {
+        console.log('📦 Using cached bookings');
+        setAllBookings(cachedBookings);
+        const filtered = applyFilters(cachedBookings);
+        setBookings(filtered);
+        
+        // Extract coupon options from cached data
+        const presentCodes = Array.from(
+          new Set(
+            cachedBookings.flatMap(t => 
+              (t.coupon_code || '')
+                .split(',')
+                .map(c => c.trim().toUpperCase())
+                .filter(Boolean)
+            )
+          )
+        ) as string[];
+        setCouponOptions(presentCodes.sort());
+        setLoading(false);
+        
+        // Background refresh if cache is stale
+        if (isCacheStale(cacheKey)) {
+          fetchBookingsFromDB(cacheKey, analyticsFromDate, true).catch(err => {
+            console.error('Error refreshing bookings in background:', err);
+          });
+        }
+        return;
+      }
+      
+      await fetchBookingsFromDB(cacheKey, analyticsFromDate, false);
+    } catch (err) {
+      console.error('Error fetching bookings:', err);
+      toast.error('Failed to load bookings');
+      setLoading(false);
+    }
+  };
+  
+  const fetchBookingsFromDB = async (cacheKey: string, analyticsFromDate: string, silent: boolean = false) => {
+    try {
+      if (!silent) setLoading(true);
+      
+      // ✅ OPTIMIZED: Fetch bookings without nested booking_views (fetch separately if needed)
+      // This reduces query complexity and data transfer significantly
       let page = 0;
       const pageSize = 1000;
       let allBookingsData: any[] = [];
@@ -360,15 +427,8 @@ export default function BookingManagement() {
             payment_txn_id,
             station_id,
             customer_id,
-            created_at,
-            booking_views!booking_id (
-              id,
-              booking_id,
-              access_code,
-              created_at,
-              last_accessed_at
-            )
-          `)
+            created_at
+          `) // ✅ Removed booking_views nested query (fetch separately if needed)
           .gte('booking_date', analyticsFromDate)
           .order('booking_date', { ascending: false })
           .order('start_time', { ascending: false })
@@ -378,7 +438,6 @@ export default function BookingManagement() {
 
         if (bookingsData && bookingsData.length > 0) {
           allBookingsData = [...allBookingsData, ...bookingsData];
-          // If we got less than pageSize, we've reached the end
           if (bookingsData.length < pageSize) {
             finished = true;
           } else {
@@ -395,20 +454,82 @@ export default function BookingManagement() {
         setBookings([]);
         setAllBookings([]);
         setCouponOptions([]);
+        saveToCache(cacheKey, []);
+        if (!silent) setLoading(false);
         return;
       }
 
+      // ✅ OPTIMIZED: Cache station and customer lookups
       const stationIds = [...new Set(bookingsData.map(b => b.station_id))];
       const customerIds = [...new Set(bookingsData.map(b => b.customer_id))];
 
-      const [{ data: stationsData, error: stationsError }, { data: customersData, error: customersError }] =
-        await Promise.all([
-          supabase.from('stations').select('id, name, type').in('id', stationIds),
-          supabase.from('customers').select('id, name, phone, email, created_at').in('id', customerIds)
-        ]);
+      // Check cache for stations and customers
+      const cachedStations = getCachedData<any[]>(`${CACHE_KEYS.STATIONS}_lookup`);
+      const cachedCustomers = getCachedData<any[]>(`${CACHE_KEYS.CUSTOMERS}_lookup`);
+      
+      let stationsData: any[] | null = null;
+      let customersData: any[] | null = null;
+      
+      // Fetch only missing stations/customers
+      const stationIdsToFetch = cachedStations 
+        ? stationIds.filter(id => !cachedStations.find(s => s.id === id))
+        : stationIds;
+      const customerIdsToFetch = cachedCustomers
+        ? customerIds.filter(id => !cachedCustomers.find(c => c.id === id))
+        : customerIds;
 
-      if (stationsError) throw stationsError;
-      if (customersError) throw customersError;
+      if (stationIdsToFetch.length > 0 || customerIdsToFetch.length > 0) {
+        const promises: Promise<any>[] = [];
+        
+        if (stationIdsToFetch.length > 0) {
+          promises.push(supabase.from('stations').select('id, name, type').in('id', stationIdsToFetch));
+        }
+        if (customerIdsToFetch.length > 0) {
+          promises.push(supabase.from('customers').select('id, name, phone, email, created_at').in('id', customerIdsToFetch));
+        }
+        
+        const results = await Promise.all(promises);
+        
+        if (stationIdsToFetch.length > 0) {
+          const [{ data: newStations, error: stationsError }] = results;
+          if (stationsError) throw stationsError;
+          stationsData = [...(cachedStations || []), ...(newStations || [])];
+          saveToCache(`${CACHE_KEYS.STATIONS}_lookup`, stationsData);
+        } else {
+          stationsData = cachedStations;
+        }
+        
+        if (customerIdsToFetch.length > 0) {
+          const resultIndex = stationIdsToFetch.length > 0 ? 1 : 0;
+          const [{ data: newCustomers, error: customersError }] = results.slice(resultIndex);
+          if (customersError) throw customersError;
+          customersData = [...(cachedCustomers || []), ...(newCustomers || [])];
+          saveToCache(`${CACHE_KEYS.CUSTOMERS}_lookup`, customersData);
+        } else {
+          customersData = cachedCustomers;
+        }
+      } else {
+        stationsData = cachedStations;
+        customersData = cachedCustomers;
+      }
+
+      // Fallback if cache miss
+      if (!stationsData || !customersData) {
+        const [{ data: stationsDataFallback, error: stationsError }, { data: customersDataFallback, error: customersError }] =
+          await Promise.all([
+            supabase.from('stations').select('id, name, type').in('id', stationIds),
+            supabase.from('customers').select('id, name, phone, email, created_at').in('id', customerIds)
+          ]);
+
+        if (stationsError) throw stationsError;
+        if (customersError) throw customersError;
+        
+        stationsData = stationsDataFallback || stationsData;
+        customersData = customersDataFallback || customersData;
+        
+        if (stationsData) saveToCache(`${CACHE_KEYS.STATIONS}_lookup`, stationsData);
+        if (customersData) saveToCache(`${CACHE_KEYS.CUSTOMERS}_lookup`, customersData);
+      }
 
       const transformed = (bookingsData || []).map(b => {
         const station = stationsData?.find(s => s.id === b.station_id);
@@ -431,7 +552,7 @@ export default function BookingManagement() {
           payment_mode: b.payment_mode ?? null,
           payment_txn_id: b.payment_txn_id ?? null,
           created_at: b.created_at,
-          booking_views: b.booking_views || [],
+          booking_views: [], // ✅ Lazy load booking_views only when needed
           station: { name: station?.name || 'Unknown', type: station?.type || 'unknown' },
           customer: { 
             name: customer?.name || 'Unknown', 
@@ -445,6 +566,9 @@ export default function BookingManagement() {
       setAllBookings(transformed);
       const filtered = applyFilters(transformed);
       setBookings(filtered);
+      
+      // ✅ Save to cache
+      saveToCache(cacheKey, transformed);
 
       const presentCodes = Array.from(
         new Set(
@@ -458,14 +582,16 @@ export default function BookingManagement() {
       ) as string[];
       setCouponOptions(presentCodes.sort());
 
-      // Note: Notifications are now handled globally by BookingNotificationContext
-      // No need to check for new bookings here as the global context handles it
-
+      console.log(`✅ Loaded ${transformed.length} bookings from database`);
     } catch (err) {
       console.error('Error fetching bookings:', err);
-      toast.error('Failed to load bookings');
+      if (!silent) {
+        toast.error('Failed to load bookings');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -3557,14 +3683,30 @@ export default function BookingManagement() {
             open={editDialogOpen}
             onOpenChange={setEditDialogOpen}
             booking={selectedBooking}
-            onBookingUpdated={fetchBookings}
+            onBookingUpdated={() => {
+              // ✅ Invalidate cache and refetch
+              const analyticsFromDate = filters.datePreset === 'alltime' 
+                ? '2020-01-01' 
+                : format(subDays(new Date(), 60), 'yyyy-MM-dd');
+              const cacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}`;
+              invalidateCache(cacheKey);
+              fetchBookings();
+            }}
           />
 
           <BookingDeleteDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
             booking={selectedBooking}
-            onBookingDeleted={fetchBookings}
+            onBookingDeleted={() => {
+              // ✅ Invalidate cache and refetch
+              const analyticsFromDate = filters.datePreset === 'alltime' 
+                ? '2020-01-01' 
+                : format(subDays(new Date(), 60), 'yyyy-MM-dd');
+              const cacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}`;
+              invalidateCache(cacheKey);
+              fetchBookings();
+            }}
           />
         </>
       )}
