@@ -104,40 +104,130 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   
   const [customerSearchQuery, setCustomerSearchQuery] = useState<string>('');
   const [isCustomerCommandOpen, setIsCustomerCommandOpen] = useState<boolean>(false);
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState<boolean>(false);
   
-  const filteredProducts = products.filter(product => {
-    if (!productSearchQuery.trim()) return true;
+  // Safe filtering with null checks
+  const filteredProducts = (products || []).filter(product => {
+    if (!product || !productSearchQuery.trim()) return true;
     
     const query = productSearchQuery.toLowerCase().trim();
     return (
-      product.name.toLowerCase().includes(query) ||
-      product.category.toLowerCase().includes(query)
+      product.name?.toLowerCase().includes(query) ||
+      product.category?.toLowerCase().includes(query)
     );
-  }).filter(product => product.stock > 0 && product.category !== 'membership');
+  }).filter(product => product && product.stock > 0 && product.category !== 'membership');
   
-  const filteredCustomers = customers.filter(customer => {
-    if (!customerSearchQuery.trim()) return true;
-    
-    const query = customerSearchQuery.toLowerCase().trim();
-    return (
-      customer.name.toLowerCase().includes(query) ||
-      customer.phone.includes(query) ||
-      customer.email?.toLowerCase().includes(query) ||
-      customer.customerId?.toLowerCase().includes(query)
-    );
-  });
+  // Real-time customer search from database
+  useEffect(() => {
+    const searchCustomers = async () => {
+      if (!customerSearchQuery.trim()) {
+        setCustomerSearchResults([]);
+        setIsSearchingCustomers(false);
+        return;
+      }
+
+      setIsSearchingCustomers(true);
+      const query = customerSearchQuery.trim().toLowerCase();
+      const normalizedSearchPhone = customerSearchQuery.replace(/\D/g, '');
+
+      try {
+        // Build multiple queries for different fields and combine results
+        const searchPattern = `%${query}%`;
+        const phonePattern = normalizedSearchPhone ? `%${normalizedSearchPhone}%` : '';
+        
+        // Execute parallel queries for each search field
+        const queries = [
+          supabase.from('customers').select('*').ilike('name', searchPattern).limit(50),
+          normalizedSearchPhone ? supabase.from('customers').select('*').ilike('phone', phonePattern).limit(50) : null,
+          supabase.from('customers').select('*').ilike('email', searchPattern).limit(50),
+          supabase.from('customers').select('*').ilike('custom_id', searchPattern).limit(50)
+        ].filter(Boolean) as Promise<any>[];
+
+        const results = await Promise.all(queries);
+        
+        // Combine and deduplicate results by id
+        const allResults: any[] = [];
+        const seenIds = new Set<string>();
+        
+        results.forEach(({ data, error }) => {
+          if (error) {
+            console.error('Customer search query error:', error);
+            return;
+          }
+          if (data && Array.isArray(data)) {
+            data.forEach((customer: any) => {
+              if (customer && !seenIds.has(customer.id)) {
+                seenIds.add(customer.id);
+                allResults.push(customer);
+              }
+            });
+          }
+        });
+
+        // Transform database results to Customer format
+        if (allResults.length > 0) {
+          const transformedResults: Customer[] = allResults.map((customer: any) => ({
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phone,
+            email: customer.email || '',
+            customerId: customer.custom_id || `CUE${customer.phone.slice(-4)}${Date.now().toString(36).slice(-4).toUpperCase()}`,
+            isMember: customer.is_member || false,
+            loyaltyPoints: customer.loyalty_points || 0,
+            totalSpent: customer.total_spent || 0,
+            totalPlayTime: customer.total_play_time || 0,
+            createdAt: new Date(customer.created_at || customer.createdAt),
+            membershipPlan: customer.membership_plan || undefined,
+            membershipStartDate: customer.membership_start_date ? new Date(customer.membership_start_date) : undefined,
+            membershipExpiryDate: customer.membership_expiry_date ? new Date(customer.membership_expiry_date) : undefined,
+            membershipHoursLeft: customer.membership_hours_left || undefined
+          }));
+          setCustomerSearchResults(transformedResults);
+        } else {
+          setCustomerSearchResults([]);
+        }
+      } catch (err) {
+        console.error('Error searching customers:', err);
+        // Fallback to local search
+        const localResults = (customers || []).filter(customer => {
+          if (!customer) return false;
+          const normalizedCustomerPhone = customer.phone?.replace(/\D/g, '') || '';
+          return (
+            customer.name?.toLowerCase().includes(query) ||
+            normalizedCustomerPhone.includes(normalizedSearchPhone) ||
+            customer.email?.toLowerCase().includes(query) ||
+            customer.customerId?.toLowerCase().includes(query)
+          );
+        });
+        setCustomerSearchResults(localResults);
+      } finally {
+        setIsSearchingCustomers(false);
+      }
+    };
+
+    // Debounce the search
+    const timeoutId = setTimeout(() => {
+      searchCustomers();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [customerSearchQuery, customers]);
   
-  const filteredBills = bills.filter(bill => {
-    if (!searchQuery.trim()) return true;
+  // Use search results if there's a query, otherwise use all customers
+  const filteredCustomers = customerSearchQuery.trim() ? customerSearchResults : (customers || []);
+  
+  const filteredBills = (bills || []).filter(bill => {
+    if (!bill || !searchQuery.trim()) return true;
     
     const query = searchQuery.toLowerCase().trim();
     
-    if (bill.id.toLowerCase().includes(query)) return true;
+    if (bill.id?.toLowerCase().includes(query)) return true;
     
-    const customer = customers.find(c => c.id === bill.customerId);
+    const customer = (customers || []).find(c => c && c.id === bill.customerId);
     if (customer) {
-      const customerName = customer.name.toLowerCase();
-      const customerPhone = customer.phone.toLowerCase();
+      const customerName = customer.name?.toLowerCase() || '';
+      const customerPhone = customer.phone?.toLowerCase() || '';
       const customerEmail = customer.email?.toLowerCase() || '';
       
       return customerName.includes(query) || 
@@ -199,11 +289,21 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setSelectedProductId(productId);
     setIsCommandOpen(false);
     
-    const selectedProduct = products.find(p => p.id === productId);
+    if (!products || !Array.isArray(products)) {
+      toast({
+        title: "Error",
+        description: "Products data is not available.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const selectedProduct = products.find(p => p && p.id === productId);
     if (selectedProduct) {
-      setAvailableStock(selectedProduct.stock || 0);
-      setSelectedProductName(selectedProduct.name);
-      setNewItemQuantity(Math.min(1, selectedProduct.stock));
+      const stock = selectedProduct.stock || 0;
+      setAvailableStock(stock);
+      setSelectedProductName(selectedProduct.name || 'Unknown Product');
+      setNewItemQuantity(Math.min(1, stock));
     }
   };
   
@@ -211,15 +311,26 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.closest('[role="combobox"]') && !target.closest('[cmdk-list]') && !target.closest('[cmdk-input]')) {
+      const isCommandElement = target.closest('[cmdk-root]') || target.closest('[cmdk-list]') || target.closest('[cmdk-input]') || target.closest('[cmdk-item]');
+      const isCombobox = target.closest('[role="combobox"]');
+      
+      if (!isCommandElement && !isCombobox) {
         setIsCommandOpen(false);
         setIsCustomerCommandOpen(false);
       }
     };
     
+    // Also close when dialog closes
+    if (!isEditDialogOpen) {
+      setIsCustomerCommandOpen(false);
+    }
+    if (!isAddItemDialogOpen) {
+      setIsCommandOpen(false);
+    }
+    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isEditDialogOpen, isAddItemDialogOpen]);
   
   const handleDeleteClick = (bill: Bill) => {
     setBillToDelete(bill);
@@ -257,7 +368,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     setEditingSplitPayment(bill.isSplitPayment || false);
     setEditingCashAmount(bill.cashAmount || 0);
     setEditingUpiAmount(bill.upiAmount || 0);
-    const foundCustomer = customers.find(c => c.id === bill.customerId) || null;
+    const foundCustomer = (customers || []).find(c => c && c.id === bill.customerId) || null;
     setEditingCustomer(foundCustomer);
     setCustomerSearchQuery(foundCustomer?.name || '');
     setIsEditing(true);
@@ -272,11 +383,19 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   const handleCustomerSelect = (customerId: string) => {
-    const selectedCustomer = customers.find(c => c.id === customerId);
+    // First try to find in search results, then fallback to all customers
+    const selectedCustomer = customerSearchResults.find(c => c && c.id === customerId) || 
+                             (customers || []).find(c => c && c.id === customerId);
     if (selectedCustomer) {
       setEditingCustomer(selectedCustomer);
-      setCustomerSearchQuery(selectedCustomer.name);
+      setCustomerSearchQuery(selectedCustomer.name || '');
       setIsCustomerCommandOpen(false);
+    } else {
+      toast({
+        title: "Error",
+        description: "Customer not found. Please try searching again.",
+        variant: "destructive"
+      });
     }
   };
   
@@ -336,7 +455,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       return;
     }
     
-    const selectedProduct = products.find(p => p.id === selectedProductId);
+    if (!products || !Array.isArray(products)) {
+      toast({
+        title: "Error",
+        description: "Products data is not available. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const selectedProduct = products.find(p => p && p.id === selectedProductId);
     
     if (!selectedProduct) {
       toast({
@@ -356,10 +484,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       return;
     }
     
-    if (newItemQuantity > selectedProduct.stock) {
+    const currentStock = selectedProduct.stock || 0;
+    if (newItemQuantity > currentStock) {
       toast({
         title: "Insufficient Stock",
-        description: `Only ${selectedProduct.stock} items available in stock`,
+        description: `Only ${currentStock} items available in stock`,
         variant: "destructive"
       });
       return;
@@ -367,24 +496,27 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     
     const itemToAdd: CartItem = {
       id: selectedProduct.id,
-      name: selectedProduct.name,
-      price: selectedProduct.price,
+      name: selectedProduct.name || 'Unknown Product',
+      price: selectedProduct.price || 0,
       quantity: newItemQuantity,
-      total: selectedProduct.price * newItemQuantity,
+      total: (selectedProduct.price || 0) * newItemQuantity,
       type: 'product',
-      category: selectedProduct.category
+      category: selectedProduct.category || 'other'
     };
     
     setEditedItems([...editedItems, itemToAdd]);
     
+    if (updateProduct) {
     updateProduct({
       ...selectedProduct,
-      stock: selectedProduct.stock - newItemQuantity
+        stock: currentStock - newItemQuantity
     });
+    }
     
     setSelectedProductId('');
     setSelectedProductName('');
     setNewItemQuantity(1);
+    setAvailableStock(0);
     setProductSearchQuery('');
     setIsCommandOpen(false);
     setIsAddItemDialogOpen(false);
@@ -704,7 +836,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 </div>
                 <div className="md:col-span-2">
                   <h3 className="text-xs font-semibold text-gray-400 mb-2">Customer</h3>
-                  <div className="relative">
+                  <div className="relative z-50">
                     <Button
                       variant="outline"
                       role="combobox"
@@ -712,41 +844,59 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       className="w-full justify-between bg-gray-700 border-gray-600 text-white hover:bg-gray-600 h-9"
                       onClick={() => setIsCustomerCommandOpen(!isCustomerCommandOpen)}
                     >
-                      {editingCustomer?.name || "Select customer..."}
+                      <span className="truncate">{editingCustomer?.name || "Select customer..."}</span>
                       <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                     
                     {isCustomerCommandOpen && (
-                      <div className="absolute top-full mt-2 w-full z-[10000]">
-                        <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white shadow-xl">
+                      <div className="absolute top-full left-0 right-0 mt-2 z-[10001]">
+                        <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white shadow-2xl">
                           <CommandInput 
-                            placeholder="Search customers by name, phone, email..." 
+                            placeholder="Search by name, phone, email, or ID..." 
                             value={customerSearchQuery}
                             onValueChange={setCustomerSearchQuery}
                             className="border-gray-600"
                           />
-                          <CommandList className="max-h-60">
-                            <CommandEmpty>No customers found</CommandEmpty>
-                            <CommandGroup>
-                              {filteredCustomers.map((customer) => (
-                                <CommandItem
-                                  key={customer.id}
-                                  value={customer.id}
-                                  onSelect={() => handleCustomerSelect(customer.id)}
-                                  className="flex justify-between cursor-pointer hover:bg-gray-700 py-3"
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{customer.name}</span>
-                                    <span className="text-xs text-gray-400">
-                                      {customer.phone} {customer.email && `• ${customer.email}`}
-                                    </span>
-                                  </div>
-                                  {customer.id === editingCustomer?.id && (
-                                    <span className="text-xs text-purple-400">✓</span>
+                          <CommandList className="max-h-60 overflow-y-auto">
+                            {isSearchingCustomers ? (
+                              <div className="py-4 text-center text-gray-400">
+                                <div className="inline-block h-4 w-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                Searching...
+                              </div>
+                            ) : (
+                              <>
+                                <CommandEmpty>No customers found</CommandEmpty>
+                                <CommandGroup>
+                                  {filteredCustomers.length > 0 ? (
+                                    filteredCustomers.map((customer) => {
+                                      if (!customer || !customer.id) return null;
+                                      return (
+                                        <CommandItem
+                                          key={customer.id}
+                                          value={`${customer.name || ''} ${customer.phone || ''} ${customer.email || ''} ${customer.customerId || ''}`}
+                                          onSelect={() => handleCustomerSelect(customer.id)}
+                                          className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
+                                        >
+                                        <div className="flex flex-col flex-1 min-w-0">
+                                          <span className="font-medium truncate">{customer.name}</span>
+                                          <span className="text-xs text-gray-400 truncate">
+                                            {customer.phone} {customer.email && `• ${customer.email}`}
+                                          </span>
+                                        </div>
+                                        {customer.id === editingCustomer?.id && (
+                                          <span className="text-xs text-purple-400 ml-2 flex-shrink-0">✓</span>
+                                        )}
+                                      </CommandItem>
+                                    );
+                                    }).filter(Boolean)
+                                  ) : (
+                                    <div className="py-4 text-center text-gray-400 text-sm">
+                                      {customerSearchQuery.trim() ? 'No customers found' : 'Start typing to search...'}
+                                    </div>
                                   )}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
+                                </CommandGroup>
+                              </>
+                            )}
                           </CommandList>
                         </Command>
                       </div>
@@ -767,15 +917,15 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-gray-300">Items</h3>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                <Button 
+                  variant="outline" 
+                  size="sm" 
                     className="flex items-center gap-1 bg-purple-600/20 border-purple-500/50 text-purple-300 hover:bg-purple-600/30"
-                    onClick={handleOpenAddItemDialog}
-                  >
-                    <Plus className="h-4 w-4" /> Add Item
-                  </Button>
-                </div>
+                  onClick={handleOpenAddItemDialog}
+                >
+                  <Plus className="h-4 w-4" /> Add Item
+                </Button>
+              </div>
               
                 {editedItems.length === 0 ? (
                   <div className="border border-gray-700 rounded-md p-8 text-center bg-gray-800/30">
@@ -790,79 +940,79 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     </Button>
                   </div>
                 ) : (
-                  <div className="border border-gray-700 rounded-md overflow-hidden">
+              <div className="border border-gray-700 rounded-md overflow-hidden">
                     <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader className="bg-gray-900">
-                          <TableRow>
+                <Table>
+                  <TableHeader className="bg-gray-900">
+                    <TableRow>
                             <TableHead className="text-gray-400 min-w-[200px]">Name</TableHead>
                             <TableHead className="text-gray-400 w-[100px]">Type</TableHead>
                             <TableHead className="text-gray-400 w-[120px]">Price</TableHead>
                             <TableHead className="text-gray-400 w-[100px]">Quantity</TableHead>
                             <TableHead className="text-gray-400 w-[120px]">Total</TableHead>
                             <TableHead className="text-gray-400 w-[80px]">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {editedItems.map((item, index) => (
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {editedItems.map((item, index) => (
                             <TableRow key={index} className="border-gray-700 hover:bg-gray-800/50">
                               <TableCell className="p-2">
-                                <Input 
-                                  value={item.name} 
-                                  onChange={(e) => handleUpdateItem(index, 'name', e.target.value)}
+                          <Input 
+                            value={item.name} 
+                            onChange={(e) => handleUpdateItem(index, 'name', e.target.value)}
                                   className="bg-gray-700 border-gray-600 text-white text-sm h-9"
-                                />
-                              </TableCell>
+                          />
+                        </TableCell>
                               <TableCell className="p-2">
-                                <Select 
-                                  value={item.type} 
-                                  onValueChange={(value) => handleUpdateItem(index, 'type', value as 'product' | 'session')}
-                                >
+                          <Select 
+                            value={item.type} 
+                            onValueChange={(value) => handleUpdateItem(index, 'type', value as 'product' | 'session')}
+                          >
                                   <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-9 text-sm">
-                                    <SelectValue placeholder="Type" />
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-gray-900 border-gray-700 text-white">
-                                    <SelectItem value="product">Product</SelectItem>
-                                    <SelectItem value="session">Session</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
+                              <SelectValue placeholder="Type" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                              <SelectItem value="product">Product</SelectItem>
+                              <SelectItem value="session">Session</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
                               <TableCell className="p-2">
-                                <Input 
-                                  type="number" 
-                                  value={item.price} 
+                          <Input 
+                            type="number" 
+                            value={item.price} 
                                   onChange={(e) => handleUpdateItem(index, 'price', parseFloat(e.target.value) || 0)}
                                   className="bg-gray-700 border-gray-600 text-white text-sm h-9"
                                   min="0"
                                   step="0.01"
-                                />
-                              </TableCell>
+                          />
+                        </TableCell>
                               <TableCell className="p-2">
-                                <Input 
-                                  type="number" 
-                                  value={item.quantity} 
+                          <Input 
+                            type="number" 
+                            value={item.quantity} 
                                   onChange={(e) => handleUpdateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                                   className="bg-gray-700 border-gray-600 text-white text-sm h-9"
-                                  min="1"
-                                />
-                              </TableCell>
+                            min="1"
+                          />
+                        </TableCell>
                               <TableCell className="p-2 text-white font-medium">
-                                <CurrencyDisplay amount={item.total} />
-                              </TableCell>
+                          <CurrencyDisplay amount={item.total} />
+                        </TableCell>
                               <TableCell className="p-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
+                          <Button
+                            variant="ghost"
+                            size="icon"
                                   className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
-                                  onClick={() => handleRemoveItem(index)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                            onClick={() => handleRemoveItem(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
                     </div>
                   </div>
                 )}
@@ -1019,33 +1169,33 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               </div>
             </div>
           )}
-          
+              
           <DialogFooter className="flex-shrink-0 border-t border-gray-700 pt-4 mt-4">
-            <Button
-              variant="outline"
+                <Button
+                  variant="outline"
               onClick={() => {
                 setIsEditDialogOpen(false);
                 setIsCustomerCommandOpen(false);
               }}
-              className="bg-gray-700 hover:bg-gray-600 text-white"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveChanges}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+                  className="bg-gray-700 hover:bg-gray-600 text-white"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveChanges}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
               disabled={isSaving || !editingCustomer}
-            >
-              {isSaving ? (
-                <>Saving Changes...</>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+                >
+                  {isSaving ? (
+                    <>Saving Changes...</>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
         </DialogContent>
       </Dialog>
       
@@ -1061,74 +1211,85 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="product" className="text-white text-sm font-medium">Product</Label>
-              <div className="relative">
+              <div className="relative z-40">
                 <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white">
-                  <CommandInput 
+                      <CommandInput 
                     placeholder="Search products by name or category..." 
-                    value={productSearchQuery}
+                        value={productSearchQuery}
                     onValueChange={(value) => {
                       setProductSearchQuery(value);
                       setIsCommandOpen(true);
                     }}
                     onFocus={() => setIsCommandOpen(true)}
-                    className="border-gray-600"
-                  />
-                  {isCommandOpen && filteredProducts.length > 0 && (
-                    <CommandList className="max-h-60 border-t border-gray-700 mt-1">
-                      <CommandEmpty className="py-4 text-gray-400">No products found</CommandEmpty>
-                      <CommandGroup>
-                        {filteredProducts.map((product) => (
-                          <CommandItem
-                            key={product.id}
-                            value={`${product.name} ${product.category}`}
-                            onSelect={() => handleProductSelect(product.id)}
-                            className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
-                          >
-                            <div className="flex flex-col flex-1">
-                              <span className="font-medium">{product.name}</span>
-                              <span className="text-xs text-gray-400 capitalize">{product.category}</span>
-                            </div>
-                            <div className="text-right ml-4">
-                              <span className="font-semibold text-purple-300"><CurrencyDisplay amount={product.price} /></span>
-                              <span className="text-xs text-gray-400 block">Stock: {product.stock}</span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
+                        className="border-gray-600"
+                      />
+                  {isCommandOpen && (
+                    <CommandList className="max-h-60 border-t border-gray-700 mt-1 overflow-y-auto">
+                      {filteredProducts.length > 0 ? (
+                        <>
+                          <CommandEmpty className="py-4 text-gray-400">No products found</CommandEmpty>
+                        <CommandGroup>
+                            {filteredProducts.map((product) => {
+                              if (!product || !product.id) return null;
+                              return (
+                            <CommandItem
+                              key={product.id}
+                                  value={`${product.name || ''} ${product.category || ''}`}
+                              onSelect={() => handleProductSelect(product.id)}
+                                  className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
+                                >
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="font-medium truncate">{product.name || 'Unknown Product'}</span>
+                                    <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
+                              </div>
+                                  <div className="text-right ml-4 flex-shrink-0">
+                                    <span className="font-semibold text-purple-300"><CurrencyDisplay amount={product.price || 0} /></span>
+                                    <span className="text-xs text-gray-400 block">Stock: {product.stock || 0}</span>
+                              </div>
+                            </CommandItem>
+                              );
+                            }).filter(Boolean)}
+                        </CommandGroup>
+                        </>
+                      ) : (
+                        <div className="py-4 text-center text-gray-400 text-sm">
+                          {productSearchQuery.trim() ? 'No products found' : 'Start typing to search...'}
+                        </div>
+                      )}
+                      </CommandList>
                   )}
-                </Command>
+                    </Command>
               </div>
               {selectedProductName && (
                 <div className="mt-2 p-2 bg-purple-600/20 border border-purple-500/30 rounded text-sm">
                   <span className="text-purple-300">Selected: {selectedProductName}</span>
-                </div>
-              )}
+                  </div>
+                )}
             </div>
             
             {selectedProductId && (
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label htmlFor="quantity" className="text-white text-sm font-medium">Quantity</Label>
                 <div className="flex items-center space-x-3">
-                  <Input
-                    id="quantity"
-                    type="number"
-                    value={newItemQuantity}
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={newItemQuantity}
                     onChange={(e) => {
                       const val = parseInt(e.target.value) || 0;
                       setNewItemQuantity(Math.max(1, Math.min(val, availableStock)));
                     }}
-                    className="bg-gray-700 border-gray-600 text-white"
-                    min="1"
-                    max={availableStock}
-                  />
+                  className="bg-gray-700 border-gray-600 text-white"
+                  min="1"
+                  max={availableStock}
+                />
                   <div className="flex flex-col">
                     <p className="text-xs text-gray-400">Available: <span className="text-white font-medium">{availableStock}</span></p>
                     {newItemQuantity > availableStock && (
                       <p className="text-xs text-red-400">Exceeds available stock</p>
-                    )}
-                  </div>
-                </div>
+                )}
+              </div>
+            </div>
                 {availableStock > 0 && (
                   <div className="flex gap-2">
                     <Button
