@@ -74,23 +74,23 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         let finished = false;
 
         while (!finished) {
-          const { data, error } = await supabase
-            .from('customers')
+        const { data, error } = await supabase
+          .from('customers')
             .select('*')
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
-            
-          if (error) {
-            console.error('Error fetching customers:', error);
-            toast({
-              title: 'Database Error',
-              description: 'Failed to fetch customers from database',
-              variant: 'destructive'
-            });
-            return;
-          }
           
-          if (data && data.length > 0) {
+        if (error) {
+          console.error('Error fetching customers:', error);
+          toast({
+            title: 'Database Error',
+            description: 'Failed to fetch customers from database',
+            variant: 'destructive'
+          });
+          return;
+        }
+        
+        if (data && data.length > 0) {
             allCustomersData = [...allCustomersData, ...data];
             // If we got less than pageSize, we've reached the end
             if (data.length < pageSize) {
@@ -106,7 +106,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         if (allCustomersData.length > 0) {
           const transformedCustomers = allCustomersData.map(item => ({
             id: item.id,
-            customerId: item.customer_id || generateCustomerID(item.phone), // ✅ Map customer_id
+            customerId: (item as any).customer_id || generateCustomerID(item.phone), // ✅ Map customer_id
             name: item.name,
             phone: item.phone,
             email: item.email || undefined,
@@ -122,8 +122,72 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             createdAt: new Date(item.created_at)
           }));
           
+          // ✅ AUTOMATIC DUPLICATE CLEANUP: Clean up duplicates after fetching
+          const { cleaned, merged } = await cleanupDuplicates(transformedCustomers);
+          
+          if (cleaned > 0) {
+            // Re-fetch customers after cleanup
+            page = 0;
+            allCustomersData = [];
+            finished = false;
+            
+            while (!finished) {
+              const { data, error } = await supabase
+                .from('customers')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .range(page * pageSize, (page + 1) * pageSize - 1);
+                
+              if (error) {
+                console.error('Error re-fetching customers after cleanup:', error);
+                break;
+              }
+              
+              if (data && data.length > 0) {
+                allCustomersData = [...allCustomersData, ...data];
+                if (data.length < pageSize) {
+                  finished = true;
+                } else {
+                  page++;
+                }
+              } else {
+                finished = true;
+              }
+            }
+            
+            // Transform again after cleanup
+            const cleanedCustomers = allCustomersData.map(item => ({
+              id: item.id,
+              customerId: (item as any).customer_id || generateCustomerID(item.phone),
+              name: item.name,
+              phone: item.phone,
+              email: item.email || undefined,
+              isMember: item.is_member,
+              membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
+              membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
+              membershipPlan: item.membership_plan || undefined,
+              membershipHoursLeft: item.membership_hours_left || undefined,
+              membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
+              loyaltyPoints: item.loyalty_points,
+              totalSpent: item.total_spent,
+              totalPlayTime: item.total_play_time,
+              createdAt: new Date(item.created_at)
+            }));
+            
+            setCustomers(cleanedCustomers);
+            console.log(`✅ Loaded ${cleanedCustomers.length} customers after cleaning ${cleaned} duplicates`);
+            
+            if (cleaned > 0) {
+              toast({
+                title: 'Duplicates Cleaned',
+                description: `Automatically merged ${cleaned} duplicate customer(s) into ${merged} account(s). Oldest accounts were retained.`,
+                duration: 5000
+              });
+            }
+          } else {
           setCustomers(transformedCustomers);
-          console.log(`Loaded ${transformedCustomers.length} customers from database`);
+            console.log(`Loaded ${transformedCustomers.length} customers from database`);
+          }
         } else {
           setCustomers([]);
         }
@@ -209,19 +273,261 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     return { isDuplicate: false };
   };
   
-  // ✅ UPDATED: Add customer with ID generation and phone normalization
+  // ✅ AUTOMATIC DUPLICATE CLEANUP: Merge duplicates (keep oldest, delete newer)
+  const cleanupDuplicates = async (customersList: Customer[]): Promise<{ cleaned: number; merged: number }> => {
+    try {
+      const phoneMap = new Map<string, Customer[]>();
+      const emailMap = new Map<string, Customer[]>();
+      
+      // Group by normalized phone
+      customersList.forEach(customer => {
+        const normalizedPhone = normalizePhoneNumber(customer.phone);
+        if (!phoneMap.has(normalizedPhone)) {
+          phoneMap.set(normalizedPhone, []);
+        }
+        phoneMap.get(normalizedPhone)!.push(customer);
+      });
+      
+      // Group by normalized email (if exists)
+      customersList.forEach(customer => {
+        if (customer.email) {
+          const normalizedEmail = customer.email.toLowerCase().trim();
+          if (!emailMap.has(normalizedEmail)) {
+            emailMap.set(normalizedEmail, []);
+          }
+          emailMap.get(normalizedEmail)!.push(customer);
+        }
+      });
+      
+      let cleaned = 0;
+      let merged = 0;
+      
+      // Process phone duplicates
+      for (const [phone, duplicates] of phoneMap.entries()) {
+        if (duplicates.length > 1) {
+          // Sort by created_at (oldest first)
+          duplicates.sort((a, b) => 
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          
+          const keepCustomer = duplicates[0]; // Oldest
+          const deleteCustomers = duplicates.slice(1); // Newer ones
+          
+          // Merge data: sum loyalty points, total spent, play time
+          let mergedLoyaltyPoints = keepCustomer.loyaltyPoints;
+          let mergedTotalSpent = keepCustomer.totalSpent;
+          let mergedPlayTime = keepCustomer.totalPlayTime;
+          let mergedIsMember = keepCustomer.isMember;
+          let mergedMembershipPlan = keepCustomer.membershipPlan;
+          let mergedMembershipHoursLeft = keepCustomer.membershipHoursLeft;
+          let mergedMembershipExpiryDate = keepCustomer.membershipExpiryDate;
+          let mergedMembershipStartDate = keepCustomer.membershipStartDate;
+          let mergedEmail = keepCustomer.email || deleteCustomers.find(d => d.email)?.email;
+          
+          // Merge data from duplicates
+          for (const dup of deleteCustomers) {
+            mergedLoyaltyPoints += dup.loyaltyPoints;
+            mergedTotalSpent += dup.totalSpent;
+            mergedPlayTime += dup.totalPlayTime;
+            
+            // Keep membership if any has it
+            if (dup.isMember && !mergedIsMember) {
+              mergedIsMember = true;
+              mergedMembershipPlan = dup.membershipPlan || mergedMembershipPlan;
+              mergedMembershipHoursLeft = dup.membershipHoursLeft || mergedMembershipHoursLeft;
+              mergedMembershipExpiryDate = dup.membershipExpiryDate || mergedMembershipExpiryDate;
+              mergedMembershipStartDate = dup.membershipStartDate || mergedMembershipStartDate;
+            }
+            
+            // Update related records to point to kept customer
+            // Update bookings
+            await supabase
+              .from('bookings')
+              .update({ customer_id: keepCustomer.id })
+              .eq('customer_id', dup.id);
+            
+            // Update bills
+            await supabase
+              .from('bills')
+              .update({ customer_id: keepCustomer.id })
+              .eq('customer_id', dup.id);
+            
+            // Update sessions
+            await supabase
+              .from('sessions')
+              .update({ customer_id: keepCustomer.id })
+              .eq('customer_id', dup.id);
+            
+            // Delete duplicate customer
+            await supabase
+              .from('customers')
+              .delete()
+              .eq('id', dup.id);
+            
+            cleaned++;
+          }
+          
+          // Update kept customer with merged data
+          await supabase
+            .from('customers')
+            .update({
+              loyalty_points: mergedLoyaltyPoints,
+              total_spent: mergedTotalSpent,
+              total_play_time: mergedPlayTime,
+              is_member: mergedIsMember,
+              membership_plan: mergedMembershipPlan,
+              membership_hours_left: mergedMembershipHoursLeft,
+              membership_expiry_date: mergedMembershipExpiryDate?.toISOString(),
+              membership_start_date: mergedMembershipStartDate?.toISOString(),
+              email: mergedEmail || null
+            })
+            .eq('id', keepCustomer.id);
+          
+          merged++;
+        }
+      }
+      
+      // Process email duplicates (only if not already handled by phone)
+      for (const [email, duplicates] of emailMap.entries()) {
+        if (duplicates.length > 1) {
+          // Check if already processed by phone
+          const normalizedPhones = duplicates.map(d => normalizePhoneNumber(d.phone));
+          const uniquePhones = new Set(normalizedPhones);
+          
+          if (uniquePhones.size === duplicates.length) {
+            // Different phones, same email - process separately
+            duplicates.sort((a, b) => 
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+            
+            const keepCustomer = duplicates[0];
+            const deleteCustomers = duplicates.slice(1);
+            
+            for (const dup of deleteCustomers) {
+              // Update related records
+              await supabase
+                .from('bookings')
+                .update({ customer_id: keepCustomer.id })
+                .eq('customer_id', dup.id);
+              
+              await supabase
+                .from('bills')
+                .update({ customer_id: keepCustomer.id })
+                .eq('customer_id', dup.id);
+              
+              await supabase
+                .from('sessions')
+                .update({ customer_id: keepCustomer.id })
+                .eq('customer_id', dup.id);
+              
+              await supabase
+                .from('customers')
+                .delete()
+                .eq('id', dup.id);
+              
+              cleaned++;
+            }
+            
+            merged++;
+          }
+        }
+      }
+      
+      if (cleaned > 0) {
+        console.log(`✅ Cleaned up ${cleaned} duplicate customers, merged into ${merged} groups`);
+      }
+      
+      return { cleaned, merged };
+    } catch (error) {
+      console.error('Error cleaning up duplicates:', error);
+      return { cleaned: 0, merged: 0 };
+    }
+  };
+  
+  // ✅ UPDATED: Add customer with ID generation, phone normalization, and database duplicate check
   const addCustomer = async (customer: Omit<Customer, 'id' | 'createdAt'>) => {
     try {
       // Normalize phone
       const normalizedPhone = normalizePhoneNumber(customer.phone);
       
-      // Check for duplicates
+      // ✅ ENHANCED: Check database for duplicates before inserting
+      const { data: existingByPhone } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone', normalizedPhone)
+        .maybeSingle();
+      
+      if (existingByPhone) {
+        const existingCustomer: Customer = {
+          id: existingByPhone.id,
+          customerId: (existingByPhone as any).customer_id || generateCustomerID(existingByPhone.phone),
+          name: existingByPhone.name,
+          phone: existingByPhone.phone,
+          email: existingByPhone.email || undefined,
+          isMember: existingByPhone.is_member,
+          membershipExpiryDate: existingByPhone.membership_expiry_date ? new Date(existingByPhone.membership_expiry_date) : undefined,
+          membershipStartDate: existingByPhone.membership_start_date ? new Date(existingByPhone.membership_start_date) : undefined,
+          membershipPlan: existingByPhone.membership_plan || undefined,
+          membershipHoursLeft: existingByPhone.membership_hours_left || undefined,
+          membershipDuration: existingByPhone.membership_duration as 'weekly' | 'monthly' | undefined,
+          loyaltyPoints: existingByPhone.loyalty_points,
+          totalSpent: existingByPhone.total_spent,
+          totalPlayTime: existingByPhone.total_play_time,
+          createdAt: new Date(existingByPhone.created_at)
+        };
+        
+        toast({
+          title: 'Duplicate Customer',
+          description: `Customer "${existingCustomer.name}" (${existingCustomer.customerId}) already exists with this phone number`,
+          variant: 'destructive'
+        });
+        return existingCustomer;
+      }
+      
+      // Check for duplicate email if provided
+      if (customer.email && customer.email.trim() !== '') {
+        const normalizedEmail = customer.email.toLowerCase().trim();
+        const { data: existingByEmail } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('email', normalizedEmail)
+          .maybeSingle();
+        
+        if (existingByEmail) {
+          const existingCustomer: Customer = {
+            id: existingByEmail.id,
+            customerId: (existingByEmail as any).customer_id || generateCustomerID(existingByEmail.phone),
+            name: existingByEmail.name,
+            phone: existingByEmail.phone,
+            email: existingByEmail.email || undefined,
+            isMember: existingByEmail.is_member,
+            membershipExpiryDate: existingByEmail.membership_expiry_date ? new Date(existingByEmail.membership_expiry_date) : undefined,
+            membershipStartDate: existingByEmail.membership_start_date ? new Date(existingByEmail.membership_start_date) : undefined,
+            membershipPlan: existingByEmail.membership_plan || undefined,
+            membershipHoursLeft: existingByEmail.membership_hours_left || undefined,
+            membershipDuration: existingByEmail.membership_duration as 'weekly' | 'monthly' | undefined,
+            loyaltyPoints: existingByEmail.loyalty_points,
+            totalSpent: existingByEmail.total_spent,
+            totalPlayTime: existingByEmail.total_play_time,
+            createdAt: new Date(existingByEmail.created_at)
+          };
+          
+          toast({
+            title: 'Duplicate Customer',
+            description: `Customer "${existingCustomer.name}" (${existingCustomer.customerId}) already exists with this email`,
+            variant: 'destructive'
+          });
+          return existingCustomer;
+        }
+      }
+      
+      // Check local state for duplicates (fallback)
       const { isDuplicate, existingCustomer } = isDuplicateCustomer(customer.phone, customer.email);
       
       if (isDuplicate && existingCustomer) {
         toast({
           title: 'Duplicate Customer',
-          description: `Customer "${existingCustomer.name}" (${existingCustomer.customerId}) already exists with this ${existingCustomer.phone === normalizedPhone ? 'phone number' : 'email'}`,
+          description: `Customer "${existingCustomer.name}" (${existingCustomer.customerId}) already exists`,
           variant: 'destructive'
         });
         return existingCustomer;
@@ -253,6 +559,43 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         .single();
         
       if (error) {
+        // Handle duplicate key error
+        if (error.code === '23505') {
+          // Try to find existing customer
+          const { data: existing } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('phone', normalizedPhone)
+            .maybeSingle();
+          
+          if (existing) {
+            const existingCustomer: Customer = {
+              id: existing.id,
+              customerId: (existing as any).customer_id || generateCustomerID(existing.phone),
+              name: existing.name,
+              phone: existing.phone,
+              email: existing.email || undefined,
+              isMember: existing.is_member,
+              membershipExpiryDate: existing.membership_expiry_date ? new Date(existing.membership_expiry_date) : undefined,
+              membershipStartDate: existing.membership_start_date ? new Date(existing.membership_start_date) : undefined,
+              membershipPlan: existing.membership_plan || undefined,
+              membershipHoursLeft: existing.membership_hours_left || undefined,
+              membershipDuration: existing.membership_duration as 'weekly' | 'monthly' | undefined,
+              loyaltyPoints: existing.loyalty_points,
+              totalSpent: existing.total_spent,
+              totalPlayTime: existing.total_play_time,
+              createdAt: new Date(existing.created_at)
+            };
+            
+            toast({
+              title: 'Duplicate Customer',
+              description: `Customer "${existingCustomer.name}" already exists with this phone number`,
+              variant: 'destructive'
+            });
+            return existingCustomer;
+          }
+        }
+        
         console.error('Error adding customer:', error);
         toast({
           title: 'Database Error',
@@ -265,7 +608,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       if (data) {
         const newCustomer: Customer = {
           id: data.id,
-          customerId: data.customer_id, // ✅ Map customer_id
+          customerId: (data as any).customer_id, // ✅ Map customer_id
           name: data.name,
           phone: data.phone,
           email: data.email || undefined,
@@ -472,6 +815,29 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         toast({
           title: 'Cannot Delete Customer',
           description: 'This customer has active sessions. Please end all sessions before deleting.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // ✅ ENHANCED: Handle related data before deleting
+      // Note: We don't delete bookings/bills/sessions as they are historical records
+      // Instead, we set customer_id to null or keep them for historical purposes
+      // But since bookings require customer_id (NOT NULL), we need to handle this
+      
+      // Check for bookings that would violate NOT NULL constraint
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('customer_id', id)
+        .limit(1);
+      
+      if (bookingsError) {
+        console.error('Error checking bookings:', bookingsError);
+      } else if (bookings && bookings.length > 0) {
+        toast({
+          title: 'Cannot Delete Customer',
+          description: 'This customer has bookings. Please delete or reassign bookings first.',
           variant: 'destructive'
         });
         return;

@@ -19,6 +19,7 @@ export interface Product {
 
 export interface Customer {
   id: string;
+  customerId?: string; // Custom customer ID (e.g., CUE1234ABCD)
   name: string;
   phone: string;
   email?: string;

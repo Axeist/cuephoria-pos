@@ -211,6 +211,44 @@ const Customers = () => {
       return;
     }
     
+    // ✅ ENHANCED: Check database for duplicates before inserting
+    if (!isEditMode) {
+      const { data: existingByPhone } = await supabase
+        .from('customers')
+        .select('id, name, customer_id')
+        .eq('phone', normalizedPhone)
+        .maybeSingle();
+      
+      if (existingByPhone) {
+        setPhoneError(`Customer "${existingByPhone.name}" already exists with this phone number`);
+        toast({
+          title: 'Duplicate Customer',
+          description: `Customer "${existingByPhone.name}" already exists with this phone number`,
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      if (email && email.trim() !== '') {
+        const normalizedEmail = email.toLowerCase().trim();
+        const { data: existingByEmail } = await supabase
+          .from('customers')
+          .select('id, name, customer_id')
+          .eq('email', normalizedEmail)
+          .maybeSingle();
+        
+        if (existingByEmail) {
+          setEmailError(`Customer "${existingByEmail.name}" already exists with this email`);
+          toast({
+            title: 'Duplicate Customer',
+            description: `Customer "${existingByEmail.name}" already exists with this email`,
+            variant: 'destructive'
+          });
+          return;
+        }
+      }
+    }
+    
     if (checkForDuplicates()) {
       toast({
         title: 'Duplicate Entry Detected',
