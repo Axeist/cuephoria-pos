@@ -45,6 +45,8 @@ const Customers = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Customer[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
 
@@ -105,6 +107,101 @@ const Customers = () => {
       findDuplicates();
     }
   }, [customersData]);
+
+  // Real-time search with debouncing
+  useEffect(() => {
+    const searchCustomers = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      const query = searchQuery.trim().toLowerCase();
+      const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
+
+      try {
+        // Build multiple queries for different fields and combine results
+        const searchPattern = `%${query}%`;
+        const phonePattern = normalizedSearchPhone ? `%${normalizedSearchPhone}%` : '';
+        
+        // Execute parallel queries for each search field
+        const queries = [
+          supabase.from('customers').select('*').ilike('name', searchPattern).limit(100),
+          normalizedSearchPhone ? supabase.from('customers').select('*').ilike('phone', phonePattern).limit(100) : null,
+          supabase.from('customers').select('*').ilike('email', searchPattern).limit(100),
+          supabase.from('customers').select('*').ilike('custom_id', searchPattern).limit(100)
+        ].filter(Boolean) as Promise<any>[];
+
+        const results = await Promise.all(queries);
+        
+        // Combine and deduplicate results by id
+        const allResults: any[] = [];
+        const seenIds = new Set<string>();
+        
+        results.forEach(({ data, error }) => {
+          if (error) {
+            console.error('Search query error:', error);
+            return;
+          }
+          if (data) {
+            data.forEach((customer: any) => {
+              if (!seenIds.has(customer.id)) {
+                seenIds.add(customer.id);
+                allResults.push(customer);
+              }
+            });
+          }
+        });
+
+        // Transform database results to Customer format
+        if (allResults.length > 0) {
+          const transformedResults: Customer[] = allResults.map((customer: any) => ({
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phone,
+            email: customer.email || '',
+            customerId: customer.custom_id || generateCustomerID(customer.phone),
+            isMember: customer.is_member || false,
+            loyaltyPoints: customer.loyalty_points || 0,
+            totalSpent: customer.total_spent || 0,
+            totalPlayTime: customer.total_play_time || 0,
+            createdAt: new Date(customer.created_at || customer.createdAt),
+            membershipPlan: customer.membership_plan || undefined,
+            membershipStartDate: customer.membership_start_date ? new Date(customer.membership_start_date) : undefined,
+            membershipExpiryDate: customer.membership_expiry_date ? new Date(customer.membership_expiry_date) : undefined,
+            membershipHoursLeft: customer.membership_hours_left || undefined
+          }));
+          setSearchResults(transformedResults);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (err) {
+        console.error('Error searching customers:', err);
+        // Fallback to local search
+        const localResults = customersData.filter(customer => {
+          const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
+          return (
+            customer.name.toLowerCase().includes(query) ||
+            normalizedCustomerPhone.includes(normalizedSearchPhone) ||
+            customer.email?.toLowerCase().includes(query) ||
+            customer.customerId?.toLowerCase().includes(query)
+          );
+        });
+        setSearchResults(localResults);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    // Debounce the search
+    const timeoutId = setTimeout(() => {
+      searchCustomers();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, customersData]);
 
   const resetForm = () => {
     setFormState({
@@ -531,25 +628,11 @@ const Customers = () => {
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
 
+  // Use search results if there's a search query, otherwise use all customers
+  const customersToFilter = searchQuery.trim() ? searchResults : customersData;
+
   const filteredAndSortedCustomers = sortCustomers(
-    customersData
-      .filter(customer => {
-        if (searchQuery.trim() !== '') {
-          const query = searchQuery.toLowerCase();
-          const normalizedSearchPhone = normalizePhoneNumber(searchQuery);
-          const normalizedCustomerPhone = normalizePhoneNumber(customer.phone);
-          
-          const matchesSearch = 
-            customer.name.toLowerCase().includes(query) || 
-            normalizedCustomerPhone.includes(normalizedSearchPhone) ||
-            customer.email?.toLowerCase().includes(query) ||
-            customer.customerId?.toLowerCase().includes(query);
-          
-          if (!matchesSearch) return false;
-        }
-        
-        return applyFilters(customer);
-      })
+    customersToFilter.filter(customer => applyFilters(customer))
   );
 
   if (error) {
@@ -802,13 +885,18 @@ const Customers = () => {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className={`absolute left-2.5 top-2.5 h-4 w-4 ${isSearching ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
             <Input 
-              placeholder="Search by phone..." 
+              placeholder="Search by name, phone, email, or ID..." 
               className="pl-8 text-sm" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
             />
+            {isSearching && (
+              <div className="absolute right-2.5 top-2.5">
+                <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
           </div>
           
           <Button
