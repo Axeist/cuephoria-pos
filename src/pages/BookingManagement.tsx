@@ -3513,7 +3513,7 @@ export default function BookingManagement() {
                                       <span className="font-medium">
                                         {groupByCustomer ? groupKey : `${groupKey} - ${(parseInt(groupKey.split(':')[0]) + 1).toString().padStart(2, '0')}:00`}
                                       </span>
-                                      <div className="ml-auto flex items-center gap-2">
+                                      <div className="ml-auto flex items-center gap-2 flex-wrap">
                                         <Badge variant="secondary" className="text-xs">
                                           {bookingsForGroup.length} booking{bookingsForGroup.length !== 1 ? 's' : ''}
                                         </Badge>
@@ -3528,6 +3528,28 @@ export default function BookingManagement() {
                                             {new Set(bookingsForGroup.map(b => b.customer.name)).size} customer{new Set(bookingsForGroup.map(b => b.customer.name)).size !== 1 ? 's' : ''}
                                           </Badge>
                                         )}
+                                        {(() => {
+                                          const paidBookings = bookingsForGroup.filter(b => b.payment_mode && b.payment_mode !== 'venue');
+                                          const unpaidBookings = bookingsForGroup.filter(b => !b.payment_mode || b.payment_mode === 'venue');
+                                          
+                                          const totalPaid = paidBookings.reduce((sum, b) => sum + (b.final_price || 0), 0);
+                                          const totalUnpaid = unpaidBookings.reduce((sum, b) => sum + (b.final_price || 0), 0);
+                                          
+                                          return (
+                                            <>
+                                              {totalPaid > 0 && (
+                                                <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20 flex items-center gap-1">
+                                                  <span className="font-semibold">Paid: ₹{totalPaid.toFixed(2)}</span>
+                                                </Badge>
+                                              )}
+                                              {totalUnpaid > 0 && (
+                                                <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20 flex items-center gap-1">
+                                                  <span className="font-semibold">Remaining: ₹{totalUnpaid.toFixed(2)}</span>
+                                                </Badge>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
                                       </div>
                                     </CollapsibleTrigger>
                                     
@@ -3641,6 +3663,17 @@ export default function BookingManagement() {
                                                             {booking.coupon_code}
                                                           </Badge>
                                                         )}
+                                                        <div className="mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+                                                          {booking.payment_mode && booking.payment_mode !== 'venue' ? (
+                                                            <div className="text-xs text-green-600 font-medium">
+                                                              ✓ Paid: ₹{booking.final_price || 0}
+                                                            </div>
+                                                          ) : (
+                                                            <div className="text-xs text-yellow-600 font-medium">
+                                                              ⏳ Remaining: ₹{booking.final_price || 0}
+                                                            </div>
+                                                          )}
+                                                        </div>
                                                       </div>
                                                     </div>
                                                     
