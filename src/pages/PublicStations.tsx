@@ -21,28 +21,71 @@ const PublicStations = () => {
       try {
         console.log('Fetching station data...');
         
-        // Fetch stations
-        const { data: stationsData, error: stationsError } = await supabase
-          .from('stations')
-          .select('*');
+        // Fetch all stations using pagination to bypass 1000 record limit
+        let page = 0;
+        const pageSize = 1000;
+        let allStationsData: any[] = [];
+        let finished = false;
+
+        while (!finished) {
+          const { data, error: stationsError } = await supabase
+            .from('stations')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+            
+          if (stationsError) {
+            console.error('Error fetching stations:', stationsError);
+            setLoadingError('Failed to load station data');
+            throw stationsError;
+          }
           
-        if (stationsError) {
-          console.error('Error fetching stations:', stationsError);
-          setLoadingError('Failed to load station data');
-          throw stationsError;
+          if (data && data.length > 0) {
+            allStationsData = [...allStationsData, ...data];
+            if (data.length < pageSize) {
+              finished = true;
+            } else {
+              page++;
+            }
+          } else {
+            finished = true;
+          }
         }
         
-        // Fetch active sessions
-        const { data: sessionsData, error: sessionsError } = await supabase
-          .from('sessions')
-          .select('*')
-          .is('end_time', null);
+        const stationsData = allStationsData;
+        
+        // Fetch active sessions using pagination
+        page = 0;
+        let allSessionsData: any[] = [];
+        finished = false;
+
+        while (!finished) {
+          const { data, error: sessionsError } = await supabase
+            .from('sessions')
+            .select('*')
+            .is('end_time', null)
+            .order('created_at', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+            
+          if (sessionsError) {
+            console.error('Error fetching sessions:', sessionsError);
+            setLoadingError('Failed to load session data');
+            throw sessionsError;
+          }
           
-        if (sessionsError) {
-          console.error('Error fetching sessions:', sessionsError);
-          setLoadingError('Failed to load session data');
-          throw sessionsError;
+          if (data && data.length > 0) {
+            allSessionsData = [...allSessionsData, ...data];
+            if (data.length < pageSize) {
+              finished = true;
+            } else {
+              page++;
+            }
+          } else {
+            finished = true;
+          }
         }
+        
+        const sessionsData = allSessionsData;
         
         console.log('Fetched data:', { stations: stationsData?.length, sessions: sessionsData?.length });
         

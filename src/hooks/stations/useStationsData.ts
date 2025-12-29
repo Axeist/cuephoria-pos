@@ -18,25 +18,47 @@ export const useStationsData = () => {
     setStationsError(null);
     
     try {
-      // Fetch stations from Supabase
-      const { data, error } = await supabase
-        .from('stations')
-        .select('*');
+      // Fetch all stations using pagination to bypass 1000 record limit
+      let page = 0;
+      const pageSize = 1000;
+      let allStationsData: any[] = [];
+      let finished = false;
+
+      while (!finished) {
+        const { data, error } = await supabase
+          .from('stations')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+          
+        if (error) {
+          console.error('Error fetching stations:', error);
+          setStationsError(new Error(`Failed to fetch stations: ${error.message}`));
+          toast({
+            title: 'Database Error',
+            description: 'Failed to fetch stations from database',
+            variant: 'destructive'
+          });
+          setStations([]);
+          return;
+        }
         
-      if (error) {
-        console.error('Error fetching stations:', error);
-        setStationsError(new Error(`Failed to fetch stations: ${error.message}`));
-        toast({
-          title: 'Database Error',
-          description: 'Failed to fetch stations from database',
-          variant: 'destructive'
-        });
-        setStations([]);
-        return;
+        if (data && data.length > 0) {
+          allStationsData = [...allStationsData, ...data];
+          // If we got less than pageSize, we've reached the end
+          if (data.length < pageSize) {
+            finished = true;
+          } else {
+            page++;
+          }
+        } else {
+          finished = true;
+        }
       }
       
       // Transform data to match our Station type
-      if (data && data.length > 0) {
+      if (allStationsData.length > 0) {
+        const data = allStationsData;
         const transformedStations: Station[] = data.map(item => {
           // ✅ Parse currentSession from database
           let currentSession: Session | null = null;

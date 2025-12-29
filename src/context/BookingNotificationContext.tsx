@@ -393,16 +393,38 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
   useEffect(() => {
     const loadExistingBookings = async () => {
       try {
-        const { data: bookings, error } = await supabase
-          .from('bookings')
-          .select('id')
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(1000);
+        // Fetch all bookings using pagination to bypass 1000 record limit
+        let page = 0;
+        const pageSize = 1000;
+        let allBookingsData: any[] = [];
+        let finished = false;
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-        if (error) throw error;
-        if (bookings) {
-          const ids = new Set(bookings.map(b => b.id));
+        while (!finished) {
+          const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select('id')
+            .gte('created_at', oneDayAgo)
+            .order('created_at', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (error) throw error;
+          
+          if (bookings && bookings.length > 0) {
+            allBookingsData = [...allBookingsData, ...bookings];
+            // If we got less than pageSize, we've reached the end
+            if (bookings.length < pageSize) {
+              finished = true;
+            } else {
+              page++;
+            }
+          } else {
+            finished = true;
+          }
+        }
+
+        if (allBookingsData.length > 0) {
+          const ids = new Set(allBookingsData.map(b => b.id));
           setPreviousBookingIds(ids);
           previousBookingIdsRef.current = ids;
           console.log('🔔 Loaded', ids.size, 'existing booking IDs');

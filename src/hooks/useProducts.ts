@@ -205,21 +205,46 @@ export const useProducts = () => {
     try {
       setLoading(true);
       setError(null);
-      const { data, error } = await supabase.from('products').select('*');
       
-      if (error) {
-        console.error('Error fetching products:', error);
-        setError(`Failed to fetch products: ${error.message}`);
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch products from database',
-          variant: 'destructive'
-        });
-        return products;
+      // Fetch all products using pagination to bypass 1000 record limit
+      let page = 0;
+      const pageSize = 1000;
+      let allProductsData: any[] = [];
+      let finished = false;
+
+      while (!finished) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) {
+          console.error('Error fetching products:', error);
+          setError(`Failed to fetch products: ${error.message}`);
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch products from database',
+            variant: 'destructive'
+          });
+          return products;
+        }
+        
+        if (data && data.length > 0) {
+          allProductsData = [...allProductsData, ...data];
+          // If we got less than pageSize, we've reached the end
+          if (data.length < pageSize) {
+            finished = true;
+          } else {
+            page++;
+          }
+        } else {
+          finished = true;
+        }
       }
       
-      if (data && data.length > 0) {
-        const dbProducts = data.map(convertFromSupabaseProduct);
+      if (allProductsData.length > 0) {
+        const dbProducts = allProductsData.map(convertFromSupabaseProduct);
         
         const uniqueProductsById = new Map<string, Product>();
         const duplicates: string[] = [];
