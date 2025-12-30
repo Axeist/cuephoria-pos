@@ -1252,49 +1252,56 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
             <div className="space-y-2">
               <Label htmlFor="product" className="text-white text-sm font-medium">Product</Label>
               <div className="relative z-40">
-                <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white">
-                      <CommandInput 
-                    placeholder="Search products by name or category..." 
-                        value={productSearchQuery}
-                    onValueChange={(value) => {
-                      setProductSearchQuery(value);
-                      setIsCommandOpen(true);
-                    }}
-                    onFocus={() => setIsCommandOpen(true)}
-                        className="border-gray-600"
-                      />
-                  {isCommandOpen && (
-                    <CommandList className="max-h-60 border-t border-gray-700 mt-1 overflow-y-auto">
-                      {Array.isArray(filteredProducts) && filteredProducts.length > 0 ? (
-                        <CommandGroup>
-                          {filteredProducts
-                            .filter(product => product && product.id) // Ensure valid products
-                            .map((product) => (
-                              <CommandItem
-                                key={product.id}
-                                value={`${product.name || ''} ${product.category || ''}`}
-                                onSelect={() => handleProductSelect(product.id)}
-                                className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
-                              >
-                                <div className="flex flex-col flex-1 min-w-0">
-                                  <span className="font-medium truncate">{product.name || 'Unknown Product'}</span>
-                                  <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
-                                </div>
-                                <div className="text-right ml-4 flex-shrink-0">
-                                  <span className="font-semibold text-purple-300"><CurrencyDisplay amount={product.price || 0} /></span>
-                                  <span className="text-xs text-gray-400 block">Stock: {product.stock || 0}</span>
-                                </div>
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      ) : (
+                {products && Array.isArray(products) ? (
+                  <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white">
+                    <CommandInput 
+                      placeholder="Search products by name or category..." 
+                      value={productSearchQuery}
+                      onValueChange={(value) => {
+                        setProductSearchQuery(value);
+                        setIsCommandOpen(true);
+                      }}
+                      onFocus={() => setIsCommandOpen(true)}
+                      className="border-gray-600"
+                    />
+                    {isCommandOpen && (
+                      <CommandList className="max-h-60 border-t border-gray-700 mt-1 overflow-y-auto">
                         <CommandEmpty className="py-4 text-gray-400">
                           {productSearchQuery.trim() ? 'No products found' : 'Start typing to search...'}
                         </CommandEmpty>
-                      )}
-                    </CommandList>
-                  )}
-                    </Command>
+                        {Array.isArray(filteredProducts) && filteredProducts.length > 0 && (
+                          <CommandGroup>
+                            {filteredProducts
+                              .filter((product): product is NonNullable<typeof product> => {
+                                return Boolean(product && product.id && product.name);
+                              })
+                              .map((product) => (
+                                <CommandItem
+                                  key={product.id}
+                                  value={`${product.name} ${product.category || ''}`}
+                                  onSelect={() => handleProductSelect(product.id)}
+                                  className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
+                                >
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="font-medium truncate">{product.name}</span>
+                                    <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
+                                  </div>
+                                  <div className="text-right ml-4 flex-shrink-0">
+                                    <span className="font-semibold text-purple-300"><CurrencyDisplay amount={product.price || 0} /></span>
+                                    <span className="text-xs text-gray-400 block">Stock: {product.stock || 0}</span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    )}
+                  </Command>
+                ) : (
+                  <div className="rounded-lg border border-gray-600 bg-gray-800 text-white p-4">
+                    <p className="text-sm text-gray-400">Loading products...</p>
+                  </div>
+                )}
               </div>
               {selectedProductName && (
                 <div className="mt-2 p-2 bg-purple-600/20 border border-purple-500/30 rounded text-sm">
