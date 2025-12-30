@@ -107,16 +107,31 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
   const [isSearchingCustomers, setIsSearchingCustomers] = useState<boolean>(false);
   
-  // Safe filtering with null checks
-  const filteredProducts = (products || []).filter(product => {
-    if (!product || !productSearchQuery.trim()) return true;
+  // Safe filtering with null checks - ensure we always return an array
+  const filteredProducts = React.useMemo(() => {
+    if (!products || !Array.isArray(products)) {
+      return [];
+    }
     
-    const query = productSearchQuery.toLowerCase().trim();
-    return (
-      product.name?.toLowerCase().includes(query) ||
-      product.category?.toLowerCase().includes(query)
-    );
-  }).filter(product => product && product.stock > 0 && product.category !== 'membership');
+    return products
+      .filter(product => {
+        if (!product) return false;
+        
+        // If no search query, show all available products
+        if (!productSearchQuery.trim()) {
+          return product.stock > 0 && product.category !== 'membership';
+        }
+        
+        const query = productSearchQuery.toLowerCase().trim();
+        const matchesSearch = (
+          product.name?.toLowerCase().includes(query) ||
+          product.category?.toLowerCase().includes(query)
+        );
+        
+        return matchesSearch && product.stock > 0 && product.category !== 'membership';
+      })
+      .filter(Boolean); // Remove any null/undefined values
+  }, [products, productSearchQuery]);
   
   // Real-time customer search from database
   useEffect(() => {
@@ -276,6 +291,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   const handleOpenAddItemDialog = () => {
+    // Validate products are available before opening
+    if (!products || !Array.isArray(products)) {
+      toast({
+        title: "Error",
+        description: "Products data is not available. Please refresh the page.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setSelectedProductId('');
     setSelectedProductName('');
     setNewItemQuantity(1);
@@ -446,80 +471,95 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   const handleAddNewItem = () => {
-    if (!selectedProductId) {
-      toast({
-        title: "Selection Required",
-        description: "Please select a product from the list",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!products || !Array.isArray(products)) {
+    try {
+      if (!selectedProductId) {
+        toast({
+          title: "Selection Required",
+          description: "Please select a product from the list",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!products || !Array.isArray(products)) {
+        toast({
+          title: "Error",
+          description: "Products data is not available. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const selectedProduct = products.find(p => p && p.id === selectedProductId);
+      
+      if (!selectedProduct) {
+        toast({
+          title: "Product Not Found",
+          description: "The selected product could not be found",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (newItemQuantity <= 0 || !Number.isFinite(newItemQuantity)) {
+        toast({
+          title: "Invalid Quantity",
+          description: "Quantity must be a valid number greater than zero",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const currentStock = Number(selectedProduct.stock) || 0;
+      const quantity = Number(newItemQuantity);
+      
+      if (quantity > currentStock) {
+        toast({
+          title: "Insufficient Stock",
+          description: `Only ${currentStock} items available in stock`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const productPrice = Number(selectedProduct.price) || 0;
+      const itemToAdd: CartItem = {
+        id: selectedProduct.id,
+        name: selectedProduct.name || 'Unknown Product',
+        price: productPrice,
+        quantity: quantity,
+        total: productPrice * quantity,
+        type: 'product',
+        category: selectedProduct.category || 'other'
+      };
+      
+      // Ensure editedItems is an array
+      const currentItems = Array.isArray(editedItems) ? editedItems : [];
+      setEditedItems([...currentItems, itemToAdd]);
+      
+      if (updateProduct) {
+        updateProduct({
+          ...selectedProduct,
+          stock: currentStock - quantity
+        });
+      }
+      
+      // Reset form
+      setSelectedProductId('');
+      setSelectedProductName('');
+      setNewItemQuantity(1);
+      setAvailableStock(0);
+      setProductSearchQuery('');
+      setIsCommandOpen(false);
+      setIsAddItemDialogOpen(false);
+    } catch (error) {
+      console.error('Error adding item:', error);
       toast({
         title: "Error",
-        description: "Products data is not available. Please try again.",
+        description: "Failed to add item. Please try again.",
         variant: "destructive"
       });
-      return;
     }
-    
-    const selectedProduct = products.find(p => p && p.id === selectedProductId);
-    
-    if (!selectedProduct) {
-      toast({
-        title: "Product Not Found",
-        description: "The selected product could not be found",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (newItemQuantity <= 0) {
-      toast({
-        title: "Invalid Quantity",
-        description: "Quantity must be greater than zero",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const currentStock = selectedProduct.stock || 0;
-    if (newItemQuantity > currentStock) {
-      toast({
-        title: "Insufficient Stock",
-        description: `Only ${currentStock} items available in stock`,
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const itemToAdd: CartItem = {
-      id: selectedProduct.id,
-      name: selectedProduct.name || 'Unknown Product',
-      price: selectedProduct.price || 0,
-      quantity: newItemQuantity,
-      total: (selectedProduct.price || 0) * newItemQuantity,
-      type: 'product',
-      category: selectedProduct.category || 'other'
-    };
-    
-    setEditedItems([...editedItems, itemToAdd]);
-    
-    if (updateProduct) {
-    updateProduct({
-      ...selectedProduct,
-        stock: currentStock - newItemQuantity
-    });
-    }
-    
-    setSelectedProductId('');
-    setSelectedProductName('');
-    setNewItemQuantity(1);
-    setAvailableStock(0);
-    setProductSearchQuery('');
-    setIsCommandOpen(false);
-    setIsAddItemDialogOpen(false);
   };
   
   const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay') => {
@@ -1225,38 +1265,34 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       />
                   {isCommandOpen && (
                     <CommandList className="max-h-60 border-t border-gray-700 mt-1 overflow-y-auto">
-                      {filteredProducts.length > 0 ? (
-                        <>
-                          <CommandEmpty className="py-4 text-gray-400">No products found</CommandEmpty>
+                      {Array.isArray(filteredProducts) && filteredProducts.length > 0 ? (
                         <CommandGroup>
-                            {filteredProducts.map((product) => {
-                              if (!product || !product.id) return null;
-                              return (
-                            <CommandItem
-                              key={product.id}
-                                  value={`${product.name || ''} ${product.category || ''}`}
-                              onSelect={() => handleProductSelect(product.id)}
-                                  className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
-                                >
-                                  <div className="flex flex-col flex-1 min-w-0">
-                                    <span className="font-medium truncate">{product.name || 'Unknown Product'}</span>
-                                    <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
-                              </div>
-                                  <div className="text-right ml-4 flex-shrink-0">
-                                    <span className="font-semibold text-purple-300"><CurrencyDisplay amount={product.price || 0} /></span>
-                                    <span className="text-xs text-gray-400 block">Stock: {product.stock || 0}</span>
-                              </div>
-                            </CommandItem>
-                              );
-                            }).filter(Boolean)}
+                          {filteredProducts
+                            .filter(product => product && product.id) // Ensure valid products
+                            .map((product) => (
+                              <CommandItem
+                                key={product.id}
+                                value={`${product.name || ''} ${product.category || ''}`}
+                                onSelect={() => handleProductSelect(product.id)}
+                                className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
+                              >
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <span className="font-medium truncate">{product.name || 'Unknown Product'}</span>
+                                  <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
+                                </div>
+                                <div className="text-right ml-4 flex-shrink-0">
+                                  <span className="font-semibold text-purple-300"><CurrencyDisplay amount={product.price || 0} /></span>
+                                  <span className="text-xs text-gray-400 block">Stock: {product.stock || 0}</span>
+                                </div>
+                              </CommandItem>
+                            ))}
                         </CommandGroup>
-                        </>
                       ) : (
-                        <div className="py-4 text-center text-gray-400 text-sm">
+                        <CommandEmpty className="py-4 text-gray-400">
                           {productSearchQuery.trim() ? 'No products found' : 'Start typing to search...'}
-                        </div>
+                        </CommandEmpty>
                       )}
-                      </CommandList>
+                    </CommandList>
                   )}
                     </Command>
               </div>
