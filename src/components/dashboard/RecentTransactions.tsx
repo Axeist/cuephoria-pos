@@ -49,7 +49,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 interface RecentTransactionsProps {
@@ -336,11 +335,20 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      const isCommandElement = target.closest('[cmdk-root]') || target.closest('[cmdk-list]') || target.closest('[cmdk-input]') || target.closest('[cmdk-item]');
-      const isCombobox = target.closest('[role="combobox"]');
       
-      if (!isCommandElement && !isCombobox) {
+      // Check if click is outside product dropdown
+      const productDropdown = target.closest('[data-product-dropdown]');
+      const productInput = target.closest('input[placeholder*="Search products"]');
+      
+      // Check if click is outside customer dropdown
+      const customerCombobox = target.closest('[role="combobox"]');
+      const customerDropdown = target.closest('[cmdk-root]');
+      
+      if (!productDropdown && !productInput) {
         setIsCommandOpen(false);
+      }
+      
+      if (!customerCombobox && !customerDropdown) {
         setIsCustomerCommandOpen(false);
       }
     };
@@ -1251,63 +1259,72 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="product" className="text-white text-sm font-medium">Product</Label>
-              <div className="relative z-40">
-                {products && Array.isArray(products) ? (
-                  <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white">
-                    <CommandInput 
-                      placeholder="Search products by name or category..." 
-                      value={productSearchQuery}
-                      onValueChange={(value) => {
-                        setProductSearchQuery(value);
-                        setIsCommandOpen(true);
-                      }}
-                      onFocus={() => setIsCommandOpen(true)}
-                      className="border-gray-600"
-                    />
-                    {isCommandOpen && (
-                      <CommandList className="max-h-60 border-t border-gray-700 mt-1 overflow-y-auto">
-                        <CommandEmpty className="py-4 text-gray-400">
-                          {productSearchQuery.trim() ? 'No products found' : 'Start typing to search...'}
-                        </CommandEmpty>
-                        {Array.isArray(filteredProducts) && filteredProducts.length > 0 && (
-                          <CommandGroup>
-                            {filteredProducts
-                              .filter((product): product is NonNullable<typeof product> => {
-                                return Boolean(product && product.id && product.name);
-                              })
-                              .map((product) => (
-                                <CommandItem
-                                  key={product.id}
-                                  value={`${product.name} ${product.category || ''}`}
-                                  onSelect={() => handleProductSelect(product.id)}
-                                  className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
-                                >
-                                  <div className="flex flex-col flex-1 min-w-0">
-                                    <span className="font-medium truncate">{product.name}</span>
-                                    <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
-                                  </div>
-                                  <div className="text-right ml-4 flex-shrink-0">
-                                    <span className="font-semibold text-purple-300"><CurrencyDisplay amount={product.price || 0} /></span>
-                                    <span className="text-xs text-gray-400 block">Stock: {product.stock || 0}</span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                          </CommandGroup>
-                        )}
-                      </CommandList>
-                    )}
-                  </Command>
-                ) : (
+              <div className="relative z-40" data-product-dropdown>
+                {!products || !Array.isArray(products) ? (
                   <div className="rounded-lg border border-gray-600 bg-gray-800 text-white p-4">
                     <p className="text-sm text-gray-400">Loading products...</p>
                   </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search products by name or category..." 
+                        value={productSearchQuery}
+                        onChange={(e) => {
+                          setProductSearchQuery(e.target.value);
+                          setIsCommandOpen(true);
+                        }}
+                        onFocus={() => setIsCommandOpen(true)}
+                        className="pl-9 bg-gray-700 border-gray-600 text-white"
+                      />
+                    </div>
+                    
+                    {isCommandOpen && (
+                      <div className="absolute z-50 w-full mt-2 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 overflow-hidden" data-product-dropdown>
+                        <ScrollArea className="max-h-60">
+                          {Array.isArray(filteredProducts) && filteredProducts.length > 0 ? (
+                            <div className="p-1">
+                              {filteredProducts
+                                .filter((product): product is NonNullable<typeof product> => {
+                                  return Boolean(product && product.id && product.name);
+                                })
+                                .map((product) => (
+                                  <div
+                                    key={product.id}
+                                    onClick={() => {
+                                      handleProductSelect(product.id);
+                                      setIsCommandOpen(false);
+                                    }}
+                                    className="flex justify-between items-center cursor-pointer hover:bg-gray-700 py-3 px-3 rounded-md transition-colors"
+                                  >
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                      <span className="font-medium truncate text-white">{product.name}</span>
+                                      <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
+                                    </div>
+                                    <div className="text-right ml-4 flex-shrink-0">
+                                      <span className="font-semibold text-purple-300 block"><CurrencyDisplay amount={product.price || 0} /></span>
+                                      <span className="text-xs text-gray-400">Stock: {product.stock || 0}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          ) : (
+                            <div className="py-4 text-center text-gray-400 text-sm">
+                              {productSearchQuery.trim() ? 'No products found' : 'Start typing to search...'}
+                            </div>
+                          )}
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               {selectedProductName && (
                 <div className="mt-2 p-2 bg-purple-600/20 border border-purple-500/30 rounded text-sm">
                   <span className="text-purple-300">Selected: {selectedProductName}</span>
-                  </div>
-                )}
+                </div>
+              )}
             </div>
             
             {selectedProductId && (
