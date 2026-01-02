@@ -198,6 +198,7 @@ export default function PublicBooking() {
   const [instagramLinkClicked, setInstagramLinkClicked] = useState(false);
   const [showFollowConfirmation, setShowFollowConfirmation] = useState(false);
   const [expandedCoupons, setExpandedCoupons] = useState<Record<string, boolean>>({});
+  const [pendingCoupon, setPendingCoupon] = useState<{ code: string; type: "all" | "per-station"; stationTypes?: { ps5?: string; "8ball"?: string; vr?: string } } | null>(null);
   
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
@@ -625,19 +626,18 @@ export default function PublicBooking() {
   }
 
   const allowedCoupons = [
-    "CUEPHORIA25",
-    "CUEPHORIA50",
+    "CUEPHORIA20",
+    "CUEPHORIA35",
     "HH99",
-    "NIT50",
+    "NIT35",
     "AAVEG50",
     "AXEIST",
-    "OP15",
     "TEST210198$",
   ];
 
   function validateStudentID() {
     return window.confirm(
-      "🎓 CUEPHORIA50 is for other college & school students ONLY.\nShow a valid student ID card during your visit for this discount. Apply?"
+      "🎓 CUEPHORIA35 is for other college & school students ONLY.\nShow a valid student ID card during your visit for this discount. Apply?"
     );
   }
 
@@ -667,11 +667,59 @@ export default function PublicBooking() {
     );
     const happyHourActive = isHappyHour(selectedDate, selectedSlot);
 
-    if (code === "CUEPHORIA50") {
+    // Check if customer is new (no customerInfo.id means new customer)
+    const isNewCustomer = !customerInfo.id;
+    
+    // Helper function to check if Instagram follow dialog should be shown
+    const shouldShowInstagramDialog = (couponCode: string) => {
+      if (!isNewCustomer) return false; // Only for new customers
+      
+      // Check if any other dialog is open - don't show Instagram popup if so
+      const isAnyDialogOpen = 
+        showConfirmationDialog || 
+        showLegalDialog || 
+        showRefundDialog || 
+        showOnlinePaymentPromo || 
+        showPaymentWarning ||
+        showFollowConfirmation;
+      
+      if (isAnyDialogOpen) {
+        return false; // Don't show popup when other dialogs are open
+      }
+      
+      return true;
+    };
+
+    // Helper function to apply coupon after Instagram follow
+    const applyCouponAfterInstagram = (couponCode: string, couponType: "all" | "per-station", stationTypes?: { ps5?: string; "8ball"?: string; vr?: string }) => {
+      if (couponType === "all") {
+        setAppliedCoupons({ all: couponCode });
+      } else if (stationTypes) {
+        setAppliedCoupons((prev) => {
+          let updated = { ...prev };
+          if (stationTypes.ps5) updated["ps5"] = stationTypes.ps5;
+          if (stationTypes["8ball"]) updated["8ball"] = stationTypes["8ball"];
+          if (stationTypes.vr) updated["vr"] = stationTypes.vr;
+          return updated;
+        });
+      }
+    };
+
+    if (code === "CUEPHORIA35") {
       if (!validateStudentID()) return;
-      setAppliedCoupons({ all: "CUEPHORIA50" });
+      
+      // For new customers, show Instagram follow dialog
+      if (shouldShowInstagramDialog("CUEPHORIA35")) {
+        setShowInstagramFollowDialog(true);
+        setInstagramLinkClicked(false);
+        // Store coupon info to apply after Instagram follow
+        setPendingCoupon({ code: "CUEPHORIA35", type: "all" });
+        return;
+      }
+      
+      setAppliedCoupons({ all: "CUEPHORIA35" });
       toast.success(
-        "📚 CUEPHORIA50 applied: 50% OFF for students with valid ID!\nShow your student ID when you visit! 🤝"
+        "📚 CUEPHORIA35 applied: 35% OFF for students with valid ID!\nShow your student ID when you visit! 🤝"
       );
       return;
     }
@@ -686,9 +734,18 @@ export default function PublicBooking() {
       return;
     }
 
-    if (code === "CUEPHORIA25") {
-      setAppliedCoupons({ all: "CUEPHORIA25" });
-      toast.success("🎉 CUEPHORIA25 applied: 25% OFF! Book more, play more! 🕹️");
+    if (code === "CUEPHORIA20") {
+      // For new customers, show Instagram follow dialog
+      if (shouldShowInstagramDialog("CUEPHORIA20")) {
+        setShowInstagramFollowDialog(true);
+        setInstagramLinkClicked(false);
+        // Store coupon info to apply after Instagram follow
+        setPendingCoupon({ code: "CUEPHORIA20", type: "all" });
+        return;
+      }
+      
+      setAppliedCoupons({ all: "CUEPHORIA20" });
+      toast.success("🎉 CUEPHORIA20 applied: 20% OFF! Book more, play more! 🕹️");
       return;
     }
 
@@ -717,21 +774,35 @@ export default function PublicBooking() {
       return;
     }
 
-    if (code === "NIT50") {
+    if (code === "NIT35") {
       if (!(selectedHas8Ball || selectedHasPS5 || selectedHasVR)) {
         toast.error(
-          "NIT50 can be applied to PS5, 8-Ball, or VR stations in your selection."
+          "NIT35 can be applied to PS5, 8-Ball, or VR stations in your selection."
         );
         return;
       }
+      
+      // For new customers, show Instagram follow dialog
+      if (shouldShowInstagramDialog("NIT35")) {
+        setShowInstagramFollowDialog(true);
+        setInstagramLinkClicked(false);
+        // Store coupon info to apply after Instagram follow
+        const stationTypes: { ps5?: string; "8ball"?: string; vr?: string } = {};
+        if (selectedHasPS5) stationTypes.ps5 = "NIT35";
+        if (selectedHas8Ball) stationTypes["8ball"] = appliedCoupons["8ball"] === "HH99" ? "HH99" : "NIT35";
+        if (selectedHasVR) stationTypes.vr = "NIT35";
+        setPendingCoupon({ code: "NIT35", type: "per-station", stationTypes });
+        return;
+      }
+      
       setAppliedCoupons((prev) => {
         let updated = { ...prev };
-        if (selectedHasPS5) updated["ps5"] = "NIT50";
-        if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "HH99" ? "HH99" : "NIT50";
-        if (selectedHasVR) updated["vr"] = "NIT50";
+        if (selectedHasPS5) updated["ps5"] = "NIT35";
+        if (selectedHas8Ball) updated["8ball"] = prev["8ball"] === "HH99" ? "HH99" : "NIT35";
+        if (selectedHasVR) updated["vr"] = "NIT35";
         return updated;
       });
-      let msg = "🎓 NIT50 applied! 50% OFF for ";
+      let msg = "🎓 NIT35 applied! 35% OFF for ";
       const types = [];
       if (selectedHasPS5) types.push("PS5");
       if (selectedHas8Ball) types.push("8-Ball");
@@ -762,27 +833,6 @@ export default function PublicBooking() {
       if (selectedHasVR) types.push("VR");
       msg += types.join(" & ") + " stations!";
       toast.success(msg);
-      return;
-    }
-
-    if (code === "OP15") {
-      // Check if any other dialog is open - don't show Instagram popup if so
-      const isAnyDialogOpen = 
-        showConfirmationDialog || 
-        showLegalDialog || 
-        showRefundDialog || 
-        showOnlinePaymentPromo || 
-        showPaymentWarning ||
-        showFollowConfirmation;
-      
-      if (isAnyDialogOpen) {
-        // Don't show popup when other dialogs are open to avoid disrupting the flow
-        return;
-      }
-      
-      // Show Instagram follow dialog instead of directly applying
-      setShowInstagramFollowDialog(true);
-      setInstagramLinkClicked(false);
       return;
     }
 
@@ -823,16 +873,12 @@ export default function PublicBooking() {
     if (appliedCoupons["all"]) {
       if (appliedCoupons["all"] === "AXEIST")
         return { total: original, breakdown: { all: original } };
-      if (appliedCoupons["all"] === "CUEPHORIA25") {
-        const disc = original * 0.25;
+      if (appliedCoupons["all"] === "CUEPHORIA20") {
+        const disc = original * 0.20;
         return { total: disc, breakdown: { all: disc } };
       }
-      if (appliedCoupons["all"] === "CUEPHORIA50") {
-        const disc = original * 0.5;
-        return { total: disc, breakdown: { all: disc } };
-      }
-      if (appliedCoupons["all"] === "OP15") {
-        const disc = original * 0.5;
+      if (appliedCoupons["all"] === "CUEPHORIA35") {
+        const disc = original * 0.35;
         return { total: disc, breakdown: { all: disc } };
       }
       if (appliedCoupons["all"] === "TEST210198$") {
@@ -848,7 +894,7 @@ export default function PublicBooking() {
 
     if (
       appliedCoupons["8ball"] === "HH99" &&
-      appliedCoupons["ps5"] === "NIT50"
+      appliedCoupons["ps5"] === "NIT35"
     ) {
       const eightBalls = stations.filter(
         (s) => selectedStations.includes(s.id) && s.type === "8ball"
@@ -863,9 +909,9 @@ export default function PublicBooking() {
         (s) => selectedStations.includes(s.id) && s.type === "ps5"
       );
       const sum2 = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-      const d2 = sum2 - ps5s.length * 75;
+      const d2 = sum2 * 0.35; // NIT35 is 35% off
       totalDiscount += d2;
-      breakdown["PS5 (HH99+NIT50)"] = d2;
+      breakdown["PS5 (HH99+NIT35)"] = d2;
     } else {
       if (appliedCoupons["8ball"] === "HH99") {
         const eightBalls = stations.filter(
@@ -891,32 +937,32 @@ export default function PublicBooking() {
         }
       }
 
-      if (appliedCoupons["8ball"] === "NIT50" || appliedCoupons["8ball"] === "AAVEG50") {
+      if (appliedCoupons["8ball"] === "NIT35" || appliedCoupons["8ball"] === "AAVEG50") {
         const balls = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "8ball"
         );
         const sum = balls.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = sum * 0.5;
+        const d = appliedCoupons["8ball"] === "NIT35" ? sum * 0.35 : sum * 0.5;
         totalDiscount += d;
         breakdown[`8-Ball (${appliedCoupons["8ball"]})`] = d;
       }
 
-      if (appliedCoupons["ps5"] === "NIT50" || appliedCoupons["ps5"] === "AAVEG50") {
+      if (appliedCoupons["ps5"] === "NIT35" || appliedCoupons["ps5"] === "AAVEG50") {
         const ps5s = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "ps5"
         );
         const sum = ps5s.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = sum * 0.5;
+        const d = appliedCoupons["ps5"] === "NIT35" ? sum * 0.35 : sum * 0.5;
         totalDiscount += d;
         breakdown[`PS5 (${appliedCoupons["ps5"]})`] = d;
       }
 
-      if (appliedCoupons["vr"] === "NIT50" || appliedCoupons["vr"] === "AAVEG50") {
+      if (appliedCoupons["vr"] === "NIT35" || appliedCoupons["vr"] === "AAVEG50") {
         const vrStations = stations.filter(
           (s) => selectedStations.includes(s.id) && s.type === "vr"
         );
         const sum = vrStations.reduce((x, s) => x + s.hourly_rate, 0);
-        const d = sum * 0.5;
+        const d = appliedCoupons["vr"] === "NIT35" ? sum * 0.35 : sum * 0.5;
         totalDiscount += d;
         breakdown[`VR (${appliedCoupons["vr"]})`] = d;
       }
@@ -2189,78 +2235,18 @@ export default function PublicBooking() {
                     </Label>
                     
                     <div className="space-y-2.5">
-                      {/* OP15 - Special Highlighted with Expandable */}
-                      <div className="rounded-lg bg-gradient-to-r from-pink-900/40 via-purple-900/40 to-indigo-900/40 border border-pink-400/50 shadow-sm overflow-hidden">
-                        <div 
-                          className="p-2.5 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, OP15: !prev.OP15 }))}
-                        >
-                          <div className="flex items-start gap-2 flex-1">
-                            <span className="text-base">✨</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-pink-300 text-sm">OP15</span>
-                                <span className="text-xs text-gray-300">•</span>
-                                <span className="text-xs font-semibold text-yellow-300">50% OFF</span>
-                                <span className="text-xs text-gray-300">+</span>
-                                <span className="text-xs font-semibold text-green-300">15 mins FREE</span>
-                              </div>
-                              {!expandedCoupons.OP15 && (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <span className="text-[10px] text-gray-400">Collab with</span>
-                                  <span className="text-[10px] font-semibold text-pink-400">@ordinaryperson.official</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                applyCoupon("OP15");
-                              }}
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
-                            >
-                              Apply
-                            </Button>
-                            {expandedCoupons.OP15 ? (
-                              <ChevronUp className="h-4 w-4 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-gray-400" />
-                            )}
-                          </div>
-                        </div>
-                        {expandedCoupons.OP15 && (
-                          <div className="px-2.5 pb-2.5 pt-0 border-t border-pink-400/30">
-                            <div className="flex items-center gap-1.5 mt-2">
-                              <span className="text-[10px] text-gray-400">Collab with</span>
-                              <a 
-                                href="https://www.instagram.com/ordinaryperson.official" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-[10px] font-semibold text-pink-400 hover:text-pink-300 transition-colors underline flex items-center gap-0.5"
-                              >
-                                <span>📷</span>
-                                <span>@ordinaryperson.official</span>
-                              </a>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* NIT50 / AAVEG50 - Expandable */}
+                      {/* NIT35 - Expandable */}
                       <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
                         <div 
                           className="p-2 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, NIT50: !prev.NIT50 }))}
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, NIT35: !prev.NIT35 }))}
                         >
                           <div className="flex items-start gap-2 flex-1">
                             <span className="text-sm">🎓</span>
                             <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-gray-200 text-xs">NIT50 / AAVEG50</span>
-                              {!expandedCoupons.NIT50 && (
-                                <span className="text-xs text-gray-400 ml-1.5">• 50% off for NIT College Freshers</span>
+                              <span className="font-semibold text-gray-200 text-xs">NIT35</span>
+                              {!expandedCoupons.NIT35 && (
+                                <span className="text-xs text-gray-400 ml-1.5">• 35% off for NIT Students</span>
                               )}
                             </div>
                           </div>
@@ -2269,22 +2255,22 @@ export default function PublicBooking() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                applyCoupon("NIT50");
+                                applyCoupon("NIT35");
                               }}
                               className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
                             >
                               Apply
                             </Button>
-                            {expandedCoupons.NIT50 ? (
+                            {expandedCoupons.NIT35 ? (
                               <ChevronUp className="h-4 w-4 text-gray-400" />
                             ) : (
                               <ChevronDown className="h-4 w-4 text-gray-400" />
                             )}
                           </div>
                         </div>
-                        {expandedCoupons.NIT50 && (
+                        {expandedCoupons.NIT35 && (
                           <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
-                            <p className="text-xs text-gray-400 mt-2">50% off for NIT College Freshers</p>
+                            <p className="text-xs text-gray-400 mt-2">35% off for NIT Students</p>
                           </div>
                         )}
                       </div>
@@ -2329,18 +2315,18 @@ export default function PublicBooking() {
                         )}
                       </div>
 
-                      {/* CUEPHORIA50 - Expandable */}
+                      {/* CUEPHORIA35 - Expandable */}
                       <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
                         <div 
                           className="p-2 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA50: !prev.CUEPHORIA50 }))}
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA35: !prev.CUEPHORIA35 }))}
                         >
                           <div className="flex items-start gap-2 flex-1">
                             <span className="text-sm">📚</span>
                             <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA50</span>
-                              {!expandedCoupons.CUEPHORIA50 && (
-                                <span className="text-xs text-gray-400 ml-1.5">• 50% off for students (ID required)</span>
+                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA35</span>
+                              {!expandedCoupons.CUEPHORIA35 && (
+                                <span className="text-xs text-gray-400 ml-1.5">• 35% off for students (ID required)</span>
                               )}
                             </div>
                           </div>
@@ -2349,38 +2335,38 @@ export default function PublicBooking() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                applyCoupon("CUEPHORIA50");
+                                applyCoupon("CUEPHORIA35");
                               }}
                               className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
                             >
                               Apply
                             </Button>
-                            {expandedCoupons.CUEPHORIA50 ? (
+                            {expandedCoupons.CUEPHORIA35 ? (
                               <ChevronUp className="h-4 w-4 text-gray-400" />
                             ) : (
                               <ChevronDown className="h-4 w-4 text-gray-400" />
                             )}
                           </div>
                         </div>
-                        {expandedCoupons.CUEPHORIA50 && (
+                        {expandedCoupons.CUEPHORIA35 && (
                           <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
-                            <p className="text-xs text-gray-400 mt-2">50% off for students (ID required)</p>
+                            <p className="text-xs text-gray-400 mt-2">35% off for students (ID required)</p>
                           </div>
                         )}
                       </div>
 
-                      {/* CUEPHORIA25 - Expandable */}
+                      {/* CUEPHORIA20 - Expandable */}
                       <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
                         <div 
                           className="p-2 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA25: !prev.CUEPHORIA25 }))}
+                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA20: !prev.CUEPHORIA20 }))}
                         >
                           <div className="flex items-start gap-2 flex-1">
                             <span className="text-sm">🎉</span>
                             <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA25</span>
-                              {!expandedCoupons.CUEPHORIA25 && (
-                                <span className="text-xs text-gray-400 ml-1.5">• 25% off for everyone!</span>
+                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA20</span>
+                              {!expandedCoupons.CUEPHORIA20 && (
+                                <span className="text-xs text-gray-400 ml-1.5">• 20% off for everyone!</span>
                               )}
                             </div>
                           </div>
@@ -2389,22 +2375,22 @@ export default function PublicBooking() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                applyCoupon("CUEPHORIA25");
+                                applyCoupon("CUEPHORIA20");
                               }}
                               className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
                             >
                               Apply
                             </Button>
-                            {expandedCoupons.CUEPHORIA25 ? (
+                            {expandedCoupons.CUEPHORIA20 ? (
                               <ChevronUp className="h-4 w-4 text-gray-400" />
                             ) : (
                               <ChevronDown className="h-4 w-4 text-gray-400" />
                             )}
                           </div>
                         </div>
-                        {expandedCoupons.CUEPHORIA25 && (
+                        {expandedCoupons.CUEPHORIA20 && (
                           <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
-                            <p className="text-xs text-gray-400 mt-2">25% off for everyone!</p>
+                            <p className="text-xs text-gray-400 mt-2">20% off for everyone!</p>
                           </div>
                         )}
                       </div>
@@ -2418,66 +2404,32 @@ export default function PublicBooking() {
                       </Label>
                       {Object.entries(appliedCoupons).map(([key, val]) => {
                         let emoji = "🏷️";
-                        let instagramBadge = null;
                         if (val === "HH99") emoji = "⏰";
-                        else if (val === "NIT50") emoji = "🎓";
-                        else if (val === "CUEPHORIA25") emoji = "🎉";
-                        else if (val === "CUEPHORIA50") emoji = "📚";
+                        else if (val === "NIT35") emoji = "🎓";
+                        else if (val === "CUEPHORIA20") emoji = "🎉";
+                        else if (val === "CUEPHORIA35") emoji = "📚";
                         else if (val === "AAVEG50") emoji = "🏫";
                         else if (val === "AXEIST") emoji = "🥷";
-                        else if (val === "OP15") {
-                          emoji = "✨";
-                          instagramBadge = (
-                            <a 
-                              href="https://www.instagram.com/ordinaryperson.official" 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="ml-2 text-xs font-semibold text-pink-300 hover:text-pink-200 transition-colors flex items-center gap-1 underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span>📷</span>
-                              <span>@ordinaryperson.official</span>
-                            </a>
-                          );
-                        }
                         return (
                           <div
                             key={key}
-                            className={`flex items-center justify-between px-3 py-2.5 rounded-lg shadow-md font-semibold ${
-                              val === "OP15" 
-                                ? "bg-gradient-to-r from-pink-600/80 via-purple-600/80 to-indigo-600/80 border-2 border-pink-400/70" 
-                                : "bg-gradient-to-r from-purple-900/60 to-indigo-900/60 border border-purple-400/50"
-                            }`}
+                            className="flex items-center justify-between px-3 py-2.5 rounded-lg shadow-md font-semibold bg-gradient-to-r from-purple-900/60 to-indigo-900/60 border border-purple-400/50"
                           >
                             <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
                               <span className="text-lg flex-shrink-0">{emoji}</span>
-                              <span className={`font-extrabold uppercase tracking-wider ${
-                                val === "OP15" ? "text-white" : "text-purple-200"
-                              } flex-shrink-0`}>
+                              <span className="font-extrabold uppercase tracking-wider text-purple-200 flex-shrink-0">
                                 {val}
                               </span>
-                              {instagramBadge}
-                              <span className={`ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded ${
-                                val === "OP15" ? "bg-green-500/30 text-green-200" : "text-green-400"
-                              }`}>
+                              <span className="ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded text-green-400">
                                 ✓ Applied
                               </span>
-                              {val === "OP15" && (
-                                <span className="text-xs font-bold text-yellow-200 bg-yellow-500/20 px-1.5 py-0.5 rounded flex-shrink-0">
-                                  + 15 mins FREE
-                                </span>
-                              )}
                             </div>
                             <button
                               onClick={() => removeCoupon(key)}
                               aria-label="Remove coupon"
-                              className={`ml-2 p-1.5 hover:bg-black/20 rounded-full transition-colors flex-shrink-0 ${
-                                val === "OP15" ? "hover:bg-pink-500/20" : "hover:bg-purple-500/20"
-                              }`}
+                              className="ml-2 p-1.5 hover:bg-black/20 rounded-full transition-colors flex-shrink-0 hover:bg-purple-500/20"
                             >
-                              <X className={`h-4 w-4 ${
-                                val === "OP15" ? "text-pink-200" : "text-purple-200"
-                              }`} />
+                              <X className="h-4 w-4 text-purple-200" />
                             </button>
                           </div>
                         );
@@ -3017,7 +2969,7 @@ export default function PublicBooking() {
         serviceType={getServiceTypeForPromo()}
       />
 
-      {/* Instagram Follow Dialog for OP15 */}
+      {/* Instagram Follow Dialog for New Customers */}
       <Dialog open={showInstagramFollowDialog} onOpenChange={setShowInstagramFollowDialog}>
         <DialogContent className="sm:max-w-md bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-2 border-pink-400/50 text-white"
         style={{
@@ -3036,7 +2988,7 @@ export default function PublicBooking() {
           <div className="space-y-4 py-4">
             <div className="text-center space-y-3">
               <p className="text-sm sm:text-base text-gray-200">
-                To apply the <span className="font-bold text-pink-300">OP15</span> coupon, please follow our Instagram profile first!
+                To apply the <span className="font-bold text-pink-300">{pendingCoupon?.code || "coupon"}</span> coupon, please follow our Instagram profile first!
               </p>
               <div className="flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 rounded-lg border border-pink-400/30">
                 <Instagram className="h-5 w-5 text-pink-400" />
@@ -3107,18 +3059,45 @@ export default function PublicBooking() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-gray-300 text-center">
-              Please confirm that you have followed <span className="font-bold text-pink-300">@cuephoriaclub</span> on Instagram to proceed with applying the OP15 coupon.
+              Please confirm that you have followed <span className="font-bold text-pink-300">@cuephoriaclub</span> on Instagram to proceed with applying the {pendingCoupon?.code || "coupon"} coupon.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 onClick={() => {
-                  setAppliedCoupons({ all: "OP15" });
+                  if (pendingCoupon) {
+                    if (pendingCoupon.type === "all") {
+                      setAppliedCoupons({ all: pendingCoupon.code });
+                    } else if (pendingCoupon.stationTypes) {
+                      setAppliedCoupons((prev) => {
+                        let updated = { ...prev };
+                        if (pendingCoupon.stationTypes?.ps5) updated["ps5"] = pendingCoupon.stationTypes.ps5;
+                        if (pendingCoupon.stationTypes?.["8ball"]) updated["8ball"] = pendingCoupon.stationTypes["8ball"];
+                        if (pendingCoupon.stationTypes?.vr) updated["vr"] = pendingCoupon.stationTypes.vr;
+                        return updated;
+                      });
+                    }
+                    
+                    // Show success message based on coupon
+                    let successMsg = "";
+                    if (pendingCoupon.code === "CUEPHORIA35") {
+                      successMsg = "📚 CUEPHORIA35 applied: 35% OFF for students with valid ID!\nShow your student ID when you visit! 🤝";
+                    } else if (pendingCoupon.code === "CUEPHORIA20") {
+                      successMsg = "🎉 CUEPHORIA20 applied: 20% OFF! Book more, play more! 🕹️";
+                    } else if (pendingCoupon.code === "NIT35") {
+                      const types = [];
+                      if (pendingCoupon.stationTypes?.ps5) types.push("PS5");
+                      if (pendingCoupon.stationTypes?.["8ball"]) types.push("8-Ball");
+                      if (pendingCoupon.stationTypes?.vr) types.push("VR");
+                      successMsg = `🎓 NIT35 applied! 35% OFF for ${types.join(" & ")} stations!`;
+                    } else {
+                      successMsg = `🎉 ${pendingCoupon.code} applied!`;
+                    }
+                    toast.success(successMsg);
+                  }
                   setShowInstagramFollowDialog(false);
                   setShowFollowConfirmation(false);
                   setInstagramLinkClicked(false);
-                  toast.success(
-                    "🎉 OP15 applied! 50% OFF + 15 mins FREE gaming session!"
-                  );
+                  setPendingCoupon(null);
                 }}
                 className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold"
               >

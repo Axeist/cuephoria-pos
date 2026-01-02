@@ -93,9 +93,9 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
 
   const popup1Content = {
     title: "SPECIAL DISCOUNT OFFER! 🎮",
-    discountText: "25% OFF",
-    description: "Flat 25% off from the total session when coupon code 'CUEPHORIA25' is used in the checkout.",
-    couponCode: "CUEPHORIA25",
+    discountText: "20% OFF",
+    description: "Flat 20% off from the total session when coupon code 'CUEPHORIA20' is used in the checkout.",
+    couponCode: "CUEPHORIA20",
     bgColor: "from-yellow-400 to-orange-400",
     iconColor: "text-yellow-400",
     icon: Star
@@ -103,9 +103,9 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
 
   const popup2Content = {
     title: "NIT TRICHY STUDENT SPECIAL! 🎓",
-    discountText: "50% OFF",
-    description: "Special offer for NIT Trichy students. Use code 'NIT50' to get 50% off from the bill.",
-    couponCode: "NIT50",
+    discountText: "35% OFF",
+    description: "Special offer for NIT Trichy students. Use code 'NIT35' to get 35% off from the bill.",
+    couponCode: "NIT35",
     bgColor: "from-blue-400 to-purple-500",
     iconColor: "text-blue-400",
     icon: GraduationCap
@@ -119,7 +119,7 @@ const CouponPromotionalPopup: React.FC<CouponPromotionalPopupProps> = ({ onCoupo
   const popup3Content = {
     title: "HAPPY HOUR SPECIAL! ⏰",
     discountText: "₹99/HR",
-    description: `Get PS5 & 8-Ball stations at just ₹99/hour during Happy Hours (11 AM - 4 PM)! Can be stacked with NIT50 for even better deals!`,
+    description: `Get PS5 & 8-Ball stations at just ₹99/hour during Happy Hours (11 AM - 4 PM)! Can be stacked with NIT35 for even better deals!`,
     couponCode: "HH99",
     bgColor: "from-green-400 to-teal-500",
     iconColor: "text-green-400",

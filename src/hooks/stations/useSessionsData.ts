@@ -163,6 +163,9 @@ export const useSessionsData = () => {
     // Initial load
     refreshSessions();
     
+    // Debounce timer for Realtime subscription refreshes
+    let refreshTimeout: NodeJS.Timeout | null = null;
+    
     // ✅ OPTIMIZED: Replace polling with Realtime subscription
     // This only fetches data when actual database changes occur
     // Eliminates 720 daily polling requests (every 2 minutes)
@@ -177,8 +180,15 @@ export const useSessionsData = () => {
         },
         (payload) => {
           console.log('Session change detected via Realtime:', payload.eventType);
-          // Only refresh when actual changes occur
-          refreshSessions();
+          // Debounce refresh to prevent rapid updates and allow local state to settle
+          // This gives time for manual state updates (like ending sessions) to complete
+          if (refreshTimeout) {
+            clearTimeout(refreshTimeout);
+          }
+          refreshTimeout = setTimeout(() => {
+            console.log('Refreshing sessions after Realtime change (debounced)');
+            refreshSessions(true); // Silent refresh to avoid loading states
+          }, 500); // 500ms debounce - enough time for DB updates to complete
         }
       )
       .subscribe((status) => {
@@ -195,6 +205,9 @@ export const useSessionsData = () => {
     
     return () => {
       console.log('Cleaning up Realtime subscription');
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
       supabase.removeChannel(channel);
     };
   }, [refreshSessions]);

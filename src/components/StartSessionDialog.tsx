@@ -72,23 +72,19 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         newRate = 99;
         break;
       
-      case 'CUEPHORIA25':
-        newRate = baseRate * 0.75;
+      case 'CUEPHORIA20':
+        newRate = baseRate * 0.80;
         break;
       
-      case 'CUEPHORIA50':
-        newRate = baseRate * 0.50;
+      case 'CUEPHORIA35':
+        newRate = baseRate * 0.65;
         break;
       
-      case 'NIT50':
-        newRate = baseRate * 0.50;
+      case 'NIT35':
+        newRate = baseRate * 0.65;
         break;
       
       case 'AAVEG50':
-        newRate = baseRate * 0.50;
-        break;
-      
-      case 'OP15':
         newRate = baseRate * 0.50;
         break;
       
@@ -240,20 +236,17 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   <SelectItem value="HH99">
                     🎮 HH99 - ₹99/hour (Mon-Fri 11AM-4PM)
                   </SelectItem>
-                  <SelectItem value="CUEPHORIA25">
-                    🎉 CUEPHORIA25 - 25% OFF
+                  <SelectItem value="CUEPHORIA20">
+                    🎉 CUEPHORIA20 - 20% OFF
                   </SelectItem>
-                  <SelectItem value="CUEPHORIA50">
-                    🎓 CUEPHORIA50 - 50% OFF (Student ID Required)
+                  <SelectItem value="CUEPHORIA35">
+                    🎓 CUEPHORIA35 - 35% OFF (Student ID Required)
                   </SelectItem>
-                  <SelectItem value="NIT50">
-                    🏫 NIT50 - 50% OFF (NIT Students)
+                  <SelectItem value="NIT35">
+                    🏫 NIT35 - 35% OFF (NIT Students)
                   </SelectItem>
                   <SelectItem value="AAVEG50">
                     🎓 AAVEG50 - 50% OFF (NIT College Freshers)
-                  </SelectItem>
-                  <SelectItem value="OP15">
-                    ✨ OP15 - 50% OFF + 15 mins FREE
                   </SelectItem>
                   <SelectItem value="AXEIST">
                     👑 AXEIST - 100% OFF (VIP)
@@ -270,7 +263,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 </div>
               )}
 
-              {selectedCoupon !== 'none' && selectedCoupon === 'CUEPHORIA50' && (
+              {selectedCoupon !== 'none' && selectedCoupon === 'CUEPHORIA35' && (
                 <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md p-3 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-blue-900 dark:text-blue-100">

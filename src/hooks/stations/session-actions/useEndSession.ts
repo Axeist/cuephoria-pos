@@ -53,18 +53,8 @@ export const useEndSession = ({
       
       console.log("Updated session with end time and duration:", updatedSession);
       
-      // Update local state immediately for UI responsiveness
-      setSessions(prev => prev.map(s => 
-        s.id === session.id ? updatedSession : s
-      ));
-      
-      setStations(prev => prev.map(s => 
-        s.id === stationId 
-          ? { ...s, isOccupied: false, currentSession: null } 
-          : s
-      ));
-      
-      // Try to update session in Supabase
+      // Update database FIRST to ensure consistency, then update local state
+      // This prevents Realtime subscription from overriding with stale data
       try {
         const { error: sessionError } = await supabase
           .from('sessions')
@@ -76,11 +66,17 @@ export const useEndSession = ({
           
         if (sessionError) {
           console.error('Error updating session in Supabase:', sessionError);
-          // Continue since local state is already updated
+          throw sessionError;
         }
+        console.log('✅ Session updated in database successfully');
       } catch (supabaseError) {
         console.error('Error updating session in Supabase:', supabaseError);
-        // Continue since local state is already updated
+        toast({
+          title: 'Database Error',
+          description: 'Failed to update session in database. Please try again.',
+          variant: 'destructive'
+        });
+        throw supabaseError;
       }
       
       // Try to update station in Supabase
@@ -96,15 +92,34 @@ export const useEndSession = ({
           
           if (stationError) {
             console.error('Error updating station in Supabase:', stationError);
-            // Continue since local state is already updated
+            // Non-critical, continue
+          } else {
+            console.log('✅ Station updated in database successfully');
           }
         } else {
           console.log("Skipping station update in Supabase due to non-UUID station ID");
         }
       } catch (supabaseError) {
         console.error('Error updating station in Supabase:', supabaseError);
-        // Continue since local state is already updated
+        // Non-critical, continue
       }
+      
+      // Update local state AFTER database update to ensure consistency
+      // Use functional updates to ensure we're working with the latest state
+      setSessions(prev => {
+        const updated = prev.map(s => 
+          s.id === session.id ? updatedSession : s
+        );
+        console.log('✅ Updated sessions in local state');
+        return updated;
+      });
+      
+      setStations(prev => prev.map(s => 
+        s.id === stationId 
+          ? { ...s, isOccupied: false, currentSession: null } 
+          : s
+      ));
+      console.log('✅ Updated stations in local state');
       
       // Find customer
       const customer = customersList?.find(c => c.id === session.customerId);
