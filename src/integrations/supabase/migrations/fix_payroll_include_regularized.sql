@@ -42,14 +42,20 @@ BEGIN
        AND daily_earnings > 0), 0
   );
   
+  -- Exclude LOP deductions - LOP/leaves are not deductions, just no salary
   SELECT COALESCE(SUM(amount), 0) INTO v_total_deductions
   FROM staff_deductions
-  WHERE staff_id = p_staff_id AND month = p_month AND year = p_year;
+  WHERE staff_id = p_staff_id 
+    AND month = p_month 
+    AND year = p_year
+    AND deduction_type != 'lop'; -- Exclude LOP from deductions
   
   SELECT COALESCE(SUM(amount), 0) INTO v_total_allowances
   FROM staff_allowances
   WHERE staff_id = p_staff_id AND month = p_month AND year = p_year;
   
+  -- Calculate net salary (earnings + allowances - other deductions)
+  -- Absent/leave days already have ₹0 earnings, so no need to deduct anything
   v_net_salary := v_gross_earnings + v_total_allowances - v_total_deductions;
   
   INSERT INTO staff_payroll (

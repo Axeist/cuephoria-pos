@@ -193,33 +193,14 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
         if (error) throw error;
       }
 
-      // Remove any LOP deductions for this date if marking present
-      if (regularizationType !== 'absent') {
-        await supabase
-          .from('staff_deductions')
-          .delete()
-          .eq('staff_id', selectedStaff)
-          .eq('deduction_date', dateStr)
-          .eq('deduction_type', 'lop')
-          .eq('marked_by', 'system');
-      } else {
-        // Add LOP deduction for absent
-        const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
-        const dailyRate = staff.monthly_salary / daysInMonth;
-        
-        await supabase
-          .from('staff_deductions')
-          .insert({
-            staff_id: selectedStaff,
-            deduction_type: 'lop',
-            amount: dailyRate,
-            reason: `Full-day LOP - Marked absent on ${dateStr}`,
-            deduction_date: dateStr,
-            marked_by: user?.username || 'admin',
-            month: selectedDate.getMonth() + 1,
-            year: selectedDate.getFullYear()
-          });
-      }
+      // Remove any LOP deductions if they exist (LOP is not a deduction, just no salary)
+      // Absent/leave days simply have ₹0 earnings, not deductions
+      await supabase
+        .from('staff_deductions')
+        .delete()
+        .eq('staff_id', selectedStaff)
+        .eq('deduction_date', dateStr)
+        .eq('deduction_type', 'lop');
 
       toast({
         title: 'Success',
@@ -354,7 +335,7 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
             <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-red-500" />
               <p className="text-sm text-red-500">
-                Marking as absent will result in no salary for this day. LOP deduction will be applied.
+                Marking as absent will result in no salary (₹0) for this day. This is not a deduction, just no earnings.
               </p>
             </div>
           )}
