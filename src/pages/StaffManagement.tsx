@@ -17,6 +17,7 @@ import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDia
 import OvertimeManagement from '@/components/staff/OvertimeManagement';
 import LateLoginOTWidgets from '@/components/staff/LateLoginOTWidgets';
 import DoubleShiftManagement from '@/components/staff/DoubleShiftManagement';
+import StaffRequestsManagement from '@/components/staff/StaffRequestsManagement';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
 
 const StaffManagement = () => {
@@ -98,7 +99,7 @@ const StaffManagement = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">
-            User Management
+            Staff Management
           </h2>
           <p className="text-muted-foreground mt-1">
             Manage your team, track attendance, and process payroll
@@ -253,33 +254,8 @@ const StaffManagement = () => {
           />
         </TabsContent>
 
-        <TabsContent value="leaves" className="space-y-4 mt-6">
-          <LeaveManagement
-            pendingLeaves={pendingLeaves || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
-
-        <TabsContent value="regularization" className="space-y-4 mt-6">
-          <RegularizationManagement
-            staffProfiles={staffProfiles || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
-
-        <TabsContent value="overtime" className="space-y-4 mt-6">
-          <LateLoginOTWidgets staffProfiles={staffProfiles || []} />
-          <OvertimeManagement
-            staffProfiles={staffProfiles || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
-
-        <TabsContent value="double-shift" className="space-y-4 mt-6">
-          <DoubleShiftManagement
+        <TabsContent value="requests" className="space-y-4 mt-6">
+          <StaffRequestsManagement
             staffProfiles={staffProfiles || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}

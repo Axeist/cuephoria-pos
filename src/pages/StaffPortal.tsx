@@ -910,7 +910,7 @@ const StaffPortal = () => {
 
         <TabsContent value="requests" className="space-y-4 mt-6">
           {/* Action Buttons */}
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end flex-wrap">
             <Button
               onClick={() => setShowRegularizationRequest(true)}
               variant="outline"
@@ -928,6 +928,15 @@ const StaffPortal = () => {
             >
               <TrendingUp className="h-4 w-4 mr-2" />
               Request OT
+            </Button>
+            <Button
+              onClick={() => setShowDoubleShiftRequest(true)}
+              variant="outline"
+              className="border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white"
+              size="sm"
+            >
+              <User className="h-4 w-4 mr-2" />
+              Request Double Shift
             </Button>
             <Button
               onClick={() => setShowLeaveRequest(true)}
