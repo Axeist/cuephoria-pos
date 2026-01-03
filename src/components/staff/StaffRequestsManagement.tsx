@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { format, differenceInDays, differenceInHours, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
+import { 
+  format, differenceInDays, differenceInHours, startOfWeek, endOfWeek, subWeeks,
+  startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears
+} from 'date-fns';
 import { 
   Calendar, FileText, TrendingUp, User, Clock, DollarSign, AlertCircle, 
   CheckCircle, XCircle, Check, X, Filter, RefreshCw, TrendingDown, 
-  BarChart3, Zap, Timer, Activity
+  BarChart3, Zap, Timer, Activity, Trash2
 } from 'lucide-react';
 import {
   Dialog,
@@ -20,6 +23,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,10 +51,12 @@ interface StaffRequestsManagementProps {
 
 type RequestType = 'leave' | 'regularization' | 'overtime' | 'double-shift';
 type RequestStatus = 'pending' | 'approved' | 'rejected';
+type DateFilter = 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'last_year' | 'all_time';
 
 interface UnifiedRequest {
   id: string;
   type: RequestType;
+  staffId: string;
   staffName: string;
   designation: string;
   date: Date;
@@ -58,19 +73,25 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
   const [allRequests, setAllRequests] = useState<UnifiedRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<UnifiedRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<UnifiedRequest | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adminComments, setAdminComments] = useState('');
   const [showDialog, setShowDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
   const [filterType, setFilterType] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('this_month');
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   
   // Analytics state
   const [analytics, setAnalytics] = useState({
     totalPending: 0,
+    totalApproved: 0,
+    totalRejected: 0,
     totalFinancialImpact: 0,
     averageAge: 0,
     urgentCount: 0,
@@ -86,108 +107,161 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
 
   useEffect(() => {
     fetchAllRequests();
-  }, []);
+  }, [dateFilter]);
 
   useEffect(() => {
     filterRequests();
-  }, [filterType, allRequests]);
+  }, [filterType, filterStatus, dateFilter, allRequests]);
+
+  const getDateRange = (filter: DateFilter): { start: Date; end: Date } => {
+    const now = new Date();
+    switch (filter) {
+      case 'this_month':
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case 'last_month':
+        const lastMonth = subMonths(now, 1);
+        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      case 'last_3_months':
+        return { start: startOfMonth(subMonths(now, 2)), end: endOfMonth(now) };
+      case 'this_year':
+        return { start: startOfYear(now), end: endOfYear(now) };
+      case 'last_year':
+        const lastYear = subYears(now, 1);
+        return { start: startOfYear(lastYear), end: endOfYear(lastYear) };
+      case 'all_time':
+        return { start: new Date(0), end: now };
+      default:
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+    }
+  };
 
   const fetchAllRequests = async () => {
     setIsLoadingRequests(true);
     try {
       const unifiedRequests: UnifiedRequest[] = [];
+      const dateRange = getDateRange(dateFilter);
+      const startDateStr = format(dateRange.start, 'yyyy-MM-dd');
+      const endDateStr = format(dateRange.end, 'yyyy-MM-dd');
 
-      // Fetch leaves
+      // Fetch all leaves (pending, approved, rejected)
       const { data: leaves } = await supabase
-        .from('pending_leaves_view')
-        .select('*')
-        .order('requested_at', { ascending: false });
+        .from('staff_leave_requests')
+        .select(`
+          *,
+          staff_profiles!inner(username, full_name, designation)
+        `)
+        .gte('created_at', startDateStr)
+        .lte('created_at', endDateStr)
+        .order('created_at', { ascending: false });
 
       if (leaves) {
         leaves.forEach((leave: any) => {
-          const createdAt = new Date(leave.requested_at);
+          const createdAt = new Date(leave.created_at);
           const daysOld = differenceInDays(new Date(), createdAt);
+          const profile = leave.staff_profiles;
           unifiedRequests.push({
             id: leave.id,
             type: 'leave',
-            staffName: leave.staff_name,
-            designation: leave.designation,
+            staffId: leave.staff_id,
+            staffName: profile?.full_name || profile?.username || 'Unknown',
+            designation: profile?.designation || 'N/A',
             date: new Date(leave.start_date),
             createdAt,
-            status: 'pending',
-            data: leave,
+            status: leave.status as RequestStatus,
+            data: { ...leave, staff_name: profile?.full_name || profile?.username },
             priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
           });
         });
       }
 
-      // Fetch regularizations
+      // Fetch all regularizations
       const { data: regularizations } = await supabase
-        .from('pending_regularization_view')
-        .select('*')
+        .from('staff_attendance_regularization')
+        .select(`
+          *,
+          staff_profiles!inner(username, full_name, designation)
+        `)
+        .gte('created_at', startDateStr)
+        .lte('created_at', endDateStr)
         .order('created_at', { ascending: false });
 
       if (regularizations) {
         regularizations.forEach((reg: any) => {
           const createdAt = new Date(reg.created_at);
           const daysOld = differenceInDays(new Date(), createdAt);
+          const profile = reg.staff_profiles;
           unifiedRequests.push({
             id: reg.id,
             type: 'regularization',
-            staffName: reg.username || reg.full_name,
-            designation: reg.designation,
+            staffId: reg.staff_id,
+            staffName: profile?.full_name || profile?.username || 'Unknown',
+            designation: profile?.designation || 'N/A',
             date: new Date(reg.date),
             createdAt,
-            status: 'pending',
-            data: reg,
+            status: reg.status as RequestStatus,
+            data: { ...reg, username: profile?.username, full_name: profile?.full_name },
             priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
           });
         });
       }
 
-      // Fetch OT requests
+      // Fetch all OT requests
       const { data: otRequests } = await supabase
-        .from('pending_ot_requests_view')
-        .select('*')
+        .from('staff_overtime_requests')
+        .select(`
+          *,
+          staff_profiles!inner(username, full_name, designation)
+        `)
+        .gte('created_at', startDateStr)
+        .lte('created_at', endDateStr)
         .order('created_at', { ascending: false });
 
       if (otRequests) {
         otRequests.forEach((ot: any) => {
           const createdAt = new Date(ot.created_at);
           const daysOld = differenceInDays(new Date(), createdAt);
+          const profile = ot.staff_profiles;
           unifiedRequests.push({
             id: ot.id,
             type: 'overtime',
-            staffName: ot.username || ot.full_name,
-            designation: ot.designation,
+            staffId: ot.staff_id,
+            staffName: profile?.full_name || profile?.username || 'Unknown',
+            designation: profile?.designation || 'N/A',
             date: new Date(ot.date),
             createdAt,
-            status: 'pending',
-            data: ot,
+            status: ot.status as RequestStatus,
+            data: { ...ot, username: profile?.username, full_name: profile?.full_name },
             priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
           });
         });
       }
 
-      // Fetch double shift requests
+      // Fetch all double shift requests
       const { data: doubleShiftRequests } = await supabase
-        .from('pending_double_shift_requests_view')
-        .select('*')
-        .order('requested_at', { ascending: false });
+        .from('staff_double_shift_requests')
+        .select(`
+          *,
+          staff_profiles!inner(username, full_name, designation)
+        `)
+        .gte('created_at', startDateStr)
+        .lte('created_at', endDateStr)
+        .order('created_at', { ascending: false });
 
       if (doubleShiftRequests) {
         doubleShiftRequests.forEach((ds: any) => {
-          const createdAt = new Date(ds.requested_at || ds.created_at);
+          const createdAt = new Date(ds.created_at || ds.requested_at);
           const daysOld = differenceInDays(new Date(), createdAt);
+          const profile = ds.staff_profiles;
           unifiedRequests.push({
             id: ds.id,
             type: 'double-shift',
-            staffName: ds.staff_name,
-            designation: ds.designation,
+            staffId: ds.staff_id,
+            staffName: profile?.full_name || profile?.username || 'Unknown',
+            designation: profile?.designation || 'N/A',
             date: new Date(ds.date),
             createdAt,
-            status: 'pending',
-            data: ds,
+            status: ds.status as RequestStatus,
+            data: { ...ds, staff_name: profile?.full_name || profile?.username },
             priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
           });
         });
@@ -228,6 +302,9 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
     let urgentCount = 0;
     let thisWeekCount = 0;
     let lastWeekCount = 0;
+    let pendingCount = 0;
+    let approvedCount = 0;
+    let rejectedCount = 0;
     const typeDistribution = {
       leave: 0,
       regularization: 0,
@@ -236,31 +313,40 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
     };
 
     requests.forEach((req) => {
-      typeDistribution[req.type]++;
-      
-      const age = differenceInHours(now, req.createdAt);
-      totalAge += age;
-      
-      if (req.priority === 'high') urgentCount++;
-      
-      if (req.createdAt >= thisWeekStart && req.createdAt <= thisWeekEnd) {
-        thisWeekCount++;
-      } else if (req.createdAt >= lastWeekStart && req.createdAt <= lastWeekEnd) {
-        lastWeekCount++;
-      }
+      if (req.status === 'pending') {
+        typeDistribution[req.type]++;
+        pendingCount++;
+        
+        const age = differenceInHours(now, req.createdAt);
+        totalAge += age;
+        
+        if (req.priority === 'high') urgentCount++;
+        
+        if (req.createdAt >= thisWeekStart && req.createdAt <= thisWeekEnd) {
+          thisWeekCount++;
+        } else if (req.createdAt >= lastWeekStart && req.createdAt <= lastWeekEnd) {
+          lastWeekCount++;
+        }
 
-      // Calculate financial impact
-      if (req.type === 'overtime') {
-        totalFinancial += req.data.overtime_amount || 100;
-      } else if (req.type === 'double-shift') {
-        totalFinancial += req.data.allowance_amount || 0;
+        // Calculate financial impact
+        if (req.type === 'overtime') {
+          totalFinancial += req.data.overtime_amount || 100;
+        } else if (req.type === 'double-shift') {
+          totalFinancial += req.data.allowance_amount || 0;
+        }
+      } else if (req.status === 'approved') {
+        approvedCount++;
+      } else if (req.status === 'rejected') {
+        rejectedCount++;
       }
     });
 
     setAnalytics({
-      totalPending: requests.length,
+      totalPending: pendingCount,
+      totalApproved: approvedCount,
+      totalRejected: rejectedCount,
       totalFinancialImpact: totalFinancial,
-      averageAge: requests.length > 0 ? Math.round(totalAge / requests.length / 24 * 10) / 10 : 0,
+      averageAge: pendingCount > 0 ? Math.round(totalAge / pendingCount / 24 * 10) / 10 : 0,
       urgentCount,
       thisWeekCount,
       lastWeekCount,
@@ -269,29 +355,56 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
   };
 
   const filterRequests = () => {
-    if (filterType === 'all') {
-      setFilteredRequests(allRequests);
+    let filtered = [...allRequests];
+
+    // Filter by type
+    if (filterType !== 'all' && filterType !== 'urgent') {
+      filtered = filtered.filter(r => r.type === filterType);
     } else if (filterType === 'urgent') {
-      setFilteredRequests(allRequests.filter(r => r.priority === 'high'));
-    } else {
-      setFilteredRequests(allRequests.filter(r => r.type === filterType));
+      filtered = filtered.filter(r => r.priority === 'high');
     }
+
+    // Filter by status
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(r => r.status === filterStatus);
+    }
+
+    setFilteredRequests(filtered);
   };
 
   const handleRequestAction = async (request: UnifiedRequest, action: 'approve' | 'reject') => {
     setIsProcessing(true);
     try {
       if (request.type === 'leave') {
-        const { error } = await supabase
-          .from('staff_leave_requests')
-          .update({
-            status: action === 'approve' ? 'approved' : 'rejected',
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: user?.username || 'admin',
-            remarks: adminComments
-          })
-          .eq('id', request.id);
-        if (error) throw error;
+        if (action === 'approve') {
+          // Use the new function to process leave approval
+          const { error: rpcError } = await supabase.rpc('process_leave_approval', {
+            p_leave_id: request.id,
+            p_action: 'approve'
+          });
+          if (rpcError) throw rpcError;
+          
+          // Update with admin comments and reviewed_by
+          const { error } = await supabase
+            .from('staff_leave_requests')
+            .update({
+              reviewed_by: user?.username || 'admin',
+              remarks: adminComments || null
+            })
+            .eq('id', request.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('staff_leave_requests')
+            .update({
+              status: 'rejected',
+              reviewed_at: new Date().toISOString(),
+              reviewed_by: user?.username || 'admin',
+              remarks: adminComments
+            })
+            .eq('id', request.id);
+          if (error) throw error;
+        }
       } else if (request.type === 'regularization') {
         if (action === 'approve') {
           const { error: rpcError } = await supabase.rpc('process_regularization', {
@@ -349,10 +462,80 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
     }
   };
 
+  const handleDeleteRequest = async () => {
+    if (!selectedRequest) return;
+    
+    setIsProcessing(true);
+    try {
+      let tableName = '';
+      switch (selectedRequest.type) {
+        case 'leave':
+          tableName = 'staff_leave_requests';
+          break;
+        case 'regularization':
+          tableName = 'staff_attendance_regularization';
+          break;
+        case 'overtime':
+          tableName = 'staff_overtime_requests';
+          break;
+        case 'double-shift':
+          tableName = 'staff_double_shift_requests';
+          break;
+      }
+
+      const { error } = await supabase
+        .from(tableName)
+        .delete()
+        .eq('id', selectedRequest.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Request deleted successfully'
+      });
+
+      setShowDeleteDialog(false);
+      setSelectedRequest(null);
+      await fetchAllRequests();
+      onRefresh();
+    } catch (error: any) {
+      console.error('Error deleting request:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete request',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const canDeleteRequest = (request: UnifiedRequest): boolean => {
+    // Admin can delete any request
+    if (isAdmin) return true;
+    
+    // Staff can only delete their own pending requests
+    // Match by username (staff name in request vs current user username)
+    if (request.status === 'pending' && user?.username) {
+      const requestUsername = request.data.username || request.data.staff_name || request.staffName;
+      if (requestUsername?.toLowerCase() === user.username.toLowerCase()) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   const openActionDialog = (request: UnifiedRequest, action: 'approve' | 'reject') => {
     setSelectedRequest(request);
     setActionType(action);
     setShowDialog(true);
+  };
+
+  const openDeleteDialog = (request: UnifiedRequest) => {
+    setSelectedRequest(request);
+    setShowDeleteDialog(true);
   };
 
   const getRequestTypeIcon = (type: RequestType) => {
@@ -379,6 +562,17 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
       case 'regularization': return 'text-orange-500 border-orange-500';
       case 'overtime': return 'text-blue-500 border-blue-500';
       case 'double-shift': return 'text-purple-500 border-purple-500';
+    }
+  };
+
+  const getStatusBadge = (status: RequestStatus) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="text-yellow-500 border-yellow-500">Pending</Badge>;
+      case 'approved':
+        return <Badge variant="outline" className="text-green-500 border-green-500">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="outline" className="text-red-500 border-red-500">Rejected</Badge>;
     }
   };
 
@@ -560,6 +754,37 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
         </Card>
       </div>
 
+      {/* Status Summary */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Approved</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{analytics.totalApproved}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Rejected</CardTitle>
+            <XCircle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{analytics.totalRejected}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white">Total Requests</CardTitle>
+            <BarChart3 className="h-4 w-4 text-cuephoria-lightpurple" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{allRequests.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Request Type Distribution */}
       <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
         <CardHeader>
@@ -598,9 +823,34 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-white">All Staff Requests</CardTitle>
-              <CardDescription>Review and manage all pending requests</CardDescription>
+              <CardDescription>Review and manage all requests</CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as DateFilter)}>
+                <SelectTrigger className="w-[180px] bg-cuephoria-darker border-cuephoria-purple/20">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="this_month">This Month</SelectItem>
+                  <SelectItem value="last_month">Last Month</SelectItem>
+                  <SelectItem value="last_3_months">Last 3 Months</SelectItem>
+                  <SelectItem value="this_year">This Year</SelectItem>
+                  <SelectItem value="last_year">Last Year</SelectItem>
+                  <SelectItem value="all_time">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[150px] bg-cuephoria-darker border-cuephoria-purple/20">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={filterType} onValueChange={setFilterType}>
                 <SelectTrigger className="w-[180px] bg-cuephoria-darker border-cuephoria-purple/20">
                   <Filter className="h-4 w-4 mr-2" />
@@ -636,7 +886,7 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
           ) : filteredRequests.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No pending requests found</p>
+              <p>No requests found</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -644,8 +894,8 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
                 <Card
                   key={`${request.type}-${request.id}`}
                   className={`bg-cuephoria-darker border-cuephoria-purple/10 hover:border-cuephoria-purple/40 transition-all ${
-                    request.priority === 'high' ? 'border-red-500/50 bg-red-500/5' : ''
-                  }`}
+                    request.priority === 'high' && request.status === 'pending' ? 'border-red-500/50 bg-red-500/5' : ''
+                  } ${request.status === 'approved' ? 'border-green-500/20' : request.status === 'rejected' ? 'border-red-500/20' : ''}`}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
@@ -661,7 +911,8 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
                               {getRequestTypeIcon(request.type)}
                               <span className="ml-1">{getRequestTypeLabel(request.type)}</span>
                             </Badge>
-                            {request.priority === 'high' && (
+                            {getStatusBadge(request.status)}
+                            {request.priority === 'high' && request.status === 'pending' && (
                               <Badge variant="outline" className="text-red-500 border-red-500">
                                 <Zap className="h-3 w-3 mr-1" />
                                 Urgent
@@ -679,6 +930,13 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
                             </div>
                           )}
 
+                          {request.status !== 'pending' && request.data.reviewed_by && (
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              {request.status === 'approved' ? 'Approved' : 'Rejected'} by {request.data.reviewed_by} on{' '}
+                              {request.data.reviewed_at ? format(new Date(request.data.reviewed_at), 'MMM dd, yyyy hh:mm a') : ''}
+                            </div>
+                          )}
+
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
                             <Clock className="h-3 w-3" />
                             Requested {format(request.createdAt, 'MMM dd, yyyy hh:mm a')} 
@@ -688,26 +946,41 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-2 ml-4">
-                        <Button
-                          onClick={() => openActionDialog(request, 'approve')}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          size="sm"
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Approve
-                        </Button>
-                        <Button
-                          onClick={() => openActionDialog(request, 'reject')}
-                          variant="destructive"
-                          size="sm"
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Reject
-                        </Button>
+                        {request.status === 'pending' && (
+                          <>
+                            <Button
+                              onClick={() => openActionDialog(request, 'approve')}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              size="sm"
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              onClick={() => openActionDialog(request, 'reject')}
+                              variant="destructive"
+                              size="sm"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {canDeleteRequest(request) && (
+                          <Button
+                            onClick={() => openDeleteDialog(request)}
+                            variant="outline"
+                            size="sm"
+                            className="border-red-500/50 text-red-500 hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        )}
                       </div>
-            </div>
-          </CardContent>
-        </Card>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
@@ -731,6 +1004,11 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
                   )}
                   {selectedRequest.type !== 'leave' && (
                     <> for {format(selectedRequest.date, 'MMM dd, yyyy')}</>
+                  )}
+                  {actionType === 'approve' && selectedRequest.type === 'leave' && (
+                    <span className="block mt-2 text-green-400">
+                      Leave will be marked in attendance calendar and reflected in payslips.
+                    </span>
                   )}
                   {actionType === 'approve' && (selectedRequest.type === 'overtime' || selectedRequest.type === 'double-shift') && (
                     <span className="block mt-2 text-green-400">
@@ -802,6 +1080,38 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Request?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              {selectedRequest && (
+                <>
+                  Are you sure you want to delete this {getRequestTypeLabel(selectedRequest.type).toLowerCase()} request for{' '}
+                  <span className="font-semibold text-white">{selectedRequest.staffName}</span>?
+                  {selectedRequest.status !== 'pending' && (
+                    <span className="block mt-2 text-yellow-400">
+                      This request has been {selectedRequest.status}. Only admins can delete processed requests.
+                    </span>
+                  )}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-cuephoria-purple/20">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteRequest}
+              disabled={isProcessing}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isProcessing ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

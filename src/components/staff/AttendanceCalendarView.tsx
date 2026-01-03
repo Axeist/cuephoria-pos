@@ -198,6 +198,29 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 
         if (attError) throw attError;
 
+        // Get approved leave requests for the month
+        const { data: leaves, error: leavesError } = await supabase
+          .from('staff_leave_requests')
+          .select('*')
+          .eq('staff_id', staffId)
+          .eq('status', 'approved')
+          .lte('start_date', endDate)
+          .gte('end_date', startDate);
+
+        if (leavesError) throw leavesError;
+
+        // Get allowances for the month
+        const month = new Date(startDate).getMonth() + 1;
+        const year = new Date(startDate).getFullYear();
+        const { data: allowances, error: allowancesError } = await supabase
+          .from('staff_allowances')
+          .select('*')
+          .eq('staff_id', staffId)
+          .eq('month', month)
+          .eq('year', year);
+
+        if (allowancesError) throw allowancesError;
+
         const workingDays = (attendance || []).filter(a => 
           a.status && !a.status.includes('absent') && !a.status.includes('leave') && a.total_working_hours > 0
         ).length;
@@ -206,7 +229,36 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
           a.status && (a.status.includes('absent') || a.status === 'absent_lop')
         ).length;
 
+        // Calculate leave days from approved leave requests
+        let leaveDays = 0;
+        if (leaves) {
+          leaves.forEach((leave: any) => {
+            const leaveStart = new Date(leave.start_date);
+            const leaveEnd = new Date(leave.end_date);
+            const monthStart = new Date(startDate);
+            const monthEnd = new Date(endDate);
+            
+            // Calculate overlapping days
+            const overlapStart = leaveStart > monthStart ? leaveStart : monthStart;
+            const overlapEnd = leaveEnd < monthEnd ? leaveEnd : monthEnd;
+            
+            if (overlapStart <= overlapEnd) {
+              const days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              leaveDays += days;
+            }
+          });
+        }
+
+        // Also count leave days from attendance records
+        const leaveDaysFromAttendance = (attendance || []).filter(a => 
+          a.status === 'leave'
+        ).length;
+
+        // Use the maximum of the two (in case of discrepancies)
+        leaveDays = Math.max(leaveDays, leaveDaysFromAttendance);
+
         const totalEarnings = (attendance || []).reduce((sum, a) => sum + (a.daily_earnings || 0), 0);
+        const totalAllowances = (allowances || []).reduce((sum, a) => sum + (a.amount || 0), 0);
 
         return {
           user_id: staffId,
@@ -214,7 +266,9 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
           designation: staff.designation,
           workingDays,
           absentDays,
+          leaveDays,
           totalEarnings,
+          totalAllowances,
           totalDays: (attendance || []).length
         };
       });
@@ -468,8 +522,10 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                         <TableHead className="text-white">Designation</TableHead>
                         <TableHead className="text-white text-center">Working Days</TableHead>
                         <TableHead className="text-white text-center">Absent Days</TableHead>
+                        <TableHead className="text-white text-center">Leave Days</TableHead>
                         <TableHead className="text-white text-center">Total Days</TableHead>
                         <TableHead className="text-white text-right">Salary Earned</TableHead>
+                        <TableHead className="text-white text-right">Allowances</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -494,6 +550,11 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                               {summary.absentDays}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">
+                              {summary.leaveDays || 0}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-center text-muted-foreground">
                             {summary.totalDays}
                           </TableCell>
@@ -502,6 +563,14 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                               <DollarSign className="h-4 w-4 text-green-400" />
                               <span className="font-semibold text-green-400">
                                 ₹{summary.totalEarnings.toFixed(2)}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <DollarSign className="h-4 w-4 text-purple-400" />
+                              <span className="font-semibold text-purple-400">
+                                ₹{(summary.totalAllowances || 0).toFixed(2)}
                               </span>
                             </div>
                           </TableCell>
