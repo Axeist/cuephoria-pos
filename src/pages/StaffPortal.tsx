@@ -16,6 +16,7 @@ import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
 import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
 import RegularizationRequestDialog from '@/components/staff/RegularizationRequestDialog';
 import OvertimeRequestDialog from '@/components/staff/OvertimeRequestDialog';
+import DoubleShiftRequestDialog from '@/components/staff/DoubleShiftRequestDialog';
 import RealTimeTimer from '@/components/staff/RealTimeTimer';
 import jsPDF from 'jspdf';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +39,7 @@ const StaffPortal = () => {
   const [showLeaveRequest, setShowLeaveRequest] = useState(false);
   const [showRegularizationRequest, setShowRegularizationRequest] = useState(false);
   const [showOTRequest, setShowOTRequest] = useState(false);
+  const [showDoubleShiftRequest, setShowDoubleShiftRequest] = useState(false);
   const [currentShift, setCurrentShift] = useState<any>(null);
   const [allAttendance, setAllAttendance] = useState<any[]>([]);
   const [filteredAttendance, setFilteredAttendance] = useState<any[]>([]);
@@ -45,6 +47,8 @@ const StaffPortal = () => {
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [regularizationRequests, setRegularizationRequests] = useState<any[]>([]);
   const [otRequests, setOtRequests] = useState<any[]>([]);
+  const [doubleShiftRequests, setDoubleShiftRequests] = useState<any[]>([]);
+  const [allStaffProfiles, setAllStaffProfiles] = useState<any[]>([]);
   const [leaveBalance, setLeaveBalance] = useState({ paid: 1, unpaid: 2 });
   const [payslips, setPayslips] = useState<any[]>([]);
   const [breakViolations, setBreakViolations] = useState<any[]>([]);
@@ -160,6 +164,23 @@ const StaffPortal = () => {
         .order('created_at', { ascending: false });
 
       setOtRequests(otReqs || []);
+
+      // Fetch double shift requests
+      const { data: dsReqs } = await supabase
+        .from('staff_double_shift_requests')
+        .select('*')
+        .eq('staff_id', selectedStaff.user_id)
+        .order('requested_at', { ascending: false });
+
+      setDoubleShiftRequests(dsReqs || []);
+
+      // Fetch all staff profiles for double shift request
+      const { data: allStaff } = await supabase
+        .from('staff_profiles')
+        .select('*')
+        .eq('is_active', true);
+
+      setAllStaffProfiles(allStaff || []);
 
       // Fetch break violations
       const { data: violations } = await supabase
@@ -1104,6 +1125,71 @@ const StaffPortal = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Double Shift Requests */}
+          <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+            <CardHeader>
+              <CardTitle className="text-white">Double Shift Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {doubleShiftRequests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No double shift requests
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {doubleShiftRequests.map((ds) => {
+                    const coveredStaff = allStaffProfiles.find(s => s.user_id === ds.covered_staff_id);
+                    return (
+                      <div
+                        key={ds.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge
+                              variant="outline"
+                              className={
+                                ds.status === 'approved'
+                                  ? 'text-green-500 border-green-500'
+                                  : ds.status === 'rejected'
+                                  ? 'text-red-500 border-red-500'
+                                  : 'text-yellow-500 border-yellow-500'
+                              }
+                            >
+                              {ds.status?.toUpperCase()}
+                            </Badge>
+                            <Badge variant="outline" className="text-purple-400 border-purple-500">
+                              DOUBLE SHIFT
+                            </Badge>
+                          </div>
+                          <p className="text-white">
+                            {format(new Date(ds.date), 'MMM dd, yyyy')}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Covering for: <span className="text-white">{coveredStaff?.username || 'Unknown'}</span>
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {ds.total_hours} hours • ₹{ds.allowance_amount?.toFixed(2) || '0.00'}
+                          </p>
+                          {ds.reason && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Reason: {ds.reason}
+                            </p>
+                          )}
+                          {ds.remarks && ds.status === 'rejected' && (
+                            <p className="text-sm text-red-400 mt-1">
+                              Admin note: {ds.remarks}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="payslips" className="space-y-4 mt-6">
@@ -1184,6 +1270,15 @@ const StaffPortal = () => {
         open={showOTRequest}
         onOpenChange={setShowOTRequest}
         staffId={selectedStaff?.user_id}
+        onSuccess={fetchStaffData}
+      />
+
+      {/* Double Shift Request Dialog */}
+      <DoubleShiftRequestDialog
+        open={showDoubleShiftRequest}
+        onOpenChange={setShowDoubleShiftRequest}
+        staffId={selectedStaff?.user_id}
+        staffProfiles={allStaffProfiles}
         onSuccess={fetchStaffData}
       />
 

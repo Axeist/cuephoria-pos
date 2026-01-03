@@ -16,6 +16,7 @@ import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
 import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
 import OvertimeManagement from '@/components/staff/OvertimeManagement';
 import LateLoginOTWidgets from '@/components/staff/LateLoginOTWidgets';
+import DoubleShiftManagement from '@/components/staff/DoubleShiftManagement';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
 
 const StaffManagement = () => {
@@ -178,7 +179,7 @@ const StaffManagement = () => {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-8 bg-cuephoria-dark border border-cuephoria-purple/20">
+        <TabsList className="grid w-full grid-cols-9 bg-cuephoria-dark border border-cuephoria-purple/20">
           <TabsTrigger value="overview">
             <Users className="h-4 w-4 mr-2" />
             Overview
@@ -206,6 +207,10 @@ const StaffManagement = () => {
           <TabsTrigger value="overtime">
             <Activity className="h-4 w-4 mr-2" />
             Overtime
+          </TabsTrigger>
+          <TabsTrigger value="double-shift">
+            <User className="h-4 w-4 mr-2" />
+            Double Shift
           </TabsTrigger>
           <TabsTrigger value="payroll">
             <DollarSign className="h-4 w-4 mr-2" />
@@ -267,6 +272,14 @@ const StaffManagement = () => {
         <TabsContent value="overtime" className="space-y-4 mt-6">
           <LateLoginOTWidgets staffProfiles={staffProfiles || []} />
           <OvertimeManagement
+            staffProfiles={staffProfiles || []}
+            isLoading={isLoading}
+            onRefresh={fetchStaffData}
+          />
+        </TabsContent>
+
+        <TabsContent value="double-shift" className="space-y-4 mt-6">
+          <DoubleShiftManagement
             staffProfiles={staffProfiles || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
