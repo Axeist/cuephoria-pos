@@ -59,7 +59,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 
   useEffect(() => {
     fetchAttendanceData();
-  }, [currentDate, staffProfiles]);
+  }, [currentDate, staffProfiles, selectedStaff]);
 
   const fetchAttendanceData = async () => {
     setIsLoadingData(true);
@@ -128,10 +128,12 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
       // Organize attendance data
       const organized: StaffAttendanceMap = {};
       
+      // Initialize all staff
       staffProfiles.forEach(staff => {
         organized[staff.user_id] = {};
       });
 
+      // Fill in actual attendance records
       (attendance || []).forEach(record => {
         const dateKey = format(new Date(record.date), 'yyyy-MM-dd');
         const status = record.status as AttendanceStatus;
