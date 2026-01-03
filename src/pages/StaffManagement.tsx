@@ -14,6 +14,8 @@ import PayrollManagement from '@/components/staff/PayrollManagement';
 import RegularizationManagement from '@/components/staff/RegularizationManagement';
 import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
 import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
+import OvertimeManagement from '@/components/staff/OvertimeManagement';
+import LateLoginOTWidgets from '@/components/staff/LateLoginOTWidgets';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
 
 const StaffManagement = () => {
@@ -176,7 +178,7 @@ const StaffManagement = () => {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-7 bg-cuephoria-dark border border-cuephoria-purple/20">
+        <TabsList className="grid w-full grid-cols-8 bg-cuephoria-dark border border-cuephoria-purple/20">
           <TabsTrigger value="overview">
             <Users className="h-4 w-4 mr-2" />
             Overview
@@ -200,6 +202,10 @@ const StaffManagement = () => {
           <TabsTrigger value="regularization">
             <FileText className="h-4 w-4 mr-2" />
             Regularization
+          </TabsTrigger>
+          <TabsTrigger value="overtime">
+            <Activity className="h-4 w-4 mr-2" />
+            Overtime
           </TabsTrigger>
           <TabsTrigger value="payroll">
             <DollarSign className="h-4 w-4 mr-2" />
@@ -252,6 +258,15 @@ const StaffManagement = () => {
 
         <TabsContent value="regularization" className="space-y-4 mt-6">
           <RegularizationManagement
+            staffProfiles={staffProfiles || []}
+            isLoading={isLoading}
+            onRefresh={fetchStaffData}
+          />
+        </TabsContent>
+
+        <TabsContent value="overtime" className="space-y-4 mt-6">
+          <LateLoginOTWidgets staffProfiles={staffProfiles || []} />
+          <OvertimeManagement
             staffProfiles={staffProfiles || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
 import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
 import RegularizationRequestDialog from '@/components/staff/RegularizationRequestDialog';
+import OvertimeRequestDialog from '@/components/staff/OvertimeRequestDialog';
 import RealTimeTimer from '@/components/staff/RealTimeTimer';
 import jsPDF from 'jspdf';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +33,7 @@ const StaffPortal = () => {
   const [showStaffSelection, setShowStaffSelection] = useState(true);
   const [showLeaveRequest, setShowLeaveRequest] = useState(false);
   const [showRegularizationRequest, setShowRegularizationRequest] = useState(false);
+  const [showOTRequest, setShowOTRequest] = useState(false);
   const [currentShift, setCurrentShift] = useState<any>(null);
   const [allAttendance, setAllAttendance] = useState<any[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
@@ -754,6 +756,15 @@ const StaffPortal = () => {
                     Regularize
                   </Button>
                   <Button
+                    onClick={() => setShowOTRequest(true)}
+                    variant="outline"
+                    className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"
+                    size="sm"
+                  >
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Request OT
+                  </Button>
+                  <Button
                     onClick={() => setShowLeaveRequest(true)}
                     className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
                     size="sm"
@@ -898,6 +909,14 @@ const StaffPortal = () => {
       <RegularizationRequestDialog
         open={showRegularizationRequest}
         onOpenChange={setShowRegularizationRequest}
+        staffId={selectedStaff?.user_id}
+        onSuccess={fetchStaffData}
+      />
+
+      {/* Overtime Request Dialog */}
+      <OvertimeRequestDialog
+        open={showOTRequest}
+        onOpenChange={setShowOTRequest}
         staffId={selectedStaff?.user_id}
         onSuccess={fetchStaffData}
       />

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, getDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle, XCircle, Clock, Coffee, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle, XCircle, Clock, Coffee, AlertCircle, TrendingUp, AlertTriangle } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -30,6 +30,10 @@ interface DayAttendance {
   clockIn?: string;
   clockOut?: string;
   notes?: string;
+  isLate?: boolean;
+  hasOvertime?: boolean;
+  overtimeHours?: number;
+  lateMinutes?: number;
 }
 
 interface StaffAttendanceMap {
@@ -46,6 +50,8 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
   const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [attendanceData, setAttendanceData] = useState<StaffAttendanceMap>({});
+  const [lateLoginData, setLateLoginData] = useState<any>({});
+  const [overtimeData, setOvertimeData] = useState<any>({});
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<string>('all');
 
@@ -59,22 +65,72 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
       const startDate = startOfMonth(currentDate);
       const endDate = endOfMonth(currentDate);
       
-      const { data, error } = await supabase
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+      // Fetch attendance
+      const { data: attendance, error: attendanceError } = await supabase
         .from('staff_attendance')
         .select('*')
-        .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'));
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
 
-      if (error) throw error;
+      if (attendanceError) throw attendanceError;
 
-      // Organize data by staff and date
+      // Fetch late logins
+      const { data: lateLogins, error: lateError } = await supabase
+        .from('staff_late_logins')
+        .select('*')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
+
+      if (lateError) throw lateError;
+
+      // Fetch overtime
+      const { data: overtime, error: otError } = await supabase
+        .from('staff_overtime')
+        .select('*')
+        .gte('date', startDateStr)
+        .lte('date', endDateStr);
+
+      if (otError) throw otError;
+
+      // Organize late login data
+      const lateMap: any = {};
+      (lateLogins || []).forEach(record => {
+        const dateKey = format(new Date(record.date), 'yyyy-MM-dd');
+        if (!lateMap[record.staff_id]) {
+          lateMap[record.staff_id] = {};
+        }
+        lateMap[record.staff_id][dateKey] = {
+          lateMinutes: record.late_minutes,
+          actualClockIn: record.actual_clock_in
+        };
+      });
+      setLateLoginData(lateMap);
+
+      // Organize overtime data
+      const otMap: any = {};
+      (overtime || []).forEach(record => {
+        const dateKey = format(new Date(record.date), 'yyyy-MM-dd');
+        if (!otMap[record.staff_id]) {
+          otMap[record.staff_id] = {};
+        }
+        otMap[record.staff_id][dateKey] = {
+          overtimeHours: record.overtime_hours,
+          status: record.status
+        };
+      });
+      setOvertimeData(otMap);
+
+      // Organize attendance data
       const organized: StaffAttendanceMap = {};
       
       staffProfiles.forEach(staff => {
         organized[staff.user_id] = {};
       });
 
-      (data || []).forEach(record => {
+      (attendance || []).forEach(record => {
         const dateKey = format(new Date(record.date), 'yyyy-MM-dd');
         const status = record.status as AttendanceStatus;
         
@@ -82,12 +138,19 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
           organized[record.staff_id] = {};
         }
 
+        const lateInfo = lateMap[record.staff_id]?.[dateKey];
+        const otInfo = otMap[record.staff_id]?.[dateKey];
+
         organized[record.staff_id][dateKey] = {
           date: new Date(record.date),
           status: status,
           clockIn: record.clock_in ? format(new Date(record.clock_in), 'HH:mm') : undefined,
           clockOut: record.clock_out ? format(new Date(record.clock_out), 'HH:mm') : undefined,
-          notes: record.notes
+          notes: record.notes,
+          isLate: !!lateInfo,
+          lateMinutes: lateInfo?.lateMinutes,
+          hasOvertime: !!otInfo,
+          overtimeHours: otInfo?.overtimeHours
         };
       });
 
@@ -295,18 +358,31 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                           {displayedStaff.map(staff => {
                             const attendance = attendanceData[staff.user_id]?.[dateKey];
                             const status = attendance?.status || null;
+                            const isLate = attendance?.isLate;
+                            const hasOvertime = attendance?.hasOvertime;
+                            
+                            let tooltip = `${staff.username}: ${getStatusLabel(status)}`;
+                            if (attendance?.clockIn) tooltip += ` (${attendance.clockIn})`;
+                            if (isLate) tooltip += ` - Late: ${attendance.lateMinutes} min`;
+                            if (hasOvertime) tooltip += ` - OT: ${attendance.overtimeHours?.toFixed(1)} hrs`;
                             
                             return (
                               <div
                                 key={staff.user_id}
                                 className={cn(
-                                  "text-[10px] px-1 py-0.5 rounded border flex items-center gap-1",
+                                  "text-[10px] px-1 py-0.5 rounded border flex items-center gap-1 relative",
                                   getStatusColor(status)
                                 )}
-                                title={`${staff.username}: ${getStatusLabel(status)}${attendance?.clockIn ? ` (${attendance.clockIn})` : ''}`}
+                                title={tooltip}
                               >
                                 {getStatusIcon(status)}
                                 <span className="truncate">{staff.username.split(' ')[0]}</span>
+                                {isLate && (
+                                  <AlertTriangle className="h-2.5 w-2.5 text-orange-400 ml-0.5" title={`Late: ${attendance.lateMinutes} min`} />
+                                )}
+                                {hasOvertime && (
+                                  <TrendingUp className="h-2.5 w-2.5 text-blue-400 ml-0.5" title={`OT: ${attendance.overtimeHours?.toFixed(1)} hrs`} />
+                                )}
                               </div>
                             );
                           })}
@@ -340,6 +416,14 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
               <Badge className={getStatusColor(null)}>
                 <AlertCircle className="h-3 w-3 mr-1" />
                 No Record
+              </Badge>
+              <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/50">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Late Login
+              </Badge>
+              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                Overtime
               </Badge>
             </div>
           </div>
