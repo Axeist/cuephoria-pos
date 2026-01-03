@@ -120,7 +120,7 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                       <div className="flex items-center gap-3">
                         <div className="h-12 w-12 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
                           <span className="text-xl font-bold text-cuephoria-lightpurple">
-                            {staff.username?.charAt(0).toUpperCase()}
+                            {staff.username?.charAt(0)?.toUpperCase() || '?'}
                           </span>
                         </div>
                         <div>
@@ -167,11 +167,11 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
                     <div className="space-y-2 pt-3 border-t border-cuephoria-purple/10">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Monthly Salary:</span>
-                        <span className="text-white font-semibold">₹{staff.monthly_salary?.toFixed(2)}</span>
+                        <span className="text-white font-semibold">₹{staff.monthly_salary?.toFixed(2) || '0.00'}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Hourly Rate:</span>
-                        <span className="text-cuephoria-blue font-semibold">₹{staff.hourly_rate?.toFixed(2)}/hr</span>
+                        <span className="text-cuephoria-blue font-semibold">₹{staff.hourly_rate?.toFixed(2) || '0.00'}/hr</span>
                       </div>
                       {staff.shift_start_time && staff.shift_end_time && (
                         <div className="flex justify-between text-sm">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import { DollarSign, Download, Plus, Minus, FileText, TrendingUp, RefreshCw, Trash2 } from 'lucide-react';
 import {
@@ -49,6 +50,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
   onRefresh
 }) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [payrollRecords, setPayrollRecords] = useState<any[]>([]);
@@ -200,7 +202,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
           deduction_type: deductionForm.type,
           amount: parseFloat(deductionForm.amount),
           reason: deductionForm.reason,
-          marked_by: 'admin',
+          marked_by: user?.username || 'admin',
           month: selectedMonth,
           year: selectedYear,
           deduction_date: new Date().toISOString().split('T')[0]
@@ -245,7 +247,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
           allowance_type: allowanceForm.type,
           amount: parseFloat(allowanceForm.amount),
           reason: allowanceForm.reason,
-          approved_by: 'admin',
+          approved_by: user?.username || 'admin',
           month: selectedMonth,
           year: selectedYear
         });
@@ -298,7 +300,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       
       let yPos = 100;
       doc.text(`Base Salary (${payroll.total_working_days} days)`, 20, yPos);
-      doc.text(`₹${payroll.gross_earnings?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
+      doc.text(`₹${(payroll.gross_earnings || 0).toFixed(2)}`, 180, yPos, { align: 'right' } as any);
       
       if (payroll.allowances_detail && payroll.allowances_detail.length > 0) {
         yPos += 7;
@@ -316,7 +318,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       yPos += 10;
       doc.setFont('helvetica', 'bold');
       doc.text('Total Earnings:', 20, yPos);
-      doc.text(`₹${(payroll.gross_earnings + payroll.total_allowances)?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
+      doc.text(`₹${((payroll.gross_earnings || 0) + (payroll.total_allowances || 0)).toFixed(2)}`, 180, yPos, { align: 'right' } as any);
       
       yPos += 15;
       doc.setFontSize(12);
@@ -338,7 +340,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       yPos += 10;
       doc.setFont('helvetica', 'bold');
       doc.text('Total Deductions:', 20, yPos);
-      doc.text(`₹${payroll.total_deductions?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
+      doc.text(`₹${(payroll.total_deductions || 0).toFixed(2)}`, 180, yPos, { align: 'right' } as any);
       
       yPos += 15;
       doc.setFillColor(155, 135, 245);
@@ -346,7 +348,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
       doc.text('NET SALARY:', 20, yPos + 3);
-      doc.text(`₹${payroll.net_salary?.toFixed(2)}`, 185, yPos + 3, { align: 'right' } as any);
+      doc.text(`₹${(payroll.net_salary || 0).toFixed(2)}`, 185, yPos + 3, { align: 'right' } as any);
       
       doc.setTextColor(100, 100, 100);
       doc.setFontSize(8);
@@ -397,7 +399,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                   <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
                     {Array.from({ length: 12 }, (_, i) => (
                       <SelectItem key={i + 1} value={String(i + 1)}>
-                        {format(new Date(2025, i, 1), 'MMMM')}
+                        {format(new Date(selectedYear, i, 1), 'MMMM')}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -409,13 +411,16 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                   <SelectTrigger className="w-[100px] bg-cuephoria-darker border-cuephoria-purple/20">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
-                    {Array.from({ length: 3 }, (_, i) => (
-                      <SelectItem key={i} value={String(2025 - i)}>
-                        {2025 - i}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+                      <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = new Date().getFullYear() - i;
+                          return (
+                            <SelectItem key={year} value={String(year)}>
+                              {year}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
                 </Select>
               </div>
             </div>
@@ -428,7 +433,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
             ) : (
               <div className="space-y-4">
                 {staffProfiles.filter(s => s.is_active).map((staff) => {
-                  const payroll = payrollRecords.find(p => p.staff_id === staff.user_id);
+                  const payroll = payrollRecords.find(p => p.staff_id === staff.user_id || p.staff_id === staff.staff_id);
                   
                   return (
                     <Card
@@ -480,7 +485,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                                 <div className="flex gap-2 mt-3">
                                   <Button
                                     onClick={() => {
-                                      setSelectedStaff(payroll);
+                                      setSelectedStaff({ ...staff, staff_id: staff.user_id || staff.staff_id });
                                       setShowDeductionDialog(true);
                                     }}
                                     variant="outline"
@@ -492,7 +497,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                                   </Button>
                                   <Button
                                     onClick={() => {
-                                      setSelectedStaff(payroll);
+                                      setSelectedStaff({ ...staff, staff_id: staff.user_id || staff.staff_id });
                                       setShowAllowanceDialog(true);
                                     }}
                                     variant="outline"
@@ -559,7 +564,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
           <DialogHeader>
             <DialogTitle>Add Deduction</DialogTitle>
             <DialogDescription>
-              Add a deduction for {selectedStaff?.staff_name}
+              Add a deduction for {selectedStaff?.username || selectedStaff?.staff_name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -628,7 +633,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
           <DialogHeader>
             <DialogTitle>Add Allowance</DialogTitle>
             <DialogDescription>
-              Add an allowance for {selectedStaff?.staff_name}
+              Add an allowance for {selectedStaff?.username || selectedStaff?.staff_name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

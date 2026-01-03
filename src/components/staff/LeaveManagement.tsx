@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import { Check, X, Calendar, Clock, User } from 'lucide-react';
 import {
@@ -32,6 +33,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({
   onRefresh
 }) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedLeave, setSelectedLeave] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adminComments, setAdminComments] = useState('');
@@ -46,7 +48,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({
         .update({
           status: action === 'approve' ? 'approved' : 'rejected',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: 'admin', // You can get this from auth context
+          reviewed_by: user?.username || 'admin',
           remarks: adminComments
         })
         .eq('id', leaveId);
@@ -137,7 +139,7 @@ const LeaveManagement: React.FC<LeaveManagementProps> = ({
                             <div className="space-y-1">
                               <p className="text-xs text-muted-foreground">Leave Type</p>
                               <Badge variant="outline" className="text-yellow-500 border-yellow-500">
-                                {leave.leave_type?.replace('_', ' ').toUpperCase()}
+                                {leave.leave_type?.replace(/_/g, ' ').toUpperCase()}
                               </Badge>
                             </div>
 

@@ -67,7 +67,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
                       <span className="text-lg font-bold text-cuephoria-lightpurple">
-                        {shift.staff_name?.charAt(0).toUpperCase()}
+                        {shift.staff_name?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>
                     <div>
@@ -125,7 +125,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   </div>
                   <div className="text-right">
                     <Badge variant="outline" className="text-yellow-500 border-yellow-500">
-                      {leave.leave_type?.replace('_', ' ').toUpperCase()}
+                      {leave.leave_type?.replace(/_/g, ' ').toUpperCase()}
                     </Badge>
                     <p className="text-sm text-muted-foreground mt-1">
                       {leave.total_days} day{leave.total_days > 1 ? 's' : ''}
@@ -160,7 +160,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
                   <div className="flex items-center gap-3 mb-2">
                     <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
                       <span className="text-lg font-bold text-cuephoria-lightpurple">
-                        {staff.username?.charAt(0).toUpperCase()}
+                        {staff.username?.charAt(0)?.toUpperCase() || '?'}
                       </span>
                     </div>
                     <div>

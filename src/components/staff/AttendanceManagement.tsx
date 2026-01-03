@@ -80,11 +80,14 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   const fetchAttendanceRecords = async () => {
     setIsLoadingRecords(true);
     try {
+      const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
+      const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
+      
       const { data, error } = await supabase
         .from('staff_attendance')
         .select('*')
         .gte('date', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`)
-        .lt('date', `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`)
+        .lt('date', `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
         .order('date', { ascending: false });
 
       if (error) throw error;
@@ -95,7 +98,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
         .from('staff_break_violations')
         .select('*')
         .gte('date', `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`)
-        .lt('date', `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`)
+        .lt('date', `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
         .order('date', { ascending: false });
 
       if (violationsError) throw violationsError;
@@ -234,7 +237,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
                             <span className="font-bold text-cuephoria-lightpurple">
-                              {shift.staff_name?.charAt(0).toUpperCase()}
+                              {shift.staff_name?.charAt(0)?.toUpperCase() || '?'}
                             </span>
                           </div>
                           <div>
@@ -327,11 +330,14 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
-                        {Array.from({ length: 3 }, (_, i) => (
-                          <SelectItem key={i} value={String(2025 - i)}>
-                            {2025 - i}
-                          </SelectItem>
-                        ))}
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = new Date().getFullYear() - i;
+                          return (
+                            <SelectItem key={year} value={String(year)}>
+                              {year}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
