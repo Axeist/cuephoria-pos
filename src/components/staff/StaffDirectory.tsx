@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Mail, Phone, Calendar, Edit, Trash2, UserX, UserCheck } from 'lucide-react';
+import EditStaffDialog from './EditStaffDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,8 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
   const { toast } = useToast();
   const [deleteStaffId, setDeleteStaffId] = useState<string | null>(null);
   const [deactivateStaffId, setDeactivateStaffId] = useState<string | null>(null);
+  const [editStaff, setEditStaff] = useState<any>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const handleDeleteStaff = async () => {
     if (!deleteStaffId) return;
@@ -185,6 +188,18 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
 
                     <div className="flex gap-2 mt-4">
                       <Button
+                        onClick={() => {
+                          setEditStaff(staff);
+                          setShowEditDialog(true);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-cuephoria-purple text-cuephoria-purple hover:bg-cuephoria-purple hover:text-white"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
                         onClick={() => handleToggleActive(staff.user_id, staff.is_active)}
                         variant="outline"
                         size="sm"
@@ -252,6 +267,17 @@ const StaffDirectory: React.FC<StaffDirectoryProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Staff Dialog */}
+      <EditStaffDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        staff={editStaff}
+        onSuccess={() => {
+          setEditStaff(null);
+          onRefresh();
+        }}
+      />
     </>
   );
 };

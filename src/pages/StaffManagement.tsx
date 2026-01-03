@@ -13,6 +13,7 @@ import LeaveManagement from '@/components/staff/LeaveManagement';
 import PayrollManagement from '@/components/staff/PayrollManagement';
 import RegularizationManagement from '@/components/staff/RegularizationManagement';
 import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
+import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
 
 const StaffManagement = () => {
@@ -23,6 +24,7 @@ const StaffManagement = () => {
   const [monthlyPayroll, setMonthlyPayroll] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showAdminRegularizationDialog, setShowAdminRegularizationDialog] = useState(false);
 
   useEffect(() => {
     fetchStaffData();
@@ -99,13 +101,22 @@ const StaffManagement = () => {
             Manage your team, track attendance, and process payroll
           </p>
         </div>
-        <Button
-          onClick={() => setShowCreateDialog(true)}
-          className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
-        >
-          <UserPlus className="mr-2 h-4 w-4" />
-          Add Staff Member
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowAdminRegularizationDialog(true)}
+            variant="outline"
+            className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-white"
+          >
+            Regularize Attendance
+          </Button>
+          <Button
+            onClick={() => setShowCreateDialog(true)}
+            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add Staff Member
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -259,6 +270,13 @@ const StaffManagement = () => {
       <CreateStaffDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
+        onSuccess={fetchStaffData}
+      />
+
+      <AdminRegularizationDialog
+        open={showAdminRegularizationDialog}
+        onOpenChange={setShowAdminRegularizationDialog}
+        staffProfiles={staffProfiles || []}
         onSuccess={fetchStaffData}
       />
     </div>
