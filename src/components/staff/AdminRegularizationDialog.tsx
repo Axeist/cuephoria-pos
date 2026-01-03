@@ -127,9 +127,10 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
       let clockOutTime: string | null = null;
       
       if (regularizationType === 'absent') {
-        // For absent, create attendance record with no clock in/out
+        // For absent, use shift start time as clock_in (required by DB) but mark as absent
+        // This represents when they were supposed to clock in
         clockInTime = new Date(`${dateStr}T${staff.shift_start_time}`).toISOString();
-        clockOutTime = null;
+        clockOutTime = clockInTime; // Set same as clock_in to indicate no work done
       } else if (regularizationType === 'half_day') {
         // Half day: clock in at shift start, clock out at midpoint
         clockInTime = new Date(`${dateStr}T${staff.shift_start_time}`).toISOString();
@@ -159,11 +160,11 @@ const AdminRegularizationDialog: React.FC<AdminRegularizationDialogProps> = ({
       const attendanceData: any = {
         staff_id: selectedStaff,
         date: dateStr,
-        clock_in: regularizationType === 'absent' ? null : clockInTime,
+        clock_in: clockInTime, // Always set clock_in (required by DB), even for absent
         clock_out: clockOutTime,
         total_working_hours: regularizationType === 'absent' ? 0 : calculatedHours,
         daily_earnings: regularizationType === 'absent' ? 0 : calculatedEarnings,
-        status: regularizationType === 'absent' ? 'absent' : 'regularized',
+        status: regularizationType === 'absent' ? 'absent_lop' : 'regularized',
         notes: `Admin regularization - ${regularizationType === 'full_day' ? 'Full Day Present' : regularizationType === 'half_day' ? 'Half Day Present' : 'Absent'} by ${user?.username || 'admin'}`
       };
 
