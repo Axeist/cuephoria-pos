@@ -232,7 +232,8 @@ GROUP BY sp.user_id, sp.username, sp.designation;
 -- Function to process approved OT request
 CREATE OR REPLACE FUNCTION public.process_ot_request(
   p_ot_request_id UUID,
-  p_action TEXT -- 'approve' or 'reject'
+  p_action TEXT, -- 'approve' or 'reject'
+  p_remarks TEXT DEFAULT NULL
 )
 RETURNS void AS $$
 DECLARE
@@ -254,34 +255,46 @@ BEGIN
     SET 
       status = 'approved',
       reviewed_at = now(),
-      reviewed_by = current_setting('request.jwt.claims', true)::json->>'username'
+      reviewed_by = current_setting('request.jwt.claims', true)::json->>'username',
+      remarks = p_remarks
     WHERE id = p_ot_request_id;
     
     -- Add OT allowance to payroll (₹100 per OT day)
-    INSERT INTO staff_allowances (
-      staff_id,
-      allowance_type,
-      amount,
-      reason,
-      approved_by,
-      month,
-      year
-    ) VALUES (
-      v_ot_request.staff_id,
-      'overtime',
-      v_ot_request.overtime_amount,
-      'Overtime allowance - ' || v_ot_request.date || ' (' || v_ot_request.overtime_hours || ' hours)',
-      current_setting('request.jwt.claims', true)::json->>'username',
-      EXTRACT(MONTH FROM v_ot_request.date)::INTEGER,
-      EXTRACT(YEAR FROM v_ot_request.date)::INTEGER
-    ) ON CONFLICT DO NOTHING;
+    -- Check if allowance already exists to prevent duplicates
+    IF NOT EXISTS (
+      SELECT 1 FROM staff_allowances
+      WHERE staff_id = v_ot_request.staff_id
+        AND allowance_type = 'overtime'
+        AND month = EXTRACT(MONTH FROM v_ot_request.date)::INTEGER
+        AND year = EXTRACT(YEAR FROM v_ot_request.date)::INTEGER
+        AND reason LIKE '%' || v_ot_request.date || '%'
+    ) THEN
+      INSERT INTO staff_allowances (
+        staff_id,
+        allowance_type,
+        amount,
+        reason,
+        approved_by,
+        month,
+        year
+      ) VALUES (
+        v_ot_request.staff_id,
+        'overtime',
+        v_ot_request.overtime_amount,
+        'Overtime allowance - ' || v_ot_request.date || ' (' || v_ot_request.overtime_hours || ' hours)',
+        current_setting('request.jwt.claims', true)::json->>'username',
+        EXTRACT(MONTH FROM v_ot_request.date)::INTEGER,
+        EXTRACT(YEAR FROM v_ot_request.date)::INTEGER
+      );
+    END IF;
   ELSE
     -- Reject OT request
     UPDATE staff_overtime_requests
     SET 
       status = 'rejected',
       reviewed_at = now(),
-      reviewed_by = current_setting('request.jwt.claims', true)::json->>'username'
+      reviewed_by = current_setting('request.jwt.claims', true)::json->>'username',
+      remarks = p_remarks
     WHERE id = p_ot_request_id;
   END IF;
 END;

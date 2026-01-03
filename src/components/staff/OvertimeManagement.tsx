@@ -72,7 +72,8 @@ const OvertimeManagement: React.FC<OvertimeManagementProps> = ({
     try {
       const { error: rpcError } = await supabase.rpc('process_ot_request', {
         p_ot_request_id: requestId,
-        p_action: action
+        p_action: action,
+        p_remarks: adminComments || null
       });
 
       if (rpcError) throw rpcError;
