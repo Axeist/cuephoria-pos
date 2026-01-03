@@ -163,38 +163,69 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
       }
 
       console.log('Fetched leaves:', leaves?.length || 0, leaves);
+      console.log('Staff profiles count:', staffProfiles.length);
+      console.log('Date filter:', dateFilter, 'Range:', startDateStr, 'to', endDateStr);
 
       if (leaves && leaves.length > 0) {
         leaves.forEach((leave: any) => {
           const createdAt = new Date(leave.created_at);
-          const createdDate = new Date(createdAt.toISOString().split('T')[0]);
-          const startFilterDate = new Date(startDateStr);
-          const endFilterDate = new Date(endDateStr);
+          const createdDateStr = format(createdAt, 'yyyy-MM-dd');
           
           // Filter by date range (or show all pending regardless of date)
+          // Always show pending requests, filter others by date
           const isInDateRange = dateFilter === 'all_time' || 
-            (createdDate >= startFilterDate && createdDate <= endFilterDate) ||
-             leave.status === 'pending'); // Always show pending requests
+            leave.status === 'pending' || // Always show pending requests
+            (createdDateStr >= startDateStr && createdDateStr <= endDateStr);
           
           if (isInDateRange) {
             const daysOld = differenceInDays(new Date(), createdAt);
-            // Find staff profile
-            const profile = staffProfiles.find(sp => sp.user_id === leave.staff_id);
+            // Find staff profile - try both user_id and id fields
+            const profile = staffProfiles.find(sp => 
+              (sp.user_id && sp.user_id === leave.staff_id) || 
+              (sp.id && sp.id === leave.staff_id)
+            );
+            
+            console.log('Processing leave:', {
+              id: leave.id,
+              staff_id: leave.staff_id,
+              status: leave.status,
+              created_at: createdDateStr,
+              profile_found: !!profile,
+              profile_username: profile?.username
+            });
+            
             unifiedRequests.push({
               id: leave.id,
               type: 'leave',
               staffId: leave.staff_id,
-              staffName: profile?.full_name || profile?.username || 'Unknown',
+              staffName: profile?.full_name || profile?.username || `Staff ${leave.staff_id?.substring(0, 8) || 'Unknown'}`,
               designation: profile?.designation || 'N/A',
               date: new Date(leave.start_date),
               createdAt,
-              status: leave.status as RequestStatus,
-              data: { ...leave, staff_name: profile?.full_name || profile?.username },
+              status: (leave.status || 'pending') as RequestStatus,
+              data: { 
+                ...leave, 
+                staff_name: profile?.full_name || profile?.username || `Staff ${leave.staff_id?.substring(0, 8) || 'Unknown'}`,
+                leave_type: leave.leave_type,
+                total_days: leave.total_days,
+                start_date: leave.start_date,
+                end_date: leave.end_date,
+                reason: leave.reason,
+                reviewed_by: leave.reviewed_by,
+                reviewed_at: leave.reviewed_at,
+                requested_at: leave.created_at
+              },
               priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
             });
+          } else {
+            console.log('Leave filtered out:', leave.id, 'Status:', leave.status, 'Created:', createdDateStr);
           }
         });
+      } else {
+        console.log('No leaves found in database');
       }
+      
+      console.log('Total unified requests after leaves:', unifiedRequests.length);
 
       // Fetch all regularizations
       const { data: regularizations, error: regError } = await supabase
