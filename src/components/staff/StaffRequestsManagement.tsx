@@ -106,8 +106,10 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
   });
 
   useEffect(() => {
-    fetchAllRequests();
-  }, [dateFilter]);
+    if (staffProfiles.length > 0) {
+      fetchAllRequests();
+    }
+  }, [dateFilter, staffProfiles]);
 
   useEffect(() => {
     filterRequests();
@@ -142,54 +144,76 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
       const dateRange = getDateRange(dateFilter);
       const startDateStr = format(dateRange.start, 'yyyy-MM-dd');
       const endDateStr = format(dateRange.end, 'yyyy-MM-dd');
+      
+      console.log('Fetching requests for date range:', startDateStr, 'to', endDateStr);
 
       // Fetch all leaves (pending, approved, rejected)
-      const { data: leaves } = await supabase
+      const { data: leaves, error: leavesError } = await supabase
         .from('staff_leave_requests')
-        .select(`
-          *,
-          staff_profiles!inner(username, full_name, designation)
-        `)
-        .gte('created_at', startDateStr)
-        .lte('created_at', endDateStr)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (leaves) {
+      if (leavesError) {
+        console.error('Error fetching leaves:', leavesError);
+        toast({
+          title: 'Error',
+          description: `Failed to fetch leave requests: ${leavesError.message}`,
+          variant: 'destructive'
+        });
+      }
+
+      console.log('Fetched leaves:', leaves?.length || 0, leaves);
+
+      if (leaves && leaves.length > 0) {
         leaves.forEach((leave: any) => {
           const createdAt = new Date(leave.created_at);
-          const daysOld = differenceInDays(new Date(), createdAt);
-          const profile = leave.staff_profiles;
-          unifiedRequests.push({
-            id: leave.id,
-            type: 'leave',
-            staffId: leave.staff_id,
-            staffName: profile?.full_name || profile?.username || 'Unknown',
-            designation: profile?.designation || 'N/A',
-            date: new Date(leave.start_date),
-            createdAt,
-            status: leave.status as RequestStatus,
-            data: { ...leave, staff_name: profile?.full_name || profile?.username },
-            priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
-          });
+          const createdDate = new Date(createdAt.toISOString().split('T')[0]);
+          const startFilterDate = new Date(startDateStr);
+          const endFilterDate = new Date(endDateStr);
+          
+          // Filter by date range (or show all pending regardless of date)
+          const isInDateRange = dateFilter === 'all_time' || 
+            (createdDate >= startFilterDate && createdDate <= endFilterDate) ||
+             leave.status === 'pending'); // Always show pending requests
+          
+          if (isInDateRange) {
+            const daysOld = differenceInDays(new Date(), createdAt);
+            // Find staff profile
+            const profile = staffProfiles.find(sp => sp.user_id === leave.staff_id);
+            unifiedRequests.push({
+              id: leave.id,
+              type: 'leave',
+              staffId: leave.staff_id,
+              staffName: profile?.full_name || profile?.username || 'Unknown',
+              designation: profile?.designation || 'N/A',
+              date: new Date(leave.start_date),
+              createdAt,
+              status: leave.status as RequestStatus,
+              data: { ...leave, staff_name: profile?.full_name || profile?.username },
+              priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
+            });
+          }
         });
       }
 
       // Fetch all regularizations
-      const { data: regularizations } = await supabase
+      const { data: regularizations, error: regError } = await supabase
         .from('staff_attendance_regularization')
-        .select(`
-          *,
-          staff_profiles!inner(username, full_name, designation)
-        `)
+        .select('*')
         .gte('created_at', startDateStr)
         .lte('created_at', endDateStr)
         .order('created_at', { ascending: false });
+
+      if (regError) {
+        console.error('Error fetching regularizations:', regError);
+      }
 
       if (regularizations) {
         regularizations.forEach((reg: any) => {
           const createdAt = new Date(reg.created_at);
           const daysOld = differenceInDays(new Date(), createdAt);
-          const profile = reg.staff_profiles;
+          // Find staff profile
+          const profile = staffProfiles.find(sp => sp.user_id === reg.staff_id);
           unifiedRequests.push({
             id: reg.id,
             type: 'regularization',
@@ -206,21 +230,23 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
       }
 
       // Fetch all OT requests
-      const { data: otRequests } = await supabase
+      const { data: otRequests, error: otError } = await supabase
         .from('staff_overtime_requests')
-        .select(`
-          *,
-          staff_profiles!inner(username, full_name, designation)
-        `)
+        .select('*')
         .gte('created_at', startDateStr)
         .lte('created_at', endDateStr)
         .order('created_at', { ascending: false });
+
+      if (otError) {
+        console.error('Error fetching OT requests:', otError);
+      }
 
       if (otRequests) {
         otRequests.forEach((ot: any) => {
           const createdAt = new Date(ot.created_at);
           const daysOld = differenceInDays(new Date(), createdAt);
-          const profile = ot.staff_profiles;
+          // Find staff profile
+          const profile = staffProfiles.find(sp => sp.user_id === ot.staff_id);
           unifiedRequests.push({
             id: ot.id,
             type: 'overtime',
@@ -237,21 +263,23 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
       }
 
       // Fetch all double shift requests
-      const { data: doubleShiftRequests } = await supabase
+      const { data: doubleShiftRequests, error: dsError } = await supabase
         .from('staff_double_shift_requests')
-        .select(`
-          *,
-          staff_profiles!inner(username, full_name, designation)
-        `)
+        .select('*')
         .gte('created_at', startDateStr)
         .lte('created_at', endDateStr)
         .order('created_at', { ascending: false });
+
+      if (dsError) {
+        console.error('Error fetching double shift requests:', dsError);
+      }
 
       if (doubleShiftRequests) {
         doubleShiftRequests.forEach((ds: any) => {
           const createdAt = new Date(ds.created_at || ds.requested_at);
           const daysOld = differenceInDays(new Date(), createdAt);
-          const profile = ds.staff_profiles;
+          // Find staff profile
+          const profile = staffProfiles.find(sp => sp.user_id === ds.staff_id);
           unifiedRequests.push({
             id: ds.id,
             type: 'double-shift',
@@ -978,9 +1006,9 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
                           </Button>
                         )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            </div>
+          </CardContent>
+        </Card>
               ))}
             </div>
           )}
