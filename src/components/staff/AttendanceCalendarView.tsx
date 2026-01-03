@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, getDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle, XCircle, Clock, Coffee, AlertCircle, TrendingUp, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CheckCircle, XCircle, Clock, Coffee, AlertCircle, TrendingUp, AlertTriangle, DollarSign, User } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
   const [attendanceData, setAttendanceData] = useState<StaffAttendanceMap>({});
   const [lateLoginData, setLateLoginData] = useState<any>({});
   const [overtimeData, setOvertimeData] = useState<any>({});
+  const [summaryData, setSummaryData] = useState<any[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<string>('all');
 
@@ -140,6 +142,9 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
 
         const lateInfo = lateMap[record.staff_id]?.[dateKey];
         const otInfo = otMap[record.staff_id]?.[dateKey];
+        
+        // Only show overtime if status is not absent
+        const hasOvertime = !!otInfo && status !== 'absent' && status !== 'absent_lop';
 
         organized[record.staff_id][dateKey] = {
           date: new Date(record.date),
@@ -147,14 +152,21 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
           clockIn: record.clock_in ? format(new Date(record.clock_in), 'HH:mm') : undefined,
           clockOut: record.clock_out ? format(new Date(record.clock_out), 'HH:mm') : undefined,
           notes: record.notes,
-          isLate: !!lateInfo,
+          isLate: !!lateInfo && status !== 'absent' && status !== 'absent_lop',
           lateMinutes: lateInfo?.lateMinutes,
-          hasOvertime: !!otInfo,
+          hasOvertime: hasOvertime,
           overtimeHours: otInfo?.overtimeHours
         };
       });
 
       setAttendanceData(organized);
+      
+      // Fetch summary data for the month
+      const displayedStaffIds = selectedStaff === 'all' 
+        ? staffProfiles.filter(s => s.is_active).map(s => s.user_id)
+        : staffProfiles.filter(s => s.user_id === selectedStaff && s.is_active).map(s => s.user_id);
+      
+      await fetchSummaryData(startDateStr, endDateStr, displayedStaffIds);
     } catch (error: any) {
       console.error('Error fetching attendance:', error);
       toast({
@@ -164,6 +176,51 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
       });
     } finally {
       setIsLoadingData(false);
+    }
+  };
+
+  const fetchSummaryData = async (startDate: string, endDate: string, staffIds: string[]) => {
+    try {
+      // Get attendance summary for each staff
+      const summaryPromises = staffIds.map(async (staffId) => {
+        const staff = staffProfiles.find(s => s.user_id === staffId);
+        if (!staff) return null;
+
+        // Get attendance records for the month
+        const { data: attendance, error: attError } = await supabase
+          .from('staff_attendance')
+          .select('*')
+          .eq('staff_id', staffId)
+          .gte('date', startDate)
+          .lte('date', endDate);
+
+        if (attError) throw attError;
+
+        const workingDays = (attendance || []).filter(a => 
+          a.status && !a.status.includes('absent') && !a.status.includes('leave') && a.total_working_hours > 0
+        ).length;
+        
+        const absentDays = (attendance || []).filter(a => 
+          a.status && (a.status.includes('absent') || a.status === 'absent_lop')
+        ).length;
+
+        const totalEarnings = (attendance || []).reduce((sum, a) => sum + (a.daily_earnings || 0), 0);
+
+        return {
+          user_id: staffId,
+          username: staff.username,
+          designation: staff.designation,
+          workingDays,
+          absentDays,
+          totalEarnings,
+          totalDays: (attendance || []).length
+        };
+      });
+
+      const summaries = await Promise.all(summaryPromises);
+      setSummaryData(summaries.filter(s => s !== null));
+    } catch (error: any) {
+      console.error('Error fetching summary:', error);
     }
   };
 
@@ -380,7 +437,7 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                                 {isLate && (
                                   <AlertTriangle className="h-2.5 w-2.5 text-orange-400 ml-0.5" title={`Late: ${attendance.lateMinutes} min`} />
                                 )}
-                                {hasOvertime && (
+                                {hasOvertime && status !== 'absent' && status !== 'absent_lop' && (
                                   <TrendingUp className="h-2.5 w-2.5 text-blue-400 ml-0.5" title={`OT: ${attendance.overtimeHours?.toFixed(1)} hrs`} />
                                 )}
                               </div>
@@ -393,6 +450,66 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Staff Summary Table */}
+            {summaryData.length > 0 && (
+              <div className="pt-4 border-t border-cuephoria-purple/20">
+                <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <User className="h-5 w-5 text-cuephoria-lightpurple" />
+                  Staff Summary - {format(currentDate, 'MMMM yyyy')}
+                </h4>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-cuephoria-darker border-cuephoria-purple/20">
+                        <TableHead className="text-white">Staff Name</TableHead>
+                        <TableHead className="text-white">Designation</TableHead>
+                        <TableHead className="text-white text-center">Working Days</TableHead>
+                        <TableHead className="text-white text-center">Absent Days</TableHead>
+                        <TableHead className="text-white text-center">Total Days</TableHead>
+                        <TableHead className="text-white text-right">Salary Earned</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {summaryData.map((summary) => (
+                        <TableRow 
+                          key={summary.user_id}
+                          className="bg-cuephoria-darker/50 border-cuephoria-purple/10 hover:bg-cuephoria-darker"
+                        >
+                          <TableCell className="font-medium text-white">
+                            {summary.username}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {summary.designation}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-green-500/20 text-green-400 border-green-500/50">
+                              {summary.workingDays}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-red-500/20 text-red-400 border-red-500/50">
+                              {summary.absentDays}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center text-muted-foreground">
+                            {summary.totalDays}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <DollarSign className="h-4 w-4 text-green-400" />
+                              <span className="font-semibold text-green-400">
+                                ₹{summary.totalEarnings.toFixed(2)}
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
 
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-cuephoria-purple/20">

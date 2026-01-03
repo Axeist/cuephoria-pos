@@ -83,12 +83,17 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Skip overtime detection for absent days
+  IF NEW.status IN ('absent', 'absent_lop') THEN
+    RETURN NEW;
+  END IF;
+
   -- Calculate actual working hours (excluding breaks)
   v_actual_hours := NEW.total_working_hours;
   v_shift_hours := v_staff_profile.shift_hours;
 
-  -- Check if there's overtime
-  IF v_actual_hours > v_shift_hours THEN
+  -- Check if there's overtime (only for present/working days)
+  IF v_actual_hours > v_shift_hours AND v_actual_hours > 0 THEN
     v_overtime_hours := v_actual_hours - v_shift_hours;
     
     -- Insert or update overtime record
@@ -140,6 +145,11 @@ BEGIN
 
   v_scheduled_clock_in := v_staff_profile.shift_start_time;
   v_actual_clock_in := NEW.clock_in::TIME;
+
+  -- Skip late login detection for absent days
+  IF NEW.status IN ('absent', 'absent_lop') THEN
+    RETURN NEW;
+  END IF;
 
   -- Check if late (actual > scheduled)
   IF v_actual_clock_in > v_scheduled_clock_in THEN
