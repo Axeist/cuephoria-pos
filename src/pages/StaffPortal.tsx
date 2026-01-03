@@ -10,6 +10,7 @@ import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User,
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
 import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
+import RegularizationRequestDialog from '@/components/staff/RegularizationRequestDialog';
 import RealTimeTimer from '@/components/staff/RealTimeTimer';
 import jsPDF from 'jspdf';
 import { useNavigate } from 'react-router-dom';
@@ -30,6 +31,7 @@ const StaffPortal = () => {
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [showStaffSelection, setShowStaffSelection] = useState(true);
   const [showLeaveRequest, setShowLeaveRequest] = useState(false);
+  const [showRegularizationRequest, setShowRegularizationRequest] = useState(false);
   const [currentShift, setCurrentShift] = useState<any>(null);
   const [allAttendance, setAllAttendance] = useState<any[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
@@ -741,14 +743,25 @@ const StaffPortal = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white">Leave Requests</CardTitle>
-                <Button
-                  onClick={() => setShowLeaveRequest(true)}
-                  className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
-                  size="sm"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Request Leave
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setShowRegularizationRequest(true)}
+                    variant="outline"
+                    className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-white"
+                    size="sm"
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Regularize
+                  </Button>
+                  <Button
+                    onClick={() => setShowLeaveRequest(true)}
+                    className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+                    size="sm"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Request Leave
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -878,6 +891,14 @@ const StaffPortal = () => {
         onOpenChange={setShowLeaveRequest}
         staffId={selectedStaff?.user_id}
         leaveBalance={leaveBalance}
+        onSuccess={fetchStaffData}
+      />
+
+      {/* Regularization Request Dialog */}
+      <RegularizationRequestDialog
+        open={showRegularizationRequest}
+        onOpenChange={setShowRegularizationRequest}
+        staffId={selectedStaff?.user_id}
         onSuccess={fetchStaffData}
       />
 

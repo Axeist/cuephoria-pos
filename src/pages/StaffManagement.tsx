@@ -11,6 +11,8 @@ import StaffDirectory from '@/components/staff/StaffDirectory';
 import AttendanceManagement from '@/components/staff/AttendanceManagement';
 import LeaveManagement from '@/components/staff/LeaveManagement';
 import PayrollManagement from '@/components/staff/PayrollManagement';
+import RegularizationManagement from '@/components/staff/RegularizationManagement';
+import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
 
 const StaffManagement = () => {
@@ -163,7 +165,7 @@ const StaffManagement = () => {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 bg-cuephoria-dark border border-cuephoria-purple/20">
+        <TabsList className="grid w-full grid-cols-7 bg-cuephoria-dark border border-cuephoria-purple/20">
           <TabsTrigger value="overview">
             <Users className="h-4 w-4 mr-2" />
             Overview
@@ -176,9 +178,17 @@ const StaffManagement = () => {
             <Activity className="h-4 w-4 mr-2" />
             Attendance
           </TabsTrigger>
+          <TabsTrigger value="calendar">
+            <Calendar className="h-4 w-4 mr-2" />
+            Calendar
+          </TabsTrigger>
           <TabsTrigger value="leaves">
             <Calendar className="h-4 w-4 mr-2" />
             Leaves
+          </TabsTrigger>
+          <TabsTrigger value="regularization">
+            <FileText className="h-4 w-4 mr-2" />
+            Regularization
           </TabsTrigger>
           <TabsTrigger value="payroll">
             <DollarSign className="h-4 w-4 mr-2" />
@@ -213,9 +223,25 @@ const StaffManagement = () => {
           />
         </TabsContent>
 
+        <TabsContent value="calendar" className="space-y-4 mt-6">
+          <AttendanceCalendarView
+            staffProfiles={staffProfiles || []}
+            isLoading={isLoading}
+            onRefresh={fetchStaffData}
+          />
+        </TabsContent>
+
         <TabsContent value="leaves" className="space-y-4 mt-6">
           <LeaveManagement
             pendingLeaves={pendingLeaves || []}
+            isLoading={isLoading}
+            onRefresh={fetchStaffData}
+          />
+        </TabsContent>
+
+        <TabsContent value="regularization" className="space-y-4 mt-6">
+          <RegularizationManagement
+            staffProfiles={staffProfiles || []}
             isLoading={isLoading}
             onRefresh={fetchStaffData}
           />
