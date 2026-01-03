@@ -51,7 +51,7 @@ const AppSidebar: React.FC = () => {
   const menuItems = [
     ...baseMenuItems,
     // Admin sees "Staff" menu
-    ...(isAdmin ? [{ icon: Users2, label: 'User Management', path: '/staff' }] : []),
+    ...(isAdmin ? [{ icon: Users2, label: 'Staff Management', path: '/staff' }] : []),
     // Staff sees "My Portal" menu (admin does NOT see this)
     ...(!isAdmin ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
     { icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' },

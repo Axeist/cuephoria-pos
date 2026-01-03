@@ -9,14 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffOverview from '@/components/staff/StaffOverview';
 import StaffDirectory from '@/components/staff/StaffDirectory';
 import AttendanceManagement from '@/components/staff/AttendanceManagement';
-import LeaveManagement from '@/components/staff/LeaveManagement';
 import PayrollManagement from '@/components/staff/PayrollManagement';
-import RegularizationManagement from '@/components/staff/RegularizationManagement';
 import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
 import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
-import OvertimeManagement from '@/components/staff/OvertimeManagement';
-import LateLoginOTWidgets from '@/components/staff/LateLoginOTWidgets';
-import DoubleShiftManagement from '@/components/staff/DoubleShiftManagement';
 import StaffRequestsManagement from '@/components/staff/StaffRequestsManagement';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
 
@@ -180,7 +175,7 @@ const StaffManagement = () => {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-9 bg-cuephoria-dark border border-cuephoria-purple/20">
+        <TabsList className="grid w-full grid-cols-6 bg-cuephoria-dark border border-cuephoria-purple/20">
           <TabsTrigger value="overview">
             <Users className="h-4 w-4 mr-2" />
             Overview
@@ -197,21 +192,9 @@ const StaffManagement = () => {
             <Calendar className="h-4 w-4 mr-2" />
             Calendar
           </TabsTrigger>
-          <TabsTrigger value="leaves">
-            <Calendar className="h-4 w-4 mr-2" />
-            Leaves
-          </TabsTrigger>
-          <TabsTrigger value="regularization">
+          <TabsTrigger value="requests">
             <FileText className="h-4 w-4 mr-2" />
-            Regularization
-          </TabsTrigger>
-          <TabsTrigger value="overtime">
-            <Activity className="h-4 w-4 mr-2" />
-            Overtime
-          </TabsTrigger>
-          <TabsTrigger value="double-shift">
-            <User className="h-4 w-4 mr-2" />
-            Double Shift
+            Staff Requests
           </TabsTrigger>
           <TabsTrigger value="payroll">
             <DollarSign className="h-4 w-4 mr-2" />
