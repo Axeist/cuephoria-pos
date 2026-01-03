@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus, Trash2, AlertCircle, Filter, CheckCircle, XCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import StaffSelectionDialog from '@/components/staff/StaffSelectionDialog';
 import LeaveRequestDialog from '@/components/staff/LeaveRequestDialog';
 import RegularizationRequestDialog from '@/components/staff/RegularizationRequestDialog';
@@ -36,13 +37,21 @@ const StaffPortal = () => {
   const [showOTRequest, setShowOTRequest] = useState(false);
   const [currentShift, setCurrentShift] = useState<any>(null);
   const [allAttendance, setAllAttendance] = useState<any[]>([]);
+  const [filteredAttendance, setFilteredAttendance] = useState<any[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [regularizationRequests, setRegularizationRequests] = useState<any[]>([]);
+  const [otRequests, setOtRequests] = useState<any[]>([]);
   const [leaveBalance, setLeaveBalance] = useState({ paid: 1, unpaid: 2 });
   const [payslips, setPayslips] = useState<any[]>([]);
   const [breakViolations, setBreakViolations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [deleteLeaveId, setDeleteLeaveId] = useState<string | null>(null);
+  const [attendanceFilters, setAttendanceFilters] = useState({
+    status: 'all',
+    dateFrom: '',
+    dateTo: ''
+  });
 
   // Check if anyone is logged in, remind every minute
   useEffect(() => {
@@ -76,6 +85,33 @@ const StaffPortal = () => {
     }
   }, [selectedStaff]);
 
+  // Apply attendance filters
+  useEffect(() => {
+    let filtered = [...allAttendance];
+
+    // Filter by status
+    if (attendanceFilters.status !== 'all') {
+      if (attendanceFilters.status === 'regularized') {
+        filtered = filtered.filter(a => a.status === 'regularized' && a.notes?.includes('Admin regularization'));
+      } else if (attendanceFilters.status === 'absent') {
+        filtered = filtered.filter(a => a.status === 'absent' || a.status === 'absent_lop');
+      } else {
+        filtered = filtered.filter(a => a.status === attendanceFilters.status);
+      }
+    }
+
+    // Filter by date range
+    if (attendanceFilters.dateFrom) {
+      filtered = filtered.filter(a => new Date(a.date) >= new Date(attendanceFilters.dateFrom));
+    }
+    if (attendanceFilters.dateTo) {
+      filtered = filtered.filter(a => new Date(a.date) <= new Date(attendanceFilters.dateTo));
+    }
+
+    // Limit to 30 for display
+    setFilteredAttendance(filtered.slice(0, 30));
+  }, [allAttendance, attendanceFilters]);
+
   const fetchStaffData = async () => {
     if (!selectedStaff) return;
     
@@ -93,16 +129,34 @@ const StaffPortal = () => {
 
       setCurrentShift(shift);
 
-      // Fetch ALL attendance (last 30 records)
+      // Fetch ALL attendance (last 100 records for filtering)
       const { data: attendance } = await supabase
         .from('staff_attendance')
         .select('*')
         .eq('staff_id', selectedStaff.user_id)
         .order('date', { ascending: false })
         .order('clock_in', { ascending: false })
-        .limit(30);
+        .limit(100);
 
       setAllAttendance(attendance || []);
+
+      // Fetch regularization requests
+      const { data: regRequests } = await supabase
+        .from('staff_attendance_regularization')
+        .select('*')
+        .eq('staff_id', selectedStaff.user_id)
+        .order('created_at', { ascending: false });
+
+      setRegularizationRequests(regRequests || []);
+
+      // Fetch OT requests
+      const { data: otReqs } = await supabase
+        .from('staff_overtime_requests')
+        .select('*')
+        .eq('staff_id', selectedStaff.user_id)
+        .order('created_at', { ascending: false });
+
+      setOtRequests(otReqs || []);
 
       // Fetch break violations
       const { data: violations } = await supabase
@@ -117,15 +171,28 @@ const StaffPortal = () => {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
       
-      const { data: stats } = await supabase
-        .from('monthly_staff_summary')
+      // Calculate monthly stats including regularized attendance
+      const startOfMonth = new Date(currentYear, currentMonth - 1, 1).toISOString().split('T')[0];
+      const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
+      
+      const { data: attendanceStats } = await supabase
+        .from('staff_attendance')
         .select('*')
-        .eq('user_id', selectedStaff.user_id)
-        .eq('month', currentMonth)
-        .eq('year', currentYear)
-        .maybeSingle();
+        .eq('staff_id', selectedStaff.user_id)
+        .gte('date', startOfMonth)
+        .lte('date', endOfMonth)
+        .in('status', ['completed', 'regularized', 'present', 'half_day', 'half_day_lop']);
 
-      setMonthlyStats(stats);
+      // Calculate stats manually to include regularized attendance
+      const workingDays = (attendanceStats || []).filter(a => a.total_working_hours > 0).length;
+      const totalHours = (attendanceStats || []).reduce((sum, a) => sum + (a.total_working_hours || 0), 0);
+      const totalEarnings = (attendanceStats || []).reduce((sum, a) => sum + (a.daily_earnings || 0), 0);
+
+      setMonthlyStats({
+        days_worked: workingDays,
+        total_hours: totalHours,
+        total_earnings: totalEarnings
+      });
 
       const { data: leaves } = await supabase
         .from('staff_leave_requests')
@@ -646,17 +713,68 @@ const StaffPortal = () => {
       <Tabs defaultValue="attendance" className="w-full">
         <TabsList className="grid w-full grid-cols-3 bg-cuephoria-dark border border-cuephoria-purple/20">
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
-          <TabsTrigger value="leaves">Leaves</TabsTrigger>
+          <TabsTrigger value="requests">My Requests</TabsTrigger>
           <TabsTrigger value="payslips">Payslips</TabsTrigger>
         </TabsList>
 
         <TabsContent value="attendance" className="space-y-4 mt-6">
           <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
             <CardHeader>
-              <CardTitle className="text-white">All Attendance Records</CardTitle>
-              <CardDescription>Your complete attendance history (last 30 records)</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-white">All Attendance Records</CardTitle>
+                  <CardDescription>Your complete attendance history</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
+              {/* Filters */}
+              <div className="mb-4 p-4 bg-cuephoria-darker rounded-lg border border-cuephoria-purple/10 space-y-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="h-4 w-4 text-cuephoria-lightpurple" />
+                  <span className="text-sm font-semibold text-white">Filters</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Select
+                      value={attendanceFilters.status}
+                      onValueChange={(value) => setAttendanceFilters({ ...attendanceFilters, status: value })}
+                    >
+                      <SelectTrigger className="bg-cuephoria-dark border-cuephoria-purple/20 text-white h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-cuephoria-dark border-cuephoria-purple/20">
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="regularized">Admin Regularized</SelectItem>
+                        <SelectItem value="present">Present</SelectItem>
+                        <SelectItem value="absent">Absent</SelectItem>
+                        <SelectItem value="half_day">Half Day</SelectItem>
+                        <SelectItem value="leave">Leave</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">From Date</Label>
+                    <Input
+                      type="date"
+                      value={attendanceFilters.dateFrom}
+                      onChange={(e) => setAttendanceFilters({ ...attendanceFilters, dateFrom: e.target.value })}
+                      className="bg-cuephoria-dark border-cuephoria-purple/20 text-white h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">To Date</Label>
+                    <Input
+                      type="date"
+                      value={attendanceFilters.dateTo}
+                      onChange={(e) => setAttendanceFilters({ ...attendanceFilters, dateTo: e.target.value })}
+                      className="bg-cuephoria-dark border-cuephoria-purple/20 text-white h-9"
+                    />
+                  </div>
+                </div>
+              </div>
               {/* Break Violations Warning */}
               {breakViolations.length > 0 && (
                 <div className="mb-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg">
@@ -681,22 +799,45 @@ const StaffPortal = () => {
                 </div>
               )}
 
-              {allAttendance.length === 0 ? (
+              {filteredAttendance.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No attendance records found
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {allAttendance.map((record) => (
+                  {filteredAttendance.map((record) => {
+                    const isAdminRegularized = record.status === 'regularized' && record.notes?.includes('Admin regularization');
+                    const isAbsent = record.status === 'absent' || record.status === 'absent_lop';
+                    
+                    return (
                     <div
                       key={record.id}
-                      className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                      className={cn(
+                        "flex items-center justify-between p-4 rounded-lg border",
+                        isAdminRegularized 
+                          ? "bg-purple-500/10 border-purple-500/30" 
+                          : isAbsent
+                          ? "bg-red-500/10 border-red-500/30"
+                          : "bg-cuephoria-darker border-cuephoria-purple/10"
+                      )}
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <Badge variant="outline" className="text-cuephoria-lightpurple border-cuephoria-lightpurple">
                             {format(new Date(record.date), 'MMM dd, yyyy')}
                           </Badge>
+                          {isAdminRegularized && (
+                            <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/50">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Admin Regularized
+                            </Badge>
+                          )}
+                          {isAbsent && (
+                            <Badge variant="outline" className="bg-red-500/20 text-red-400 border-red-500/50">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Absent
+                            </Badge>
+                          )}
                           {record.break_duration_minutes > 60 && (
                             <Badge variant="outline" className="text-red-500 border-red-500 animate-pulse">
                               Break Violation
@@ -706,12 +847,14 @@ const StaffPortal = () => {
                         <div className="grid grid-cols-5 gap-4 text-sm">
                           <div>
                             <p className="text-muted-foreground">Clock In</p>
-                            <p className="text-white">{format(new Date(record.clock_in), 'hh:mm a')}</p>
+                            <p className="text-white">
+                              {record.clock_in ? format(new Date(record.clock_in), 'hh:mm a') : 'N/A'}
+                            </p>
                           </div>
                           <div>
                             <p className="text-muted-foreground">Clock Out</p>
                             <p className="text-white">
-                              {record.clock_out ? format(new Date(record.clock_out), 'hh:mm a') : 'In Progress'}
+                              {record.clock_out ? format(new Date(record.clock_out), 'hh:mm a') : record.clock_in ? 'In Progress' : 'N/A'}
                             </p>
                           </div>
                           <div>
@@ -733,47 +876,49 @@ const StaffPortal = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="leaves" className="space-y-4 mt-6">
+        <TabsContent value="requests" className="space-y-4 mt-6">
+          {/* Action Buttons */}
+          <div className="flex gap-2 justify-end">
+            <Button
+              onClick={() => setShowRegularizationRequest(true)}
+              variant="outline"
+              className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-white"
+              size="sm"
+            >
+              <AlertCircle className="h-4 w-4 mr-2" />
+              Regularize
+            </Button>
+            <Button
+              onClick={() => setShowOTRequest(true)}
+              variant="outline"
+              className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"
+              size="sm"
+            >
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Request OT
+            </Button>
+            <Button
+              onClick={() => setShowLeaveRequest(true)}
+              className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Request Leave
+            </Button>
+          </div>
+
+          {/* Leave Requests */}
           <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-white">Leave Requests</CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => setShowRegularizationRequest(true)}
-                    variant="outline"
-                    className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-white"
-                    size="sm"
-                  >
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Regularize
-                  </Button>
-                  <Button
-                    onClick={() => setShowOTRequest(true)}
-                    variant="outline"
-                    className="border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white"
-                    size="sm"
-                  >
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Request OT
-                  </Button>
-                  <Button
-                    onClick={() => setShowLeaveRequest(true)}
-                    className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
-                    size="sm"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Request Leave
-                  </Button>
-                </div>
-              </div>
+              <CardTitle className="text-white">Leave Requests</CardTitle>
             </CardHeader>
             <CardContent>
               {leaveRequests.length === 0 ? (
@@ -802,7 +947,7 @@ const StaffPortal = () => {
                             {leave.status?.toUpperCase()}
                           </Badge>
                           <Badge variant="outline" className="text-cuephoria-lightpurple border-cuephoria-lightpurple">
-                            {leave.leave_type?.replace('_', ' ').toUpperCase()}
+                            LEAVE
                           </Badge>
                         </div>
                         <p className="text-white">
@@ -832,6 +977,124 @@ const StaffPortal = () => {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Regularization Requests */}
+          <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+            <CardHeader>
+              <CardTitle className="text-white">Regularization Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {regularizationRequests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No regularization requests
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {regularizationRequests.map((reg) => (
+                    <div
+                      key={reg.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              reg.status === 'approved'
+                                ? 'text-green-500 border-green-500'
+                                : reg.status === 'rejected'
+                                ? 'text-red-500 border-red-500'
+                                : 'text-yellow-500 border-yellow-500'
+                            }
+                          >
+                            {reg.status?.toUpperCase()}
+                          </Badge>
+                          <Badge variant="outline" className="text-yellow-400 border-yellow-500">
+                            REGULARIZATION
+                          </Badge>
+                        </div>
+                        <p className="text-white">
+                          {format(new Date(reg.date), 'MMM dd, yyyy')}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Type: {reg.regularization_type?.replace('_', ' ').toUpperCase()}
+                        </p>
+                        {reg.reason && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Reason: {reg.reason}
+                          </p>
+                        )}
+                        {reg.remarks && reg.status === 'rejected' && (
+                          <p className="text-sm text-red-400 mt-1">
+                            Admin note: {reg.remarks}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* OT Requests */}
+          <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+            <CardHeader>
+              <CardTitle className="text-white">Overtime Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {otRequests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No overtime requests
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {otRequests.map((ot) => (
+                    <div
+                      key={ot.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              ot.status === 'approved'
+                                ? 'text-green-500 border-green-500'
+                                : ot.status === 'rejected'
+                                ? 'text-red-500 border-red-500'
+                                : 'text-yellow-500 border-yellow-500'
+                            }
+                          >
+                            {ot.status?.toUpperCase()}
+                          </Badge>
+                          <Badge variant="outline" className="text-blue-400 border-blue-500">
+                            OVERTIME
+                          </Badge>
+                        </div>
+                        <p className="text-white">
+                          {format(new Date(ot.date), 'MMM dd, yyyy')}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {ot.overtime_hours} hours • ₹{ot.overtime_amount || 100}
+                        </p>
+                        {ot.reason && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Reason: {ot.reason}
+                          </p>
+                        )}
+                        {ot.remarks && ot.status === 'rejected' && (
+                          <p className="text-sm text-red-400 mt-1">
+                            Admin note: {ot.remarks}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
