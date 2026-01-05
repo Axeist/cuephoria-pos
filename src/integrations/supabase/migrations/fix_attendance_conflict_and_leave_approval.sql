@@ -24,6 +24,11 @@ BEGIN
     RAISE EXCEPTION 'Regularization request not found';
   END IF;
   
+  -- Validate action
+  IF p_action NOT IN ('approve', 'reject') THEN
+    RAISE EXCEPTION 'Invalid action: %. Must be "approve" or "reject"', p_action;
+  END IF;
+  
   IF p_action = 'approve' THEN
     -- Get staff profile
     SELECT monthly_salary,
@@ -32,7 +37,19 @@ BEGIN
     FROM staff_profiles
     WHERE user_id = v_reg.staff_id;
     
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Staff profile not found for staff_id: %', v_reg.staff_id;
+    END IF;
+    
+    IF v_staff_profile.monthly_salary IS NULL THEN
+      RAISE EXCEPTION 'Monthly salary not set for staff_id: %', v_reg.staff_id;
+    END IF;
+    
     v_days_in_month := v_staff_profile.days_in_month;
+    IF v_days_in_month IS NULL OR v_days_in_month = 0 THEN
+      v_days_in_month := 30; -- Default to 30 days if calculation fails
+    END IF;
+    
     v_daily_rate := v_staff_profile.monthly_salary / v_days_in_month;
     v_half_day_earnings := v_daily_rate / 2;
     

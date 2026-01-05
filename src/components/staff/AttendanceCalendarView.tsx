@@ -23,7 +23,7 @@ interface AttendanceCalendarViewProps {
   onRefresh: () => void;
 }
 
-type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'leave' | 'regularized' | 'half_day_lop' | 'absent_lop' | null;
+type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'leave' | 'regularized' | 'half_day_lop' | 'absent_lop' | 'completed' | null;
 
 interface DayAttendance {
   date: Date;
@@ -156,8 +156,11 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
         const lateInfo = lateMap[record.staff_id]?.[dateKey];
         const otInfo = otMap[record.staff_id]?.[dateKey];
         
-        // Only show overtime if status is not absent
-        const hasOvertime = !!otInfo && status !== 'absent' && status !== 'absent_lop';
+        // Only show overtime if status is not absent (include 'completed' as present)
+        const hasOvertime = !!otInfo && 
+          status !== 'absent' && 
+          status !== 'absent_lop' && 
+          status !== null;
 
         organized[record.staff_id][dateKey] = {
           date: new Date(record.date),
@@ -233,7 +236,10 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
         if (allowancesError) throw allowancesError;
 
         const workingDays = (attendance || []).filter(a => 
-          a.status && !a.status.includes('absent') && !a.status.includes('leave') && a.total_working_hours > 0
+          a.status && 
+          (a.status === 'completed' || a.status === 'present' || a.status === 'regularized' || 
+           (a.status.includes('half_day') && !a.status.includes('lop'))) &&
+          a.total_working_hours > 0
         ).length;
         
         const absentDays = (attendance || []).filter(a => 
@@ -291,8 +297,11 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
     }
   };
 
-  const getStatusColor = (status: AttendanceStatus): string => {
-    switch (status) {
+  const getStatusColor = (status: AttendanceStatus | string): string => {
+    // Map 'completed' status from database to 'present' for display
+    const normalizedStatus = status === 'completed' ? 'present' : status;
+    
+    switch (normalizedStatus) {
       case 'present':
       case 'regularized':
         return 'bg-green-500/20 text-green-400 border-green-500/50';
@@ -309,8 +318,11 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
     }
   };
 
-  const getStatusIcon = (status: AttendanceStatus) => {
-    switch (status) {
+  const getStatusIcon = (status: AttendanceStatus | string) => {
+    // Map 'completed' status from database to 'present' for display
+    const normalizedStatus = status === 'completed' ? 'present' : status;
+    
+    switch (normalizedStatus) {
       case 'present':
       case 'regularized':
         return <CheckCircle className="h-3 w-3" />;
@@ -327,8 +339,11 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
     }
   };
 
-  const getStatusLabel = (status: AttendanceStatus): string => {
-    switch (status) {
+  const getStatusLabel = (status: AttendanceStatus | string): string => {
+    // Map 'completed' status from database to 'present' for display
+    const normalizedStatus = status === 'completed' ? 'present' : status;
+    
+    switch (normalizedStatus) {
       case 'present':
         return 'Present';
       case 'regularized':
