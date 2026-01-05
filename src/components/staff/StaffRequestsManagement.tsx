@@ -436,12 +436,20 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
     try {
       if (request.type === 'leave') {
         if (action === 'approve') {
+          console.log('Approving leave request:', request.id, 'for staff:', request.staffId);
+          
           // Use the new function to process leave approval
-          const { error: rpcError } = await supabase.rpc('process_leave_approval', {
+          const { data: rpcData, error: rpcError } = await supabase.rpc('process_leave_approval', {
             p_leave_id: request.id,
             p_action: 'approve'
           });
-          if (rpcError) throw rpcError;
+          
+          if (rpcError) {
+            console.error('Error in process_leave_approval RPC:', rpcError);
+            throw rpcError;
+          }
+          
+          console.log('Leave approval RPC completed successfully:', rpcData);
           
           // Update with admin comments and reviewed_by
           const { error } = await supabase
@@ -451,7 +459,25 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
               remarks: adminComments || null
             })
             .eq('id', request.id);
-          if (error) throw error;
+          if (error) {
+            console.error('Error updating leave request:', error);
+            throw error;
+          }
+          
+          // Verify attendance records were created
+          const { data: attendanceCheck, error: checkError } = await supabase
+            .from('staff_attendance')
+            .select('*')
+            .eq('staff_id', request.staffId)
+            .gte('date', request.data.start_date)
+            .lte('date', request.data.end_date)
+            .eq('status', 'leave');
+          
+          console.log('Attendance records created for leave:', attendanceCheck?.length || 0, attendanceCheck);
+          
+          if (checkError) {
+            console.error('Error checking attendance records:', checkError);
+          }
         } else {
           const { error } = await supabase
             .from('staff_leave_requests')
@@ -507,8 +533,26 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
       setShowDialog(false);
       setAdminComments('');
       setSelectedRequest(null);
+      
+      // Wait a moment for database to update
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Refresh requests list
       await fetchAllRequests();
+      
+      // Refresh parent data (which will refresh calendar if user switches tabs)
       onRefresh();
+      
+      // If it's a leave approval, show a message about calendar refresh
+      if (request.type === 'leave' && action === 'approve') {
+        setTimeout(() => {
+          toast({
+            title: 'Leave Approved',
+            description: 'Leave has been marked in attendance. Please refresh the calendar view to see the update.',
+            duration: 5000
+          });
+        }, 1000);
+      }
     } catch (error: any) {
       console.error('Error processing request:', error);
       toast({

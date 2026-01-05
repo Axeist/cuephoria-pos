@@ -56,10 +56,21 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
   const [summaryData, setSummaryData] = useState<any[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<string>('all');
+  const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
 
+  // Refresh when staff profiles change, date changes, or refresh time changes
   useEffect(() => {
     fetchAttendanceData();
-  }, [currentDate, staffProfiles, selectedStaff]);
+  }, [currentDate, staffProfiles, selectedStaff, lastRefreshTime]);
+
+  // Listen for parent refresh and trigger our own refresh
+  useEffect(() => {
+    // Refresh calendar data when parent refreshes (with a small delay for DB updates)
+    const timer = setTimeout(() => {
+      setLastRefreshTime(Date.now());
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [staffProfiles.length]); // Refresh when staff profiles array length changes
 
   const fetchAttendanceData = async () => {
     setIsLoadingData(true);
@@ -413,7 +424,10 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
               <ChevronRight className="h-4 w-4" />
             </Button>
             <Button
-              onClick={fetchAttendanceData}
+              onClick={() => {
+                setLastRefreshTime(Date.now());
+                fetchAttendanceData();
+              }}
               variant="outline"
               size="sm"
               className="border-cuephoria-purple/20"
