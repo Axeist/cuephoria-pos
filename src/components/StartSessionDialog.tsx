@@ -88,6 +88,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
         newRate = baseRate * 0.50;
         break;
       
+      case 'GAMEINSIDER50':
+        newRate = baseRate * 0.50;
+        break;
+      
       case 'AXEIST':
         newRate = 0;
         break;
@@ -248,6 +252,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   <SelectItem value="AAVEG50">
                     🎓 AAVEG50 - 50% OFF (NIT College Freshers)
                   </SelectItem>
+                  <SelectItem value="GAMEINSIDER50">
+                    🎮 GAMEINSIDER50 - 50% OFF (GameInsider Enrollment Required)
+                  </SelectItem>
                   <SelectItem value="AXEIST">
                     👑 AXEIST - 100% OFF (VIP)
                   </SelectItem>
@@ -268,6 +275,15 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-blue-900 dark:text-blue-100">
                     Student ID verification required at checkout
+                  </p>
+                </div>
+              )}
+
+              {selectedCoupon !== 'none' && selectedCoupon === 'GAMEINSIDER50' && (
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-amber-900 dark:text-amber-100">
+                    <strong>Enrollment Verification Required:</strong> Verify customer's name/email against GameInsider enrollment list before applying discount.
                   </p>
                 </div>
               )}

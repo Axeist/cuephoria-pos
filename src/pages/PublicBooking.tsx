@@ -633,6 +633,7 @@ export default function PublicBooking() {
     "AAVEG50",
     "AXEIST",
     "TEST210198$",
+    "GAMEINSIDER50",
   ];
 
   function validateStudentID() {
@@ -845,6 +846,24 @@ export default function PublicBooking() {
       toast.success("🧪 TEST210198$ applied! Transaction value set to ₹1 for testing.");
       return;
     }
+
+    if (code === "GAMEINSIDER50") {
+      const ok = window.confirm(
+        "🎮 GAMEINSIDER50 - 50% OFF Collaboration Coupon\n\n" +
+        "⚠️ IMPORTANT: This coupon will be applied only after enrollment verification.\n\n" +
+        "We will manually check your name/email ID used for booking against our enrollment list. " +
+        "If your details are not found on the enrollment list, the discount will not be provided.\n\n" +
+        "Do you want to proceed with applying this coupon?"
+      );
+      if (!ok) return;
+      setAppliedCoupons({ all: "GAMEINSIDER50" });
+      toast.success(
+        "🎮 GAMEINSIDER50 applied: 50% OFF!\n" +
+        "⚠️ Note: Discount will be verified against enrollment list. " +
+        "If your name/email is not found, discount will not be provided."
+      );
+      return;
+    }
   }
 
   const handleCouponApply = () => {
@@ -884,6 +903,10 @@ export default function PublicBooking() {
       if (appliedCoupons["all"] === "TEST210198$") {
         // Set discount to make final price = 1 rupee
         const disc = Math.max(original - 1, 0);
+        return { total: disc, breakdown: { all: disc } };
+      }
+      if (appliedCoupons["all"] === "GAMEINSIDER50") {
+        const disc = original * 0.50;
         return { total: disc, breakdown: { all: disc } };
       }
       return { total: 0, breakdown: {} as Record<string, number> };
