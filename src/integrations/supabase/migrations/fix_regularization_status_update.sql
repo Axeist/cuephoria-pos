@@ -1,7 +1,6 @@
--- Fix process_regularization to remove ON CONFLICT clause (no unique constraint exists)
--- Fix process_leave_approval to ensure attendance records are created correctly
+-- Fix process_regularization to ensure status update works correctly
+-- This migration ensures the status is set to the exact values expected by the constraint
 
--- 1. Fix process_regularization function
 CREATE OR REPLACE FUNCTION public.process_regularization(
   p_regularization_id UUID,
   p_action TEXT -- 'approve' or 'reject'
@@ -14,6 +13,7 @@ DECLARE
   v_staff_profile RECORD;
   v_days_in_month INTEGER;
   v_normalized_action TEXT;
+  v_final_status TEXT;
 BEGIN
   -- Get regularization request
   SELECT *
@@ -22,7 +22,7 @@ BEGIN
   WHERE id = p_regularization_id;
   
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Regularization request not found';
+    RAISE EXCEPTION 'Regularization request not found: %', p_regularization_id;
   END IF;
   
   -- Normalize and validate action (trim whitespace and convert to lowercase)
@@ -30,6 +30,15 @@ BEGIN
   
   IF v_normalized_action NOT IN ('approve', 'reject') THEN
     RAISE EXCEPTION 'Invalid action: %. Must be "approve" or "reject"', p_action;
+  END IF;
+  
+  -- Determine final status (must match CHECK constraint: 'pending', 'approved', 'rejected')
+  IF v_normalized_action = 'approve' THEN
+    v_final_status := 'approved';
+  ELSIF v_normalized_action = 'reject' THEN
+    v_final_status := 'rejected';
+  ELSE
+    RAISE EXCEPTION 'Invalid normalized action: %', v_normalized_action;
   END IF;
   
   IF v_normalized_action = 'approve' THEN
@@ -188,15 +197,11 @@ BEGIN
     END IF;
   END IF;
   
-  -- Update regularization status (ensure it's exactly 'approved' or 'rejected')
-  -- Use explicit value to avoid any constraint issues
+  -- Update regularization status using the pre-determined final status
+  -- This ensures we're using exactly 'approved' or 'rejected' as required by the CHECK constraint
   UPDATE staff_attendance_regularization
   SET 
-    status = CASE 
-      WHEN v_normalized_action = 'approve' THEN 'approved'
-      WHEN v_normalized_action = 'reject' THEN 'rejected'
-      ELSE 'pending' -- Should never reach here due to validation above
-    END,
+    status = v_final_status,
     reviewed_at = now(),
     reviewed_by = COALESCE(
       current_setting('request.jwt.claims', true)::json->>'username',
@@ -206,123 +211,17 @@ BEGIN
   
   -- Verify the update succeeded
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Failed to update regularization request status';
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
-
--- 2. Ensure process_leave_approval creates attendance records correctly
-CREATE OR REPLACE FUNCTION public.process_leave_approval(
-  p_leave_id UUID,
-  p_action TEXT -- 'approve' or 'reject'
-)
-RETURNS void AS $$
-DECLARE
-  v_leave RECORD;
-  v_current_date DATE;
-  v_shift_start_time TIME;
-  v_clock_in_timestamp TIMESTAMP WITH TIME ZONE;
-  v_daily_rate NUMERIC;
-  v_days_in_month INTEGER;
-BEGIN
-  -- Get leave request
-  SELECT *
-  INTO v_leave
-  FROM staff_leave_requests
-  WHERE id = p_leave_id;
-  
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Leave request not found';
+    RAISE EXCEPTION 'Failed to update regularization request status for id: %', p_regularization_id;
   END IF;
   
-  IF p_action = 'approve' THEN
-    -- Get shift start time and daily rate for the staff member
-    SELECT shift_start_time,
-           monthly_salary,
-           EXTRACT(DAY FROM (DATE_TRUNC('month', v_leave.start_date) + INTERVAL '1 month' - INTERVAL '1 day')::DATE) as days_in_month
-    INTO v_shift_start_time, v_daily_rate, v_days_in_month
-    FROM staff_profiles
-    WHERE user_id = v_leave.staff_id;
-    
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Staff profile not found for staff_id: %', v_leave.staff_id;
-    END IF;
-    
-    IF v_days_in_month IS NULL OR v_days_in_month = 0 THEN
-      v_days_in_month := 30; -- Default to 30 days if calculation fails
-    END IF;
-    
-    IF v_daily_rate IS NULL THEN
-      v_daily_rate := 0;
-    ELSE
-      v_daily_rate := v_daily_rate / v_days_in_month;
-    END IF;
-    
-    -- Mark attendance as leave for each day in the leave period
-    v_current_date := v_leave.start_date;
-    
-    WHILE v_current_date <= v_leave.end_date LOOP
-      -- Calculate clock_in timestamp using shift start time (required field)
-      v_clock_in_timestamp := (v_current_date::timestamp + COALESCE(v_shift_start_time, '09:00:00'::time)::interval)::timestamp with time zone;
-      
-      -- Check if attendance record exists
-      IF EXISTS (
-        SELECT 1 FROM staff_attendance 
-        WHERE staff_id = v_leave.staff_id 
-        AND date = v_current_date
-      ) THEN
-        -- Update existing attendance record
-        UPDATE staff_attendance
-        SET 
-          status = 'leave',
-          notes = COALESCE(notes, '') || ' Approved leave: ' || v_leave.leave_type,
-          daily_earnings = CASE 
-            WHEN v_leave.leave_type = 'paid_leave' THEN v_daily_rate
-            ELSE 0
-          END,
-          -- Set clock_in and clock_out to same time to indicate leave (no actual work)
-          clock_in = COALESCE(clock_in, v_clock_in_timestamp),
-          clock_out = COALESCE(clock_out, v_clock_in_timestamp),
-          total_working_hours = 0
-        WHERE staff_id = v_leave.staff_id
-          AND date = v_current_date;
-      ELSE
-        -- Create new attendance record for leave
-        -- Use shift start time for clock_in (required field) and same time for clock_out
-        INSERT INTO staff_attendance (
-          staff_id,
-          date,
-          clock_in,
-          clock_out,
-          total_working_hours,
-          daily_earnings,
-          status,
-          notes
-        ) VALUES (
-          v_leave.staff_id,
-          v_current_date,
-          v_clock_in_timestamp,
-          v_clock_in_timestamp, -- Same as clock_in to indicate no actual work
-          0,
-          CASE 
-            WHEN v_leave.leave_type = 'paid_leave' THEN v_daily_rate
-            ELSE 0
-          END,
-          'leave',
-          'Approved leave: ' || v_leave.leave_type
-        );
-      END IF;
-      
-      v_current_date := v_current_date + INTERVAL '1 day';
-    END LOOP;
-  END IF;
+  -- Double-check the status was set correctly
+  SELECT status INTO v_final_status
+  FROM staff_attendance_regularization
+  WHERE id = p_regularization_id;
   
-  -- Update leave request status
-  UPDATE staff_leave_requests
-  SET 
-    status = p_action,
-    reviewed_at = NOW()
-  WHERE id = p_leave_id;
+  IF v_final_status NOT IN ('approved', 'rejected') THEN
+    RAISE EXCEPTION 'Status update failed. Expected approved or rejected, got: %', v_final_status;
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
