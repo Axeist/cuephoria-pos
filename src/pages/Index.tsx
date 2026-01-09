@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Logo from '@/components/Logo';
 import { Button } from '@/components/ui/button';
-import { Monitor, Gamepad, Trophy, Users, Star, ZapIcon, ShieldCheck } from 'lucide-react';
+import { Monitor, Gamepad, Trophy, Users, Star, ZapIcon, ShieldCheck, User } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Mail, Phone, Clock, MapPin } from 'lucide-react';
@@ -105,7 +105,15 @@ const Index: React.FC = () => {
             onClick={() => navigate('/login')}
           >
             <ShieldCheck className="mr-2 h-5 w-5" />
-            Login to Dashboard
+            Admin Login
+          </Button>
+          <Button
+            size={isMobile ? "default" : "lg"}
+            className="bg-gradient-to-r from-cuephoria-orange to-cuephoria-red text-white hover:shadow-xl hover:shadow-cuephoria-orange/30 h-12 sm:h-12 text-sm sm:text-base font-medium rounded-xl active:scale-[0.98] transition-all"
+            onClick={() => navigate('/customer/login')}
+          >
+            <User className="mr-2 h-5 w-5" />
+            Customer Login
           </Button>
           <Button
             size={isMobile ? "default" : "lg"}

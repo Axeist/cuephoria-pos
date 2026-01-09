@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parse, getDay } from "date-fns";
+import { getCustomerSession, clearCustomerSession } from "@/utils/customerAuth";
 
 /* =========================
    Types
@@ -203,8 +204,29 @@ export default function PublicBooking() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
+  const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
 
   // Old PhonePe payment handling removed - now using Razorpay with separate success page
+
+  // Check for logged-in customer and auto-fill information
+  useEffect(() => {
+    const customerSession = getCustomerSession();
+    if (customerSession) {
+      setLoggedInCustomer(customerSession);
+      setCustomerInfo({
+        id: customerSession.id,
+        name: customerSession.name,
+        phone: customerSession.phone,
+        email: customerSession.email || ""
+      });
+      setCustomerNumber(customerSession.phone);
+      setIsReturningCustomer(true);
+      setHasSearched(true);
+      toast.success(`Welcome back, ${customerSession.name}! 👋 Your information has been pre-filled.`, {
+        duration: 3000
+      });
+    }
+  }, []);
 
   useEffect(() => {
     fetchStations();

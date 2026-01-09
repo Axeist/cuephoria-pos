@@ -37,6 +37,13 @@ import StaffManagement from "./pages/StaffManagement";
 import StaffPortal from "./pages/StaffPortal";
 import ChatAI from "./pages/ChatAI";
 
+// Customer pages
+import CustomerLogin from "./pages/CustomerLogin";
+import CustomerDashboard from "./pages/CustomerDashboard";
+import CustomerBookings from "./pages/CustomerBookings";
+import CustomerOffers from "./pages/CustomerOffers";
+import CustomerProfile from "./pages/CustomerProfile";
+
 // Payment routes
 import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
 import PublicPaymentFailed from "./pages/PublicPaymentFailed";
@@ -151,6 +158,13 @@ const App = () => {
                 <Route path="/public/tournaments" element={<PublicTournaments />} />
                 <Route path="/public/stations" element={<PublicStations />} />
                 <Route path="/public/booking" element={<PublicBooking />} />
+
+                {/* Customer routes */}
+                <Route path="/customer/login" element={<CustomerLogin />} />
+                <Route path="/customer/dashboard" element={<CustomerDashboard />} />
+                <Route path="/customer/bookings" element={<CustomerBookings />} />
+                <Route path="/customer/offers" element={<CustomerOffers />} />
+                <Route path="/customer/profile" element={<CustomerProfile />} />
 
                 {/* Policy pages - Public routes for Razorpay compliance */}
                 <Route path="/privacy-policy" element={<Privacy />} />
