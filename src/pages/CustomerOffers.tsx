@@ -210,15 +210,15 @@ export default function CustomerOffers() {
   if (!customer) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-orange-900/20 to-gray-900 pb-20 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 pb-20 relative overflow-hidden">
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-red-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
       </div>
       <div className="relative z-10">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-gradient-to-r from-orange-600/90 to-red-600/90 border-b border-orange-400/50 backdrop-blur-xl shadow-2xl shadow-orange-500/40">
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-purple-600/90 to-pink-600/90 border-b border-purple-400/50 backdrop-blur-xl shadow-2xl shadow-purple-500/40">
         <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <Button

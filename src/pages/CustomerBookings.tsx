@@ -297,16 +297,45 @@ export default function CustomerBookings() {
 
   if (!customer) return null;
 
+  // Calculate insights
+  const totalBookings = upcomingBookings.length + pastBookings.length;
+  const totalHours = [...upcomingBookings, ...pastBookings].reduce((sum, b) => sum + (b.duration || 0), 0) / 60;
+  const totalSpent = [...upcomingBookings, ...pastBookings].reduce((sum, b) => sum + (b.final_price || 0), 0);
+  
+  // Calculate favorite game
+  const gameCount: Record<string, number> = {};
+  [...upcomingBookings, ...pastBookings].forEach(b => {
+    const game = b.station_name.toLowerCase().includes('8-ball') || b.station_name.toLowerCase().includes('pool') 
+      ? '8-Ball Pool' 
+      : b.station_name.toLowerCase().includes('ps5') || b.station_name.toLowerCase().includes('playstation')
+      ? 'PS5 Gaming'
+      : 'Other';
+    gameCount[game] = (gameCount[game] || 0) + 1;
+  });
+  const favoriteGame = Object.entries(gameCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+  
+  // Calculate favorite time
+  const timeSlotCount: Record<string, number> = {};
+  [...upcomingBookings, ...pastBookings].forEach(b => {
+    const hour = parseInt(b.start_time.split(':')[0]);
+    const slot = hour >= 11 && hour < 14 ? 'Morning' 
+               : hour >= 14 && hour < 18 ? 'Afternoon'
+               : hour >= 18 && hour < 22 ? 'Evening' 
+               : 'Night';
+    timeSlotCount[slot] = (timeSlotCount[slot] || 0) + 1;
+  });
+  const favoriteTime = Object.entries(timeSlotCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-900/20 to-gray-900 pb-20 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 pb-20 relative overflow-hidden">
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
+        <div className="absolute top-1/4 left-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
       </div>
       <div className="relative z-10">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-gradient-to-r from-gray-900/95 to-indigo-900/95 border-b border-indigo-500/30 backdrop-blur-xl shadow-lg">
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-gray-900/95 to-purple-900/95 border-b border-purple-500/30 backdrop-blur-xl shadow-lg">
         <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <Button
@@ -326,6 +355,49 @@ export default function CustomerBookings() {
           </div>
         </div>
       </div>
+
+      {/* Booking Insights */}
+      {!loading && totalBookings > 0 && (
+        <div className="max-w-5xl mx-auto px-4 pt-6">
+          <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <Star className="text-purple-400" />
+            Your Booking Insights
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <Card className="bg-gradient-to-br from-purple-600/90 to-pink-600/90 border-0 shadow-xl backdrop-blur-xl">
+              <CardContent className="p-4 text-center">
+                <Calendar className="mx-auto mb-2 text-white" size={24} />
+                <p className="text-2xl font-bold text-white">{totalBookings}</p>
+                <p className="text-xs text-white/90">Total Bookings</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-orange-600/90 to-red-600/90 border-0 shadow-xl backdrop-blur-xl">
+              <CardContent className="p-4 text-center">
+                <Clock className="mx-auto mb-2 text-white" size={24} />
+                <p className="text-2xl font-bold text-white">{Math.floor(totalHours)}</p>
+                <p className="text-xs text-white/90">Hours Played</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-green-600/90 to-teal-600/90 border-0 shadow-xl backdrop-blur-xl">
+              <CardContent className="p-4 text-center">
+                <Gamepad2 className="mx-auto mb-2 text-white" size={24} />
+                <p className="text-sm font-bold text-white">{favoriteGame}</p>
+                <p className="text-xs text-white/90">Favorite Game</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-blue-600/90 to-cyan-600/90 border-0 shadow-xl backdrop-blur-xl">
+              <CardContent className="p-4 text-center">
+                <Zap className="mx-auto mb-2 text-white" size={24} />
+                <p className="text-sm font-bold text-white">{favoriteTime}</p>
+                <p className="text-xs text-white/90">Favorite Time</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* Date Filter */}
       <div className="max-w-5xl mx-auto px-4 pt-4">
@@ -447,7 +519,7 @@ export default function CustomerBookings() {
                   const bookingDateTime = new Date(`${booking.booking_date}T${booking.start_time}`);
 
                   return (
-                    <Card key={booking.id} className="bg-gradient-to-br from-gray-800/90 to-indigo-900/90 border border-indigo-500/40 hover:border-indigo-400 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/40 transform hover:-translate-y-2 transition-all duration-300 backdrop-blur-xl">
+                    <Card key={booking.id} className="bg-gradient-to-br from-gray-800/90 to-purple-900/90 border border-purple-500/40 hover:border-purple-400 shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/40 transform hover:-translate-y-2 transition-all duration-300 backdrop-blur-xl">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">

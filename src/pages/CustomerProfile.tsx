@@ -20,7 +20,8 @@ import {
   X,
   Shield,
   Clock,
-  Calendar
+  Calendar,
+  CheckCircle2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession, clearCustomerSession, formatDate } from '@/utils/customerAuth';
@@ -163,11 +164,43 @@ export default function CustomerProfile() {
     navigate('/customer/login');
   };
 
-  const getMembershipTier = (points: number) => {
-    if (points >= 3000) return { name: 'Platinum', color: 'from-purple-400 to-pink-400', icon: Crown };
-    if (points >= 1500) return { name: 'Gold', color: 'from-yellow-400 to-orange-400', icon: Trophy };
-    if (points >= 500) return { name: 'Silver', color: 'from-gray-300 to-gray-400', icon: Star };
-    return { name: 'Bronze', color: 'from-orange-600 to-red-600', icon: Shield };
+  const getMembershipTier = (totalSpent: number) => {
+    // Same tier system as dashboard - based on bills spent, not loyalty points
+    if (totalSpent >= 40000) return { 
+      name: 'Platinum', 
+      color: 'from-purple-500 to-pink-500', 
+      icon: Crown,
+      tagline: 'ELITE PLAYER',
+      perks: ['Priority Booking', 'VIP Lounge Access', 'Exclusive Events', 'Personal Gaming Advisor']
+    };
+    if (totalSpent >= 20000) return { 
+      name: 'Diamond', 
+      color: 'from-cyan-400 to-blue-500', 
+      icon: Trophy,
+      tagline: 'PREMIUM MEMBER',
+      perks: ['Extended Hours', 'Priority Support', 'Free Upgrades', 'Birthday Bonus']
+    };
+    if (totalSpent >= 10000) return { 
+      name: 'Gold', 
+      color: 'from-yellow-400 to-orange-400', 
+      icon: Trophy,
+      tagline: 'VALUED GAMER',
+      perks: ['Weekly Offers', 'Loyalty Bonuses', 'Group Discounts', 'Event Access']
+    };
+    if (totalSpent >= 5000) return { 
+      name: 'Silver', 
+      color: 'from-gray-300 to-gray-400', 
+      icon: Star,
+      tagline: 'RISING STAR',
+      perks: ['Monthly Offers', 'Points Multiplier', 'Referral Bonus', 'Special Deals']
+    };
+    return { 
+      name: 'Bronze', 
+      color: 'from-orange-600 to-red-600', 
+      icon: Shield,
+      tagline: 'NEW ADVENTURER',
+      perks: ['Welcome Bonus', 'Birthday Offer', 'Basic Rewards', 'Community Access']
+    };
   };
 
   if (!customer || !customerData) {
@@ -181,7 +214,9 @@ export default function CustomerProfile() {
     );
   }
 
-  const tier = getMembershipTier(customerData.loyalty_points);
+  // Calculate total spent from BILLS ONLY (same as dashboard)
+  const totalSpentFromBills = customerData.total_spent || 0;
+  const tier = getMembershipTier(totalSpentFromBills);
   const TierIcon = tier.icon;
 
   return (
@@ -225,34 +260,56 @@ export default function CustomerProfile() {
         {/* Profile Card */}
         <Card className="bg-gradient-to-br from-purple-600/40 to-blue-600/40 border border-purple-400/50 shadow-2xl shadow-purple-500/30 backdrop-blur-xl">
           <CardContent className="p-6">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-4 mb-4">
               <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${tier.color} flex items-center justify-center text-white shadow-lg`}>
                 <TierIcon size={36} />
               </div>
               <div className="flex-1">
                 <h2 className="text-2xl font-bold text-white mb-1">{customerData.name}</h2>
-                <Badge className={`bg-gradient-to-r ${tier.color} text-white mb-2`}>
-                  {tier.name} Member
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <Badge className={`bg-gradient-to-r ${tier.color} text-white shadow-lg px-3 py-1`}>
+                    {React.createElement(TierIcon, { size: 14, className: "mr-1 inline" })}
+                    {tier.name} Member
+                  </Badge>
+                  <Badge className="bg-white/20 backdrop-blur-xl text-white text-xs">
+                    ⚡ {tier.tagline}
+                  </Badge>
+                </div>
                 <p className="text-sm text-gray-400">Member since {formatDate(customerData.created_at)}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-700">
+            {/* Exclusive Perks */}
+            <div className="bg-gray-800/60 rounded-lg p-4 mb-4 border border-purple-500/30">
+              <h3 className="text-white font-semibold mb-2 text-sm flex items-center gap-1">
+                <Star className="text-yellow-400" size={14} />
+                Your Exclusive Perks
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {tier.perks.map((perk, index) => (
+                  <div key={index} className="flex items-start gap-1.5 text-xs text-white/90">
+                    <CheckCircle2 className="text-green-400 flex-shrink-0 mt-0.5" size={12} />
+                    <span>{perk}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-700">
               <div className="text-center">
-                <Star className="mx-auto mb-1 text-cuephoria-green" size={20} />
+                <Star className="mx-auto mb-1 text-yellow-400" size={20} />
                 <p className="text-2xl font-bold text-white">{customerData.loyalty_points}</p>
                 <p className="text-xs text-gray-400">Points</p>
               </div>
               <div className="text-center">
-                <Clock className="mx-auto mb-1 text-cuephoria-blue" size={20} />
-                <p className="text-2xl font-bold text-white">{Math.floor(customerData.total_play_time / 60)}</p>
+                <Clock className="mx-auto mb-1 text-blue-400" size={20} />
+                <p className="text-2xl font-bold text-white">{Math.floor((customerData.total_play_time || 0) / 60)}</p>
                 <p className="text-xs text-gray-400">Hours</p>
               </div>
               <div className="text-center">
-                <Calendar className="mx-auto mb-1 text-cuephoria-orange" size={20} />
-                <p className="text-2xl font-bold text-white">{customerData.is_member ? 'Yes' : 'No'}</p>
-                <p className="text-xs text-gray-400">Member</p>
+                <Trophy className="mx-auto mb-1 text-green-400" size={20} />
+                <p className="text-2xl font-bold text-white">₹{totalSpentFromBills.toLocaleString()}</p>
+                <p className="text-xs text-gray-400">Spent</p>
               </div>
             </div>
           </CardContent>
