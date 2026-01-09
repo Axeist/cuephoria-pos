@@ -15,7 +15,8 @@ import {
   Navigation,
   Edit,
   Star,
-  Gamepad2
+  Gamepad2,
+  Zap
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession, formatDate, formatTime, getCountdown, timeAgo } from '@/utils/customerAuth';
@@ -57,10 +58,8 @@ export default function CustomerBookings() {
 
     setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-
-      // Get upcoming bookings
-      const { data: upcoming, error: upcomingError } = await supabase
+      // Get ALL bookings for the customer
+      const { data: allBookings, error } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -74,76 +73,74 @@ export default function CustomerBookings() {
           stations!inner (name)
         `)
         .eq('customer_id', customer.id)
-        .gte('booking_date', today)
-        .in('status', ['confirmed', 'in-progress'])
-        .order('booking_date', { ascending: true })
-        .order('start_time', { ascending: true });
-
-      if (upcomingError) console.error('Upcoming bookings error:', upcomingError);
-
-      // Get past bookings
-      const { data: past, error: pastError } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          booking_date,
-          start_time,
-          end_time,
-          duration,
-          status,
-          final_price,
-          created_at,
-          stations!inner (name)
-        `)
-        .eq('customer_id', customer.id)
-        .or(`booking_date.lt.${today},and(booking_date.eq.${today},status.eq.completed)`)
-        .eq('status', 'completed')
         .order('booking_date', { ascending: false })
-        .limit(50);
+        .order('start_time', { ascending: false });
 
-      if (pastError) console.error('Past bookings error:', pastError);
+      if (error) {
+        console.error('Bookings error:', error);
+        throw error;
+      }
 
-      // Get cancelled bookings
-      const { data: cancelled, error: cancelledError } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          booking_date,
-          start_time,
-          end_time,
-          duration,
-          status,
-          final_price,
-          created_at,
-          stations!inner (name)
-        `)
-        .eq('customer_id', customer.id)
-        .eq('status', 'cancelled')
-        .order('booking_date', { ascending: false })
-        .limit(50);
+      if (!allBookings) {
+        setUpcomingBookings([]);
+        setPastBookings([]);
+        setCancelledBookings([]);
+        return;
+      }
 
-      if (cancelledError) console.error('Cancelled bookings error:', cancelledError);
+      const now = new Date();
+      const upcoming: Booking[] = [];
+      const past: Booking[] = [];
+      const cancelled: Booking[] = [];
 
-      setUpcomingBookings(
-        upcoming?.map(b => ({
-          ...b,
-          station_name: (b.stations as any)?.name || 'Unknown Station'
-        })) || []
-      );
+      allBookings.forEach((booking) => {
+        const bookingData = {
+          ...booking,
+          station_name: (booking.stations as any)?.name || 'Unknown Station'
+        };
 
-      setPastBookings(
-        past?.map(b => ({
-          ...b,
-          station_name: (b.stations as any)?.name || 'Unknown Station'
-        })) || []
-      );
+        // If cancelled, add to cancelled list
+        if (booking.status === 'cancelled') {
+          cancelled.push(bookingData);
+          return;
+        }
 
-      setCancelledBookings(
-        cancelled?.map(b => ({
-          ...b,
-          station_name: (b.stations as any)?.name || 'Unknown Station'
-        })) || []
-      );
+        // Parse booking date and time
+        const bookingDate = new Date(booking.booking_date);
+        const [startHour, startMinute] = booking.start_time.split(':').map(Number);
+        const [endHour, endMinute] = booking.end_time.split(':').map(Number);
+        
+        const bookingStartTime = new Date(bookingDate);
+        bookingStartTime.setHours(startHour, startMinute, 0);
+        
+        const bookingEndTime = new Date(bookingDate);
+        bookingEndTime.setHours(endHour, endMinute, 0);
+
+        // Determine if booking is upcoming, ongoing, or past
+        if (now < bookingStartTime) {
+          // Future booking - Upcoming
+          upcoming.push(bookingData);
+        } else if (now >= bookingStartTime && now <= bookingEndTime) {
+          // Currently happening - Ongoing (show in upcoming with in-progress status)
+          upcoming.push(bookingData);
+        } else {
+          // Past booking - Completed
+          past.push(bookingData);
+        }
+      });
+
+      // Sort upcoming by date/time (earliest first)
+      upcoming.sort((a, b) => {
+        const dateCompare = new Date(a.booking_date).getTime() - new Date(b.booking_date).getTime();
+        if (dateCompare !== 0) return dateCompare;
+        return a.start_time.localeCompare(b.start_time);
+      });
+
+      setUpcomingBookings(upcoming);
+      setPastBookings(past);
+      setCancelledBookings(cancelled);
+
+      console.log(`Loaded bookings: ${upcoming.length} upcoming, ${past.length} past, ${cancelled.length} cancelled`);
     } catch (error) {
       console.error('Error loading bookings:', error);
       toast.error('Failed to load bookings');
@@ -172,22 +169,29 @@ export default function CustomerBookings() {
   };
 
   const getBookingStatus = (booking: Booking) => {
-    const bookingDateTime = new Date(`${booking.booking_date}T${booking.start_time}`);
     const now = new Date();
+    const bookingDate = new Date(booking.booking_date);
+    const [startHour, startMinute] = booking.start_time.split(':').map(Number);
+    const [endHour, endMinute] = booking.end_time.split(':').map(Number);
+    
+    const bookingStartTime = new Date(bookingDate);
+    bookingStartTime.setHours(startHour, startMinute, 0);
+    
+    const bookingEndTime = new Date(bookingDate);
+    bookingEndTime.setHours(endHour, endMinute, 0);
 
-    if (booking.status === 'completed') {
-      return { label: 'Completed', color: 'bg-cuephoria-green', icon: CheckCircle2 };
+    // Check if currently ongoing
+    if (now >= bookingStartTime && now <= bookingEndTime) {
+      return { label: 'Ongoing', color: 'bg-gradient-to-r from-orange-600 to-red-600 animate-pulse', icon: Zap };
     }
-    if (booking.status === 'cancelled') {
-      return { label: 'Cancelled', color: 'bg-gray-500', icon: XCircle };
+
+    // Check if completed
+    if (now > bookingEndTime) {
+      return { label: 'Completed', color: 'bg-gradient-to-r from-green-600 to-teal-600', icon: CheckCircle2 };
     }
-    if (booking.status === 'in-progress') {
-      return { label: 'In Progress', color: 'bg-cuephoria-orange', icon: Clock };
-    }
-    if (bookingDateTime < now) {
-      return { label: 'Elapsed', color: 'bg-gray-600', icon: Clock };
-    }
-    return { label: 'Confirmed', color: 'bg-cuephoria-blue', icon: CheckCircle2 };
+
+    // Otherwise it's upcoming/confirmed
+    return { label: 'Confirmed', color: 'bg-gradient-to-r from-blue-600 to-purple-600', icon: CheckCircle2 };
   };
 
   if (!customer) return null;
