@@ -132,14 +132,13 @@ const ProtectedRoute = ({
 };
 
 const App = () => {
-  // Only show React splash on web, not on native platforms
-  const [showSplash, setShowSplash] = useState(!isNativePlatform());
+  // Show splash screen on all platforms (mobile + web)
+  const [showSplash, setShowSplash] = useState(true);
 
   // Initialize mobile features on app start
   useEffect(() => {
     if (isNativePlatform()) {
       // Initialize mobile app features
-      // Native splash will auto-hide after configured duration
       initializeMobileApp();
     }
   }, []);

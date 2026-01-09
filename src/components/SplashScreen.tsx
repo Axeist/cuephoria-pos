@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isNativePlatform } from '@/utils/capacitor';
 
 interface SplashScreenProps {
   onComplete?: () => void;
@@ -8,17 +9,25 @@ interface SplashScreenProps {
 
 export default function SplashScreen({ onComplete, duration = 3000 }: SplashScreenProps) {
   const [show, setShow] = useState(true);
+  const isMobile = isNativePlatform();
+  
+  // Shorter duration and faster animations for mobile
+  const actualDuration = isMobile ? 2000 : duration;
+  const exitDuration = isMobile ? 400 : 800;
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setShow(false);
       setTimeout(() => {
         onComplete?.();
-      }, 800); // Wait for exit animation
-    }, duration);
+      }, exitDuration);
+    }, actualDuration);
 
     return () => clearTimeout(timer);
-  }, [duration, onComplete]);
+  }, [actualDuration, exitDuration, onComplete]);
+
+  // Reduce particles for mobile performance
+  const particleCount = isMobile ? 8 : 20;
 
   return (
     <AnimatePresence>
@@ -26,16 +35,16 @@ export default function SplashScreen({ onComplete, duration = 3000 }: SplashScre
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 1.1 }}
-          transition={{ duration: 0.8 }}
+          exit={{ opacity: 0, scale: isMobile ? 1 : 1.1 }}
+          transition={{ duration: isMobile ? 0.4 : 0.8 }}
           className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
           style={{
             background: 'linear-gradient(135deg, #0a0a1f 0%, #1a1a3e 50%, #2a1a3e 100%)',
           }}
         >
-          {/* Animated Background Particles */}
+          {/* Animated Background Particles - Optimized for mobile */}
           <div className="absolute inset-0 overflow-hidden">
-            {[...Array(20)].map((_, i) => (
+            {[...Array(particleCount)].map((_, i) => (
               <motion.div
                 key={i}
                 className="absolute rounded-full bg-gradient-to-r from-purple-500/20 to-cyan-500/20 blur-xl"
@@ -53,7 +62,7 @@ export default function SplashScreen({ onComplete, duration = 3000 }: SplashScre
                 }}
                 transition={{
                   duration: Math.random() * 3 + 2,
-                  repeat: Infinity,
+                  repeat: isMobile ? 1 : Infinity, // Less repetition on mobile
                   repeatType: 'reverse',
                   ease: 'easeInOut',
                 }}
@@ -61,48 +70,56 @@ export default function SplashScreen({ onComplete, duration = 3000 }: SplashScre
             ))}
           </div>
 
-          {/* Glowing Rings */}
-          <motion.div
-            className="absolute"
-            animate={{
-              scale: [1, 2.5, 1],
-              opacity: [0.4, 0, 0.4],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-          >
-            <div className="w-96 h-96 rounded-full border-4 border-purple-500/30" />
-          </motion.div>
+          {/* Glowing Rings - Optimized for mobile */}
+          {!isMobile && (
+            <>
+              <motion.div
+                className="absolute"
+                animate={{
+                  scale: [1, 2.5, 1],
+                  opacity: [0.4, 0, 0.4],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+              >
+                <div className="w-96 h-96 rounded-full border-4 border-purple-500/30" />
+              </motion.div>
 
-          <motion.div
-            className="absolute"
-            animate={{
-              scale: [1, 2, 1],
-              opacity: [0.3, 0, 0.3],
-            }}
-            transition={{
-              duration: 2.5,
-              repeat: Infinity,
-              ease: 'easeInOut',
-              delay: 0.5,
-            }}
-          >
-            <div className="w-80 h-80 rounded-full border-4 border-cyan-500/30" />
-          </motion.div>
+              <motion.div
+                className="absolute"
+                animate={{
+                  scale: [1, 2, 1],
+                  opacity: [0.3, 0, 0.3],
+                }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                  delay: 0.5,
+                }}
+              >
+                <div className="w-80 h-80 rounded-full border-4 border-cyan-500/30" />
+              </motion.div>
+            </>
+          )}
 
           {/* Main Content */}
           <div className="relative z-10 flex flex-col items-center space-y-8">
-            {/* Logo Container with Glow */}
+            {/* Logo Container with Glow - Optimized */}
             <motion.div
-              initial={{ scale: 0, rotate: -180 }}
+              initial={{ scale: 0, rotate: isMobile ? 0 : -180 }}
               animate={{ 
                 scale: 1, 
                 rotate: 0,
               }}
-              transition={{
+              transition={isMobile ? {
+                type: 'tween',
+                duration: 0.5,
+                ease: 'easeOut',
+              } : {
                 type: 'spring',
                 stiffness: 200,
                 damping: 20,
@@ -110,32 +127,33 @@ export default function SplashScreen({ onComplete, duration = 3000 }: SplashScre
               }}
               className="relative"
             >
-              {/* Glow Effect */}
+              {/* Glow Effect - Simplified on mobile */}
               <motion.div
                 className="absolute inset-0 blur-3xl"
-                animate={{
+                animate={isMobile ? {} : {
                   opacity: [0.5, 0.8, 0.5],
                   scale: [1, 1.1, 1],
                 }}
                 transition={{
                   duration: 2,
-                  repeat: Infinity,
+                  repeat: isMobile ? 0 : Infinity,
                   ease: 'easeInOut',
                 }}
                 style={{
                   background: 'radial-gradient(circle, rgba(168, 85, 247, 0.6) 0%, rgba(6, 182, 212, 0.4) 100%)',
+                  opacity: isMobile ? 0.6 : undefined,
                 }}
               />
 
-              {/* Game Controller Icon */}
+              {/* Game Controller Icon - Simplified floating on mobile */}
               <motion.div
                 className="relative w-32 h-32 flex items-center justify-center"
-                animate={{
+                animate={isMobile ? {} : {
                   y: [0, -10, 0],
                 }}
                 transition={{
                   duration: 2,
-                  repeat: Infinity,
+                  repeat: isMobile ? 0 : Infinity,
                   ease: 'easeInOut',
                 }}
               >
@@ -189,7 +207,7 @@ export default function SplashScreen({ onComplete, duration = 3000 }: SplashScre
                   backgroundClip: 'text',
                   filter: 'drop-shadow(0 0 30px rgba(168, 85, 247, 0.5))',
                 }}
-                animate={{
+                animate={isMobile ? {} : {
                   textShadow: [
                     '0 0 20px rgba(168, 85, 247, 0.5)',
                     '0 0 40px rgba(168, 85, 247, 0.8)',
@@ -198,7 +216,7 @@ export default function SplashScreen({ onComplete, duration = 3000 }: SplashScre
                 }}
                 transition={{
                   duration: 2,
-                  repeat: Infinity,
+                  repeat: isMobile ? 0 : Infinity,
                   ease: 'easeInOut',
                 }}
               >
@@ -275,42 +293,46 @@ export default function SplashScreen({ onComplete, duration = 3000 }: SplashScre
             </motion.div>
           </div>
 
-          {/* Corner Accents */}
-          <motion.div
-            className="absolute top-0 left-0 w-32 h-32"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 0.3, scale: 1 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-          >
-            <div className="w-full h-full border-t-4 border-l-4 border-purple-500/50 rounded-tl-3xl" />
-          </motion.div>
+          {/* Corner Accents - Hidden on mobile for performance */}
+          {!isMobile && (
+            <>
+              <motion.div
+                className="absolute top-0 left-0 w-32 h-32"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 0.3, scale: 1 }}
+                transition={{ delay: 0.3, duration: 0.8 }}
+              >
+                <div className="w-full h-full border-t-4 border-l-4 border-purple-500/50 rounded-tl-3xl" />
+              </motion.div>
 
-          <motion.div
-            className="absolute top-0 right-0 w-32 h-32"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 0.3, scale: 1 }}
-            transition={{ delay: 0.4, duration: 0.8 }}
-          >
-            <div className="w-full h-full border-t-4 border-r-4 border-cyan-500/50 rounded-tr-3xl" />
-          </motion.div>
+              <motion.div
+                className="absolute top-0 right-0 w-32 h-32"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 0.3, scale: 1 }}
+                transition={{ delay: 0.4, duration: 0.8 }}
+              >
+                <div className="w-full h-full border-t-4 border-r-4 border-cyan-500/50 rounded-tr-3xl" />
+              </motion.div>
 
-          <motion.div
-            className="absolute bottom-0 left-0 w-32 h-32"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 0.3, scale: 1 }}
-            transition={{ delay: 0.5, duration: 0.8 }}
-          >
-            <div className="w-full h-full border-b-4 border-l-4 border-pink-500/50 rounded-bl-3xl" />
-          </motion.div>
+              <motion.div
+                className="absolute bottom-0 left-0 w-32 h-32"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 0.3, scale: 1 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+              >
+                <div className="w-full h-full border-b-4 border-l-4 border-pink-500/50 rounded-bl-3xl" />
+              </motion.div>
 
-          <motion.div
-            className="absolute bottom-0 right-0 w-32 h-32"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 0.3, scale: 1 }}
-            transition={{ delay: 0.6, duration: 0.8 }}
-          >
-            <div className="w-full h-full border-b-4 border-r-4 border-purple-500/50 rounded-br-3xl" />
-          </motion.div>
+              <motion.div
+                className="absolute bottom-0 right-0 w-32 h-32"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 0.3, scale: 1 }}
+                transition={{ delay: 0.6, duration: 0.8 }}
+              >
+                <div className="w-full h-full border-b-4 border-r-4 border-purple-500/50 rounded-br-3xl" />
+              </motion.div>
+            </>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
