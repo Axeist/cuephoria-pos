@@ -4,7 +4,6 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Keyboard } from '@capacitor/keyboard';
 import { Network } from '@capacitor/network';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { SplashScreen } from '@capacitor/splash-screen';
 
 /**
  * Utility functions for Capacitor mobile features
@@ -142,17 +141,12 @@ export const showStatusBar = async () => {
 };
 
 /**
- * Splash Screen
+ * Splash Screen - REMOVED
+ * Splash screen plugin has been uninstalled
  */
-export const hideSplashScreen = async () => {
-  if (!isNativePlatform()) return;
-  
-  try {
-    await SplashScreen.hide();
-  } catch (error) {
-    console.warn('SplashScreen not available:', error);
-  }
-};
+// export const hideSplashScreen = async () => {
+//   // Splash screen plugin removed
+// };
 
 /**
  * App Info & Events
@@ -266,7 +260,7 @@ export default {
   setStatusBarColor,
   hideStatusBar,
   showStatusBar,
-  hideSplashScreen,
+  // hideSplashScreen, // Removed - splash screen plugin uninstalled
   getAppInfo,
   addAppStateListener,
   addBackButtonListener,

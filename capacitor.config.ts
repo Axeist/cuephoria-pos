@@ -11,17 +11,6 @@ const config: CapacitorConfig = {
     // cleartext: true
   },
   plugins: {
-    SplashScreen: {
-      launchShowDuration: 0,          // No splash screen
-      launchAutoHide: true,           // Hide immediately
-      launchFadeOutDuration: 0,       // No fade animation
-      backgroundColor: "#1a1a2e",
-      androidSplashResourceName: "splash",
-      androidScaleType: "CENTER_CROP",
-      showSpinner: false,
-      splashFullScreen: false,
-      splashImmersive: false,
-    },
     StatusBar: {
       style: 'dark',
       backgroundColor: '#000000'

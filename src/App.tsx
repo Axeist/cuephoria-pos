@@ -13,7 +13,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
 import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { initializeMobileApp, isNativePlatform, hideSplashScreen } from "@/utils/capacitor";
+import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
