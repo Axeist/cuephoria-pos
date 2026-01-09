@@ -1,7 +1,7 @@
 {
-  "name": "Cuephoria POS",
+  "name": "Cuephoria",
   "short_name": "Cuephoria",
-  "description": "Cuephoria Gaming Center Point of Sale System",
+  "description": "Cuephoria Gaming Center Management System",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1A1F2C",

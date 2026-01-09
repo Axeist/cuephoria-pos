@@ -159,14 +159,14 @@ export const hideSplashScreen = async () => {
  */
 export const getAppInfo = async () => {
   if (!isNativePlatform()) {
-    return { name: 'Cuephoria POS', version: '1.0.0', build: '1' };
+    return { name: 'Cuephoria', version: '1.0.0', build: '1' };
   }
   
   try {
     return await App.getInfo();
   } catch (error) {
     console.warn('App info not available:', error);
-    return { name: 'Cuephoria POS', version: '1.0.0', build: '1' };
+    return { name: 'Cuephoria', version: '1.0.0', build: '1' };
   }
 };
 

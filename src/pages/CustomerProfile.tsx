@@ -445,7 +445,7 @@ export default function CustomerProfile() {
             <p className="text-xs text-gray-500">
               Customer ID: {customerData.custom_id || customerData.phone}
             </p>
-            <p className="text-xs text-gray-600 mt-1">Cuephoria POS v1.0</p>
+            <p className="text-xs text-gray-600 mt-1">Cuephoria v1.0</p>
           </CardContent>
         </Card>
       </div>
