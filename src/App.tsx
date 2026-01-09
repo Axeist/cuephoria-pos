@@ -39,7 +39,7 @@ import ChatAI from "./pages/ChatAI";
 
 // Customer pages
 import CustomerLogin from "./pages/CustomerLogin";
-import CustomerDashboard from "./pages/CustomerDashboard";
+import CustomerDashboard from "./pages/CustomerDashboardEnhanced";
 import CustomerBookings from "./pages/CustomerBookings";
 import CustomerOffers from "./pages/CustomerOffers";
 import CustomerProfile from "./pages/CustomerProfile";
