@@ -210,9 +210,15 @@ export default function CustomerOffers() {
   if (!customer) return null;
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark pb-20 page-enter">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-orange-900/20 to-gray-900 pb-20 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-red-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+      </div>
+      <div className="relative z-10">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-gradient-to-br from-cuephoria-orange/20 to-cuephoria-red/20 border-b border-cuephoria-orange/30 backdrop-blur-xl">
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-orange-600/90 to-red-600/90 border-b border-orange-400/50 backdrop-blur-xl shadow-2xl shadow-orange-500/40">
         <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <Button
@@ -270,7 +276,7 @@ export default function CustomerOffers() {
                   return (
                     <Card
                       key={offer.assignment_id}
-                      className="bg-gradient-to-br from-cuephoria-orange/10 to-cuephoria-red/10 border-cuephoria-orange/30 hover:border-cuephoria-orange/50 hover-lift transition-smooth cursor-pointer card-enter"
+                      className="bg-gradient-to-br from-orange-600/30 to-red-600/30 border-2 border-orange-500/50 hover:border-orange-400 shadow-2xl shadow-orange-500/30 hover:shadow-3xl hover:shadow-orange-500/50 cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] transition-all duration-300 backdrop-blur-xl"
                       onClick={() => {
                         if (isNew) markAsViewed(offer.assignment_id);
                       }}
@@ -391,6 +397,7 @@ export default function CustomerOffers() {
 
       {/* Bottom Navigation */}
       <BottomNav />
+      </div>
     </div>
   );
 }

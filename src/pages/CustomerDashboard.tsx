@@ -301,9 +301,16 @@ export default function CustomerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark p-4 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 pb-20 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      </div>
+
       {/* Header */}
-      <div className="max-w-5xl mx-auto mb-6">
+      <div className="max-w-5xl mx-auto mb-6 relative z-10 p-4">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
@@ -321,48 +328,48 @@ export default function CustomerDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        <Card className="bg-cuephoria-darker border-cuephoria-purple/30 hover:border-cuephoria-purple/50 transition-all">
-          <CardContent className="p-4 text-center">
-            <Calendar className="mx-auto mb-2 text-cuephoria-blue" size={28} />
-            <p className="text-2xl font-bold text-white">{stats.upcomingBookings}</p>
-            <p className="text-xs text-gray-400">Upcoming</p>
+      <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 px-4 relative z-10">
+        <Card className="bg-gradient-to-br from-blue-600/90 to-purple-600/90 border-0 shadow-xl shadow-blue-500/50 hover:shadow-2xl hover:shadow-blue-500/60 transform hover:scale-105 transition-all duration-300 backdrop-blur-xl">
+          <CardContent className="p-5 text-center">
+            <Calendar className="mx-auto mb-2 text-white drop-shadow-lg" size={32} />
+            <p className="text-3xl font-extrabold text-white drop-shadow-md">{stats.upcomingBookings}</p>
+            <p className="text-xs text-white/90 font-medium">Upcoming</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-cuephoria-darker border-cuephoria-orange/30 hover:border-cuephoria-orange/50 transition-all">
-          <CardContent className="p-4 text-center">
-            <Gamepad2 className="mx-auto mb-2 text-cuephoria-orange" size={28} />
-            <p className="text-2xl font-bold text-white">{stats.totalSessions}</p>
-            <p className="text-xs text-gray-400">Games</p>
+        <Card className="bg-gradient-to-br from-orange-600/90 to-red-600/90 border-0 shadow-xl shadow-orange-500/50 hover:shadow-2xl hover:shadow-orange-500/60 transform hover:scale-105 transition-all duration-300 backdrop-blur-xl">
+          <CardContent className="p-5 text-center">
+            <Gamepad2 className="mx-auto mb-2 text-white drop-shadow-lg" size={32} />
+            <p className="text-3xl font-extrabold text-white drop-shadow-md">{stats.totalSessions}</p>
+            <p className="text-xs text-white/90 font-medium">Games</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-cuephoria-darker border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/50 transition-all">
-          <CardContent className="p-4 text-center">
-            <Clock className="mx-auto mb-2 text-cuephoria-lightpurple" size={28} />
-            <p className="text-2xl font-bold text-white">{stats.totalHours}</p>
-            <p className="text-xs text-gray-400">Hours</p>
+        <Card className="bg-gradient-to-br from-purple-600/90 to-pink-600/90 border-0 shadow-xl shadow-purple-500/50 hover:shadow-2xl hover:shadow-purple-500/60 transform hover:scale-105 transition-all duration-300 backdrop-blur-xl">
+          <CardContent className="p-5 text-center">
+            <Clock className="mx-auto mb-2 text-white drop-shadow-lg" size={32} />
+            <p className="text-3xl font-extrabold text-white drop-shadow-md">{stats.totalHours}</p>
+            <p className="text-xs text-white/90 font-medium">Hours</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-cuephoria-darker border-cuephoria-green/30 hover:border-cuephoria-green/50 transition-all">
-          <CardContent className="p-4 text-center">
-            <Star className="mx-auto mb-2 text-cuephoria-green" size={28} />
-            <p className="text-2xl font-bold text-white">{stats.loyaltyPoints}</p>
-            <p className="text-xs text-gray-400">Points</p>
+        <Card className="bg-gradient-to-br from-green-600/90 to-teal-600/90 border-0 shadow-xl shadow-green-500/50 hover:shadow-2xl hover:shadow-green-500/60 transform hover:scale-105 transition-all duration-300 backdrop-blur-xl">
+          <CardContent className="p-5 text-center">
+            <Star className="mx-auto mb-2 text-white drop-shadow-lg" size={32} />
+            <p className="text-3xl font-extrabold text-white drop-shadow-md">{stats.loyaltyPoints}</p>
+            <p className="text-xs text-white/90 font-medium">Points</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Upcoming Booking */}
       {upcomingBooking && (
-        <div className="max-w-5xl mx-auto mb-6">
+        <div className="max-w-5xl mx-auto mb-6 px-4 relative z-10">
           <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-            <Zap className="text-cuephoria-orange" size={20} />
+            <Zap className="text-yellow-400 animate-pulse" size={24} />
             Next Session
           </h2>
-          <Card className="bg-gradient-to-br from-cuephoria-purple/20 to-cuephoria-orange/20 border-cuephoria-lightpurple/30">
+          <Card className="bg-gradient-to-br from-purple-600/40 to-pink-600/40 border border-purple-400/50 shadow-2xl shadow-purple-500/30 backdrop-blur-xl">
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
                 <div>

@@ -185,7 +185,13 @@ export default function CustomerProfile() {
   const TierIcon = tier.icon;
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark pb-20 page-enter">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 pb-20 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/3 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      </div>
+      <div className="relative z-10">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-cuephoria-darker border-b border-gray-800 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 py-4">
@@ -217,7 +223,7 @@ export default function CustomerProfile() {
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
         {/* Profile Card */}
-        <Card className="bg-gradient-to-br from-cuephoria-purple/20 to-cuephoria-blue/20 border-cuephoria-lightpurple/30">
+        <Card className="bg-gradient-to-br from-purple-600/40 to-blue-600/40 border border-purple-400/50 shadow-2xl shadow-purple-500/30 backdrop-blur-xl">
           <CardContent className="p-6">
             <div className="flex items-start gap-4">
               <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${tier.color} flex items-center justify-center text-white shadow-lg`}>
@@ -458,6 +464,7 @@ export default function CustomerProfile() {
 
       {/* Bottom Navigation */}
       <BottomNav />
+      </div>
     </div>
   );
 }

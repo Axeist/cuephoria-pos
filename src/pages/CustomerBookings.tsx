@@ -193,9 +193,15 @@ export default function CustomerBookings() {
   if (!customer) return null;
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark pb-20 page-enter">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-900/20 to-gray-900 pb-20 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
+      </div>
+      <div className="relative z-10">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-cuephoria-darker border-b border-gray-800 backdrop-blur-xl">
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-gray-900/95 to-indigo-900/95 border-b border-indigo-500/30 backdrop-blur-xl shadow-lg">
         <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <Button
@@ -257,7 +263,7 @@ export default function CustomerBookings() {
                   const bookingDateTime = new Date(`${booking.booking_date}T${booking.start_time}`);
 
                   return (
-                    <Card key={booking.id} className="bg-cuephoria-darker border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/50 hover-lift transition-smooth card-enter">
+                    <Card key={booking.id} className="bg-gradient-to-br from-gray-800/90 to-indigo-900/90 border border-indigo-500/40 hover:border-indigo-400 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/40 transform hover:-translate-y-2 transition-all duration-300 backdrop-blur-xl">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
@@ -401,6 +407,7 @@ export default function CustomerBookings() {
 
       {/* Bottom Navigation */}
       <BottomNav />
+      </div>
     </div>
   );
 }
