@@ -73,8 +73,10 @@ export default function BottomNav() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-gray-900/98 via-purple-900/98 to-gray-900/98 border-t-2 border-purple-500/40 backdrop-blur-2xl z-50 safe-area-inset-bottom shadow-[0_-4px_20px_rgba(168,85,247,0.3)]">
-      <div className="max-w-5xl mx-auto px-2 py-2">
+    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-900/95 via-pink-900/95 to-indigo-900/95 border-t-2 border-purple-400/60 backdrop-blur-3xl z-50 safe-area-inset-bottom shadow-[0_-8px_32px_rgba(168,85,247,0.5)]">
+      {/* Glowing top border effect */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent"></div>
+      <div className="max-w-5xl mx-auto px-2 py-3">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -84,29 +86,34 @@ export default function BottomNav() {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-smooth bottom-nav-item relative min-w-[64px] ${
+                className={`flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl transition-all duration-300 bottom-nav-item relative min-w-[72px] ${
                   active
-                    ? 'text-cuephoria-purple'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                    ? 'bg-gradient-to-br from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50 scale-105'
+                    : 'text-gray-300 hover:text-white hover:bg-white/10 hover:scale-105'
                 }`}
               >
                 <div className="relative">
-                  <Icon
-                    size={22}
-                    className={active ? 'scale-110' : ''}
-                    strokeWidth={active ? 2.5 : 2}
-                  />
+                  <div className={`${active ? 'bg-white/20 p-2 rounded-lg backdrop-blur-xl' : ''}`}>
+                    <Icon
+                      size={24}
+                      className={`${active ? 'animate-pulse' : ''}`}
+                      strokeWidth={active ? 2.5 : 2}
+                    />
+                  </div>
                   {item.badge && item.badge > 0 && (
-                    <Badge className="absolute -top-2 -right-2 bg-cuephoria-red text-white text-xs h-5 min-w-[20px] flex items-center justify-center rounded-full px-1 badge-pulse">
+                    <Badge className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs h-5 min-w-[20px] flex items-center justify-center rounded-full px-1 shadow-lg shadow-red-500/50 animate-pulse border-2 border-white">
                       {item.badge > 9 ? '9+' : item.badge}
                     </Badge>
                   )}
                 </div>
-                <span className={`text-xs font-medium ${active ? 'font-semibold' : ''}`}>
+                <span className={`text-xs font-semibold ${active ? 'text-white drop-shadow-lg' : ''}`}>
                   {item.label}
                 </span>
                 {active && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-cuephoria-purple rounded-t-full" />
+                  <>
+                    <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 rounded-full shadow-lg shadow-purple-500/50" />
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-purple-600/20 to-pink-600/20 blur-xl" />
+                  </>
                 )}
               </button>
             );

@@ -92,19 +92,19 @@ const Index: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Logo size="md" />
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
+          <Button
+            variant="outline"
               className="border-purple-500/50 text-white hover:bg-purple-500/20"
-              onClick={() => window.open('https://cuephoria.in', '_blank')}
-            >
+            onClick={() => window.open('https://cuephoria.in', '_blank')}
+          >
               Website
-            </Button>
-            <Button
+          </Button>
+          <Button
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 shadow-lg shadow-purple-500/50"
               onClick={() => navigate('/public/booking')}
-            >
-              Book Now
-            </Button>
+          >
+            Book Now
+          </Button>
           </div>
         </div>
       </header>
@@ -115,43 +115,43 @@ const Index: React.FC = () => {
           <div className="inline-block mb-6">
             <img
               src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-              alt="Cuephoria Logo"
+              alt="Cuephoria Logo" 
               className="h-32 md:h-40 drop-shadow-[0_0_40px_rgba(168,85,247,0.6)] animate-pulse"
             />
-          </div>
-          
+        </div>
+        
           <h1 className="text-4xl md:text-6xl font-extrabold text-white mb-4">
             Welcome to{' '}
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-              Cuephoria
-            </span>
-          </h1>
-          
+            Cuephoria
+          </span>
+        </h1>
+        
           <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
             Your premium gaming destination with PlayStation 5, Pool Tables & VR
-          </p>
-
+        </p>
+        
           {/* Main CTA - Customer Login */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-6">
-            <Button
+          <Button
               size="lg"
               className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 hover:from-purple-500 hover:via-pink-500 hover:to-blue-500 text-white text-lg px-8 py-6 h-auto shadow-2xl shadow-purple-500/50 transform hover:scale-105 transition-all duration-300 font-bold"
               onClick={() => navigate('/customer/login')}
-            >
+          >
               <User className="mr-2" size={24} />
               Customer Login
               <ArrowRight className="ml-2" size={24} />
-            </Button>
+          </Button>
             
-            <Button
+          <Button
               size="lg"
-              variant="outline"
+            variant="outline"
               className="border-2 border-purple-500/50 text-white hover:bg-purple-500/20 text-lg px-8 py-6 h-auto backdrop-blur-xl"
               onClick={() => navigate('/public/booking')}
-            >
+          >
               <Calendar className="mr-2" size={20} />
               Book as Guest
-            </Button>
+          </Button>
           </div>
 
           <p className="text-sm text-gray-400">
@@ -159,7 +159,7 @@ const Index: React.FC = () => {
             <span className="text-purple-400 font-medium">Your account is automatically created when you make your first booking!</span>
           </p>
         </div>
-
+        
         {/* Customer Dashboard Preview */}
         <div className="mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
@@ -182,8 +182,8 @@ const Index: React.FC = () => {
                     <div className="mb-4 flex justify-center">
                       <div className="p-4 bg-white/20 rounded-full backdrop-blur-xl">
                         <Icon size={32} className="text-white" />
-                      </div>
-                    </div>
+              </div>
+            </div>
                     <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
                     <p className="text-white/90 text-sm">{feature.description}</p>
                   </CardContent>
@@ -191,8 +191,8 @@ const Index: React.FC = () => {
               );
             })}
           </div>
-        </div>
-
+          </div>
+          
         {/* Benefits Section */}
         <div className="grid md:grid-cols-2 gap-8 items-center mb-16">
           <div>
@@ -207,11 +207,11 @@ const Index: React.FC = () => {
                 >
                   <CheckCircle2 className="text-green-400 flex-shrink-0 mt-0.5" size={20} />
                   <span className="text-gray-200">{benefit}</span>
-                </div>
+              </div>
               ))}
             </div>
           </div>
-
+          
           <div className="relative">
             <Card className="bg-gradient-to-br from-gray-800/90 to-purple-900/90 border border-purple-500/40 shadow-2xl shadow-purple-500/30 backdrop-blur-xl overflow-hidden">
               <CardContent className="p-0">
@@ -221,11 +221,11 @@ const Index: React.FC = () => {
                     <div>
                       <h3 className="text-2xl font-bold text-white">Good Evening, Player!</h3>
                       <p className="text-white/80 text-sm">Welcome back to Cuephoria</p>
-                    </div>
+              </div>
                     <User className="text-white" size={40} />
-                  </div>
-                </div>
-                
+          </div>
+        </div>
+        
                 <div className="p-6 space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gradient-to-br from-blue-600/90 to-purple-600/90 p-4 rounded-lg text-center backdrop-blur-xl">
@@ -238,16 +238,16 @@ const Index: React.FC = () => {
                       <p className="text-2xl font-bold text-white">1,250</p>
                       <p className="text-xs text-white/90">Points</p>
                     </div>
-                  </div>
-                  
+          </div>
+          
                   <div className="bg-purple-600/20 border border-purple-500/30 rounded-lg p-4 backdrop-blur-xl">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-white font-semibold">Next Session</span>
                       <Badge className="bg-green-500">Confirmed</Badge>
                     </div>
                     <p className="text-gray-300 text-sm">Tomorrow • 3:00 PM</p>
-                  </div>
-                  
+          </div>
+          
                   <div className="bg-orange-600/20 border border-orange-500/30 rounded-lg p-4 backdrop-blur-xl">
                     <div className="flex items-center gap-2 mb-2">
                       <Gift className="text-orange-400" size={20} />
@@ -255,12 +255,12 @@ const Index: React.FC = () => {
                     </div>
                     <p className="text-gray-300 text-sm">50% OFF Weekend Gaming</p>
                   </div>
-                </div>
+          </div>
               </CardContent>
             </Card>
           </div>
         </div>
-
+        
         {/* Mobile App Preview */}
         <div className="text-center bg-gradient-to-r from-indigo-600/30 to-purple-600/30 border border-indigo-500/40 rounded-2xl p-8 backdrop-blur-xl">
           <Smartphone className="mx-auto mb-4 text-indigo-400" size={48} />
@@ -283,7 +283,7 @@ const Index: React.FC = () => {
                 Premium gaming lounge offering PlayStation 5, Pool Tables, and VR experiences in a modern, comfortable environment.
               </p>
             </div>
-
+            
             {/* Quick Links */}
             <div>
               <h3 className="text-white font-semibold mb-3">Quick Links</h3>
@@ -306,11 +306,11 @@ const Index: React.FC = () => {
                 >
                   Official Website
                 </button>
-              </div>
-            </div>
-
+                      </div>
+                    </div>
+                    
             {/* Staff Access */}
-            <div>
+                      <div>
               <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
                 <Shield size={18} />
                 Staff Access
@@ -329,7 +329,7 @@ const Index: React.FC = () => {
               </Button>
             </div>
           </div>
-
+          
           {/* Copyright */}
           <div className="border-t border-gray-800 pt-6 text-center">
             <p className="text-gray-500 text-sm">

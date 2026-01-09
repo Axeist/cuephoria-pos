@@ -27,7 +27,8 @@ import {
   Crown,
   Sparkles,
   TrendingDown,
-  BarChart3
+  BarChart3,
+  Gem
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession, clearCustomerSession, formatDate, formatTime, getGreeting, getGreetingEmoji } from '@/utils/customerAuth';
@@ -109,6 +110,9 @@ export default function CustomerDashboardEnhanced() {
         new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime()
       );
 
+      // Count ALL bookings as games (not just completed)
+      const totalGamesPlayed = allBookings.filter(b => b.status !== 'cancelled').length;
+
       sortedBookings.forEach((booking, index) => {
         if (booking.status === 'cancelled') return;
 
@@ -121,16 +125,17 @@ export default function CustomerDashboardEnhanced() {
         const bookingEndTime = new Date(bookingDate);
         bookingEndTime.setHours(endHour, endMinute, 0);
 
+        // Check if booking is truly in the future
         if (now < bookingStartTime) {
           upcomingCount++;
         }
 
-        if (now > bookingEndTime) {
-          totalSessionsCount++;
-          totalMinutes += booking.duration || 0;
-          totalSpent += booking.final_price || 0;
+        // Calculate hours based on ALL sessions (completed or not)
+        totalMinutes += booking.duration || 0;
+        totalSpent += booking.final_price || 0;
 
-          // Calculate streak
+        // Only count streak for completed sessions
+        if (now > bookingEndTime) {
           if (index === 0 || !lastSessionDate) {
             lastSessionDate = bookingDate;
             streak = 1;
@@ -143,6 +148,8 @@ export default function CustomerDashboardEnhanced() {
           }
         }
       });
+
+      totalSessionsCount = totalGamesPlayed;
 
       const { data: customerData } = await supabase
         .from('customers')
@@ -410,11 +417,52 @@ export default function CustomerDashboardEnhanced() {
   };
 
   const getMembershipTier = () => {
-    const points = stats.loyaltyPoints;
-    if (points >= 3000) return { name: 'Platinum', color: 'from-purple-400 to-pink-400', next: null };
-    if (points >= 1500) return { name: 'Gold', color: 'from-yellow-400 to-orange-400', next: 3000 - points };
-    if (points >= 500) return { name: 'Silver', color: 'from-gray-300 to-gray-400', next: 1500 - points };
-    return { name: 'Bronze', color: 'from-orange-600 to-red-600', next: 500 - points };
+    const spent = stats.totalSpent;
+    if (spent >= 40000) return { 
+      name: 'Platinum', 
+      color: 'from-purple-500 to-pink-500', 
+      icon: Crown, 
+      next: null,
+      tagline: 'ELITE PLAYER',
+      message: "You're in the top 1% of our gaming community! 🌟",
+      perks: ['Priority Booking', 'VIP Lounge Access', 'Exclusive Events', 'Personal Gaming Advisor']
+    };
+    if (spent >= 20000) return { 
+      name: 'Diamond', 
+      color: 'from-cyan-400 to-blue-500', 
+      icon: Gem, 
+      next: 40000 - spent,
+      tagline: 'PREMIUM MEMBER',
+      message: 'Your dedication shines bright! Diamond status achieved! 💎',
+      perks: ['Extended Hours', 'Priority Support', 'Free Upgrades', 'Birthday Bonus']
+    };
+    if (spent >= 10000) return { 
+      name: 'Gold', 
+      color: 'from-yellow-400 to-orange-400', 
+      icon: Trophy, 
+      next: 20000 - spent,
+      tagline: 'VALUED GAMER',
+      message: 'Gold status unlocked! You\'re a true gaming enthusiast! 🏆',
+      perks: ['Weekly Offers', 'Loyalty Bonuses', 'Group Discounts', 'Event Access']
+    };
+    if (spent >= 5000) return { 
+      name: 'Silver', 
+      color: 'from-gray-300 to-gray-400', 
+      icon: Award, 
+      next: 10000 - spent,
+      tagline: 'RISING STAR',
+      message: 'Keep gaming! You\'re on your way to greatness! ⚡',
+      perks: ['Monthly Offers', 'Points Multiplier', 'Referral Bonus', 'Special Deals']
+    };
+    return { 
+      name: 'Bronze', 
+      color: 'from-orange-600 to-red-600', 
+      icon: Star, 
+      next: 5000 - spent,
+      tagline: 'NEW ADVENTURER',
+      message: 'Welcome to the gaming family! Your journey begins! 🎮',
+      perks: ['Welcome Bonus', 'Birthday Offer', 'Basic Rewards', 'Community Access']
+    };
   };
 
   const handleLogout = () => {
@@ -466,26 +514,99 @@ export default function CustomerDashboardEnhanced() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 relative z-10">
         {/* Personalized Greeting */}
-        <Card className="bg-gradient-to-r from-purple-600/40 via-pink-600/40 to-blue-600/40 border border-purple-400/50 shadow-2xl backdrop-blur-xl">
-          <CardContent className="p-6">
-            <h2 className="text-3xl font-bold text-white mb-2">
-              {getGreeting()}, {customer.name}! {getGreetingEmoji()}
-            </h2>
-            {stats.currentStreak >= 3 && (
-              <p className="text-white/90 mb-3 flex items-center gap-2">
-                <Flame className="text-orange-400 animate-pulse" size={20} />
-                You're on a {stats.currentStreak}-game streak this month!
-              </p>
-            )}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-white/80">
-              <Badge className={`bg-gradient-to-r ${tier.color}`}>
-                <Crown size={14} className="mr-1" />
+        <Card className={`bg-gradient-to-r from-purple-600/40 via-pink-600/40 to-blue-600/40 border-2 border-gradient-to-r ${tier.color} shadow-2xl backdrop-blur-xl relative overflow-hidden`}>
+          {/* Animated background effect */}
+          <div className="absolute inset-0 bg-gradient-to-r opacity-10 animate-pulse" style={{background: `linear-gradient(135deg, ${tier.color})`}}></div>
+          
+          <CardContent className="p-6 relative z-10">
+            {/* Tier Badge & Tagline */}
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <Badge className={`bg-gradient-to-r ${tier.color} text-white shadow-lg px-4 py-2 text-base font-bold border-2 border-white/30`}>
+                {React.createElement(tier.icon, { size: 20, className: "mr-2" })}
                 {tier.name} Member
               </Badge>
-              <span>Member since {formatDate(new Date(Date.now() - stats.membershipDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}</span>
-              {tier.next && <span>Next tier in {tier.next} points</span>}
-              <span>Customer ID: {customer.phone}</span>
+              <Badge className="bg-white/20 backdrop-blur-xl text-white px-4 py-2 text-sm font-semibold border border-white/30">
+                ⚡ {tier.tagline}
+              </Badge>
+              {stats.rank <= 50 && (
+                <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 text-sm font-bold animate-pulse">
+                  🏆 TOP 50 PLAYER
+                </Badge>
+              )}
             </div>
+
+            <h2 className="text-4xl font-extrabold text-white mb-2 drop-shadow-lg">
+              {getGreeting()}, {customer.name}! {getGreetingEmoji()}
+            </h2>
+            
+            {/* Ego Boost Message */}
+            <p className="text-xl text-white/95 mb-3 font-semibold">
+              {tier.message}
+            </p>
+
+            {stats.currentStreak >= 3 && (
+              <p className="text-white/90 mb-4 flex items-center gap-2 bg-orange-500/20 px-4 py-2 rounded-lg border border-orange-400/50">
+                <Flame className="text-orange-400 animate-pulse" size={24} />
+                <span className="font-bold">UNSTOPPABLE! {stats.currentStreak}-game streak this month! 🔥</span>
+              </p>
+            )}
+
+            {/* Exclusive Perks */}
+            <div className="bg-white/10 backdrop-blur-xl rounded-lg p-4 mb-4 border border-white/20">
+              <h3 className="text-white font-bold mb-2 flex items-center gap-2">
+                <Sparkles className="text-yellow-400" size={18} />
+                Your Exclusive Perks:
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {tier.perks.map((perk, index) => (
+                  <div key={index} className="flex items-center gap-1 text-white/90 text-sm">
+                    <CheckCircle2 className="text-green-400" size={14} />
+                    <span>{perk}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Stats Bar */}
+            <div className="flex flex-wrap items-center gap-4 text-sm text-white/80 border-t border-white/20 pt-4">
+              <span className="flex items-center gap-1">
+                <Calendar size={14} />
+                Member since {formatDate(new Date(Date.now() - stats.membershipDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
+              </span>
+              <span className="flex items-center gap-1 font-semibold text-green-400">
+                <TrendingUp size={14} />
+                ₹{stats.totalSpent.toLocaleString()} Total Spent
+              </span>
+              {tier.next && (
+                <span className="flex items-center gap-1 text-yellow-400 font-semibold animate-pulse">
+                  <Target size={14} />
+                  ₹{tier.next.toLocaleString()} to {tier.name === 'Bronze' ? 'Silver' : tier.name === 'Silver' ? 'Gold' : tier.name === 'Gold' ? 'Diamond' : 'Platinum'}!
+                </span>
+              )}
+              {!tier.next && (
+                <span className="flex items-center gap-1 text-pink-400 font-bold">
+                  <Crown size={14} className="animate-bounce" />
+                  MAXIMUM TIER ACHIEVED!
+                </span>
+              )}
+              <span className="text-gray-400">ID: {customer.phone}</span>
+            </div>
+
+            {/* Progress to Next Tier */}
+            {tier.next && (
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-white/70 mb-1">
+                  <span>Progress to Next Tier</span>
+                  <span>{((stats.totalSpent / (stats.totalSpent + tier.next)) * 100).toFixed(0)}%</span>
+                </div>
+                <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full bg-gradient-to-r ${tier.color} rounded-full transition-all duration-1000 shadow-lg`}
+                    style={{ width: `${(stats.totalSpent / (stats.totalSpent + tier.next)) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -557,8 +678,8 @@ export default function CustomerDashboardEnhanced() {
             <CardContent className="p-4 text-center">
               <Gamepad2 className="mx-auto mb-2 text-white" size={28} />
               <p className="text-3xl font-bold text-white">{stats.totalSessions}</p>
-              <p className="text-xs text-white/90">Games Played</p>
-              <p className="text-xs text-white/70 mt-1">Rank #{stats.rank}</p>
+              <p className="text-xs text-white/90">Total Bookings</p>
+              <p className="text-xs text-white/70 mt-1">All sessions</p>
             </CardContent>
           </Card>
 
@@ -566,8 +687,8 @@ export default function CustomerDashboardEnhanced() {
             <CardContent className="p-4 text-center">
               <Clock className="mx-auto mb-2 text-white" size={28} />
               <p className="text-3xl font-bold text-white">{stats.totalHours}</p>
-              <p className="text-xs text-white/90">Total Hours</p>
-              <p className="text-xs text-white/70 mt-1">Avg: {stats.totalSessions > 0 ? (stats.totalHours / stats.totalSessions).toFixed(1) : 0}h/session</p>
+              <p className="text-xs text-white/90">Hours Played</p>
+              <p className="text-xs text-white/70 mt-1">From duration</p>
             </CardContent>
           </Card>
 
@@ -623,40 +744,6 @@ export default function CustomerDashboardEnhanced() {
           </Card>
         )}
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button
-            className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-purple-600 to-pink-600"
-            onClick={() => navigate('/public/booking')}
-          >
-            <Calendar size={24} />
-            <span className="font-semibold">BOOK NOW</span>
-          </Button>
-          
-          <Button
-            className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-blue-600 to-cyan-600"
-            onClick={() => navigate('/customer/bookings')}
-          >
-            <Clock size={24} />
-            <span className="font-semibold">MY BOOKINGS</span>
-          </Button>
-          
-          <Button
-            className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-orange-600 to-red-600"
-            onClick={() => navigate('/customer/offers')}
-          >
-            <Gift size={24} />
-            <span className="font-semibold">OFFERS ({offers.length})</span>
-          </Button>
-          
-          <Button
-            className="h-auto py-6 flex flex-col items-center gap-3 bg-gradient-to-br from-green-600 to-teal-600"
-            onClick={() => navigate('/customer/profile')}
-          >
-            <Trophy size={24} />
-            <span className="font-semibold">PROFILE</span>
-          </Button>
-        </div>
       </div>
 
       <BottomNav />
