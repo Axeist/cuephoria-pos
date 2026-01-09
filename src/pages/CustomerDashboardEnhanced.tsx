@@ -91,9 +91,16 @@ export default function CustomerDashboardEnhanced() {
     if (!customer) return;
 
     try {
+      // Fetch ALL bookings (no status filter to get the true total)
       const { data: allBookings } = await supabase
         .from('bookings')
-        .select('booking_date, start_time, end_time, status, duration, final_price, created_at')
+        .select('booking_date, start_time, end_time, status, duration, final_price, original_price, created_at')
+        .eq('customer_id', customer.id);
+
+      // Fetch ALL bills (POS transactions) for this customer
+      const { data: allBills } = await supabase
+        .from('bills')
+        .select('total, payment_method, created_at')
         .eq('customer_id', customer.id);
 
       if (!allBookings) return;
@@ -102,7 +109,8 @@ export default function CustomerDashboardEnhanced() {
       let upcomingCount = 0;
       let totalSessionsCount = 0;
       let totalMinutes = 0;
-      let totalSpent = 0;
+      let totalSpentFromBookings = 0;
+      let totalSpentFromBills = 0;
       let lastSessionDate: Date | null = null;
       let streak = 0;
 
@@ -110,8 +118,27 @@ export default function CustomerDashboardEnhanced() {
         new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime()
       );
 
-      // Count ALL bookings as games (not just completed)
+      // Count ALL non-cancelled bookings as games
       const totalGamesPlayed = allBookings.filter(b => b.status !== 'cancelled').length;
+
+      // Calculate total spent from NON-CANCELLED bookings only
+      allBookings.forEach((booking) => {
+        if (booking.status === 'cancelled') return;
+        // Use final_price, fallback to original_price if final_price is 0 or null
+        const price = booking.final_price || booking.original_price || 0;
+        totalSpentFromBookings += price;
+      });
+
+      // Calculate total spent from BILLS (excluding complimentary)
+      if (allBills) {
+        allBills.forEach((bill) => {
+          if (bill.payment_method === 'complimentary') return;
+          totalSpentFromBills += bill.total || 0;
+        });
+      }
+
+      // Total spent is the sum of both bookings and bills
+      const totalSpent = totalSpentFromBookings + totalSpentFromBills;
 
       sortedBookings.forEach((booking, index) => {
         if (booking.status === 'cancelled') return;
@@ -132,7 +159,6 @@ export default function CustomerDashboardEnhanced() {
 
         // Calculate hours based on ALL sessions (completed or not)
         totalMinutes += booking.duration || 0;
-        totalSpent += booking.final_price || 0;
 
         // Only count streak for completed sessions
         if (now > bookingEndTime) {
@@ -153,9 +179,21 @@ export default function CustomerDashboardEnhanced() {
 
       console.log('📊 Total Spent Calculation:', {
         totalBookings: allBookings.length,
+        totalBills: allBills?.length || 0,
         nonCancelledBookings: allBookings.filter(b => b.status !== 'cancelled').length,
+        totalSpentFromBookings,
+        totalSpentFromBills,
         totalSpent,
-        bookings: allBookings.map(b => ({ date: b.booking_date, status: b.status, final_price: b.final_price }))
+        bookingDetails: allBookings.map(b => ({ 
+          date: b.booking_date, 
+          status: b.status, 
+          final_price: b.final_price,
+          original_price: b.original_price
+        })),
+        billDetails: allBills?.map(b => ({ 
+          total: b.total,
+          payment_method: b.payment_method
+        }))
       });
 
       const { data: customerData } = await supabase
@@ -168,6 +206,58 @@ export default function CustomerDashboardEnhanced() {
         ? Math.floor((now.getTime() - new Date(customerData.created_at).getTime()) / (1000 * 60 * 60 * 24))
         : 0;
 
+      // Calculate rank based on total spending (bookings + bills)
+      const { data: allCustomersBookings } = await supabase
+        .from('bookings')
+        .select('customer_id, final_price, original_price, status');
+
+      const { data: allCustomersBills } = await supabase
+        .from('bills')
+        .select('customer_id, total, payment_method');
+
+      let customerSpendingMap: { [key: string]: number } = {};
+      
+      // Add bookings spending
+      if (allCustomersBookings) {
+        allCustomersBookings.forEach((booking) => {
+          if (booking.status === 'cancelled') return;
+          const customerId = booking.customer_id;
+          const price = booking.final_price || booking.original_price || 0;
+          if (!customerSpendingMap[customerId]) {
+            customerSpendingMap[customerId] = 0;
+          }
+          customerSpendingMap[customerId] += price;
+        });
+      }
+
+      // Add bills spending
+      if (allCustomersBills) {
+        allCustomersBills.forEach((bill) => {
+          if (bill.payment_method === 'complimentary') return;
+          const customerId = bill.customer_id;
+          if (!customerSpendingMap[customerId]) {
+            customerSpendingMap[customerId] = 0;
+          }
+          customerSpendingMap[customerId] += bill.total || 0;
+        });
+      }
+
+      // Sort customers by spending and find rank
+      const sortedCustomers = Object.entries(customerSpendingMap)
+        .sort((a, b) => b[1] - a[1]);
+      
+      const currentRank = sortedCustomers.findIndex(([id]) => id === customer.id) + 1;
+
+      console.log('🏆 Rank Calculation:', {
+        myTotalSpent: totalSpent,
+        myRank: currentRank,
+        topCustomers: sortedCustomers.slice(0, 10).map(([id, spent]) => ({ 
+          id, 
+          spent,
+          isMe: id === customer.id 
+        }))
+      });
+
       setStats({
         upcomingBookings: upcomingCount,
         totalSessions: totalSessionsCount,
@@ -176,7 +266,7 @@ export default function CustomerDashboardEnhanced() {
         totalSpent,
         membershipDays,
         currentStreak: streak,
-        rank: 47 // This would come from a leaderboard query
+        rank: currentRank || 1
       });
 
       // Generate recommendations
