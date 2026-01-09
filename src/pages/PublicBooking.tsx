@@ -47,6 +47,7 @@ import { format, parse, getDay } from "date-fns";
 import { getCustomerSession, clearCustomerSession } from "@/utils/customerAuth";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import BottomNav from "@/components/customer/BottomNav";
 
 /* =========================
    Types
@@ -148,6 +149,10 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
    ========================= */
 export default function PublicBooking() {
   const navigate = useNavigate();
+  
+  // Check if user is logged in as customer (for bottom nav)
+  const customerSession = getCustomerSession();
+  
   const [stations, setStations] = useState<Station[]>([]);
   const [stationType, setStationType] = useState<"all" | StationType>("all");
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
@@ -1812,7 +1817,7 @@ export default function PublicBooking() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]">
+    <div className={`min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] ${customerSession ? 'pb-20' : ''}`}>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
         <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
@@ -3287,6 +3292,9 @@ export default function PublicBooking() {
           </div>
         </div>
       )}
+
+      {/* Bottom Navigation - Only show if accessed through customer dashboard */}
+      {customerSession && <BottomNav />}
     </div>
   );
 }

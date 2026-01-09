@@ -595,27 +595,37 @@ export default function CustomerDashboardEnhanced() {
       </div>
 
       {/* Header */}
-      <div className="relative z-10 backdrop-blur-xl bg-gray-900/50 border-b border-purple-500/20">
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-gray-900/95 to-purple-900/95 border-b border-purple-500/30 backdrop-blur-xl shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-white">Customer Dashboard</h1>
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
-              className="relative"
+              className="relative text-gray-300 hover:text-white hover:bg-purple-600/30"
               onClick={() => navigate('/customer/offers')}
             >
               <Bell size={20} />
               {offers.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
                   {offers.length}
                 </span>
               )}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/customer/profile')}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-gray-300 hover:text-white hover:bg-purple-600/30"
+              onClick={() => navigate('/customer/profile')}
+            >
               <Trophy size={20} />
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-gray-300 hover:text-white hover:bg-purple-600/30"
+              onClick={handleLogout}
+            >
               <LogOut size={18} />
             </Button>
           </div>
