@@ -151,6 +151,13 @@ export default function CustomerDashboardEnhanced() {
 
       totalSessionsCount = totalGamesPlayed;
 
+      console.log('📊 Total Spent Calculation:', {
+        totalBookings: allBookings.length,
+        nonCancelledBookings: allBookings.filter(b => b.status !== 'cancelled').length,
+        totalSpent,
+        bookings: allBookings.map(b => ({ date: b.booking_date, status: b.status, final_price: b.final_price }))
+      });
+
       const { data: customerData } = await supabase
         .from('customers')
         .select('loyalty_points, created_at')
@@ -514,9 +521,9 @@ export default function CustomerDashboardEnhanced() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 relative z-10">
         {/* Personalized Greeting */}
-        <Card className={`bg-gradient-to-r from-purple-600/40 via-pink-600/40 to-blue-600/40 border-2 border-gradient-to-r ${tier.color} shadow-2xl backdrop-blur-xl relative overflow-hidden`}>
+        <Card className="bg-gray-900/95 border-2 border-purple-500/30 shadow-2xl backdrop-blur-xl relative overflow-hidden">
           {/* Animated background effect */}
-          <div className="absolute inset-0 bg-gradient-to-r opacity-10 animate-pulse" style={{background: `linear-gradient(135deg, ${tier.color})`}}></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 via-pink-900/20 to-blue-900/20"></div>
           
           <CardContent className="p-6 relative z-10">
             {/* Tier Badge & Tagline */}
@@ -545,22 +552,22 @@ export default function CustomerDashboardEnhanced() {
             </p>
 
             {stats.currentStreak >= 3 && (
-              <p className="text-white/90 mb-4 flex items-center gap-2 bg-orange-500/20 px-4 py-2 rounded-lg border border-orange-400/50">
+              <p className="text-white mb-4 flex items-center gap-2 bg-orange-900/40 px-4 py-2 rounded-lg border border-orange-500/50">
                 <Flame className="text-orange-400 animate-pulse" size={24} />
                 <span className="font-bold">UNSTOPPABLE! {stats.currentStreak}-game streak this month! 🔥</span>
               </p>
             )}
 
             {/* Exclusive Perks */}
-            <div className="bg-white/10 backdrop-blur-xl rounded-lg p-4 mb-4 border border-white/20">
-              <h3 className="text-white font-bold mb-2 flex items-center gap-2">
+            <div className="bg-gray-800/80 backdrop-blur-xl rounded-lg p-4 mb-4 border border-purple-500/30">
+              <h3 className="text-white font-bold mb-3 flex items-center gap-2">
                 <Sparkles className="text-yellow-400" size={18} />
                 Your Exclusive Perks:
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {tier.perks.map((perk, index) => (
-                  <div key={index} className="flex items-center gap-1 text-white/90 text-sm">
-                    <CheckCircle2 className="text-green-400" size={14} />
+                  <div key={index} className="flex items-center gap-1.5 text-white text-sm">
+                    <CheckCircle2 className="text-green-400 flex-shrink-0" size={16} />
                     <span>{perk}</span>
                   </div>
                 ))}
@@ -568,25 +575,25 @@ export default function CustomerDashboardEnhanced() {
             </div>
 
             {/* Stats Bar */}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-white/80 border-t border-white/20 pt-4">
-              <span className="flex items-center gap-1">
-                <Calendar size={14} />
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300 border-t border-gray-700 pt-4">
+              <span className="flex items-center gap-1.5">
+                <Calendar size={14} className="text-blue-400" />
                 Member since {formatDate(new Date(Date.now() - stats.membershipDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
               </span>
-              <span className="flex items-center gap-1 font-semibold text-green-400">
-                <TrendingUp size={14} />
-                ₹{stats.totalSpent.toLocaleString()} Total Spent
+              <span className="flex items-center gap-1.5 font-bold text-green-400 text-base">
+                <TrendingUp size={16} />
+                ₹{stats.totalSpent.toLocaleString()} Total Spent (All Time)
               </span>
               {tier.next && (
-                <span className="flex items-center gap-1 text-yellow-400 font-semibold animate-pulse">
+                <span className="flex items-center gap-1.5 text-yellow-300 font-semibold">
                   <Target size={14} />
-                  ₹{tier.next.toLocaleString()} to {tier.name === 'Bronze' ? 'Silver' : tier.name === 'Silver' ? 'Gold' : tier.name === 'Gold' ? 'Diamond' : 'Platinum'}!
+                  ₹{tier.next.toLocaleString()} more to {tier.name === 'Bronze' ? 'Silver' : tier.name === 'Silver' ? 'Gold' : tier.name === 'Gold' ? 'Diamond' : 'Platinum'}
                 </span>
               )}
               {!tier.next && (
-                <span className="flex items-center gap-1 text-pink-400 font-bold">
-                  <Crown size={14} className="animate-bounce" />
-                  MAXIMUM TIER ACHIEVED!
+                <span className="flex items-center gap-1.5 text-pink-400 font-bold">
+                  <Crown size={16} className="animate-bounce" />
+                  MAXIMUM TIER!
                 </span>
               )}
               <span className="text-gray-400">ID: {customer.phone}</span>
@@ -595,11 +602,11 @@ export default function CustomerDashboardEnhanced() {
             {/* Progress to Next Tier */}
             {tier.next && (
               <div className="mt-4">
-                <div className="flex justify-between text-xs text-white/70 mb-1">
-                  <span>Progress to Next Tier</span>
-                  <span>{((stats.totalSpent / (stats.totalSpent + tier.next)) * 100).toFixed(0)}%</span>
+                <div className="flex justify-between text-xs text-gray-400 mb-2">
+                  <span className="font-semibold">Progress to Next Tier</span>
+                  <span className="font-bold text-white">{((stats.totalSpent / (stats.totalSpent + tier.next)) * 100).toFixed(0)}%</span>
                 </div>
-                <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-3 bg-gray-700 rounded-full overflow-hidden border border-gray-600">
                   <div 
                     className={`h-full bg-gradient-to-r ${tier.color} rounded-full transition-all duration-1000 shadow-lg`}
                     style={{ width: `${(stats.totalSpent / (stats.totalSpent + tier.next)) * 100}%` }}
@@ -612,7 +619,7 @@ export default function CustomerDashboardEnhanced() {
 
         {/* Active & Upcoming Sessions */}
         {(activeSession || nextBooking) && (
-          <Card className="bg-gradient-to-br from-orange-600/30 to-red-600/30 border border-orange-500/50 backdrop-blur-xl">
+          <Card className="bg-gray-900/95 border border-orange-500/40 backdrop-blur-xl">
             <CardContent className="p-6 space-y-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Zap className="text-yellow-400" />
@@ -620,14 +627,14 @@ export default function CustomerDashboardEnhanced() {
               </h3>
               
               {activeSession && (
-                <div className="bg-red-600/20 border border-red-500/50 rounded-lg p-4">
+                <div className="bg-red-900/30 border border-red-500/40 rounded-lg p-4">
                   <h4 className="font-bold text-white text-lg mb-2">{activeSession.station_name}</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm text-white/90 mb-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 mb-3">
                     <span>Started: {formatTime(activeSession.start_time)}</span>
                     <span>Ends: {formatTime(activeSession.end_time)}</span>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="border-white/30 text-white">
+                    <Button size="sm" variant="outline" className="border-gray-600 text-white hover:bg-gray-700">
                       <Pause size={16} className="mr-1" /> Pause
                     </Button>
                     <Button size="sm" className="bg-green-600 hover:bg-green-500">
@@ -638,22 +645,22 @@ export default function CustomerDashboardEnhanced() {
               )}
 
               {nextBooking && !activeSession && (
-                <div className="bg-purple-600/20 border border-purple-500/50 rounded-lg p-4">
+                <div className="bg-purple-900/30 border border-purple-500/40 rounded-lg p-4">
                   <h4 className="font-bold text-white text-lg mb-2">{nextBooking.station_name}</h4>
-                  <div className="text-white/90 text-sm mb-3">
+                  <div className="text-gray-300 text-sm mb-3">
                     <p>{formatDate(nextBooking.booking_date)} • {formatTime(nextBooking.start_time)} - {formatTime(nextBooking.end_time)}</p>
                     {nextBooking.original_price && nextBooking.original_price > nextBooking.final_price && (
                       <p className="mt-1">
-                        <span className="line-through text-gray-400">₹{nextBooking.original_price}</span>
+                        <span className="line-through text-gray-500">₹{nextBooking.original_price}</span>
                         <span className="ml-2 text-green-400 font-bold">₹{nextBooking.final_price}</span>
                       </p>
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => navigate('/customer/bookings')}>
+                    <Button size="sm" className="bg-cuephoria-purple hover:bg-purple-700" onClick={() => navigate('/customer/bookings')}>
                       View Details
                     </Button>
-                    <Button size="sm" variant="outline" className="border-purple-400">
+                    <Button size="sm" variant="outline" className="border-gray-600 text-white hover:bg-gray-700">
                       <MapPin size={16} className="mr-1" /> Directions
                     </Button>
                   </div>
@@ -665,46 +672,51 @@ export default function CustomerDashboardEnhanced() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-blue-600/90 to-purple-600/90 border-0 shadow-xl backdrop-blur-xl">
+          <Card className="bg-gray-900/95 border-purple-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-purple-500/20 transition-all">
             <CardContent className="p-4 text-center">
-              <Star className="mx-auto mb-2 text-white" size={28} />
+              <Star className="mx-auto mb-2 text-yellow-400" size={28} />
               <p className="text-3xl font-bold text-white">{stats.loyaltyPoints}</p>
-              <p className="text-xs text-white/90">Loyalty Points</p>
-              <Progress value={(stats.loyaltyPoints / (tier.next ? tier.next + stats.loyaltyPoints : 3000)) * 100} className="mt-2" />
+              <p className="text-xs text-gray-300">Loyalty Points</p>
+              <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-yellow-400 to-orange-400 h-2 rounded-full transition-all duration-1000" 
+                  style={{ width: `${Math.min((stats.loyaltyPoints / 1000) * 100, 100)}%` }}
+                />
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-600/90 to-teal-600/90 border-0 shadow-xl backdrop-blur-xl">
+          <Card className="bg-gray-900/95 border-green-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-green-500/20 transition-all">
             <CardContent className="p-4 text-center">
-              <Gamepad2 className="mx-auto mb-2 text-white" size={28} />
+              <Gamepad2 className="mx-auto mb-2 text-green-400" size={28} />
               <p className="text-3xl font-bold text-white">{stats.totalSessions}</p>
-              <p className="text-xs text-white/90">Total Bookings</p>
-              <p className="text-xs text-white/70 mt-1">All sessions</p>
+              <p className="text-xs text-gray-300">Total Bookings</p>
+              <p className="text-xs text-gray-400 mt-1">All sessions</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-600/90 to-red-600/90 border-0 shadow-xl backdrop-blur-xl">
+          <Card className="bg-gray-900/95 border-orange-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-orange-500/20 transition-all">
             <CardContent className="p-4 text-center">
-              <Clock className="mx-auto mb-2 text-white" size={28} />
+              <Clock className="mx-auto mb-2 text-orange-400" size={28} />
               <p className="text-3xl font-bold text-white">{stats.totalHours}</p>
-              <p className="text-xs text-white/90">Hours Played</p>
-              <p className="text-xs text-white/70 mt-1">From duration</p>
+              <p className="text-xs text-gray-300">Hours Played</p>
+              <p className="text-xs text-gray-400 mt-1">From duration</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-600/90 to-pink-600/90 border-0 shadow-xl backdrop-blur-xl">
+          <Card className="bg-gray-900/95 border-pink-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-pink-500/20 transition-all">
             <CardContent className="p-4 text-center">
-              <Trophy className="mx-auto mb-2 text-white" size={28} />
+              <Trophy className="mx-auto mb-2 text-pink-400" size={28} />
               <p className="text-3xl font-bold text-white">#{stats.rank}</p>
-              <p className="text-xs text-white/90">Your Rank</p>
-              <p className="text-xs text-white/70 mt-1">Top 10%</p>
+              <p className="text-xs text-gray-300">Your Rank</p>
+              <p className="text-xs text-gray-400 mt-1">Top 10%</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Activity Breakdown */}
         {activityBreakdown.byDay && (
-          <Card className="bg-gray-800/50 border-purple-500/30 backdrop-blur-xl">
+          <Card className="bg-gray-900/95 border-purple-500/30 backdrop-blur-xl">
             <CardContent className="p-6">
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <BarChart3 className="text-purple-400" />
@@ -713,9 +725,9 @@ export default function CustomerDashboardEnhanced() {
               <div className="grid grid-cols-7 gap-2 mb-4">
                 {Object.entries(activityBreakdown.byDay).map(([day, count]: [string, any]) => (
                   <div key={day} className="text-center">
-                    <p className="text-xs text-gray-400 mb-1">{day}</p>
-                    <div className="bg-purple-600/20 rounded p-2">
-                      <p className="text-white font-bold">{count}</p>
+                    <p className="text-xs text-gray-400 mb-1 font-medium">{day}</p>
+                    <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
+                      <p className="text-white font-bold text-xl">{count}</p>
                     </div>
                   </div>
                 ))}
@@ -726,7 +738,7 @@ export default function CustomerDashboardEnhanced() {
 
         {/* Recommendations */}
         {recommendations.length > 0 && (
-          <Card className="bg-gradient-to-br from-indigo-600/30 to-purple-600/30 border border-indigo-500/40 backdrop-blur-xl">
+          <Card className="mb-20 bg-gray-900/95 border-gray-700 backdrop-blur-xl shadow-xl">
             <CardContent className="p-6">
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <Sparkles className="text-yellow-400" />
@@ -734,9 +746,9 @@ export default function CustomerDashboardEnhanced() {
               </h3>
               <div className="space-y-3">
                 {recommendations.map((rec, index) => (
-                  <div key={index} className="flex items-start gap-3 bg-white/5 p-3 rounded-lg">
+                  <div key={index} className="flex items-start gap-3 bg-gray-800/60 p-4 rounded-lg border border-gray-700 hover:bg-gray-800 transition-all">
                     <Target className="text-green-400 flex-shrink-0 mt-1" size={18} />
-                    <p className="text-white/90 text-sm">{rec}</p>
+                    <p className="text-gray-200 text-sm">{rec}</p>
                   </div>
                 ))}
               </div>
