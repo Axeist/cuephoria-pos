@@ -9,8 +9,12 @@
  *   2. Run: node generate-splash.js
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const SOURCE_IMAGE = 'splash-screen-base.png';
 const OUTPUT_DIR = 'android/app/src/main/res';
@@ -50,13 +54,15 @@ if (!fs.existsSync(SOURCE_IMAGE)) {
 // Check if sharp is available
 let sharp;
 try {
-  sharp = require('sharp');
+  const sharpModule = await import('sharp');
+  sharp = sharpModule.default;
 } catch (e) {
   console.log('📦 Installing sharp package for image processing...\n');
-  const { execSync } = require('child_process');
+  const childProcess = await import('child_process');
   try {
-    execSync('npm install sharp', { stdio: 'inherit' });
-    sharp = require('sharp');
+    childProcess.execSync('npm install sharp', { stdio: 'inherit' });
+    const sharpModule = await import('sharp');
+    sharp = sharpModule.default;
     console.log('\n✅ Sharp installed successfully!\n');
   } catch (installError) {
     console.error('❌ Failed to install sharp. Please install it manually:');
