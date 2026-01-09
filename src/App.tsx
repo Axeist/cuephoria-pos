@@ -13,7 +13,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
 import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
+import { initializeMobileApp, isNativePlatform, hideSplashScreen } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
@@ -132,12 +132,21 @@ const ProtectedRoute = ({
 };
 
 const App = () => {
-  const [showSplash, setShowSplash] = useState(true);
+  // Only show React splash on web, not on native platforms
+  const [showSplash, setShowSplash] = useState(!isNativePlatform());
 
-  // Initialize mobile features on app start
+  // Initialize mobile features and handle native splash screen
   useEffect(() => {
     if (isNativePlatform()) {
+      // Initialize mobile app features (without hiding splash)
       initializeMobileApp();
+      
+      // Hide native splash after 3 seconds with smooth fade
+      const timer = setTimeout(() => {
+        hideSplashScreen();
+      }, 3000);
+      
+      return () => clearTimeout(timer);
     }
   }, []);
 

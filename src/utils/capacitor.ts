@@ -193,6 +193,7 @@ export const addBackButtonListener = (callback: () => void) => {
 
 /**
  * Initialize mobile features on app start
+ * NOTE: Splash screen will be hidden by the app when ready, not here
  */
 export const initializeMobileApp = async () => {
   if (!isNativePlatform()) return;
@@ -200,8 +201,8 @@ export const initializeMobileApp = async () => {
   console.log('Initializing mobile app...');
   
   try {
-    // Hide splash screen after app is ready
-    await hideSplashScreen();
+    // DON'T hide splash screen here - let the app control when to hide it
+    // This prevents the jarring flash between native and React splash screens
     
     // Set status bar style
     await setStatusBarColor('#000000', false);
