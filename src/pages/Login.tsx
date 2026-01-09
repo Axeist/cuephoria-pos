@@ -7,7 +7,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -801,21 +800,35 @@ const Login = () => {
           
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-3.5 sm:space-y-4 relative z-10 px-4 sm:px-6 pt-2 sm:pt-4">
-              {/* Mobile-optimized tabs - compact on mobile, full width on larger screens */}
+              {/* Mobile-optimized toggle buttons - compact on mobile, full width on larger screens */}
               <div className="flex justify-center mb-4 sm:mb-5">
                 <div className="w-[280px] sm:w-full">
-                  <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 h-10 sm:h-12 gap-1 sm:gap-1.5 p-0.5 sm:p-1">
-                      <TabsTrigger value="admin" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2 sm:py-2.5 px-2.5 sm:px-3 rounded-lg whitespace-nowrap">
-                        <Shield size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
-                        <span className="font-medium">Admin</span>
-                      </TabsTrigger>
-                      <TabsTrigger value="staff" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2 sm:py-2.5 px-2.5 sm:px-3 rounded-lg whitespace-nowrap">
-                        <Users size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
-                        <span className="font-medium">Staff</span>
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  <div className="inline-flex w-full rounded-xl bg-background/50 border border-cuephoria-lightpurple/30 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setLoginType('admin')}
+                      className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
+                        loginType === 'admin'
+                          ? 'bg-gradient-to-r from-cuephoria-lightpurple to-accent text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                          : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/10'
+                      }`}
+                    >
+                      <Shield size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                      <span>Admin</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLoginType('staff')}
+                      className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
+                        loginType === 'staff'
+                          ? 'bg-gradient-to-r from-cuephoria-lightpurple to-accent text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                          : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/10'
+                      }`}
+                    >
+                      <Users size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                      <span>Staff</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
