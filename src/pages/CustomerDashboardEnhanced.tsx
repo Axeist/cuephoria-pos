@@ -596,8 +596,8 @@ export default function CustomerDashboardEnhanced() {
 
       {/* Header */}
       <div className="sticky top-0 z-20 bg-gradient-to-r from-gray-900/95 to-purple-900/95 border-b border-purple-500/30 backdrop-blur-xl shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-white">Customer Dashboard</h1>
+        <div className="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-white tracking-wide">Dashboard</h1>
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -640,38 +640,38 @@ export default function CustomerDashboardEnhanced() {
           
           <CardContent className="p-6 relative z-10">
             {/* Tier Badge & Tagline */}
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <Badge className={`bg-gradient-to-r ${tier.color} text-white shadow-lg px-4 py-2 text-base font-bold border-2 border-white/30`}>
-                {React.createElement(tier.icon, { size: 20, className: "mr-2" })}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <Badge className={`bg-gradient-to-r ${tier.color} text-white shadow-lg px-3 py-1.5 text-sm font-bold border border-white/30`}>
+                {React.createElement(tier.icon, { size: 14, className: "mr-1 inline" })}
                 {tier.name} Member
               </Badge>
-              <Badge className="bg-white/20 backdrop-blur-xl text-white px-4 py-2 text-sm font-semibold border border-white/30">
+              <Badge className="bg-white/20 backdrop-blur-xl text-white px-3 py-1.5 text-xs font-semibold border border-white/30">
                 ⚡ {tier.tagline}
               </Badge>
               {stats.rank <= 10 && (
-                <Badge className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-5 py-2.5 text-base font-black animate-pulse shadow-2xl shadow-yellow-500/50 border-2 border-yellow-300">
+                <Badge className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-3 py-1.5 text-sm font-bold animate-pulse shadow-lg shadow-yellow-500/30 border border-yellow-300">
                   👑 TOP 10 PLAYER
                 </Badge>
               )}
               {stats.rank > 10 && stats.rank <= 50 && (
-                <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 text-sm font-bold animate-pulse">
+                <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-1.5 text-xs font-bold animate-pulse">
                   🏆 TOP 50 PLAYER
                 </Badge>
               )}
             </div>
 
-            <h2 className="text-4xl font-extrabold text-white mb-2 drop-shadow-lg">
+            <h2 className="text-2xl font-bold text-white mb-2 drop-shadow-lg">
               {getGreeting()}, {customer.name}! {getGreetingEmoji()}
             </h2>
             
             {/* Special Top 10 Message */}
             {stats.rank <= 10 && (
-              <div className="mb-3 bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-red-500/20 border-2 border-yellow-400/60 rounded-lg p-4 animate-pulse">
-                <p className="text-2xl text-yellow-300 font-black mb-2 flex items-center gap-2">
-                  <Crown className="animate-bounce" size={28} />
+              <div className="mb-3 bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-red-500/20 border border-yellow-400/60 rounded-lg p-3 animate-pulse">
+                <p className="text-base text-yellow-300 font-bold mb-1 flex items-center gap-2">
+                  <Crown className="animate-bounce" size={18} />
                   LEGENDARY STATUS UNLOCKED!
                 </p>
-                <p className="text-white/95 text-lg font-semibold">
+                <p className="text-white/95 text-sm font-medium">
                   You're in the top 1% of our gaming community! 🌟 You have exclusive VIP access, priority booking, and personal gaming concierge service!
                 </p>
               </div>
@@ -679,7 +679,7 @@ export default function CustomerDashboardEnhanced() {
             
             {/* Ego Boost Message */}
             {stats.rank > 10 && (
-              <p className="text-xl text-white/95 mb-3 font-semibold">
+              <p className="text-base text-white/95 mb-3 font-medium">
                 {tier.message}
               </p>
             )}

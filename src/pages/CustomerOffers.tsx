@@ -230,8 +230,8 @@ export default function CustomerOffers() {
               <ArrowLeft size={20} />
             </Button>
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                <Gift className="text-cuephoria-orange" size={24} />
+              <h1 className="text-lg font-semibold text-white tracking-wide flex items-center gap-2">
+                <Gift className="text-cuephoria-orange" size={20} />
                 Your Exclusive Offers
               </h1>
               <p className="text-xs text-gray-300">

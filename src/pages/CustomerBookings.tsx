@@ -347,7 +347,7 @@ export default function CustomerBookings() {
               <ArrowLeft size={20} />
             </Button>
             <div>
-              <h1 className="text-xl font-bold text-white">My Bookings</h1>
+              <h1 className="text-lg font-semibold text-white tracking-wide">Bookings</h1>
               <p className="text-xs text-gray-400">
                 {upcomingBookings.length} upcoming • {pastBookings.length} completed
               </p>

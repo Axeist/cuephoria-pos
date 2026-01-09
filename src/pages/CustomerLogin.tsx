@@ -189,7 +189,7 @@ export default function CustomerLogin() {
               <Input
                 id="phone"
                 type="tel"
-                placeholder="Raju"
+                placeholder="Enter your number"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 maxLength={10}
@@ -210,7 +210,7 @@ export default function CustomerLogin() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••"
+                  placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-gray-800/70 border-purple-500/40 h-14 pr-12 text-base focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-purple-400 transition-all hover:border-purple-400/60"

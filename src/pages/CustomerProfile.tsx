@@ -240,8 +240,8 @@ export default function CustomerProfile() {
               <ArrowLeft size={20} />
             </Button>
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-white">My Profile</h1>
-              <p className="text-xs text-gray-400">Manage your account settings</p>
+              <h1 className="text-lg font-semibold text-white tracking-wide">Profile</h1>
+              <p className="text-xs text-gray-400">Manage your account</p>
             </div>
             <Button
               variant="ghost"
