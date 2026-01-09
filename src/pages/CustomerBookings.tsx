@@ -34,6 +34,8 @@ interface Booking {
   status: string;
   final_price: number | null;
   created_at: string;
+  payment_status?: string;
+  payment_method?: string;
 }
 
 export default function CustomerBookings() {
@@ -70,6 +72,8 @@ export default function CustomerBookings() {
           status,
           final_price,
           created_at,
+          payment_status,
+          payment_method,
           stations!inner (name)
         `)
         .eq('customer_id', customer.id)
@@ -276,11 +280,19 @@ export default function CustomerBookings() {
                               <Calendar size={14} className="text-cuephoria-blue" />
                               <span>{formatDate(booking.booking_date)}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-gray-300">
+                            <div className="flex items-center gap-2 text-sm text-gray-300 mb-1">
                               <Clock size={14} className="text-cuephoria-orange" />
                               <span>{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</span>
                               <span className="text-gray-500">({booking.duration} min)</span>
                             </div>
+                            {booking.final_price && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-sm font-semibold text-white">₹{booking.final_price}</span>
+                                <Badge className={booking.payment_status === 'paid' ? 'bg-green-600' : 'bg-yellow-600'}>
+                                  {booking.payment_status === 'paid' ? '✓ Paid' : '⏳ Pending'}
+                                </Badge>
+                              </div>
+                            )}
                           </div>
                           <Badge className={`${status.color} flex items-center gap-1`}>
                             <StatusIcon size={14} />
@@ -341,6 +353,14 @@ export default function CustomerBookings() {
                           <h3 className="font-semibold text-white">{booking.station_name}</h3>
                           <p className="text-sm text-gray-400">{formatDate(booking.booking_date)} • {formatTime(booking.start_time)}</p>
                           <p className="text-xs text-gray-500 mt-1">{timeAgo(booking.created_at)}</p>
+                          {booking.final_price && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-sm font-semibold text-white">₹{booking.final_price}</span>
+                              <Badge className={booking.payment_status === 'paid' ? 'bg-green-600' : 'bg-yellow-600'}>
+                                {booking.payment_status === 'paid' ? '✓ Paid' : '⏳ Pending'}
+                              </Badge>
+                            </div>
+                          )}
                         </div>
                         <Badge className="bg-cuephoria-green">
                           <CheckCircle2 size={14} className="mr-1" />
