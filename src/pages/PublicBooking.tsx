@@ -2856,8 +2856,8 @@ export default function PublicBooking() {
                         {rows.length} booking{rows.length !== 1 ? "s" : ""}
                       </span>
                     </summary>
-                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
-                      <table className="min-w-[520px] w-full text-sm">
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto -mx-3 sm:-mx-4 sm:mx-0">
+                      <table className="min-w-full sm:min-w-[520px] w-full text-sm">
                         <thead>
                           <tr className="text-left text-gray-400">
                             <th className="py-2 pr-3 font-medium">Customer</th>

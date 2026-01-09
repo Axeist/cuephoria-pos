@@ -276,7 +276,7 @@ const ProductsPage: React.FC = () => {
                 Stock Logs
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-[90vw] sm:w-[800px] sm:max-w-[90vw]">
+            <SheetContent className="w-[95vw] sm:w-[800px] sm:max-w-[90vw] overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>Stock Change Logs</SheetTitle>
                 <SheetDescription>

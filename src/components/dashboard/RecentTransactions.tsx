@@ -866,7 +866,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       </AlertDialog>
       
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-xl">Edit Transaction</DialogTitle>
             <DialogDescription className="text-gray-400">
@@ -989,11 +989,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                   </div>
                 ) : (
               <div className="border border-gray-700 rounded-md overflow-hidden">
-                    <div className="overflow-x-auto">
+                    <div className="table-container overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
                 <Table>
                   <TableHeader className="bg-gray-900">
                     <TableRow>
-                            <TableHead className="text-gray-400 min-w-[200px]">Name</TableHead>
+                            <TableHead className="text-gray-400 min-w-[150px] sm:min-w-[200px]">Name</TableHead>
                             <TableHead className="text-gray-400 w-[100px]">Type</TableHead>
                             <TableHead className="text-gray-400 w-[120px]">Price</TableHead>
                             <TableHead className="text-gray-400 w-[100px]">Quantity</TableHead>
@@ -1248,7 +1248,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       </Dialog>
       
       <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
+        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Item to Transaction</DialogTitle>
             <DialogDescription className="text-gray-400">

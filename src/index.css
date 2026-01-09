@@ -121,26 +121,36 @@
     @apply text-center;
   }
   
+  /* Enhanced table container with proper overflow */
   .table-container {
     @apply overflow-x-auto -mx-4 px-4;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
   
-  /* Fix for tables on mobile */
+  /* Fix for tables on mobile - ensure scrolling */
   table {
     @apply min-w-full;
+    white-space: nowrap;
+  }
+  
+  /* Table cells with proper spacing on mobile */
+  table td, table th {
+    @apply px-2 py-2 text-xs;
   }
   
   /* Improved touch targets */
   button, a, [role="button"] {
-    @apply min-h-10 min-w-10;
+    @apply min-h-[44px] min-w-[44px];
   }
   
   /* Forms on mobile */
   input, select, textarea {
     @apply text-base;
+    width: 100%;
   }
   
-  /* Grid adjustments */
+  /* Grid adjustments - ensure single column on mobile */
   .grid {
     @apply grid-cols-1;
   }
@@ -154,6 +164,50 @@
   /* Prevent zoom on input focus */
   input, textarea, select {
     font-size: 16px !important;
+  }
+  
+  /* Dialog/Modal improvements for mobile */
+  [role="dialog"] {
+    @apply max-w-[calc(100vw-1rem)] mx-2;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+  
+  /* Popover/Dropdown improvements */
+  [data-radix-popper-content-wrapper] {
+    max-width: calc(100vw - 2rem) !important;
+  }
+  
+  /* Filter panels and dropdowns */
+  .filter-panel, .filter-dropdown {
+    @apply max-w-full;
+    overflow-x: visible;
+  }
+  
+  /* Tabs - allow horizontal scroll */
+  .tabs-list {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  
+  .tabs-list::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Cards and containers */
+  .card-content, .card-header {
+    @apply p-3;
+  }
+  
+  /* Better spacing on mobile */
+  .space-y-4 > * + *, .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+  
+  /* Fix for absolute positioned elements */
+  [class*="absolute"] {
+    max-width: 100vw;
   }
 }
 
@@ -420,12 +474,7 @@
   
   /* Dashboard stats cards */
   .stats-card {
-    @apply mx-auto max-w-[320px];
-  }
-  
-  /* Improve touch targets on mobile */
-  button, a, [role="button"] {
-    @apply min-h-[44px] min-w-[44px];
+    @apply mx-auto max-w-[100%];
   }
   
   /* Better spacing for mobile */
@@ -433,14 +482,25 @@
     @apply p-4;
   }
   
-  /* Tables responsive */
-  table {
-    @apply text-xs;
+  .p-6 {
+    @apply p-3;
   }
   
-  /* Dialog improvements */
-  [role="dialog"] {
-    @apply mx-2;
+  /* Ensure all containers respect viewport */
+  .container, [class*="max-w"] {
+    max-width: 100% !important;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Fix for flex containers */
+  .flex {
+    flex-wrap: wrap;
+  }
+  
+  /* Ensure select/dropdowns don't overflow */
+  select, [role="combobox"] {
+    max-width: 100%;
   }
 }
 

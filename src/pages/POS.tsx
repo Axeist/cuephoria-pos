@@ -608,7 +608,7 @@ const POS = () => {
 
       {/* Customer Dialog */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
-        <DialogContent className="max-w-3xl animate-scale-in">
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">Select Customer</DialogTitle>
             <DialogDescription>
@@ -667,7 +667,7 @@ const POS = () => {
 
       {/* Complimentary Dialog */}
       <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
-        <DialogContent className="max-w-md animate-scale-in">
+        <DialogContent className="max-w-[95vw] sm:max-w-md animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2">
               <Gift className="h-5 w-5 text-orange-500" />

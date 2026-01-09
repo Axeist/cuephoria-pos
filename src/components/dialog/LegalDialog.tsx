@@ -307,7 +307,7 @@ const LegalDialog: React.FC<LegalDialogProps> = ({ isOpen, onClose, type }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] bg-black/90 backdrop-blur-md border-gray-800">
+      <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[80vh] bg-black/90 backdrop-blur-md border-gray-800">
         <DialogHeader>
           <DialogTitle className="text-white text-xl">{title}</DialogTitle>
         </DialogHeader>

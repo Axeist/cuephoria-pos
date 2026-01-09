@@ -826,7 +826,7 @@ const Customers = () => {
       </Dialog>
 
       <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-4xl">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Duplicate Customers Found</DialogTitle>
             <DialogDescription>

@@ -1199,7 +1199,7 @@ const PublicTournaments = () => {
   const renderTabContent = (tabValue: string) => {
     if (tabValue === 'leaderboard') {
       return (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-full sm:max-w-4xl mx-auto px-4">
           <PublicLeaderboard />
         </div>
       );
@@ -1207,7 +1207,7 @@ const PublicTournaments = () => {
 
     if (tabValue === 'gallery') {
       return (
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-full sm:max-w-6xl mx-auto px-4">
           <TournamentImageGallery />
         </div>
       );
@@ -1650,7 +1650,7 @@ const PublicTournaments = () => {
 
       {/* Registration Dialog - Fixed to prevent page refresh */}
       <Dialog open={isDialogOpen && selectedTournament !== null} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
           {/* Header with gradient background */}
           <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-cuephoria-lightpurple/20 via-cuephoria-blue/20 to-cuephoria-purple/20 blur-3xl -z-10"></div>
           
