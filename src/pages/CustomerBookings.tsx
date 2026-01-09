@@ -4,6 +4,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import {
   Calendar,
   Clock,
@@ -16,7 +19,8 @@ import {
   Edit,
   Star,
   Gamepad2,
-  Zap
+  Zap,
+  X
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession, formatDate, formatTime, getCountdown, timeAgo } from '@/utils/customerAuth';
@@ -33,9 +37,8 @@ interface Booking {
   duration: number;
   status: string;
   final_price: number | null;
+  original_price: number | null;
   created_at: string;
-  payment_status?: string;
-  payment_method?: string;
 }
 
 export default function CustomerBookings() {
@@ -46,6 +49,9 @@ export default function CustomerBookings() {
   const [cancelledBookings, setCancelledBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [customDateFrom, setCustomDateFrom] = useState<Date>();
+  const [customDateTo, setCustomDateTo] = useState<Date>();
 
   useEffect(() => {
     if (!customer) {
@@ -53,15 +59,98 @@ export default function CustomerBookings() {
       return;
     }
     loadBookings();
-  }, [customer, navigate]);
+  }, [customer, navigate, dateFilter, customDateFrom, customDateTo]);
+
+  const getDateRange = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    switch (dateFilter) {
+      case 'today':
+        return {
+          from: today.toISOString().split('T')[0],
+          to: today.toISOString().split('T')[0]
+        };
+      
+      case 'yesterday': {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return {
+          from: yesterday.toISOString().split('T')[0],
+          to: yesterday.toISOString().split('T')[0]
+        };
+      }
+      
+      case 'this_week': {
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        return {
+          from: weekStart.toISOString().split('T')[0],
+          to: today.toISOString().split('T')[0]
+        };
+      }
+      
+      case 'last_week': {
+        const lastWeekEnd = new Date(today);
+        lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
+        const lastWeekStart = new Date(lastWeekEnd);
+        lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
+        return {
+          from: lastWeekStart.toISOString().split('T')[0],
+          to: lastWeekEnd.toISOString().split('T')[0]
+        };
+      }
+      
+      case 'this_month':
+        return {
+          from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
+          to: today.toISOString().split('T')[0]
+        };
+      
+      case 'last_month': {
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        return {
+          from: lastMonthStart.toISOString().split('T')[0],
+          to: lastMonthEnd.toISOString().split('T')[0]
+        };
+      }
+      
+      case 'this_year':
+        return {
+          from: new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0],
+          to: today.toISOString().split('T')[0]
+        };
+      
+      case 'last_year':
+        return {
+          from: new Date(now.getFullYear() - 1, 0, 1).toISOString().split('T')[0],
+          to: new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0]
+        };
+      
+      case 'custom':
+        if (customDateFrom && customDateTo) {
+          return {
+            from: customDateFrom.toISOString().split('T')[0],
+            to: customDateTo.toISOString().split('T')[0]
+          };
+        }
+        return null;
+      
+      default: // 'all'
+        return null;
+    }
+  };
 
   const loadBookings = async () => {
     if (!customer) return;
 
     setLoading(true);
     try {
-      // Get ALL bookings for the customer
-      const { data: allBookings, error } = await supabase
+      const dateRange = getDateRange();
+      
+      // Build query
+      let query = supabase
         .from('bookings')
         .select(`
           id,
@@ -71,12 +160,20 @@ export default function CustomerBookings() {
           duration,
           status,
           final_price,
+          original_price,
           created_at,
-          payment_status,
-          payment_method,
           stations!inner (name)
         `)
-        .eq('customer_id', customer.id)
+        .eq('customer_id', customer.id);
+
+      // Apply date filter if not 'all'
+      if (dateRange) {
+        query = query
+          .gte('booking_date', dateRange.from)
+          .lte('booking_date', dateRange.to);
+      }
+
+      const { data: allBookings, error } = await query
         .order('booking_date', { ascending: false })
         .order('start_time', { ascending: false });
 
@@ -230,6 +327,85 @@ export default function CustomerBookings() {
         </div>
       </div>
 
+      {/* Date Filter */}
+      <div className="max-w-5xl mx-auto px-4 pt-4">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger className="w-full sm:w-[200px] bg-gray-800/50 border-purple-500/30 text-white">
+              <SelectValue placeholder="Filter by date" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 border-purple-500/30">
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+              <SelectItem value="this_week">This Week</SelectItem>
+              <SelectItem value="last_week">Last Week</SelectItem>
+              <SelectItem value="this_month">This Month</SelectItem>
+              <SelectItem value="last_month">Last Month</SelectItem>
+              <SelectItem value="this_year">This Year</SelectItem>
+              <SelectItem value="last_year">Last Year</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {dateFilter === 'custom' && (
+            <div className="flex gap-2 items-center">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="bg-gray-800/50 border-purple-500/30 text-white">
+                    <Calendar size={16} className="mr-2" />
+                    {customDateFrom ? formatDate(customDateFrom.toISOString().split('T')[0]) : 'From'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-gray-800 border-purple-500/30">
+                  <CalendarComponent
+                    mode="single"
+                    selected={customDateFrom}
+                    onSelect={setCustomDateFrom}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <span className="text-gray-400">to</span>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="bg-gray-800/50 border-purple-500/30 text-white">
+                    <Calendar size={16} className="mr-2" />
+                    {customDateTo ? formatDate(customDateTo.toISOString().split('T')[0]) : 'To'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-gray-800 border-purple-500/30">
+                  <CalendarComponent
+                    mode="single"
+                    selected={customDateTo}
+                    onSelect={setCustomDateTo}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
+          {dateFilter !== 'all' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDateFilter('all');
+                setCustomDateFrom(undefined);
+                setCustomDateTo(undefined);
+              }}
+              className="text-gray-400 hover:text-white"
+            >
+              <X size={16} className="mr-1" />
+              Clear Filter
+            </Button>
+          )}
+        </div>
+      </div>
+
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 py-6">
         {loading ? (
@@ -287,10 +463,10 @@ export default function CustomerBookings() {
                             </div>
                             {booking.final_price && (
                               <div className="flex items-center gap-2 mt-2">
-                                <span className="text-sm font-semibold text-white">₹{booking.final_price}</span>
-                                <Badge className={booking.payment_status === 'paid' ? 'bg-green-600' : 'bg-yellow-600'}>
-                                  {booking.payment_status === 'paid' ? '✓ Paid' : '⏳ Pending'}
-                                </Badge>
+                                {booking.original_price && booking.original_price > booking.final_price && (
+                                  <span className="text-xs line-through text-gray-500">₹{booking.original_price}</span>
+                                )}
+                                <span className="text-sm font-semibold text-green-400">₹{booking.final_price}</span>
                               </div>
                             )}
                           </div>
@@ -355,10 +531,10 @@ export default function CustomerBookings() {
                           <p className="text-xs text-gray-500 mt-1">{timeAgo(booking.created_at)}</p>
                           {booking.final_price && (
                             <div className="flex items-center gap-2 mt-2">
-                              <span className="text-sm font-semibold text-white">₹{booking.final_price}</span>
-                              <Badge className={booking.payment_status === 'paid' ? 'bg-green-600' : 'bg-yellow-600'}>
-                                {booking.payment_status === 'paid' ? '✓ Paid' : '⏳ Pending'}
-                              </Badge>
+                              {booking.original_price && booking.original_price > booking.final_price && (
+                                <span className="text-xs line-through text-gray-500">₹{booking.original_price}</span>
+                              )}
+                              <span className="text-sm font-semibold text-green-400">₹{booking.final_price}</span>
                             </div>
                           )}
                         </div>
