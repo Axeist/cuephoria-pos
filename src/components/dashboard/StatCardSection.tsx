@@ -80,7 +80,7 @@ const StatCardSection: React.FC<StatCardSectionProps> = ({
   const criticalStockCount = lowStockItems.filter(item => item.stock === 1 || item.stock === 0).length;
   
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 w-full max-w-full overflow-hidden">
       <StatsCard
         title="Total Sales"
         value={<CurrencyDisplay amount={totalSales} />}

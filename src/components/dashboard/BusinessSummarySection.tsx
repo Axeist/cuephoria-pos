@@ -40,7 +40,7 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({ filtere
   const formattedProfitMargin = profitMargin.toFixed(2);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+    <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 w-full max-w-full overflow-hidden">
       <Card className="bg-gray-800 border-gray-700 hover:shadow-emerald-500/20 hover:border-emerald-500/30 transition-all">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-200">Gross Income</CardTitle>
