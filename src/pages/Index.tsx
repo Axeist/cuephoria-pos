@@ -333,7 +333,18 @@ const Index: React.FC = () => {
           {/* Copyright */}
           <div className="border-t border-gray-800 pt-6 text-center">
             <p className="text-gray-500 text-sm">
-              © 2024 Cuephoria. All rights reserved. | Premium Gaming Lounge
+              © {new Date().getFullYear()} Cuephoria. All rights reserved. | Premium Gaming Lounge
+            </p>
+            <p className="text-gray-600 text-xs mt-2">
+              Built with ❤️ by{' '}
+              <a 
+                href="https://cuephoriatech.in" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-purple-400 hover:text-purple-300 transition-colors font-medium underline decoration-purple-400/30 hover:decoration-purple-300"
+              >
+                Cuephoria Tech
+              </a>
             </p>
           </div>
         </div>
