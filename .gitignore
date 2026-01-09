@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Capacitor & Android
+android/app/build/
+android/app/release/
+android/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/captures/
+android/gradle/
+android/gradlew
+android/gradlew.bat
+*.keystore
+*.jks
+gradle.properties
+# Keep the android folder structure but ignore build artifacts

@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { lazy, Suspense } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
 import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Pages
@@ -122,17 +123,25 @@ const ProtectedRoute = ({
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <POSProvider>
-        <ExpenseProvider>
-          <BookingNotificationProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              {/* REMOVED: <AutoRefreshApp> wrapper */}
-              <BrowserRouter>
+const App = () => {
+  // Initialize mobile features on app start
+  useEffect(() => {
+    if (isNativePlatform()) {
+      initializeMobileApp();
+    }
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <POSProvider>
+          <ExpenseProvider>
+            <BookingNotificationProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                {/* REMOVED: <AutoRefreshApp> wrapper */}
+                <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
@@ -278,14 +287,15 @@ const App = () => (
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </BrowserRouter>
-            {/* REMOVED: </AutoRefreshApp> wrapper */}
-          </TooltipProvider>
+              </BrowserRouter>
+              {/* REMOVED: </AutoRefreshApp> wrapper */}
+            </TooltipProvider>
           </BookingNotificationProvider>
         </ExpenseProvider>
       </POSProvider>
     </AuthProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

@@ -1,4 +1,22 @@
-# Welcome to your Lovable project
+# Cuephoria POS - Point of Sale & Booking System
+
+A comprehensive POS and management system for gaming cafes, with web and Android support.
+
+## 📱 Now Available on Android!
+
+This project has been converted to an Android app using Capacitor! 
+
+**Quick Start:**
+```bash
+./setup-android.sh
+```
+
+**Documentation:**
+- 🌟 **[START HERE - Beginners Guide](./BEGINNERS_GUIDE.md)** - Complete guide for non-developers
+- 📱 **[Android README](./ANDROID_README.md)** - Android project overview
+- ⚡ **[Quick Reference](./ANDROID_QUICK_REFERENCE.md)** - Commands cheat sheet
+- 🚀 **[Deployment Guide](./ANDROID_DEPLOYMENT_GUIDE.md)** - Publishing to Play Store
+- 📖 **[Full Summary](./ANDROID_CONVERSION_SUMMARY.md)** - Everything about the conversion
 
 ## Project info
 
@@ -52,13 +70,47 @@ npm run dev
 
 ## What technologies are used for this project?
 
-This project is built with .
-
+### Web Application
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (Backend)
+- React Query (Data fetching)
+
+### Android Application
+- Capacitor (Native wrapper)
+- Android SDK
+- Native mobile features (haptics, status bar, splash screen)
+
+## 📱 Android Features
+
+The Android app includes:
+- ✅ Native mobile experience
+- ✅ Haptic feedback
+- ✅ Custom splash screen
+- ✅ Status bar theming
+- ✅ Network status detection
+- ✅ Keyboard management
+- ✅ Error boundary with crash recovery
+- ✅ Safe area insets for notched devices
+- ✅ Android back button handling
+
+### Building for Android
+
+```bash
+# Daily development
+npm run android:run        # Build, sync, and open in Android Studio
+
+# Testing
+npm run android:build      # Build debug APK for testing
+
+# Production
+npm run android:release    # Build release AAB for Play Store
+```
+
+See [BEGINNERS_GUIDE.md](./BEGINNERS_GUIDE.md) for complete setup instructions.
 
 ## Cuephoria AI Setup
 
