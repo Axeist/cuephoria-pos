@@ -282,19 +282,19 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex-1 space-y-3 sm:space-y-6 p-3 sm:p-6 text-white bg-inherit">
+    <div className="flex-1 space-y-3 sm:space-y-6 p-3 sm:p-6 text-white bg-inherit overflow-x-hidden">
       {/* Mobile-optimized header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
       </div>
 
       {/* Mobile-optimized toggle buttons with better spacing */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6">
-        <div className={`${isMobile ? 'w-full grid grid-cols-4 gap-1 h-11' : 'w-full sm:w-auto gap-1.5 flex'} p-1 rounded-xl bg-background/50 border border-cuephoria-lightpurple/30`}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6 overflow-x-hidden">
+        <div className={`${isMobile ? 'w-full grid grid-cols-4 gap-0.5 h-10' : 'w-full sm:w-auto gap-1.5 flex'} p-0.5 sm:p-1 rounded-xl bg-background/50 border border-cuephoria-lightpurple/30`}>
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('overview')}
-            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'overview'
                 ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
                 : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
@@ -305,7 +305,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('analytics')}
-            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'analytics'
                 ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
                 : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
@@ -316,7 +316,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('expenses')}
-            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'expenses'
                 ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
                 : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
@@ -327,7 +327,7 @@ const Dashboard = () => {
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('cash')}
-            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+            className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'cash'
                 ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
                 : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
@@ -349,7 +349,7 @@ const Dashboard = () => {
 
       {/* Mobile-optimized content with better spacing */}
       {currentDashboardTab === 'overview' && (
-        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0 overflow-x-hidden">
           <StatCardSection
             totalSales={dashboardStats.totalSales}
             salesChange={dashboardStats.salesChange}
@@ -368,7 +368,7 @@ const Dashboard = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
-          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 items-stretch">
+          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 items-stretch overflow-x-hidden">
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>
@@ -376,13 +376,13 @@ const Dashboard = () => {
       )}
 
       {currentDashboardTab === 'analytics' && (
-        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
-          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0 overflow-x-hidden">
+          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 overflow-x-hidden">
             <CustomerSpendingCorrelation />
             <HourlyRevenueDistribution />
           </div>
           <ProductPerformance />
-          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
+          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 overflow-x-hidden">
             <CustomerActivityChart />
             <ProductInventoryChart />
           </div>
@@ -390,7 +390,7 @@ const Dashboard = () => {
       )}
 
       {currentDashboardTab === 'expenses' && (
-        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0 overflow-x-hidden">
           <BusinessSummarySection
             filteredExpenses={filteredExpenses}
             dateRange={dateRange}
@@ -409,7 +409,7 @@ const Dashboard = () => {
       )}
 
       {currentDashboardTab === 'cash' && (
-        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0 overflow-x-hidden">
           <CashManagement />
         </div>
       )}

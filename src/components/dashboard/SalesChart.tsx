@@ -273,17 +273,17 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   };
 
   return (
-    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-xl font-bold text-white font-heading">Sales Overview</CardTitle>
-          <div className="flex items-center gap-4">
-            {/* Year Filter */}
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl overflow-hidden">
+      <CardHeader className="pb-2 sm:pb-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          {/* Title and Year Filter */}
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base sm:text-xl font-bold text-white font-heading">Sales Overview</CardTitle>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Select Year" />
+                <SelectTrigger className="w-[100px] sm:w-[140px] h-8 sm:h-10 text-xs sm:text-sm">
+                  <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Years</SelectItem>
@@ -295,13 +295,15 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
                 </SelectContent>
               </Select>
             </div>
-            
-            {/* Time Period Toggle Buttons */}
-            <div className="flex gap-1 p-1 rounded-xl bg-gray-800 text-gray-400">
+          </div>
+          
+          {/* Time Period Toggle Buttons - Full Width on Mobile */}
+          <div className="w-full overflow-x-auto scrollbar-hide -mx-1 px-1">
+            <div className="flex gap-1 p-1 rounded-xl bg-gray-800 text-gray-400 min-w-min w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => handleTabChange('hourly')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                   activeTab === 'hourly'
                     ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
                     : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
@@ -312,7 +314,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => handleTabChange('daily')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                   activeTab === 'daily'
                     ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
                     : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
@@ -323,7 +325,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => handleTabChange('weekly')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                   activeTab === 'weekly'
                     ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
                     : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
@@ -334,7 +336,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => handleTabChange('monthly')}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                   activeTab === 'monthly'
                     ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
                     : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
@@ -346,7 +348,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="h-[350px] pt-4">
+      <CardContent className="h-[250px] sm:h-[350px] pt-2 sm:pt-4">
         <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}>
           <ChartContainer
             config={{
