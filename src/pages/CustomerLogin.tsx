@@ -127,97 +127,116 @@ export default function CustomerLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 p-4 relative overflow-hidden">
-      {/* Background effects - Matching dashboard theme */}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900/30 to-gray-900 p-4 relative overflow-hidden">
+      {/* Enhanced Background effects */}
       <div className="absolute inset-0 z-0 overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-purple-500/20 blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-pink-500/20 blur-3xl animate-pulse opacity-70" style={{ animationDelay: '1.5s' }}></div>
+        <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-purple-500/30 blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-pink-500/30 blur-3xl animate-pulse opacity-70" style={{ animationDelay: '1.5s' }}></div>
+        <div className="absolute top-1/2 left-0 w-72 h-72 rounded-full bg-blue-500/20 blur-3xl animate-pulse" style={{ animationDelay: '3s' }}></div>
       </div>
 
+      {/* Grid pattern overlay */}
+      <div className="absolute inset-0 z-0 opacity-10" style={{
+        backgroundImage: 'linear-gradient(rgba(147, 51, 234, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(147, 51, 234, 0.1) 1px, transparent 1px)',
+        backgroundSize: '50px 50px'
+      }}></div>
+
       {/* Back button */}
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-6 left-6 z-20">
         <Button
           variant="ghost"
           size="sm"
-          className="text-gray-300 hover:text-white hover:bg-purple-600/30 transition-all"
+          className="text-gray-300 hover:text-white hover:bg-purple-600/30 transition-all backdrop-blur-sm border border-purple-500/20"
           onClick={() => navigate('/')}
         >
-          <ArrowLeft size={16} className="mr-2" />
+          <ArrowLeft size={18} className="mr-2" />
           Back to Home
         </Button>
       </div>
 
-      <Card className="w-full max-w-md bg-gray-900/95 border-purple-500/30 shadow-2xl shadow-purple-500/20 relative z-10 backdrop-blur-xl">
-        <CardHeader className="text-center pb-4 bg-gradient-to-br from-purple-600/10 to-pink-600/10 border-b border-purple-500/20">
-          <div className="mb-4 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/30 to-pink-500/20 blur-2xl rounded-full"></div>
+      <Card className="w-full max-w-md bg-gray-900/98 border-purple-500/40 shadow-2xl shadow-purple-500/30 relative z-10 backdrop-blur-2xl">
+        <CardHeader className="text-center pb-6 pt-8 bg-gradient-to-br from-purple-600/20 via-pink-600/10 to-transparent border-b border-purple-500/30 relative overflow-hidden">
+          {/* Header glow effect */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gradient-to-b from-purple-500/20 to-transparent blur-2xl"></div>
+          
+          <div className="mb-6 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/40 to-pink-500/30 blur-3xl rounded-full"></div>
+            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-purple-400/30 to-pink-400/20 blur-2xl rounded-full"></div>
             <img
               src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
               alt="Cuephoria"
-              className="h-24 mx-auto relative drop-shadow-[0_0_20px_rgba(168,85,247,0.4)]"
+              className="h-28 mx-auto relative drop-shadow-[0_0_25px_rgba(168,85,247,0.6)] animate-float"
             />
           </div>
-          <CardTitle className="text-2xl sm:text-3xl bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent font-bold">Customer Login</CardTitle>
-          <p className="text-gray-300 text-sm mt-2">
+          <CardTitle className="text-3xl sm:text-4xl bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent font-black mb-2 tracking-tight">
+            Customer Login
+          </CardTitle>
+          <p className="text-gray-300 text-sm">
             Welcome back! Sign in to book your gaming session
           </p>
         </CardHeader>
 
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-5">
+        <CardContent className="pt-6 pb-8 px-6 sm:px-8">
+          <form onSubmit={handleLogin} className="space-y-6">
             {/* Phone Number */}
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-white flex items-center gap-2 text-sm font-medium">
-                <Phone size={16} className="text-purple-400" />
+            <div className="space-y-2.5">
+              <Label htmlFor="phone" className="text-white flex items-center gap-2 text-sm font-semibold">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Phone size={16} className="text-purple-400" />
+                </div>
                 Phone Number
               </Label>
               <Input
                 id="phone"
                 type="tel"
-                placeholder="Enter 10-digit mobile number"
+                placeholder="Raju"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 maxLength={10}
-                className="bg-gray-800/50 border-purple-500/30 h-12 text-base focus-visible:ring-purple-500 focus-visible:border-purple-400"
+                className="bg-gray-800/70 border-purple-500/40 h-14 text-base focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-purple-400 transition-all hover:border-purple-400/60"
                 disabled={loading}
               />
             </div>
 
             {/* Password */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-white flex items-center gap-2 text-sm font-medium">
-                <Lock size={16} className="text-purple-400" />
+            <div className="space-y-2.5">
+              <Label htmlFor="password" className="text-white flex items-center gap-2 text-sm font-semibold">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Lock size={16} className="text-purple-400" />
+                </div>
                 Password
               </Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter password"
+                  placeholder="••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-gray-800/50 border-purple-500/30 h-12 pr-12 text-base focus-visible:ring-purple-500 focus-visible:border-purple-400"
+                  className="bg-gray-800/70 border-purple-500/40 h-14 pr-12 text-base focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-purple-400 transition-all hover:border-purple-400/60"
                   disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-400 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-400 transition-colors p-1 rounded-md hover:bg-purple-500/10"
                   disabled={loading}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-              <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-                <span className="text-purple-400">💡</span>
-                Default password: <span className="font-mono text-red-400">CUE</span> followed by your phone number
-              </p>
+              <div className="flex items-start gap-2 mt-2 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+                <span className="text-purple-400 text-lg mt-0.5">💡</span>
+                <p className="text-xs text-gray-300 leading-relaxed">
+                  Default password: <span className="font-mono text-red-400 font-semibold">CUE</span> followed by your phone number
+                </p>
+              </div>
             </div>
 
             {/* Login Button */}
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 hover:shadow-xl hover:shadow-purple-500/30 h-12 text-base font-semibold mt-6 transition-all duration-300"
+              className="w-full bg-gradient-to-r from-purple-600 via-purple-500 to-pink-600 hover:from-purple-700 hover:via-purple-600 hover:to-pink-700 hover:shadow-2xl hover:shadow-purple-500/40 h-14 text-base font-bold mt-8 transition-all duration-300 transform hover:scale-[1.02]"
               disabled={loading}
             >
               {loading ? (
@@ -231,13 +250,13 @@ export default function CustomerLogin() {
             </Button>
 
             {/* Help Text */}
-            <div className="text-center space-y-2 pt-4 border-t border-purple-500/20">
+            <div className="text-center space-y-3 pt-6 border-t border-purple-500/30">
               <p className="text-xs text-gray-400">
                 Don't have an account? Visit us at the venue to register!
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-300 font-medium">
                 Need help? Contact us at{' '}
-                <a href="tel:+918637625155" className="text-purple-400 hover:text-pink-400 font-medium">
+                <a href="tel:+918637625155" className="text-purple-400 hover:text-pink-400 font-semibold transition-colors underline decoration-purple-400/30 hover:decoration-pink-400">
                   +91 86376 25155
                 </a>
               </p>
