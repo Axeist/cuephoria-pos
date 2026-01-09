@@ -135,18 +135,12 @@ const App = () => {
   // Only show React splash on web, not on native platforms
   const [showSplash, setShowSplash] = useState(!isNativePlatform());
 
-  // Initialize mobile features and handle native splash screen
+  // Initialize mobile features on app start
   useEffect(() => {
     if (isNativePlatform()) {
-      // Initialize mobile app features (without hiding splash)
+      // Initialize mobile app features
+      // Native splash will auto-hide after configured duration
       initializeMobileApp();
-      
-      // Hide native splash after 3 seconds with smooth fade
-      const timer = setTimeout(() => {
-        hideSplashScreen();
-      }, 3000);
-      
-      return () => clearTimeout(timer);
     }
   }, []);
 

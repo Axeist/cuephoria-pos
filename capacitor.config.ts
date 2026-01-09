@@ -12,17 +12,15 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 3000,       // Show for 3 seconds (matches React splash)
-      launchAutoHide: false,          // Don't auto-hide, let app control it
-      launchFadeOutDuration: 300,     // Smooth 300ms fade out
+      launchShowDuration: 0,          // No splash screen
+      launchAutoHide: true,           // Hide immediately
+      launchFadeOutDuration: 0,       // No fade animation
       backgroundColor: "#1a1a2e",
       androidSplashResourceName: "splash",
-      androidScaleType: "CENTER_CROP", // Better scaling for full screen
+      androidScaleType: "CENTER_CROP",
       showSpinner: false,
-      androidSpinnerStyle: "large",
-      spinnerColor: "#00d4ff",
-      splashFullScreen: true,         // Full screen for immersive experience
-      splashImmersive: true,          // Hide status/nav bars during splash
+      splashFullScreen: false,
+      splashImmersive: false,
     },
     StatusBar: {
       style: 'dark',
