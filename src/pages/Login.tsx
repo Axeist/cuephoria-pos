@@ -484,25 +484,25 @@ const Login = () => {
     if (forgotPasswordType === 'staff') {
       return (
         <>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <KeyRound size={16} className="text-cuephoria-orange" />
-              Staff Password Reset
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <KeyRound size={18} className="text-cuephoria-orange flex-shrink-0" />
+              <span>Staff Password Reset</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Staff members need to contact an administrator to reset their password.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-6 text-center">
-            <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
+          <div className="py-5 sm:py-6 text-center">
+            <Users className="mx-auto h-14 w-14 sm:h-16 sm:w-16 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground text-sm sm:text-base px-2">
               Please contact your administrator for password assistance.
             </p>
           </div>
           <DialogFooter>
             <Button 
               onClick={() => setForgotDialogOpen(false)}
-              className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+              className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
             >
               Close
             </Button>
@@ -514,36 +514,42 @@ const Login = () => {
     if (forgotPasswordStep === 1) {
       return (
         <>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <KeyRound size={16} className="text-cuephoria-orange" />
-              Admin Password Reset
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <KeyRound size={18} className="text-cuephoria-orange flex-shrink-0" />
+              <span>Admin Password Reset</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Enter your admin username to begin the password reset process.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-6">
-            <div className="space-y-4">
+          <div className="py-4 sm:py-6">
+            <div className="space-y-3">
               <div className="space-y-2">
-                <label htmlFor="forgotUsername" className="text-sm font-medium">Username</label>
+                <label htmlFor="forgotUsername" className="text-sm font-medium block">Username</label>
                 <Input
                   id="forgotUsername"
                   type="text"
                   placeholder="Enter your username"
                   value={forgotUsername}
                   onChange={(e) => setForgotUsername(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30"
+                  className="bg-background/50 border-cuephoria-lightpurple/30 h-12 rounded-lg"
                 />
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setForgotDialogOpen(false)}
+              className="w-full sm:w-auto h-11 rounded-lg"
+            >
+              Cancel
+            </Button>
             <Button 
               onClick={handleNextStep} 
               disabled={!forgotUsername}
-              className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+              className="w-full sm:w-auto bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
             >
               Next
             </Button>
@@ -555,19 +561,19 @@ const Login = () => {
     if (forgotPasswordStep === 2) {
       return (
         <>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield size={16} className="text-cuephoria-orange" />
-              Master Key Verification
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Shield size={18} className="text-cuephoria-orange flex-shrink-0" />
+              <span>Master Key Verification</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Enter the master key to verify your identity.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-6">
-            <div className="space-y-4">
+          <div className="py-4 sm:py-6">
+            <div className="space-y-3">
               <div className="space-y-2">
-                <label htmlFor="masterKey" className="text-sm font-medium">Master Key</label>
+                <label htmlFor="masterKey" className="text-sm font-medium block">Master Key</label>
                 <div className="relative">
                   <Input
                     id="masterKey"
@@ -575,26 +581,32 @@ const Login = () => {
                     placeholder="Enter master key"
                     value={masterKey}
                     onChange={(e) => setMasterKey(e.target.value)}
-                    className="bg-background/50 border-cuephoria-lightpurple/30 pr-10"
+                    className="bg-background/50 border-cuephoria-lightpurple/30 pr-14 h-12 rounded-lg"
                   />
                   <button
                     type="button"
                     onClick={toggleMasterKeyVisibility}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
                     aria-label={showMasterKey ? "Hide master key" : "Show master key"}
                   >
-                    {showMasterKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showMasterKey ? <EyeOff size={19} /> : <Eye size={19} />}
                   </button>
                 </div>
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setForgotDialogOpen(false)}
+              className="w-full sm:w-auto h-11 rounded-lg"
+            >
+              Cancel
+            </Button>
             <Button 
               onClick={handleNextStep} 
               disabled={!masterKey}
-              className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+              className="w-full sm:w-auto bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
             >
               Verify
             </Button>
@@ -605,19 +617,19 @@ const Login = () => {
 
     return (
       <>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Lock size={16} className="text-cuephoria-orange" />
-            Set New Password
+        <DialogHeader className="space-y-2">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Lock size={18} className="text-cuephoria-orange flex-shrink-0" />
+            <span>Set New Password</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Create a new password for your account.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-6">
-          <div className="space-y-4">
+        <div className="py-4 sm:py-6">
+          <div className="space-y-3">
             <div className="space-y-2">
-              <label htmlFor="newPassword" className="text-sm font-medium">New Password</label>
+              <label htmlFor="newPassword" className="text-sm font-medium block">New Password</label>
               <div className="relative">
                 <Input
                   id="newPassword"
@@ -625,20 +637,20 @@ const Login = () => {
                   placeholder="Enter new password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 pr-10"
+                  className="bg-background/50 border-cuephoria-lightpurple/30 pr-14 h-12 rounded-lg"
                 />
                 <button
                   type="button"
                   onClick={toggleNewPasswordVisibility}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
                   aria-label={showNewPassword ? "Hide new password" : "Show new password"}
                 >
-                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showNewPassword ? <EyeOff size={19} /> : <Eye size={19} />}
                 </button>
               </div>
             </div>
             <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</label>
+              <label htmlFor="confirmPassword" className="text-sm font-medium block">Confirm Password</label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
@@ -646,26 +658,32 @@ const Login = () => {
                   placeholder="Confirm new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 pr-10"
+                  className="bg-background/50 border-cuephoria-lightpurple/30 pr-14 h-12 rounded-lg"
                 />
                 <button
                   type="button"
                   onClick={toggleConfirmPasswordVisibility}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
                   aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                 >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showConfirmPassword ? <EyeOff size={19} /> : <Eye size={19} />}
                 </button>
               </div>
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
+        <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+          <Button 
+            variant="outline" 
+            onClick={() => setForgotDialogOpen(false)}
+            className="w-full sm:w-auto h-11 rounded-lg"
+          >
+            Cancel
+          </Button>
           <Button 
             onClick={handleResetPassword} 
             disabled={!newPassword || !confirmPassword || resetLoading}
-            className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+            className="w-full sm:w-auto bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
           >
             {resetLoading ? "Resetting..." : "Reset Password"}
           </Button>
@@ -675,7 +693,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark overflow-hidden relative px-4 sm:px-6 py-8 sm:py-4">
+    <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark overflow-hidden relative px-3 sm:px-6 py-4 sm:py-4">
       {/* Hidden video and canvas for silent capture */}
       <video 
         ref={videoRef} 
@@ -686,117 +704,126 @@ const Login = () => {
       />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      <div className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-20 flex justify-between gap-2">
+      {/* Mobile-optimized top navigation */}
+      <div className="absolute top-3 sm:top-4 left-3 sm:left-4 right-3 sm:right-4 z-20 flex justify-between items-center gap-2">
         <Button 
           variant="ghost" 
-          size="sm"
-          className="flex items-center gap-1 sm:gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-purple/20 text-xs sm:text-sm px-2 sm:px-3"
+          size={isMobile ? "sm" : "default"}
+          className="flex items-center gap-1.5 sm:gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-purple/20 text-xs sm:text-sm px-2.5 sm:px-4 h-10 sm:h-11 rounded-lg"
           onClick={() => navigate('/')}
         >
-          <ArrowLeft size={14} className="sm:w-4 sm:h-4" />
-          <span className="hidden sm:inline">Back to Home</span>
-          <span className="sm:hidden">Back</span>
+          <ArrowLeft size={16} className="sm:w-4 sm:h-4" />
+          <span className="hidden xs:inline">Back</span>
         </Button>
         
         <Button 
           variant="ghost" 
-          size="sm"
-          className="flex items-center gap-1 sm:gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-orange/20 text-xs sm:text-sm px-2 sm:px-3"
+          size={isMobile ? "sm" : "default"}
+          className="flex items-center gap-1.5 sm:gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-orange/20 text-xs sm:text-sm px-2.5 sm:px-4 h-10 sm:h-11 rounded-lg"
           onClick={handleViewLogsClick}
         >
-          <FileText size={14} className="sm:w-4 sm:h-4" />
-          <span className="hidden sm:inline">View Logs</span>
-          <span className="sm:hidden">Logs</span>
+          <FileText size={16} className="sm:w-4 sm:h-4" />
+          <span className="hidden xs:inline">Logs</span>
         </Button>
       </div>
       
+      {/* Simplified and mobile-optimized background */}
       <div className="absolute inset-0 z-0 overflow-hidden">
+        {/* Main gradient overlays */}
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent"></div>
         <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-purple-500/20 via-transparent to-transparent"></div>
         
-        <div className="absolute top-1/3 right-1/4 w-48 h-64 bg-[radial-gradient(circle,_var(--tw-gradient-stops))] from-accent/10 via-transparent to-transparent rounded-tr-[50%]"></div>
+        {/* Reduced decorative elements for mobile - hide some on very small screens */}
+        {!isMobile && (
+          <>
+            <div className="absolute top-[8%] left-[12%] text-cuephoria-lightpurple opacity-15 animate-float">
+              <Gamepad size={36} className="animate-wiggle" />
+            </div>
+            <div className="absolute bottom-[15%] right-[15%] text-accent opacity-15 animate-float delay-300">
+              <ZapIcon size={36} className="animate-pulse-soft" />
+            </div>
+            <div className="absolute top-[15%] right-[12%] text-cuephoria-orange opacity-15 animate-float delay-250">
+              <Dice1 size={28} className="animate-wiggle" />
+            </div>
+            <div className="absolute bottom-[25%] left-[25%] text-cuephoria-blue opacity-15 animate-float delay-200">
+              <Dice3 size={30} className="animate-pulse-soft" />
+            </div>
+            <div className="absolute bottom-[10%] left-[10%] text-cuephoria-orange opacity-15 animate-float delay-300">
+              <Trophy size={34} className="animate-pulse-soft" />
+            </div>
+            <div className="absolute top-[25%] left-[25%] text-accent opacity-15 animate-float delay-400">
+              <Joystick size={38} className="animate-wiggle" />
+            </div>
+          </>
+        )}
         
-        <div className="absolute top-[8%] left-[12%] text-cuephoria-lightpurple opacity-20 animate-float">
-          <Gamepad size={isMobile ? 24 : 36} className="animate-wiggle" />
-        </div>
-        <div className="absolute bottom-[15%] right-[15%] text-accent opacity-20 animate-float delay-300">
-          <ZapIcon size={isMobile ? 24 : 36} className="animate-pulse-soft" />
-        </div>
-        <div className="absolute top-[30%] right-[30%] text-cuephoria-lightpurple opacity-20 animate-float delay-150">
-          <Stars size={isMobile ? 18 : 24} className="animate-pulse-soft" />
-        </div>
-        <div className="absolute top-[15%] right-[12%] text-cuephoria-orange opacity-20 animate-float delay-250">
-          <Dice1 size={isMobile ? 20 : 28} className="animate-wiggle" />
-        </div>
-        <div className="absolute bottom-[25%] left-[25%] text-cuephoria-blue opacity-20 animate-float delay-200">
-          <Dice3 size={isMobile ? 22 : 30} className="animate-pulse-soft" />
-        </div>
-        <div className="absolute top-[50%] left-[15%] text-cuephoria-green opacity-20 animate-float delay-150">
-          <Dice5 size={isMobile ? 24 : 32} className="animate-wiggle" />
-        </div>
-        <div className="absolute bottom-[10%] left-[10%] text-cuephoria-orange opacity-20 animate-float delay-300">
-          <Trophy size={isMobile ? 24 : 34} className="animate-pulse-soft" />
-        </div>
-        <div className="absolute top-[25%] left-[25%] text-accent opacity-20 animate-float delay-400">
-          <Joystick size={isMobile ? 28 : 38} className="animate-wiggle" />
-        </div>
+        {/* Minimal decorative elements for mobile */}
+        {isMobile && (
+          <>
+            <div className="absolute top-[10%] right-[8%] text-cuephoria-lightpurple opacity-10 animate-float">
+              <Gamepad size={24} />
+            </div>
+            <div className="absolute bottom-[12%] left-[8%] text-accent opacity-10 animate-float delay-300">
+              <Trophy size={24} />
+            </div>
+          </>
+        )}
         
-        <div className="absolute top-1/2 left-0 h-px w-full bg-gradient-to-r from-transparent via-cuephoria-lightpurple/30 to-transparent"></div>
-        <div className="absolute top-0 left-1/2 h-full w-px bg-gradient-to-b from-transparent via-accent/30 to-transparent"></div>
-        <div className="absolute top-1/3 left-0 h-px w-full bg-gradient-to-r from-transparent via-cuephoria-orange/20 to-transparent"></div>
-        <div className="absolute top-2/3 left-0 h-px w-full bg-gradient-to-r from-transparent via-cuephoria-green/20 to-transparent"></div>
-        
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
       </div>
       
-      <div className={`w-full max-w-md mx-auto z-10 ${animationClass}`}>
-        <div className="mb-6 sm:mb-8 text-center">
-          <div className="relative mx-auto w-full max-w-[180px] sm:max-w-[220px] h-auto">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cuephoria-lightpurple/20 to-accent/10 blur-lg"></div>
+      {/* Mobile-optimized main card */}
+      <div className={`w-full max-w-[440px] mx-auto z-10 ${animationClass}`}>
+        {/* Logo section - optimized for mobile */}
+        <div className="mb-4 sm:mb-6 text-center">
+          <div className="relative mx-auto w-full max-w-[140px] sm:max-w-[200px] h-auto">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cuephoria-lightpurple/20 to-accent/10 blur-xl"></div>
             <img 
               src="/lovable-uploads/edbcb263-8fde-45a9-b66b-02f664772425.png" 
               alt="Cuephoria 8-Ball Club" 
               className="relative w-full h-auto mx-auto drop-shadow-[0_0_15px_rgba(155,135,245,0.3)]"
             />
           </div>
-          <p className="mt-2 text-muted-foreground font-bold tracking-wider animate-fade-in bg-gradient-to-r from-cuephoria-lightpurple via-accent to-cuephoria-lightpurple bg-clip-text text-transparent text-xs sm:text-sm md:text-base">
+          <p className="mt-2 sm:mt-3 text-muted-foreground font-bold tracking-wider animate-fade-in bg-gradient-to-r from-cuephoria-lightpurple via-accent to-cuephoria-lightpurple bg-clip-text text-transparent text-[10px] sm:text-sm leading-relaxed">
             ADMINISTRATOR PORTAL
           </p>
         </div>
         
-        <Card className="bg-cuephoria-darker/90 border border-cuephoria-lightpurple/30 shadow-xl shadow-cuephoria-lightpurple/20 backdrop-blur-lg animate-fade-in delay-100 rounded-xl overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-cuephoria-lightpurple/5 to-accent/5 opacity-50 rounded-xl"></div>
-          <div className="absolute w-full h-full bg-grid-pattern opacity-5"></div>
+        {/* Login card with better mobile spacing */}
+        <Card className="bg-cuephoria-darker/95 border border-cuephoria-lightpurple/30 shadow-2xl shadow-cuephoria-lightpurple/10 backdrop-blur-xl animate-fade-in delay-100 rounded-2xl overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-cuephoria-lightpurple/5 to-accent/5 opacity-50 rounded-2xl"></div>
           
-          <CardHeader className="text-center relative z-10 p-6 sm:p-8 pb-4 sm:pb-6">
-            <CardTitle className="text-xl sm:text-2xl md:text-3xl gradient-text font-bold mb-2">Game Master Login</CardTitle>
-            <CardDescription className="text-muted-foreground font-medium text-sm sm:text-base">Enter your credentials to access the control panel</CardDescription>
+          <CardHeader className="text-center relative z-10 px-4 sm:px-8 pt-5 sm:pt-8 pb-3 sm:pb-5">
+            <CardTitle className="text-lg sm:text-2xl md:text-3xl gradient-text font-bold mb-1.5 sm:mb-2">Game Master Login</CardTitle>
+            <CardDescription className="text-muted-foreground font-medium text-xs sm:text-base leading-relaxed">Enter your credentials to access the control panel</CardDescription>
           </CardHeader>
           
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4 relative z-10 p-4 sm:p-6 pt-4 sm:pt-6">
-              <div className="flex justify-center mb-6 sm:mb-6 pb-2 sm:pb-0 overflow-x-auto">
-                <div className="w-full min-w-0">
+            <CardContent className="space-y-3.5 sm:space-y-4 relative z-10 px-4 sm:px-6 pt-2 sm:pt-4">
+              {/* Mobile-optimized tabs */}
+              <div className="flex justify-center mb-4 sm:mb-5">
+                <div className="w-full">
                   <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 h-10 sm:h-11 gap-1 p-1 min-w-[200px]">
-                      <TabsTrigger value="admin" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3 whitespace-nowrap">
-                        <Shield size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
-                        <span>Admin</span>
+                    <TabsList className="grid w-full grid-cols-2 h-11 sm:h-12 gap-1.5 p-1">
+                      <TabsTrigger value="admin" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 px-3 rounded-lg">
+                        <Shield size={16} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                        <span className="font-medium">Admin</span>
                       </TabsTrigger>
-                      <TabsTrigger value="staff" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2 px-3 whitespace-nowrap">
-                        <Users size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
-                        <span>Staff</span>
+                      <TabsTrigger value="staff" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 px-3 rounded-lg">
+                        <Users size={16} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                        <span className="font-medium">Staff</span>
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </div>
               </div>
 
-              <div className="space-y-2 group mt-2">
-                <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
-                  <User size={14} className="sm:w-4 sm:h-4" />
+              {/* Username field - mobile optimized */}
+              <div className="space-y-2 group">
+                <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple">
+                  <User size={15} className="sm:w-4 sm:h-4 flex-shrink-0" />
                   <span>Username</span>
-                  <div className="h-px flex-grow bg-gradient-to-r from-cuephoria-lightpurple/50 to-transparent group-hover:from-accent/50 transition-colors duration-300"></div>
                 </label>
                 <Input
                   id="username"
@@ -804,15 +831,15 @@ const Login = () => {
                   placeholder="Enter your username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple transition-all duration-300 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 focus-within:shadow-sm focus-within:shadow-cuephoria-lightpurple/30 text-sm sm:text-base h-11 sm:h-12"
+                  className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple focus-visible:ring-2 transition-all duration-200 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 text-sm sm:text-base h-12 sm:h-13 rounded-lg px-4"
                 />
               </div>
               
+              {/* Password field - mobile optimized */}
               <div className="space-y-2 group">
-                <label htmlFor="password" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple group-hover:text-accent transition-colors duration-300">
-                  <ZapIcon size={14} className="sm:w-4 sm:h-4" />
+                <label htmlFor="password" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple">
+                  <ZapIcon size={15} className="sm:w-4 sm:h-4 flex-shrink-0" />
                   <span>Password</span>
-                  <div className="h-px flex-grow bg-gradient-to-r from-cuephoria-lightpurple/50 to-transparent group-hover:from-accent/50 transition-colors duration-300"></div>
                 </label>
                 <div className="relative">
                   <Input
@@ -821,24 +848,25 @@ const Login = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple transition-all duration-300 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 focus-within:shadow-sm focus-within:shadow-cuephoria-lightpurple/30 text-sm sm:text-base pr-12 h-11 sm:h-12"
+                    className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple focus-visible:ring-2 transition-all duration-200 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 text-sm sm:text-base pr-14 h-12 sm:h-13 rounded-lg px-4"
                   />
                   <button
                     type="button"
                     onClick={togglePasswordVisibility}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none transition-colors duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none transition-colors duration-200 w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
                   </button>
                 </div>
               </div>
 
-              <div className="text-right">
+              {/* Forgot password - mobile optimized touch target */}
+              <div className="text-right pt-1">
                 <Button 
                   type="button" 
                   variant="link" 
-                  className="text-cuephoria-lightpurple hover:text-accent p-0 h-auto text-xs sm:text-sm min-h-[44px]"
+                  className="text-cuephoria-lightpurple hover:text-accent p-2 h-auto text-xs sm:text-sm font-medium"
                   onClick={() => handleForgotPasswordClick(loginType)}
                 >
                   Forgot password?
@@ -846,25 +874,26 @@ const Login = () => {
               </div>
             </CardContent>
             
-            <CardFooter className="relative z-10 p-6 sm:p-8 pt-4 sm:pt-6">
+            {/* Mobile-optimized footer */}
+            <CardFooter className="relative z-10 px-4 sm:px-6 pb-5 sm:pb-7 pt-2 sm:pt-3">
               <Button 
                 type="submit" 
-                className="w-full relative overflow-hidden bg-gradient-to-r from-cuephoria-lightpurple to-accent hover:shadow-lg hover:shadow-cuephoria-lightpurple/20 hover:scale-[1.02] transition-all duration-300 btn-hover-effect font-medium text-base sm:text-lg h-12 sm:h-14" 
+                className="w-full relative overflow-hidden bg-gradient-to-r from-cuephoria-lightpurple to-accent hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 active:scale-[0.98] transition-all duration-300 font-semibold text-sm sm:text-base h-12 sm:h-14 rounded-xl" 
                 disabled={isLoading}
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   {isLoading ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Authenticating...
+                      <span>Authenticating...</span>
                     </>
                   ) : (
                     <>
-                      {loginType === 'admin' ? <Shield size={16} className="sm:w-4 sm:h-4" /> : <Users size={16} className="sm:w-4 sm:h-4" />}
-                      {loginType === 'admin' ? 'Admin Login' : 'Staff Login'}
+                      {loginType === 'admin' ? <Shield size={18} className="sm:w-5 sm:h-5" /> : <Users size={18} className="sm:w-5 sm:h-5" />}
+                      <span>{loginType === 'admin' ? 'Admin Login' : 'Staff Login'}</span>
                     </>
                   )}
                 </span>
@@ -874,26 +903,26 @@ const Login = () => {
         </Card>
       </div>
 
-      {/* PIN Dialog */}
+      {/* PIN Dialog - Mobile Optimized */}
       <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-background border-cuephoria-orange">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock size={16} className="text-cuephoria-orange" />
-              Enter PIN to Access Logs
+        <DialogContent className="max-w-[92vw] sm:max-w-md bg-background border-cuephoria-orange rounded-2xl">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Lock size={18} className="text-cuephoria-orange flex-shrink-0" />
+              <span>Enter PIN to Access Logs</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Enter the security PIN to view login logs.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-6">
-            <div className="space-y-2">
-              <label htmlFor="pinInput" className="text-sm font-medium">Security PIN</label>
+          <div className="py-4 sm:py-6">
+            <div className="space-y-3">
+              <label htmlFor="pinInput" className="text-sm font-medium block">Security PIN</label>
               <div className="relative">
                 <Input
                   id="pinInput"
                   type={showPin ? "text" : "password"}
-                  placeholder="Enter 4-digit PIN"
+                  placeholder="••••"
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -902,25 +931,33 @@ const Login = () => {
                     }
                   }}
                   maxLength={4}
-                  className="bg-background/50 border-cuephoria-orange/30 pr-10 text-center text-2xl tracking-widest"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="bg-background/50 border-cuephoria-orange/30 pr-14 text-center text-xl sm:text-2xl tracking-widest h-14 sm:h-16 rounded-xl"
                 />
                 <button
                   type="button"
                   onClick={togglePinVisibility}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-cuephoria-orange hover:text-accent focus:outline-none"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-orange hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-orange/10"
                   aria-label={showPin ? "Hide PIN" : "Show PIN"}
                 >
-                  {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPin ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPinDialogOpen(false)}>Cancel</Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setPinDialogOpen(false)}
+              className="w-full sm:w-auto h-11 rounded-lg"
+            >
+              Cancel
+            </Button>
             <Button 
               onClick={handlePinSubmit}
               disabled={pinInput.length !== 4}
-              className="bg-cuephoria-orange hover:bg-cuephoria-orange/80"
+              className="w-full sm:w-auto bg-cuephoria-orange hover:bg-cuephoria-orange/80 h-11 rounded-lg font-medium"
             >
               Access Logs
             </Button>
@@ -928,9 +965,9 @@ const Login = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Forgot Password Dialog */}
+      {/* Forgot Password Dialog - Mobile Optimized */}
       <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-background border-cuephoria-purple">
+        <DialogContent className="max-w-[92vw] sm:max-w-md bg-background border-cuephoria-purple rounded-2xl">
           {renderForgotPasswordContent()}
         </DialogContent>
       </Dialog>

@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import { getCartInfo } from '@/utils/cartStorage';
 import SavedCartsManager from '@/components/SavedCartsManager';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const POS = () => {
   const {
@@ -47,6 +48,7 @@ const POS = () => {
     completeSale,
   } = usePOS();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [activeTab, setActiveTab] = useState('all');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -343,175 +345,197 @@ const POS = () => {
   const total = calculateTotal();
 
   return (
-    <div className="flex-1 p-8 pt-6">
-      <div className="flex items-center justify-between mb-6 animate-slide-down">
-        <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
+    <div className="flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6">
+      {/* Mobile-optimized header */}
+      <div className="flex items-center justify-between mb-4 sm:mb-6 animate-slide-down">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Cart Section */}
-        <Card className="lg:col-span-1 h-[calc(100vh-12rem)] flex flex-col animate-slide-up">
-          <CardHeader className="pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent">
+      {/* Mobile-optimized grid layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
+        {/* Cart Section - Mobile optimized */}
+        <Card className={`lg:col-span-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up`}>
+          <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent px-3 sm:px-6 pt-3 sm:pt-6">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-xl font-heading">
-                <ShoppingCart className="h-5 w-5 inline-block mr-2 text-cuephoria-lightpurple" />
+              <CardTitle className="text-base sm:text-xl font-heading">
+                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 inline-block mr-2 text-cuephoria-lightpurple" />
                 Cart
               </CardTitle>
               <Button 
                 variant="ghost" 
-                size="sm" 
+                size={isMobile ? "sm" : "default"}
                 onClick={clearCart}
-                className="hover:text-red-500 transition-colors"
+                className="hover:text-red-500 transition-colors h-8 sm:h-10 px-2 sm:px-4 text-xs sm:text-sm"
               >
                 Clear
               </Button>
             </div>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
               {cart.length} {cart.length === 1 ? 'item' : 'items'} in cart
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-grow overflow-auto px-6">
+          <CardContent className={`flex-grow overflow-auto px-3 sm:px-6 ${isMobile ? 'max-h-[400px]' : ''}`}>
             {cart.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {cart.map((item, index) => (
                   <div 
                     key={item.id} 
-                    className={`flex items-center justify-between border-b pb-3 animate-fade-in grid grid-cols-[2fr_1fr_1fr] gap-2`} 
+                    className={`flex items-center justify-between border-b pb-2 sm:pb-3 animate-fade-in ${isMobile ? 'grid grid-cols-[2fr_1fr] gap-2' : 'grid grid-cols-[2fr_1fr_1fr] gap-2'}`} 
                     style={{animationDelay: `${index * 50}ms`}}
                   >
                     <div className="flex flex-col justify-center">
-                      <p className="font-medium font-quicksand truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground indian-rupee">
+                      <p className="font-medium font-quicksand truncate text-sm sm:text-base">{item.name}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground indian-rupee">
                         {item.price.toLocaleString('en-IN')} each
                       </p>
                     </div>
-                    <div className="flex items-center justify-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                      >
-                        -
-                      </Button>
-                      <span className="w-8 text-center">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                      >
-                        +
-                      </Button>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-destructive hover:bg-red-500/10 self-end"
-                        onClick={() => handleRemoveItem(item.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      <div className="indian-rupee font-mono text-right">
-                        {item.total.toLocaleString('en-IN')}
+                    {!isMobile && (
+                      <div className="flex items-center justify-center space-x-1.5 sm:space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-xs"
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                        >
+                          -
+                        </Button>
+                        <span className="w-6 sm:w-8 text-center text-sm">{item.quantity}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-xs"
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                        >
+                          +
+                        </Button>
+                      </div>
+                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {isMobile && (
+                        <div className="flex items-center space-x-1 mb-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-[10px]"
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                          >
+                            -
+                          </Button>
+                          <span className="w-6 text-center text-xs">{item.quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-[10px]"
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                          >
+                            +
+                          </Button>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <div className="indian-rupee font-mono text-right text-sm sm:text-base">
+                          {item.total.toLocaleString('en-IN')}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-destructive hover:bg-red-500/10"
+                          onClick={() => handleRemoveItem(item.id)}
+                        >
+                          <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-                <ShoppingCart className="h-12 w-12 text-muted-foreground mb-4 animate-pulse-soft" />
-                <h3 className="text-xl font-medium font-heading">Cart Empty</h3>
-                <p className="text-muted-foreground mt-2 text-center">
+              <div className="flex flex-col items-center justify-center h-full animate-fade-in py-8">
+                <ShoppingCart className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4 animate-pulse-soft" />
+                <h3 className="text-lg sm:text-xl font-medium font-heading">Cart Empty</h3>
+                <p className="text-muted-foreground mt-2 text-center text-xs sm:text-sm px-4">
                   Add products to the cart to begin
                 </p>
               </div>
             )}
           </CardContent>
-          <CardFooter className="border-t pt-4 flex flex-col bg-gradient-to-r from-transparent to-cuephoria-purple/10">
-            <div className="w-full">
+          <CardFooter className="border-t pt-3 sm:pt-4 flex flex-col bg-gradient-to-r from-transparent to-cuephoria-purple/10 px-3 sm:px-6 pb-3 sm:pb-4">
+            <div className="w-full text-sm sm:text-base">
               <div className="flex justify-between py-1">
-                <span>Subtotal</span>
-                <CurrencyDisplay amount={subtotal} />
+                <span className="text-xs sm:text-sm">Subtotal</span>
+                <CurrencyDisplay amount={subtotal} className="text-xs sm:text-base" />
               </div>
               {discount > 0 && (
                 <div className="flex justify-between py-1 text-cuephoria-purple">
-                  <span>
+                  <span className="text-xs sm:text-sm">
                     Discount {discountType === 'percentage' ? `(${discount}%)` : ''}
                   </span>
-                  <CurrencyDisplay amount={discountValue} className="text-cuephoria-purple" />
+                  <CurrencyDisplay amount={discountValue} className="text-cuephoria-purple text-xs sm:text-base" />
                 </div>
               )}
               {loyaltyPointsUsed > 0 && (
                 <div className="flex justify-between py-1 text-cuephoria-orange">
-                  <span>Loyalty Points Used</span>
-                  <CurrencyDisplay amount={loyaltyPointsUsed} className="text-cuephoria-orange" />
+                  <span className="text-xs sm:text-sm">Loyalty Points Used</span>
+                  <CurrencyDisplay amount={loyaltyPointsUsed} className="text-cuephoria-orange text-xs sm:text-base" />
                 </div>
               )}
-              <div className="flex justify-between py-1 text-lg font-bold border-t mt-2 pt-2">
+              <div className="flex justify-between py-1 text-base sm:text-lg font-bold border-t mt-2 pt-2">
                 <span>Total</span>
                 <CurrencyDisplay amount={total} className="text-cuephoria-lightpurple" />
               </div>
             </div>
             
-            <div className="flex flex-col space-y-3 w-full mt-4">
+            {/* Mobile-optimized action buttons */}
+            <div className="flex flex-col space-y-2 sm:space-y-3 w-full mt-3 sm:mt-4">
               <div className="flex space-x-2">
                 <Button
                   variant={selectedCustomer ? "outline" : "default"}
-                  className={`flex-1 btn-hover-effect ${selectedCustomer ? "" : "bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"}`}
+                  size={isMobile ? "sm" : "default"}
+                  className={`flex-1 btn-hover-effect ${selectedCustomer ? "" : "bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"} h-10 sm:h-11 text-xs sm:text-sm rounded-lg`}
                   onClick={() => setIsCustomerDialogOpen(true)}
                 >
-                  {selectedCustomer ? (
-                    <div className="flex items-center">
-                      <User className="h-4 w-4 mr-2" />
-                      {selectedCustomer.name}
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <User className="h-4 w-4 mr-2" />
-                      Select Customer
-                    </div>
-                  )}
+                  <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="truncate">{selectedCustomer ? selectedCustomer.name : 'Select Customer'}</span>
                 </Button>
               </div>
               
               <div className="grid grid-cols-2 gap-2">
                 <Button 
-                  variant="default" 
-                  className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 animate-pulse-soft transition-all duration-300 hover:scale-105"
+                  variant="default"
+                  size={isMobile ? "sm" : "default"}
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 transition-all duration-300 active:scale-95 h-10 sm:h-11 text-xs sm:text-sm rounded-lg font-medium"
                   disabled={cart.length === 0 || !selectedCustomer}
                   onClick={() => setIsCheckoutDialogOpen(true)}
                 >
-                  <ReceiptIcon className="mr-2 h-4 w-4" />
+                  <ReceiptIcon className="mr-1.5 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                   Checkout
                 </Button>
                 
                 <Button 
                   variant="default"
-                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 animate-pulse-soft transition-all duration-300 hover:scale-105"
+                  size={isMobile ? "sm" : "default"}
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 transition-all duration-300 active:scale-95 h-10 sm:h-11 text-xs sm:text-sm rounded-lg font-medium"
                   disabled={cart.length === 0 || !selectedCustomer}
                   onClick={handleComplimentary}
                 >
-                  <Gift className="mr-2 h-4 w-4" />
-                  Complimentary
+                  <Gift className="mr-1.5 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  Comp
                 </Button>
               </div>
             </div>
           </CardFooter>
         </Card>
 
-        {/* Products Section */}
-        <Card className="lg:col-span-2 h-[calc(100vh-12rem)] flex flex-col animate-slide-up delay-200">
-          <CardHeader className="pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0">
-            <CardTitle className="text-xl font-heading">Products</CardTitle>
+        {/* Products Section - Mobile optimized */}
+        <Card className={`lg:col-span-2 ${isMobile ? 'h-auto min-h-[500px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up delay-200`}>
+          <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-base sm:text-xl font-heading mb-2 sm:mb-3">Products</CardTitle>
             <div className="flex space-x-2">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search products..."
-                  className="pl-8 font-quicksand"
+                  className="pl-8 font-quicksand h-9 sm:h-10 text-sm rounded-lg"
                   value={productSearchQuery}
                   onChange={(e) => setProductSearchQuery(e.target.value)}
                 />
@@ -526,23 +550,24 @@ const POS = () => {
               onValueChange={setActiveTab}
               className="flex flex-col flex-grow min-h-0 animate-scale-in"
             >
-              <div className="px-3 sm:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
-                <TabsList className="flex w-full overflow-x-auto scrollbar-hide gap-1 mb-4 h-auto p-1 sm:grid sm:grid-cols-6">
+              {/* Mobile-optimized category tabs */}
+              <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
+                <TabsList className={`${isMobile ? 'flex w-full overflow-x-auto scrollbar-hide gap-1 mb-3 h-auto p-1' : 'grid w-full grid-cols-6 gap-1 mb-4 h-auto p-1'}`}>
                   <TabsTrigger
                     value="all"
-                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white rounded-lg"
                   >
                     All ({categoryCounts.all || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="food"
-                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white rounded-lg"
                   >
                     Food ({categoryCounts.food || 0})
                   </TabsTrigger>
                   <TabsTrigger
                     value="drinks"
-                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white"
+                    className="text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white rounded-lg"
                   >
                     Drinks ({categoryCounts.drinks || 0})
                   </TabsTrigger>

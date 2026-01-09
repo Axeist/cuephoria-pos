@@ -283,9 +283,10 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex-1 space-y-4 sm:space-y-6 p-4 sm:p-6 text-white bg-inherit">
+    <div className="flex-1 space-y-3 sm:space-y-6 p-3 sm:p-6 text-white bg-inherit">
+      {/* Mobile-optimized header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
       </div>
 
       <Tabs
@@ -294,23 +295,47 @@ const Dashboard = () => {
         onValueChange={(v) => setCurrentDashboardTab(v as any)}
         className="w-full"
       >
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 sm:mb-6">
-          <TabsList className={`w-full sm:w-auto gap-1 ${isMobile ? 'flex overflow-x-auto scrollbar-hide' : 'grid grid-cols-2 sm:flex'}`}>
-            <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Overview</TabsTrigger>
-            <TabsTrigger value="analytics" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Analytics</TabsTrigger>
-            <TabsTrigger value="expenses" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Expenses</TabsTrigger>
-            <TabsTrigger value="cash" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Vault</TabsTrigger>
+        {/* Mobile-optimized tabs with better spacing */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6">
+          <TabsList className={`${isMobile ? 'w-full grid grid-cols-4 gap-1 h-11' : 'w-full sm:w-auto gap-1.5 flex'} p-1 rounded-xl`}>
+            <TabsTrigger 
+              value="overview" 
+              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger 
+              value="analytics" 
+              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
+            >
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger 
+              value="expenses" 
+              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
+            >
+              Expenses
+            </TabsTrigger>
+            <TabsTrigger 
+              value="cash" 
+              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
+            >
+              Vault
+            </TabsTrigger>
           </TabsList>
 
           {currentDashboardTab === 'expenses' && (
-            <ExpenseDateFilter
-              onDateRangeChange={handleDateRangeChange}
-              onExport={handleExport}
-            />
+            <div className={`${isMobile ? 'w-full' : 'w-auto'}`}>
+              <ExpenseDateFilter
+                onDateRangeChange={handleDateRangeChange}
+                onExport={handleExport}
+              />
+            </div>
           )}
         </div>
 
-        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+        {/* Mobile-optimized tab content with better spacing */}
+        <TabsContent value="overview" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <StatCardSection
             totalSales={dashboardStats.totalSales}
             salesChange={dashboardStats.salesChange}
@@ -329,25 +354,25 @@ const Dashboard = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
-          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 items-stretch">
+          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2 items-stretch">
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
-          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
+        <TabsContent value="analytics" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerSpendingCorrelation />
             <HourlyRevenueDistribution />
           </div>
           <ProductPerformance />
-          <div className="grid gap-4 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
+          <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerActivityChart />
             <ProductInventoryChart />
           </div>
         </TabsContent>
 
-        <TabsContent value="expenses" className="space-y-4 sm:space-y-6">
+        <TabsContent value="expenses" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <BusinessSummarySection
             filteredExpenses={filteredExpenses}
             dateRange={dateRange}
@@ -364,7 +389,7 @@ const Dashboard = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="cash" className="space-y-4 sm:space-y-6">
+        <TabsContent value="cash" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <CashManagement />
         </TabsContent>
       </Tabs>
