@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +14,7 @@ import AppSidebar from "@/components/AppSidebar";
 import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
+import SplashScreen from "@/components/SplashScreen";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Pages
@@ -131,6 +132,8 @@ const ProtectedRoute = ({
 };
 
 const App = () => {
+  const [showSplash, setShowSplash] = useState(true);
+
   // Initialize mobile features on app start
   useEffect(() => {
     if (isNativePlatform()) {
@@ -139,7 +142,14 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
+      {showSplash && (
+        <SplashScreen 
+          onComplete={() => setShowSplash(false)} 
+          duration={3000}
+        />
+      )}
+      <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <POSProvider>
           <ExpenseProvider>
@@ -308,7 +318,8 @@ const App = () => {
         </ExpenseProvider>
       </POSProvider>
     </AuthProvider>
-  </QueryClientProvider>
+      </QueryClientProvider>
+    </>
   );
 };
 
