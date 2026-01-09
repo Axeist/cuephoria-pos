@@ -801,17 +801,17 @@ const Login = () => {
           
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-3.5 sm:space-y-4 relative z-10 px-4 sm:px-6 pt-2 sm:pt-4">
-              {/* Mobile-optimized tabs */}
+              {/* Mobile-optimized tabs - compact on mobile, full width on larger screens */}
               <div className="flex justify-center mb-4 sm:mb-5">
-                <div className="w-full">
-                  <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 h-11 sm:h-12 gap-1.5 p-1">
-                      <TabsTrigger value="admin" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 px-3 rounded-lg">
-                        <Shield size={16} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                <div className="w-auto sm:w-full">
+                  <Tabs defaultValue="admin" value={loginType} onValueChange={setLoginType} className="w-auto sm:w-full">
+                    <TabsList className="grid grid-cols-2 h-10 sm:h-12 gap-1 sm:gap-1.5 p-0.5 sm:p-1">
+                      <TabsTrigger value="admin" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2 sm:py-2.5 px-2.5 sm:px-3 rounded-lg">
+                        <Shield size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
                         <span className="font-medium">Admin</span>
                       </TabsTrigger>
-                      <TabsTrigger value="staff" className="flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 px-3 rounded-lg">
-                        <Users size={16} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                      <TabsTrigger value="staff" className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm py-2 sm:py-2.5 px-2.5 sm:px-3 rounded-lg">
+                        <Users size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
                         <span className="font-medium">Staff</span>
                       </TabsTrigger>
                     </TabsList>
