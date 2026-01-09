@@ -109,7 +109,6 @@ export default function CustomerDashboardEnhanced() {
       let upcomingCount = 0;
       let totalSessionsCount = 0;
       let totalMinutes = 0;
-      let totalSpentFromBookings = 0;
       let totalSpentFromBills = 0;
       let lastSessionDate: Date | null = null;
       let streak = 0;
@@ -121,15 +120,8 @@ export default function CustomerDashboardEnhanced() {
       // Count ALL non-cancelled bookings as games
       const totalGamesPlayed = allBookings.filter(b => b.status !== 'cancelled').length;
 
-      // Calculate total spent from NON-CANCELLED bookings only
-      allBookings.forEach((booking) => {
-        if (booking.status === 'cancelled') return;
-        // Use final_price, fallback to original_price if final_price is 0 or null
-        const price = booking.final_price || booking.original_price || 0;
-        totalSpentFromBookings += price;
-      });
-
-      // Calculate total spent from BILLS (excluding complimentary)
+      // Calculate total spent from BILLS ONLY (excluding complimentary)
+      // DO NOT include booking amounts - only actual POS purchases
       if (allBills) {
         allBills.forEach((bill) => {
           if (bill.payment_method === 'complimentary') return;
@@ -137,8 +129,8 @@ export default function CustomerDashboardEnhanced() {
         });
       }
 
-      // Total spent is the sum of both bookings and bills
-      const totalSpent = totalSpentFromBookings + totalSpentFromBills;
+      // Total spent is ONLY from bills (POS transactions), NOT bookings
+      const totalSpent = totalSpentFromBills;
 
       sortedBookings.forEach((booking, index) => {
         if (booking.status === 'cancelled') return;
@@ -181,15 +173,9 @@ export default function CustomerDashboardEnhanced() {
         totalBookings: allBookings.length,
         totalBills: allBills?.length || 0,
         nonCancelledBookings: allBookings.filter(b => b.status !== 'cancelled').length,
-        totalSpentFromBookings,
         totalSpentFromBills,
         totalSpent,
-        bookingDetails: allBookings.map(b => ({ 
-          date: b.booking_date, 
-          status: b.status, 
-          final_price: b.final_price,
-          original_price: b.original_price
-        })),
+        note: 'Total spent = BILLS ONLY (excluding bookings)',
         billDetails: allBills?.map(b => ({ 
           total: b.total,
           payment_method: b.payment_method
@@ -206,31 +192,14 @@ export default function CustomerDashboardEnhanced() {
         ? Math.floor((now.getTime() - new Date(customerData.created_at).getTime()) / (1000 * 60 * 60 * 24))
         : 0;
 
-      // Calculate rank based on total spending (bookings + bills)
-      const { data: allCustomersBookings } = await supabase
-        .from('bookings')
-        .select('customer_id, final_price, original_price, status');
-
+      // Calculate rank based on total spending (BILLS ONLY)
       const { data: allCustomersBills } = await supabase
         .from('bills')
         .select('customer_id, total, payment_method');
 
       let customerSpendingMap: { [key: string]: number } = {};
       
-      // Add bookings spending
-      if (allCustomersBookings) {
-        allCustomersBookings.forEach((booking) => {
-          if (booking.status === 'cancelled') return;
-          const customerId = booking.customer_id;
-          const price = booking.final_price || booking.original_price || 0;
-          if (!customerSpendingMap[customerId]) {
-            customerSpendingMap[customerId] = 0;
-          }
-          customerSpendingMap[customerId] += price;
-        });
-      }
-
-      // Add bills spending
+      // Add bills spending (ONLY source of spending for ranking)
       if (allCustomersBills) {
         allCustomersBills.forEach((bill) => {
           if (bill.payment_method === 'complimentary') return;
@@ -346,14 +315,28 @@ export default function CustomerDashboardEnhanced() {
         .gte('booking_date', today)
         .eq('status', 'confirmed')
         .order('booking_date', { ascending: true })
-        .order('start_time', { ascending: true })
-        .limit(1);
+        .order('start_time', { ascending: true });
 
       if (bookings && bookings.length > 0) {
-        setNextBooking({
-          ...bookings[0],
-          station_name: (bookings[0].stations as any)?.name || 'Unknown Station'
+        // Filter to get only future bookings (not completed today)
+        const futureBooking = bookings.find(booking => {
+          const bookingDate = new Date(booking.booking_date);
+          const [endHour, endMinute] = booking.end_time.split(':').map(Number);
+          const bookingEndTime = new Date(bookingDate);
+          bookingEndTime.setHours(endHour, endMinute, 0);
+          
+          // Only show if the booking end time is in the future
+          return bookingEndTime > now;
         });
+
+        if (futureBooking) {
+          setNextBooking({
+            ...futureBooking,
+            station_name: (futureBooking.stations as any)?.name || 'Unknown Station'
+          });
+        } else {
+          setNextBooking(null);
+        }
       }
     } catch (error) {
       console.error('Error loading next booking:', error);
@@ -464,15 +447,31 @@ export default function CustomerDashboardEnhanced() {
     try {
       const { data: bookings } = await supabase
         .from('bookings')
-        .select('booking_date, start_time, duration')
+        .select(`
+          booking_date, 
+          start_time, 
+          duration,
+          stations!inner (name, type)
+        `)
         .eq('customer_id', customer.id)
-        .eq('status', 'completed');
+        .in('status', ['completed', 'confirmed']);
 
       if (!bookings) return;
 
       const breakdown = {
         byDay: { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 },
-        byTimeSlot: { morning: 0, afternoon: 0, evening: 0, night: 0 }
+        byTimeSlot: { 
+          morning: { count: 0, label: '11 AM - 2 PM' }, 
+          afternoon: { count: 0, label: '2 PM - 6 PM' }, 
+          evening: { count: 0, label: '6 PM - 10 PM' }, 
+          night: { count: 0, label: '10 PM - 11 PM' } 
+        },
+        byGameType: {
+          '8ball': 0,
+          'ps5': 0,
+          'vr': 0,
+          'other': 0
+        }
       };
 
       bookings.forEach(booking => {
@@ -481,10 +480,24 @@ export default function CustomerDashboardEnhanced() {
         breakdown.byDay[dayName]++;
 
         const hour = parseInt(booking.start_time.split(':')[0]);
-        if (hour >= 11 && hour < 14) breakdown.byTimeSlot.morning++;
-        else if (hour >= 14 && hour < 18) breakdown.byTimeSlot.afternoon++;
-        else if (hour >= 18 && hour < 22) breakdown.byTimeSlot.evening++;
-        else breakdown.byTimeSlot.night++;
+        if (hour >= 11 && hour < 14) breakdown.byTimeSlot.morning.count++;
+        else if (hour >= 14 && hour < 18) breakdown.byTimeSlot.afternoon.count++;
+        else if (hour >= 18 && hour < 22) breakdown.byTimeSlot.evening.count++;
+        else breakdown.byTimeSlot.night.count++;
+
+        // Categorize by game type
+        const stationName = (booking.stations as any)?.name?.toLowerCase() || '';
+        const stationType = (booking.stations as any)?.type?.toLowerCase() || '';
+        
+        if (stationName.includes('8-ball') || stationName.includes('pool') || stationType.includes('pool')) {
+          breakdown.byGameType['8ball']++;
+        } else if (stationName.includes('ps5') || stationName.includes('playstation') || stationType.includes('gaming')) {
+          breakdown.byGameType['ps5']++;
+        } else if (stationName.includes('vr') || stationType.includes('vr')) {
+          breakdown.byGameType['vr']++;
+        } else {
+          breakdown.byGameType['other']++;
+        }
       });
 
       setActivityBreakdown(breakdown);
@@ -625,7 +638,12 @@ export default function CustomerDashboardEnhanced() {
               <Badge className="bg-white/20 backdrop-blur-xl text-white px-4 py-2 text-sm font-semibold border border-white/30">
                 ⚡ {tier.tagline}
               </Badge>
-              {stats.rank <= 50 && (
+              {stats.rank <= 10 && (
+                <Badge className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white px-5 py-2.5 text-base font-black animate-pulse shadow-2xl shadow-yellow-500/50 border-2 border-yellow-300">
+                  👑 TOP 10 PLAYER
+                </Badge>
+              )}
+              {stats.rank > 10 && stats.rank <= 50 && (
                 <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-2 text-sm font-bold animate-pulse">
                   🏆 TOP 50 PLAYER
                 </Badge>
@@ -636,10 +654,25 @@ export default function CustomerDashboardEnhanced() {
               {getGreeting()}, {customer.name}! {getGreetingEmoji()}
             </h2>
             
+            {/* Special Top 10 Message */}
+            {stats.rank <= 10 && (
+              <div className="mb-3 bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-red-500/20 border-2 border-yellow-400/60 rounded-lg p-4 animate-pulse">
+                <p className="text-2xl text-yellow-300 font-black mb-2 flex items-center gap-2">
+                  <Crown className="animate-bounce" size={28} />
+                  LEGENDARY STATUS UNLOCKED!
+                </p>
+                <p className="text-white/95 text-lg font-semibold">
+                  You're in the top 1% of our gaming community! 🌟 You have exclusive VIP access, priority booking, and personal gaming concierge service!
+                </p>
+              </div>
+            )}
+            
             {/* Ego Boost Message */}
-            <p className="text-xl text-white/95 mb-3 font-semibold">
-              {tier.message}
-            </p>
+            {stats.rank > 10 && (
+              <p className="text-xl text-white/95 mb-3 font-semibold">
+                {tier.message}
+              </p>
+            )}
 
             {stats.currentStreak >= 3 && (
               <p className="text-white mb-4 flex items-center gap-2 bg-orange-900/40 px-4 py-2 rounded-lg border border-orange-500/50">
@@ -804,26 +837,136 @@ export default function CustomerDashboardEnhanced() {
           </Card>
         </div>
 
-        {/* Activity Breakdown */}
+        {/* Comprehensive Analytics Section */}
         {activityBreakdown.byDay && (
-          <Card className="bg-gray-900/95 border-purple-500/30 backdrop-blur-xl">
-            <CardContent className="p-6">
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <BarChart3 className="text-purple-400" />
-                This Month's Activity
-              </h3>
-              <div className="grid grid-cols-7 gap-2 mb-4">
-                {Object.entries(activityBreakdown.byDay).map(([day, count]: [string, any]) => (
-                  <div key={day} className="text-center">
-                    <p className="text-xs text-gray-400 mb-1 font-medium">{day}</p>
-                    <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
-                      <p className="text-white font-bold text-xl">{count}</p>
+          <>
+            {/* Favorite Game & Time Insights */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Favorite Game Type */}
+              <Card className="bg-gray-900/95 border-green-500/30 backdrop-blur-xl">
+                <CardContent className="p-6">
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Gamepad2 className="text-green-400" />
+                    Your Favorite Game
+                  </h3>
+                  
+                  {activityBreakdown.byGameType && (
+                    <div className="space-y-3">
+                      {Object.entries(activityBreakdown.byGameType)
+                        .sort((a: any, b: any) => b[1] - a[1])
+                        .filter(([_, count]) => count > 0)
+                        .map(([game, count]: [string, any], index) => {
+                          const total = Object.values(activityBreakdown.byGameType).reduce((sum: number, c: any) => sum + c, 0);
+                          const percentage = total > 0 ? (count / total) * 100 : 0;
+                          const gameLabels: any = {
+                            '8ball': { name: '🎱 8-Ball Pool', color: 'from-blue-500 to-cyan-500' },
+                            'ps5': { name: '🎮 PS5 Gaming', color: 'from-purple-500 to-pink-500' },
+                            'vr': { name: '🥽 VR Experience', color: 'from-orange-500 to-red-500' },
+                            'other': { name: '🎯 Other Games', color: 'from-gray-500 to-gray-600' }
+                          };
+                          const gameInfo = gameLabels[game] || { name: game, color: 'from-gray-500 to-gray-600' };
+                          
+                          return (
+                            <div key={game}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-white font-medium flex items-center gap-2">
+                                  {gameInfo.name}
+                                  {index === 0 && <Trophy className="text-yellow-400" size={16} />}
+                                </span>
+                                <span className="text-gray-400 text-sm">{count} sessions ({percentage.toFixed(0)}%)</span>
+                              </div>
+                              <div className="h-3 bg-gray-800/60 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full bg-gradient-to-r ${gameInfo.color} rounded-full transition-all duration-1000`}
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Favorite Time Slot */}
+              <Card className="bg-gray-900/95 border-orange-500/30 backdrop-blur-xl">
+                <CardContent className="p-6">
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Clock className="text-orange-400" />
+                    Your Favorite Time
+                  </h3>
+                  
+                  {activityBreakdown.byTimeSlot && (
+                    <div className="space-y-3">
+                      {Object.entries(activityBreakdown.byTimeSlot)
+                        .sort((a: any, b: any) => b[1].count - a[1].count)
+                        .filter(([_, data]: any) => data.count > 0)
+                        .map(([slot, data]: [string, any], index) => {
+                          const total = Object.values(activityBreakdown.byTimeSlot).reduce((sum: number, d: any) => sum + d.count, 0);
+                          const percentage = total > 0 ? (data.count / total) * 100 : 0;
+                          const slotIcons: any = {
+                            morning: '🌅',
+                            afternoon: '☀️',
+                            evening: '🌆',
+                            night: '🌙'
+                          };
+                          
+                          return (
+                            <div key={slot}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-white font-medium flex items-center gap-2">
+                                  {slotIcons[slot]} {data.label}
+                                  {index === 0 && <Star className="text-yellow-400" size={16} />}
+                                </span>
+                                <span className="text-gray-400 text-sm">{data.count} sessions ({percentage.toFixed(0)}%)</span>
+                              </div>
+                              <div className="h-3 bg-gray-800/60 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full transition-all duration-1000"
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Weekly Activity Pattern */}
+            <Card className="bg-gray-900/95 border-purple-500/30 backdrop-blur-xl">
+              <CardContent className="p-6">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <BarChart3 className="text-purple-400" />
+                  Weekly Activity Pattern
+                </h3>
+                <div className="grid grid-cols-7 gap-2">
+                  {Object.entries(activityBreakdown.byDay).map(([day, count]: [string, any]) => {
+                    const maxCount = Math.max(...Object.values(activityBreakdown.byDay).map(c => Number(c)));
+                    const heightPercentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    
+                    return (
+                      <div key={day} className="text-center">
+                        <p className="text-xs text-gray-400 mb-1 font-medium">{day}</p>
+                        <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700 relative h-24 flex items-end justify-center">
+                          <div 
+                            className="w-full bg-gradient-to-t from-purple-500 to-pink-500 rounded transition-all duration-1000"
+                            style={{ height: `${Math.max(heightPercentage, 15)}%` }}
+                          ></div>
+                          <p className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white font-bold text-lg">
+                            {count}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Recommendations */}
