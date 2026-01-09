@@ -116,12 +116,8 @@ export default function CustomerLogin() {
 
       toast.success(`Welcome back, ${customer.name}! 👋`);
 
-      // Redirect based on first login status
-      if (customer.is_first_login) {
-        navigate('/customer/change-password');
-      } else {
-        navigate('/customer/dashboard');
-      }
+      // Always redirect to dashboard
+      navigate('/customer/dashboard');
     } catch (err) {
       console.error('Login error:', err);
       toast.error('Login failed. Please try again.');

@@ -45,6 +45,8 @@ import {
 import { cn } from "@/lib/utils";
 import { format, parse, getDay } from "date-fns";
 import { getCustomerSession, clearCustomerSession } from "@/utils/customerAuth";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 
 /* =========================
    Types
@@ -145,6 +147,7 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
    Component
    ========================= */
 export default function PublicBooking() {
+  const navigate = useNavigate();
   const [stations, setStations] = useState<Station[]>([]);
   const [stationType, setStationType] = useState<"all" | StationType>("all");
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
@@ -1823,6 +1826,18 @@ export default function PublicBooking() {
 
       <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
         <div className="max-w-7xl mx-auto">
+          {/* Back to Dashboard Button (only for logged-in customers) */}
+          {loggedInCustomer && (
+            <Button
+              variant="ghost"
+              className="mb-4 text-gray-300 hover:text-white hover:bg-white/10"
+              onClick={() => navigate('/customer/dashboard')}
+            >
+              <ArrowLeft className="mr-2" size={18} />
+              Back to Home
+            </Button>
+          )}
+          
           <div className="flex flex-col items-center mb-8">
             <div className="mb-6">
               <img

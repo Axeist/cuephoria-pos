@@ -4,6 +4,7 @@ import { Calendar, Gift, User, Gamepad2, Ticket } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession } from '@/utils/customerAuth';
+import '@/styles/customer-animations.css';
 
 export default function BottomNav() {
   const navigate = useNavigate();
@@ -83,7 +84,7 @@ export default function BottomNav() {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all relative min-w-[64px] ${
+                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-smooth bottom-nav-item relative min-w-[64px] ${
                   active
                     ? 'text-cuephoria-purple'
                     : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
@@ -96,7 +97,7 @@ export default function BottomNav() {
                     strokeWidth={active ? 2.5 : 2}
                   />
                   {item.badge && item.badge > 0 && (
-                    <Badge className="absolute -top-2 -right-2 bg-cuephoria-red text-white text-xs h-5 min-w-[20px] flex items-center justify-center rounded-full px-1">
+                    <Badge className="absolute -top-2 -right-2 bg-cuephoria-red text-white text-xs h-5 min-w-[20px] flex items-center justify-center rounded-full px-1 badge-pulse">
                       {item.badge > 9 ? '9+' : item.badge}
                     </Badge>
                   )}

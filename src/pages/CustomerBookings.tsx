@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession, formatDate, formatTime, getCountdown, timeAgo } from '@/utils/customerAuth';
 import { toast } from 'sonner';
 import BottomNav from '@/components/customer/BottomNav';
+import '@/styles/customer-animations.css';
 
 interface Booking {
   id: string;
@@ -59,7 +60,7 @@ export default function CustomerBookings() {
       const today = new Date().toISOString().split('T')[0];
 
       // Get upcoming bookings
-      const { data: upcoming } = await supabase
+      const { data: upcoming, error: upcomingError } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -70,7 +71,7 @@ export default function CustomerBookings() {
           status,
           final_price,
           created_at,
-          stations (name)
+          stations!inner (name)
         `)
         .eq('customer_id', customer.id)
         .gte('booking_date', today)
@@ -78,8 +79,10 @@ export default function CustomerBookings() {
         .order('booking_date', { ascending: true })
         .order('start_time', { ascending: true });
 
+      if (upcomingError) console.error('Upcoming bookings error:', upcomingError);
+
       // Get past bookings
-      const { data: past } = await supabase
+      const { data: past, error: pastError } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -90,16 +93,18 @@ export default function CustomerBookings() {
           status,
           final_price,
           created_at,
-          stations (name)
+          stations!inner (name)
         `)
         .eq('customer_id', customer.id)
-        .lt('booking_date', today)
+        .or(`booking_date.lt.${today},and(booking_date.eq.${today},status.eq.completed)`)
         .eq('status', 'completed')
         .order('booking_date', { ascending: false })
-        .limit(10);
+        .limit(50);
+
+      if (pastError) console.error('Past bookings error:', pastError);
 
       // Get cancelled bookings
-      const { data: cancelled } = await supabase
+      const { data: cancelled, error: cancelledError } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -110,12 +115,14 @@ export default function CustomerBookings() {
           status,
           final_price,
           created_at,
-          stations (name)
+          stations!inner (name)
         `)
         .eq('customer_id', customer.id)
         .eq('status', 'cancelled')
         .order('booking_date', { ascending: false })
-        .limit(10);
+        .limit(50);
+
+      if (cancelledError) console.error('Cancelled bookings error:', cancelledError);
 
       setUpcomingBookings(
         upcoming?.map(b => ({
@@ -186,7 +193,7 @@ export default function CustomerBookings() {
   if (!customer) return null;
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark pb-20">
+    <div className="min-h-screen bg-cuephoria-dark pb-20 page-enter">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-cuephoria-darker border-b border-gray-800 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 py-4">
@@ -250,7 +257,7 @@ export default function CustomerBookings() {
                   const bookingDateTime = new Date(`${booking.booking_date}T${booking.start_time}`);
 
                   return (
-                    <Card key={booking.id} className="bg-cuephoria-darker border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/50 transition-all">
+                    <Card key={booking.id} className="bg-cuephoria-darker border-cuephoria-lightpurple/30 hover:border-cuephoria-lightpurple/50 hover-lift transition-smooth card-enter">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">

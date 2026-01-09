@@ -32,6 +32,7 @@ import {
 } from '@/utils/customerAuth';
 import { toast } from 'sonner';
 import BottomNav from '@/components/customer/BottomNav';
+import '@/styles/customer-animations.css';
 
 interface CustomerStats {
   upcomingBookings: number;

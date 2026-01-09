@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   User,
   Phone,
@@ -25,6 +26,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession, clearCustomerSession, formatDate } from '@/utils/customerAuth';
 import { toast } from 'sonner';
 import BottomNav from '@/components/customer/BottomNav';
+import '@/styles/customer-animations.css';
 
 export default function CustomerProfile() {
   const navigate = useNavigate();
@@ -32,9 +34,15 @@ export default function CustomerProfile() {
   const [customerData, setCustomerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     email: ''
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
   });
 
   useEffect(() => {
@@ -101,6 +109,54 @@ export default function CustomerProfile() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      // Verify current password first
+      const defaultPassword = `CUE${customer!.phone}`;
+      
+      // Simple verification (in production, this should be server-side)
+      if (passwordForm.currentPassword !== defaultPassword) {
+        toast.error('Current password is incorrect');
+        return;
+      }
+
+      // Update password using Supabase function
+      const { error } = await supabase.rpc('update_customer_password', {
+        customer_id: customer!.id,
+        new_password: passwordForm.newPassword
+      });
+
+      if (error) {
+        // If RPC doesn't exist, we can't update password securely
+        toast.error('Password update not available. Please contact support.');
+        return;
+      }
+
+      // Update first_login flag
+      await supabase
+        .from('customers')
+        .update({ is_first_login: false })
+        .eq('id', customer!.id);
+
+      toast.success('Password changed successfully! 🔐');
+      setIsChangingPassword(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to change password');
+    }
+  };
+
   const handleLogout = () => {
     clearCustomerSession();
     toast.success('Logged out successfully');
@@ -129,7 +185,7 @@ export default function CustomerProfile() {
   const TierIcon = tier.icon;
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark pb-20">
+    <div className="min-h-screen bg-cuephoria-dark pb-20 page-enter">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-cuephoria-darker border-b border-gray-800 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 py-4">
@@ -302,7 +358,7 @@ export default function CustomerProfile() {
               <Button
                 variant="outline"
                 className="w-full justify-start border-gray-700 hover:bg-gray-800"
-                onClick={() => toast.info('Password change feature coming soon!')}
+                onClick={() => setIsChangingPassword(true)}
               >
                 <Shield size={18} className="mr-2" />
                 Change Password
@@ -330,6 +386,75 @@ export default function CustomerProfile() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Password Change Dialog */}
+      <Dialog open={isChangingPassword} onOpenChange={setIsChangingPassword}>
+        <DialogContent className="bg-cuephoria-darker border-cuephoria-lightpurple/30">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Shield className="text-cuephoria-orange" />
+              Change Password
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Enter your current password and choose a new one
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label className="text-gray-400">Current Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                placeholder="Enter current password"
+                className="bg-background/50 border-gray-700 text-white mt-2"
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-400">New Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                placeholder="Enter new password"
+                className="bg-background/50 border-gray-700 text-white mt-2"
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-400">Confirm New Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                placeholder="Confirm new password"
+                className="bg-background/50 border-gray-700 text-white mt-2"
+              />
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setIsChangingPassword(false);
+                  setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+                onClick={handleChangePassword}
+              >
+                Change Password
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Bottom Navigation */}
       <BottomNav />

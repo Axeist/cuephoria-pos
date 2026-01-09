@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getCustomerSession, formatDate } from '@/utils/customerAuth';
 import { toast } from 'sonner';
 import BottomNav from '@/components/customer/BottomNav';
+import '@/styles/customer-animations.css';
 
 interface CustomerOffer {
   id: string;
@@ -209,7 +210,7 @@ export default function CustomerOffers() {
   if (!customer) return null;
 
   return (
-    <div className="min-h-screen bg-cuephoria-dark pb-20">
+    <div className="min-h-screen bg-cuephoria-dark pb-20 page-enter">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-gradient-to-br from-cuephoria-orange/20 to-cuephoria-red/20 border-b border-cuephoria-orange/30 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 py-4">
@@ -269,7 +270,7 @@ export default function CustomerOffers() {
                   return (
                     <Card
                       key={offer.assignment_id}
-                      className="bg-gradient-to-br from-cuephoria-orange/10 to-cuephoria-red/10 border-cuephoria-orange/30 hover:border-cuephoria-orange/50 transition-all cursor-pointer"
+                      className="bg-gradient-to-br from-cuephoria-orange/10 to-cuephoria-red/10 border-cuephoria-orange/30 hover:border-cuephoria-orange/50 hover-lift transition-smooth cursor-pointer card-enter"
                       onClick={() => {
                         if (isNew) markAsViewed(offer.assignment_id);
                       }}
