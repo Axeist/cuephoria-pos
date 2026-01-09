@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartContainer } from '@/components/ui/chart';
@@ -297,35 +296,53 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
               </Select>
             </div>
             
-            {/* Time Period Tabs */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-auto">
-              <TabsList className="bg-gray-800 text-gray-400">
-                <TabsTrigger 
-                  value="hourly"
-                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-                >
-                  Hourly
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="daily"
-                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-                >
-                  Daily
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="weekly"
-                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-                >
-                  Weekly
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="monthly"
-                  className="transition-all duration-200 data-[state=active]:bg-cuephoria-lightpurple data-[state=active]:text-white"
-                >
-                  Monthly
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {/* Time Period Toggle Buttons */}
+            <div className="flex gap-1 p-1 rounded-xl bg-gray-800 text-gray-400">
+              <button
+                type="button"
+                onClick={() => handleTabChange('hourly')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'hourly'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Hourly
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('daily')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'daily'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('weekly')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'weekly'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('monthly')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  activeTab === 'monthly'
+                    ? 'bg-cuephoria-lightpurple text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
           </div>
         </div>
       </CardHeader>

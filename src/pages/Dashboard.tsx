@@ -17,7 +17,6 @@ import ExpenseList from '@/components/expenses/ExpenseList';
 import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import CashManagement from '@/components/cash/CashManagement';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -289,53 +288,68 @@ const Dashboard = () => {
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
       </div>
 
-      <Tabs
-        defaultValue="overview"
-        value={currentDashboardTab}
-        onValueChange={(v) => setCurrentDashboardTab(v as any)}
-        className="w-full"
-      >
-        {/* Mobile-optimized tabs with better spacing */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6">
-          <TabsList className={`${isMobile ? 'w-full grid grid-cols-4 gap-1 h-11' : 'w-full sm:w-auto gap-1.5 flex'} p-1 rounded-xl`}>
-            <TabsTrigger 
-              value="overview" 
-              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
-            >
-              Overview
-            </TabsTrigger>
-            <TabsTrigger 
-              value="analytics" 
-              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
-            >
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger 
-              value="expenses" 
-              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
-            >
-              Expenses
-            </TabsTrigger>
-            <TabsTrigger 
-              value="cash" 
-              className="whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg data-[state=active]:bg-cuephoria-purple"
-            >
-              Vault
-            </TabsTrigger>
-          </TabsList>
-
-          {currentDashboardTab === 'expenses' && (
-            <div className={`${isMobile ? 'w-full' : 'w-auto'}`}>
-              <ExpenseDateFilter
-                onDateRangeChange={handleDateRangeChange}
-                onExport={handleExport}
-              />
-            </div>
-          )}
+      {/* Mobile-optimized toggle buttons with better spacing */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6">
+        <div className={`${isMobile ? 'w-full grid grid-cols-4 gap-1 h-11' : 'w-full sm:w-auto gap-1.5 flex'} p-1 rounded-xl bg-background/50 border border-cuephoria-lightpurple/30`}>
+          <button
+            type="button"
+            onClick={() => setCurrentDashboardTab('overview')}
+            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+              currentDashboardTab === 'overview'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentDashboardTab('analytics')}
+            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+              currentDashboardTab === 'analytics'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            Analytics
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentDashboardTab('expenses')}
+            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+              currentDashboardTab === 'expenses'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            Expenses
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentDashboardTab('cash')}
+            className={`whitespace-nowrap flex-shrink-0 text-[11px] sm:text-sm px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
+              currentDashboardTab === 'cash'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            Vault
+          </button>
         </div>
 
-        {/* Mobile-optimized tab content with better spacing */}
-        <TabsContent value="overview" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+        {currentDashboardTab === 'expenses' && (
+          <div className={`${isMobile ? 'w-full' : 'w-auto'}`}>
+            <ExpenseDateFilter
+              onDateRangeChange={handleDateRangeChange}
+              onExport={handleExport}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Mobile-optimized content with better spacing */}
+      {currentDashboardTab === 'overview' && (
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <StatCardSection
             totalSales={dashboardStats.totalSales}
             salesChange={dashboardStats.salesChange}
@@ -358,9 +372,11 @@ const Dashboard = () => {
             <ActiveSessions />
             <RecentTransactions bills={bills} customers={customers} />
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="analytics" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+      {currentDashboardTab === 'analytics' && (
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <div className="grid gap-3 sm:gap-6 md:grid-cols-1 lg:grid-cols-2">
             <CustomerSpendingCorrelation />
             <HourlyRevenueDistribution />
@@ -370,9 +386,11 @@ const Dashboard = () => {
             <CustomerActivityChart />
             <ProductInventoryChart />
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="expenses" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+      {currentDashboardTab === 'expenses' && (
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <BusinessSummarySection
             filteredExpenses={filteredExpenses}
             dateRange={dateRange}
@@ -387,12 +405,14 @@ const Dashboard = () => {
           ) : (
             <ExpenseList selectedCategory={selectedCategory} />
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="cash" className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
+      {currentDashboardTab === 'cash' && (
+        <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0">
           <CashManagement />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 };

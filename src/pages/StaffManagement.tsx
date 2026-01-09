@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserPlus, Calendar, FileText, DollarSign, Activity, User } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffOverview from '@/components/staff/StaffOverview';
 import StaffDirectory from '@/components/staff/StaffDirectory';
 import AttendanceManagement from '@/components/staff/AttendanceManagement';
@@ -24,6 +23,7 @@ const StaffManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAdminRegularizationDialog, setShowAdminRegularizationDialog] = useState(false);
+  const [activeStaffTab, setActiveStaffTab] = useState<'overview'|'directory'|'attendance'|'calendar'|'requests'|'payroll'>('overview');
 
   useEffect(() => {
     fetchStaffData();
@@ -174,85 +174,145 @@ const StaffManagement = () => {
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 bg-cuephoria-dark border border-cuephoria-purple/20">
-          <TabsTrigger value="overview">
-            <Users className="h-4 w-4 mr-2" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="directory">
-            <Users className="h-4 w-4 mr-2" />
-            Directory
-          </TabsTrigger>
-          <TabsTrigger value="attendance">
-            <Activity className="h-4 w-4 mr-2" />
-            Attendance
-          </TabsTrigger>
-          <TabsTrigger value="calendar">
-            <Calendar className="h-4 w-4 mr-2" />
-            Calendar
-          </TabsTrigger>
-          <TabsTrigger value="requests">
-            <FileText className="h-4 w-4 mr-2" />
-            Staff Requests
-          </TabsTrigger>
-          <TabsTrigger value="payroll">
-            <DollarSign className="h-4 w-4 mr-2" />
-            Payroll
-          </TabsTrigger>
-        </TabsList>
+      <div className="w-full">
+        <div className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1 p-1 bg-cuephoria-dark border border-cuephoria-purple/20 rounded-xl mb-6">
+          <button
+            type="button"
+            onClick={() => setActiveStaffTab('overview')}
+            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
+              activeStaffTab === 'overview'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            <Users className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Overview</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStaffTab('directory')}
+            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
+              activeStaffTab === 'directory'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            <User className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Directory</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStaffTab('attendance')}
+            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
+              activeStaffTab === 'attendance'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            <Activity className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Attendance</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStaffTab('calendar')}
+            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
+              activeStaffTab === 'calendar'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            <Calendar className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Calendar</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStaffTab('requests')}
+            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
+              activeStaffTab === 'requests'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            <FileText className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Requests</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStaffTab('payroll')}
+            className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
+              activeStaffTab === 'payroll'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            <DollarSign className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline">Payroll</span>
+          </button>
+        </div>
 
-        <TabsContent value="overview" className="space-y-4 mt-6">
-          <StaffOverview
-            staffProfiles={staffProfiles || []}
-            activeShifts={activeShifts || []}
-            pendingLeaves={pendingLeaves || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
+        {activeStaffTab === 'overview' && (
+          <div className="space-y-4 mt-6">
+            <StaffOverview
+              staffProfiles={staffProfiles || []}
+              activeShifts={activeShifts || []}
+              pendingLeaves={pendingLeaves || []}
+              isLoading={isLoading}
+              onRefresh={fetchStaffData}
+            />
+          </div>
+        )}
 
-        <TabsContent value="directory" className="space-y-4 mt-6">
-          <StaffDirectory
-            staffProfiles={staffProfiles || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
+        {activeStaffTab === 'directory' && (
+          <div className="space-y-4 mt-6">
+            <StaffDirectory
+              staffProfiles={staffProfiles || []}
+              isLoading={isLoading}
+              onRefresh={fetchStaffData}
+            />
+          </div>
+        )}
 
-        <TabsContent value="attendance" className="space-y-4 mt-6">
-          <AttendanceManagement
-            staffProfiles={staffProfiles || []}
-            activeShifts={activeShifts || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
+        {activeStaffTab === 'attendance' && (
+          <div className="space-y-4 mt-6">
+            <AttendanceManagement
+              staffProfiles={staffProfiles || []}
+              activeShifts={activeShifts || []}
+              isLoading={isLoading}
+              onRefresh={fetchStaffData}
+            />
+          </div>
+        )}
 
-        <TabsContent value="calendar" className="space-y-4 mt-6">
-          <AttendanceCalendarView
-            staffProfiles={staffProfiles || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
+        {activeStaffTab === 'calendar' && (
+          <div className="space-y-4 mt-6">
+            <AttendanceCalendarView
+              staffProfiles={staffProfiles || []}
+              isLoading={isLoading}
+              onRefresh={fetchStaffData}
+            />
+          </div>
+        )}
 
-        <TabsContent value="requests" className="space-y-4 mt-6">
-          <StaffRequestsManagement
-            staffProfiles={staffProfiles || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
+        {activeStaffTab === 'requests' && (
+          <div className="space-y-4 mt-6">
+            <StaffRequestsManagement
+              staffProfiles={staffProfiles || []}
+              isLoading={isLoading}
+              onRefresh={fetchStaffData}
+            />
+          </div>
+        )}
 
-        <TabsContent value="payroll" className="space-y-4 mt-6">
-          <PayrollManagement
-            staffProfiles={staffProfiles || []}
-            isLoading={isLoading}
-            onRefresh={fetchStaffData}
-          />
-        </TabsContent>
-      </Tabs>
+        {activeStaffTab === 'payroll' && (
+          <div className="space-y-4 mt-6">
+            <PayrollManagement
+              staffProfiles={staffProfiles || []}
+              isLoading={isLoading}
+              onRefresh={fetchStaffData}
+            />
+          </div>
+        )}
+      </div>
 
       <CreateStaffDialog
         open={showCreateDialog}

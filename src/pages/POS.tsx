@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -544,84 +543,104 @@ const POS = () => {
           </CardHeader>
 
           <div className="flex flex-col flex-grow min-h-0">
-            <Tabs
-              defaultValue="all"
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="flex flex-col flex-grow min-h-0 animate-scale-in"
-            >
-              {/* Mobile-optimized category tabs */}
-              <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0">
-                <TabsList className={`${isMobile ? 'flex w-full overflow-x-auto scrollbar-hide gap-1 mb-3 h-auto p-1' : 'grid w-full grid-cols-6 gap-1 mb-4 h-auto p-1'}`}>
-                  <TabsTrigger
-                    value="all"
-                    className="text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-purple data-[state=active]:text-white rounded-lg"
-                  >
-                    All ({categoryCounts.all || 0})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="food"
-                    className="text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-orange data-[state=active]:text-white rounded-lg"
-                  >
-                    Food ({categoryCounts.food || 0})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="drinks"
-                    className="text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-cuephoria-blue data-[state=active]:text-white rounded-lg"
-                  >
-                    Drinks ({categoryCounts.drinks || 0})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="tobacco"
-                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-red-500 data-[state=active]:text-white"
-                  >
-                    Tobacco ({categoryCounts.tobacco || 0})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="challenges"
-                    className="text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-green-500 data-[state=active]:text-white"
-                  >
-                    Challenges ({categoryCounts.challenges || 0})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="membership"
-                    className="text-xs px-1 py-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white flex items-center gap-1"
-                  >
-                    <Award className="h-3 w-3" />
-                    Membership ({categoryCounts.membership || 0})
-                  </TabsTrigger>
-                </TabsList>
+            {/* Mobile-optimized category toggle buttons */}
+            <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-cuephoria-purple/10 to-cuephoria-blue/10 flex-shrink-0 animate-scale-in">
+              <div className={`${isMobile ? 'flex w-full overflow-x-auto scrollbar-hide gap-1 mb-3 p-1' : 'grid w-full grid-cols-6 gap-1 mb-4 p-1'}`}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('all')}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'all'
+                      ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                  }`}
+                >
+                  All ({categoryCounts.all || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('food')}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'food'
+                      ? 'bg-cuephoria-orange text-white shadow-lg shadow-cuephoria-orange/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-cuephoria-orange/20'
+                  }`}
+                >
+                  Food ({categoryCounts.food || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('drinks')}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'drinks'
+                      ? 'bg-cuephoria-blue text-white shadow-lg shadow-cuephoria-blue/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-cuephoria-blue/20'
+                  }`}
+                >
+                  Drinks ({categoryCounts.drinks || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tobacco')}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'tobacco'
+                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-red-500/20'
+                  }`}
+                >
+                  Tobacco ({categoryCounts.tobacco || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('challenges')}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'challenges'
+                      ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-green-500/20'
+                  }`}
+                >
+                  Challenges ({categoryCounts.challenges || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('membership')}
+                  className={`text-[10px] sm:text-xs px-1 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 flex items-center gap-1 justify-center ${
+                    activeTab === 'membership'
+                      ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30'
+                      : 'text-muted-foreground hover:text-white hover:bg-violet-600/20'
+                  }`}
+                >
+                  <Award className="h-3 w-3" />
+                  Membership ({categoryCounts.membership || 0})
+                </button>
               </div>
+            </div>
 
-              <TabsContent
-                value={activeTab}
-                className="flex-grow min-h-0 m-0 p-6 overflow-auto"
-              >
-                {searchedProducts.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
-                    {searchedProducts.map((product, index) => (
-                      <div
-                        key={product.id}
-                        className="animate-scale-in"
-                        style={{ animationDelay: `${(index % 8) * 50}ms` }}
-                      >
-                        <ProductCard 
-                          product={product} 
-                          className="h-full flex flex-col"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-                    <h3 className="text-xl font-medium font-heading">No Products Found</h3>
-                    <p className="text-muted-foreground mt-2">
-                      Try a different search or category
-                    </p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
+            <div className="flex-grow min-h-0 m-0 p-6 overflow-auto">
+              {searchedProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
+                  {searchedProducts.map((product, index) => (
+                    <div
+                      key={product.id}
+                      className="animate-scale-in"
+                      style={{ animationDelay: `${(index % 8) * 50}ms` }}
+                    >
+                      <ProductCard 
+                        product={product} 
+                        className="h-full flex flex-col"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                  <h3 className="text-xl font-medium font-heading">No Products Found</h3>
+                  <p className="text-muted-foreground mt-2">
+                    Try a different search or category
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </Card>
       </div>

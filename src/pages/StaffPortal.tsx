@@ -7,7 +7,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { Clock, LogIn, LogOut, Coffee, Calendar as CalendarIcon, FileText, User, DollarSign, TrendingUp, Plus, Trash2, AlertCircle, Filter, CheckCircle, XCircle } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +41,7 @@ const StaffPortal = () => {
   const [showDoubleShiftRequest, setShowDoubleShiftRequest] = useState(false);
   const [currentShift, setCurrentShift] = useState<any>(null);
   const [allAttendance, setAllAttendance] = useState<any[]>([]);
+  const [activePortalTab, setActivePortalTab] = useState<'attendance'|'requests'|'payslips'>('attendance');
   const [filteredAttendance, setFilteredAttendance] = useState<any[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
@@ -733,15 +733,46 @@ const StaffPortal = () => {
         </Card>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="attendance" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-cuephoria-dark border border-cuephoria-purple/20">
-          <TabsTrigger value="attendance">Attendance</TabsTrigger>
-          <TabsTrigger value="requests">My Requests</TabsTrigger>
-          <TabsTrigger value="payslips">Payslips</TabsTrigger>
-        </TabsList>
+      {/* Toggle Buttons */}
+      <div className="w-full">
+        <div className="grid w-full grid-cols-3 gap-1 p-1 bg-cuephoria-dark border border-cuephoria-purple/20 rounded-xl mb-6">
+          <button
+            type="button"
+            onClick={() => setActivePortalTab('attendance')}
+            className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
+              activePortalTab === 'attendance'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            Attendance
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePortalTab('requests')}
+            className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
+              activePortalTab === 'requests'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            My Requests
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePortalTab('payslips')}
+            className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
+              activePortalTab === 'payslips'
+                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+            }`}
+          >
+            Payslips
+          </button>
+        </div>
 
-        <TabsContent value="attendance" className="space-y-4 mt-6">
+        {activePortalTab === 'attendance' && (
+          <div className="space-y-4 mt-6">
           <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -906,9 +937,11 @@ const StaffPortal = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          </div>
+        )}
 
-        <TabsContent value="requests" className="space-y-4 mt-6">
+        {activePortalTab === 'requests' && (
+          <div className="space-y-4 mt-6">
           {/* Action Buttons */}
           <div className="flex gap-2 justify-end flex-wrap">
             <Button
@@ -1199,9 +1232,11 @@ const StaffPortal = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          </div>
+        )}
 
-        <TabsContent value="payslips" className="space-y-4 mt-6">
+        {activePortalTab === 'payslips' && (
+          <div className="space-y-4 mt-6">
           <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
             <CardHeader>
               <CardTitle className="text-white">Payslips</CardTitle>
@@ -1254,8 +1289,9 @@ const StaffPortal = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          </div>
+        )}
+      </div>
 
       {/* Leave Request Dialog */}
       <LeaveRequestDialog

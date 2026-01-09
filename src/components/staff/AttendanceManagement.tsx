@@ -7,7 +7,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { Clock, Trash2, Edit, AlertCircle, Coffee } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -57,6 +56,7 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [deleteAttendanceId, setDeleteAttendanceId] = useState<string | null>(null);
   const [editAttendance, setEditAttendance] = useState<any>(null);
+  const [activeAttendanceTab, setActiveAttendanceTab] = useState<'active'|'history'>('active');
   const [editForm, setEditForm] = useState({
     clock_in: '',
     clock_out: '',
@@ -197,13 +197,34 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   return (
     <>
       <div className="space-y-6">
-        <Tabs defaultValue="active" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-cuephoria-dark border border-cuephoria-purple/20">
-            <TabsTrigger value="active">Active Shifts</TabsTrigger>
-            <TabsTrigger value="history">Attendance History</TabsTrigger>
-          </TabsList>
+        <div className="w-full">
+          <div className="grid w-full grid-cols-2 gap-1 p-1 bg-cuephoria-dark border border-cuephoria-purple/20 rounded-xl mb-6">
+            <button
+              type="button"
+              onClick={() => setActiveAttendanceTab('active')}
+              className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
+                activeAttendanceTab === 'active'
+                  ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                  : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+              }`}
+            >
+              Active Shifts
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAttendanceTab('history')}
+              className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm ${
+                activeAttendanceTab === 'history'
+                  ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
+                  : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+              }`}
+            >
+              Attendance History
+            </button>
+          </div>
 
-          <TabsContent value="active" className="space-y-4 mt-6">
+          {activeAttendanceTab === 'active' && (
+            <div className="space-y-4 mt-6">
             <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -260,9 +281,11 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+            </div>
+          )}
 
-          <TabsContent value="history" className="space-y-4 mt-6">
+          {activeAttendanceTab === 'history' && (
+            <div className="space-y-4 mt-6">
             {/* Break Violations Warning */}
             {breakViolations.length > 0 && (
               <Card className="bg-red-500/10 border-red-500/50">
@@ -426,8 +449,9 @@ const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Edit Dialog */}

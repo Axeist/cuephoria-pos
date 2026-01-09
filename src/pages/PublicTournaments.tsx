@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -1377,67 +1376,76 @@ const PublicTournaments = () => {
       
       {/* Main content */}
       <main className="py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto relative z-10">
-        {/* Desktop Tabs */}
+        {/* Desktop Toggle Buttons */}
         {!isMobile && (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8">
-              <TabsTrigger 
-                value="upcoming" 
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+          <div className="w-full">
+            <div className="grid w-full grid-cols-5 bg-cuephoria-dark/80 backdrop-blur-md border border-cuephoria-lightpurple/30 rounded-xl p-1 mb-8 gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('upcoming')}
+                className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
+                  activeTab === 'upcoming'
+                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
               >
                 {getTabIcon('upcoming')}
                 Upcoming ({filterTournaments('upcoming').length})
-              </TabsTrigger>
-              <TabsTrigger 
-                value="in-progress"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('in-progress')}
+                className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
+                  activeTab === 'in-progress'
+                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
               >
                 {getTabIcon('in-progress')}
                 Live ({filterTournaments('in-progress').length})
-              </TabsTrigger>
-              <TabsTrigger 
-                value="completed"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('completed')}
+                className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
+                  activeTab === 'completed'
+                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
               >
                 {getTabIcon('completed')}
                 Completed ({filterTournaments('completed').length})
-              </TabsTrigger>
-              <TabsTrigger 
-                value="gallery"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('gallery')}
+                className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
+                  activeTab === 'gallery'
+                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
               >
                 {getTabIcon('gallery')}
                 Gallery
-              </TabsTrigger>
-              <TabsTrigger 
-                value="leaderboard"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cuephoria-lightpurple data-[state=active]:to-cuephoria-blue data-[state=active]:text-white rounded-lg transition-all duration-300"
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('leaderboard')}
+                className={`rounded-lg transition-all duration-300 py-3 px-4 font-medium whitespace-nowrap flex items-center justify-center gap-2 ${
+                  activeTab === 'leaderboard'
+                    ? 'bg-gradient-to-r from-cuephoria-lightpurple to-cuephoria-blue text-white shadow-lg shadow-cuephoria-lightpurple/30'
+                    : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/20'
+                }`}
               >
                 {getTabIcon('leaderboard')}
                 Leaderboard
-              </TabsTrigger>
-            </TabsList>
+              </button>
+            </div>
 
-            <TabsContent value="upcoming" className="mt-8">
-              {renderTabContent('upcoming')}
-            </TabsContent>
-
-            <TabsContent value="in-progress" className="mt-8">
-              {renderTabContent('in-progress')}
-            </TabsContent>
-
-            <TabsContent value="completed" className="mt-8">
-              {renderTabContent('completed')}
-            </TabsContent>
-
-            <TabsContent value="gallery" className="mt-8">
-              {renderTabContent('gallery')}
-            </TabsContent>
-
-            <TabsContent value="leaderboard" className="mt-8">
-              {renderTabContent('leaderboard')}
-            </TabsContent>
-          </Tabs>
+            <div className="mt-8">
+              {renderTabContent(activeTab)}
+            </div>
+          </div>
         )}
 
         {/* Mobile Dropdown */}
