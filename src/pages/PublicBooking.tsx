@@ -58,6 +58,10 @@ interface Station {
   name: string;
   type: StationType;
   hourly_rate: number;
+  team_name?: string | null;
+  team_color?: string | null;
+  max_capacity?: number | null;
+  single_rate?: number | null;
 }
 interface TimeSlot {
   start_time: string;
@@ -267,7 +271,8 @@ export default function PublicBooking() {
         "postgres_changes",
         { event: "*", schema: "public", table: "bookings" },
         () => {
-          if (selectedStations.length > 0 && selectedDate) fetchAvailableSlots();
+          // NEW FLOW: Refresh slots if date is selected and customer info is complete
+          if (isCustomerInfoComplete() && selectedDate) fetchAvailableSlots();
           fetchTodaysBookings();
         }
       )
@@ -275,16 +280,26 @@ export default function PublicBooking() {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [selectedStations, selectedDate]);
+  }, [selectedDate, hasSearched, customerInfo]);
 
+  // NEW FLOW: Fetch slots when date changes OR when customer info is complete
+  // No longer requires station selection first
   useEffect(() => {
-    if (selectedStations.length > 0 && selectedDate) fetchAvailableSlots();
-    else {
+    if (isCustomerInfoComplete() && selectedDate) {
+      fetchAvailableSlots();
+    } else {
       setAvailableSlots([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [selectedStations, selectedDate]);
+  }, [selectedDate, selectedStations, customerInfo, hasSearched]);
+  
+  // Re-fetch slots when stations change to update availability
+  useEffect(() => {
+    if (selectedStations.length > 0 && selectedDate && isCustomerInfoComplete()) {
+      fetchAvailableSlots();
+    }
+  }, [selectedStations]);
 
   // Check for booking confirmation from payment success redirect
   useEffect(() => {
@@ -336,7 +351,7 @@ export default function PublicBooking() {
     try {
       const { data, error } = await supabase
         .from("stations")
-        .select("id, name, type, hourly_rate")
+        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate")
         .order("name");
       if (error) throw error;
       setStations((data || []).map(station => ({
@@ -350,12 +365,14 @@ export default function PublicBooking() {
   }
 
   async function fetchAvailableSlots() {
-    if (selectedStations.length === 0) return;
+    // NEW FLOW: Fetch slots even without station selection to show general availability
     setSlotsLoading(true);
     try {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
       
+      // If no stations selected, use default 60-minute slots for general availability
+      // Once stations are selected, use appropriate duration
       const hasVR = selectedStations.some(id => 
         stations.find(s => s.id === id && s.type === 'vr')
       );
@@ -372,6 +389,55 @@ export default function PublicBooking() {
       }
       
       const slotDuration = hasVR ? 15 : 60;
+      
+      // NEW: If no stations selected yet, show all slots for the first available station
+      // This gives users a preview of available times
+      if (selectedStations.length === 0) {
+        if (stations.length === 0) {
+          setAvailableSlots([]);
+          setSlotsLoading(false);
+          return;
+        }
+        
+        // Use first PS5 or 8-ball station for general time slot display
+        const firstStation = stations.find(s => s.type !== 'vr') || stations[0];
+        
+        const { data, error } = await supabase.rpc("get_available_slots", {
+          p_date: dateStr,
+          p_station_id: firstStation.id,
+          p_slot_duration: 60, // Default to 60-minute slots
+        });
+        
+        if (error) throw error;
+        
+        let slotsToSet = data || [];
+        
+        if (isToday) {
+          const now = new Date();
+          const currentHour = now.getHours();
+          const currentMinute = now.getMinutes();
+          
+          slotsToSet = slotsToSet.map((slot: TimeSlot) => {
+            const [slotHour, slotMinute] = slot.start_time.split(':').map(Number);
+            
+            const isPast = (slotHour < currentHour) || 
+                          (slotHour === currentHour && slotMinute <= currentMinute);
+            
+            if (isPast) {
+              return {
+                ...slot,
+                is_available: false,
+                status: 'elapsed' as const
+              };
+            }
+            return slot;
+          });
+        }
+        
+        setAvailableSlots(slotsToSet);
+        setSlotsLoading(false);
+        return;
+      }
       
       if (selectedStations.length === 1) {
         const { data, error } = await supabase.rpc("get_available_slots", {
@@ -905,12 +971,28 @@ export default function PublicBooking() {
     if (selectedStations.length === 0) return 0;
     // Check if we have any slots selected (either single or multiple)
     if (!selectedSlot && selectedSlots.length === 0) return 0;
-    return stations
-      .filter((s) => selectedStations.includes(s.id))
-      .reduce((sum, s) => {
-        const sessionRate = s.type === 'vr' ? s.hourly_rate : s.hourly_rate;
-        return sum + sessionRate;
-      }, 0);
+    
+    const selectedStationObjects = stations.filter((s) => selectedStations.includes(s.id));
+    
+    // Separate PS5 and non-PS5 stations
+    const ps5Stations = selectedStationObjects.filter(s => s.type === 'ps5');
+    const nonPS5Stations = selectedStationObjects.filter(s => s.type !== 'ps5');
+    
+    // Calculate PS5 pricing with dynamic rates
+    let ps5Total = 0;
+    if (ps5Stations.length === 1) {
+      // Single controller: use single_rate if available
+      const station = ps5Stations[0];
+      ps5Total = station.single_rate || station.hourly_rate;
+    } else if (ps5Stations.length > 1) {
+      // Multiple controllers: use regular hourly_rate for all
+      ps5Total = ps5Stations.reduce((sum, s) => sum + s.hourly_rate, 0);
+    }
+    
+    // Calculate non-PS5 pricing (VR, 8-Ball)
+    const nonPS5Total = nonPS5Stations.reduce((sum, s) => sum + s.hourly_rate, 0);
+    
+    return ps5Total + nonPS5Total;
   };
 
   const calculateDiscount = () => {
@@ -1988,7 +2070,81 @@ export default function PublicBooking() {
                 {isCustomerInfoComplete() && (
                   <div className="flex items-center gap-2 text-green-400 text-sm">
                     <CheckCircle className="h-4 w-4" /> Customer information complete!
-                    You can now proceed to station selection.
+                    You can now select your preferred date and time.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
+                    {!isCustomerInfoComplete() ? (
+                      <Lock className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
+                    )}
+                  </div>
+                  Step 2: Choose Date & Time
+                  {isCustomerInfoComplete() && selectedSlot && (
+                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {!isCustomerInfoComplete() ? (
+                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
+                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
+                    <p className="text-gray-400">
+                      Complete customer information to select date and time
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <Label className="text-base font-medium text-gray-200">
+                        Choose Date
+                      </Label>
+                      <div className="mt-2">
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(date) => date && setSelectedDate(date)}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const compareDate = new Date(date);
+                            compareDate.setHours(0, 0, 0, 0);
+                            
+                            return compareDate < today;
+                          }}
+                          className={cn(
+                            "rounded-xl border bg-black/30 border-white/10 pointer-events-auto"
+                          )}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-3 bg-cuephoria-blue/10 border border-cuephoria-blue/20 rounded-lg p-2.5">
+                        <p className="text-xs text-cuephoria-blue flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span><span className="font-medium">Multiple Slot Selection:</span> Click multiple time slots to book consecutive sessions. Click again to deselect.</span>
+                        </p>
+                      </div>
+                      <Label className="text-base font-medium text-gray-200">
+                        Available Time Slots
+                      </Label>
+                      <div className="mt-2">
+                        <TimeSlotPicker
+                          slots={availableSlots}
+                          selectedSlot={selectedSlot}
+                          selectedSlots={selectedSlots}
+                          onSlotSelect={handleSlotSelect}
+                          loading={slotsLoading}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -1999,17 +2155,17 @@ export default function PublicBooking() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
-                      {!isStationSelectionAvailable() ? (
+                      {(!isCustomerInfoComplete() || !selectedSlot) ? (
                         <Lock className="h-4 w-4 text-gray-500" />
                       ) : (
                         <MapPin className="h-4 w-4 text-cuephoria-blue" />
                       )}
                     </div>
                     <CardTitle className="m-0 p-0 text-white">
-                      Step 2: Select Gaming Stations
+                      Step 3: Select Available Stations
                     </CardTitle>
                   </div>
-                  {isStationSelectionAvailable() && selectedStations.length > 0 && (
+                  {isCustomerInfoComplete() && selectedSlot && selectedStations.length > 0 && (
                     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
                       <CheckCircle className="h-3.5 w-3.5" />
                       {selectedStations.length} selected
@@ -2022,7 +2178,7 @@ export default function PublicBooking() {
                 <div
                   className={cn(
                     "grid grid-cols-4 gap-2 sm:gap-3 mb-4",
-                    !isStationSelectionAvailable() && "pointer-events-none"
+                    (!isCustomerInfoComplete() || !selectedSlot) && "pointer-events-none"
                   )}
                 >
                   <Button
@@ -2079,11 +2235,11 @@ export default function PublicBooking() {
                   </Button>
                 </div>
 
-                {!isStationSelectionAvailable() ? (
+                {(!isCustomerInfoComplete() || !selectedSlot) ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                     <p className="text-gray-400">
-                      Complete customer information to unlock station selection
+                      Select date and time first to see available stations
                     </p>
                   </div>
                 ) : (
@@ -2097,82 +2253,6 @@ export default function PublicBooking() {
                       selectedStations={selectedStations}
                       onStationToggle={handleStationToggle}
                     />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
-                    {!isTimeSelectionAvailable() ? (
-                      <Lock className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
-                    )}
-                  </div>
-                  Step 3: Choose Date & Time
-                  {isTimeSelectionAvailable() && selectedSlot && (
-                    <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {!isTimeSelectionAvailable() ? (
-                  <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
-                    <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-                    <p className="text-gray-400">
-                      Select stations to unlock date and time selection
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <Label className="text-base font-medium text-gray-200">
-                        Choose Date
-                      </Label>
-                      <div className="mt-2">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(date) => date && setSelectedDate(date)}
-                          disabled={(date) => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const compareDate = new Date(date);
-                            compareDate.setHours(0, 0, 0, 0);
-                            
-                            return compareDate < today;
-                          }}
-                          className={cn(
-                            "rounded-xl border bg-black/30 border-white/10 pointer-events-auto"
-                          )}
-                        />
-                      </div>
-                    </div>
-                    {selectedStations.length > 0 && (
-                      <div>
-                        <div className="mb-3 bg-cuephoria-blue/10 border border-cuephoria-blue/20 rounded-lg p-2.5">
-                          <p className="text-xs text-cuephoria-blue flex items-center gap-2">
-                            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
-                            <span><span className="font-medium">Multiple Slot Selection:</span> Click multiple time slots to book consecutive sessions. Click again to deselect.</span>
-                          </p>
-                        </div>
-                        <Label className="text-base font-medium text-gray-200">
-                          Available Time Slots
-                        </Label>
-                        <div className="mt-2">
-                          <TimeSlotPicker
-                            slots={availableSlots}
-                            selectedSlot={selectedSlot}
-                            selectedSlots={selectedSlots}
-                            onSlotSelect={handleSlotSelect}
-                            loading={slotsLoading}
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>
