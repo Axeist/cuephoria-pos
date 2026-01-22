@@ -165,6 +165,7 @@ export default function PublicBooking() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [availableStationIds, setAvailableStationIds] = useState<string[]>([]); // NEW: Track which stations are available for selected time
+  const [checkingStationAvailability, setCheckingStationAvailability] = useState(false); // NEW: Loading state for station availability check
   // Generate a unique session ID for this booking session
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
 
@@ -305,16 +306,26 @@ export default function PublicBooking() {
   // NEW: Update available stations when a time slot is selected
   useEffect(() => {
     const updateAvailableStations = async () => {
-      if (selectedSlot || selectedSlots.length > 0) {
-        const available = await getAvailableStationsForSlot();
-        setAvailableStationIds(available);
+      if ((selectedSlot || selectedSlots.length > 0) && stations.length > 0 && selectedDate) {
+        setCheckingStationAvailability(true);
+        try {
+          const available = await getAvailableStationsForSlot();
+          setAvailableStationIds(available);
+        } catch (e) {
+          console.error("Error updating available stations:", e);
+          setAvailableStationIds([]);
+        } finally {
+          setCheckingStationAvailability(false);
+        }
       } else {
         setAvailableStationIds([]);
+        setCheckingStationAvailability(false);
       }
     };
     
     updateAvailableStations();
-  }, [selectedSlot, selectedSlots, selectedDate, stations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlot, selectedSlots, selectedDate, stations.length]);
 
   // Check for booking confirmation from payment success redirect
   useEffect(() => {
@@ -380,169 +391,161 @@ export default function PublicBooking() {
   }
 
   async function fetchAvailableSlots() {
-    // NEW FLOW: Fetch slots even without station selection to show general availability
+    // NEW FLOW: Show time slots as available if ANY station is available
     setSlotsLoading(true);
     try {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
       
-      // If no stations selected, use default 60-minute slots for general availability
-      // Once stations are selected, use appropriate duration
-      const hasVR = selectedStations.some(id => 
-        stations.find(s => s.id === id && s.type === 'vr')
-      );
-      const hasNonVR = selectedStations.some(id => 
-        stations.find(s => s.id === id && s.type !== 'vr')
-      );
-      
-      if (hasVR && hasNonVR) {
-        toast.error("VR sessions cannot be booked with other station types due to different time intervals (VR: 15 min, Others: 60 min)");
-        setSelectedStations(selectedStations.filter(id => 
-          stations.find(s => s.id === id && s.type === 'vr')
-        ));
-        return;
-      }
-      
-      const slotDuration = hasVR ? 15 : 60;
-      
-      // NEW: If no stations selected yet, show all slots for the first available station
-      // This gives users a preview of available times
-      if (selectedStations.length === 0) {
-        if (stations.length === 0) {
-          setAvailableSlots([]);
-          setSlotsLoading(false);
-          return;
-        }
-        
-        // Use first PS5 or 8-ball station for general time slot display
-        const firstStation = stations.find(s => s.type !== 'vr') || stations[0];
-        
-        const { data, error } = await supabase.rpc("get_available_slots", {
-          p_date: dateStr,
-          p_station_id: firstStation.id,
-          p_slot_duration: 60, // Default to 60-minute slots
-        });
-        
-        if (error) throw error;
-        
-        let slotsToSet = data || [];
-        
-        if (isToday) {
-          const now = new Date();
-          const currentHour = now.getHours();
-          const currentMinute = now.getMinutes();
-          
-          slotsToSet = slotsToSet.map((slot: TimeSlot) => {
-            const [slotHour, slotMinute] = slot.start_time.split(':').map(Number);
-            
-            const isPast = (slotHour < currentHour) || 
-                          (slotHour === currentHour && slotMinute <= currentMinute);
-            
-            if (isPast) {
-              return {
-                ...slot,
-                is_available: false,
-                status: 'elapsed' as const
-              };
-            }
-            return slot;
-          });
-        }
-        
-        setAvailableSlots(slotsToSet);
+      if (stations.length === 0) {
+        setAvailableSlots([]);
         setSlotsLoading(false);
         return;
       }
       
-      if (selectedStations.length === 1) {
-        const { data, error } = await supabase.rpc("get_available_slots", {
-          p_date: dateStr,
-          p_station_id: selectedStations[0],
-          p_slot_duration: slotDuration,
-        });
-        if (error) throw error;
-        
-        let slotsToSet = data || [];
-        
-        if (isToday) {
-          const now = new Date();
-          const currentHour = now.getHours();
-          const currentMinute = now.getMinutes();
-          
-          slotsToSet = slotsToSet.map((slot: TimeSlot) => {
-            const [slotHour, slotMinute] = slot.start_time.split(':').map(Number);
+      // Generate all possible time slots (11 AM to 11 PM)
+      const openingTime = 11; // 11 AM
+      const closingTime = 23; // 11 PM
+      
+      const allSlots: TimeSlot[] = [];
+      
+      // Check if user has selected VR stations - if so, use 15-minute slots
+      const hasVRSelected = selectedStations.some(id => 
+        stations.find(s => s.id === id && s.type === 'vr')
+      );
+      
+      if (hasVRSelected) {
+        // VR slots: 15-minute intervals
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          for (let quarter = 0; quarter < 4; quarter++) {
+            const minutes = quarter * 15;
+            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
             
-            const isPast = (slotHour < currentHour) || 
-                          (slotHour === currentHour && slotMinute <= currentMinute);
+            let endHour = hour;
+            let endMinutes = minutes + 15;
+            if (endMinutes >= 60) {
+              endMinutes = 0;
+              endHour = hour + 1;
+            }
+            if (endHour >= 24) {
+              endHour = 0;
+            }
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+            
+            // Check if past
+            let isPast = false;
+            if (isToday) {
+              const now = new Date();
+              const currentHour = now.getHours();
+              const currentMinute = now.getMinutes();
+              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+            }
             
             if (isPast) {
-              return {
-                ...slot,
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
                 is_available: false,
-                status: 'elapsed' as const
-              };
+                status: 'elapsed'
+              });
+              continue;
             }
-            return slot;
-          });
+            
+            // Check VR station availability
+            const vrStations = stations.filter(s => s.type === 'vr');
+            let anyVRAvailable = false;
+            
+            if (vrStations.length > 0) {
+              try {
+                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                  p_date: dateStr,
+                  p_start_time: startTime,
+                  p_end_time: endTime,
+                  p_station_ids: vrStations.map(s => s.id)
+                });
+                
+                if (!availError && availabilityData) {
+                  anyVRAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                }
+              } catch (e) {
+                console.error("Error checking VR availability:", e);
+              }
+            }
+            
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: anyVRAvailable,
+              status: anyVRAvailable ? 'available' : 'booked'
+            });
+          }
         }
-        
-        setAvailableSlots(slotsToSet);
       } else {
-        const results = await Promise.all(
-          selectedStations.map((id) =>
-            supabase.rpc("get_available_slots", {
-              p_date: dateStr,
-              p_station_id: id,
-              p_slot_duration: slotDuration,
-            })
-          )
-        );
-        const base = results.find((r) => !r.error && Array.isArray(r.data))
-          ?.data as TimeSlot[] | undefined;
-        if (!base) {
-          const firstErr = results.find((r) => r.error)?.error;
-          if (firstErr) throw firstErr;
-          setAvailableSlots([]);
-          return;
-        }
-        const key = (s: TimeSlot) => `${s.start_time}-${s.end_time}`;
-        const union = new Map<string, boolean>();
-        base.forEach((s) => union.set(key(s), Boolean(s.is_available)));
-        results.forEach((r) => {
-          (r.data || []).forEach((s: TimeSlot) => {
-            const k = key(s);
-            union.set(k, union.get(k) || Boolean(s.is_available));
-          });
-        });
-        let merged = base.map((s) => ({
-          ...s,
-          is_available: union.get(key(s)) ?? false,
-        }));
-        
-        if (isToday) {
-          const now = new Date();
-          const currentHour = now.getHours();
-          const currentMinute = now.getMinutes();
+        // Regular slots: 60-minute intervals (for PS5 and 8-Ball)
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
+          let endHour = hour + 1;
+          let endTime = `${endHour.toString().padStart(2, '0')}:00:00`;
           
-          merged = merged.map((slot) => {
-            const [slotHour, slotMinute] = slot.start_time.split(':').map(Number);
-            
-            const isPast = (slotHour < currentHour) || 
-                          (slotHour === currentHour && slotMinute <= currentMinute);
-            
-            if (isPast) {
-              return {
-                ...slot,
-                is_available: false,
-                status: 'elapsed' as const
-              };
+          // Handle midnight crossover
+          if (endHour >= 24) {
+            endTime = '00:00:00';
+          }
+          
+          // Check if this slot is past (for today)
+          let isPast = false;
+          if (isToday) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            isPast = hour < currentHour || (hour === currentHour && 0 <= currentMinute);
+          }
+          
+          if (isPast) {
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: false,
+              status: 'elapsed'
+            });
+            continue;
+          }
+          
+          // Check if ANY station is available for this time slot
+          // Check all non-VR stations (PS5 and 8-Ball use 60-min slots)
+          const nonVRStations = stations.filter(s => s.type !== 'vr');
+          
+          let anyStationAvailable = false;
+          
+          if (nonVRStations.length > 0) {
+            try {
+              const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                p_date: dateStr,
+                p_start_time: startTime,
+                p_end_time: endTime,
+                p_station_ids: nonVRStations.map(s => s.id)
+              });
+              
+              if (!availError && availabilityData) {
+                // If ANY station is available, mark the slot as available
+                anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+              }
+            } catch (e) {
+              console.error("Error checking station availability:", e);
             }
-            return slot;
+          }
+          
+          allSlots.push({
+            start_time: startTime,
+            end_time: endTime,
+            is_available: anyStationAvailable,
+            status: anyStationAvailable ? 'available' : 'booked'
           });
         }
-        
-        setAvailableSlots(merged);
       }
+      
+      setAvailableSlots(allSlots);
+      setSlotsLoading(false);
 
       if (
         selectedSlot &&
@@ -985,6 +988,7 @@ export default function PublicBooking() {
   // NEW: Filter stations to show only those available for the selected time slot
   const getAvailableStationsForSlot = async (): Promise<string[]> => {
     if (!selectedSlot && selectedSlots.length === 0) return [];
+    if (stations.length === 0) return [];
     
     const slotsToCheck = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
     if (slotsToCheck.length === 0) return [];
@@ -992,15 +996,19 @@ export default function PublicBooking() {
     const dateStr = format(selectedDate, "yyyy-MM-dd");
     
     try {
-      // Check availability for all stations for the selected slots
+      // Check availability for ALL stations for the selected slots
+      // A station is available if it's free for ALL selected time slots
       const availableStationIds: Set<string> = new Set();
+      
+      // Start with all stations, then filter out unavailable ones
+      const allStationIds = stations.map(s => s.id);
       
       for (const slot of slotsToCheck) {
         const { data, error } = await supabase.rpc("check_stations_availability", {
           p_date: dateStr,
           p_start_time: slot.start_time,
           p_end_time: slot.end_time,
-          p_station_ids: stations.map(s => s.id)
+          p_station_ids: allStationIds
         });
         
         if (error) {
@@ -1009,11 +1017,30 @@ export default function PublicBooking() {
         }
         
         if (data) {
-          data.forEach((item: { station_id: string, is_available: boolean }) => {
-            if (item.is_available) {
-              availableStationIds.add(item.station_id);
-            }
-          });
+          // For the first slot, add all available stations
+          if (availableStationIds.size === 0) {
+            data.forEach((item: { station_id: string, is_available: boolean }) => {
+              if (item.is_available) {
+                availableStationIds.add(item.station_id);
+              }
+            });
+          } else {
+            // For subsequent slots, keep only stations that are available in ALL slots
+            const slotAvailableIds = new Set<string>();
+            data.forEach((item: { station_id: string, is_available: boolean }) => {
+              if (item.is_available) {
+                slotAvailableIds.add(item.station_id);
+              }
+            });
+            // Keep only stations that are available in both previous slots AND this slot
+            const toRemove: string[] = [];
+            availableStationIds.forEach(id => {
+              if (!slotAvailableIds.has(id)) {
+                toRemove.push(id);
+              }
+            });
+            toRemove.forEach(id => availableStationIds.delete(id));
+          }
         }
       }
       
@@ -2301,20 +2328,33 @@ export default function PublicBooking() {
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6">
-                    <StationSelector
-                      stations={
-                        // Filter by type first, then by availability
-                        (stationType === "all"
-                          ? stations
-                          : stations.filter((s) => s.type === stationType)
-                        ).filter(s => 
-                          // Show only stations that are available for the selected time
-                          availableStationIds.length === 0 || availableStationIds.includes(s.id)
-                        )
-                      }
-                      selectedStations={selectedStations}
-                      onStationToggle={handleStationToggle}
-                    />
+                    {checkingStationAvailability ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                        <p>Checking station availability...</p>
+                      </div>
+                    ) : availableStationIds.length === 0 && (selectedSlot || selectedSlots.length > 0) ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
+                        <p>No stations available for the selected time slot</p>
+                        <p className="text-sm mt-2">Please select a different time</p>
+                      </div>
+                    ) : (
+                      <StationSelector
+                        stations={
+                          // Filter by type first, then by availability
+                          (stationType === "all"
+                            ? stations
+                            : stations.filter((s) => s.type === stationType)
+                          ).filter(s => 
+                            // Show only stations that are available for the selected time
+                            availableStationIds.includes(s.id)
+                          )
+                        }
+                        selectedStations={selectedStations}
+                        onStationToggle={handleStationToggle}
+                      />
+                    )}
                   </div>
                 )}
               </CardContent>
