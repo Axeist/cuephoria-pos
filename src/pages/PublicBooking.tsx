@@ -527,8 +527,56 @@ export default function PublicBooking() {
               });
               
               if (!availError && availabilityData) {
-                // If ANY station is available, mark the slot as available
-                anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                // Group PS5 stations by team
+                const teamGroups: Map<string, string[]> = new Map();
+                nonVRStations.forEach(s => {
+                  if (s.team_name && s.type === 'ps5') {
+                    if (!teamGroups.has(s.team_name)) {
+                      teamGroups.set(s.team_name, []);
+                    }
+                    teamGroups.get(s.team_name)!.push(s.id);
+                  }
+                });
+                
+                // Create availability map
+                const availabilityMap = new Map<string, boolean>();
+                availabilityData.forEach((item: { station_id: string, is_available: boolean }) => {
+                  availabilityMap.set(item.station_id, item.is_available);
+                });
+                
+                // For PS5 teams: if ANY controller from a team is booked, ALL controllers from that team are unavailable
+                const unavailableTeamStations = new Set<string>();
+                teamGroups.forEach((teamStationIds, teamName) => {
+                  // Check if ANY controller from this team is booked
+                  const anyBooked = teamStationIds.some(id => {
+                    const isAvailable = availabilityMap.get(id);
+                    return isAvailable === false; // Explicitly booked
+                  });
+                  
+                  if (anyBooked) {
+                    // If any controller is booked, mark ALL controllers from this team as unavailable
+                    teamStationIds.forEach(id => unavailableTeamStations.add(id));
+                  }
+                });
+                
+                // Check if ANY station is available (excluding team-blocked ones)
+                // For non-PS5 stations (8-Ball), use direct availability
+                // For PS5 stations, exclude those blocked by team rules
+                anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => {
+                  const station = nonVRStations.find(s => s.id === item.station_id);
+                  if (!station) return false;
+                  
+                  // For PS5 stations, check team rules
+                  if (station.type === 'ps5' && station.team_name) {
+                    // Station is available only if:
+                    // 1. It's marked as available in database
+                    // 2. No teammate is booked (not in unavailableTeamStations)
+                    return item.is_available && !unavailableTeamStations.has(item.station_id);
+                  }
+                  
+                  // For non-PS5 stations (8-Ball), use direct availability
+                  return item.is_available;
+                });
               }
             } catch (e) {
               console.error("Error checking station availability:", e);
@@ -986,6 +1034,7 @@ export default function PublicBooking() {
   };
 
   // NEW: Filter stations to show only those available for the selected time slot
+  // IMPORTANT: For PS5 teams, if ANY controller from a team is booked, hide ALL controllers from that team
   const getAvailableStationsForSlot = async (): Promise<string[]> => {
     if (!selectedSlot && selectedSlots.length === 0) return [];
     if (stations.length === 0) return [];
@@ -997,11 +1046,19 @@ export default function PublicBooking() {
     
     try {
       // Check availability for ALL stations for the selected slots
-      // A station is available if it's free for ALL selected time slots
       const availableStationIds: Set<string> = new Set();
-      
-      // Start with all stations, then filter out unavailable ones
       const allStationIds = stations.map(s => s.id);
+      
+      // Group stations by team
+      const teamGroups: Map<string, string[]> = new Map();
+      stations.forEach(s => {
+        if (s.team_name) {
+          if (!teamGroups.has(s.team_name)) {
+            teamGroups.set(s.team_name, []);
+          }
+          teamGroups.get(s.team_name)!.push(s.id);
+        }
+      });
       
       for (const slot of slotsToCheck) {
         const { data, error } = await supabase.rpc("check_stations_availability", {
@@ -1017,10 +1074,35 @@ export default function PublicBooking() {
         }
         
         if (data) {
-          // For the first slot, add all available stations
+          // Create a map of station_id -> is_available
+          const availabilityMap = new Map<string, boolean>();
+          data.forEach((item: { station_id: string, is_available: boolean }) => {
+            availabilityMap.set(item.station_id, item.is_available);
+          });
+          
+          // For PS5 teams: if ANY controller from a team is booked, ALL controllers from that team are unavailable
+          const unavailableTeamStations = new Set<string>();
+          
+          teamGroups.forEach((teamStationIds, teamName) => {
+            // Check if ANY controller from this team is booked
+            const anyBooked = teamStationIds.some(id => {
+              const isAvailable = availabilityMap.get(id);
+              return isAvailable === false; // Explicitly booked
+            });
+            
+            if (anyBooked) {
+              // If any controller is booked, mark ALL controllers from this team as unavailable
+              teamStationIds.forEach(id => unavailableTeamStations.add(id));
+            }
+          });
+          
+          // For the first slot, add all available stations (excluding team-blocked ones)
           if (availableStationIds.size === 0) {
             data.forEach((item: { station_id: string, is_available: boolean }) => {
-              if (item.is_available) {
+              // Station is available if:
+              // 1. It's marked as available in the database
+              // 2. It's not blocked by team rules (no teammate is booked)
+              if (item.is_available && !unavailableTeamStations.has(item.station_id)) {
                 availableStationIds.add(item.station_id);
               }
             });
@@ -1028,7 +1110,7 @@ export default function PublicBooking() {
             // For subsequent slots, keep only stations that are available in ALL slots
             const slotAvailableIds = new Set<string>();
             data.forEach((item: { station_id: string, is_available: boolean }) => {
-              if (item.is_available) {
+              if (item.is_available && !unavailableTeamStations.has(item.station_id)) {
                 slotAvailableIds.add(item.station_id);
               }
             });

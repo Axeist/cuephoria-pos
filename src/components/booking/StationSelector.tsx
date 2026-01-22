@@ -72,12 +72,18 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
         return s?.type === 'ps5';
       }).length;
       
-      // If this station is selected or about to be selected
-      const wouldBeSingleController = selectedPS5Count === 0 || 
-        (selectedPS5Count === 1 && selectedStations.includes(station.id));
+      // If exactly ONE PS5 controller is selected (or will be after clicking this one)
+      const isCurrentlySelected = selectedStations.includes(station.id);
+      const willBeSingle = (selectedPS5Count === 0 && !isCurrentlySelected) || 
+                           (selectedPS5Count === 1 && isCurrentlySelected);
       
-      if (wouldBeSingleController && station.single_rate) {
+      // Single controller: ₹200/hour (single_rate)
+      // Multiple controllers: ₹150/hour each (hourly_rate)
+      if (willBeSingle && station.single_rate) {
         return `₹${station.single_rate}/hour`;
+      } else {
+        // Multiple controllers selected - show regular rate
+        return `₹${station.hourly_rate}/hour`;
       }
     }
     
