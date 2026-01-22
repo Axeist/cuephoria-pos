@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Monitor, GamepadIcon, Headset, Users, EyeOff } from 'lucide-react';
-import { getTeamBadge, getHiddenStations, calculatePS5Price } from '@/utils/ps5Teams';
+import { getTeamBadge } from '@/utils/ps5Teams';
 import { cn } from '@/lib/utils';
 
 interface Station {
@@ -94,11 +94,10 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
     return `₹${station.hourly_rate}/hour`;
   };
 
-  // Get hidden stations based on team selection
-  const hiddenStationIds = hideTeammates ? getHiddenStations(selectedStations, stations) : [];
-  
-  // Filter out hidden stations
-  const visibleStations = stations.filter(s => !hiddenStationIds.includes(s.id));
+  // Don't hide teammates just because one is selected
+  // Only hide based on actual booking conflicts (handled in getAvailableStationsForSlot)
+  // This allows users to see all available stations even if they select one from a team
+  const visibleStations = stations;
 
   if (loading) {
     return (

@@ -527,55 +527,11 @@ export default function PublicBooking() {
               });
               
               if (!availError && availabilityData) {
-                // Group PS5 stations by team
-                const teamGroups: Map<string, string[]> = new Map();
-                nonVRStations.forEach(s => {
-                  if (s.team_name && s.type === 'ps5') {
-                    if (!teamGroups.has(s.team_name)) {
-                      teamGroups.set(s.team_name, []);
-                    }
-                    teamGroups.get(s.team_name)!.push(s.id);
-                  }
-                });
-                
-                // Create availability map
-                const availabilityMap = new Map<string, boolean>();
-                availabilityData.forEach((item: { station_id: string, is_available: boolean }) => {
-                  availabilityMap.set(item.station_id, item.is_available);
-                });
-                
-                // For PS5 teams: if ANY controller from a team is booked, ALL controllers from that team are unavailable
-                const unavailableTeamStations = new Set<string>();
-                teamGroups.forEach((teamStationIds, teamName) => {
-                  // Check if ANY controller from this team is booked
-                  const anyBooked = teamStationIds.some(id => {
-                    const isAvailable = availabilityMap.get(id);
-                    return isAvailable === false; // Explicitly booked
-                  });
-                  
-                  if (anyBooked) {
-                    // If any controller is booked, mark ALL controllers from this team as unavailable
-                    teamStationIds.forEach(id => unavailableTeamStations.add(id));
-                  }
-                });
-                
-                // Check if ANY station is available (excluding team-blocked ones)
-                // For non-PS5 stations (8-Ball), use direct availability
-                // For PS5 stations, exclude those blocked by team rules
+                // TIME SLOT AVAILABILITY: Show as available if ANY station is free
+                // Don't restrict by teams here - let users see all available time slots
+                // Team restrictions will be applied in Step 3 (station selection)
                 anyStationAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => {
-                  const station = nonVRStations.find(s => s.id === item.station_id);
-                  if (!station) return false;
-                  
-                  // For PS5 stations, check team rules
-                  if (station.type === 'ps5' && station.team_name) {
-                    // Station is available only if:
-                    // 1. It's marked as available in database
-                    // 2. No teammate is booked (not in unavailableTeamStations)
-                    return item.is_available && !unavailableTeamStations.has(item.station_id);
-                  }
-                  
-                  // For non-PS5 stations (8-Ball), use direct availability
-                  return item.is_available;
+                  return item.is_available; // If ANY station is available, slot is available
                 });
               }
             } catch (e) {
@@ -682,6 +638,7 @@ export default function PublicBooking() {
     if (!station) return;
     
     if (!selectedStations.includes(id)) {
+      // Check VR mixing
       const hasVR = selectedStations.some(stationId => 
         stations.find(s => s.id === stationId && s.type === 'vr')
       );
@@ -692,6 +649,19 @@ export default function PublicBooking() {
       if ((station.type === 'vr' && hasNonVR) || (station.type !== 'vr' && hasVR)) {
         toast.error("Cannot mix VR stations with other types due to different time intervals");
         return;
+      }
+      
+      // Check PS5 team conflict: prevent selecting multiple controllers from the same team
+      if (station.type === 'ps5' && station.team_name) {
+        const selectedFromSameTeam = selectedStations.filter(selectedId => {
+          const selectedStation = stations.find(s => s.id === selectedId);
+          return selectedStation?.type === 'ps5' && selectedStation?.team_name === station.team_name;
+        });
+        
+        if (selectedFromSameTeam.length > 0) {
+          toast.error(`Cannot select multiple controllers from ${station.team_name}. They share the same PS5 console.`);
+          return;
+        }
       }
     }
     
