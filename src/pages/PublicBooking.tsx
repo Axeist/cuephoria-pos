@@ -164,6 +164,7 @@ export default function PublicBooking() {
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
+  const [availableStationIds, setAvailableStationIds] = useState<string[]>([]); // NEW: Track which stations are available for selected time
   // Generate a unique session ID for this booking session
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
 
@@ -300,6 +301,20 @@ export default function PublicBooking() {
       fetchAvailableSlots();
     }
   }, [selectedStations]);
+  
+  // NEW: Update available stations when a time slot is selected
+  useEffect(() => {
+    const updateAvailableStations = async () => {
+      if (selectedSlot || selectedSlots.length > 0) {
+        const available = await getAvailableStationsForSlot();
+        setAvailableStationIds(available);
+      } else {
+        setAvailableStationIds([]);
+      }
+    };
+    
+    updateAvailableStations();
+  }, [selectedSlot, selectedSlots, selectedDate, stations]);
 
   // Check for booking confirmation from payment success redirect
   useEffect(() => {
@@ -629,11 +644,11 @@ export default function PublicBooking() {
       }
     }
     
+    // Update selected stations without clearing slot selection
     setSelectedStations((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
-    setSelectedSlot(null);
-    setSelectedSlots([]);
+    // DON'T reset slots - keep the selected time
   };
 
   async function filterStationsForSlot(slot: TimeSlot) {
@@ -965,6 +980,48 @@ export default function PublicBooking() {
   const handleCouponApply = () => {
     applyCoupon(couponCode);
     setCouponCode("");
+  };
+
+  // NEW: Filter stations to show only those available for the selected time slot
+  const getAvailableStationsForSlot = async (): Promise<string[]> => {
+    if (!selectedSlot && selectedSlots.length === 0) return [];
+    
+    const slotsToCheck = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
+    if (slotsToCheck.length === 0) return [];
+    
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    
+    try {
+      // Check availability for all stations for the selected slots
+      const availableStationIds: Set<string> = new Set();
+      
+      for (const slot of slotsToCheck) {
+        const { data, error } = await supabase.rpc("check_stations_availability", {
+          p_date: dateStr,
+          p_start_time: slot.start_time,
+          p_end_time: slot.end_time,
+          p_station_ids: stations.map(s => s.id)
+        });
+        
+        if (error) {
+          console.error("Error checking station availability:", error);
+          continue;
+        }
+        
+        if (data) {
+          data.forEach((item: { station_id: string, is_available: boolean }) => {
+            if (item.is_available) {
+              availableStationIds.add(item.station_id);
+            }
+          });
+        }
+      }
+      
+      return Array.from(availableStationIds);
+    } catch (e) {
+      console.error("Error getting available stations:", e);
+      return [];
+    }
   };
 
   const calculateOriginalPrice = () => {
@@ -2246,9 +2303,14 @@ export default function PublicBooking() {
                   <div className="rounded-2xl border border-white/10 p-3 sm:p-4 bg-white/6">
                     <StationSelector
                       stations={
-                        stationType === "all"
+                        // Filter by type first, then by availability
+                        (stationType === "all"
                           ? stations
                           : stations.filter((s) => s.type === stationType)
+                        ).filter(s => 
+                          // Show only stations that are available for the selected time
+                          availableStationIds.length === 0 || availableStationIds.includes(s.id)
+                        )
                       }
                       selectedStations={selectedStations}
                       onStationToggle={handleStationToggle}
