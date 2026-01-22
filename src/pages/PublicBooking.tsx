@@ -651,18 +651,9 @@ export default function PublicBooking() {
         return;
       }
       
-      // Check PS5 team conflict: prevent selecting multiple controllers from the same team
-      if (station.type === 'ps5' && station.team_name) {
-        const selectedFromSameTeam = selectedStations.filter(selectedId => {
-          const selectedStation = stations.find(s => s.id === selectedId);
-          return selectedStation?.type === 'ps5' && selectedStation?.team_name === station.team_name;
-        });
-        
-        if (selectedFromSameTeam.length > 0) {
-          toast.error(`Cannot select multiple controllers from ${station.team_name}. They share the same PS5 console.`);
-          return;
-        }
-      }
+      // REMOVED: Team conflict check - allow selecting multiple controllers from same team
+      // Team-based filtering will be handled by booking availability checks in getAvailableStationsForSlot
+      // This allows users to select multiple controllers if there are no existing bookings
     }
     
     // Update selected stations without clearing slot selection
