@@ -241,6 +241,15 @@ export default function PublicBooking() {
     [hasSearched, customerNumber, customerInfo]
   );
 
+  // When switching to NIT EVENT, force-remove any applied coupons
+  useEffect(() => {
+    if (isNitEventBooking === true && Object.keys(appliedCoupons).length > 0) {
+      setAppliedCoupons({});
+      setCouponCode("");
+      toast.info("Coupons are not applicable for NIT Event bookings.", { duration: 2500 });
+    }
+  }, [isNitEventBooking, appliedCoupons]);
+
   // Old PhonePe payment handling removed - now using Razorpay with separate success page
 
   // Check for logged-in customer and auto-fill information
@@ -1046,6 +1055,12 @@ export default function PublicBooking() {
   }
 
   function applyCoupon(raw: string) {
+    // Block all coupon usage for NIT Event bookings
+    if (isNitEventBooking === true) {
+      toast.error("Coupons cannot be applied for NIT Event bookings.");
+      return;
+    }
+
     const code = (raw || "").toUpperCase().trim();
     if (!allowedCoupons.includes(code)) {
       toast.error("🚫 Invalid coupon code. Please re-check and try again!");
@@ -2373,12 +2388,12 @@ export default function PublicBooking() {
               Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria
             </p>
 
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-gray-300 backdrop-blur-md">
-              <span className="font-semibold tracking-wide">Line of Business:</span>
-              <span>
-                Amusement & Gaming Lounge Services (time-based PS5, 8-Ball & VR rentals)
-              </span>
-            </div>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-gray-300 backdrop-blur-md">
+                <span className="font-semibold tracking-wide">Line of Business:</span>
+                <span>
+                  Amusement & Gaming Lounge Services (time-based PS5, 8-Ball & VR rentals)
+                </span>
+              </div>
           </div>
         </div>
       </header>
@@ -2936,37 +2951,38 @@ export default function PublicBooking() {
                   </div>
                 )}
 
-                <div>
-                  <Label className="text-xs font-semibold text-gray-400 uppercase">
-                    Coupon Code
-                  </Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon code"
-                      className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl flex-1"
-                    />
-                    <Button
-                      onClick={handleCouponApply}
-                      size="sm"
-                      className="rounded-xl bg-green-600 hover:bg-green-700"
-                    >
-                      Apply
-                    </Button>
-                  </div>
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    All discounts and totals are calculated in INR (₹).
-                  </p>
-                  
-                  {/* Coupon Rules - Redesigned with Apply Buttons and Expandable */}
-                  <div className="mt-3 space-y-2">
-                    <Label className="text-xs font-semibold text-gray-400 uppercase mb-2 block">
-                      📝 Available Coupons
+                {isNitEventBooking !== true && (
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-400 uppercase">
+                      Coupon Code
                     </Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Enter coupon code"
+                        className="bg-black/30 border-white/10 text-white placeholder:text-gray-500 rounded-xl flex-1"
+                      />
+                      <Button
+                        onClick={handleCouponApply}
+                        size="sm"
+                        className="rounded-xl bg-green-600 hover:bg-green-700"
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      All discounts and totals are calculated in INR (₹).
+                    </p>
                     
-                    <div className="space-y-2.5">
-                      {/* NIT35 - Expandable */}
+                    {/* Coupon Rules - Redesigned with Apply Buttons and Expandable */}
+                    <div className="mt-3 space-y-2">
+                      <Label className="text-xs font-semibold text-gray-400 uppercase mb-2 block">
+                        📝 Available Coupons
+                      </Label>
+                      
+                      <div className="space-y-2.5">
+                      {/* NIT35 - Expandable (not available for NIT Event bookings themselves, only regular) */}
                       <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
                         <div 
                           className="p-2 cursor-pointer flex items-center justify-between"
@@ -3125,8 +3141,9 @@ export default function PublicBooking() {
                           </div>
                         )}
                       </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {Object.entries(appliedCoupons).length > 0 && (
                     <div className="mt-3 space-y-2">
