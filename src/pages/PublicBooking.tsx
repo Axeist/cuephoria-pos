@@ -230,6 +230,11 @@ export default function PublicBooking() {
   const [paymentStatus, setPaymentStatus] = useState<"processing" | "success" | "failed" | null>(null);
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
   const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
+  
+  // NIT EVENT booking state
+  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not asked yet, true = NIT EVENT, false = regular
+  const [showNitEventDialog, setShowNitEventDialog] = useState(false);
+  const [hasShownNitEventDialog, setHasShownNitEventDialog] = useState(false);
 
   // Old PhonePe payment handling removed - now using Razorpay with separate success page
 
@@ -257,6 +262,33 @@ export default function PublicBooking() {
     fetchStations();
     fetchTodaysBookings();
   }, []);
+
+  // Check if we need to show NIT EVENT dialog after Step 1
+  useEffect(() => {
+    if (isCustomerInfoComplete() && !hasShownNitEventDialog && isNitEventBooking === null) {
+      // Check if there are any enabled event stations
+      const hasEnabledEventStations = stations.some(s => s.category === 'nit_event' && s.event_enabled);
+      if (hasEnabledEventStations) {
+        setShowNitEventDialog(true);
+        setHasShownNitEventDialog(true);
+      } else {
+        // No event stations enabled, default to regular booking
+        setIsNitEventBooking(false);
+        setHasShownNitEventDialog(true);
+      }
+    }
+  }, [isCustomerInfoComplete(), stations, hasShownNitEventDialog, isNitEventBooking]);
+
+  // Reset booking type when customer info is cleared
+  useEffect(() => {
+    if (!isCustomerInfoComplete()) {
+      setIsNitEventBooking(null);
+      setHasShownNitEventDialog(false);
+      setSelectedStations([]);
+      setSelectedSlot(null);
+      setSelectedSlots([]);
+    }
+  }, [isCustomerInfoComplete()]);
 
   useEffect(() => {
     if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
@@ -421,27 +453,184 @@ export default function PublicBooking() {
       
       const allSlots: TimeSlot[] = [];
       
-      // Determine slot duration from selected stations
-      // Priority: Use slot_duration from first selected station, or fallback to type-based logic
+      // Determine slot duration based on booking type and selected stations
+      // For NIT EVENT: PS5/8ball = 30min, VR = 15min
+      // For Regular: PS5/8ball = 60min, VR = 15min
       let slotDuration = 60; // Default
-      if (selectedStations.length > 0) {
-        const firstStation = stations.find(s => selectedStations.includes(s.id));
-        if (firstStation) {
-          slotDuration = getSlotDuration(firstStation);
-        } else {
-          // Fallback: Check if any selected station is VR
+      
+      if (isNitEventBooking === true) {
+        // NIT EVENT booking: Check if VR is selected
+        if (selectedStations.length > 0) {
           const hasVRSelected = selectedStations.some(id => 
             stations.find(s => s.id === id && s.type === 'vr')
           );
-          slotDuration = hasVRSelected ? 15 : 60;
+          // For NIT EVENT, we need to generate both 30min and 15min slots
+          // We'll handle this specially below
+          slotDuration = hasVRSelected ? 15 : 30;
+        } else {
+          // No stations selected yet, default to 30min for NIT EVENT
+          slotDuration = 30;
         }
-      } else if (stations.length > 0) {
-        // No stations selected yet, use first station's duration as default
-        slotDuration = getSlotDuration(stations[0]);
+      } else {
+        // Regular booking: Use slot_duration from first selected station, or fallback to type-based logic
+        if (selectedStations.length > 0) {
+          const firstStation = stations.find(s => selectedStations.includes(s.id));
+          if (firstStation) {
+            slotDuration = getSlotDuration(firstStation);
+          } else {
+            // Fallback: Check if any selected station is VR
+            const hasVRSelected = selectedStations.some(id => 
+              stations.find(s => s.id === id && s.type === 'vr')
+            );
+            slotDuration = hasVRSelected ? 15 : 60;
+          }
+        } else if (stations.length > 0) {
+          // No stations selected yet, use first station's duration as default
+          slotDuration = getSlotDuration(stations[0]);
+        }
       }
       
-      if (slotDuration === 15) {
-        // VR slots: 15-minute intervals
+      // For NIT EVENT, generate both 30min and 15min slots if needed
+      if (isNitEventBooking === true) {
+        // Generate 30-minute slots for PS5 and 8-Ball
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          for (let half = 0; half < 2; half++) {
+            const minutes = half * 30;
+            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            
+            let endHour = hour;
+            let endMinutes = minutes + 30;
+            if (endMinutes >= 60) {
+              endMinutes = 0;
+              endHour = hour + 1;
+            }
+            if (endHour >= 24) {
+              endHour = 0;
+            }
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+            
+            // Check if past
+            let isPast = false;
+            if (isToday) {
+              const now = new Date();
+              const currentHour = now.getHours();
+              const currentMinute = now.getMinutes();
+              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+            }
+            
+            if (isPast) {
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: false,
+                status: 'elapsed'
+              });
+              continue;
+            }
+            
+            // Check availability for PS5 and 8-Ball event stations (30min slots)
+            const eventStations30min = stations.filter(s => 
+              (s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')) &&
+              (selectedStations.length === 0 || selectedStations.includes(s.id))
+            );
+            let anyAvailable30min = false;
+            
+            if (eventStations30min.length > 0) {
+              try {
+                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                  p_date: dateStr,
+                  p_start_time: startTime,
+                  p_end_time: endTime,
+                  p_station_ids: eventStations30min.map(s => s.id)
+                });
+                
+                if (!availError && availabilityData) {
+                  anyAvailable30min = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                }
+              } catch (e) {
+                console.error("Error checking 30min event station availability:", e);
+              }
+            }
+            
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: anyAvailable30min,
+              status: anyAvailable30min ? 'available' : 'booked'
+            });
+          }
+        }
+        
+        // Generate 15-minute slots for VR event stations
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          for (let quarter = 0; quarter < 4; quarter++) {
+            const minutes = quarter * 15;
+            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            
+            let endHour = hour;
+            let endMinutes = minutes + 15;
+            if (endMinutes >= 60) {
+              endMinutes = 0;
+              endHour = hour + 1;
+            }
+            if (endHour >= 24) {
+              endHour = 0;
+            }
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+            
+            // Check if past
+            let isPast = false;
+            if (isToday) {
+              const now = new Date();
+              const currentHour = now.getHours();
+              const currentMinute = now.getMinutes();
+              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+            }
+            
+            if (isPast) {
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: false,
+                status: 'elapsed'
+              });
+              continue;
+            }
+            
+            // Check availability for VR event stations (15min slots)
+            const eventVrStations = stations.filter(s => 
+              s.category === 'nit_event' && s.event_enabled && s.type === 'vr' &&
+              (selectedStations.length === 0 || selectedStations.includes(s.id))
+            );
+            let anyVRAvailable = false;
+            
+            if (eventVrStations.length > 0) {
+              try {
+                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                  p_date: dateStr,
+                  p_start_time: startTime,
+                  p_end_time: endTime,
+                  p_station_ids: eventVrStations.map(s => s.id)
+                });
+                
+                if (!availError && availabilityData) {
+                  anyVRAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                }
+              } catch (e) {
+                console.error("Error checking VR event station availability:", e);
+              }
+            }
+            
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: anyVRAvailable,
+              status: anyVRAvailable ? 'available' : 'booked'
+            });
+          }
+        }
+      } else if (slotDuration === 15) {
+        // VR slots: 15-minute intervals (regular booking)
         for (let hour = openingTime; hour <= closingTime; hour++) {
           for (let quarter = 0; quarter < 4; quarter++) {
             const minutes = quarter * 15;
@@ -1102,7 +1291,32 @@ export default function PublicBooking() {
     try {
       // Check availability for ALL stations for the selected slots
       const availableStationIds: Set<string> = new Set();
-      const allStationIds = stations.map(s => s.id);
+      
+      // For NIT EVENT, filter stations by slot duration
+      // 30min slots should only show PS5/8ball stations, 15min slots should only show VR stations
+      let stationsToCheck = stations;
+      if (isNitEventBooking === true && slotsToCheck.length > 0) {
+        // Get the duration of the first slot (in minutes)
+        const firstSlot = slotsToCheck[0];
+        const slotDurationMinutes = (() => {
+          const start = new Date(`2000-01-01T${firstSlot.start_time}`);
+          const end = new Date(`2000-01-01T${firstSlot.end_time}`);
+          return (end.getTime() - start.getTime()) / (1000 * 60);
+        })();
+        
+        // Filter stations by duration: 30min = PS5/8ball, 15min = VR
+        if (slotDurationMinutes === 30) {
+          stationsToCheck = stations.filter(s => 
+            s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')
+          );
+        } else if (slotDurationMinutes === 15) {
+          stationsToCheck = stations.filter(s => 
+            s.category === 'nit_event' && s.event_enabled && s.type === 'vr'
+          );
+        }
+      }
+      
+      const allStationIds = stationsToCheck.map(s => s.id);
       
       // Group stations by team
       const teamGroups: Map<string, string[]> = new Map();
@@ -1416,20 +1630,25 @@ export default function PublicBooking() {
       
       // Create bookings for each selected slot
       // Price per booking = price per slot (since each slot is independent)
+      // For NIT EVENT, calculate duration per station (30min for PS5/8ball, 15min for VR)
       const rows = slotsToBook.flatMap((slot) =>
-        selectedStations.map((stationId) => ({
-          station_id: stationId,
-          customer_id: customerId!,
-          booking_date: format(selectedDate, "yyyy-MM-dd"),
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          duration: bookingDuration,
-          status: "confirmed",
-          original_price: originalPrice,
-          discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-          final_price: finalPrice,
-          coupon_code: couponCodes || null,
-        }))
+        selectedStations.map((stationId) => {
+          const station = stations.find(s => s.id === stationId);
+          const stationDuration = station ? getSlotDuration(station) : bookingDuration;
+          return {
+            station_id: stationId,
+            customer_id: customerId!,
+            booking_date: format(selectedDate, "yyyy-MM-dd"),
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            duration: stationDuration,
+            status: "confirmed",
+            original_price: originalPrice,
+            discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+            final_price: finalPrice,
+            coupon_code: couponCodes || null,
+          };
+        })
       );
 
       // STEP 1: Check for conflicts and create slot blocks
@@ -2454,19 +2673,27 @@ export default function PublicBooking() {
                   >
                     VR
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType("nit_event")}
-                    className={cn(
-                      "h-9 rounded-full border-white/15 text-[12px]",
-                      stationType === "nit_event"
-                        ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                        : "bg-transparent text-yellow-400"
-                    )}
-                  >
-                    NIT EVENT
-                  </Button>
+                  {isNitEventBooking !== true && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStationType("nit_event")}
+                      className={cn(
+                        "h-9 rounded-full border-white/15 text-[12px]",
+                        stationType === "nit_event"
+                          ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                          : "bg-transparent text-yellow-400"
+                      )}
+                    >
+                      NIT EVENT
+                    </Button>
+                  )}
+                  {isNitEventBooking === true && (
+                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[12px]">
+                      <Calendar className="h-3.5 w-3.5" />
+                      NIT EVENT
+                    </div>
+                  )}
                 </div>
 
                 {(!isCustomerInfoComplete() || !selectedSlot) ? (
@@ -2492,8 +2719,12 @@ export default function PublicBooking() {
                     ) : (
                       <StationSelector
                         stations={
-                          // Filter by type/category first, then by availability
-                          (stationType === "all"
+                          // Filter by booking type (NIT EVENT vs Regular), then by type/category, then by availability
+                          (isNitEventBooking === true
+                            ? stationType === "all"
+                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // All NIT EVENT stations
+                              : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType) // NIT EVENT stations by type
+                            : stationType === "all"
                             ? stations.filter(s => !s.category || s.category !== 'nit_event') // All regular stations
                             : stationType === "nit_event"
                             ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // NIT EVENT stations only
@@ -3532,6 +3763,69 @@ export default function PublicBooking() {
                 className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
               >
                 Not Yet
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NIT EVENT Booking Type Dialog */}
+      <Dialog open={showNitEventDialog} onOpenChange={(open) => {
+        if (!open && isNitEventBooking === null) {
+          // If user tries to close without selecting, default to regular
+          setIsNitEventBooking(false);
+          setShowNitEventDialog(false);
+        }
+      }}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-yellow-500/30 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <Calendar className="h-6 w-6 text-yellow-400" />
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-orange-400">
+                Select Booking Type
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-300 text-center">
+              Is this booking for the <span className="font-bold text-yellow-400">NIT EVENT</span> or a <span className="font-bold text-cuephoria-purple">Regular</span> booking?
+            </p>
+            <div className="space-y-3">
+              <Button
+                onClick={() => {
+                  setIsNitEventBooking(true);
+                  setShowNitEventDialog(false);
+                  toast.success("🎯 NIT EVENT mode selected! You can now book PS5, 8-Ball, and VR with 30min/15min slots.", {
+                    duration: 4000
+                  });
+                }}
+                className="w-full h-auto py-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 hover:from-yellow-500/30 hover:to-orange-500/30 text-yellow-300 font-bold text-lg"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Calendar className="h-6 w-6" />
+                  <span>NIT EVENT</span>
+                  <span className="text-xs font-normal text-yellow-200/80">
+                    PS5 & 8-Ball: 30min slots | VR: 15min slots
+                  </span>
+                </div>
+              </Button>
+              <Button
+                onClick={() => {
+                  setIsNitEventBooking(false);
+                  setShowNitEventDialog(false);
+                  toast.info("📅 Regular booking mode selected.", {
+                    duration: 2000
+                  });
+                }}
+                className="w-full h-auto py-4 bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-2 border-cuephoria-purple/40 hover:from-cuephoria-purple/30 hover:to-cuephoria-lightpurple/30 text-cuephoria-lightpurple font-bold text-lg"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Gamepad2 className="h-6 w-6" />
+                  <span>Regular Booking</span>
+                  <span className="text-xs font-normal text-cuephoria-lightpurple/80">
+                    Standard booking flow
+                  </span>
+                </div>
               </Button>
             </div>
           </div>

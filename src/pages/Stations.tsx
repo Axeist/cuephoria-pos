@@ -83,6 +83,36 @@ const Stations = () => {
     }
   };
 
+  const handleToggleAllEventStations = async (enable: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('stations')
+        .update({ event_enabled: enable })
+        .eq('category', 'nit_event');
+      
+      if (error) throw error;
+      
+      // Update local state
+      setStations(stations.map(s => 
+        s.category === 'nit_event'
+          ? { ...s, eventEnabled: enable }
+          : s
+      ));
+      
+      toast({
+        title: enable ? "All Event Stations Enabled" : "All Event Stations Disabled",
+        description: `All NIT EVENT stations ${enable ? 'will now appear' : 'will no longer appear'} on public booking page.`,
+      });
+    } catch (error) {
+      console.error('Error toggling all event stations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update event status",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="flex-1 space-y-3 sm:space-y-4 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6">
       {/* Mobile-optimized header */}
@@ -241,6 +271,26 @@ const Stations = () => {
                 <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
                   {enabledEventStations} enabled
                 </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleToggleAllEventStations(true)}
+                  className="text-xs h-8 bg-yellow-500/20 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/30"
+                >
+                  <ToggleRight className="h-3.5 w-3.5 mr-1" />
+                  Enable All
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleToggleAllEventStations(false)}
+                  className="text-xs h-8 bg-gray-500/20 border-gray-500/30 text-gray-400 hover:bg-gray-500/30"
+                >
+                  <ToggleLeft className="h-3.5 w-3.5 mr-1" />
+                  Disable All
+                </Button>
               </div>
             </div>
             
