@@ -2,27 +2,48 @@ import React, { useState } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import { Card, CardContent } from '@/components/ui/card';
-import { Gamepad2, Plus, Table2, Headset } from 'lucide-react';
+import { Gamepad2, Plus, Table2, Headset, Calendar, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import AddStationDialog from '@/components/AddStationDialog';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const Stations = () => {
-  const { stations } = usePOS();
+  const { stations, setStations } = usePOS();
+  const { toast } = useToast();
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
   const isMobile = useIsMobile();
   
-  // Separate stations by type
-  const ps5Stations = stations.filter(station => station.type === 'ps5');
-  const ballStations = stations.filter(station => station.type === '8ball');
-  const vrStations = stations.filter(station => station.type === 'vr');
+  // Separate stations by category and type
+  const regularStations = stations.filter(station => !station.category || station.category !== 'nit_event');
+  const eventStations = stations.filter(station => station.category === 'nit_event');
+  
+  // Regular stations by type
+  const ps5Stations = regularStations.filter(station => station.type === 'ps5');
+  const ballStations = regularStations.filter(station => station.type === '8ball');
+  const vrStations = regularStations.filter(station => station.type === 'vr');
+
+  // Event stations by type
+  const eventPs5Stations = eventStations.filter(station => station.type === 'ps5');
+  const eventBallStations = eventStations.filter(station => station.type === '8ball');
+  const eventVrStations = eventStations.filter(station => station.type === 'vr');
 
   // Count active stations
   const activePs5 = ps5Stations.filter(s => s.isOccupied).length;
   const activeBall = ballStations.filter(s => s.isOccupied).length;
   const activeVr = vrStations.filter(s => s.isOccupied).length;
+  
+  const activeEventPs5 = eventPs5Stations.filter(s => s.isOccupied).length;
+  const activeEventBall = eventBallStations.filter(s => s.isOccupied).length;
+  const activeEventVr = eventVrStations.filter(s => s.isOccupied).length;
+  
+  // Count enabled event stations
+  const enabledEventStations = eventStations.filter(s => s.eventEnabled).length;
 
   const handleAddStationClick = () => {
     setOpenPinDialog(true);
@@ -30,6 +51,36 @@ const Stations = () => {
 
   const handlePinSuccess = () => {
     setOpenAddDialog(true);
+  };
+  
+  const handleToggleEventEnabled = async (stationId: string, currentValue: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('stations')
+        .update({ event_enabled: !currentValue })
+        .eq('id', stationId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setStations(stations.map(s => 
+        s.id === stationId 
+          ? { ...s, eventEnabled: !currentValue }
+          : s
+      ));
+      
+      toast({
+        title: !currentValue ? "Event Enabled" : "Event Disabled",
+        description: `Station ${!currentValue ? 'will now appear' : 'will no longer appear'} on public booking page.`,
+      });
+    } catch (error) {
+      console.error('Error toggling event enabled:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update event status",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -177,6 +228,140 @@ const Stations = () => {
             }
           </div>
         </div>
+
+        {/* NIT EVENT Stations Section */}
+        {eventStations.length > 0 && (
+          <div className="animate-slide-up delay-500 border-t border-yellow-500/30 pt-6 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-400 mr-2" />
+                <h3 className="text-base sm:text-xl font-semibold font-heading text-yellow-400">
+                  NIT EVENT Stations
+                </h3>
+                <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
+                  {enabledEventStations} enabled
+                </span>
+              </div>
+            </div>
+            
+            {/* Event PS5 Stations */}
+            {eventPs5Stations.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center mb-3">
+                  <Gamepad2 className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 mr-2" />
+                  <h4 className="text-sm sm:text-lg font-semibold">Event PS5</h4>
+                  <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
+                    {activeEventPs5} active
+                  </span>
+                </div>
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {eventPs5Stations
+                    .sort((a, b) => {
+                      const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                      const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                      return numA - numB;
+                    })
+                    .map((station, index) => (
+                      <div key={station.id} className="relative">
+                        <div className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
+                          <StationCard station={station} />
+                        </div>
+                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-black/70 rounded-lg p-2">
+                          <Label htmlFor={`event-toggle-${station.id}`} className="text-xs text-yellow-400">
+                            {station.eventEnabled ? 'Enabled' : 'Disabled'}
+                          </Label>
+                          <Switch
+                            id={`event-toggle-${station.id}`}
+                            checked={station.eventEnabled || false}
+                            onCheckedChange={() => handleToggleEventEnabled(station.id, station.eventEnabled || false)}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
+            
+            {/* Event 8-Ball Stations */}
+            {eventBallStations.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center mb-3">
+                  <Table2 className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 mr-2" />
+                  <h4 className="text-sm sm:text-lg font-semibold">Event 8-Ball</h4>
+                  <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
+                    {activeEventBall} active
+                  </span>
+                </div>
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+                  {eventBallStations
+                    .sort((a, b) => {
+                      const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                      const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                      return numA - numB;
+                    })
+                    .map((station, index) => (
+                      <div key={station.id} className="relative">
+                        <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
+                          <StationCard station={station} />
+                        </div>
+                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-black/70 rounded-lg p-2">
+                          <Label htmlFor={`event-toggle-${station.id}`} className="text-xs text-yellow-400">
+                            {station.eventEnabled ? 'Enabled' : 'Disabled'}
+                          </Label>
+                          <Switch
+                            id={`event-toggle-${station.id}`}
+                            checked={station.eventEnabled || false}
+                            onCheckedChange={() => handleToggleEventEnabled(station.id, station.eventEnabled || false)}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
+            
+            {/* Event VR Stations */}
+            {eventVrStations.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center mb-3">
+                  <Headset className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 mr-2" />
+                  <h4 className="text-sm sm:text-lg font-semibold">Event VR</h4>
+                  <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
+                    {activeEventVr} active
+                  </span>
+                </div>
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {eventVrStations
+                    .sort((a, b) => {
+                      const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+                      const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+                      return numA - numB;
+                    })
+                    .map((station, index) => (
+                      <div key={station.id} className="relative">
+                        <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
+                          <StationCard station={station} />
+                        </div>
+                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-black/70 rounded-lg p-2">
+                          <Label htmlFor={`event-toggle-${station.id}`} className="text-xs text-yellow-400">
+                            {station.eventEnabled ? 'Enabled' : 'Disabled'}
+                          </Label>
+                          <Switch
+                            id={`event-toggle-${station.id}`}
+                            checked={station.eventEnabled || false}
+                            onCheckedChange={() => handleToggleEventEnabled(station.id, station.eventEnabled || false)}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -62,6 +62,9 @@ interface Station {
   team_color?: string | null;
   max_capacity?: number | null;
   single_rate?: number | null;
+  category?: string | null;
+  event_enabled?: boolean | null;
+  slot_duration?: number | null;
 }
 interface TimeSlot {
   start_time: string;
@@ -137,15 +140,23 @@ const validatePhoneNumber = (phone: string): { valid: boolean; error?: string } 
   return { valid: true };
 };
 
-const getSlotDuration = (stationType: StationType) => {
-  return stationType === 'vr' ? 15 : 60;
+const getSlotDuration = (station: Station) => {
+  // Use slot_duration from station if available, otherwise fallback to type-based logic
+  if (station.slot_duration) {
+    return station.slot_duration;
+  }
+  // Fallback: VR is 15 mins, others are 60 mins
+  return station.type === 'vr' ? 15 : 60;
 };
 
 const getBookingDuration = (stationIds: string[], stations: Station[]) => {
-  const hasVR = stationIds.some(id => 
-    stations.find(s => s.id === id && s.type === 'vr')
-  );
-  return hasVR ? 15 : 60;
+  // Find the first selected station to determine duration
+  const firstStation = stations.find(s => stationIds.includes(s.id));
+  if (firstStation) {
+    return getSlotDuration(firstStation);
+  }
+  // Default fallback
+  return 60;
 };
 
 /* =========================
@@ -377,7 +388,8 @@ export default function PublicBooking() {
     try {
       const { data, error } = await supabase
         .from("stations")
-        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate")
+        .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration")
+        .or("category.is.null,event_enabled.eq.true") // Show regular stations OR enabled event stations
         .order("name");
       if (error) throw error;
       setStations((data || []).map(station => ({
@@ -409,12 +421,26 @@ export default function PublicBooking() {
       
       const allSlots: TimeSlot[] = [];
       
-      // Check if user has selected VR stations - if so, use 15-minute slots
-      const hasVRSelected = selectedStations.some(id => 
-        stations.find(s => s.id === id && s.type === 'vr')
-      );
+      // Determine slot duration from selected stations
+      // Priority: Use slot_duration from first selected station, or fallback to type-based logic
+      let slotDuration = 60; // Default
+      if (selectedStations.length > 0) {
+        const firstStation = stations.find(s => selectedStations.includes(s.id));
+        if (firstStation) {
+          slotDuration = getSlotDuration(firstStation);
+        } else {
+          // Fallback: Check if any selected station is VR
+          const hasVRSelected = selectedStations.some(id => 
+            stations.find(s => s.id === id && s.type === 'vr')
+          );
+          slotDuration = hasVRSelected ? 15 : 60;
+        }
+      } else if (stations.length > 0) {
+        // No stations selected yet, use first station's duration as default
+        slotDuration = getSlotDuration(stations[0]);
+      }
       
-      if (hasVRSelected) {
+      if (slotDuration === 15) {
         // VR slots: 15-minute intervals
         for (let hour = openingTime; hour <= closingTime; hour++) {
           for (let quarter = 0; quarter < 4; quarter++) {
@@ -477,6 +503,74 @@ export default function PublicBooking() {
               end_time: endTime,
               is_available: anyVRAvailable,
               status: anyVRAvailable ? 'available' : 'booked'
+            });
+          }
+        }
+      } else if (slotDuration === 30) {
+        // Event slots: 30-minute intervals (for event PS5 and 8-Ball)
+        for (let hour = openingTime; hour <= closingTime; hour++) {
+          for (let half = 0; half < 2; half++) {
+            const minutes = half * 30;
+            const startTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            
+            let endHour = hour;
+            let endMinutes = minutes + 30;
+            if (endMinutes >= 60) {
+              endMinutes = 0;
+              endHour = hour + 1;
+            }
+            if (endHour >= 24) {
+              endHour = 0;
+            }
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
+            
+            // Check if past
+            let isPast = false;
+            if (isToday) {
+              const now = new Date();
+              const currentHour = now.getHours();
+              const currentMinute = now.getMinutes();
+              isPast = hour < currentHour || (hour === currentHour && minutes <= currentMinute);
+            }
+            
+            if (isPast) {
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: false,
+                status: 'elapsed'
+              });
+              continue;
+            }
+            
+            // Check station availability for 30-min slots
+            const eventStations = stations.filter(s => 
+              selectedStations.length === 0 || selectedStations.includes(s.id)
+            );
+            let anyAvailable = false;
+            
+            if (eventStations.length > 0) {
+              try {
+                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                  p_date: dateStr,
+                  p_start_time: startTime,
+                  p_end_time: endTime,
+                  p_station_ids: eventStations.map(s => s.id)
+                });
+                
+                if (!availError && availabilityData) {
+                  anyAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                }
+              } catch (e) {
+                console.error("Error checking event station availability:", e);
+              }
+            }
+            
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: anyAvailable,
+              status: anyAvailable ? 'available' : 'booked'
             });
           }
         }
@@ -638,16 +732,14 @@ export default function PublicBooking() {
     if (!station) return;
     
     if (!selectedStations.includes(id)) {
-      // Check VR mixing
-      const hasVR = selectedStations.some(stationId => 
-        stations.find(s => s.id === stationId && s.type === 'vr')
-      );
-      const hasNonVR = selectedStations.some(stationId => 
-        stations.find(s => s.id === stationId && s.type !== 'vr')
-      );
+      // Check slot duration conflicts - stations with different slot durations cannot be mixed
+      const selectedSlotDuration = selectedStations.length > 0 
+        ? getSlotDuration(stations.find(s => selectedStations.includes(s.id)) || station)
+        : null;
+      const newStationSlotDuration = getSlotDuration(station);
       
-      if ((station.type === 'vr' && hasNonVR) || (station.type !== 'vr' && hasVR)) {
-        toast.error("Cannot mix VR stations with other types due to different time intervals");
+      if (selectedSlotDuration !== null && selectedSlotDuration !== newStationSlotDuration) {
+        toast.error(`Cannot mix stations with different slot durations (${selectedSlotDuration} min vs ${newStationSlotDuration} min)`);
         return;
       }
       
@@ -670,7 +762,9 @@ export default function PublicBooking() {
     const hasVR = selectedStations.some(id => 
       stations.find(s => s.id === id && s.type === 'vr')
     );
-    const slotDuration = hasVR ? 15 : 60;
+    // Use slot duration from selected stations
+    const firstSelectedStation = stations.find(s => selectedStations.includes(s.id));
+    const slotDuration = firstSelectedStation ? getSlotDuration(firstSelectedStation) : (hasVR ? 15 : 60);
     
     const checks = await Promise.all(
       selectedStations.map(async (stationId) => {

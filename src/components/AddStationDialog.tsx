@@ -13,9 +13,12 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
 import { generateId } from '@/utils/pos.utils';
 
-// Create a schema for station validation - Updated to include 'vr'
+// Create a schema for station validation - Updated to include 'vr' and event category
 const stationSchema = z.object({
   name: z.string().min(2, { message: 'Station name must be at least 2 characters.' }),
+  category: z.enum(['regular', 'nit_event'], { 
+    required_error: 'Please select a category.' 
+  }),
   type: z.enum(['ps5', '8ball', 'vr'], { 
     required_error: 'Please select a station type.' 
   }),
@@ -41,13 +44,15 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     resolver: zodResolver(stationSchema),
     defaultValues: {
       name: '',
+      category: 'regular',
       type: 'ps5',
       hourlyRate: 100,
     },
   });
 
-  // Watch the type field to conditionally change the label and pricing
+  // Watch the type and category fields to conditionally change the label and pricing
   const selectedType = form.watch('type');
+  const selectedCategory = form.watch('category');
 
   const onSubmit = async (values: StationFormValues) => {
     setIsSubmitting(true);
@@ -56,6 +61,13 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
       // Generate a proper UUID for the new station
       const stationId = crypto.randomUUID();
       
+      // Calculate slot duration based on category and type
+      // Event stations: 30 mins for 8ball/ps5, 15 mins for VR
+      // Regular stations: 60 mins default (VR already handled separately in booking)
+      const slotDuration = values.category === 'nit_event' 
+        ? (values.type === 'vr' ? 15 : 30)
+        : (values.type === 'vr' ? 15 : 60);
+      
       // Create a new station object
       const newStation = {
         id: stationId,
@@ -63,7 +75,10 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         type: values.type,
         hourlyRate: values.hourlyRate,
         isOccupied: false,
-        currentSession: null
+        currentSession: null,
+        category: values.category === 'nit_event' ? 'nit_event' : null,
+        eventEnabled: false, // Default to disabled, can be enabled on stations page
+        slotDuration: slotDuration
       };
       
       // First add to Supabase
@@ -74,7 +89,10 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
           name: values.name,
           type: values.type,
           hourly_rate: values.hourlyRate,
-          is_occupied: false
+          is_occupied: false,
+          category: values.category === 'nit_event' ? 'nit_event' : null,
+          event_enabled: false,
+          slot_duration: slotDuration
         });
       
       if (error) {
@@ -137,10 +155,34 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
             
             <FormField
               control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="regular">Regular Station</SelectItem>
+                      <SelectItem value="nit_event">NIT EVENT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Station Type</FormLabel>
+                  <FormLabel>
+                    {selectedCategory === 'nit_event' ? 'Event Subcategory' : 'Station Type'}
+                  </FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -164,12 +206,21 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    {selectedType === 'vr' ? '15 Min Rate (₹)' : 'Hourly Rate (₹)'}
+                    {selectedCategory === 'nit_event' 
+                      ? (selectedType === 'vr' ? '15 Min Rate (₹)' : '30 Min Rate (₹)')
+                      : (selectedType === 'vr' ? '15 Min Rate (₹)' : 'Hourly Rate (₹)')
+                    }
                   </FormLabel>
                   <FormControl>
                     <Input type="number" min="10" step="10" {...field} />
                   </FormControl>
                   <FormMessage />
+                  {selectedCategory === 'nit_event' && (
+                    <p className="text-xs text-muted-foreground">
+                      Event stations use {selectedType === 'vr' ? '15' : '30'} minute slots. 
+                      Enable on Stations page to show on public booking.
+                    </p>
+                  )}
                 </FormItem>
               )}
             />

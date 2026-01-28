@@ -42,8 +42,8 @@ export const useStationsData = () => {
     }
     
     try {
-      // ✅ OPTIMIZED: Select only needed columns
-      const selectFields = 'id,name,type,hourly_rate,is_occupied,currentsession,created_at';
+      // ✅ OPTIMIZED: Select only needed columns (including event fields)
+      const selectFields = 'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration';
       
       // Fetch all stations using pagination to bypass 1000 record limit
       let page = 0;
@@ -126,7 +126,10 @@ export const useStationsData = () => {
             type: item.type as 'ps5' | '8ball' | 'vr',
             hourlyRate: item.hourly_rate,
             isOccupied: item.is_occupied,
-            currentSession: currentSession
+            currentSession: currentSession,
+            category: item.category || null,
+            eventEnabled: item.event_enabled || false,
+            slotDuration: item.slot_duration || null
           };
         });
         

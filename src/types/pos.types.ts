@@ -42,6 +42,9 @@ export interface Station {
   hourlyRate: number;
   isOccupied: boolean;
   currentSession: Session | null;
+  category?: string | null; // For event categories like 'nit_event'
+  eventEnabled?: boolean | null; // Whether event station is enabled for public booking
+  slotDuration?: number | null; // Slot duration in minutes (30 for events, 15 for VR events, 60 default)
 }
 
 export interface Session {

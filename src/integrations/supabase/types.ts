@@ -1344,6 +1344,9 @@ export type Database = {
           name: string
           parent_station_id: string | null
           type: string
+          category: string | null
+          event_enabled: boolean | null
+          slot_duration: number | null
         }
         Insert: {
           consolidated_name?: string | null
@@ -1355,6 +1358,9 @@ export type Database = {
           name: string
           parent_station_id?: string | null
           type: string
+          category?: string | null
+          event_enabled?: boolean | null
+          slot_duration?: number | null
         }
         Update: {
           consolidated_name?: string | null
@@ -1366,6 +1372,9 @@ export type Database = {
           name?: string
           parent_station_id?: string | null
           type?: string
+          category?: string | null
+          event_enabled?: boolean | null
+          slot_duration?: number | null
         }
         Relationships: [
           {
