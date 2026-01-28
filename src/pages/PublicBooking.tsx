@@ -2562,7 +2562,7 @@ export default function PublicBooking() {
                           className="w-full h-auto py-6 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 hover:from-yellow-500/30 hover:to-orange-500/30 text-yellow-300 font-bold text-lg"
                         >
                           <div className="flex flex-col items-center gap-2">
-                            <Calendar className="h-6 w-6" />
+                            <CalendarIcon className="h-6 w-6" />
                             <span>NIT Event</span>
                             <span className="text-xs font-normal text-yellow-200/80">
                               PS5 & 8-Ball: 30min slots | VR: 15min slots
@@ -2722,7 +2722,7 @@ export default function PublicBooking() {
                   )}
                   {isNitEventBooking === true && (
                     <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[12px]">
-                      <Calendar className="h-3.5 w-3.5" />
+                      <CalendarIcon className="h-3.5 w-3.5" />
                       NIT EVENT
                     </div>
                   )}
