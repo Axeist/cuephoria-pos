@@ -124,8 +124,23 @@ export const useEndSession = ({
       
       // Calculate session cost using hourly rate and accurate time calculation
       const stationRate = station.hourlyRate;
-      const hoursPlayed = durationMinutes / 60; // Convert minutes to hours for billing
-      let sessionCost = Math.ceil(hoursPlayed * stationRate);
+      
+      // Calculate cost based on station type and slot duration
+      let sessionCost: number;
+      if (station.category === 'nit_event' && station.slotDuration) {
+        // Event stations: Bill per slot (rounded up)
+        // e.g., 30 min slot = ₹100, so 30 mins = ₹100, 31-60 mins = ₹200
+        const slotsPlayed = Math.ceil(durationMinutes / station.slotDuration);
+        sessionCost = slotsPlayed * stationRate;
+      } else if (station.type === 'vr') {
+        // Regular VR: 15-minute slots
+        const slotsPlayed = Math.ceil(durationMinutes / 15);
+        sessionCost = slotsPlayed * stationRate;
+      } else {
+        // Regular stations: Bill per hour
+        const hoursPlayed = durationMinutes / 60;
+        sessionCost = Math.ceil(hoursPlayed * stationRate);
+      }
       
       // Apply 50% discount for members - IMPORTANT: This is the key part for member discounts
       const isMember = customer?.isMember || false;
@@ -140,7 +155,9 @@ export const useEndSession = ({
       console.log("Session cost calculation:", { 
         stationRate, 
         durationMinutes,
-        hoursPlayed,
+        stationCategory: station.category,
+        slotDuration: station.slotDuration,
+        stationType: station.type,
         isMember,
         discountApplied,
         sessionCost 

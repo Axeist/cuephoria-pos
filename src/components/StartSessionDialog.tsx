@@ -15,6 +15,9 @@ interface StartSessionDialogProps {
   stationId: string;
   stationName: string;
   baseRate: number;
+  stationCategory?: string | null;
+  slotDuration?: number | null;
+  stationType?: 'ps5' | '8ball' | 'vr';
   onConfirm: (customerId: string, customerName: string, finalRate: number, couponCode?: string) => void;
 }
 
@@ -24,6 +27,9 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   stationId,
   stationName,
   baseRate,
+  stationCategory,
+  slotDuration,
+  stationType,
   onConfirm,
 }) => {
   const { customers } = usePOS();
@@ -33,6 +39,36 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedCoupon, setSelectedCoupon] = useState<string>('none');
   const [finalRate, setFinalRate] = useState(baseRate);
+  
+  // Helper to get rate label based on station type and category
+  const getRateLabel = (): string => {
+    if (stationCategory === 'nit_event') {
+      if (slotDuration === 15) {
+        return '15 Min Rate';
+      } else if (slotDuration === 30) {
+        return '30 Min Rate';
+      }
+    }
+    if (stationType === 'vr') {
+      return '15 Min Rate';
+    }
+    return 'Hourly Rate';
+  };
+  
+  // Helper to get rate suffix
+  const getRateSuffix = (): string => {
+    if (stationCategory === 'nit_event') {
+      if (slotDuration === 15) {
+        return '/15mins';
+      } else if (slotDuration === 30) {
+        return '/30mins';
+      }
+    }
+    if (stationType === 'vr') {
+      return '/15mins';
+    }
+    return '/hour';
+  };
 
   const filteredCustomers = customerSearchQuery.trim() === ''
     ? customers.slice(0, 10)
@@ -295,23 +331,32 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
             <div className="border rounded-lg p-4 bg-gradient-to-r from-cuephoria-purple/10 to-transparent">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Base Rate</span>
-                  <CurrencyDisplay amount={baseRate} className="text-sm" />
+                  <span className="text-sm text-muted-foreground">Base {getRateLabel()}</span>
+                  <div className="flex items-baseline gap-1">
+                    <CurrencyDisplay amount={baseRate} className="text-sm" />
+                    <span className="text-xs text-muted-foreground">{getRateSuffix()}</span>
+                  </div>
                 </div>
                 
                 {selectedCoupon !== 'none' && finalRate !== baseRate && (
                   <>
                     <div className="flex justify-between items-center text-cuephoria-orange">
                       <span className="text-sm">Discount ({selectedCoupon})</span>
-                      <span className="text-sm font-semibold">- ₹{baseRate - finalRate}</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm font-semibold">- ₹{baseRate - finalRate}</span>
+                        <span className="text-xs text-muted-foreground">{getRateSuffix()}</span>
+                      </div>
                     </div>
                     <div className="border-t pt-2" />
                   </>
                 )}
                 
                 <div className="flex justify-between items-center text-lg font-bold">
-                  <span>Final Rate per Hour</span>
-                  <CurrencyDisplay amount={finalRate} className="text-cuephoria-lightpurple text-xl" />
+                  <span>Final {getRateLabel()}</span>
+                  <div className="flex items-baseline gap-1">
+                    <CurrencyDisplay amount={finalRate} className="text-cuephoria-lightpurple text-xl" />
+                    <span className="text-sm text-muted-foreground">{getRateSuffix()}</span>
+                  </div>
                 </div>
 
                 {finalRate === 0 && (

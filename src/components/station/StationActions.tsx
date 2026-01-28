@@ -145,6 +145,9 @@ const StationActions: React.FC<StationActionsProps> = ({
         stationId={station.id}
         stationName={station.name}
         baseRate={station.hourlyRate}
+        stationCategory={station.category}
+        slotDuration={station.slotDuration}
+        stationType={station.type}
         onConfirm={handleStartSession}
       />
     </>

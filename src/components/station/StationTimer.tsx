@@ -75,8 +75,23 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       
       // ✅ UPDATED: Use session's hourly rate (which may be discounted from coupon)
       const sessionRate = station.currentSession?.hourlyRate || station.hourlyRate;
-      const hoursElapsed = elapsedMs / (1000 * 60 * 60);
-      let calculatedCost = Math.ceil(hoursElapsed * sessionRate);
+      const durationMinutes = Math.ceil(elapsedMs / (1000 * 60));
+      
+      // Calculate cost based on station type and slot duration
+      let calculatedCost: number;
+      if (station.category === 'nit_event' && station.slotDuration) {
+        // Event stations: Bill per slot (rounded up)
+        const slotsPlayed = Math.ceil(durationMinutes / station.slotDuration);
+        calculatedCost = slotsPlayed * sessionRate;
+      } else if (station.type === 'vr') {
+        // Regular VR: 15-minute slots
+        const slotsPlayed = Math.ceil(durationMinutes / 15);
+        calculatedCost = slotsPlayed * sessionRate;
+      } else {
+        // Regular stations: Bill per hour
+        const hoursElapsed = elapsedMs / (1000 * 60 * 60);
+        calculatedCost = Math.ceil(hoursElapsed * sessionRate);
+      }
       
       // Apply 50% discount for members - IMPORTANT: Same logic as in useEndSession
       if (isMember) {
@@ -92,8 +107,12 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
         secondsTotal,
         minutesTotal,
         hoursTotal,
+        durationMinutes,
         sessionRate,  // ✅ UPDATED: Shows discounted rate
         originalRate: station.hourlyRate,
+        stationCategory: station.category,
+        slotDuration: station.slotDuration,
+        stationType: station.type,
         couponCode: station.currentSession?.couponCode,
         isMember,
         discountApplied: isMember,
