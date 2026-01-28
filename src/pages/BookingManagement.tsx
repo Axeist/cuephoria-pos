@@ -53,6 +53,7 @@ interface Booking {
   station: {
     name: string;
     type: string;
+    category?: string | null;
   };
   customer: {
     name: string;
@@ -482,7 +483,7 @@ export default function BookingManagement() {
         const promises: Promise<any>[] = [];
         
         if (stationIdsToFetch.length > 0) {
-          promises.push(supabase.from('stations').select('id, name, type').in('id', stationIdsToFetch));
+          promises.push(supabase.from('stations').select('id, name, type, category').in('id', stationIdsToFetch));
         }
         if (customerIdsToFetch.length > 0) {
           promises.push(supabase.from('customers').select('id, name, phone, email, created_at').in('id', customerIdsToFetch));
@@ -517,7 +518,7 @@ export default function BookingManagement() {
       if (!stationsData || !customersData) {
         const [{ data: stationsDataFallback, error: stationsError }, { data: customersDataFallback, error: customersError }] =
           await Promise.all([
-            supabase.from('stations').select('id, name, type').in('id', stationIds),
+            supabase.from('stations').select('id, name, type, category').in('id', stationIds),
             supabase.from('customers').select('id, name, phone, email, created_at').in('id', customerIds)
           ]);
 
@@ -553,7 +554,11 @@ export default function BookingManagement() {
           payment_txn_id: b.payment_txn_id ?? null,
           created_at: b.created_at,
           booking_views: [], // ✅ Lazy load booking_views only when needed
-          station: { name: station?.name || 'Unknown', type: station?.type || 'unknown' },
+          station: { 
+            name: station?.name || 'Unknown', 
+            type: station?.type || 'unknown',
+            category: station?.category || null
+          },
           customer: { 
             name: customer?.name || 'Unknown', 
             phone: customer?.phone || '', 
@@ -609,7 +614,16 @@ export default function BookingManagement() {
     }
 
     if (filters.stationType !== 'all') {
-      filtered = filtered.filter(b => b.station.type === filters.stationType);
+      if (filters.stationType === 'nit_event') {
+        // Filter for NIT EVENT stations (category = 'nit_event')
+        filtered = filtered.filter(b => b.station.category === 'nit_event');
+      } else {
+        // Filter by type and exclude NIT EVENT stations
+        filtered = filtered.filter(b => 
+          b.station.type === filters.stationType && 
+          (!b.station.category || b.station.category !== 'nit_event')
+        );
+      }
     }
 
     if (filters.search) {
@@ -1793,8 +1807,12 @@ export default function BookingManagement() {
       hour12: true 
     });
 
-  const getStationTypeLabel = (type: string) => 
-    type === 'ps5' ? 'PlayStation 5' : type === '8ball' ? '8-Ball Pool' : type;
+  const getStationTypeLabel = (type: string, category?: string | null) => {
+    if (category === 'nit_event') {
+      return `NIT EVENT ${type === 'ps5' ? 'PS5' : type === '8ball' ? '8-Ball' : type === 'vr' ? 'VR' : type}`;
+    }
+    return type === 'ps5' ? 'PlayStation 5' : type === '8ball' ? '8-Ball Pool' : type === 'vr' ? 'VR Gaming' : type;
+  };
 
   const getDateLabel = (dateString: string) => {
     const date = new Date(dateString);
@@ -2160,6 +2178,8 @@ export default function BookingManagement() {
                       <SelectItem value="all">All Types</SelectItem>
                       <SelectItem value="ps5">🎮 PlayStation 5</SelectItem>
                       <SelectItem value="8ball">🎱 8-Ball Pool</SelectItem>
+                      <SelectItem value="vr">🥽 VR Gaming</SelectItem>
+                      <SelectItem value="nit_event">🎯 NIT EVENT</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -3604,8 +3624,11 @@ export default function BookingManagement() {
                                                         <MapPin className="h-3 w-3" />
                                                         {booking.station.name}
                                                       </div>
-                                                      <Badge variant="outline" className="text-xs mt-1">
-                                                        {getStationTypeLabel(booking.station.type)}
+                                                      <Badge variant="outline" className={cn(
+                                                        "text-xs mt-1",
+                                                        booking.station.category === 'nit_event' && "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                                                      )}>
+                                                        {getStationTypeLabel(booking.station.type, booking.station.category)}
                                                       </Badge>
                                                     </div>
                                                     

@@ -169,7 +169,7 @@ export default function PublicBooking() {
   const customerSession = getCustomerSession();
   
   const [stations, setStations] = useState<Station[]>([]);
-  const [stationType, setStationType] = useState<"all" | StationType>("all");
+  const [stationType, setStationType] = useState<"all" | StationType | "nit_event">("all");
   const [selectedStations, setSelectedStations] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
@@ -2398,7 +2398,7 @@ export default function PublicBooking() {
               <CardContent className="relative pt-3">
                 <div
                   className={cn(
-                    "grid grid-cols-4 gap-2 sm:gap-3 mb-4",
+                    "grid grid-cols-5 gap-2 sm:gap-3 mb-4",
                     (!isCustomerInfoComplete() || !selectedSlot) && "pointer-events-none"
                   )}
                 >
@@ -2454,6 +2454,19 @@ export default function PublicBooking() {
                   >
                     VR
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType("nit_event")}
+                    className={cn(
+                      "h-9 rounded-full border-white/15 text-[12px]",
+                      stationType === "nit_event"
+                        ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                        : "bg-transparent text-yellow-400"
+                    )}
+                  >
+                    NIT EVENT
+                  </Button>
                 </div>
 
                 {(!isCustomerInfoComplete() || !selectedSlot) ? (
@@ -2479,10 +2492,12 @@ export default function PublicBooking() {
                     ) : (
                       <StationSelector
                         stations={
-                          // Filter by type first, then by availability
+                          // Filter by type/category first, then by availability
                           (stationType === "all"
-                            ? stations
-                            : stations.filter((s) => s.type === stationType)
+                            ? stations.filter(s => !s.category || s.category !== 'nit_event') // All regular stations
+                            : stationType === "nit_event"
+                            ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // NIT EVENT stations only
+                            : stations.filter((s) => s.type === stationType && (!s.category || s.category !== 'nit_event')) // Regular stations by type
                           ).filter(s => 
                             // Show only stations that are available for the selected time
                             availableStationIds.includes(s.id)
@@ -2515,17 +2530,39 @@ export default function PublicBooking() {
                         if (!s) return null;
                         return (
                           <div key={id} className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-md bg-cuephoria-purple/20 border border-white/10 flex items-center justify-center">
+                            <div className={cn(
+                              "w-5 h-5 rounded-md border flex items-center justify-center",
+                              s.category === 'nit_event'
+                                ? "bg-yellow-500/20 border-yellow-500/30"
+                                : "bg-cuephoria-purple/20 border-white/10"
+                            )}>
                               {s.type === "ps5" ? (
-                                <Gamepad2 className="h-3.5 w-3.5 text-cuephoria-purple" />
+                                <Gamepad2 className={cn(
+                                  "h-3.5 w-3.5",
+                                  s.category === 'nit_event' ? "text-yellow-400" : "text-cuephoria-purple"
+                                )} />
                               ) : s.type === "vr" ? (
-                                <Headset className="h-3.5 w-3.5 text-blue-400" />
+                                <Headset className={cn(
+                                  "h-3.5 w-3.5",
+                                  s.category === 'nit_event' ? "text-yellow-400" : "text-blue-400"
+                                )} />
                               ) : (
-                                <Timer className="h-3.5 w-3.5 text-green-400" />
+                                <Timer className={cn(
+                                  "h-3.5 w-3.5",
+                                  s.category === 'nit_event' ? "text-yellow-400" : "text-green-400"
+                                )} />
                               )}
                             </div>
-                            <Badge className="bg-white/5 border-white/10 text-gray-200 rounded-full px-2.5 py-1">
+                            <Badge className={cn(
+                              "rounded-full px-2.5 py-1",
+                              s.category === 'nit_event' 
+                                ? "bg-yellow-500/20 border-yellow-500/30 text-yellow-300" 
+                                : "bg-white/5 border-white/10 text-gray-200"
+                            )}>
                               {s.name}
+                              {s.category === 'nit_event' && (
+                                <span className="ml-1 text-[10px]">🎯</span>
+                              )}
                             </Badge>
                           </div>
                         );
