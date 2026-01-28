@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
+import { cn } from '@/lib/utils';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
