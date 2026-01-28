@@ -493,8 +493,18 @@ export default function BookingManagement() {
         
         if (stationIdsToFetch.length > 0) {
           const [{ data: newStations, error: stationsError }] = results;
-          if (stationsError) throw stationsError;
-          stationsData = [...(cachedStations || []), ...(newStations || [])];
+          if (stationsError) {
+            // If error is about missing column, try without category
+            if (stationsError.code === '42703') {
+              const fallbackResult = await supabase.from('stations').select('id, name, type').in('id', stationIdsToFetch);
+              if (fallbackResult.error) throw fallbackResult.error;
+              stationsData = [...(cachedStations || []), ...(fallbackResult.data || [])];
+            } else {
+              throw stationsError;
+            }
+          } else {
+            stationsData = [...(cachedStations || []), ...(newStations || [])];
+          }
           saveToCache(`${CACHE_KEYS.STATIONS}_lookup`, stationsData);
         } else {
           stationsData = cachedStations;
@@ -516,11 +526,25 @@ export default function BookingManagement() {
 
       // Fallback if cache miss
       if (!stationsData || !customersData) {
-        const [{ data: stationsDataFallback, error: stationsError }, { data: customersDataFallback, error: customersError }] =
-          await Promise.all([
-            supabase.from('stations').select('id, name, type, category').in('id', stationIds),
-            supabase.from('customers').select('id, name, phone, email, created_at').in('id', customerIds)
-          ]);
+        // Try with category first, fallback to without if column doesn't exist
+        let stationsDataFallback: any[] | null = null;
+        let stationsError: any = null;
+        
+        const stationsResult = await supabase.from('stations').select('id, name, type, category').in('id', stationIds);
+        if (stationsResult.error && stationsResult.error.code === '42703') {
+          // Column doesn't exist, try without category
+          const fallbackResult = await supabase.from('stations').select('id, name, type').in('id', stationIds);
+          stationsDataFallback = fallbackResult.data;
+          stationsError = fallbackResult.error;
+        } else {
+          stationsDataFallback = stationsResult.data;
+          stationsError = stationsResult.error;
+        }
+        
+        const { data: customersDataFallback, error: customersError } = await supabase
+          .from('customers')
+          .select('id, name, phone, email, created_at')
+          .in('id', customerIds);
 
         if (stationsError) throw stationsError;
         if (customersError) throw customersError;
@@ -535,6 +559,22 @@ export default function BookingManagement() {
       const transformed = (bookingsData || []).map(b => {
         const station = stationsData?.find(s => s.id === b.station_id);
         const customer = customersData?.find(c => c.id === b.customer_id);
+        
+        // Ensure station object always has all required fields
+        const stationObj = {
+          name: station?.name || 'Unknown', 
+          type: station?.type || 'unknown',
+          category: station?.category ?? null // Use ?? to handle undefined
+        };
+        
+        // Ensure customer object always has all required fields
+        const customerObj = {
+          name: customer?.name || 'Unknown', 
+          phone: customer?.phone || '', 
+          email: customer?.email ?? null,
+          created_at: customer?.created_at
+        };
+        
         return {
           id: b.id,
           booking_date: b.booking_date,
@@ -554,17 +594,8 @@ export default function BookingManagement() {
           payment_txn_id: b.payment_txn_id ?? null,
           created_at: b.created_at,
           booking_views: [], // ✅ Lazy load booking_views only when needed
-          station: { 
-            name: station?.name || 'Unknown', 
-            type: station?.type || 'unknown',
-            category: station?.category || null
-          },
-          customer: { 
-            name: customer?.name || 'Unknown', 
-            phone: customer?.phone || '', 
-            email: customer?.email ?? null,
-            created_at: customer?.created_at
-          }
+          station: stationObj,
+          customer: customerObj
         } as Booking;
       });
 
@@ -616,10 +647,11 @@ export default function BookingManagement() {
     if (filters.stationType !== 'all') {
       if (filters.stationType === 'nit_event') {
         // Filter for NIT EVENT stations (category = 'nit_event')
-        filtered = filtered.filter(b => b.station.category === 'nit_event');
+        filtered = filtered.filter(b => b.station && b.station.category === 'nit_event');
       } else {
         // Filter by type and exclude NIT EVENT stations
         filtered = filtered.filter(b => 
+          b.station && 
           b.station.type === filters.stationType && 
           (!b.station.category || b.station.category !== 'nit_event')
         );
@@ -632,7 +664,7 @@ export default function BookingManagement() {
         b.customer.name.toLowerCase().includes(q) ||
         b.customer.phone.includes(filters.search) ||
         (b.customer.email && b.customer.email.toLowerCase().includes(q)) ||
-        b.station.name.toLowerCase().includes(q) ||
+        (b.station?.name || '').toLowerCase().includes(q) ||
         b.id.toLowerCase().includes(q)
       );
     }
@@ -1045,7 +1077,7 @@ export default function BookingManagement() {
                                   {booking.customer.name}
                                 </div>
                                 <div className="text-xs text-muted-foreground truncate">
-                                  {booking.station.name}
+                                  {booking.station?.name || 'Unknown'}
                                 </div>
                                 <div className="text-xs font-medium flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
@@ -1099,7 +1131,7 @@ export default function BookingManagement() {
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Station:</span>
-                                  <div className="font-medium">{booking.station.name}</div>
+                                  <div className="font-medium">{booking.station?.name || 'Unknown'}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Duration:</span>
@@ -1241,7 +1273,9 @@ export default function BookingManagement() {
       
       const stationMap = new Map<string, number>();
       customerBookings.forEach(b => {
-        stationMap.set(b.station.name, (stationMap.get(b.station.name) || 0) + 1);
+        if (b.station && b.station.name) {
+          stationMap.set(b.station.name, (stationMap.get(b.station.name) || 0) + 1);
+        }
       });
       const mostCommonStation = Array.from(stationMap.entries()).sort((a, b) => b[1] - a[1])[0];
       if (mostCommonStation) {
@@ -1250,11 +1284,15 @@ export default function BookingManagement() {
       
       const typeMap = new Map<string, number>();
       customerBookings.forEach(b => {
-        typeMap.set(b.station.type, (typeMap.get(b.station.type) || 0) + 1);
+        if (b.station && b.station.type) {
+          typeMap.set(b.station.type, (typeMap.get(b.station.type) || 0) + 1);
+        }
       });
       const mostCommonType = Array.from(typeMap.entries()).sort((a, b) => b[1] - a[1])[0];
       if (mostCommonType) {
         customer.favoriteStationType = mostCommonType[0];
+      } else {
+        customer.favoriteStationType = '';
       }
       
       const couponMap = new Map<string, number>();
@@ -1293,12 +1331,12 @@ export default function BookingManagement() {
 
       // Determine preferred game type
       const ps5Bookings = customerBookings.filter(b => 
-        b.station.type.toLowerCase().includes('ps5') || 
-        b.station.type.toLowerCase().includes('playstation')
+        (b.station?.type || '').toLowerCase().includes('ps5') || 
+        (b.station?.type || '').toLowerCase().includes('playstation')
       ).length;
       const poolBookings = customerBookings.filter(b => 
-        b.station.type.toLowerCase().includes('8-ball') || 
-        b.station.type.toLowerCase().includes('pool')
+        (b.station?.type || '').toLowerCase().includes('8-ball') || 
+        (b.station?.type || '').toLowerCase().includes('pool')
       ).length;
 
       if (ps5Bookings > poolBookings && ps5Bookings > 0) {
@@ -1541,7 +1579,7 @@ export default function BookingManagement() {
     const hourlyStats: Record<string, number> = {};
 
     currentPeriodData.forEach(b => {
-      const stationKey = `${b.station.name} (${b.station.type})`;
+      const stationKey = `${b.station?.name || 'Unknown'} (${b.station?.type || 'unknown'})`;
       if (!stationStats[stationKey]) {
         stationStats[stationKey] = { bookings: 0, revenue: 0, avgDuration: 0 };
       }
@@ -1757,8 +1795,8 @@ export default function BookingManagement() {
           b.start_time,
           b.end_time,
           b.duration,
-          b.station.name.replace(/,/g, ' '),
-          b.station.type,
+          (b.station?.name || 'Unknown').replace(/,/g, ' '),
+          b.station?.type || 'unknown',
           b.customer.name.replace(/,/g, ' '),
           b.customer.phone,
           b.customer.email || '',
@@ -1808,6 +1846,7 @@ export default function BookingManagement() {
     });
 
   const getStationTypeLabel = (type: string, category?: string | null) => {
+    if (!type) return 'Unknown';
     if (category === 'nit_event') {
       return `NIT EVENT ${type === 'ps5' ? 'PS5' : type === '8ball' ? '8-Ball' : type === 'vr' ? 'VR' : type}`;
     }
@@ -1995,7 +2034,7 @@ export default function BookingManagement() {
                                 <div className="text-xs text-muted-foreground space-y-0.5">
                                   <div className="flex items-start gap-1.5">
                                     <span className="font-medium text-foreground/70">Station:</span>
-                                    <span className="break-words">{booking.station.name}</span>
+                                    <span className="break-words">{booking.station?.name || 'Unknown'}</span>
                                   </div>
                                   <div className="flex items-start gap-1.5 flex-wrap">
                                     <span className="font-medium text-foreground/70">Date:</span>
@@ -3622,13 +3661,13 @@ export default function BookingManagement() {
                                                       <div className="text-sm text-muted-foreground">Station</div>
                                                       <div className="font-medium flex items-center gap-1">
                                                         <MapPin className="h-3 w-3" />
-                                                        {booking.station.name}
+                                                        {booking.station?.name || 'Unknown'}
                                                       </div>
                                                       <Badge variant="outline" className={cn(
                                                         "text-xs mt-1",
-                                                        booking.station.category === 'nit_event' && "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                                                        booking.station && booking.station.category === 'nit_event' && "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
                                                       )}>
-                                                        {getStationTypeLabel(booking.station.type, booking.station.category)}
+                                                        {getStationTypeLabel(booking.station?.type || 'unknown', booking.station?.category || null)}
                                                       </Badge>
                                                     </div>
                                                     
