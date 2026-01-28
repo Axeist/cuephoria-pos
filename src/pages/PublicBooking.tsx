@@ -232,9 +232,7 @@ export default function PublicBooking() {
   const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
   
   // NIT EVENT booking state
-  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not asked yet, true = NIT EVENT, false = regular
-  const [showNitEventDialog, setShowNitEventDialog] = useState(false);
-  const [hasShownNitEventDialog, setHasShownNitEventDialog] = useState(false);
+  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = NIT EVENT, false = regular
 
   // Old PhonePe payment handling removed - now using Razorpay with separate success page
 
@@ -263,30 +261,20 @@ export default function PublicBooking() {
     fetchTodaysBookings();
   }, []);
 
-  // Check if we need to show NIT EVENT dialog after Step 1
-  useEffect(() => {
-    if (isCustomerInfoComplete() && !hasShownNitEventDialog && isNitEventBooking === null) {
-      // Check if there are any enabled event stations
-      const hasEnabledEventStations = stations.some(s => s.category === 'nit_event' && s.event_enabled);
-      if (hasEnabledEventStations) {
-        setShowNitEventDialog(true);
-        setHasShownNitEventDialog(true);
-      } else {
-        // No event stations enabled, default to regular booking
-        setIsNitEventBooking(false);
-        setHasShownNitEventDialog(true);
-      }
-    }
-  }, [isCustomerInfoComplete(), stations, hasShownNitEventDialog, isNitEventBooking]);
+  // Check if there are enabled event stations for NIT Event option
+  const hasEnabledEventStations = useMemo(() => 
+    stations.some(s => s.category === 'nit_event' && s.event_enabled),
+    [stations]
+  );
 
   // Reset booking type when customer info is cleared
   useEffect(() => {
     if (!isCustomerInfoComplete()) {
       setIsNitEventBooking(null);
-      setHasShownNitEventDialog(false);
       setSelectedStations([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
+      setSelectedDate(new Date());
     }
   }, [isCustomerInfoComplete()]);
 
@@ -327,17 +315,17 @@ export default function PublicBooking() {
     };
   }, [selectedDate, hasSearched, customerInfo]);
 
-  // NEW FLOW: Fetch slots when date changes OR when customer info is complete
+  // NEW FLOW: Fetch slots when date changes OR when customer info is complete OR when event type changes
   // No longer requires station selection first
   useEffect(() => {
-    if (isCustomerInfoComplete() && selectedDate) {
+    if (isCustomerInfoComplete() && selectedDate && isNitEventBooking !== null) {
       fetchAvailableSlots();
     } else {
       setAvailableSlots([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [selectedDate, selectedStations, customerInfo, hasSearched]);
+  }, [selectedDate, selectedStations, customerInfo, hasSearched, isNitEventBooking]);
   
   // Re-fetch slots when stations change to update availability
   useEffect(() => {
@@ -2527,7 +2515,7 @@ export default function PublicBooking() {
                     )}
                   </div>
                   Step 2: Choose Date & Time
-                  {isCustomerInfoComplete() && selectedSlot && (
+                  {isCustomerInfoComplete() && isNitEventBooking !== null && selectedSlot && (
                     <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
                   )}
                 </CardTitle>
@@ -2539,6 +2527,50 @@ export default function PublicBooking() {
                     <p className="text-gray-400">
                       Complete customer information to select date and time
                     </p>
+                  </div>
+                ) : isNitEventBooking === null ? (
+                  <div className="space-y-4">
+                    <Label className="text-base font-medium text-gray-200 block text-center mb-4">
+                      Select Booking Type
+                    </Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button
+                        onClick={() => {
+                          setIsNitEventBooking(false);
+                          toast.info("📅 Regular booking mode selected.", {
+                            duration: 2000
+                          });
+                        }}
+                        className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-2 border-cuephoria-purple/40 hover:from-cuephoria-purple/30 hover:to-cuephoria-lightpurple/30 text-cuephoria-lightpurple font-bold text-lg"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Gamepad2 className="h-6 w-6" />
+                          <span>Regular</span>
+                          <span className="text-xs font-normal text-cuephoria-lightpurple/80">
+                            Standard booking flow
+                          </span>
+                        </div>
+                      </Button>
+                      {hasEnabledEventStations && (
+                        <Button
+                          onClick={() => {
+                            setIsNitEventBooking(true);
+                            toast.success("🎯 NIT EVENT mode selected! You can now book PS5, 8-Ball, and VR with 30min/15min slots.", {
+                              duration: 4000
+                            });
+                          }}
+                          className="w-full h-auto py-6 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 hover:from-yellow-500/30 hover:to-orange-500/30 text-yellow-300 font-bold text-lg"
+                        >
+                          <div className="flex flex-col items-center gap-2">
+                            <Calendar className="h-6 w-6" />
+                            <span>NIT Event</span>
+                            <span className="text-xs font-normal text-yellow-200/80">
+                              PS5 & 8-Ball: 30min slots | VR: 15min slots
+                            </span>
+                          </div>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-6">
@@ -3769,68 +3801,6 @@ export default function PublicBooking() {
         </DialogContent>
       </Dialog>
 
-      {/* NIT EVENT Booking Type Dialog */}
-      <Dialog open={showNitEventDialog} onOpenChange={(open) => {
-        if (!open && isNitEventBooking === null) {
-          // If user tries to close without selecting, default to regular
-          setIsNitEventBooking(false);
-          setShowNitEventDialog(false);
-        }
-      }}>
-        <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-yellow-500/30 text-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3 text-xl">
-              <Calendar className="h-6 w-6 text-yellow-400" />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-orange-400">
-                Select Booking Type
-              </span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-gray-300 text-center">
-              Is this booking for the <span className="font-bold text-yellow-400">NIT EVENT</span> or a <span className="font-bold text-cuephoria-purple">Regular</span> booking?
-            </p>
-            <div className="space-y-3">
-              <Button
-                onClick={() => {
-                  setIsNitEventBooking(true);
-                  setShowNitEventDialog(false);
-                  toast.success("🎯 NIT EVENT mode selected! You can now book PS5, 8-Ball, and VR with 30min/15min slots.", {
-                    duration: 4000
-                  });
-                }}
-                className="w-full h-auto py-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 hover:from-yellow-500/30 hover:to-orange-500/30 text-yellow-300 font-bold text-lg"
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <Calendar className="h-6 w-6" />
-                  <span>NIT EVENT</span>
-                  <span className="text-xs font-normal text-yellow-200/80">
-                    PS5 & 8-Ball: 30min slots | VR: 15min slots
-                  </span>
-                </div>
-              </Button>
-              <Button
-                onClick={() => {
-                  setIsNitEventBooking(false);
-                  setShowNitEventDialog(false);
-                  toast.info("📅 Regular booking mode selected.", {
-                    duration: 2000
-                  });
-                }}
-                className="w-full h-auto py-4 bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-2 border-cuephoria-purple/40 hover:from-cuephoria-purple/30 hover:to-cuephoria-lightpurple/30 text-cuephoria-lightpurple font-bold text-lg"
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <Gamepad2 className="h-6 w-6" />
-                  <span>Regular Booking</span>
-                  <span className="text-xs font-normal text-cuephoria-lightpurple/80">
-                    Standard booking flow
-                  </span>
-                </div>
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Payment Warning Modal */}
       <Dialog open={showPaymentWarning} onOpenChange={() => {}}>
