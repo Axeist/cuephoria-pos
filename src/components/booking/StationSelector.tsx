@@ -65,6 +65,21 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
   };
 
   const getPriceDisplay = (station: Station) => {
+    // Helper to get rate suffix
+    const getRateSuffix = () => {
+      if (station.category === 'nit_event') {
+        if (station.slot_duration === 15) {
+          return '/15mins';
+        } else if (station.slot_duration === 30) {
+          return '/30mins';
+        }
+      }
+      if (station.type === 'vr') {
+        return '/15mins';
+      }
+      return '/hour';
+    };
+
     // Check if this is a PS5 with dynamic pricing
     if (station.type === 'ps5') {
       const selectedPS5Count = selectedStations.filter(id => {
@@ -80,18 +95,14 @@ export const StationSelector: React.FC<StationSelectorProps> = ({
       // Single controller: ₹200/hour (single_rate)
       // Multiple controllers: ₹150/hour each (hourly_rate)
       if (willBeSingle && station.single_rate) {
-        return `₹${station.single_rate}/hour`;
+        return `₹${station.single_rate}${getRateSuffix()}`;
       } else {
         // Multiple controllers selected - show regular rate
-        return `₹${station.hourly_rate}/hour`;
+        return `₹${station.hourly_rate}${getRateSuffix()}`;
       }
     }
     
-    if (station.type === 'vr') {
-      return `₹${station.hourly_rate}/15mins`;
-    }
-    
-    return `₹${station.hourly_rate}/hour`;
+    return `₹${station.hourly_rate}${getRateSuffix()}`;
   };
 
   // Don't hide teammates just because one is selected

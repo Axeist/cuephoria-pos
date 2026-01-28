@@ -7,6 +7,21 @@ import StationActions from '@/components/station/StationActions';
 import { Button } from '@/components/ui/button';
 import { Trash2, Edit2, Tag, TrendingDown } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
+
+// Helper function to get rate suffix for display
+const getRateSuffix = (station: Station): string => {
+  if (station.category === 'nit_event') {
+    if (station.slotDuration === 15) {
+      return '/15mins';
+    } else if (station.slotDuration === 30) {
+      return '/30mins';
+    }
+  }
+  if (station.type === 'vr') {
+    return '/15mins';
+  }
+  return '/hr';
+};
 import {
   AlertDialog,
   AlertDialogAction,
@@ -227,10 +242,10 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
                       <span className="text-sm line-through text-gray-400 indian-rupee">
-                        {originalRate}/hr
+                        {originalRate}{getRateSuffix(station)}
                       </span>
                       <span className="text-lg font-bold text-orange-400 indian-rupee">
-                        {discountedRate}/hr
+                        {discountedRate}{getRateSuffix(station)}
                       </span>
                       {discountedRate === 0 && (
                         <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
@@ -239,7 +254,7 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                       )}
                     </div>
                     <div className="text-xs text-orange-300 mt-1">
-                      Saving ₹{originalRate - discountedRate}/hr
+                      Saving ₹{originalRate - discountedRate}{getRateSuffix(station)}
                     </div>
                   </div>
                 )}
@@ -249,7 +264,7 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                   <div className="mt-2 p-2 bg-cuephoria-purple/10 border border-cuephoria-purple/30 rounded-md">
                     <div className="text-xs text-gray-400">Current Rate</div>
                     <div className="text-lg font-bold text-cuephoria-lightpurple indian-rupee">
-                      {station.hourlyRate}/hr
+                      {station.hourlyRate}{getRateSuffix(station)}
                     </div>
                   </div>
                 )}

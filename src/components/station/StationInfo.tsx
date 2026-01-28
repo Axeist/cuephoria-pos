@@ -7,6 +7,39 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import { Customer } from '@/types/pos.types';
 import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.utils';
 
+// Helper function to get rate label based on station type and category
+const getRateLabel = (station: Station): string => {
+  // For NIT EVENT stations, show duration based on slot_duration
+  if (station.category === 'nit_event') {
+    if (station.slotDuration === 15) {
+      return '15 Min Rate:';
+    } else if (station.slotDuration === 30) {
+      return '30 Min Rate:';
+    }
+  }
+  // For regular stations, show hourly rate
+  // VR stations show 15 min rate even if not event
+  if (station.type === 'vr') {
+    return '15 Min Rate:';
+  }
+  return 'Hourly Rate:';
+};
+
+// Helper function to get rate suffix for display
+const getRateSuffix = (station: Station): string => {
+  if (station.category === 'nit_event') {
+    if (station.slotDuration === 15) {
+      return '/15mins';
+    } else if (station.slotDuration === 30) {
+      return '/30mins';
+    }
+  }
+  if (station.type === 'vr') {
+    return '/15mins';
+  }
+  return '/hr';
+};
+
 interface StationInfoProps {
   station: Station;
   customerName: string;
@@ -59,7 +92,7 @@ const StationInfo: React.FC<StationInfoProps> = ({ station, customerName, custom
       
       <div className="flex flex-col space-y-2 mt-2">
         <div className="flex justify-between text-sm">
-          <span>Hourly Rate:</span>
+          <span>{getRateLabel(station)}</span>
           <CurrencyDisplay amount={station.hourlyRate} />
         </div>
         
