@@ -234,6 +234,12 @@ export default function PublicBooking() {
   // NIT EVENT booking state
   const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = NIT EVENT, false = regular
 
+  // Check if customer info is complete (using useMemo to avoid initialization issues)
+  const isCustomerInfoComplete = useMemo(() => 
+    hasSearched && customerNumber.trim() !== "" && customerInfo.name.trim() !== "",
+    [hasSearched, customerNumber, customerInfo]
+  );
+
   // Old PhonePe payment handling removed - now using Razorpay with separate success page
 
   // Check for logged-in customer and auto-fill information
@@ -269,14 +275,14 @@ export default function PublicBooking() {
 
   // Reset booking type when customer info is cleared
   useEffect(() => {
-    if (!isCustomerInfoComplete()) {
+    if (!isCustomerInfoComplete) {
       setIsNitEventBooking(null);
       setSelectedStations([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
       setSelectedDate(new Date());
     }
-  }, [isCustomerInfoComplete()]);
+  }, [isCustomerInfoComplete]);
 
   useEffect(() => {
     if (appliedCoupons["8ball"] === "HH99" && !isHappyHour(selectedDate, selectedSlot)) {
@@ -305,7 +311,7 @@ export default function PublicBooking() {
         { event: "*", schema: "public", table: "bookings" },
         () => {
           // NEW FLOW: Refresh slots if date is selected and customer info is complete
-          if (isCustomerInfoComplete() && selectedDate) fetchAvailableSlots();
+          if (isCustomerInfoComplete && selectedDate) fetchAvailableSlots();
           fetchTodaysBookings();
         }
       )
@@ -318,21 +324,21 @@ export default function PublicBooking() {
   // NEW FLOW: Fetch slots when date changes OR when customer info is complete OR when event type changes
   // No longer requires station selection first
   useEffect(() => {
-    if (isCustomerInfoComplete() && selectedDate && isNitEventBooking !== null) {
+    if (isCustomerInfoComplete && selectedDate && isNitEventBooking !== null) {
       fetchAvailableSlots();
     } else {
       setAvailableSlots([]);
       setSelectedSlot(null);
       setSelectedSlots([]);
     }
-  }, [selectedDate, selectedStations, customerInfo, hasSearched, isNitEventBooking]);
+  }, [selectedDate, selectedStations, isCustomerInfoComplete, isNitEventBooking]);
   
   // Re-fetch slots when stations change to update availability
   useEffect(() => {
-    if (selectedStations.length > 0 && selectedDate && isCustomerInfoComplete()) {
+    if (selectedStations.length > 0 && selectedDate && isCustomerInfoComplete) {
       fetchAvailableSlots();
     }
-  }, [selectedStations]);
+  }, [selectedStations, selectedDate, isCustomerInfoComplete]);
   
   // NEW: Update available stations when a time slot is selected
   useEffect(() => {
@@ -1535,9 +1541,7 @@ export default function PublicBooking() {
   const discountBreakdown = discountObj.breakdown;
   const finalPrice = Math.max(originalPrice - discount, 0);
 
-  const isCustomerInfoComplete = () =>
-    hasSearched && customerNumber.trim() !== "" && customerInfo.name.trim() !== "";
-  const isStationSelectionAvailable = () => isCustomerInfoComplete();
+  const isStationSelectionAvailable = () => isCustomerInfoComplete;
   const isTimeSelectionAvailable = () =>
     isStationSelectionAvailable() && selectedStations.length > 0;
 
@@ -2095,7 +2099,7 @@ export default function PublicBooking() {
   };
 
   async function handleConfirm() {
-    if (!isCustomerInfoComplete()) {
+    if (!isCustomerInfoComplete) {
       toast.error("Please complete customer information first");
       return;
     }
@@ -2407,7 +2411,7 @@ export default function PublicBooking() {
                     <User className="h-4 w-4 text-cuephoria-purple" />
                   </div>
                   Step 1: Customer Information
-                  {isCustomerInfoComplete() && (
+                  {isCustomerInfoComplete && (
                     <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
                   )}
                 </CardTitle>
@@ -2495,7 +2499,7 @@ export default function PublicBooking() {
                   </div>
                 )}
 
-                {isCustomerInfoComplete() && (
+                {isCustomerInfoComplete && (
                   <div className="flex items-center gap-2 text-green-400 text-sm">
                     <CheckCircle className="h-4 w-4" /> Customer information complete!
                     You can now select your preferred date and time.
@@ -2508,20 +2512,20 @@ export default function PublicBooking() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <div className="w-8 h-8 rounded-lg bg-cuephoria-lightpurple/20 ring-1 ring-white/10 flex items-center justify-center">
-                    {!isCustomerInfoComplete() ? (
+                    {!isCustomerInfoComplete ? (
                       <Lock className="h-4 w-4 text-gray-500" />
                     ) : (
                       <CalendarIcon className="h-4 w-4 text-cuephoria-lightpurple" />
                     )}
                   </div>
                   Step 2: Choose Date & Time
-                  {isCustomerInfoComplete() && isNitEventBooking !== null && selectedSlot && (
+                  {isCustomerInfoComplete && isNitEventBooking !== null && selectedSlot && (
                     <CheckCircle className="h-5 w-5 text-green-400 ml-auto" />
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {!isCustomerInfoComplete() ? (
+                {!isCustomerInfoComplete ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                     <p className="text-gray-400">
@@ -2627,7 +2631,7 @@ export default function PublicBooking() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-white/10 bg-gradient-to-br from-cuephoria-blue/25 to-transparent">
-                      {(!isCustomerInfoComplete() || !selectedSlot) ? (
+                      {(!isCustomerInfoComplete || !selectedSlot) ? (
                         <Lock className="h-4 w-4 text-gray-500" />
                       ) : (
                         <MapPin className="h-4 w-4 text-cuephoria-blue" />
@@ -2637,7 +2641,7 @@ export default function PublicBooking() {
                       Step 3: Select Available Stations
                     </CardTitle>
                   </div>
-                  {isCustomerInfoComplete() && selectedSlot && selectedStations.length > 0 && (
+                  {isCustomerInfoComplete && selectedSlot && selectedStations.length > 0 && (
                     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-300">
                       <CheckCircle className="h-3.5 w-3.5" />
                       {selectedStations.length} selected
@@ -2650,7 +2654,7 @@ export default function PublicBooking() {
                 <div
                   className={cn(
                     "grid grid-cols-5 gap-2 sm:gap-3 mb-4",
-                    (!isCustomerInfoComplete() || !selectedSlot) && "pointer-events-none"
+                    (!isCustomerInfoComplete || !selectedSlot) && "pointer-events-none"
                   )}
                 >
                   <Button
@@ -2728,7 +2732,7 @@ export default function PublicBooking() {
                   )}
                 </div>
 
-                {(!isCustomerInfoComplete() || !selectedSlot) ? (
+                {(!isCustomerInfoComplete || !selectedSlot) ? (
                   <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center">
                     <Lock className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                     <p className="text-gray-400">
