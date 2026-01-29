@@ -101,7 +101,7 @@ const Stations = () => {
       
       toast({
         title: enable ? "All Event Stations Enabled" : "All Event Stations Disabled",
-        description: `All NIT EVENT stations ${enable ? 'will now appear' : 'will no longer appear'} on public booking page.`,
+        description: `All IIM EVENT stations ${enable ? 'will now appear' : 'will no longer appear'} on public booking page.`,
       });
     } catch (error) {
       console.error('Error toggling all event stations:', error);
@@ -259,14 +259,14 @@ const Stations = () => {
           </div>
         </div>
 
-        {/* NIT EVENT Stations Section */}
+        {/* IIM EVENT Stations Section */}
         {eventStations.length > 0 && (
           <div className="animate-slide-up delay-500 border-t border-yellow-500/30 pt-6 mt-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
                 <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-400 mr-2" />
                 <h3 className="text-base sm:text-xl font-semibold font-heading text-yellow-400">
-                  NIT EVENT Stations
+                  IIM EVENT Stations
                 </h3>
                 <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
                   {enabledEventStations} enabled

@@ -231,9 +231,9 @@ export default function PublicBooking() {
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>("");
   const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
   
-  // NIT EVENT booking state
-  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = NIT EVENT, false = regular
-  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5_8ball" | null>(null); // For NIT EVENT only
+  // IIM EVENT booking state
+  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = IIM EVENT, false = regular
+  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5_8ball" | null>(null); // For IIM EVENT only
 
   // Check if customer info is complete (using useMemo to avoid initialization issues)
   const isCustomerInfoComplete = useMemo(() => 
@@ -241,12 +241,12 @@ export default function PublicBooking() {
     [hasSearched, customerNumber, customerInfo]
   );
 
-  // When switching to NIT EVENT, force-remove any applied coupons
+  // When switching to IIM EVENT, force-remove any applied coupons
   useEffect(() => {
     if (isNitEventBooking === true && Object.keys(appliedCoupons).length > 0) {
       setAppliedCoupons({});
       setCouponCode("");
-      toast.info("Coupons are not applicable for NIT Event bookings.", { duration: 2500 });
+      toast.info("Coupons are not applicable for IIM Event bookings.", { duration: 2500 });
     }
   }, [isNitEventBooking, appliedCoupons]);
 
@@ -277,7 +277,7 @@ export default function PublicBooking() {
     fetchTodaysBookings();
   }, []);
 
-  // Check if there are enabled event stations for NIT Event option
+  // Check if there are enabled event stations for IIM Event option
   const hasEnabledEventStations = useMemo(() => 
     stations.some(s => s.category === 'nit_event' && s.event_enabled),
     [stations]
@@ -1055,9 +1055,9 @@ export default function PublicBooking() {
   }
 
   function applyCoupon(raw: string) {
-    // Block all coupon usage for NIT Event bookings
+    // Block all coupon usage for IIM Event bookings
     if (isNitEventBooking === true) {
-      toast.error("Coupons cannot be applied for NIT Event bookings.");
+      toast.error("Coupons cannot be applied for IIM Event bookings.");
       return;
     }
 
@@ -2577,13 +2577,13 @@ export default function PublicBooking() {
                             setSelectedSlot(null);
                             setSelectedSlots([]);
                             setSelectedStations([]);
-                            toast.success("🎯 NIT EVENT selected! Choose VR or PS5/8-Ball next.", { duration: 2500 });
+                            toast.success("🎯 IIM EVENT selected! Choose VR or PS5/8-Ball next.", { duration: 2500 });
                           }}
                           className="w-full h-auto py-6 bg-gradient-to-r from-yellow-500/45 to-orange-500/35 border-2 border-white/15 hover:from-yellow-500/55 hover:to-orange-500/45 text-white font-bold text-lg shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
                         >
                           <div className="flex flex-col items-center gap-2">
                             <CalendarIcon className="h-6 w-6 text-white" />
-                            <span>NIT Event</span>
+                            <span>IIM Event</span>
                             <span className="text-xs font-normal text-white/75">
                               Choose VR (15m) or PS5/8-Ball (30m)
                             </span>
@@ -2595,7 +2595,7 @@ export default function PublicBooking() {
                 ) : isNitEventBooking === true && nitEventMode === null ? (
                   <div className="space-y-4">
                     <Label className="text-base font-medium text-gray-200 block text-center mb-2">
-                      NIT Event: What would you like to book?
+                      IIM Event: What would you like to book?
                     </Label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Button
@@ -2605,7 +2605,7 @@ export default function PublicBooking() {
                           setSelectedSlot(null);
                           setSelectedSlots([]);
                           setSelectedStations([]);
-                          toast.info("🎮 NIT PS5/8-Ball selected (30 min slots).", { duration: 2000 });
+                          toast.info("🎮 IIM PS5/8-Ball selected (30 min slots).", { duration: 2000 });
                         }}
                         className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/45 to-cuephoria-lightpurple/35 border-2 border-white/15 hover:from-cuephoria-purple/55 hover:to-cuephoria-lightpurple/45 text-white font-bold text-lg"
                       >
@@ -2622,7 +2622,7 @@ export default function PublicBooking() {
                           setSelectedSlot(null);
                           setSelectedSlots([]);
                           setSelectedStations([]);
-                          toast.info("🥽 NIT VR selected (15 min slots).", { duration: 2000 });
+                          toast.info("🥽 IIM VR selected (15 min slots).", { duration: 2000 });
                         }}
                         className="w-full h-auto py-6 bg-gradient-to-r from-blue-500/35 to-cyan-500/25 border-2 border-white/15 hover:from-blue-500/45 hover:to-cyan-500/35 text-white font-bold text-lg"
                       >
@@ -2779,13 +2779,13 @@ export default function PublicBooking() {
                           : "bg-transparent text-yellow-400"
                       )}
                     >
-                      NIT EVENT
+                      IIM EVENT
                     </Button>
                   )}
                   {isNitEventBooking === true && (
                     <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[12px]">
                       <CalendarIcon className="h-3.5 w-3.5" />
-                      NIT EVENT
+                      IIM EVENT
                     </div>
                   )}
                 </div>
@@ -2811,26 +2811,27 @@ export default function PublicBooking() {
                         <p className="text-sm mt-2">Please select a different time</p>
                       </div>
                     ) : (
-                      <StationSelector
-                        stations={
-                          // Filter by booking type (NIT EVENT vs Regular), then by type/category, then by availability
-                          (isNitEventBooking === true
-                            ? stationType === "all"
-                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // All NIT EVENT stations
-                              : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType) // NIT EVENT stations by type
-                            : stationType === "all"
-                            ? stations.filter(s => !s.category || s.category !== 'nit_event') // All regular stations
-                            : stationType === "nit_event"
-                            ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // NIT EVENT stations only
-                            : stations.filter((s) => s.type === stationType && (!s.category || s.category !== 'nit_event')) // Regular stations by type
+                      <>
+                        {/* Filter by booking type (IIM EVENT vs Regular), then by type/category, then by availability */}
+                        <StationSelector
+                          stations={(
+                            isNitEventBooking === true
+                              ? stationType === "all"
+                                ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // All NIT EVENT stations
+                                : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType) // NIT EVENT stations by type
+                              : stationType === "all"
+                              ? stations.filter(s => !s.category || s.category !== 'nit_event') // All regular stations
+                              : stationType === "nit_event"
+                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // NIT EVENT stations only
+                              : stations.filter((s) => s.type === stationType && (!s.category || s.category !== 'nit_event')) // Regular stations by type
                           ).filter(s => 
                             // Show only stations that are available for the selected time
                             availableStationIds.includes(s.id)
-                          )
-                        }
-                        selectedStations={selectedStations}
-                        onStationToggle={handleStationToggle}
-                      />
+                          )}
+                          selectedStations={selectedStations}
+                          onStationToggle={handleStationToggle}
+                        />
+                      </>
                     )}
                   </div>
                 )}
@@ -3143,9 +3144,10 @@ export default function PublicBooking() {
                       </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {Object.entries(appliedCoupons).length > 0 && (
+                  {isNitEventBooking !== true && Object.entries(appliedCoupons).length > 0 && (
                     <div className="mt-3 space-y-2">
                       <Label className="text-xs font-semibold text-gray-400 uppercase mb-1 block">
                         ✅ Applied Coupons
@@ -3184,7 +3186,6 @@ export default function PublicBooking() {
                       })}
                     </div>
                   )}
-                </div>
 
                 <div className="mt-2">
                   <Label className="text-xs font-semibold text-gray-400 uppercase">

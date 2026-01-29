@@ -167,7 +167,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="regular">Regular Station</SelectItem>
-                      <SelectItem value="nit_event">NIT EVENT</SelectItem>
+                      <SelectItem value="nit_event">IIM EVENT</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

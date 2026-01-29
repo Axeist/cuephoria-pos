@@ -1849,7 +1849,7 @@ export default function BookingManagement() {
   const getStationTypeLabel = (type: string, category?: string | null) => {
     if (!type) return 'Unknown';
     if (category === 'nit_event') {
-      return `NIT EVENT ${type === 'ps5' ? 'PS5' : type === '8ball' ? '8-Ball' : type === 'vr' ? 'VR' : type}`;
+      return `IIM EVENT ${type === 'ps5' ? 'PS5' : type === '8ball' ? '8-Ball' : type === 'vr' ? 'VR' : type}`;
     }
     return type === 'ps5' ? 'PlayStation 5' : type === '8ball' ? '8-Ball Pool' : type === 'vr' ? 'VR Gaming' : type;
   };
@@ -2219,7 +2219,7 @@ export default function BookingManagement() {
                       <SelectItem value="ps5">🎮 PlayStation 5</SelectItem>
                       <SelectItem value="8ball">🎱 8-Ball Pool</SelectItem>
                       <SelectItem value="vr">🥽 VR Gaming</SelectItem>
-                      <SelectItem value="nit_event">🎯 NIT EVENT</SelectItem>
+                      <SelectItem value="nit_event">🎯 IIM EVENT</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
