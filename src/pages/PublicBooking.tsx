@@ -233,7 +233,7 @@ export default function PublicBooking() {
   
   // IIM EVENT booking state
   const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = IIM EVENT, false = regular
-  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5_8ball" | null>(null); // For IIM EVENT only
+  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | null>(null); // For IIM EVENT only
 
   // Check if customer info is complete (using useMemo to avoid initialization issues)
   const isCustomerInfoComplete = useMemo(() => 
@@ -460,12 +460,12 @@ export default function PublicBooking() {
       const allSlots: TimeSlot[] = [];
       
       // Determine slot duration based on booking type and selected stations
-      // For NIT EVENT: user chooses PS5/8-Ball (30min) OR VR (15min)
-      // For Regular: PS5/8ball = 60min, VR = 15min (or station.slot_duration)
+      // For IIM EVENT: user chooses PS5 (30min) OR VR (15min)
+      // For Regular: PS5 = 60min, VR = 15min (or station.slot_duration)
       let slotDuration = 60; // Default
       if (isNitEventBooking === true) {
         if (nitEventMode === "vr") slotDuration = 15;
-        else if (nitEventMode === "ps5_8ball") slotDuration = 30;
+        else if (nitEventMode === "ps5") slotDuration = 30;
         else {
           // NIT selected but mode not picked yet
           setAvailableSlots([]);
@@ -493,7 +493,7 @@ export default function PublicBooking() {
       
       if (isNitEventBooking === true) {
         if (slotDuration === 30) {
-          // NIT: PS5 & 8-Ball (30min slots)
+          // IIM EVENT: PS5 (30min slots)
           for (let hour = openingTime; hour <= closingTime; hour++) {
             for (let half = 0; half < 2; half++) {
               const minutes = half * 30;
@@ -530,7 +530,7 @@ export default function PublicBooking() {
               }
               
               const eventStations30min = stations.filter(s => 
-                (s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')) &&
+                (s.category === 'nit_event' && s.event_enabled && s.type === 'ps5') &&
                 (selectedStations.length === 0 || selectedStations.includes(s.id))
               );
               let anyAvailable30min = false;
@@ -664,8 +664,10 @@ export default function PublicBooking() {
               continue;
             }
             
-            // Check VR station availability
-            const vrStations = stations.filter(s => s.type === 'vr');
+            // Check VR station availability (exclude event + 8-Ball)
+            const vrStations = stations.filter(
+              (s) => s.type === 'vr' && (!s.category || s.category !== 'nit_event')
+            );
             let anyVRAvailable = false;
             
             if (vrStations.length > 0) {
@@ -762,7 +764,7 @@ export default function PublicBooking() {
           }
         }
       } else {
-        // Regular slots: 60-minute intervals (for PS5 and 8-Ball)
+        // Regular slots: 60-minute intervals (PS5)
         for (let hour = openingTime; hour <= closingTime; hour++) {
           const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
           let endHour = hour + 1;
@@ -792,9 +794,10 @@ export default function PublicBooking() {
             continue;
           }
           
-          // Check if ANY station is available for this time slot
-          // Check all non-VR stations (PS5 and 8-Ball use 60-min slots)
-          const nonVRStations = stations.filter(s => s.type !== 'vr');
+          // Check if ANY PS5 station is available for this time slot (exclude event + 8-Ball)
+          const nonVRStations = stations.filter(
+            (s) => s.type !== 'vr' && s.type !== '8ball' && (!s.category || s.category !== 'nit_event')
+          );
           
           let anyStationAvailable = false;
           
@@ -1298,7 +1301,8 @@ export default function PublicBooking() {
       
       // For NIT EVENT, filter stations by slot duration
       // 30min slots should only show PS5/8ball stations, 15min slots should only show VR stations
-      let stationsToCheck = stations;
+      // 8-Ball is not selectable in this flow, so never include it in availability checks
+      let stationsToCheck = stations.filter(s => s.type !== '8ball');
       if (isNitEventBooking === true && slotsToCheck.length > 0) {
         // Get the duration of the first slot (in minutes)
         const firstSlot = slotsToCheck[0];
@@ -1308,10 +1312,10 @@ export default function PublicBooking() {
           return (end.getTime() - start.getTime()) / (1000 * 60);
         })();
         
-        // Filter stations by duration: 30min = PS5/8ball, 15min = VR
+        // Filter stations by duration: 30min = PS5, 15min = VR
         if (slotDurationMinutes === 30) {
           stationsToCheck = stations.filter(s => 
-            s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')
+            s.category === 'nit_event' && s.event_enabled && s.type === 'ps5'
           );
         } else if (slotDurationMinutes === 15) {
           stationsToCheck = stations.filter(s => 
@@ -2577,7 +2581,7 @@ export default function PublicBooking() {
                             setSelectedSlot(null);
                             setSelectedSlots([]);
                             setSelectedStations([]);
-                            toast.success("🎯 IIM EVENT selected! Choose VR or PS5/8-Ball next.", { duration: 2500 });
+                            toast.success("🎯 IIM EVENT selected! Choose VR or PS5 Gaming next.", { duration: 2500 });
                           }}
                           className="w-full h-auto py-6 bg-gradient-to-r from-yellow-500/45 to-orange-500/35 border-2 border-white/15 hover:from-yellow-500/55 hover:to-orange-500/45 text-white font-bold text-lg shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
                         >
@@ -2585,7 +2589,7 @@ export default function PublicBooking() {
                             <CalendarIcon className="h-6 w-6 text-white" />
                             <span>IIM Event</span>
                             <span className="text-xs font-normal text-white/75">
-                              Choose VR (15m) or PS5/8-Ball (30m)
+                              Choose VR (15m) or PS5 Gaming (30m)
                             </span>
                           </div>
                         </Button>
@@ -2600,18 +2604,18 @@ export default function PublicBooking() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Button
                         onClick={() => {
-                          setNitEventMode("ps5_8ball");
-                          setStationType("nit_event");
+                          setNitEventMode("ps5");
+                          setStationType("ps5");
                           setSelectedSlot(null);
                           setSelectedSlots([]);
                           setSelectedStations([]);
-                          toast.info("🎮 IIM PS5/8-Ball selected (30 min slots).", { duration: 2000 });
+                          toast.info("🎮 IIM PS5 selected (30 min slots).", { duration: 2000 });
                         }}
                         className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/45 to-cuephoria-lightpurple/35 border-2 border-white/15 hover:from-cuephoria-purple/55 hover:to-cuephoria-lightpurple/45 text-white font-bold text-lg"
                       >
                         <div className="flex flex-col items-center gap-2">
                           <Gamepad2 className="h-6 w-6 text-white" />
-                          <span>PS5 / 8-Ball</span>
+                          <span>PS5 Gaming</span>
                           <span className="text-xs font-normal text-white/75">30 min slots</span>
                         </div>
                       </Button>
@@ -2711,7 +2715,7 @@ export default function PublicBooking() {
               <CardContent className="relative pt-3">
                 <div
                   className={cn(
-                    "grid grid-cols-5 gap-2 sm:gap-3 mb-4",
+                    "grid grid-cols-4 gap-2 sm:gap-3 mb-4",
                     (!isCustomerInfoComplete || !selectedSlot) && "pointer-events-none"
                   )}
                 >
@@ -2740,19 +2744,6 @@ export default function PublicBooking() {
                     )}
                   >
                     PS5
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStationType("8ball")}
-                    className={cn(
-                      "h-9 rounded-full border-white/15 text-[12px]",
-                      stationType === "8ball"
-                        ? "bg-emerald-400/15 text-emerald-300"
-                        : "bg-transparent text-emerald-300"
-                    )}
-                  >
-                    8-Ball
                   </Button>
                   <Button
                     size="sm"
@@ -2817,13 +2808,13 @@ export default function PublicBooking() {
                           stations={(
                             isNitEventBooking === true
                               ? stationType === "all"
-                                ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // All NIT EVENT stations
-                                : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType) // NIT EVENT stations by type
+                                ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type !== '8ball') // All IIM EVENT stations (exclude 8-Ball)
+                                : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType && s.type !== '8ball') // IIM EVENT stations by type (exclude 8-Ball)
                               : stationType === "all"
-                              ? stations.filter(s => !s.category || s.category !== 'nit_event') // All regular stations
+                              ? stations.filter(s => (!s.category || s.category !== 'nit_event') && s.type !== '8ball') // All regular stations (exclude 8-Ball)
                               : stationType === "nit_event"
-                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // NIT EVENT stations only
-                              : stations.filter((s) => s.type === stationType && (!s.category || s.category !== 'nit_event')) // Regular stations by type
+                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type !== '8ball') // IIM EVENT stations only (exclude 8-Ball)
+                              : stations.filter((s) => s.type === stationType && s.type !== '8ball' && (!s.category || s.category !== 'nit_event')) // Regular stations by type (exclude 8-Ball)
                           ).filter(s => 
                             // Show only stations that are available for the selected time
                             availableStationIds.includes(s.id)

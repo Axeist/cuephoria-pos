@@ -95,6 +95,7 @@ interface Filters {
   dateFrom: string;
   dateTo: string;
   status: string;
+  bookingType: string; // all | regular | nit_event (IIM EVENT)
   stationType: string;
   search: string;
   accessCode: string;
@@ -209,6 +210,7 @@ export default function BookingManagement() {
     dateFrom: format(subDays(new Date(), 6), 'yyyy-MM-dd'),
     dateTo: format(new Date(), 'yyyy-MM-dd'),
     status: 'all',
+    bookingType: 'all',
     stationType: 'all',
     search: '',
     accessCode: '',
@@ -481,7 +483,8 @@ export default function BookingManagement() {
         : customerIds;
 
       if (stationIdsToFetch.length > 0 || customerIdsToFetch.length > 0) {
-        const promises: Promise<any>[] = [];
+        // Supabase query builders are PromiseLike (thenable) but not full Promises
+        const promises: PromiseLike<any>[] = [];
         
         if (stationIdsToFetch.length > 0) {
           promises.push(supabase.from('stations').select('id, name, type, category').in('id', stationIdsToFetch));
@@ -645,18 +648,16 @@ export default function BookingManagement() {
       filtered = filtered.filter(b => b.status === filters.status);
     }
 
-    if (filters.stationType !== 'all') {
-      if (filters.stationType === 'nit_event') {
-        // Filter for NIT EVENT stations (category = 'nit_event')
+    if (filters.bookingType !== 'all') {
+      if (filters.bookingType === 'nit_event') {
         filtered = filtered.filter(b => b.station && b.station.category === 'nit_event');
-      } else {
-        // Filter by type and exclude NIT EVENT stations
-        filtered = filtered.filter(b => 
-          b.station && 
-          b.station.type === filters.stationType && 
-          (!b.station.category || b.station.category !== 'nit_event')
-        );
+      } else if (filters.bookingType === 'regular') {
+        filtered = filtered.filter(b => b.station && (!b.station.category || b.station.category !== 'nit_event'));
       }
+    }
+
+    if (filters.stationType !== 'all') {
+      filtered = filtered.filter(b => b.station && b.station.type === filters.stationType);
     }
 
     if (filters.search) {
@@ -1217,7 +1218,11 @@ export default function BookingManagement() {
           bookingFrequency: 'Low',
           preferredGameType: 'none',
           daysSinceLastVisit: 0,
-          activityStatus: 'active'
+          activityStatus: 'active',
+          customerSegment: 'Occasional',
+          avgDaysBetweenBookings: 0,
+          churnRiskScore: 0,
+          firstBookingDate: ''
         });
       }
 
@@ -1828,6 +1833,7 @@ export default function BookingManagement() {
       dateFrom: defaultDateRange.from,
       dateTo: defaultDateRange.to,
       status: 'all',
+      bookingType: 'all',
       stationType: 'all',
       search: '',
       accessCode: '',
@@ -2209,6 +2215,20 @@ export default function BookingManagement() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Booking Type</Label>
+                  <Select value={filters.bookingType} onValueChange={(value) => setFilters(prev => ({ ...prev, bookingType: value }))}>
+                    <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Bookings</SelectItem>
+                      <SelectItem value="regular">🎮 Regular</SelectItem>
+                      <SelectItem value="nit_event">🎯 IIM EVENT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Station Type</Label>
                   <Select value={filters.stationType} onValueChange={(value) => setFilters(prev => ({ ...prev, stationType: value }))}>
                     <SelectTrigger className="h-11 border-2 border-border focus:border-blue-400 transition-colors">
@@ -2219,7 +2239,6 @@ export default function BookingManagement() {
                       <SelectItem value="ps5">🎮 PlayStation 5</SelectItem>
                       <SelectItem value="8ball">🎱 8-Ball Pool</SelectItem>
                       <SelectItem value="vr">🥽 VR Gaming</SelectItem>
-                      <SelectItem value="nit_event">🎯 IIM EVENT</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
