@@ -68,6 +68,12 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
           end: endOfYear(lastYear),
           label: 'Last year'
         };
+      case 'all-time':
+        return {
+          start: new Date(0),
+          end: now,
+          label: 'All time'
+        };
       case 'custom':
         return {
           start: customStartDate || startOfMonth(now),
@@ -138,6 +144,9 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
           </SelectItem>
           <SelectItem value="last-year" className="text-white hover:bg-gray-700">
             Last year
+          </SelectItem>
+          <SelectItem value="all-time" className="text-white hover:bg-gray-700">
+            All time
           </SelectItem>
           <SelectItem value="custom" className="text-white hover:bg-gray-700">
             Custom range

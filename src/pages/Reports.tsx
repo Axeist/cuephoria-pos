@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
 import { usePOS } from '@/context/POSContext';
 import { Calendar } from '@/components/ui/calendar';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subDays, subYears } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,6 +22,8 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { supabase } from '@/integrations/supabase/client';
+import type { Bill } from '@/types/pos.types';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -50,6 +52,80 @@ const ReportsPage: React.FC = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
+  // ============================================================
+  // Reports bills loader (always load ALL bills in selected range)
+  // ============================================================
+  const [reportBills, setReportBills] = useState<Bill[] | null>(null);
+  const [reportBillsLoading, setReportBillsLoading] = useState(false);
+  const [reportBillsError, setReportBillsError] = useState<string | null>(null);
+
+  type RawBillItemRow = {
+    item_id: string;
+    item_type: string;
+    name: string;
+    price: number | string | null;
+    quantity: number;
+    total: number | string | null;
+  };
+
+  type RawBillRow = {
+    id: string;
+    customer_id: string;
+    subtotal: number | string | null;
+    discount: number | string | null;
+    discount_value: number | string | null;
+    discount_type: string | null;
+    loyalty_points_used: number | null;
+    loyalty_points_earned: number | null;
+    total: number | string | null;
+    payment_method: string | null;
+    status?: string | null;
+    comp_note?: string | null;
+    is_split_payment?: boolean | null;
+    cash_amount?: number | string | null;
+    upi_amount?: number | string | null;
+    created_at: string;
+    bill_items?: RawBillItemRow[] | null;
+  };
+
+  const transformBills = (rawBills: RawBillRow[]): Bill[] => {
+    return (rawBills || []).map((bill) => ({
+      id: bill.id,
+      customerId: bill.customer_id,
+      items: (bill.bill_items || []).map((item) => ({
+        id: item.item_id,
+        type: (item.item_type as 'product' | 'session') || 'product',
+        name: item.name,
+        price: Number(item.price),
+        quantity: item.quantity,
+        total: Number(item.total)
+      })),
+      subtotal: Number(bill.subtotal),
+      discount: Number(bill.discount),
+      discountValue: Number(bill.discount_value),
+      discountType: (bill.discount_type as 'percentage' | 'fixed') || 'fixed',
+      loyaltyPointsUsed: bill.loyalty_points_used || 0,
+      loyaltyPointsEarned: bill.loyalty_points_earned || 0,
+      total: Number(bill.total),
+      paymentMethod: (bill.payment_method as Bill['paymentMethod']) || 'cash',
+      status: (bill.status as Bill['status']) || 'completed',
+      compNote: bill.comp_note || undefined,
+      isSplitPayment: bill.is_split_payment || false,
+      cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
+      upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
+      createdAt: new Date(bill.created_at)
+    }));
+  };
+
+  const mergeBillsByIdDesc = (prevBills: Bill[], incomingBills: Bill[]) => {
+    const map = new Map<string, Bill>();
+    for (const b of prevBills) map.set(b.id, b);
+    for (const b of incomingBills) map.set(b.id, b);
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  };
+
   // Set default range to "this month"
   const today = new Date();
   const [date, setDate] = useState<DateRange | undefined>({
@@ -70,6 +146,93 @@ const ReportsPage: React.FC = () => {
   useEffect(() => {
     handleDateRangeChange('thisMonth');
   }, []);
+
+  // Always load the full bills list for the selected date range (Reports needs complete data)
+  useEffect(() => {
+    if (!date?.from || !date?.to) return;
+
+    let cancelled = false;
+
+    const loadBillsForRange = async () => {
+      setReportBillsLoading(true);
+      setReportBillsError(null);
+      setReportBills([]); // clear immediately so UI reflects the selected range
+
+      const pageSize = 1000;
+      let page = 0;
+      let finished = false;
+
+      try {
+        while (!finished) {
+          const { data, error } = await supabase
+            .from('bills')
+            .select(`
+              id,
+              customer_id,
+              subtotal,
+              discount,
+              discount_value,
+              discount_type,
+              loyalty_points_used,
+              loyalty_points_earned,
+              total,
+              payment_method,
+              status,
+              comp_note,
+              is_split_payment,
+              cash_amount,
+              upi_amount,
+              created_at,
+              bill_items (
+                id,
+                item_id,
+                name,
+                price,
+                quantity,
+                total,
+                item_type
+              )
+            `)
+            .gte('created_at', date.from.toISOString())
+            .lte('created_at', date.to.toISOString())
+            .order('created_at', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (error) {
+            throw error;
+          }
+
+          const pageRows = (data as unknown as RawBillRow[]) || [];
+          const transformed = transformBills(pageRows);
+
+          if (cancelled) return;
+
+          setReportBills(prev => mergeBillsByIdDesc(prev || [], transformed));
+
+          if (pageRows.length < pageSize) {
+            finished = true;
+          } else {
+            page++;
+          }
+        }
+      } catch (err) {
+        console.error('Error loading bills for Reports range:', err);
+        if (!cancelled) {
+          setReportBillsError('Failed to load bills for the selected range');
+        }
+      } finally {
+        if (!cancelled) {
+          setReportBillsLoading(false);
+        }
+      }
+    };
+
+    loadBillsForRange();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [date?.from, date?.to]);
 
   // Memoize customer lookup functions to prevent expensive recalculations
   const customerLookup = useMemo(() => {
@@ -99,6 +262,8 @@ const ReportsPage: React.FC = () => {
 
   // Enhanced filtered data to include payment type filtering with null checks
   const filteredData = useMemo(() => {
+    const billsInput = reportBills ?? bills;
+
     const filterByDateRange = <T extends {
       createdAt: Date | string;
     }>(items: T[]): T[] => {
@@ -117,7 +282,7 @@ const ReportsPage: React.FC = () => {
     };
 
     const filteredCustomers = filterByDateRange(customers);
-    let filteredBills = filterByDateRange(bills);
+    let filteredBills = filterByDateRange(billsInput);
 
     // Apply bill search filtering
     if (billSearchQuery.trim()) {
@@ -139,7 +304,7 @@ const ReportsPage: React.FC = () => {
     if (paymentTypeFilter !== 'all') {
       filteredBills = filteredBills.filter(bill => {
         if (paymentTypeFilter === 'split') {
-          return bill.splitPayment && bill.splitPayment.length > 0;
+          return Boolean((bill as any).isSplitPayment);
         } else {
           const paymentMethod = bill.paymentMethod || '';
           return paymentMethod.toLowerCase() === paymentTypeFilter.toLowerCase();
@@ -180,7 +345,7 @@ const ReportsPage: React.FC = () => {
       filteredBills,
       filteredSessions
     };
-  }, [bills, customers, sessions, date, searchQuery, billSearchQuery, paymentTypeFilter]);
+  }, [bills, reportBills, customers, sessions, date, searchQuery, billSearchQuery, paymentTypeFilter]);
 
   // Calculate customer play time and total spent
   const getCustomerPlayTime = useCallback((customerId: string) => {
@@ -294,6 +459,12 @@ const ReportsPage: React.FC = () => {
         from = startOfMonth(today);
         to = endOfMonth(today);
         break;
+      case 'lastMonth': {
+        const lastMonth = subMonths(today, 1);
+        from = startOfMonth(lastMonth);
+        to = endOfMonth(lastMonth);
+        break;
+      }
       case 'last3Months':
         from = startOfMonth(subMonths(today, 2));
         to = endOfMonth(today);
@@ -301,6 +472,16 @@ const ReportsPage: React.FC = () => {
       case 'thisYear':
         from = startOfYear(today);
         to = endOfYear(today);
+        break;
+      case 'lastYear': {
+        const lastYear = subYears(today, 1);
+        from = startOfYear(lastYear);
+        to = endOfYear(lastYear);
+        break;
+      }
+      case 'allTime':
+        from = new Date(0);
+        to = endOfDay(today);
         break;
       case 'custom':
         from = date?.from;
@@ -774,6 +955,18 @@ const ReportsPage: React.FC = () => {
           {(billSearchQuery || paymentTypeFilter !== 'all') && (
             <p className="text-sm text-gray-400 mt-2">
               Found {filteredData.filteredBills.length} matching transactions
+            </p>
+          )}
+
+          {reportBillsLoading && (
+            <p className="text-sm text-blue-300 mt-2">
+              Loading all bills for the selected range…
+            </p>
+          )}
+
+          {reportBillsError && (
+            <p className="text-sm text-red-300 mt-2">
+              {reportBillsError}
             </p>
           )}
           
@@ -1331,8 +1524,11 @@ const ReportsPage: React.FC = () => {
               <SelectItem value="yesterday">Yesterday</SelectItem>
               <SelectItem value="thisWeek">This week</SelectItem>
               <SelectItem value="thisMonth">This month</SelectItem>
+              <SelectItem value="lastMonth">Last month</SelectItem>
               <SelectItem value="last3Months">Last 3 months</SelectItem>
               <SelectItem value="thisYear">This year</SelectItem>
+              <SelectItem value="lastYear">Last year</SelectItem>
+              <SelectItem value="allTime">All time</SelectItem>
               <SelectItem value="custom">Custom range</SelectItem>
             </SelectContent>
           </Select>

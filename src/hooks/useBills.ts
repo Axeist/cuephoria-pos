@@ -163,6 +163,7 @@ export const useBills = (
   useEffect(() => {
     let isMounted = true;
     let dbLoadInFlight = false;
+    const BACKGROUND_MAX_PAGES = 5; // keep dashboard fast; Reports loads full range separately
 
     const loadBills = async () => {
       try {
@@ -176,7 +177,7 @@ export const useBills = (
           
           // Always continue loading in background so Reports (older ranges) work.
           // If cache is stale, a 1-page refresh is enough; otherwise we still load older pages quietly.
-          const refreshPages = isCacheStale(CACHE_KEYS.BILLS) ? 1 : Number.POSITIVE_INFINITY;
+          const refreshPages = isCacheStale(CACHE_KEYS.BILLS) ? 1 : BACKGROUND_MAX_PAGES;
           loadBillsFromDB({ silent: true, maxPages: refreshPages }).catch(err => {
             console.error('Error loading bills in background:', err);
           });
