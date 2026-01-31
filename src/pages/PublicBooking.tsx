@@ -3204,11 +3204,12 @@ export default function PublicBooking() {
                   <Label className="text-xs font-semibold text-gray-400 uppercase">
                     Payment Method
                   </Label>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       onClick={() => setPaymentMethod("venue")}
                       className={cn(
-                        "rounded-lg px-3 py-2 text-sm border transition-all",
+                        "w-full rounded-xl px-3 py-2.5 text-sm border transition-all",
+                        "h-12 flex items-center justify-center text-center leading-tight",
                         paymentMethod === "venue"
                           ? "bg-white/10 border-white/20 text-white"
                           : "bg-black/20 border-white/10 text-gray-300 hover:bg-black/30"
@@ -3219,24 +3220,30 @@ export default function PublicBooking() {
                     <button
                       onClick={() => setPaymentMethod("razorpay")}
                       className={cn(
-                        "rounded-lg px-3 py-2.5 text-sm border transition-all relative overflow-hidden",
+                        "w-full rounded-xl px-3 py-2.5 text-sm border transition-all relative",
+                        "h-12 flex items-center justify-center text-center leading-tight",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3395FF]/60",
+                        "gh-pay-online-glow",
                         paymentMethod === "razorpay"
-                          ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] border-[#3395FF]/50 text-white shadow-lg shadow-[#3395FF]/20"
-                          : "bg-black/20 border-white/10 text-gray-300 hover:bg-black/30 hover:border-[#3395FF]/30"
+                          ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] border-[#3395FF]/55 text-white shadow-[0_0_34px_rgba(51,149,255,0.30)]"
+                          : "bg-black/20 border-white/10 text-gray-200 hover:bg-black/30 hover:border-[#3395FF]/35 shadow-[0_0_26px_rgba(51,149,255,0.18)]"
                       )}
                     >
-                      <div className="inline-flex items-center justify-center gap-2 relative z-10">
-                        {paymentMethod === "razorpay" ? (
-                          <>
-                            <Shield className="h-3.5 w-3.5 flex-shrink-0" />
-                            <span className="font-semibold">Razorpay</span>
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="h-4 w-4" />
-                            <span>Pay Online</span>
-                          </>
-                        )}
+                      <div className="flex flex-col items-center justify-center gap-0.5 relative z-10">
+                        <div className="inline-flex items-center justify-center gap-2">
+                          {paymentMethod === "razorpay" ? (
+                            <Shield className="h-4 w-4 flex-shrink-0" />
+                          ) : (
+                            <CreditCard className="h-4 w-4 flex-shrink-0" />
+                          )}
+                          <span className="font-semibold">Pay Online</span>
+                          <span className="ml-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/90">
+                            Recommended
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-white/70">
+                          Instant confirmation • Razorpay
+                        </span>
                       </div>
                       {paymentMethod === "razorpay" && (
                         <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
@@ -3566,10 +3573,10 @@ export default function PublicBooking() {
 
         <div className="mt-10">
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-white flex items-center gap-2">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-white flex items-center gap-2 min-w-0">
                 <Clock className="h-5 w-5 text-cuephoria-lightpurple" />
-                Today's Bookings
+                <span className="truncate">Today's Bookings</span>
               </CardTitle>
               <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
                 {todayRows.length} total
@@ -3584,19 +3591,19 @@ export default function PublicBooking() {
                 groupedByTime.map(([timeLabel, rows]) => (
                   <details
                     key={timeLabel}
-                    className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40"
+                    className="group rounded-xl border border-white/10 bg-black/30 open:bg-black/40 overflow-hidden"
                   >
-                    <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-gray-200">
+                    <summary className="list-none cursor-pointer select-none px-3 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-gray-200 min-w-0">
                         <Clock className="h-4 w-4 text-cuephoria-lightpurple" />
-                        <span className="font-medium">{timeLabel}</span>
+                        <span className="font-medium truncate">{timeLabel}</span>
                       </div>
-                      <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5">
+                      <span className="text-xs text-gray-300 rounded-full border border-white/10 px-2 py-0.5 flex-shrink-0">
                         {rows.length} booking{rows.length !== 1 ? "s" : ""}
                       </span>
                     </summary>
-                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto -mx-3 sm:-mx-4 sm:mx-0">
-                      <table className="min-w-full sm:min-w-[520px] w-full text-sm">
+                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 overflow-x-auto">
+                      <table className="min-w-[520px] w-full text-sm">
                         <thead>
                           <tr className="text-left text-gray-400">
                             <th className="py-2 pr-3 font-medium">Customer</th>
