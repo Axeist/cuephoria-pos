@@ -1,340 +1,412 @@
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { isNativePlatform } from '@/utils/capacitor';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-interface SplashScreenProps {
-  onComplete?: () => void;
-  duration?: number;
+export type SplashVariant = "boot" | "login_success";
+
+export type SplashScreenProps = {
+  variant: SplashVariant;
+  onDone: () => void;
+};
+
+function clamp01(v: number) {
+  return Math.min(1, Math.max(0, v));
 }
 
-export default function SplashScreen({ onComplete, duration = 3000 }: SplashScreenProps) {
-  const [show, setShow] = useState(true);
-  const isMobile = isNativePlatform();
-  
-  // Shorter duration and faster animations for mobile
-  const actualDuration = isMobile ? 2000 : duration;
-  const exitDuration = isMobile ? 400 : 800;
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShow(false);
-      setTimeout(() => {
-        onComplete?.();
-      }, exitDuration);
-    }, actualDuration);
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
 
-    return () => clearTimeout(timer);
-  }, [actualDuration, exitDuration, onComplete]);
+    const onChange = () => setReduced(mq.matches);
+    onChange();
 
-  // Reduce particles for mobile performance
-  const particleCount = isMobile ? 8 : 20;
+    // Safari < 14
+    // eslint-disable-next-line deprecation/deprecation
+    mq.addEventListener ? mq.addEventListener("change", onChange) : mq.addListener(onChange);
+    return () => {
+      // eslint-disable-next-line deprecation/deprecation
+      mq.removeEventListener ? mq.removeEventListener("change", onChange) : mq.removeListener(onChange);
+    };
+  }, []);
+
+  return reduced;
+}
+
+const BOOT_LINES: string[] = [
+  "GH/BIOS v2.8.14 — initializing secure runtime",
+  "Checking device bus... OK",
+  "Verifying shaders... OK",
+  "Mounting encrypted volumes... OK",
+  "Loading cuephoria-pos modules...",
+  "Networking stack: online",
+  "Auth subsystem: ready",
+  "UI compositor: ready",
+  "Warming caches...",
+  "Boot sequence complete.",
+];
+
+const LOGIN_SUCCESS_LINES: string[] = [
+  "AUTH: token accepted",
+  "ACL: role binding applied",
+  "Session: hardened",
+  "Sync: fetching dashboards",
+  "Realtime: subscribing channels",
+  "Welcome back, operator.",
+];
+
+type MatrixRainCanvasProps = {
+  enabled: boolean;
+  className?: string;
+};
+
+function MatrixRainCanvas({ enabled, className }: MatrixRainCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const resizeObsRef = useRef<ResizeObserver | null>(null);
+
+  const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
+  const columnsRef = useRef<number>(0);
+  const dropsRef = useRef<Float32Array | null>(null);
+  const speedsRef = useRef<Float32Array | null>(null);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    const canvas = canvasRef.current;
+    if (!el || !canvas) return;
+
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      sizeRef.current = { w, h, dpr };
+
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const fontSize = 14;
+      const cols = Math.max(1, Math.floor(w / fontSize));
+      columnsRef.current = cols;
+
+      const drops = new Float32Array(cols);
+      const speeds = new Float32Array(cols);
+      for (let i = 0; i < cols; i++) {
+        drops[i] = -Math.random() * 60;
+        speeds[i] = 0.75 + Math.random() * 2.25;
+      }
+      dropsRef.current = drops;
+      speedsRef.current = speeds;
+    });
+
+    ro.observe(el);
+    resizeObsRef.current = ro;
+    return () => {
+      ro.disconnect();
+      resizeObsRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    if (!enabled) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      return;
+    }
+
+    const glyphs = "アァカサタナハマヤャラワン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%*+";
+    const fontSize = 14;
+    ctx.font =
+      `${fontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, ` +
+      `"Liberation Mono", "Courier New", monospace`;
+    ctx.textBaseline = "top";
+
+    const draw = () => {
+      const { w, h } = sizeRef.current;
+      const cols = columnsRef.current;
+      const drops = dropsRef.current;
+      const speeds = speedsRef.current;
+      if (!w || !h || !cols || !drops || !speeds) {
+        rafRef.current = requestAnimationFrame(draw);
+        return;
+      }
+
+      // Trail fade
+      ctx.fillStyle = "rgba(0,0,0,0.065)";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "rgba(120, 255, 170, 0.25)";
+
+      for (let i = 0; i < cols; i++) {
+        const x = i * fontSize;
+        const y = drops[i] * fontSize;
+        const ch = glyphs[Math.floor(Math.random() * glyphs.length)] || "0";
+
+        // body (slightly dimmer)
+        ctx.fillStyle = "rgba(0, 255, 140, 0.22)";
+        ctx.fillText(ch, x, y - fontSize);
+
+        // head (bright)
+        ctx.fillStyle = "rgba(170, 255, 210, 0.92)";
+        ctx.fillText(ch, x, y);
+
+        drops[i] += speeds[i];
+        if (y > h && Math.random() > 0.975) {
+          drops[i] = -Math.random() * 50;
+          speeds[i] = 0.75 + Math.random() * 2.25;
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [enabled]);
 
   return (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: isMobile ? 1 : 1.1 }}
-          transition={{ duration: isMobile ? 0.4 : 0.8 }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
-          style={{
-            background: 'linear-gradient(135deg, #0a0a1f 0%, #1a1a3e 50%, #2a1a3e 100%)',
-          }}
-        >
-          {/* Animated Background Particles - Optimized for mobile */}
-          <div className="absolute inset-0 overflow-hidden">
-            {[...Array(particleCount)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute rounded-full bg-gradient-to-r from-purple-500/20 to-cyan-500/20 blur-xl"
-                style={{
-                  width: Math.random() * 300 + 50,
-                  height: Math.random() * 300 + 50,
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                }}
-                animate={{
-                  x: [0, Math.random() * 100 - 50],
-                  y: [0, Math.random() * 100 - 50],
-                  scale: [1, Math.random() + 0.5, 1],
-                  opacity: [0.3, 0.6, 0.3],
-                }}
-                transition={{
-                  duration: Math.random() * 3 + 2,
-                  repeat: isMobile ? 1 : Infinity, // Less repetition on mobile
-                  repeatType: 'reverse',
-                  ease: 'easeInOut',
-                }}
-              />
-            ))}
-          </div>
+    <div ref={wrapperRef} className={className}>
+      <canvas ref={canvasRef} className="w-full h-full" />
+    </div>
+  );
+}
 
-          {/* Glowing Rings - Optimized for mobile */}
-          {!isMobile && (
-            <>
-              <motion.div
-                className="absolute"
-                animate={{
-                  scale: [1, 2.5, 1],
-                  opacity: [0.4, 0, 0.4],
-                }}
-                transition={{
-                  duration: 3,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-              >
-                <div className="w-96 h-96 rounded-full border-4 border-purple-500/30" />
-              </motion.div>
+export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
+  const prefersReducedMotion = usePrefersReducedMotion();
 
-              <motion.div
-                className="absolute"
-                animate={{
-                  scale: [1, 2, 1],
-                  opacity: [0.3, 0, 0.3],
-                }}
-                transition={{
-                  duration: 2.5,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                  delay: 0.5,
-                }}
-              >
-                <div className="w-80 h-80 rounded-full border-4 border-cyan-500/30" />
-              </motion.div>
-            </>
-          )}
+  const [progress, setProgress] = useState(0);
+  const [lines, setLines] = useState<string[]>([]);
+  const [exiting, setExiting] = useState(false);
+  const [exitSource, setExitSource] = useState<"auto" | "click" | null>(null);
 
-          {/* Main Content */}
-          <div className="relative z-10 flex flex-col items-center space-y-8">
-            {/* Logo Container with Glow - Optimized */}
-            <motion.div
-              initial={{ scale: 0, rotate: isMobile ? 0 : -180 }}
-              animate={{ 
-                scale: 1, 
-                rotate: 0,
-              }}
-              transition={isMobile ? {
-                type: 'tween',
-                duration: 0.5,
-                ease: 'easeOut',
-              } : {
-                type: 'spring',
-                stiffness: 200,
-                damping: 20,
-                duration: 1,
-              }}
-              className="relative"
-            >
-              {/* Glow Effect - Simplified on mobile */}
-              <motion.div
-                className="absolute inset-0 blur-3xl"
-                animate={isMobile ? {} : {
-                  opacity: [0.5, 0.8, 0.5],
-                  scale: [1, 1.1, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: isMobile ? 0 : Infinity,
-                  ease: 'easeInOut',
-                }}
-                style={{
-                  background: 'radial-gradient(circle, rgba(168, 85, 247, 0.6) 0%, rgba(6, 182, 212, 0.4) 100%)',
-                  opacity: isMobile ? 0.6 : undefined,
-                }}
-              />
+  const exitTimerRef = useRef<number | null>(null);
+  const exitingRef = useRef(false);
+  exitingRef.current = exiting;
 
-              {/* Game Controller Icon - Simplified floating on mobile */}
-              <motion.div
-                className="relative w-32 h-32 flex items-center justify-center"
-                animate={isMobile ? {} : {
-                  y: [0, -10, 0],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: isMobile ? 0 : Infinity,
-                  ease: 'easeInOut',
-                }}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="w-full h-full"
-                  style={{
-                    filter: 'drop-shadow(0 0 20px rgba(168, 85, 247, 0.8))',
-                  }}
+  const allLines = useMemo(() => {
+    return variant === "boot" ? BOOT_LINES : LOGIN_SUCCESS_LINES;
+  }, [variant]);
+
+  const beginExit = (source: "auto" | "click") => {
+    if (exitingRef.current) return;
+    setExitSource(source);
+    setExiting(true);
+
+    const delayMs = source === "click" ? 650 : 750;
+    if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
+    exitTimerRef.current = window.setTimeout(() => {
+      onDone();
+    }, delayMs);
+  };
+
+  useEffect(() => {
+    setProgress(0);
+    setLines([]);
+    setExiting(false);
+    setExitSource(null);
+    exitingRef.current = false;
+    if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
+    exitTimerRef.current = null;
+
+    const durationMs = 3500;
+    const start = performance.now();
+    let raf = 0;
+
+    const tick = (now: number) => {
+      if (exitingRef.current) return;
+      const p = clamp01((now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setProgress(eased);
+      if (p >= 1) {
+        beginExit("auto");
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant]);
+
+  useEffect(() => {
+    let idx = 0;
+    const timer = window.setInterval(() => {
+      idx += 1;
+      setLines(allLines.slice(0, idx));
+      if (idx >= allLines.length) window.clearInterval(timer);
+    }, 260);
+    return () => window.clearInterval(timer);
+  }, [allLines]);
+
+  useEffect(() => {
+    return () => {
+      if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
+    };
+  }, []);
+
+  const pct = Math.round(progress * 100);
+  const exitDurationClass =
+    exitSource === "click" ? "duration-[650ms]" : "duration-[750ms]";
+
+  return (
+    <div
+      className={[
+        "fixed inset-0 z-[99999] pointer-events-auto select-none",
+        "flex items-center justify-center p-4 sm:p-6",
+        "transition-opacity ease-out",
+        exitDurationClass,
+        exiting ? "opacity-0" : "opacity-100",
+      ].join(" ")}
+      aria-live="polite"
+      aria-label={variant === "boot" ? "Boot splash screen" : "Login success splash screen"}
+    >
+      {/* base gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#060611] via-[#070a14] to-[#0b0720]" />
+
+      {/* matrix (behind card) */}
+      <MatrixRainCanvas
+        enabled={!prefersReducedMotion}
+        className="absolute inset-0 opacity-[0.42] blur-[0.2px]"
+      />
+
+      {/* micro textures */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-[0.07]" />
+      <div className="absolute inset-0 bg-noise-soft opacity-[0.10] mix-blend-overlay" />
+      <div className="absolute inset-0 bg-scanlines opacity-[0.18] mix-blend-overlay" />
+      <div className="absolute inset-0 gh-scanline opacity-[0.30] pointer-events-none" />
+
+      {/* glow blobs */}
+      <div className="absolute -top-28 -left-28 h-[380px] w-[380px] rounded-full bg-emerald-400/12 blur-3xl gh-splash-float" />
+      <div className="absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-fuchsia-400/10 blur-3xl gh-splash-float2" />
+
+      {/* card */}
+      <div
+        className={[
+          "relative z-10 w-full max-w-[740px]",
+          "rounded-3xl border border-white/10 bg-black/45 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.65)]",
+          "overflow-hidden",
+          "transform-gpu transition-all ease-[cubic-bezier(.2,.8,.2,1)]",
+          exitDurationClass,
+          exiting
+            ? "opacity-0 translate-y-2 scale-[0.985] blur-[1px]"
+            : "opacity-100 translate-y-0 scale-100 blur-0",
+          "gh-splash-shimmer",
+        ].join(" ")}
+      >
+        {/* inner wash */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-fuchsia-500/10" />
+
+        <div className="relative p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-2xl bg-emerald-400/20 blur-xl" />
+                <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2">
+                  <img
+                    src="/lovable-uploads/edbcb263-8fde-45a9-b66b-02f664772425.png"
+                    alt="Cuephoria"
+                    className="h-12 w-12 sm:h-14 sm:w-14 object-contain drop-shadow-[0_0_18px_rgba(16,185,129,0.25)] gh-splash-pop"
+                    draggable={false}
+                  />
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <div
+                  className="gh-glitch text-xl sm:text-2xl font-semibold tracking-wide text-white"
+                  data-text={variant === "boot" ? "SYSTEM BOOT" : "ACCESS GRANTED"}
                 >
-                  <defs>
-                    <linearGradient id="controllerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#a855f7" />
-                      <stop offset="50%" stopColor="#ec4899" />
-                      <stop offset="100%" stopColor="#06b6d4" />
-                    </linearGradient>
-                  </defs>
-                  <path
-                    d="M6 11h4v4H6zm8-6h4v4h-4zm-8 8h4v4H6zm8 0h4v4h-4z"
-                    stroke="url(#controllerGradient)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                  />
-                  <path
-                    d="M3 8h2v8H3zm16 0h2v8h-2z"
-                    stroke="url(#controllerGradient)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                </svg>
-              </motion.div>
-            </motion.div>
+                  {variant === "boot" ? "SYSTEM BOOT" : "ACCESS GRANTED"}
+                </div>
+                <div className="mt-1 text-xs sm:text-sm text-white/60">
+                  {variant === "boot" ? "Initializing cinematic runtime…" : "Securing session & syncing state…"}
+                </div>
+              </div>
+            </div>
 
-            {/* App Name with Animation */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="text-center space-y-2"
-            >
-              <motion.h1
-                className="text-6xl font-bold tracking-wider"
-                style={{
-                  background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #06b6d4 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  filter: 'drop-shadow(0 0 30px rgba(168, 85, 247, 0.5))',
-                }}
-                animate={isMobile ? {} : {
-                  textShadow: [
-                    '0 0 20px rgba(168, 85, 247, 0.5)',
-                    '0 0 40px rgba(168, 85, 247, 0.8)',
-                    '0 0 20px rgba(168, 85, 247, 0.5)',
-                  ],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: isMobile ? 0 : Infinity,
-                  ease: 'easeInOut',
-                }}
-              >
-                CUEPHORIA
-              </motion.h1>
-              
-              <motion.p
-                className="text-2xl font-light tracking-[0.3em] text-cyan-400"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8, duration: 0.8 }}
-                style={{
-                  filter: 'drop-shadow(0 0 10px rgba(6, 182, 212, 0.6))',
-                }}
-              >
-                GAMING
-              </motion.p>
-            </motion.div>
-
-            {/* Loading Animation */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1, duration: 0.5 }}
-              className="flex flex-col items-center space-y-4"
-            >
-              {/* Animated Dots */}
-              <div className="flex space-x-2">
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500"
-                    animate={{
-                      scale: [1, 1.5, 1],
-                      opacity: [0.5, 1, 0.5],
-                    }}
-                    transition={{
-                      duration: 1.5,
-                      repeat: Infinity,
-                      delay: i * 0.2,
-                      ease: 'easeInOut',
-                    }}
-                  />
-                ))}
+            <div className="flex items-center gap-3 justify-between sm:justify-end">
+              <div className="text-right">
+                <div className="text-[10px] sm:text-xs uppercase tracking-[0.22em] text-white/50">
+                  progress
+                </div>
+                <div className="text-sm sm:text-base font-mono text-emerald-200/90 tabular-nums">
+                  {pct.toString().padStart(3, "0")}%
+                </div>
               </div>
 
-              {/* Loading Bar */}
-              <div className="w-64 h-1 bg-gray-800/50 rounded-full overflow-hidden backdrop-blur-sm">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500"
-                  initial={{ x: '-100%' }}
-                  animate={{ x: '100%' }}
-                  transition={{
-                    duration: 1.5,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                  }}
-                />
-              </div>
-
-              <motion.p
-                className="text-sm text-gray-400 tracking-wider"
-                animate={{
-                  opacity: [0.5, 1, 0.5],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
+              <button
+                type="button"
+                onClick={() => beginExit("click")}
+                className={[
+                  "rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white",
+                  "hover:bg-white/10 active:scale-[0.98] transition transform-gpu",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70",
+                ].join(" ")}
               >
-                Loading your gaming experience...
-              </motion.p>
-            </motion.div>
+                Enter
+              </button>
+            </div>
           </div>
 
-          {/* Corner Accents - Hidden on mobile for performance */}
-          {!isMobile && (
-            <>
-              <motion.div
-                className="absolute top-0 left-0 w-32 h-32"
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 0.3, scale: 1 }}
-                transition={{ delay: 0.3, duration: 0.8 }}
-              >
-                <div className="w-full h-full border-t-4 border-l-4 border-purple-500/50 rounded-tl-3xl" />
-              </motion.div>
+          {/* terminal */}
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/55 p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-white/50">
+                {variant === "boot" ? "BOOT LOG" : "SESSION LOG"}
+              </div>
+              <div className="text-[10px] font-mono text-white/40">
+                gh://splash/{variant}
+              </div>
+            </div>
 
-              <motion.div
-                className="absolute top-0 right-0 w-32 h-32"
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 0.3, scale: 1 }}
-                transition={{ delay: 0.4, duration: 0.8 }}
-              >
-                <div className="w-full h-full border-t-4 border-r-4 border-cyan-500/50 rounded-tr-3xl" />
-              </motion.div>
+            <div className="mt-3 space-y-1.5 font-mono text-xs sm:text-sm text-emerald-100/85">
+              {lines.map((l, i) => (
+                <div key={`${i}-${l}`} className="flex gap-2">
+                  <span className="text-emerald-300/80">›</span>
+                  <span className="min-w-0 break-words">{l}</span>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <span className="text-emerald-300/80">›</span>
+                <span className="text-emerald-100/80">
+                  <span className="opacity-80">_</span>
+                  <span className="inline-block w-[8px] h-[14px] bg-emerald-200/80 align-[-2px] ml-1 gh-blink-cursor" />
+                </span>
+              </div>
+            </div>
+          </div>
 
-              <motion.div
-                className="absolute bottom-0 left-0 w-32 h-32"
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 0.3, scale: 1 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-              >
-                <div className="w-full h-full border-b-4 border-l-4 border-pink-500/50 rounded-bl-3xl" />
-              </motion.div>
-
-              <motion.div
-                className="absolute bottom-0 right-0 w-32 h-32"
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 0.3, scale: 1 }}
-                transition={{ delay: 0.6, duration: 0.8 }}
-              >
-                <div className="w-full h-full border-b-4 border-r-4 border-purple-500/50 rounded-br-3xl" />
-              </motion.div>
-            </>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>
+          {/* progress bar */}
+          <div className="mt-5">
+            <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden border border-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-200 to-fuchsia-300 transition-[width] duration-150 ease-out"
+                style={{ width: `${Math.round(progress * 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

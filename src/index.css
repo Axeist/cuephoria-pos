@@ -677,3 +677,188 @@
     min-width: 68px;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Gamehause-style splash layers + animations                                 */
+/* -------------------------------------------------------------------------- */
+
+.bg-grid-pattern {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center;
+}
+
+.bg-noise-soft {
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.10) 1px, transparent 1px);
+  background-size: 22px 22px, 28px 28px;
+  background-position: 0 0, 11px 9px;
+}
+
+.bg-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 1px,
+    rgba(0, 0, 0, 0) 3px,
+    rgba(0, 0, 0, 0) 6px
+  );
+}
+
+@keyframes gh-float {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(18px, -14px, 0) scale(1.06); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes gh-float2 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-16px, 12px, 0) scale(1.04); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.gh-splash-float {
+  animation: gh-float 14s ease-in-out infinite;
+  will-change: transform;
+}
+
+.gh-splash-float2 {
+  animation: gh-float2 16s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes gh-pop {
+  0% { transform: scale(0.88); opacity: 0; filter: blur(1px); }
+  100% { transform: scale(1); opacity: 1; filter: blur(0); }
+}
+
+.gh-splash-pop {
+  animation: gh-pop 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  will-change: transform, opacity, filter;
+}
+
+.gh-splash-shimmer {
+  position: relative;
+}
+
+.gh-splash-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.10) 35%,
+    transparent 70%
+  );
+  transform: translateX(-120%);
+  mix-blend-mode: overlay;
+  animation: gh-shimmer 2.35s ease-in-out infinite;
+}
+
+@keyframes gh-shimmer {
+  0% { transform: translateX(-120%); }
+  55% { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+
+.gh-scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.gh-scanline::before {
+  content: "";
+  position: absolute;
+  left: -20%;
+  top: -35%;
+  width: 140%;
+  height: 28%;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.06),
+    transparent
+  );
+  transform: translate3d(0, -120%, 0);
+  animation: gh-scanline-sweep 3.2s linear infinite;
+}
+
+@keyframes gh-scanline-sweep {
+  0% { transform: translate3d(0, -120%, 0); }
+  100% { transform: translate3d(0, 420%, 0); }
+}
+
+@keyframes gh-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.gh-blink-cursor {
+  animation: gh-blink 1s step-end infinite;
+}
+
+.gh-glitch {
+  position: relative;
+  display: inline-block;
+  text-shadow: 0 0 18px rgba(16, 185, 129, 0.14);
+}
+
+.gh-glitch::before,
+.gh-glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gh-glitch::before {
+  color: rgba(16, 185, 129, 0.92);
+  transform: translate3d(-1px, 0, 0);
+  opacity: 0.70;
+  animation: gh-glitch-1 2.1s infinite linear alternate-reverse;
+}
+
+.gh-glitch::after {
+  color: rgba(236, 72, 153, 0.88);
+  transform: translate3d(1px, 0, 0);
+  opacity: 0.60;
+  animation: gh-glitch-2 2.3s infinite linear alternate-reverse;
+}
+
+@keyframes gh-glitch-1 {
+  0% { clip-path: inset(8% 0 80% 0); }
+  15% { clip-path: inset(30% 0 55% 0); }
+  30% { clip-path: inset(55% 0 30% 0); }
+  45% { clip-path: inset(10% 0 70% 0); }
+  60% { clip-path: inset(72% 0 10% 0); }
+  75% { clip-path: inset(40% 0 45% 0); }
+  100% { clip-path: inset(18% 0 62% 0); }
+}
+
+@keyframes gh-glitch-2 {
+  0% { clip-path: inset(70% 0 10% 0); }
+  18% { clip-path: inset(12% 0 72% 0); }
+  36% { clip-path: inset(52% 0 28% 0); }
+  54% { clip-path: inset(24% 0 58% 0); }
+  72% { clip-path: inset(60% 0 18% 0); }
+  100% { clip-path: inset(8% 0 78% 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gh-splash-float,
+  .gh-splash-float2,
+  .gh-splash-pop,
+  .gh-splash-shimmer::before,
+  .gh-scanline::before,
+  .gh-glitch::before,
+  .gh-glitch::after,
+  .gh-blink-cursor {
+    animation: none !important;
+  }
+}

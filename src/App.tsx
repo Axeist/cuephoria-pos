@@ -131,10 +131,33 @@ const ProtectedRoute = ({
   );
 };
 
-const App = () => {
-  // Show splash screen on all platforms (mobile + web)
-  const [showSplash, setShowSplash] = useState(true);
+const LOGIN_SPLASH_FLAG = "gh_show_login_splash_v1";
 
+const SplashController = () => {
+  const { user } = useAuth();
+  const [show, setShow] = useState(false);
+  const [variant, setVariant] = useState<"boot" | "login_success">("boot");
+
+  // Always show on full page load/refresh
+  useEffect(() => {
+    setVariant("boot");
+    setShow(true);
+  }, []);
+
+  // Optionally show after login success (flag set before navigation)
+  useEffect(() => {
+    if (!user) return;
+    if (sessionStorage.getItem(LOGIN_SPLASH_FLAG) !== "1") return;
+    sessionStorage.removeItem(LOGIN_SPLASH_FLAG);
+    setVariant("login_success");
+    setShow(true);
+  }, [user]);
+
+  if (!show) return null;
+  return <SplashScreen variant={variant} onDone={() => setShow(false)} />;
+};
+
+const App = () => {
   // Initialize mobile features on app start
   useEffect(() => {
     if (isNativePlatform()) {
@@ -145,18 +168,13 @@ const App = () => {
 
   return (
     <>
-      {showSplash && (
-        <SplashScreen 
-          onComplete={() => setShowSplash(false)} 
-          duration={3000}
-        />
-      )}
       <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <POSProvider>
           <ExpenseProvider>
             <BookingNotificationProvider>
               <TooltipProvider>
+                <SplashController />
                 <Toaster />
                 <Sonner />
                 {/* REMOVED: <AutoRefreshApp> wrapper */}
