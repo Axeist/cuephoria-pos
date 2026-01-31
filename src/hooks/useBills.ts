@@ -162,6 +162,7 @@ export const useBills = (
 
   useEffect(() => {
     let isMounted = true;
+    let dbLoadInFlight = false;
 
     const loadBills = async () => {
       try {
@@ -173,29 +174,33 @@ export const useBills = (
           // Revive dates to keep runtime behavior consistent
           setBills(reviveCachedBills(cachedBills));
           
-          // Background refresh if cache is stale
-          if (isCacheStale(CACHE_KEYS.BILLS)) {
-            loadBillsFromDB(true).catch(err => {
-              console.error('Error refreshing bills in background:', err);
-            });
-          }
+          // Always continue loading in background so Reports (older ranges) work.
+          // If cache is stale, a 1-page refresh is enough; otherwise we still load older pages quietly.
+          const refreshPages = isCacheStale(CACHE_KEYS.BILLS) ? 1 : Number.POSITIVE_INFINITY;
+          loadBillsFromDB({ silent: true, maxPages: refreshPages }).catch(err => {
+            console.error('Error loading bills in background:', err);
+          });
           return;
         }
         
-        await loadBillsFromDB(false);
+        await loadBillsFromDB({ silent: false });
       } catch (error) {
         console.error('Error in loadBills:', error);
       }
     };
     
-    const loadBillsFromDB = async (silent: boolean = false) => {
+    const loadBillsFromDB = async (opts?: { silent?: boolean; maxPages?: number }) => {
+      const silent = opts?.silent ?? false;
+      const maxPages = opts?.maxPages ?? (silent ? 1 : Number.POSITIVE_INFINITY);
+
+      // prevent overlapping background loads
+      if (dbLoadInFlight) return;
+      dbLoadInFlight = true;
+
       let loadedAny = false;
       try {
         // Smaller pages reduce payload size and timeouts; show first page fast.
         const pageSize = 200;
-
-        // If we're silently refreshing (stale cache), only refresh the most recent page.
-        const maxPages = silent ? 1 : Number.POSITIVE_INFINITY;
 
         let page = 0;
         let finished = false;
@@ -261,6 +266,8 @@ export const useBills = (
             variant: 'destructive'
           });
         }
+      } finally {
+        dbLoadInFlight = false;
       }
     };
 
