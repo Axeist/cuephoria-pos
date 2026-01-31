@@ -11,12 +11,158 @@ export const useBills = (
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
 
+  // Keep cache small (bills can grow very large and localStorage is limited)
+  const MAX_CACHED_BILLS = 300;
+
+  type RawBillItemRow = {
+    item_id: string;
+    item_type: 'product' | 'session' | string;
+    name: string;
+    price: number | string | null;
+    quantity: number;
+    total: number | string | null;
+  };
+
+  type RawBillRow = {
+    id: string;
+    customer_id: string;
+    subtotal: number | string | null;
+    discount: number | string | null;
+    discount_value: number | string | null;
+    discount_type: 'percentage' | 'fixed' | string | null;
+    loyalty_points_used: number | null;
+    loyalty_points_earned: number | null;
+    total: number | string | null;
+    payment_method: string | null;
+    status?: string | null;
+    comp_note?: string | null;
+    is_split_payment?: boolean | null;
+    cash_amount?: number | string | null;
+    upi_amount?: number | string | null;
+    created_at: string;
+    bill_items?: RawBillItemRow[] | null;
+  };
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const reviveCachedBills = (cached: unknown): Bill[] => {
+    const list = Array.isArray(cached) ? cached : [];
+    return list.map((bill: unknown) => {
+      const b = bill as Partial<Bill> & { createdAt?: unknown; items?: unknown };
+      const createdAt =
+        b.createdAt instanceof Date
+          ? b.createdAt
+          : b.createdAt
+            ? new Date(String(b.createdAt))
+            : new Date();
+      return {
+        ...(b as Bill),
+        createdAt,
+        items: Array.isArray(b.items) ? (b.items as CartItem[]) : [],
+      };
+    });
+  };
+
+  const transformBills = (rawBills: RawBillRow[]): Bill[] => {
+    return (rawBills || []).map((bill) => ({
+      id: bill.id,
+      customerId: bill.customer_id,
+      items: (bill.bill_items || []).map((item) => ({
+        id: item.item_id,
+        type: item.item_type as 'product' | 'session',
+        name: item.name,
+        price: Number(item.price),
+        quantity: item.quantity,
+        total: Number(item.total)
+      })),
+      subtotal: Number(bill.subtotal),
+      discount: Number(bill.discount),
+      discountValue: Number(bill.discount_value),
+      discountType: bill.discount_type as 'percentage' | 'fixed',
+      loyaltyPointsUsed: bill.loyalty_points_used,
+      loyaltyPointsEarned: bill.loyalty_points_earned,
+      total: Number(bill.total),
+      paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
+      status: bill.status || 'completed',
+      compNote: bill.comp_note || undefined,
+      isSplitPayment: bill.is_split_payment || false,
+      cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
+      upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
+      createdAt: new Date(bill.created_at)
+    }));
+  };
+
+  const mergeBillsByIdDesc = (prevBills: Bill[], incomingBills: Bill[]) => {
+    const map = new Map<string, Bill>();
+    for (const b of prevBills) map.set(b.id, b);
+    for (const b of incomingBills) map.set(b.id, b);
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  };
+
+  const fetchBillsPage = async (page: number, pageSize: number) => {
+    // ✅ Select only needed columns + include bill_items
+    const { data, error } = await supabase
+      .from('bills')
+      .select(`
+        id,
+        customer_id,
+        subtotal,
+        discount,
+        discount_value,
+        discount_type,
+        loyalty_points_used,
+        loyalty_points_earned,
+        total,
+        payment_method,
+        status,
+        comp_note,
+        is_split_payment,
+        cash_amount,
+        upi_amount,
+        created_at,
+        bill_items (
+          id,
+          item_id,
+          name,
+          price,
+          quantity,
+          total,
+          item_type
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    return { data: (data as unknown as RawBillRow[] | null), error };
+  };
+
+  const fetchBillsPageWithRetry = async (page: number, pageSize: number, retries: number = 2) => {
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const { data, error } = await fetchBillsPage(page, pageSize);
+        if (!error) return data || [];
+        lastError = error;
+      } catch (err) {
+        lastError = err;
+      }
+
+      // Backoff: 400ms, 800ms, 1200ms...
+      await sleep(400 * (attempt + 1));
+    }
+    throw lastError;
+  };
+
   const calculateLoyaltyPoints = (total: number, isMember: boolean): number => {
     const pointsRate = isMember ? 5 : 2;
     return Math.floor((total / 100) * pointsRate);
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadBills = async () => {
       try {
         // ✅ Check cache first
@@ -24,7 +170,8 @@ export const useBills = (
         
         if (cachedBills && cachedBills.length > 0) {
           console.log('📦 Using cached bills');
-          setBills(cachedBills);
+          // Revive dates to keep runtime behavior consistent
+          setBills(reviveCachedBills(cachedBills));
           
           // Background refresh if cache is stale
           if (isCacheStale(CACHE_KEYS.BILLS)) {
@@ -42,49 +189,26 @@ export const useBills = (
     };
     
     const loadBillsFromDB = async (silent: boolean = false) => {
+      let loadedAny = false;
       try {
+        // Smaller pages reduce payload size and timeouts; show first page fast.
+        const pageSize = 200;
+
+        // If we're silently refreshing (stale cache), only refresh the most recent page.
+        const maxPages = silent ? 1 : Number.POSITIVE_INFINITY;
+
         let page = 0;
-        const pageSize = 1000;
-        let allBillsData = [];
         let finished = false;
 
-        while (!finished) {
-          // ✅ OPTIMIZED: Select only needed columns (reduces nested query size)
-          const { data: billsData, error: billsError } = await supabase
-            .from('bills')
-            .select(`
-              id,
-              customer_id,
-              subtotal,
-              discount,
-              discount_value,
-              discount_type,
-              loyalty_points_used,
-              loyalty_points_earned,
-              total,
-              payment_method,
-              status,
-              comp_note,
-              is_split_payment,
-              cash_amount,
-              upi_amount,
-              created_at,
-              bill_items (
-                id,
-                item_id,
-                name,
-                price,
-                quantity,
-                total,
-                item_type
-              )
-            `)
-            .order('created_at', { ascending: false })
-            .range(page * pageSize, (page + 1) * pageSize - 1);
+        while (!finished && page < maxPages) {
+          let rawPage: RawBillRow[] = [];
+          try {
+            rawPage = await fetchBillsPageWithRetry(page, pageSize, 2);
+          } catch (pageError) {
+            console.error(`Error loading bills page ${page}:`, pageError);
 
-          if (billsError) {
-            console.error('Error loading bills:', billsError);
-            if (!silent) {
+            // Only show a toast if we couldn't load anything at all
+            if (!silent && !loadedAny && isMounted) {
               toast({
                 title: 'Error',
                 description: 'Failed to load bills from database',
@@ -94,52 +218,43 @@ export const useBills = (
             return;
           }
 
-          if (billsData && billsData.length > 0) {
-            allBillsData = [...allBillsData, ...billsData];
-            if (billsData.length < pageSize) {
-              finished = true;
-            } else {
-              page++;
-            }
-          } else {
+          if (!rawPage || rawPage.length === 0) {
             finished = true;
+            continue;
+          }
+
+          const transformed = transformBills(rawPage);
+          loadedAny = loadedAny || transformed.length > 0;
+
+          if (!isMounted) return;
+
+          // Progressive update: show first page immediately, then keep appending older pages.
+          setBills(prev => mergeBillsByIdDesc(prev, transformed));
+
+          // Cache only the most recent subset (keeps localStorage fast and avoids quota issues)
+          if (page === 0) {
+            saveToCache(CACHE_KEYS.BILLS, transformed.slice(0, MAX_CACHED_BILLS));
+          }
+
+          if (rawPage.length < pageSize) {
+            finished = true;
+          } else {
+            page++;
           }
         }
 
-        const transformedBills = allBillsData.map(bill => ({
-          id: bill.id,
-          customerId: bill.customer_id,
-          items: (bill.bill_items || []).map((item: any) => ({
-            id: item.item_id,
-            type: item.item_type as 'product' | 'session',
-            name: item.name,
-            price: Number(item.price),
-            quantity: item.quantity,
-            total: Number(item.total)
-          })),
-          subtotal: Number(bill.subtotal),
-          discount: Number(bill.discount),
-          discountValue: Number(bill.discount_value),
-          discountType: bill.discount_type as 'percentage' | 'fixed',
-          loyaltyPointsUsed: bill.loyalty_points_used,
-          loyaltyPointsEarned: bill.loyalty_points_earned,
-          total: Number(bill.total),
-          paymentMethod: bill.payment_method as 'cash' | 'upi' | 'split' | 'credit' | 'complimentary',
-          status: bill.status || 'completed',
-          compNote: bill.comp_note || undefined,
-          isSplitPayment: bill.is_split_payment || false,
-          cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
-          upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
-          createdAt: new Date(bill.created_at)
-        }));
+        // After a full non-silent load, refresh cache with latest subset from current state
+        if (!silent && isMounted) {
+          setBills(prev => {
+            saveToCache(CACHE_KEYS.BILLS, prev.slice(0, MAX_CACHED_BILLS));
+            return prev;
+          });
+        }
 
-        setBills(transformedBills);
-        // ✅ Save to cache
-        saveToCache(CACHE_KEYS.BILLS, transformedBills);
-        console.log('✅ Bills loaded from database:', transformedBills.length);
+        console.log('✅ Bills load completed');
       } catch (error) {
         console.error('Error in loadBillsFromDB:', error);
-        if (!silent) {
+        if (!silent && isMounted && !loadedAny) {
           toast({
             title: 'Error',
             description: 'Failed to load bills',
@@ -150,6 +265,10 @@ export const useBills = (
     };
 
     loadBills();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // ✅ UPDATED: Added customTimestamp parameter
@@ -326,7 +445,7 @@ export const useBills = (
       setBills(prevBills => {
         const updated = [completeBill, ...prevBills];
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.BILLS, updated);
+        saveToCache(CACHE_KEYS.BILLS, updated.slice(0, MAX_CACHED_BILLS));
         return updated;
       });
       
@@ -462,7 +581,7 @@ export const useBills = (
       setBills(prevBills => {
         const updated = prevBills.map(bill => bill.id === originalBill.id ? updatedBill : bill);
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.BILLS, updated);
+        saveToCache(CACHE_KEYS.BILLS, updated.slice(0, MAX_CACHED_BILLS));
         return updated;
       });
       
@@ -530,7 +649,7 @@ export const useBills = (
       setBills(prevBills => {
         const updated = prevBills.filter(bill => bill.id !== billId);
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.BILLS, updated);
+        saveToCache(CACHE_KEYS.BILLS, updated.slice(0, MAX_CACHED_BILLS));
         return updated;
       });
       
