@@ -2398,11 +2398,14 @@ export default function PublicBooking() {
               Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria
             </p>
 
-              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-gray-300 backdrop-blur-md">
-                <span className="font-semibold tracking-wide">Line of Business:</span>
-                <span>
-                  Amusement & Gaming Lounge Services (time-based PS5, 8-Ball & VR rentals)
-                </span>
+              <div className="mt-3 w-full max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] sm:text-xs text-gray-300 backdrop-blur-md">
+                <div className="flex flex-col items-center justify-center gap-1 text-center sm:flex-row sm:gap-2">
+                  <span className="font-semibold tracking-wide text-gray-200">Line of Business</span>
+                  <span className="hidden sm:inline text-white/25">•</span>
+                  <span className="leading-snug">
+                    Amusement & Gaming Lounge Services (time-based PS5, 8-Ball &amp; VR rentals)
+                  </span>
+                </div>
               </div>
           </div>
         </div>
@@ -3223,25 +3226,25 @@ export default function PublicBooking() {
                         "w-full rounded-xl px-3 py-2.5 text-sm border transition-all relative",
                         "h-12 flex items-center justify-center text-center leading-tight",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3395FF]/60",
-                        "gh-pay-online-glow",
+                        "overflow-hidden gh-pay-online-cta",
                         paymentMethod === "razorpay"
-                          ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] border-[#3395FF]/55 text-white shadow-[0_0_34px_rgba(51,149,255,0.30)]"
-                          : "bg-black/20 border-white/10 text-gray-200 hover:bg-black/30 hover:border-[#3395FF]/35 shadow-[0_0_26px_rgba(51,149,255,0.18)]"
+                          ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] border-[#3395FF]/55 text-white shadow-lg shadow-[#3395FF]/20"
+                          : "bg-black/20 border-white/10 text-gray-200 hover:bg-black/30 hover:border-[#3395FF]/35"
                       )}
                     >
                       <div className="flex flex-col items-center justify-center gap-0.5 relative z-10">
-                        <div className="inline-flex items-center justify-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 max-w-full">
                           {paymentMethod === "razorpay" ? (
                             <Shield className="h-4 w-4 flex-shrink-0" />
                           ) : (
                             <CreditCard className="h-4 w-4 flex-shrink-0" />
                           )}
-                          <span className="font-semibold">Pay Online</span>
-                          <span className="ml-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/90">
+                          <span className="font-semibold whitespace-nowrap">Pay Online</span>
+                          <span className="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/90 whitespace-nowrap">
                             Recommended
                           </span>
                         </div>
-                        <span className="text-[10px] text-white/70">
+                        <span className="text-[10px] text-white/70 leading-none">
                           Instant confirmation • Razorpay
                         </span>
                       </div>
