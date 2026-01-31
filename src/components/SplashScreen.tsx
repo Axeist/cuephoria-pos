@@ -334,12 +334,15 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
               <div className="min-w-0">
                 <div
                   className="gh-glitch text-xl sm:text-2xl font-semibold tracking-wide text-white"
-                  data-text={variant === "boot" ? "SYSTEM BOOT" : "ACCESS GRANTED"}
+                  data-text="CUEPHORIA OS"
                 >
-                  {variant === "boot" ? "SYSTEM BOOT" : "ACCESS GRANTED"}
+                  CUEPHORIA OS
                 </div>
-                <div className="mt-1 text-xs sm:text-sm text-white/60">
-                  {variant === "boot" ? "Initializing cinematic runtime…" : "Securing session & syncing state…"}
+                <div className="mt-1 text-xs sm:text-sm text-white/70">
+                  Powered by <span className="font-semibold text-white">Cuephoria Tech</span>
+                </div>
+                <div className="mt-1 text-[11px] sm:text-sm text-white/55">
+                  {variant === "boot" ? "Booting secure runtime…" : "Login verified — initializing session…"}
                 </div>
               </div>
             </div>
@@ -375,7 +378,7 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
                 {variant === "boot" ? "BOOT LOG" : "SESSION LOG"}
               </div>
               <div className="text-[10px] font-mono text-white/40">
-                gh://splash/{variant}
+                cuephoria://os/splash/{variant}
               </div>
             </div>
 
