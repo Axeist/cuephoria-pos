@@ -212,6 +212,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           username: data.username,
           isAdmin: data.is_admin
         };
+        // Trigger login-success splash for management portal
+        try {
+          sessionStorage.setItem("gh_show_login_splash_v1", "1");
+        } catch {
+          // ignore (private mode / denied storage)
+        }
         setUser(adminUser);
         localStorage.setItem('cuephoriaAdmin', JSON.stringify(adminUser));
       }

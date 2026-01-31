@@ -344,7 +344,6 @@ const Login = () => {
         });
         
         const redirectTo = locationState?.from || '/dashboard';
-        sessionStorage.setItem("gh_show_login_splash_v1", "1");
         navigate(redirectTo);
       } else {
         toast({
