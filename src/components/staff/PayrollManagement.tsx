@@ -315,12 +315,22 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       const contentW = pageW - margin * 2;
       const rightX = pageW - margin;
 
-      const money = (n: any) => `₹${(Number(n) || 0).toFixed(2)}`;
+      // Avoid using ₹ in jsPDF default fonts (can render badly in some viewers)
+      const money = (n: any) =>
+        `Rs. ${(Number.isFinite(Number(n)) ? Number(n) : 0).toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+
       const periodLabel = format(new Date(payroll.year, payroll.month - 1, 1), 'MMMM yyyy');
-      const generatedLabel = payroll.generated_at ? format(new Date(payroll.generated_at), 'MMM dd, yyyy') : '';
-      const paymentStatus = String(payroll.payment_status || '').toUpperCase() || 'PENDING';
-      const paymentMethod = String(payroll.payment_method || '—').toUpperCase();
-      const paymentDate = payroll.payment_date ? format(new Date(payroll.payment_date), 'MMM dd, yyyy') : '—';
+      const generatedAtDate = payroll.generated_at ? new Date(payroll.generated_at) : new Date();
+      const generatedLabel = format(generatedAtDate, 'MMM dd, yyyy');
+
+      // As requested: payment method/date default to generation date
+      const paymentStatus = (String(payroll.payment_status || '').trim().toUpperCase() || 'PENDING');
+      const paymentMethod = 'UPI';
+      const paymentDate = generatedLabel;
+
       const employeeId =
         String(
           payroll.staff_id ??
@@ -332,6 +342,13 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       const payslipNo =
         String(payroll.payroll_id || payroll.id || '') ||
         `PAY-${String(payroll.year)}${String(payroll.month).padStart(2, '0')}-${employeeId === '—' ? 'XXXX' : employeeId.slice(-4)}`;
+
+      const shortId = (v: string, head = 6, tail = 4) => {
+        const s = String(v || '').trim();
+        if (!s || s === '—') return '—';
+        if (s.length <= head + tail + 1) return s;
+        return `${s.slice(0, head)}…${s.slice(-tail)}`;
+      };
 
       const netPayInWords = (amount: number) => {
         const toWords = (n: number) => {
@@ -388,15 +405,40 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
         doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
       };
 
-      const drawKeyValue = (x: number, y: number, key: string, value: string, keyColor: [number, number, number] = [140, 140, 140]) => {
+      const ellipsize = (text: string, maxW: number) => {
+        const s = String(text ?? '').trim() || '—';
+        if (maxW <= 0) return s;
+        if (doc.getTextWidth(s) <= maxW) return s;
+        const ell = '…';
+        if (doc.getTextWidth(ell) > maxW) return '';
+        let lo = 0;
+        let hi = s.length;
+        while (lo < hi) {
+          const mid = Math.floor((lo + hi) / 2);
+          const candidate = `${s.slice(0, mid)}${ell}`;
+          if (doc.getTextWidth(candidate) <= maxW) lo = mid + 1;
+          else hi = mid;
+        }
+        const cut = Math.max(0, lo - 1);
+        return `${s.slice(0, cut)}${ell}`;
+      };
+
+      const drawKeyValue = (
+        x: number,
+        y: number,
+        key: string,
+        value: string,
+        maxW: number,
+        keyColor: [number, number, number] = [140, 140, 140]
+      ) => {
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(keyColor[0], keyColor[1], keyColor[2]);
         doc.setFontSize(8);
-        doc.text(key, x, y);
+        doc.text(ellipsize(key, maxW), x, y);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(20, 20, 20);
         doc.setFontSize(10);
-        doc.text(value || '—', x, y + 5);
+        doc.text(ellipsize(value || '—', maxW), x, y + 5);
       };
 
       const drawSectionHeader = (x: number, y: number, w: number, title: string, accent: [number, number, number]) => {
@@ -445,6 +487,35 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
         return yy;
       };
 
+      const drawSignature = (x: number, y: number, w: number, h: number) => {
+        // Simple “handwritten” stroke signature (deterministic)
+        const pts: Array<[number, number]> = [
+          [0.02, 0.65],
+          [0.10, 0.30],
+          [0.18, 0.70],
+          [0.26, 0.40],
+          [0.34, 0.75],
+          [0.42, 0.32],
+          [0.50, 0.62],
+          [0.58, 0.35],
+          [0.68, 0.70],
+          [0.78, 0.45],
+          [0.90, 0.60],
+          [0.98, 0.38],
+        ];
+        doc.setDrawColor(35, 35, 45);
+        doc.setLineWidth(0.6);
+        let px = x + pts[0][0] * w;
+        let py = y + pts[0][1] * h;
+        for (let i = 1; i < pts.length; i++) {
+          const nx = x + pts[i][0] * w;
+          const ny = y + pts[i][1] * h;
+          doc.line(px, py, nx, ny);
+          px = nx;
+          py = ny;
+        }
+      };
+
       // Header
       doc.setFillColor(20, 18, 28);
       doc.rect(0, 0, pageW, 34, 'F');
@@ -467,26 +538,37 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(200, 200, 210);
       doc.setFontSize(8.5);
-      doc.text(generatedLabel ? `Generated ${generatedLabel}` : '', rightX, 28, { align: 'right' } as any);
+      doc.text(`Generated ${generatedLabel}`, rightX, 28, { align: 'right' } as any);
 
       // Info cards
       let y = 42;
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, y, contentW, 38, 4, 4, 'F');
+      const infoH = 44;
+      doc.roundedRect(margin, y, contentW, infoH, 4, 4, 'F');
       doc.setDrawColor(235, 235, 240);
       doc.setLineWidth(0.3);
-      doc.roundedRect(margin, y, contentW, 38, 4, 4, 'S');
+      doc.roundedRect(margin, y, contentW, infoH, 4, 4, 'S');
 
-      drawKeyValue(margin + 8, y + 10, 'EMPLOYEE', String(payroll.staff_name || '—'));
-      drawKeyValue(margin + 58, y + 10, 'DESIGNATION', String(payroll.designation || '—'));
-      drawKeyValue(margin + 118, y + 10, 'EMPLOYEE ID', employeeId);
-      drawKeyValue(margin + 160, y + 10, 'PAYSLIP NO', payslipNo);
+      // 4-column grid with truncation to prevent overlaps
+      const padX = 8;
+      const colW4 = (contentW - padX * 2) / 4;
+      const baseX = margin + padX;
+      const maxW = colW4 - 6;
 
-      drawKeyValue(margin + 8, y + 24, 'PAY PERIOD', periodLabel);
-      drawKeyValue(margin + 58, y + 24, 'PAYMENT STATUS', paymentStatus);
-      drawKeyValue(margin + 118, y + 24, 'PAYMENT METHOD', paymentMethod);
-      drawKeyValue(margin + 160, y + 24, 'PAYMENT DATE', paymentDate);
-      y += 46;
+      const employeeIdDisplay = shortId(employeeId, 8, 4);
+      const payslipNoDisplay = shortId(payslipNo, 10, 6);
+
+      drawKeyValue(baseX + colW4 * 0, y + 10, 'EMPLOYEE', String(payroll.staff_name || '—'), maxW);
+      drawKeyValue(baseX + colW4 * 1, y + 10, 'DESIGNATION', String(payroll.designation || '—'), maxW);
+      drawKeyValue(baseX + colW4 * 2, y + 10, 'EMPLOYEE ID', employeeIdDisplay, maxW);
+      drawKeyValue(baseX + colW4 * 3, y + 10, 'PAYSLIP NO', payslipNoDisplay, maxW);
+
+      drawKeyValue(baseX + colW4 * 0, y + 27, 'PAY PERIOD', periodLabel, maxW);
+      drawKeyValue(baseX + colW4 * 1, y + 27, 'PAYMENT STATUS', paymentStatus, maxW);
+      drawKeyValue(baseX + colW4 * 2, y + 27, 'PAYMENT METHOD', paymentMethod, maxW);
+      drawKeyValue(baseX + colW4 * 3, y + 27, 'PAYMENT DATE', paymentDate, maxW);
+
+      y += infoH + 8;
 
       // Summary strip
       const gross = Number(payroll.gross_earnings) || 0;
@@ -498,15 +580,17 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       const hoursTracked = Number(payroll.total_working_hours) || 0;
       const preparedBy = String(user?.username || 'Admin');
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, y - 6, contentW, 18, 4, 4, 'F');
+      const attH = 18;
+      doc.roundedRect(margin, y, contentW, attH, 4, 4, 'F');
       doc.setDrawColor(235, 235, 240);
       doc.setLineWidth(0.3);
-      doc.roundedRect(margin, y - 6, contentW, 18, 4, 4, 'S');
-      drawKeyValue(margin + 8, y + 1, 'WORKING DAYS', `${Number(payroll.total_working_days) || 0}`);
-      drawKeyValue(margin + 58, y + 1, 'HOURS TRACKED', hoursTracked ? `${hoursTracked.toFixed(1)} hrs` : '—');
-      drawKeyValue(margin + 118, y + 1, 'ISSUED BY', 'Cuephoria Payroll');
-      drawKeyValue(margin + 160, y + 1, 'PREPARED BY', preparedBy);
-      y += 18;
+      doc.roundedRect(margin, y, contentW, attH, 4, 4, 'S');
+
+      drawKeyValue(baseX + colW4 * 0, y + 8, 'WORKING DAYS', `${Number(payroll.total_working_days) || 0}`, maxW);
+      drawKeyValue(baseX + colW4 * 1, y + 8, 'HOURS TRACKED', hoursTracked ? `${hoursTracked.toFixed(1)} hrs` : '—', maxW);
+      drawKeyValue(baseX + colW4 * 2, y + 8, 'ISSUED BY', 'Cuephoria Payroll', maxW);
+      drawKeyValue(baseX + colW4 * 3, y + 8, 'PREPARED BY', preparedBy, maxW);
+      y += attH + 8;
 
       doc.setFillColor(248, 248, 252);
       doc.roundedRect(margin, y, contentW, 18, 4, 4, 'F');
@@ -612,37 +696,58 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       doc.text(money(net), rightX - 26, y + 18.2, { align: 'center' } as any);
 
       // Footer + declaration / signatory
-      const signY = ensureSpace(y + 34, 26);
+      const signY = ensureSpace(y + 34, 40);
+      const gap2 = 10;
+      const signBoxW = 78;
+      const notesBoxW = contentW - signBoxW - gap2;
+      const boxH = 30;
+
+      // Notes box (left)
       doc.setDrawColor(235, 235, 240);
       doc.setLineWidth(0.3);
-      doc.roundedRect(margin, signY, contentW, 22, 4, 4, 'S');
+      doc.roundedRect(margin, signY, notesBoxW, boxH, 4, 4, 'S');
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 45, 55);
+      doc.setFontSize(9);
+      doc.text('Notes', margin + 8, signY + 8);
+
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 120, 130);
-      doc.setFontSize(8.5);
-      doc.text('Notes', margin + 8, signY + 7);
-      doc.setFontSize(8);
       doc.setTextColor(95, 95, 105);
+      doc.setFontSize(8);
       const notes = [
         'This payslip is generated from attendance and approved adjustments (allowances/deductions).',
         'If there is any discrepancy, please contact the administrator and regenerate payroll after corrections.',
         'This document is confidential and intended only for the employee and authorized personnel.',
       ];
-      let ny = signY + 12;
+      const noteX = margin + 8;
+      const noteMaxW = notesBoxW - 16;
+      let ny = signY + 13;
       notes.forEach((n) => {
-        doc.text(`• ${n}`, margin + 8, ny, { maxWidth: contentW - 110 } as any);
-        ny += 4.2;
+        const lines = doc.splitTextToSize(`• ${n}`, noteMaxW) as string[];
+        lines.forEach((ln) => {
+          if (ny <= signY + boxH - 4) doc.text(ln, noteX, ny);
+          ny += 4.2;
+        });
       });
 
-      // Authorized signatory box (visual legitimacy)
+      // Authorized signatory box (right)
+      const signX = margin + notesBoxW + gap2;
       doc.setDrawColor(235, 235, 240);
-      doc.roundedRect(rightX - 78, signY + 4, 78, 14, 3, 3, 'S');
+      doc.roundedRect(signX, signY, signBoxW, boxH, 4, 4, 'S');
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(120, 120, 130);
       doc.setFontSize(8);
-      doc.text('Authorized Signatory', rightX - 39, signY + 10.5, { align: 'center' } as any);
+      doc.text('Authorized Signatory', signX + signBoxW / 2, signY + 8, { align: 'center' } as any);
+
+      // Signature stroke + name
+      drawSignature(signX + 8, signY + 10, signBoxW - 16, 10);
       doc.setDrawColor(210, 210, 220);
       doc.setLineWidth(0.2);
-      doc.line(rightX - 72, signY + 14.8, rightX - 6, signY + 14.8);
+      doc.line(signX + 8, signY + 22.5, signX + signBoxW - 8, signY + 22.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 45, 55);
+      doc.setFontSize(9);
+      doc.text('Ranjith kumar S', signX + signBoxW / 2, signY + 27.2, { align: 'center' } as any);
 
       const footerY = pageH - 10;
       doc.setFont('helvetica', 'normal');
