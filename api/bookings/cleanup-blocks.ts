@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/server";
+import { supabase } from "../../src/integrations/supabase/server";
 
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {

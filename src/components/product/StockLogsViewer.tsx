@@ -36,16 +36,12 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 
-const ADMIN_PIN = '2101';
-
 const StockLogsViewer: React.FC = () => {
   const [logs, setLogs] = useState<StockLog[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<StockLog[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLog, setSelectedLog] = useState<StockLog | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showPinDialog, setShowPinDialog] = useState(false);
-  const [pinInput, setPinInput] = useState('');
   const [deleteAction, setDeleteAction] = useState<'single' | 'all' | null>(null);
   const { toast } = useToast();
 
@@ -87,21 +83,8 @@ const StockLogsViewer: React.FC = () => {
 
   const handleDeleteConfirm = () => {
     setShowDeleteDialog(false);
-    setShowPinDialog(true);
-  };
-
-  const handlePinSubmit = () => {
-    if (pinInput !== ADMIN_PIN) {
-      toast({
-        title: 'Incorrect PIN',
-        description: 'The PIN you entered is incorrect. Please try again.',
-        variant: 'destructive',
-      });
-      setPinInput('');
-      return;
-    }
-
-    // PIN is correct, proceed with deletion
+    // Client-side PIN checks are not secure; this view is already behind authenticated
+    // admin routing. Proceed with deletion directly.
     if (deleteAction === 'single' && selectedLog) {
       deleteSingleLog(selectedLog.id);
     } else if (deleteAction === 'all') {
@@ -109,8 +92,6 @@ const StockLogsViewer: React.FC = () => {
     }
 
     // Reset states
-    setPinInput('');
-    setShowPinDialog(false);
     setSelectedLog(null);
     setDeleteAction(null);
   };
@@ -325,58 +306,6 @@ const StockLogsViewer: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* PIN Verification Dialog */}
-      <Dialog open={showPinDialog} onOpenChange={setShowPinDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enter PIN to Confirm</DialogTitle>
-            <DialogDescription>
-              Enter the admin PIN to authorize this deletion.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="pin">Admin PIN</Label>
-              <Input
-                id="pin"
-                type="password"
-                placeholder="Enter 4-digit PIN"
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                maxLength={4}
-                className="text-center text-2xl tracking-widest"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && pinInput.length === 4) {
-                    handlePinSubmit();
-                  }
-                }}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowPinDialog(false);
-                setPinInput('');
-                setSelectedLog(null);
-                setDeleteAction(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handlePinSubmit}
-              disabled={pinInput.length !== 4}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Confirm Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

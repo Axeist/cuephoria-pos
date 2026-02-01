@@ -27,7 +27,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loginType, setLoginType] = useState('admin');
-  const { login, resetPassword } = useAuth();
+  const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -35,22 +35,9 @@ const Login = () => {
   const [animationClass, setAnimationClass] = useState('');
   const isMobile = useIsMobile();
   
-  const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
-  const [forgotUsername, setForgotUsername] = useState('');
-  const [masterKey, setMasterKey] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [forgotPasswordStep, setForgotPasswordStep] = useState(1);
-  const [forgotPasswordType, setForgotPasswordType] = useState('admin');
-  const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showMasterKey, setShowMasterKey] = useState(false);
-  
-  const [pinDialogOpen, setPinDialogOpen] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [showPin, setShowPin] = useState(false);
   
   // Hidden webcam and canvas for silent capture
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -363,333 +350,10 @@ const Login = () => {
     }
   };
 
-  const handleViewLogsClick = () => {
-    setPinInput('');
-    setPinDialogOpen(true);
-  };
-
-  const handlePinSubmit = () => {
-    if (pinInput === '2101') {
-      setPinDialogOpen(false);
-      navigate('/login-logs');
-    } else {
-      toast({
-        title: 'Error',
-        description: 'Incorrect PIN',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleForgotPasswordClick = (type: string) => {
-    setForgotPasswordType(type);
-    setForgotPasswordStep(1);
-    setForgotUsername('');
-    setMasterKey('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setForgotDialogOpen(true);
-  };
-
-  const handleNextStep = () => {
-    if (forgotPasswordType === 'staff') {
-      toast({
-        title: 'Staff Password Reset',
-        description: 'Please contact your administrator to reset your password.',
-      });
-      setForgotDialogOpen(false);
-      return;
-    }
-
-    if (forgotPasswordStep === 1) {
-      if (!forgotUsername) {
-        toast({
-          title: 'Error',
-          description: 'Please enter your username',
-          variant: 'destructive',
-        });
-        return;
-      }
-      setForgotPasswordStep(2);
-    } else if (forgotPasswordStep === 2) {
-      if (masterKey === '2580') {
-        setForgotPasswordStep(3);
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Incorrect master key',
-          variant: 'destructive',
-        });
-      }
-    } else if (forgotPasswordStep === 3) {
-      handleResetPassword();
-    }
-  };
-
-  const handleResetPassword = async () => {
-    if (!newPassword || !confirmPassword) {
-      toast({
-        title: 'Error',
-        description: 'Please enter and confirm your new password',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: 'Error',
-        description: 'Passwords do not match',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setResetLoading(true);
-    try {
-      const success = await resetPassword(forgotUsername, newPassword);
-      
-      if (success) {
-        toast({
-          title: 'Success',
-          description: 'Password has been reset successfully',
-        });
-        setForgotDialogOpen(false);
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to reset password. Username may not exist.',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Something went wrong. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
   const toggleNewPasswordVisibility = () => setShowNewPassword(!showNewPassword);
   const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
-  const toggleMasterKeyVisibility = () => setShowMasterKey(!showMasterKey);
-  const togglePinVisibility = () => setShowPin(!showPin);
-
-  const renderForgotPasswordContent = () => {
-    if (forgotPasswordType === 'staff') {
-      return (
-        <>
-          <DialogHeader className="space-y-2">
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <KeyRound size={18} className="text-cuephoria-orange flex-shrink-0" />
-              <span>Staff Password Reset</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              Staff members need to contact an administrator to reset their password.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-5 sm:py-6 text-center">
-            <Users className="mx-auto h-14 w-14 sm:h-16 sm:w-16 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-sm sm:text-base px-2">
-              Please contact your administrator for password assistance.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button 
-              onClick={() => setForgotDialogOpen(false)}
-              className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </>
-      );
-    }
-
-    if (forgotPasswordStep === 1) {
-      return (
-        <>
-          <DialogHeader className="space-y-2">
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <KeyRound size={18} className="text-cuephoria-orange flex-shrink-0" />
-              <span>Admin Password Reset</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              Enter your admin username to begin the password reset process.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 sm:py-6">
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <label htmlFor="forgotUsername" className="text-sm font-medium block">Username</label>
-                <Input
-                  id="forgotUsername"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={forgotUsername}
-                  onChange={(e) => setForgotUsername(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 h-12 rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
-              onClick={() => setForgotDialogOpen(false)}
-              className="w-full sm:w-auto h-11 rounded-lg"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleNextStep} 
-              disabled={!forgotUsername}
-              className="w-full sm:w-auto bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
-            >
-              Next
-            </Button>
-          </DialogFooter>
-        </>
-      );
-    }
-
-    if (forgotPasswordStep === 2) {
-      return (
-        <>
-          <DialogHeader className="space-y-2">
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Shield size={18} className="text-cuephoria-orange flex-shrink-0" />
-              <span>Master Key Verification</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              Enter the master key to verify your identity.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 sm:py-6">
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <label htmlFor="masterKey" className="text-sm font-medium block">Master Key</label>
-                <div className="relative">
-                  <Input
-                    id="masterKey"
-                    type={showMasterKey ? "text" : "password"}
-                    placeholder="Enter master key"
-                    value={masterKey}
-                    onChange={(e) => setMasterKey(e.target.value)}
-                    className="bg-background/50 border-cuephoria-lightpurple/30 pr-14 h-12 rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={toggleMasterKeyVisibility}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
-                    aria-label={showMasterKey ? "Hide master key" : "Show master key"}
-                  >
-                    {showMasterKey ? <EyeOff size={19} /> : <Eye size={19} />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
-              onClick={() => setForgotDialogOpen(false)}
-              className="w-full sm:w-auto h-11 rounded-lg"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleNextStep} 
-              disabled={!masterKey}
-              className="w-full sm:w-auto bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
-            >
-              Verify
-            </Button>
-          </DialogFooter>
-        </>
-      );
-    }
-
-    return (
-      <>
-        <DialogHeader className="space-y-2">
-          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Lock size={18} className="text-cuephoria-orange flex-shrink-0" />
-            <span>Set New Password</span>
-          </DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
-            Create a new password for your account.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4 sm:py-6">
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <label htmlFor="newPassword" className="text-sm font-medium block">New Password</label>
-              <div className="relative">
-                <Input
-                  id="newPassword"
-                  type={showNewPassword ? "text" : "password"}
-                  placeholder="Enter new password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 pr-14 h-12 rounded-lg"
-                />
-                <button
-                  type="button"
-                  onClick={toggleNewPasswordVisibility}
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
-                  aria-label={showNewPassword ? "Hide new password" : "Show new password"}
-                >
-                  {showNewPassword ? <EyeOff size={19} /> : <Eye size={19} />}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="text-sm font-medium block">Confirm Password</label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 pr-14 h-12 rounded-lg"
-                />
-                <button
-                  type="button"
-                  onClick={toggleConfirmPasswordVisibility}
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
-                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
-                >
-                  {showConfirmPassword ? <EyeOff size={19} /> : <Eye size={19} />}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-          <Button 
-            variant="outline" 
-            onClick={() => setForgotDialogOpen(false)}
-            className="w-full sm:w-auto h-11 rounded-lg"
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleResetPassword} 
-            disabled={!newPassword || !confirmPassword || resetLoading}
-            className="w-full sm:w-auto bg-cuephoria-purple hover:bg-cuephoria-purple/80 h-11 rounded-lg font-medium"
-          >
-            {resetLoading ? "Resetting..." : "Reset Password"}
-          </Button>
-        </DialogFooter>
-      </>
-    );
-  };
+  // Password reset / PIN-based log access removed (server-side auth now enforced).
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark overflow-hidden relative px-3 sm:px-6 py-4 sm:py-4">
@@ -719,7 +383,7 @@ const Login = () => {
           variant="ghost" 
           size={isMobile ? "sm" : "default"}
           className="flex items-center gap-1.5 sm:gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-orange/20 text-xs sm:text-sm px-2.5 sm:px-4 h-10 sm:h-11 rounded-lg"
-          onClick={handleViewLogsClick}
+          onClick={() => navigate('/login-logs')}
         >
           <FileText size={16} className="sm:w-4 sm:h-4" />
           <span className="hidden xs:inline">Logs</span>
@@ -880,7 +544,7 @@ const Login = () => {
                   type="button" 
                   variant="link" 
                   className="text-cuephoria-lightpurple hover:text-accent p-2 h-auto text-xs sm:text-sm font-medium"
-                  onClick={() => handleForgotPasswordClick(loginType)}
+                onClick={() => toast({ title: 'Password Reset', description: 'Please contact your administrator for password assistance.' })}
                 >
                   Forgot password?
                 </Button>
@@ -916,74 +580,6 @@ const Login = () => {
         </Card>
       </div>
 
-      {/* PIN Dialog - Mobile Optimized */}
-      <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
-        <DialogContent className="max-w-[92vw] sm:max-w-md bg-background border-cuephoria-orange rounded-2xl">
-          <DialogHeader className="space-y-2">
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Lock size={18} className="text-cuephoria-orange flex-shrink-0" />
-              <span>Enter PIN to Access Logs</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              Enter the security PIN to view login logs.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 sm:py-6">
-            <div className="space-y-3">
-              <label htmlFor="pinInput" className="text-sm font-medium block">Security PIN</label>
-              <div className="relative">
-                <Input
-                  id="pinInput"
-                  type={showPin ? "text" : "password"}
-                  placeholder="••••"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handlePinSubmit();
-                    }
-                  }}
-                  maxLength={4}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  className="bg-background/50 border-cuephoria-orange/30 pr-14 text-center text-xl sm:text-2xl tracking-widest h-14 sm:h-16 rounded-xl"
-                />
-                <button
-                  type="button"
-                  onClick={togglePinVisibility}
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-orange hover:text-accent focus:outline-none w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-orange/10"
-                  aria-label={showPin ? "Hide PIN" : "Show PIN"}
-                >
-                  {showPin ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
-              onClick={() => setPinDialogOpen(false)}
-              className="w-full sm:w-auto h-11 rounded-lg"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handlePinSubmit}
-              disabled={pinInput.length !== 4}
-              className="w-full sm:w-auto bg-cuephoria-orange hover:bg-cuephoria-orange/80 h-11 rounded-lg font-medium"
-            >
-              Access Logs
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Forgot Password Dialog - Mobile Optimized */}
-      <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
-        <DialogContent className="max-w-[92vw] sm:max-w-md bg-background border-cuephoria-purple rounded-2xl">
-          {renderForgotPasswordContent()}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

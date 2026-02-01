@@ -111,23 +111,29 @@ const ProtectedRoute = ({
   }
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full overflow-x-hidden relative">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col overflow-x-hidden">
-          <div className="hidden md:flex items-center justify-between px-4 py-2 border-b">
-            <SidebarTrigger />
-            <GlobalNotificationBell />
-          </div>
-          <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
-            {children}
-          </div>
-          <footer className="fixed sm:relative bottom-0 left-0 right-0 w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-40 sm:z-50">
-            Designed & Developed by RK.
-          </footer>
-        </div>
-      </div>
-    </SidebarProvider>
+    <POSProvider>
+      <ExpenseProvider>
+        <BookingNotificationProvider>
+          <SidebarProvider>
+            <div className="flex min-h-screen w-full overflow-x-hidden relative">
+              <AppSidebar />
+              <div className="flex-1 flex flex-col overflow-x-hidden">
+                <div className="hidden md:flex items-center justify-between px-4 py-2 border-b">
+                  <SidebarTrigger />
+                  <GlobalNotificationBell />
+                </div>
+                <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
+                  {children}
+                </div>
+                <footer className="fixed sm:relative bottom-0 left-0 right-0 w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-40 sm:z-50">
+                  Designed & Developed by RK.
+                </footer>
+              </div>
+            </div>
+          </SidebarProvider>
+        </BookingNotificationProvider>
+      </ExpenseProvider>
+    </POSProvider>
   );
 };
 
@@ -170,19 +176,23 @@ const App = () => {
     <>
       <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <POSProvider>
-          <ExpenseProvider>
-            <BookingNotificationProvider>
-              <TooltipProvider>
-                <SplashController />
-                <Toaster />
-                <Sonner />
-                {/* REMOVED: <AutoRefreshApp> wrapper */}
-                <BrowserRouter>
-              <Routes>
+        <TooltipProvider>
+          <SplashController />
+          <Toaster />
+          <Sonner />
+          {/* REMOVED: <AutoRefreshApp> wrapper */}
+          <BrowserRouter>
+            <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/login-logs" element={<LoginLogs />} />
+                <Route
+                  path="/login-logs"
+                  element={
+                    <ProtectedRoute requireAdmin={true}>
+                      <LoginLogs />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Public routes */}
                 <Route path="/public/tournaments" element={<PublicTournaments />} />
@@ -330,14 +340,11 @@ const App = () => {
                 />
 
                 <Route path="*" element={<NotFound />} />
-              </Routes>
-              </BrowserRouter>
-              {/* REMOVED: </AutoRefreshApp> wrapper */}
-            </TooltipProvider>
-          </BookingNotificationProvider>
-        </ExpenseProvider>
-      </POSProvider>
-    </AuthProvider>
+            </Routes>
+          </BrowserRouter>
+          {/* REMOVED: </AutoRefreshApp> wrapper */}
+        </TooltipProvider>
+      </AuthProvider>
       </QueryClientProvider>
     </>
   );

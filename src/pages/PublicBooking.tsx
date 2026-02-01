@@ -399,32 +399,11 @@ export default function PublicBooking() {
     }
   }, [searchParams]);
 
-  // Cleanup: Release slot blocks when component unmounts or slots are deselected
-  useEffect(() => {
-    return () => {
-      // Release any unconfirmed blocks for this session when component unmounts
-      if (selectedSlots.length > 0 && selectedStations.length > 0) {
-        const releaseBlocks = async () => {
-          for (const slot of selectedSlots) {
-            await supabase
-              .from("slot_blocks")
-              .delete()
-              .in("station_id", selectedStations)
-              .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-              .eq("start_time", slot.start_time)
-              .eq("end_time", slot.end_time)
-              .eq("session_id", sessionId)
-              .eq("is_confirmed", false);
-          }
-        };
-        releaseBlocks().catch(console.error);
-      }
-    };
-  }, [selectedSlots, selectedStations, selectedDate, sessionId]);
+   // NOTE: Slot blocks auto-expire server-side; we do not attempt client-side cleanup.
 
   async function fetchStations() {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("stations")
         .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration")
         // Only show stations enabled for public booking.
@@ -432,9 +411,9 @@ export default function PublicBooking() {
         .or("event_enabled.eq.true,and(category.is.null,event_enabled.is.null)")
         .order("name");
       if (error) throw error;
-      setStations((data || []).map(station => ({
+      setStations(((data || []) as any[]).map((station) => ({
         ...station,
-        type: station.type as StationType
+        type: station.type as StationType,
       })));
     } catch (e) {
       console.error(e);
@@ -884,15 +863,16 @@ export default function PublicBooking() {
 
     setSearchingCustomer(true);
     try {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, phone, email, custom_id")
-        .eq("phone", normalizedPhone)
-        .maybeSingle();
-        
-      if (error && (error as any).code !== "PGRST116") throw error;
+      const res = await fetch("/api/webhooks/get-customer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ customer_phone: normalizedPhone }),
+      });
+      const json = await res.json();
+      if (!json?.ok) throw new Error(json?.error || "Failed to fetch customer");
 
-      if (data) {
+      const data = json?.customer;
+      if (json?.found && data) {
         setIsReturningCustomer(true);
         setCustomerInfo({
           id: data.id,
@@ -1571,68 +1551,20 @@ export default function PublicBooking() {
   async function createVenueBooking() {
     setLoading(true);
     try {
-      let customerId = customerInfo.id;
-      
-      if (!customerId) {
-        const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
-        
-        const validation = validatePhoneNumber(normalizedPhone);
-        if (!validation.valid) {
-          toast.error(validation.error || "Invalid phone number");
-          setLoading(false);
-          return;
-        }
-
-        // ✅ Check for duplicate phone number
-        const { data: existingCustomer } = await supabase
-          .from("customers")
-          .select("id, name, custom_id")
-          .eq("phone", normalizedPhone)
-          .maybeSingle();
-
-        if (existingCustomer) {
-          customerId = existingCustomer.id;
-          toast.info(`Using existing customer: ${existingCustomer.name}`);
-        } else {
-          const customerID = generateCustomerID(normalizedPhone);
-
-          const { data: newCustomer, error: customerError } = await supabase
-            .from("customers")
-            .insert({
-              name: customerInfo.name,
-              phone: normalizedPhone,
-              email: customerInfo.email || null,
-              custom_id: customerID,
-              is_member: false,
-              loyalty_points: 0,
-              total_spent: 0,
-              total_play_time: 0,
-            })
-            .select("id")
-            .single();
-            
-          if (customerError) {
-            if (customerError.code === '23505') {
-              toast.error("This phone number is already registered. Please search for your account.");
-              setLoading(false);
-              return;
-            }
-            throw customerError;
-          }
-          customerId = newCustomer.id;
-          toast.success(`New customer created: ${customerID}`);
-        }
-      }
-
       const couponCodes = Object.values(appliedCoupons).join(",");
-      const bookingDuration = getBookingDuration(selectedStations, stations);
       
       // Use selectedSlots if available, otherwise fall back to single selectedSlot
       const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
       
       if (slotsToBook.length === 0) {
         toast.error("Please select at least one time slot");
-        setLoading(false);
+        return;
+      }
+
+      const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
+      const validation = validatePhoneNumber(normalizedPhone);
+      if (!validation.valid) {
+        toast.error(validation.error || "Invalid phone number");
         return;
       }
       
@@ -1641,166 +1573,35 @@ export default function PublicBooking() {
       const totalOriginalPrice = originalPrice * slotsCount;
       const totalDiscountAmount = discount * slotsCount;
       const totalFinalPrice = finalPrice * slotsCount;
-      
-      // Create bookings for each selected slot
-      // Price per booking = price per slot (since each slot is independent)
-      // For NIT EVENT, calculate duration per station (30min for PS5/8ball, 15min for VR)
-      const rows = slotsToBook.flatMap((slot) =>
-        selectedStations.map((stationId) => {
-          const station = stations.find(s => s.id === stationId);
-          const stationDuration = station ? getSlotDuration(station) : bookingDuration;
-          return {
-            station_id: stationId,
-            customer_id: customerId!,
-            booking_date: format(selectedDate, "yyyy-MM-dd"),
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-            duration: stationDuration,
-            status: "confirmed",
-            original_price: originalPrice,
-            discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-            final_price: finalPrice,
-            coupon_code: couponCodes || null,
-          };
-        })
-      );
 
-      // STEP 1: Check for conflicts and create slot blocks
-      const timeToMinutes = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return hours * 60 + minutes;
-      };
+      const res = await fetch("/api/bookings/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          customerInfo: {
+            ...customerInfo,
+            phone: normalizedPhone,
+          },
+          selectedStations,
+          selectedDate: format(selectedDate, "yyyy-MM-dd"),
+          selectedSlot: selectedSlot ?? slotsToBook[0],
+          selectedSlots: slotsToBook,
+          originalPrice,
+          discount,
+          finalPrice,
+          appliedCoupons,
+          payment_mode: "venue",
+          sessionId,
+        }),
+      });
 
-      const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
-      const blockDurationMinutes = 5;
-      const expiresAt = new Date(Date.now() + blockDurationMinutes * 60 * 1000).toISOString();
-
-      for (const slot of slotsToBook) {
-        const requestedStart = timeToMinutes(slot.start_time);
-        const requestedEnd = timeToMinutes(slot.end_time);
-        const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
-
-        // Check for existing bookings
-        const { data: existingBookings } = await supabase
-          .from("bookings")
-          .select("id, station_id, start_time, end_time")
-          .in("station_id", selectedStations)
-          .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-          .in("status", ["confirmed", "in-progress"]);
-
-        if (existingBookings) {
-          const conflicts = existingBookings.filter(booking => {
-            const existingStart = timeToMinutes(booking.start_time);
-            const existingEnd = timeToMinutes(booking.end_time);
-            const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
-
-            return (
-              (requestedStart >= existingStart && requestedStart < existingEndMinutes) ||
-              (requestedEndMinutes > existingStart && requestedEndMinutes <= existingEndMinutes) ||
-              (requestedStart <= existingStart && requestedEndMinutes >= existingEndMinutes) ||
-              (existingStart <= requestedStart && existingEndMinutes >= requestedEndMinutes)
-            );
-          });
-
-          if (conflicts.length > 0) {
-            toast.error("Selected slot is no longer available. Please select another time slot.");
-            setLoading(false);
-            return;
-          }
-        }
-
-        // Check for active slot blocks (excluding our own session)
-        const { data: activeBlocks } = await supabase
-          .from("slot_blocks")
-          .select("id, station_id")
-          .in("station_id", selectedStations)
-          .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-          .eq("start_time", slot.start_time)
-          .eq("end_time", slot.end_time)
-          .gt("expires_at", new Date().toISOString())
-          .eq("is_confirmed", false)
-          .neq("session_id", sessionId);
-
-        if (activeBlocks && activeBlocks.length > 0) {
-          toast.error("This slot is currently being booked by another customer. Please try again in a moment.");
-          setLoading(false);
+      const json = await res.json();
+      if (!json?.ok) {
+        if (json?.conflict) {
+          toast.error(json?.error || "Selected slot is no longer available. Please select another time slot.");
           return;
         }
-
-        // Create slot blocks for all selected stations
-        const blockRows = selectedStations.map((stationId: string) => ({
-          station_id: stationId,
-          booking_date: format(selectedDate, "yyyy-MM-dd"),
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          expires_at: expiresAt,
-          session_id: sessionId,
-          customer_phone: normalizedPhone,
-          is_confirmed: false,
-        }));
-
-        const { error: blockError } = await supabase
-          .from("slot_blocks")
-          .upsert(blockRows, {
-            onConflict: "station_id,booking_date,start_time,end_time",
-            ignoreDuplicates: false
-          });
-
-        if (blockError) {
-          console.error("Failed to create slot blocks:", blockError);
-          // Check again for blocks (race condition)
-          const { data: newActiveBlocks } = await supabase
-            .from("slot_blocks")
-            .select("id")
-            .in("station_id", selectedStations)
-            .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-            .eq("start_time", slot.start_time)
-            .eq("end_time", slot.end_time)
-            .gt("expires_at", new Date().toISOString())
-            .eq("is_confirmed", false)
-            .neq("session_id", sessionId);
-
-          if (newActiveBlocks && newActiveBlocks.length > 0) {
-            toast.error("This slot was just booked by another customer. Please select another time slot.");
-            setLoading(false);
-            return;
-          }
-        }
-      }
-
-      const { data: inserted, error: bookingError } = await supabase
-        .from("bookings")
-        .insert(rows)
-        .select("id");
-        
-      if (bookingError) {
-        // Release slot blocks if booking fails
-        for (const slot of slotsToBook) {
-          await supabase
-            .from("slot_blocks")
-            .delete()
-            .in("station_id", selectedStations)
-            .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-            .eq("start_time", slot.start_time)
-            .eq("end_time", slot.end_time)
-            .eq("session_id", sessionId)
-            .eq("is_confirmed", false);
-        }
-        throw bookingError;
-      }
-
-      // Confirm slot blocks after successful booking
-      for (const slot of slotsToBook) {
-        await supabase
-          .from("slot_blocks")
-          .update({ is_confirmed: true })
-          .in("station_id", selectedStations)
-          .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-          .eq("start_time", slot.start_time)
-          .eq("end_time", slot.end_time)
-          .eq("session_id", sessionId)
-          .gt("expires_at", new Date().toISOString())
-          .eq("is_confirmed", false);
+        throw new Error(json?.error || "Failed to create booking");
       }
 
       const stationObjects = stations.filter((s) =>
@@ -1816,7 +1617,7 @@ export default function PublicBooking() {
       const displaySlot = selectedSlot || slotsToBook[0];
       
       setBookingConfirmationData({
-        bookingId: inserted[0].id.slice(0, 8).toUpperCase(),
+        bookingId: String(json.bookingId || "").slice(0, 8).toUpperCase(),
         customerName: customerInfo.name,
         stationNames: stationObjects.map((s) => s.name),
         date: format(selectedDate, "yyyy-MM-dd"),
@@ -1851,22 +1652,6 @@ export default function PublicBooking() {
       setAvailableSlots([]);
     } catch (e) {
       console.error(e);
-      // Release any remaining slot blocks on error
-      const slotsToRelease = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
-      if (slotsToRelease.length > 0 && selectedStations.length > 0) {
-        for (const slot of slotsToRelease) {
-          await supabase
-            .from("slot_blocks")
-            .delete()
-            .in("station_id", selectedStations)
-            .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
-            .eq("start_time", slot.start_time)
-            .eq("end_time", slot.end_time)
-            .eq("session_id", sessionId)
-            .eq("is_confirmed", false)
-            .catch(console.error);
-        }
-      }
       toast.error("Failed to create booking. Please try again.");
     } finally {
       setLoading(false);
@@ -2220,16 +2005,15 @@ export default function PublicBooking() {
       }
 
       const stationIds = [...new Set(bookingsData.map((b) => b.station_id))];
-      const customerIds = [...new Set(bookingsData.map((b) => b.customer_id))];
 
-      const [{ data: stationsData }, { data: customersData }] = await Promise.all([
-        supabase.from("stations").select("id, name").in("id", stationIds),
-        supabase.from("customers").select("id, name, phone").in("id", customerIds),
-      ]);
+      // SECURITY: do not fetch customer PII for public pages.
+      const { data: stationsData } = await supabase
+        .from("stations")
+        .select("id, name")
+        .in("id", stationIds);
 
       const rows: TodayBookingRow[] = bookingsData.map((b) => {
         const st = stationsData?.find((s) => s.id === b.station_id);
-        const cu = customersData?.find((c) => c.id === b.customer_id);
         return {
           id: b.id,
           booking_date: b.booking_date,
@@ -2239,8 +2023,8 @@ export default function PublicBooking() {
           station_id: b.station_id,
           customer_id: b.customer_id,
           stationName: st?.name || "—",
-          customerName: cu?.name || "—",
-          customerPhone: maskPhone(cu?.phone),
+          customerName: "—",
+          customerPhone: "",
         };
       });
 

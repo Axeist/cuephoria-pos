@@ -1,19 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = "https://apltkougkglbsfphbghi.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwbHRrb3Vna2dsYnNmcGhiZ2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1OTE3MDMsImV4cCI6MjA1OTE2NzcwM30.Kk38S9Hl9tIwv_a3VPgUaq1cSCCPmlGJOR5R98tREeU";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false
-  },
-  global: {
-    headers: {
-      'x-application-name': 'cuephoria-api'
-    }
-  }
-});
+import { supabase } from "../../src/integrations/supabase/server";
 
 // Vercel Node.js runtime types
 type VercelRequest = {
@@ -97,7 +82,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fetch customer by phone number
     const { data: customer, error: customerError } = await supabase
       .from("customers")
-      .select("id, name, phone, email, is_member, loyalty_points, total_spent, total_play_time, created_at")
+      // Return only minimal PII needed for booking UX.
+      // Do NOT return CRM/financial stats from a public endpoint.
+      .select("id, name, phone, email")
       .eq("phone", normalizedPhone)
       .single();
 
@@ -124,32 +111,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }, 200);
     }
 
-    // Fetch recent bookings for this customer (last 10)
-    const { data: recentBookings, error: bookingsError } = await supabase
-      .from("bookings")
-      .select(`
-        id, 
-        booking_date, 
-        start_time, 
-        end_time, 
-        status, 
-        station_id,
-        stations (
-          name,
-          type
-        )
-      `)
-      .eq("customer_id", customer.id)
-      .order("booking_date", { ascending: false })
-      .order("start_time", { ascending: false })
-      .limit(10);
-
-    // Fetch total booking count
-    const { count: totalBookings } = await supabase
-      .from("bookings")
-      .select("*", { count: "exact", head: true })
-      .eq("customer_id", customer.id);
-
     return j(res, {
       ok: true,
       found: true,
@@ -158,23 +119,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         name: customer.name,
         phone: customer.phone,
         email: customer.email,
-        is_member: customer.is_member,
-        loyalty_points: customer.loyalty_points,
-        total_spent: customer.total_spent,
-        total_play_time: customer.total_play_time,
-        created_at: customer.created_at,
-        total_bookings: totalBookings || 0,
-        recent_bookings: recentBookings?.map(booking => {
-          const station = Array.isArray(booking.stations) ? booking.stations[0] : booking.stations;
-          return {
-            id: booking.id,
-            date: booking.booking_date,
-            time: `${booking.start_time} - ${booking.end_time}`,
-            status: booking.status,
-            station_name: station?.name || "Unknown",
-            station_type: station?.type || "unknown"
-          };
-        }) || []
       }
     }, 200);
 

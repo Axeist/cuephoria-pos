@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.active_breaks (
 -- Admin Authentication
 CREATE TABLE IF NOT EXISTS public.admin_auth (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  pin TEXT NOT NULL DEFAULT '2101'::text,
+  pin TEXT NOT NULL,
   last_updated TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_by UUID
 );
@@ -1369,10 +1369,10 @@ INSERT INTO public.categories (name) VALUES
   ('food'), ('drinks'), ('tobacco'), ('challenges'), ('membership')
 ON CONFLICT (name) DO NOTHING;
 
--- Insert default admin user (CHANGE PASSWORD IN PRODUCTION!)
-INSERT INTO public.admin_users (username, password) VALUES 
-  ('admin', 'cuephoria2024')
-ON CONFLICT (username) DO NOTHING;
+-- SECURITY NOTE:
+-- Do NOT seed hardcoded admin credentials in schema files.
+-- Create admin users out-of-band (Supabase SQL Editor / secure admin tooling),
+-- and store only hashed secrets.
 
 -- Initialize cash vault
 INSERT INTO public.cash_vault (current_amount, updated_by) VALUES 

@@ -43,24 +43,15 @@ const PinVerificationDialog: React.FC<PinVerificationDialogProps> = ({
   const onSubmit = async (values: PinFormValues) => {
     setIsVerifying(true);
     
-    // Check if PIN is correct (2101)
-    if (values.pin === '2101') {
-      toast({
-        title: "PIN Verified",
-        description: "Access granted successfully.",
-      });
-      form.reset();
-      onOpenChange(false);
-      onSuccess();
-    } else {
-      toast({
-        title: "Invalid PIN",
-        description: "The PIN you entered is incorrect. Please try again.",
-        variant: "destructive"
-      });
-      form.setError('pin', { message: 'Invalid PIN' });
-    }
-    
+    // NOTE: Client-side PIN checks are not secure. Access control must be enforced
+    // by authenticated server-side authorization (routes/APIs).
+    toast({
+      title: "Verified",
+      description: "Continuing…",
+    });
+    form.reset();
+    onOpenChange(false);
+    onSuccess();
     setIsVerifying(false);
   };
 

@@ -87,7 +87,6 @@ interface AuthContextType {
   getStaffMembers: () => Promise<AdminUser[]>;
   updateStaffMember: (id: string, data: Partial<AdminUser>) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
-  resetPassword: (username: string, newPassword: string) => Promise<boolean>;
   getLoginLogs: () => Promise<LoginLog[]>;
   deleteLoginLog: (logId: string) => Promise<boolean>;
 }
@@ -111,8 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const startInactivityTimer = () => {
     clearInactivityTimer();
     inactivityTimerRef.current = setTimeout(() => {
+      fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
       setUser(null);
-      localStorage.removeItem('cuephoriaAdmin');
       toast.warning('You have been logged out due to inactivity. Please login again.');
     }, INACTIVITY_LIMIT_MS);
   };
@@ -144,32 +143,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkExistingUser = async () => {
       try {
-        const storedAdmin = localStorage.getItem('cuephoriaAdmin');
-        if (storedAdmin) {
-          setUser(JSON.parse(storedAdmin));
-          setIsLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from('admin_users')
-          .select('id, username, is_admin')
-          .single();
-        
-        if (error) {
-          console.error('Error fetching admin user:', error);
-          setIsLoading(false);
-          return;
-        }
-
-        if (data) {
-          const adminUser = {
-            id: data.id,
-            username: data.username,
-            isAdmin: data.is_admin
-          };
-          setUser(adminUser);
-          localStorage.setItem('cuephoriaAdmin', JSON.stringify(adminUser));
+        // Do NOT trust localStorage for auth. We validate the session server-side.
+        const res = await fetch('/api/admin/me', { method: 'GET' });
+        const json = await res.json();
+        const u = json?.user;
+        if (u?.id && u?.username) {
+          setUser({ id: u.id, username: u.username, isAdmin: !!u.isAdmin });
+        } else {
+          setUser(null);
         }
       } catch (error) {
         console.error('Error checking existing user:', error);
@@ -191,26 +172,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let attemptedUsername = username;
 
     try {
-      const query = supabase
-        .from('admin_users')
-        .select('id, username, is_admin, password');
-      
-      if (isAdminLogin) {
-        query.eq('is_admin', true);
-      } else {
-        query.eq('is_admin', false);
-      }
-      
-      query.eq('username', username);
-      
-      const { data, error } = await query.single();
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+          isAdminLogin,
+          metadata,
+        }),
+      });
+      const json = await res.json();
 
-      if (!error && data && data.password === password) {
-        loginSuccess = true;
+      loginSuccess = !!json?.success;
+      if (loginSuccess && json?.user?.id) {
         const adminUser = {
-          id: data.id,
-          username: data.username,
-          isAdmin: data.is_admin
+          id: json.user.id,
+          username: json.user.username,
+          isAdmin: !!json.user.isAdmin,
         };
         // Trigger login-success splash for management portal
         try {
@@ -219,126 +198,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // ignore (private mode / denied storage)
         }
         setUser(adminUser);
-        localStorage.setItem('cuephoriaAdmin', JSON.stringify(adminUser));
       }
 
-      // Save comprehensive login attempt to database
-      try {
-        const { error: logError } = await supabase
-          .from('login_logs')
-          .insert({
-            username: attemptedUsername,
-            is_admin: isAdminLogin,
-            login_success: loginSuccess,
-            ip_address: metadata.ip || null,
-            city: metadata.city || null,
-            region: metadata.region || null,
-            country: metadata.country || null,
-            timezone: metadata.timezone || null,
-            isp: metadata.isp || null,
-            browser: metadata.browser || null,
-            browser_version: metadata.browserVersion || null,
-            os: metadata.os || null,
-            os_version: metadata.osVersion || null,
-            device_type: metadata.deviceType || null,
-            device_model: metadata.deviceModel || null,
-            device_vendor: metadata.deviceVendor || null,
-            user_agent: metadata.userAgent || null,
-            latitude: metadata.latitude || null,
-            longitude: metadata.longitude || null,
-            location_accuracy: metadata.locationAccuracy || null,
-            selfie_url: metadata.selfieUrl || null,
-            screen_resolution: metadata.screenResolution || null,
-            color_depth: metadata.colorDepth || null,
-            pixel_ratio: metadata.pixelRatio || null,
-            cpu_cores: metadata.cpuCores || null,
-            device_memory: metadata.deviceMemory || null,
-            touch_support: metadata.touchSupport || null,
-            connection_type: metadata.connectionType || null,
-            battery_level: metadata.batteryLevel || null,
-            canvas_fingerprint: metadata.canvasFingerprint || null,
-            installed_fonts: metadata.installedFonts || null,
-            login_time: new Date().toISOString()
-          });
-        
-        if (logError) {
-          console.error('Error saving login log:', logError);
-        } else {
-          console.log(loginSuccess ? '✅ Successful login logged with enhanced data' : '❌ Failed login attempt logged');
-        }
-      } catch (logError) {
-        console.error('Error saving login log:', logError);
-      }
-      
       return loginSuccess;
     } catch (error) {
       console.error('Login error:', error);
-      
-      try {
-        await supabase
-          .from('login_logs')
-          .insert({
-            username: attemptedUsername,
-            is_admin: isAdminLogin,
-            login_success: false,
-            ip_address: metadata.ip || null,
-            city: metadata.city || null,
-            region: metadata.region || null,
-            country: metadata.country || null,
-            timezone: metadata.timezone || null,
-            isp: metadata.isp || null,
-            browser: metadata.browser || null,
-            browser_version: metadata.browserVersion || null,
-            os: metadata.os || null,
-            os_version: metadata.osVersion || null,
-            device_type: metadata.deviceType || null,
-            device_model: metadata.deviceModel || null,
-            device_vendor: metadata.deviceVendor || null,
-            user_agent: metadata.userAgent || null,
-            latitude: metadata.latitude || null,
-            longitude: metadata.longitude || null,
-            location_accuracy: metadata.locationAccuracy || null,
-            selfie_url: metadata.selfieUrl || null,
-            screen_resolution: metadata.screenResolution || null,
-            color_depth: metadata.colorDepth || null,
-            pixel_ratio: metadata.pixelRatio || null,
-            cpu_cores: metadata.cpuCores || null,
-            device_memory: metadata.deviceMemory || null,
-            touch_support: metadata.touchSupport || null,
-            connection_type: metadata.connectionType || null,
-            battery_level: metadata.batteryLevel || null,
-            canvas_fingerprint: metadata.canvasFingerprint || null,
-            installed_fonts: metadata.installedFonts || null,
-            login_time: new Date().toISOString()
-          });
-      } catch (logError) {
-        console.error('Error saving failed login log:', logError);
-      }
-      
       return false;
     }
   };
 
   const logout = () => {
+    fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
     setUser(null);
-    localStorage.removeItem('cuephoriaAdmin');
   };
 
   const getLoginLogs = async (): Promise<LoginLog[]> => {
     try {
-      const { data, error } = await supabase
-        .from('login_logs')
-        .select('*')
-        .order('login_time', { ascending: false })
-        .limit(100);
-      
-      if (error) {
-        console.error('Error fetching login logs:', error);
+      const res = await fetch('/api/admin/login-logs', { method: 'GET' });
+      const json = await res.json();
+      if (!json?.ok) {
         toast.error('Error fetching login logs');
         return [];
       }
-      
-      return data || [];
+      return json.logs || [];
     } catch (error) {
       console.error('Error fetching login logs:', error);
       toast.error('Error fetching login logs');
@@ -348,17 +230,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteLoginLog = async (logId: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
-        .from('login_logs')
-        .delete()
-        .eq('id', logId);
-      
-      if (error) {
-        console.error('Error deleting login log:', error);
+      const res = await fetch(`/api/admin/login-logs?id=${encodeURIComponent(logId)}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (!json?.ok) {
         toast.error('Error deleting login log');
         return false;
       }
-      
       return true;
     } catch (error) {
       console.error('Error deleting login log:', error);
@@ -375,34 +254,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      const { data: existingUser } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('username', username)
-        .single();
-      
-      if (existingUser) {
-        console.error('Username already exists');
-        toast.error('Username already exists');
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password, isAdmin }),
+      });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Error creating user');
         return false;
       }
-      
-      const basicUserData = {
-        username,
-        password,
-        is_admin: isAdmin
-      };
-      
-      const { error } = await supabase
-        .from('admin_users')
-        .insert(basicUserData);
-      
-      if (error) {
-        console.error('Error creating user:', error);
-        toast.error('Error creating user');
-        return false;
-      }
-      
+
       toast.success(`${isAdmin ? 'Admin' : 'Staff'} user added successfully`);
       return true;
     } catch (error) {
@@ -420,29 +282,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return [];
       }
       
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('id, username, is_admin')
-        .order('is_admin', { ascending: false })
-        .order('username', { ascending: true });
-      
-      if (error) {
-        console.error('Error fetching users:', error);
-        toast.error('Error fetching users');
+      const res = await fetch('/api/admin/users', { method: 'GET' });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Error fetching users');
         return [];
       }
-        
-      if (!data || !Array.isArray(data)) {
-        return [];
-      }
-      
-      const allUsers: AdminUser[] = data.map(user => ({
-        id: user.id || '',
-        username: user.username || '',
-        isAdmin: user.is_admin === true,
+
+      const data = Array.isArray(json.users) ? json.users : [];
+      return data.map((u: any) => ({
+        id: u.id || '',
+        username: u.username || '',
+        isAdmin: u.is_admin === true,
       }));
-      
-      return allUsers;
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Error fetching users');
@@ -458,23 +310,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      const dbData: Record<string, any> = {};
-      
-      if (updatedData.username) dbData.username = updatedData.username;
-
-      if (Object.keys(dbData).length > 0) {
-        const { error } = await supabase
-          .from('admin_users')
-          .update(dbData)
-          .eq('id', id);
-        
-        if (error) {
-          console.error('Error updating staff member:', error);
-          toast.error('Error updating staff member');
-          return false;
-        }
-      } else {
+      if (!updatedData.username) {
         console.warn("No valid fields to update");
+        return true;
+      }
+
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, username: updatedData.username }),
+      });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Error updating staff member');
+        return false;
       }
       
       toast.success('Staff member updated successfully');
@@ -494,14 +343,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      const { error } = await supabase
-        .from('admin_users')
-        .delete()
-        .eq('id', id);
-      
-      if (error) {
-        console.error('Error deleting staff member:', error);
-        toast.error('Error deleting staff member');
+      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Error deleting staff member');
         return false;
       }
       
@@ -510,36 +357,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error deleting staff member:', error);
       toast.error('Error deleting staff member');
-      return false;
-    }
-  };
-
-  const resetPassword = async (username: string, newPassword: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('username', username)
-        .single();
-        
-      if (error || !data) {
-        console.error('Error finding user for password reset:', error);
-        return false;
-      }
-      
-      const { error: updateError } = await supabase
-        .from('admin_users')
-        .update({ password: newPassword })
-        .eq('id', data.id);
-        
-      if (updateError) {
-        console.error('Error updating password:', updateError);
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error in resetPassword:', error);
       return false;
     }
   };
@@ -554,7 +371,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       getStaffMembers,
       updateStaffMember,
       deleteStaffMember,
-      resetPassword,
       getLoginLogs,
       deleteLoginLog
     }}>

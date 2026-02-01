@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/server";
+import { supabase } from "../../src/integrations/supabase/server";
 
 function j(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
@@ -33,7 +33,8 @@ export default async function handler(req: Request) {
       customerInfo, 
       selectedStations, 
       selectedDate, 
-      selectedSlot, 
+      selectedSlot,
+      selectedSlots,
       originalPrice, 
       discount, 
       finalPrice, 
@@ -43,12 +44,17 @@ export default async function handler(req: Request) {
     } = payload;
 
     // Validate required fields
-    if (!customerInfo || !selectedStations || !selectedDate || !selectedSlot) {
+    const slotsToBook = Array.isArray(selectedSlots) && selectedSlots.length > 0
+      ? selectedSlots
+      : (selectedSlot ? [selectedSlot] : []);
+
+    if (!customerInfo || !selectedStations || !selectedDate || slotsToBook.length === 0) {
       console.error("❌ Missing required booking data:", {
         hasCustomerInfo: !!customerInfo,
         hasSelectedStations: !!selectedStations,
         hasSelectedDate: !!selectedDate,
-        hasSelectedSlot: !!selectedSlot
+        hasSelectedSlot: !!selectedSlot,
+        hasSelectedSlots: Array.isArray(selectedSlots) && selectedSlots.length > 0
       });
       return j({ ok: false, error: "Missing required booking data" }, 400);
     }
@@ -107,15 +113,13 @@ export default async function handler(req: Request) {
     const normalizedPhone = normalizePhoneNumber(customerInfo.phone);
     const sessionId = payload.sessionId || `session_${Date.now()}_${normalizedPhone.slice(-4)}`;
     
-    // Check for existing bookings that would conflict
+    // Check for existing bookings that would conflict (for ANY requested slot)
     const { data: existingBookings, error: checkError } = await supabase
       .from("bookings")
       .select("id, station_id, start_time, end_time")
       .in("station_id", selectedStations)
       .eq("booking_date", selectedDate)
-      .in("status", ["confirmed", "in-progress"])
-      .or(`start_time.lte.${selectedSlot.start_time},end_time.gt.${selectedSlot.start_time}`)
-      .or(`start_time.lt.${selectedSlot.end_time},end_time.gte.${selectedSlot.end_time}`);
+      .in("status", ["confirmed", "in-progress"]);
 
     if (checkError) {
       console.error("❌ Error checking existing bookings:", checkError);
@@ -128,25 +132,28 @@ export default async function handler(req: Request) {
       return hours * 60 + minutes;
     };
 
-    const requestedStart = timeToMinutes(selectedSlot.start_time);
-    const requestedEnd = timeToMinutes(selectedSlot.end_time);
-    const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
+    const hasAnyConflict =
+      (existingBookings || []).some((booking) => {
+        const existingStart = timeToMinutes(booking.start_time);
+        const existingEnd = timeToMinutes(booking.end_time);
+        const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
 
-    const conflictingBookings = existingBookings?.filter(booking => {
-      const existingStart = timeToMinutes(booking.start_time);
-      const existingEnd = timeToMinutes(booking.end_time);
-      const existingEndMinutes = existingEnd === 0 ? 24 * 60 : existingEnd;
+        return slotsToBook.some((slot: any) => {
+          const requestedStart = timeToMinutes(slot.start_time);
+          const requestedEnd = timeToMinutes(slot.end_time);
+          const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
 
-      return (
-        (requestedStart >= existingStart && requestedStart < existingEndMinutes) ||
-        (requestedEndMinutes > existingStart && requestedEndMinutes <= existingEndMinutes) ||
-        (requestedStart <= existingStart && requestedEndMinutes >= existingEndMinutes) ||
-        (existingStart <= requestedStart && existingEndMinutes >= requestedEndMinutes)
-      );
-    }) || [];
+          return (
+            (requestedStart >= existingStart && requestedStart < existingEndMinutes) ||
+            (requestedEndMinutes > existingStart && requestedEndMinutes <= existingEndMinutes) ||
+            (requestedStart <= existingStart && requestedEndMinutes >= existingEndMinutes) ||
+            (existingStart <= requestedStart && existingEndMinutes >= requestedEndMinutes)
+          );
+        });
+      });
 
-    if (conflictingBookings.length > 0) {
-      console.error("❌ Slot already booked:", conflictingBookings);
+    if (hasAnyConflict) {
+      console.error("❌ Slot already booked for at least one requested slot");
       return j({ 
         ok: false, 
         error: "Selected slot is no longer available. Please select another time slot.",
@@ -155,30 +162,32 @@ export default async function handler(req: Request) {
     }
 
     // STEP 2: Check for active slot blocks (excluding our own session)
-    const { data: activeBlocks, error: blockCheckError } = await supabase
-      .from("slot_blocks")
-      .select("id, station_id, session_id")
-      .in("station_id", selectedStations)
-      .eq("booking_date", selectedDate)
-      .eq("start_time", selectedSlot.start_time)
-      .eq("end_time", selectedSlot.end_time)
-      .gt("expires_at", new Date().toISOString())
-      .eq("is_confirmed", false)
-      .neq("session_id", sessionId);
+    for (const slot of slotsToBook) {
+      const { data: activeBlocks, error: blockCheckError } = await supabase
+        .from("slot_blocks")
+        .select("id, station_id, session_id")
+        .in("station_id", selectedStations)
+        .eq("booking_date", selectedDate)
+        .eq("start_time", slot.start_time)
+        .eq("end_time", slot.end_time)
+        .gt("expires_at", new Date().toISOString())
+        .eq("is_confirmed", false)
+        .neq("session_id", sessionId);
 
-    if (blockCheckError) {
-      console.error("❌ Error checking slot blocks:", blockCheckError);
-      return j({ ok: false, error: "Failed to check slot availability" }, 500);
-    }
+      if (blockCheckError) {
+        console.error("❌ Error checking slot blocks:", blockCheckError);
+        return j({ ok: false, error: "Failed to check slot availability" }, 500);
+      }
 
-    if (activeBlocks && activeBlocks.length > 0) {
-      console.error("❌ Slot is currently blocked by another user:", activeBlocks);
-      return j({ 
-        ok: false, 
-        error: "This slot is currently being booked by another customer. Please try again in a moment or select another slot.",
-        conflict: true,
-        blocked: true
-      }, 409);
+      if (activeBlocks && activeBlocks.length > 0) {
+        console.error("❌ Slot is currently blocked by another user:", activeBlocks);
+        return j({ 
+          ok: false, 
+          error: "This slot is currently being booked by another customer. Please try again in a moment or select another slot.",
+          conflict: true,
+          blocked: true
+        }, 409);
+      }
     }
 
     // STEP 3: Create slot blocks for all selected stations
@@ -186,16 +195,18 @@ export default async function handler(req: Request) {
     const blockDurationMinutes = 5; // 5 minutes block duration
     const expiresAt = new Date(Date.now() + blockDurationMinutes * 60 * 1000).toISOString();
 
-    const blockRows = selectedStations.map((stationId: string) => ({
-      station_id: stationId,
-      booking_date: selectedDate,
-      start_time: selectedSlot.start_time,
-      end_time: selectedSlot.end_time,
-      expires_at: expiresAt,
-      session_id: sessionId,
-      customer_phone: normalizedPhone,
-      is_confirmed: false,
-    }));
+    const blockRows = (slotsToBook as any[]).flatMap((slot) =>
+      selectedStations.map((stationId: string) => ({
+        station_id: stationId,
+        booking_date: selectedDate,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        expires_at: expiresAt,
+        session_id: sessionId,
+        customer_phone: normalizedPhone,
+        is_confirmed: false,
+      }))
+    );
 
     const { error: blockError } = await supabase
       .from("slot_blocks")
@@ -206,47 +217,34 @@ export default async function handler(req: Request) {
 
     if (blockError) {
       console.error("❌ Failed to create slot blocks:", blockError);
-      // If block creation fails, it might be due to race condition - check again
-      const { data: newActiveBlocks } = await supabase
-        .from("slot_blocks")
-        .select("id")
-        .in("station_id", selectedStations)
-        .eq("booking_date", selectedDate)
-        .eq("start_time", selectedSlot.start_time)
-        .eq("end_time", selectedSlot.end_time)
-        .gt("expires_at", new Date().toISOString())
-        .eq("is_confirmed", false)
-        .neq("session_id", sessionId);
-
-      if (newActiveBlocks && newActiveBlocks.length > 0) {
-        return j({ 
-          ok: false, 
-          error: "This slot was just booked by another customer. Please select another time slot.",
-          conflict: true,
-          blocked: true
-        }, 409);
-      }
-      // If no blocks found, continue anyway (edge case)
+      return j({ 
+        ok: false, 
+        error: "This slot was just booked by another customer. Please select another time slot.",
+        conflict: true,
+        blocked: true
+      }, 409);
     }
 
     // STEP 4: Create booking records
     const couponCodes = appliedCoupons ? Object.values(appliedCoupons).join(",") : "";
     
-    const rows = selectedStations.map((stationId: string) => ({
-      station_id: stationId,
-      customer_id: customerId,
-      booking_date: selectedDate,
-      start_time: selectedSlot.start_time, // Fixed field name
-      end_time: selectedSlot.end_time, // Fixed field name
-      duration: 60,
-      status: "confirmed",
-      original_price: originalPrice || 0,
-      discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
-      final_price: finalPrice || 0,
-      coupon_code: couponCodes || null,
-      payment_mode: payment_mode || null, // 'venue', 'razorpay', etc.
-      payment_txn_id: orderId || null, // Payment transaction/order ID
-    }));
+    const rows = (slotsToBook as any[]).flatMap((slot) =>
+      selectedStations.map((stationId: string) => ({
+        station_id: stationId,
+        customer_id: customerId,
+        booking_date: selectedDate,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        duration: 60,
+        status: "confirmed",
+        original_price: originalPrice || 0,
+        discount_percentage: discount > 0 ? (discount / originalPrice) * 100 : null,
+        final_price: finalPrice || 0,
+        coupon_code: couponCodes || null,
+        payment_mode: payment_mode || null, // 'venue', 'razorpay', etc.
+        payment_txn_id: orderId || null, // Payment transaction/order ID
+      }))
+    );
 
     console.log("💾 Inserting booking records:", rows.length, "records");
 
@@ -262,11 +260,9 @@ export default async function handler(req: Request) {
       await supabase
         .from("slot_blocks")
         .delete()
-        .in("station_id", selectedStations)
         .eq("booking_date", selectedDate)
-        .eq("start_time", selectedSlot.start_time)
-        .eq("end_time", selectedSlot.end_time)
-        .eq("session_id", sessionId);
+        .eq("session_id", sessionId)
+        .eq("is_confirmed", false);
       
       return j({ ok: false, error: "Failed to create booking", details: bookingError.message }, 500);
     }
@@ -276,17 +272,16 @@ export default async function handler(req: Request) {
     await supabase
       .from("slot_blocks")
       .update({ is_confirmed: true })
-      .in("station_id", selectedStations)
       .eq("booking_date", selectedDate)
-      .eq("start_time", selectedSlot.start_time)
-      .eq("end_time", selectedSlot.end_time)
-      .eq("session_id", sessionId);
+      .eq("session_id", sessionId)
+      .eq("is_confirmed", false);
 
     console.log("✅ Booking created successfully:", inserted.length, "records");
 
     return j({ 
       ok: true, 
       bookingId: inserted[0].id,
+      bookingIds: inserted.map((r: any) => r.id),
       message: "Booking created successfully" 
     });
 

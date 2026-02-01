@@ -108,14 +108,13 @@ async function getSupabaseClient() {
   // Try multiple environment variable names (VITE_ prefix is for client-side, not available in server)
   const supabaseUrl = getEnv("SUPABASE_URL") || 
                       getEnv("NEXT_PUBLIC_SUPABASE_URL") || 
-                      getEnv("VITE_SUPABASE_URL") ||
-                      "https://apltkougkglbsfphbghi.supabase.co"; // Fallback to hardcoded URL
+                      getEnv("VITE_SUPABASE_URL");
   
   // Try service role key first (required for admin operations like creating bookings/bills)
   // Fallback to anon key if service role key is not available (may not work for all operations)
   const supabaseKey = getEnv("SUPABASE_SERVICE_ROLE_KEY") || 
                       getEnv("SUPABASE_ANON_KEY") ||
-                      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwbHRrb3Vna2dsYnNmcGhiZ2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1OTE3MDMsImV4cCI6MjA1OTE2NzcwM30.Kk38S9Hl9tIwv_a3VPgUaq1cSCCPmlGJOR5R98tREeU"; // Fallback to anon key
+                      getEnv("VITE_SUPABASE_PUBLISHABLE_KEY");
   
   if (!supabaseUrl) {
     throw new Error("Supabase URL not found in environment variables");
