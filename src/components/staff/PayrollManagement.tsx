@@ -489,6 +489,21 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
     .slice(0, 3);
   const topAllowanceMax = topAllowanceTypes[0]?.[1] || 0;
 
+  const deductionTotals = payrollRecords.reduce<Record<string, number>>((acc, p) => {
+    const details = Array.isArray(p.deductions_detail) ? p.deductions_detail : [];
+    details.forEach((d: any) => {
+      const key = String(d?.type || 'other');
+      const amt = Number(d?.amount) || 0;
+      acc[key] = (acc[key] || 0) + amt;
+    });
+    return acc;
+  }, {});
+
+  const topDeductionTypes = Object.entries(deductionTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  const topDeductionMax = topDeductionTypes[0]?.[1] || 0;
+
   return (
     <>
       <div className="space-y-6">
@@ -670,6 +685,28 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                           <Minus className="h-5 w-5 text-red-400" />
                         </div>
                       </div>
+
+                      <div className="mt-3 space-y-2">
+                        {topDeductionTypes.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">No deductions this month.</div>
+                        ) : (
+                          topDeductionTypes.map(([k, v]) => (
+                            <div key={k} className="space-y-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-gray-200">{formatLabel(k)}</span>
+                                <span className="text-muted-foreground">{INR(v)}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-red-400/70 to-orange-400/70"
+                                  style={{ width: `${topDeductionMax > 0 ? Math.max(8, Math.round((v / topDeductionMax) * 100)) : 0}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
                       <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
                         <FileText className="h-3.5 w-3.5" />
                         <span>Review & regenerate to apply edits</span>
