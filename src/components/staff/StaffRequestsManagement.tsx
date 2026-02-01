@@ -297,9 +297,8 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
       const { data: doubleShiftRequests, error: dsError } = await supabase
         .from('staff_double_shift_requests')
         .select('*')
-        .gte('created_at', startDateStr)
-        .lte('created_at', endDateStr)
-        .order('created_at', { ascending: false });
+        // NOTE: table uses `requested_at` (not `created_at`)
+        .order('requested_at', { ascending: false });
 
       if (dsError) {
         console.error('Error fetching double shift requests:', dsError);
@@ -307,10 +306,18 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
 
       if (doubleShiftRequests) {
         doubleShiftRequests.forEach((ds: any) => {
-          const createdAt = new Date(ds.created_at || ds.requested_at);
+          const createdAt = new Date(ds.requested_at || ds.created_at);
+          const createdDateStr = format(createdAt, 'yyyy-MM-dd');
+          const isInDateRange = dateFilter === 'all_time' ||
+            ds.status === 'pending' || // Always show pending requests
+            (createdDateStr >= startDateStr && createdDateStr <= endDateStr);
+
+          if (!isInDateRange) return;
+
           const daysOld = differenceInDays(new Date(), createdAt);
           // Find staff profile
           const profile = staffProfiles.find(sp => sp.user_id === ds.staff_id);
+          const coveredProfile = staffProfiles.find(sp => sp.user_id === ds.covered_staff_id);
           unifiedRequests.push({
             id: ds.id,
             type: 'double-shift',
@@ -320,7 +327,11 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
             date: new Date(ds.date),
             createdAt,
             status: ds.status as RequestStatus,
-            data: { ...ds, staff_name: profile?.full_name || profile?.username },
+            data: {
+              ...ds,
+              staff_name: profile?.full_name || profile?.username,
+              covered_staff_name: coveredProfile?.full_name || coveredProfile?.username || ds.covered_staff_name,
+            },
             priority: daysOld > 3 ? 'high' : daysOld > 1 ? 'medium' : 'low'
           });
         });
