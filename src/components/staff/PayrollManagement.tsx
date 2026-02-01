@@ -77,6 +77,15 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
   const INR = (n: number) =>
     `₹${(Number.isFinite(n) ? n : 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  const formatLabel = (raw: any) => {
+    const s = String(raw ?? '').trim();
+    if (!s) return 'Other';
+    return s
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\b\w/g, (m) => m.toUpperCase());
+  };
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('cuephoria_payroll_threshold_v1');
@@ -333,8 +342,8 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
         
         payroll.allowances_detail.forEach((allowance: any) => {
           yPos += 7;
-          doc.text(`  ${allowance.type}`, 25, yPos);
-          doc.text(`₹${allowance.amount?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
+          doc.text(`  ${formatLabel(allowance.type)}`, 25, yPos);
+          doc.text(`₹${(Number(allowance.amount) || 0).toFixed(2)}`, 180, yPos, { align: 'right' } as any);
         });
       }
       
@@ -352,8 +361,8 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       if (payroll.deductions_detail && payroll.deductions_detail.length > 0) {
         payroll.deductions_detail.forEach((deduction: any) => {
           yPos += 7;
-          doc.text(`  ${deduction.type}`, 25, yPos);
-          doc.text(`₹${deduction.amount?.toFixed(2)}`, 180, yPos, { align: 'right' } as any);
+          doc.text(`  ${formatLabel(deduction.type)}`, 25, yPos);
+          doc.text(`₹${(Number(deduction.amount) || 0).toFixed(2)}`, 180, yPos, { align: 'right' } as any);
         });
       } else {
         yPos += 7;
@@ -857,6 +866,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                   <SelectItem value="lop">Loss of Pay (LOP)</SelectItem>
                   <SelectItem value="penalty">Penalty</SelectItem>
                   <SelectItem value="advance">Advance Deduction</SelectItem>
+                  <SelectItem value="credit_bills">Credit Bills</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
