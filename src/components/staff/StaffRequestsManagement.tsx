@@ -66,6 +66,14 @@ interface UnifiedRequest {
   priority: 'high' | 'medium' | 'low';
 }
 
+const FIXED_DOUBLE_SHIFT_ALLOWANCE = 200;
+
+const getDoubleShiftAllowanceAmount = (data: any): number => {
+  const raw = Number(data?.allowance_amount);
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  return FIXED_DOUBLE_SHIFT_ALLOWANCE;
+};
+
 const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
   staffProfiles,
   isLoading,
@@ -402,7 +410,7 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
         if (req.type === 'overtime') {
           totalFinancial += req.data.overtime_amount || 100;
         } else if (req.type === 'double-shift') {
-          totalFinancial += req.data.allowance_amount || 0;
+          totalFinancial += getDoubleShiftAllowanceAmount(req.data);
         }
       } else if (req.status === 'approved') {
         approvedCount++;
@@ -772,6 +780,7 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
         </div>
       );
     } else if (type === 'double-shift') {
+      const allowance = getDoubleShiftAllowanceAmount(data);
       return (
         <div className="space-y-2 mt-3">
           <div className="flex items-center gap-2">
@@ -791,7 +800,7 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
               <p className="text-xs text-muted-foreground">Allowance</p>
               <Badge variant="outline" className="text-green-500 border-green-500">
                 <DollarSign className="h-3 w-3 mr-1" />
-                ₹{data.allowance_amount?.toFixed(2) || '0.00'}
+                ₹{allowance.toFixed(2)}
               </Badge>
             </div>
           </div>
@@ -1127,7 +1136,7 @@ const StaffRequestsManagement: React.FC<StaffRequestsManagementProps> = ({
                   {actionType === 'approve' && (selectedRequest.type === 'overtime' || selectedRequest.type === 'double-shift') && (
                     <span className="block mt-2 text-green-400">
                       {selectedRequest.type === 'overtime' && `₹${selectedRequest.data.overtime_amount || 100} will be added to payroll.`}
-                      {selectedRequest.type === 'double-shift' && `₹${selectedRequest.data.allowance_amount?.toFixed(2) || '0.00'} will be added to payroll.`}
+                      {selectedRequest.type === 'double-shift' && `₹${getDoubleShiftAllowanceAmount(selectedRequest.data).toFixed(2)} will be added to payroll.`}
                     </span>
                   )}
                 </>

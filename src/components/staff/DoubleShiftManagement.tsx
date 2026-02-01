@@ -199,7 +199,7 @@ const DoubleShiftManagement: React.FC<DoubleShiftManagementProps> = ({
                           <DollarSign className="h-3 w-3 text-green-400" />
                           <span className="text-muted-foreground">Estimated Allowance:</span>
                           <span className="text-green-400 font-semibold ml-1">
-                            ₹{request.allowance_amount?.toFixed(2) || 'Calculating...'}
+                            ₹{(request.allowance_amount && Number(request.allowance_amount) > 0 ? Number(request.allowance_amount) : 200).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -245,7 +245,7 @@ const DoubleShiftManagement: React.FC<DoubleShiftManagementProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Approve Double Shift Request?</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              This will approve the request and add an allowance of ₹{selectedRequest?.allowance_amount?.toFixed(2) || '0.00'} to {selectedRequest?.staff_name}'s payroll.
+              This will approve the request and add an allowance of ₹{(selectedRequest?.allowance_amount && Number(selectedRequest.allowance_amount) > 0 ? Number(selectedRequest.allowance_amount) : 200).toFixed(2)} to {selectedRequest?.staff_name}'s payroll.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
