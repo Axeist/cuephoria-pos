@@ -7,6 +7,9 @@ import StationActions from '@/components/station/StationActions';
 import { Button } from '@/components/ui/button';
 import { Trash2, Edit2, Tag, TrendingDown } from 'lucide-react';
 import EditStationDialog from './EditStationDialog';
+import { Switch } from '@/components/ui/switch';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 // Helper function to get rate suffix for display
 const getRateSuffix = (station: Station): string => {
@@ -39,10 +42,12 @@ interface StationCardProps {
 }
 
 const StationCard: React.FC<StationCardProps> = ({ station }) => {
-  const { customers, startSession, endSession, deleteStation, updateStation } = usePOS();
+  const { customers, startSession, endSession, deleteStation, updateStation, stations, setStations } = usePOS();
+  const { toast } = useToast();
   const isPoolTable = station.type === '8ball';
   const isVR = station.type === 'vr';
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isTogglingPublic, setIsTogglingPublic] = useState(false);
 
   const getCustomer = (id: string) => {
     return customers.find(c => c.id === id);
@@ -68,6 +73,39 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setEditDialogOpen(true);
+  };
+
+  const isPublicLive = station.eventEnabled ?? (station.category ? false : true);
+
+  const handleTogglePublicBooking = async (nextValue: boolean) => {
+    if (isTogglingPublic) return;
+    setIsTogglingPublic(true);
+    try {
+      const { error } = await supabase
+        .from('stations')
+        .update({ event_enabled: nextValue })
+        .eq('id', station.id);
+
+      if (error) throw error;
+
+      setStations(
+        stations.map((s) => (s.id === station.id ? { ...s, eventEnabled: nextValue } : s))
+      );
+
+      toast({
+        title: nextValue ? 'Public Booking Enabled' : 'Public Booking Disabled',
+        description: `${station.name} ${nextValue ? 'will now appear' : 'will no longer appear'} on public booking.`,
+      });
+    } catch (error) {
+      console.error('Error toggling public booking:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update public booking status',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTogglingPublic(false);
+    }
   };
 
   return (
@@ -223,6 +261,24 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
                 </AlertDialogContent>
               </AlertDialog>
             </div>
+          </div>
+
+          {/* Public booking toggle (clean placement under edit controls) */}
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                isPublicLive ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.35)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.35)]'
+              }`}
+              aria-hidden="true"
+            />
+            <span className="text-xs text-muted-foreground">
+              {isPublicLive ? 'Live on public booking' : 'Disabled on public booking'}
+            </span>
+            <Switch
+              checked={!!isPublicLive}
+              disabled={isTogglingPublic}
+              onCheckedChange={handleTogglePublicBooking}
+            />
           </div>
         </CardHeader>
         <CardContent className="pb-2 relative z-10">

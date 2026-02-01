@@ -4,8 +4,6 @@ import StationCard from '@/components/StationCard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Gamepad2, Plus, Table2, Headset, Calendar, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import AddStationDialog from '@/components/AddStationDialog';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -51,46 +49,6 @@ const Stations = () => {
 
   const handlePinSuccess = () => {
     setOpenAddDialog(true);
-  };
-  
-  const handleTogglePublicBookingEnabled = async (stationId: string, currentValue: boolean) => {
-    try {
-      const station = stations.find(s => s.id === stationId);
-      const isEvent = station?.category === 'nit_event';
-      const label = isEvent ? 'Event' : 'Station';
-
-      const { error } = await supabase
-        .from('stations')
-        .update({ event_enabled: !currentValue })
-        .eq('id', stationId);
-      
-      if (error) throw error;
-      
-      // Update local state
-      setStations(stations.map(s => 
-        s.id === stationId 
-          ? { ...s, eventEnabled: !currentValue }
-          : s
-      ));
-      
-      toast({
-        title: !currentValue ? `${label} Enabled` : `${label} Disabled`,
-        description: `Station ${!currentValue ? 'will now appear' : 'will no longer appear'} on public booking page.`,
-      });
-    } catch (error) {
-      console.error('Error toggling event enabled:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update public booking status",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const getStationToggleAccent = (stationType: string) => {
-    if (stationType === '8ball') return 'text-green-400';
-    if (stationType === 'vr') return 'text-blue-300';
-    return 'text-cuephoria-lightpurple';
   };
 
   const handleToggleAllEventStations = async (enable: boolean) => {
@@ -211,19 +169,9 @@ const Stations = () => {
                 return numA - numB;
               })
               .map((station, index) => (
-                <div key={station.id} className="relative">
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
                   <div className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
                     <StationCard station={station} />
-                  </div>
-                  <div className="absolute top-2 left-2 z-40 flex items-center gap-2 bg-black/70 rounded-lg px-2 py-1.5">
-                    <Label htmlFor={`public-toggle-${station.id}`} className={`text-xs ${getStationToggleAccent(station.type)}`}>
-                      {station.eventEnabled ? 'Enabled' : 'Disabled'}
-                    </Label>
-                    <Switch
-                      id={`public-toggle-${station.id}`}
-                      checked={station.eventEnabled || false}
-                      onCheckedChange={() => handleTogglePublicBookingEnabled(station.id, station.eventEnabled || false)}
-                    />
                   </div>
                 </div>
               ))
@@ -248,19 +196,9 @@ const Stations = () => {
                 return numA - numB;
               })
               .map((station, index) => (
-                <div key={station.id} className="relative">
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
                   <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
                     <StationCard station={station} />
-                  </div>
-                  <div className="absolute top-2 left-2 z-40 flex items-center gap-2 bg-black/70 rounded-lg px-2 py-1.5">
-                    <Label htmlFor={`public-toggle-${station.id}`} className={`text-xs ${getStationToggleAccent(station.type)}`}>
-                      {station.eventEnabled ? 'Enabled' : 'Disabled'}
-                    </Label>
-                    <Switch
-                      id={`public-toggle-${station.id}`}
-                      checked={station.eventEnabled || false}
-                      onCheckedChange={() => handleTogglePublicBookingEnabled(station.id, station.eventEnabled || false)}
-                    />
                   </div>
                 </div>
               ))
@@ -285,19 +223,9 @@ const Stations = () => {
                 return numA - numB;
               })
               .map((station, index) => (
-                <div key={station.id} className="relative">
+                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
                   <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
                     <StationCard station={station} />
-                  </div>
-                  <div className="absolute top-2 left-2 z-40 flex items-center gap-2 bg-black/70 rounded-lg px-2 py-1.5">
-                    <Label htmlFor={`public-toggle-${station.id}`} className={`text-xs ${getStationToggleAccent(station.type)}`}>
-                      {station.eventEnabled ? 'Enabled' : 'Disabled'}
-                    </Label>
-                    <Switch
-                      id={`public-toggle-${station.id}`}
-                      checked={station.eventEnabled || false}
-                      onCheckedChange={() => handleTogglePublicBookingEnabled(station.id, station.eventEnabled || false)}
-                    />
                   </div>
                 </div>
               ))
@@ -358,20 +286,8 @@ const Stations = () => {
                       return numA - numB;
                     })
                     .map((station, index) => (
-                      <div key={station.id} className="relative">
-                        <div className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
+                      <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
                           <StationCard station={station} />
-                        </div>
-                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-black/70 rounded-lg p-2">
-                          <Label htmlFor={`event-toggle-${station.id}`} className="text-xs text-yellow-400">
-                            {station.eventEnabled ? 'Enabled' : 'Disabled'}
-                          </Label>
-                          <Switch
-                            id={`event-toggle-${station.id}`}
-                            checked={station.eventEnabled || false}
-                            onCheckedChange={() => handleTogglePublicBookingEnabled(station.id, station.eventEnabled || false)}
-                          />
-                        </div>
                       </div>
                     ))
                   }
@@ -397,20 +313,8 @@ const Stations = () => {
                       return numA - numB;
                     })
                     .map((station, index) => (
-                      <div key={station.id} className="relative">
-                        <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
+                      <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
                           <StationCard station={station} />
-                        </div>
-                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-black/70 rounded-lg p-2">
-                          <Label htmlFor={`event-toggle-${station.id}`} className="text-xs text-yellow-400">
-                            {station.eventEnabled ? 'Enabled' : 'Disabled'}
-                          </Label>
-                          <Switch
-                            id={`event-toggle-${station.id}`}
-                            checked={station.eventEnabled || false}
-                            onCheckedChange={() => handleTogglePublicBookingEnabled(station.id, station.eventEnabled || false)}
-                          />
-                        </div>
                       </div>
                     ))
                   }
@@ -436,20 +340,8 @@ const Stations = () => {
                       return numA - numB;
                     })
                     .map((station, index) => (
-                      <div key={station.id} className="relative">
-                        <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
+                      <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
                           <StationCard station={station} />
-                        </div>
-                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-black/70 rounded-lg p-2">
-                          <Label htmlFor={`event-toggle-${station.id}`} className="text-xs text-yellow-400">
-                            {station.eventEnabled ? 'Enabled' : 'Disabled'}
-                          </Label>
-                          <Switch
-                            id={`event-toggle-${station.id}`}
-                            checked={station.eventEnabled || false}
-                            onCheckedChange={() => handleTogglePublicBookingEnabled(station.id, station.eventEnabled || false)}
-                          />
-                        </div>
                       </div>
                     ))
                   }
