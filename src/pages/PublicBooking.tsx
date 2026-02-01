@@ -3009,28 +3009,31 @@ export default function PublicBooking() {
                     <button
                       onClick={() => setPaymentMethod("razorpay")}
                       className={cn(
-                        "w-full rounded-xl px-3 py-2.5 text-sm border transition-all relative",
-                        "h-12 flex items-center justify-center text-center leading-tight",
+                        "w-full rounded-xl px-3 py-3 text-sm border transition-all relative",
+                        // Needs more height on mobile because it has 2 lines + badge.
+                        "min-h-[56px] sm:h-12 flex items-center justify-center text-center leading-tight",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3395FF]/60",
-                        "overflow-hidden gh-pay-online-cta",
+                        "gh-pay-online-cta",
                         paymentMethod === "razorpay"
                           ? "bg-gradient-to-r from-[#3395FF] to-[#2563EB] border-[#3395FF]/55 text-white shadow-lg shadow-[#3395FF]/20"
                           : "bg-black/20 border-white/10 text-gray-200 hover:bg-black/30 hover:border-[#3395FF]/35"
                       )}
                     >
                       <div className="flex flex-col items-center justify-center gap-0.5 relative z-10">
-                        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 max-w-full">
-                          {paymentMethod === "razorpay" ? (
-                            <Shield className="h-4 w-4 flex-shrink-0" />
-                          ) : (
-                            <CreditCard className="h-4 w-4 flex-shrink-0" />
-                          )}
-                          <span className="font-semibold whitespace-nowrap">Pay Online</span>
-                          <span className="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/90 whitespace-nowrap">
+                        <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:gap-2 max-w-full">
+                          <span className="flex items-center justify-center gap-2">
+                            {paymentMethod === "razorpay" ? (
+                              <Shield className="h-4 w-4 flex-shrink-0" />
+                            ) : (
+                              <CreditCard className="h-4 w-4 flex-shrink-0" />
+                            )}
+                            <span className="font-semibold">Pay Online</span>
+                          </span>
+                          <span className="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/90">
                             Recommended
                           </span>
                         </div>
-                        <span className="text-[10px] text-white/70 leading-none">
+                        <span className="text-[10px] text-white/70 leading-tight text-center">
                           Instant confirmation • Razorpay
                         </span>
                       </div>
