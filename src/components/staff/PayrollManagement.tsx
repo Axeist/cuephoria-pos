@@ -1,5 +1,5 @@
 // src/components/staff/PayrollManagement.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
-import { DollarSign, Download, Plus, Minus, FileText, TrendingUp, RefreshCw, Trash2 } from 'lucide-react';
+import { DollarSign, Download, Plus, Minus, FileText, TrendingUp, RefreshCw, Trash2, Users, CheckCircle2, AlertCircle, Check } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -55,6 +55,9 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [payrollRecords, setPayrollRecords] = useState<any[]>([]);
   const [isLoadingPayroll, setIsLoadingPayroll] = useState(false);
+  const [payoutThreshold, setPayoutThreshold] = useState<string>('15000');
+  const [showApproveAllDialog, setShowApproveAllDialog] = useState(false);
+  const [isApprovingAll, setIsApprovingAll] = useState(false);
   const [showDeductionDialog, setShowDeductionDialog] = useState(false);
   const [showAllowanceDialog, setShowAllowanceDialog] = useState(false);
   const [revertPayrollId, setRevertPayrollId] = useState<string | null>(null);
@@ -70,6 +73,26 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
     amount: '',
     reason: ''
   });
+
+  const INR = (n: number) =>
+    `₹${(Number.isFinite(n) ? n : 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('cuephoria_payroll_threshold_v1');
+      if (raw) setPayoutThreshold(raw);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cuephoria_payroll_threshold_v1', payoutThreshold);
+    } catch {
+      // ignore
+    }
+  }, [payoutThreshold]);
 
   useEffect(() => {
     fetchPayrollRecords();
@@ -370,6 +393,42 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
     }
   };
 
+  const handleApproveAll = async () => {
+    setIsApprovingAll(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { error } = await supabase
+        .from('staff_payroll')
+        .update({
+          payment_status: 'paid',
+          payment_date: today,
+          payment_method: 'manual',
+        })
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Approved',
+        description: `Marked payroll as paid for ${format(new Date(selectedYear, selectedMonth - 1, 1), 'MMMM yyyy')}.`,
+      });
+
+      setShowApproveAllDialog(false);
+      await fetchPayrollRecords();
+      onRefresh();
+    } catch (error: any) {
+      console.error('Error approving payroll:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to approve payroll',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsApprovingAll(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -377,6 +436,49 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       </div>
     );
   }
+
+  const activeStaff = staffProfiles.filter((s) => s.is_active);
+  const activeCount = activeStaff.length;
+  const generatedCount = payrollRecords.length;
+  const coveragePct = activeCount > 0 ? Math.round((generatedCount / activeCount) * 100) : 0;
+
+  const totalNet = payrollRecords.reduce((sum, p) => sum + (Number(p.net_salary) || 0), 0);
+  const totalAllowances = payrollRecords.reduce((sum, p) => sum + (Number(p.total_allowances) || 0), 0);
+  const totalDeductions = payrollRecords.reduce((sum, p) => sum + (Number(p.total_deductions) || 0), 0);
+  const totalGross = payrollRecords.reduce((sum, p) => sum + (Number(p.gross_earnings) || 0), 0);
+  const totalHours = payrollRecords.reduce((sum, p) => sum + (Number(p.total_working_hours) || 0), 0);
+  const avgNet = generatedCount > 0 ? totalNet / generatedCount : 0;
+
+  const paidCount = payrollRecords.filter((p) => String(p.payment_status || '').toLowerCase() === 'paid').length;
+  const pendingCount = payrollRecords.filter((p) => String(p.payment_status || '').toLowerCase() !== 'paid').length;
+
+  const thresholdValue = useMemo(() => {
+    const n = Number(String(payoutThreshold).replace(/[^\d.]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }, [payoutThreshold]);
+  const utilizationPct = thresholdValue > 0 ? Math.round((totalNet / thresholdValue) * 100) : 0;
+  const thresholdDelta = thresholdValue - totalNet;
+
+  const topEarner = payrollRecords.reduce<{ staff_name?: string; net_salary?: number } | null>((best, p) => {
+    const net = Number(p.net_salary) || 0;
+    if (!best || net > (best.net_salary || 0)) return { staff_name: p.staff_name, net_salary: net };
+    return best;
+  }, null);
+
+  const allowanceTotals = payrollRecords.reduce<Record<string, number>>((acc, p) => {
+    const details = Array.isArray(p.allowances_detail) ? p.allowances_detail : [];
+    details.forEach((a: any) => {
+      const key = String(a?.type || 'other');
+      const amt = Number(a?.amount) || 0;
+      acc[key] = (acc[key] || 0) + amt;
+    });
+    return acc;
+  }, {});
+
+  const topAllowanceTypes = Object.entries(allowanceTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  const topAllowanceMax = topAllowanceTypes[0]?.[1] || 0;
 
   return (
     <>
@@ -388,7 +490,7 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                 <CardTitle className="text-white">Payroll Management</CardTitle>
                 <CardDescription>Generate and manage staff payroll</CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <Select
                   value={String(selectedMonth)}
                   onValueChange={(v) => setSelectedMonth(parseInt(v))}
@@ -422,6 +524,17 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                         })}
                       </SelectContent>
                 </Select>
+
+                <Button
+                  onClick={() => setShowApproveAllDialog(true)}
+                  variant="outline"
+                  className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:text-green-300"
+                  disabled={generatedCount === 0 || pendingCount === 0}
+                  title={generatedCount === 0 ? 'No payroll generated' : pendingCount === 0 ? 'Everything already paid' : 'Mark all as paid'}
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Approve All
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -432,6 +545,169 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Insight widgets */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <Card className="bg-cuephoria-darker border-cuephoria-purple/15 overflow-hidden relative">
+                    <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-cuephoria-purple/20 blur-3xl" />
+                    <CardContent className="p-4 relative">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total payout (Net)</p>
+                          <p className="text-2xl font-bold text-white mt-1">{INR(totalNet)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Avg {INR(avgNet)} / staff
+                          </p>
+                        </div>
+                        <div className="h-10 w-10 rounded-xl bg-cuephoria-purple/15 ring-1 ring-white/10 flex items-center justify-center">
+                          <DollarSign className="h-5 w-5 text-cuephoria-lightpurple" />
+                        </div>
+                      </div>
+                      <div className="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
+                          style={{ width: `${coveragePct}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>Coverage</span>
+                        <span className="text-gray-200">{coveragePct}%</span>
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-muted-foreground">Payout threshold</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] text-muted-foreground">₹</span>
+                            <Input
+                              value={payoutThreshold}
+                              onChange={(e) => setPayoutThreshold(e.target.value)}
+                              inputMode="numeric"
+                              className="h-7 w-[92px] bg-cuephoria-dark border-white/10 text-xs text-gray-100"
+                              placeholder="15000"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">
+                            Utilization <span className="text-gray-200">{thresholdValue > 0 ? `${utilizationPct}%` : '—'}</span>
+                          </span>
+                          {thresholdValue > 0 ? (
+                            thresholdDelta >= 0 ? (
+                              <span className="text-green-400">Saving {INR(thresholdDelta)}</span>
+                            ) : (
+                              <span className="text-red-400">Over by {INR(Math.abs(thresholdDelta))}</span>
+                            )
+                          ) : (
+                            <span className="text-muted-foreground">Set a threshold</span>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-cuephoria-darker border-cuephoria-purple/15 overflow-hidden relative">
+                    <div className="absolute -top-16 -left-16 h-40 w-40 rounded-full bg-green-500/10 blur-3xl" />
+                    <CardContent className="p-4 relative">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total allowances</p>
+                          <p className="text-2xl font-bold text-white mt-1">{INR(totalAllowances)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {totalAllowances > 0 && totalGross > 0
+                              ? `${Math.round((totalAllowances / (totalGross + totalAllowances)) * 100)}% of earnings`
+                              : '—'}
+                          </p>
+                        </div>
+                        <div className="h-10 w-10 rounded-xl bg-green-500/10 ring-1 ring-white/10 flex items-center justify-center">
+                          <Plus className="h-5 w-5 text-green-400" />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {topAllowanceTypes.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">No allowances this month.</div>
+                        ) : (
+                          topAllowanceTypes.map(([k, v]) => (
+                            <div key={k} className="space-y-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-gray-200 capitalize">{k.replace(/_/g, ' ')}</span>
+                                <span className="text-muted-foreground">{INR(v)}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-green-400/70 to-cuephoria-lightpurple/70"
+                                  style={{ width: `${topAllowanceMax > 0 ? Math.max(8, Math.round((v / topAllowanceMax) * 100)) : 0}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-cuephoria-darker border-cuephoria-purple/15 overflow-hidden relative">
+                    <div className="absolute -bottom-16 -right-16 h-40 w-40 rounded-full bg-red-500/10 blur-3xl" />
+                    <CardContent className="p-4 relative">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total deductions</p>
+                          <p className="text-2xl font-bold text-white mt-1">{INR(totalDeductions)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Net after adj. {INR(totalGross + totalAllowances - totalDeductions)}
+                          </p>
+                        </div>
+                        <div className="h-10 w-10 rounded-xl bg-red-500/10 ring-1 ring-white/10 flex items-center justify-center">
+                          <Minus className="h-5 w-5 text-red-400" />
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <FileText className="h-3.5 w-3.5" />
+                        <span>Review & regenerate to apply edits</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-cuephoria-darker border-cuephoria-purple/15 overflow-hidden relative">
+                    <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-cuephoria-blue/15 blur-3xl" />
+                    <CardContent className="p-4 relative">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Payroll health</p>
+                          <p className="text-2xl font-bold text-white mt-1">{paidCount}/{generatedCount}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            paid • {pendingCount} pending
+                          </p>
+                        </div>
+                        <div className="h-10 w-10 rounded-xl bg-cuephoria-blue/10 ring-1 ring-white/10 flex items-center justify-center">
+                          {pendingCount > 0 ? (
+                            <AlertCircle className="h-5 w-5 text-cuephoria-blue" />
+                          ) : (
+                            <CheckCircle2 className="h-5 w-5 text-green-400" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-3 h-2 rounded-full bg-white/5 overflow-hidden flex">
+                        <div
+                          className="h-full bg-green-500/70"
+                          style={{ width: `${generatedCount > 0 ? (paidCount / generatedCount) * 100 : 0}%` }}
+                        />
+                        <div
+                          className="h-full bg-orange-500/50"
+                          style={{ width: `${generatedCount > 0 ? (pendingCount / generatedCount) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" />
+                          {activeCount} active staff
+                        </span>
+                        <span>{Math.round(totalHours)} hrs tracked</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
                 {staffProfiles.filter(s => s.is_active).map((staff) => {
                   const payroll = payrollRecords.find(p => p.staff_id === staff.user_id || p.staff_id === staff.staff_id);
                   
@@ -469,15 +745,15 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
                               <>
                                 <div className="space-y-1">
                                   <p className="text-2xl font-bold text-white">
-                                    ₹{payroll.net_salary?.toFixed(2)}
+                                    {INR(Number(payroll.net_salary) || 0)}
                                   </p>
                                   <div className="flex items-center gap-2 text-sm justify-end">
-                                    <span className="text-green-500">+₹{payroll.total_allowances?.toFixed(2)}</span>
-                                    <span className="text-red-500">-₹{payroll.total_deductions?.toFixed(2)}</span>
+                                    <span className="text-green-500">+{INR(Number(payroll.total_allowances) || 0)}</span>
+                                    <span className="text-red-500">-{INR(Number(payroll.total_deductions) || 0)}</span>
                                   </div>
                                   <Badge
-                                    variant={payroll.payment_status === 'paid' ? 'default' : 'secondary'}
-                                    className={payroll.payment_status === 'paid' ? 'bg-green-500' : ''}
+                                    variant={String(payroll.payment_status || '').toLowerCase() === 'paid' ? 'default' : 'secondary'}
+                                    className={String(payroll.payment_status || '').toLowerCase() === 'paid' ? 'bg-green-500' : ''}
                                   >
                                     {payroll.payment_status?.toUpperCase()}
                                   </Badge>
@@ -733,6 +1009,33 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
               className="bg-orange-600 hover:bg-orange-700"
             >
               Revert
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Approve All Confirmation */}
+      <AlertDialog open={showApproveAllDialog} onOpenChange={setShowApproveAllDialog}>
+        <AlertDialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve Payroll for this month?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This will mark <span className="text-white font-semibold">all generated payrolls</span> as{' '}
+              <span className="text-green-400 font-semibold">PAID</span> for{' '}
+              <span className="text-white font-semibold">
+                {format(new Date(selectedYear, selectedMonth - 1, 1), 'MMMM yyyy')}
+              </span>
+              . You can revert individual payrolls if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-cuephoria-purple/20">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleApproveAll}
+              disabled={isApprovingAll}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isApprovingAll ? 'Approving...' : 'Approve All'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

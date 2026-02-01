@@ -1267,8 +1267,8 @@ const StaffPortal = () => {
                             ₹{payslip.net_salary?.toFixed(2)}
                           </p>
                           <Badge
-                            variant={payslip.payment_status === 'paid' ? 'default' : 'secondary'}
-                            className={payslip.payment_status === 'paid' ? 'bg-green-500' : ''}
+                            variant={String(payslip.payment_status || '').toLowerCase() === 'paid' ? 'default' : 'secondary'}
+                            className={String(payslip.payment_status || '').toLowerCase() === 'paid' ? 'bg-green-500' : ''}
                           >
                             {payslip.payment_status?.toUpperCase()}
                           </Badge>
