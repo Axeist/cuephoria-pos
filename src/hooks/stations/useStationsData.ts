@@ -128,7 +128,10 @@ export const useStationsData = () => {
             isOccupied: item.is_occupied,
             currentSession: currentSession,
             category: item.category || null,
-            eventEnabled: item.event_enabled || false,
+            // Public booking visibility:
+            // - Regular stations default to visible if DB value is NULL
+            // - Event stations default to hidden if DB value is NULL
+            eventEnabled: item.event_enabled ?? (item.category ? false : true),
             slotDuration: item.slot_duration || null
           };
         });

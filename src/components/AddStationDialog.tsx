@@ -60,6 +60,11 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     try {
       // Generate a proper UUID for the new station
       const stationId = crypto.randomUUID();
+
+      // Public booking visibility:
+      // - Regular stations: visible by default
+      // - Event stations: hidden by default (can be enabled from Stations page)
+      const publicEnabled = values.category !== 'nit_event';
       
       // Calculate slot duration based on category and type
       // Event stations: 30 mins for 8ball/ps5, 15 mins for VR
@@ -77,7 +82,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
         isOccupied: false,
         currentSession: null,
         category: values.category === 'nit_event' ? 'nit_event' : null,
-        eventEnabled: false, // Default to disabled, can be enabled on stations page
+        eventEnabled: publicEnabled,
         slotDuration: slotDuration
       };
       
@@ -91,7 +96,7 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
           hourly_rate: values.hourlyRate,
           is_occupied: false,
           category: values.category === 'nit_event' ? 'nit_event' : null,
-          event_enabled: false,
+          event_enabled: publicEnabled,
           slot_duration: slotDuration
         });
       
@@ -219,6 +224,11 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
                     <p className="text-xs text-muted-foreground">
                       Event stations use {selectedType === 'vr' ? '15' : '30'} minute slots. 
                       Enable on Stations page to show on public booking.
+                    </p>
+                  )}
+                  {selectedCategory !== 'nit_event' && (
+                    <p className="text-xs text-muted-foreground">
+                      Regular stations are visible on public booking by default. You can disable them anytime from the Stations page.
                     </p>
                   )}
                 </FormItem>

@@ -427,7 +427,9 @@ export default function PublicBooking() {
       const { data, error } = await supabase
         .from("stations")
         .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration")
-        .or("category.is.null,event_enabled.eq.true") // Show regular stations OR enabled event stations
+        // Only show stations enabled for public booking.
+        // For legacy regular stations where event_enabled is NULL, we still show them.
+        .or("event_enabled.eq.true,and(category.is.null,event_enabled.is.null)")
         .order("name");
       if (error) throw error;
       setStations((data || []).map(station => ({
