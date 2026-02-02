@@ -27,11 +27,31 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   global: { headers: { "x-application-name": "cuephoria-api" } },
 });
 
-function j(res: unknown, status = 200) {
-  return new Response(JSON.stringify(res), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" },
-  });
+// Vercel Node.js runtime types
+type VercelRequest = {
+  method?: string;
+  body?: unknown;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+type VercelResponse = {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => VercelResponse;
+  json: (data: unknown) => void;
+  end: () => void;
+};
+
+function setCorsHeaders(res: VercelResponse) {
+  // Same-origin calls from admin.cuephoria.in will work even with "*".
+  // Keeping CORS permissive for now because these endpoints are used by webhooks/tools too.
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, authorization");
+}
+
+function j(res: VercelResponse, data: unknown, status = 200) {
+  setCorsHeaders(res);
+  res.status(status).json(data);
 }
 
 // Phone number normalization
@@ -47,13 +67,19 @@ const generateCustomerID = (phone: string): string => {
   return `CUE${phoneHash}${timestamp}`;
 };
 
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    setCorsHeaders(res);
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
-    return j({ ok: false, error: "Method not allowed" }, 405);
+    return j(res, { ok: false, error: "Method not allowed" }, 405);
   }
 
   try {
-    const payload = await req.json();
+    const payload = (req.body as any) || {};
     console.log("📝 Received booking payload:", payload);
 
     const { 
@@ -83,7 +109,7 @@ export default async function handler(req: Request) {
         hasSelectedSlot: !!selectedSlot,
         hasSelectedSlots: Array.isArray(selectedSlots) && selectedSlots.length > 0
       });
-      return j({ ok: false, error: "Missing required booking data" }, 400);
+      return j(res, { ok: false, error: "Missing required booking data" }, 400);
     }
 
     // Create customer if new
@@ -101,7 +127,7 @@ export default async function handler(req: Request) {
       
       if (searchError && searchError.code !== "PGRST116") {
         console.error("❌ Customer search error:", searchError);
-        return j({ ok: false, error: "Customer search failed" }, 500);
+        return j(res, { ok: false, error: "Customer search failed" }, 500);
       }
 
       if (existingCustomer) {
@@ -128,7 +154,7 @@ export default async function handler(req: Request) {
         
         if (customerError) {
           console.error("❌ Customer creation failed:", customerError);
-          return j({ ok: false, error: "Failed to create customer" }, 500);
+          return j(res, { ok: false, error: "Failed to create customer" }, 500);
         }
         customerId = newCustomer.id;
         console.log("✅ New customer created:", customerId, "with custom_id:", customerID);
@@ -150,7 +176,7 @@ export default async function handler(req: Request) {
 
     if (checkError) {
       console.error("❌ Error checking existing bookings:", checkError);
-      return j({ ok: false, error: "Failed to check availability" }, 500);
+      return j(res, { ok: false, error: "Failed to check availability" }, 500);
     }
 
     // Check for conflicting bookings
@@ -181,7 +207,7 @@ export default async function handler(req: Request) {
 
     if (hasAnyConflict) {
       console.error("❌ Slot already booked for at least one requested slot");
-      return j({ 
+      return j(res, { 
         ok: false, 
         error: "Selected slot is no longer available. Please select another time slot.",
         conflict: true
@@ -203,12 +229,12 @@ export default async function handler(req: Request) {
 
       if (blockCheckError) {
         console.error("❌ Error checking slot blocks:", blockCheckError);
-        return j({ ok: false, error: "Failed to check slot availability" }, 500);
+        return j(res, { ok: false, error: "Failed to check slot availability" }, 500);
       }
 
       if (activeBlocks && activeBlocks.length > 0) {
         console.error("❌ Slot is currently blocked by another user:", activeBlocks);
-        return j({ 
+        return j(res, { 
           ok: false, 
           error: "This slot is currently being booked by another customer. Please try again in a moment or select another slot.",
           conflict: true,
@@ -244,7 +270,7 @@ export default async function handler(req: Request) {
 
     if (blockError) {
       console.error("❌ Failed to create slot blocks:", blockError);
-      return j({ 
+      return j(res, { 
         ok: false, 
         error: "This slot was just booked by another customer. Please select another time slot.",
         conflict: true,
@@ -291,7 +317,7 @@ export default async function handler(req: Request) {
         .eq("session_id", sessionId)
         .eq("is_confirmed", false);
       
-      return j({ ok: false, error: "Failed to create booking", details: bookingError.message }, 500);
+      return j(res, { ok: false, error: "Failed to create booking", details: bookingError.message }, 500);
     }
 
     // STEP 5: Confirm slot blocks (mark as confirmed)
@@ -305,7 +331,7 @@ export default async function handler(req: Request) {
 
     console.log("✅ Booking created successfully:", inserted.length, "records");
 
-    return j({ 
+    return j(res, { 
       ok: true, 
       bookingId: inserted[0].id,
       bookingIds: inserted.map((r: any) => r.id),
@@ -314,7 +340,7 @@ export default async function handler(req: Request) {
 
   } catch (error: any) {
     console.error("💥 Unexpected booking creation error:", error);
-    return j({ 
+    return j(res, { 
       ok: false, 
       error: "Unexpected error occurred",
       details: error.message
