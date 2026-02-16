@@ -232,8 +232,13 @@ export default function PublicBooking() {
   const [loggedInCustomer, setLoggedInCustomer] = useState<any>(null);
   
   // IIM EVENT booking state
-  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = IIM EVENT, false = regular
-  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | null>(null); // For IIM EVENT only
+  const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = EVENT, false = regular
+  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | null>(null); // For EVENT only
+
+  // Dynamic settings from database
+  const [eventName, setEventName] = useState("IIM Event");
+  const [eventDescription, setEventDescription] = useState("Choose VR (15m) or PS5 Gaming (30m)");
+  const [allowedCouponsFromDB, setAllowedCouponsFromDB] = useState<string[]>([]);
 
   // Check if customer info is complete (using useMemo to avoid initialization issues)
   const isCustomerInfoComplete = useMemo(() => 
@@ -241,14 +246,57 @@ export default function PublicBooking() {
     [hasSearched, customerNumber, customerInfo]
   );
 
-  // When switching to IIM EVENT, force-remove any applied coupons
+  // Fetch booking settings from database
+  // NOTE: TypeScript errors here are expected until migration is applied and types are regenerated
+  useEffect(() => {
+    const fetchBookingSettings = async () => {
+      try {
+        // @ts-ignore - booking_settings table will exist after migration
+        // Fetch event name settings
+        const { data: eventData, error: eventError } = await supabase
+          .from('booking_settings')
+          .select('setting_value')
+          .eq('setting_key', 'event_name')
+          .maybeSingle();
+
+        if (!eventError && eventData) {
+          const eventSettings = eventData.setting_value as { name: string; description: string };
+          setEventName(eventSettings.name || "IIM Event");
+          setEventDescription(eventSettings.description || "Choose VR (15m) or PS5 Gaming (30m)");
+        }
+
+        // @ts-ignore - booking_settings table will exist after migration
+        // Fetch coupons settings
+        const { data: couponsData, error: couponsError } = await supabase
+          .from('booking_settings')
+          .select('setting_value')
+          .eq('setting_key', 'booking_coupons')
+          .maybeSingle();
+
+        if (!couponsError && couponsData) {
+          const couponsArray = couponsData.setting_value as Array<{ code: string; enabled: boolean }>;
+          const enabledCoupons = couponsArray
+            .filter(c => c.enabled)
+            .map(c => c.code);
+          setAllowedCouponsFromDB(enabledCoupons);
+        }
+      } catch (error) {
+        console.error('Error fetching booking settings:', error);
+        // Fallback to default values already set in state
+      }
+    };
+
+    fetchBookingSettings();
+  }, []);
+
+  // When switching to EVENT, force-remove any applied coupons
   useEffect(() => {
     if (isNitEventBooking === true && Object.keys(appliedCoupons).length > 0) {
       setAppliedCoupons({});
       setCouponCode("");
-      toast.info("Coupons are not applicable for IIM Event bookings.", { duration: 2500 });
+      toast.info(`Coupons are not applicable for ${eventName} bookings.`, { duration: 2500 });
     }
-  }, [isNitEventBooking, appliedCoupons]);
+  }, [isNitEventBooking, appliedCoupons, eventName]);
 
   // Old PhonePe payment handling removed - now using Razorpay with separate success page
 
@@ -277,7 +325,7 @@ export default function PublicBooking() {
     fetchTodaysBookings();
   }, []);
 
-  // Check if there are enabled event stations for IIM Event option
+  // Check if there are enabled event stations for Event option
   const hasEnabledEventStations = useMemo(() => 
     stations.some(s => s.category === 'nit_event' && s.event_enabled),
     [stations]
@@ -1014,7 +1062,8 @@ export default function PublicBooking() {
     setSelectedSlot(slot);
   }
 
-  const allowedCoupons = [
+  // Use dynamic coupons from database, fallback to defaults if not loaded yet
+  const allowedCoupons = allowedCouponsFromDB.length > 0 ? allowedCouponsFromDB : [
     "CUEPHORIA20",
     "CUEPHORIA35",
     "HH99",
@@ -1040,9 +1089,9 @@ export default function PublicBooking() {
   }
 
   function applyCoupon(raw: string) {
-    // Block all coupon usage for IIM Event bookings
+    // Block all coupon usage for Event bookings
     if (isNitEventBooking === true) {
-      toast.error("Coupons cannot be applied for IIM Event bookings.");
+      toast.error(`Coupons cannot be applied for ${eventName} bookings.`);
       return;
     }
 
@@ -1282,11 +1331,12 @@ export default function PublicBooking() {
       const availableStationIds: Set<string> = new Set();
       
       // Pick stations relevant to current booking type.
-      // - Regular: only regular stations (exclude IIM event category)
-      // - IIM EVENT: PS5 (30m) or VR (15m); 8-Ball is not selectable for IIM Event
+      // - Regular: only regular stations (exclude event category)
+      // - EVENT: All enabled event stations (PS5, 8-Ball, VR) - NO RESTRICTIONS
       let stationsToCheck: Station[] = [];
       if (isNitEventBooking === true) {
-        stationsToCheck = stations.filter(s => s.category === 'nit_event' && s.event_enabled && s.type !== '8ball');
+        // ✅ CHANGED: No longer exclude 8ball - all event stations are allowed
+        stationsToCheck = stations.filter(s => s.category === 'nit_event' && s.event_enabled);
       } else {
         stationsToCheck = stations.filter(s => !s.category || s.category !== 'nit_event');
       }
@@ -2376,15 +2426,15 @@ export default function PublicBooking() {
                             setSelectedSlot(null);
                             setSelectedSlots([]);
                             setSelectedStations([]);
-                            toast.success("🎯 IIM EVENT selected! Choose VR or PS5 Gaming next.", { duration: 2500 });
+                            toast.success(`🎯 ${eventName} selected! Choose VR or PS5 Gaming next.`, { duration: 2500 });
                           }}
                           className="w-full h-auto py-6 bg-gradient-to-r from-yellow-500/45 to-orange-500/35 border-2 border-white/15 hover:from-yellow-500/55 hover:to-orange-500/45 text-white font-bold text-lg shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
                         >
                           <div className="flex flex-col items-center gap-2">
                             <CalendarIcon className="h-6 w-6 text-white" />
-                            <span>IIM Event</span>
+                            <span>{eventName}</span>
                             <span className="text-xs font-normal text-white/75">
-                              Choose VR (15m) or PS5 Gaming (30m)
+                              {eventDescription}
                             </span>
                           </div>
                         </Button>
@@ -2394,7 +2444,7 @@ export default function PublicBooking() {
                 ) : isNitEventBooking === true && nitEventMode === null ? (
                   <div className="space-y-4">
                     <Label className="text-base font-medium text-gray-200 block text-center mb-2">
-                      IIM Event: What would you like to book?
+                      {eventName}: What would you like to book?
                     </Label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Button
@@ -2404,7 +2454,7 @@ export default function PublicBooking() {
                           setSelectedSlot(null);
                           setSelectedSlots([]);
                           setSelectedStations([]);
-                          toast.info("🎮 IIM PS5 selected (30 min slots).", { duration: 2000 });
+                          toast.info(`🎮 ${eventName} PS5 selected (30 min slots).`, { duration: 2000 });
                         }}
                         className="w-full h-auto py-6 bg-gradient-to-r from-cuephoria-purple/45 to-cuephoria-lightpurple/35 border-2 border-white/15 hover:from-cuephoria-purple/55 hover:to-cuephoria-lightpurple/45 text-white font-bold text-lg"
                       >
@@ -2421,7 +2471,7 @@ export default function PublicBooking() {
                           setSelectedSlot(null);
                           setSelectedSlots([]);
                           setSelectedStations([]);
-                          toast.info("🥽 IIM VR selected (15 min slots).", { duration: 2000 });
+                          toast.info(`🥽 ${eventName} VR selected (15 min slots).`, { duration: 2000 });
                         }}
                         className="w-full h-auto py-6 bg-gradient-to-r from-blue-500/35 to-cyan-500/25 border-2 border-white/15 hover:from-blue-500/45 hover:to-cyan-500/35 text-white font-bold text-lg"
                       >
@@ -2581,13 +2631,13 @@ export default function PublicBooking() {
                           : "bg-transparent text-yellow-400"
                       )}
                     >
-                      IIM EVENT
+                      {eventName}
                     </Button>
                   )}
                   {isNitEventBooking === true && (
                     <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[12px]">
                       <CalendarIcon className="h-3.5 w-3.5" />
-                      IIM EVENT
+                      {eventName}
                     </div>
                   )}
                 </div>
@@ -2614,17 +2664,17 @@ export default function PublicBooking() {
                       </div>
                     ) : (
                       <>
-                        {/* Filter by booking type (IIM EVENT vs Regular), then by type/category, then by availability */}
+                        {/* Filter by booking type (EVENT vs Regular), then by type/category, then by availability */}
                         <StationSelector
                           stations={(
                             isNitEventBooking === true
                               ? stationType === "all"
-                                ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type !== '8ball') // All IIM EVENT stations (exclude 8-Ball)
-                                : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType && s.type !== '8ball') // IIM EVENT stations by type (exclude 8-Ball)
+                                ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // ✅ All EVENT stations (NO restrictions - includes 8-Ball!)
+                                : stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type === stationType) // ✅ EVENT stations by type (includes 8-Ball!)
                               : stationType === "all"
                               ? stations.filter(s => (!s.category || s.category !== 'nit_event')) // All regular stations
                               : stationType === "nit_event"
-                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled && s.type !== '8ball') // IIM EVENT stations only (exclude 8-Ball)
+                              ? stations.filter((s) => s.category === 'nit_event' && s.event_enabled) // ✅ EVENT stations only (includes 8-Ball!)
                               : stations.filter((s) => s.type === stationType && (!s.category || s.category !== 'nit_event')) // Regular stations by type
                           ).filter(s => 
                             // Show only stations that are available for the selected time

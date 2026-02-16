@@ -3,9 +3,10 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar } from 'lucide-react';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
+import BookingSettings from '@/components/settings/BookingSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
 import TournamentImageUpload from '@/components/tournaments/TournamentImageUpload';
@@ -269,6 +270,10 @@ const Settings = () => {
             <SettingsIcon className="h-4 w-4" />
             General
           </TabsTrigger>
+          <TabsTrigger value="booking" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Booking Settings
+          </TabsTrigger>
           <TabsTrigger value="tournaments" className="flex items-center gap-2">
             <Trophy className="h-4 w-4" />
             Tournaments
@@ -288,6 +293,10 @@ const Settings = () => {
         
         <TabsContent value="general" className="space-y-4">
           <GeneralSettings />
+        </TabsContent>
+
+        <TabsContent value="booking" className="space-y-4">
+          <BookingSettings />
         </TabsContent>
         
         <TabsContent value="tournaments" className="space-y-4">
