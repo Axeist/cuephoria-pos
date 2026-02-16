@@ -448,9 +448,12 @@ const PublicTournaments = () => {
     if (coupon) {
       setAppliedCoupon(coupon);
       setCouponError('');
+      const discountText = coupon.discount_type === 'percentage' 
+        ? `${coupon.discount_value}% discount`
+        : `₹${coupon.discount_value} discount`;
       toast({
         title: "Coupon Applied!",
-        description: `${coupon.discount_percentage}% discount will be applied to your entry fee.`,
+        description: `${discountText} will be applied to your entry fee.`,
       });
     } else {
       setAppliedCoupon(null);
