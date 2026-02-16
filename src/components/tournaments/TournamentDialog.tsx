@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { generateId } from '@/utils/pos.utils';
 import { Separator } from '@/components/ui/separator';
 import TournamentFormatSelector from './TournamentFormatSelector';
-import { Trophy, Calendar, Users, Settings, DollarSign, Sparkles, Ticket, X, Plus } from 'lucide-react';
+import { Trophy, Calendar, Users, Settings, DollarSign, Sparkles, Ticket, X, Plus, Medal } from 'lucide-react';
 
 interface TournamentDialogProps {
   open: boolean;
