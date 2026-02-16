@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogPortal, AlertDialogOverlay } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -151,7 +151,7 @@ const PublicTournaments = () => {
       }
 
       // Transform the data to match our Tournament interface
-      const transformedData: Tournament[] = (data || []).map(item => ({
+      const transformedData: Tournament[] = (data || []).map((item: any) => ({
         id: item.id,
         name: item.name,
         game_type: item.game_type as 'PS5' | 'Pool',
@@ -1994,7 +1994,9 @@ const PublicTournaments = () => {
                   <div className="flex flex-col items-center gap-1">
                     <MapPin className={`h-4 w-4 ${paymentMethod === 'venue' ? 'text-cuephoria-lightpurple' : ''}`} />
                     <div className="text-xs font-semibold">Pay at Venue</div>
-                    <div className="text-[10px] font-bold text-yellow-400">₹{selectedTournament?.entry_fee || 250}</div>
+                    <div className="text-[10px] font-bold text-yellow-400">
+                      ₹{calculateFinalFee(selectedTournament?.entry_fee || 250, appliedCoupon).finalFee}
+                    </div>
                   </div>
                 </button>
                 
@@ -2015,7 +2017,9 @@ const PublicTournaments = () => {
                   <div className="flex flex-col items-center gap-1 relative z-10">
                     <Zap className={`h-4 w-4 ${paymentMethod === 'razorpay' ? 'text-yellow-400' : ''}`} />
                     <div className="text-xs font-bold">Pay Online</div>
-                    <div className="text-[10px] font-bold text-yellow-400">₹250</div>
+                    <div className="text-[10px] font-bold text-yellow-400">
+                      ₹{calculateFinalFee(selectedTournament?.entry_fee || 250, appliedCoupon).finalFee}
+                    </div>
                     {paymentMethod === 'razorpay' && (
                       <div className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full animate-pulse">
                         BEST
@@ -2133,44 +2137,41 @@ const PublicTournaments = () => {
 
       {/* Venue Payment Warning Dialog */}
       <AlertDialog open={showVenuePaymentWarning} onOpenChange={setShowVenuePaymentWarning}>
-        <AlertDialogPortal>
-          <AlertDialogOverlay className="z-[9998]" />
-          <div className="fixed left-[50%] top-[50%] z-[9999] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-cuephoria-lightpurple/30 p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg text-white">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg">
-                <Trophy className="h-5 w-5" />
-                Miss the Training Session?
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-cuephoria-grey pt-2">
-                Do you want to miss the <span className="font-bold text-yellow-400">15 minutes training session</span> which increases your chance of winning?
-                <br /><br />
-                <span className="text-sm text-yellow-300/80">
-                  Paying online gives you exclusive access to a FREE 15-minute training session before the tournament starts!
-                </span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="gap-2">
-              <AlertDialogAction
-                onClick={() => {
-                  setPaymentMethod('razorpay');
-                  setShowVenuePaymentWarning(false);
-                }}
-                className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:from-yellow-600 hover:via-amber-600 hover:to-orange-600 text-white shadow-md shadow-yellow-500/30 hover:shadow-lg hover:shadow-yellow-500/40 font-bold"
-              >
-                Claim the Offer
-              </AlertDialogAction>
-              <AlertDialogCancel 
-                onClick={() => {
-                  setPaymentMethod('venue');
-                  setShowVenuePaymentWarning(false);
-                }}
-                className="bg-cuephoria-dark/50 border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-dark/70 hover:text-white"
-              >
-                Miss the Offer
-              </AlertDialogCancel>
-            </AlertDialogFooter>
-          </div>
-        </AlertDialogPortal>
+        <AlertDialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-darkpurple to-cuephoria-dark border-cuephoria-lightpurple/30 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg">
+              <Trophy className="h-5 w-5" />
+              Miss the Training Session?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-cuephoria-grey pt-2">
+              Do you want to miss the <span className="font-bold text-yellow-400">15 minutes training session</span> which increases your chance of winning?
+              <br /><br />
+              <span className="text-sm text-yellow-300/80">
+                Paying online gives you exclusive access to a FREE 15-minute training session before the tournament starts!
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogAction
+              onClick={() => {
+                setPaymentMethod('razorpay');
+                setShowVenuePaymentWarning(false);
+              }}
+              className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:from-yellow-600 hover:via-amber-600 hover:to-orange-600 text-white shadow-md shadow-yellow-500/30 hover:shadow-lg hover:shadow-yellow-500/40 font-bold"
+            >
+              Claim the Offer
+            </AlertDialogAction>
+            <AlertDialogCancel 
+              onClick={() => {
+                setPaymentMethod('venue');
+                setShowVenuePaymentWarning(false);
+              }}
+              className="bg-cuephoria-dark/50 border-cuephoria-grey/30 text-cuephoria-grey hover:bg-cuephoria-dark/70 hover:text-white"
+            >
+              Miss the Offer
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
 
       {/* Registration Success Dialog */}
