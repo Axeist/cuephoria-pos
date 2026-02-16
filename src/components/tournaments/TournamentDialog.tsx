@@ -46,6 +46,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
   
   // Coupon form fields
   const [newCouponCode, setNewCouponCode] = useState('');
+  const [newCouponType, setNewCouponType] = useState<'percentage' | 'fixed'>('percentage');
   const [newCouponDiscount, setNewCouponDiscount] = useState('');
   const [newCouponDescription, setNewCouponDescription] = useState('');
 
@@ -89,6 +90,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
     }
     // Reset coupon form fields
     setNewCouponCode('');
+    setNewCouponType('percentage');
     setNewCouponDiscount('');
     setNewCouponDescription('');
   }, [tournament, open]);
@@ -99,18 +101,26 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
     }
 
     const discount = parseFloat(newCouponDiscount);
-    if (discount <= 0 || discount > 100) {
+    
+    // Validation based on type
+    if (discount <= 0) {
+      return;
+    }
+    
+    if (newCouponType === 'percentage' && discount > 100) {
       return;
     }
 
     const newCoupon: DiscountCoupon = {
       code: newCouponCode.trim().toUpperCase(),
-      discount_percentage: discount,
+      discount_type: newCouponType,
+      discount_value: discount,
       description: newCouponDescription.trim() || undefined
     };
 
     setDiscountCoupons([...discountCoupons, newCoupon]);
     setNewCouponCode('');
+    setNewCouponType('percentage');
     setNewCouponDiscount('');
     setNewCouponDescription('');
   };
@@ -488,7 +498,11 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-green-400">{coupon.code}</span>
-                          <span className="text-yellow-400 font-semibold">{coupon.discount_percentage}% OFF</span>
+                          {coupon.discount_type === 'percentage' ? (
+                            <span className="text-yellow-400 font-semibold">{coupon.discount_value}% OFF</span>
+                          ) : (
+                            <span className="text-yellow-400 font-semibold">₹{coupon.discount_value} OFF</span>
+                          )}
                         </div>
                         {coupon.description && (
                           <p className="text-xs text-gray-400 mt-1">{coupon.description}</p>
@@ -511,18 +525,27 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
               {/* Add New Coupon Form */}
               <div className="space-y-3 p-4 bg-gray-800/40 rounded-lg border border-gray-600/30">
                 <Label className="text-gray-300 text-sm font-semibold">Add New Coupon</Label>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
                   <Input
                     placeholder="Coupon Code (e.g., SAVE20)"
                     value={newCouponCode}
                     onChange={(e) => setNewCouponCode(e.target.value.toUpperCase())}
                     className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
                   />
+                  <Select value={newCouponType} onValueChange={(value: 'percentage' | 'fixed') => setNewCouponType(value)}>
+                    <SelectTrigger className="bg-gray-800/60 border-gray-600/60 text-white focus:border-green-500/80 rounded-lg px-3 py-2 h-auto">
+                      <SelectValue placeholder="Discount Type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900/95 border-gray-700/60 backdrop-blur-sm">
+                      <SelectItem value="percentage" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">Percentage (%)</SelectItem>
+                      <SelectItem value="fixed" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">Fixed Amount (₹)</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Input
                     type="number"
                     min="1"
-                    max="100"
-                    placeholder="Discount %"
+                    max={newCouponType === 'percentage' ? '100' : undefined}
+                    placeholder={newCouponType === 'percentage' ? 'Discount %' : 'Amount ₹'}
                     value={newCouponDiscount}
                     onChange={(e) => setNewCouponDiscount(e.target.value)}
                     className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"

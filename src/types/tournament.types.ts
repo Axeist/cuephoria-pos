@@ -8,7 +8,8 @@ export type TournamentFormat = 'knockout' | 'league';
 
 export interface DiscountCoupon {
   code: string;
-  discount_percentage: number;
+  discount_type: 'percentage' | 'fixed'; // Type of discount
+  discount_value: number; // Percentage (1-100) or fixed amount (₹)
   description?: string;
 }
 

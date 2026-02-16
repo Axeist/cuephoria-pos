@@ -4,7 +4,7 @@ ADD COLUMN IF NOT EXISTS entry_fee NUMERIC DEFAULT 250,
 ADD COLUMN IF NOT EXISTS discount_coupons JSONB DEFAULT '[]'::jsonb;
 
 -- Add comment explaining the discount_coupons structure
-COMMENT ON COLUMN tournaments.discount_coupons IS 'Array of discount coupons: [{"code": "SAVE20", "discount_percentage": 20, "description": "20% off"}]';
+COMMENT ON COLUMN tournaments.discount_coupons IS 'Array of discount coupons: [{"code": "SAVE20", "discount_type": "percentage", "discount_value": 20, "description": "20% off"}, {"code": "FLAT50", "discount_type": "fixed", "discount_value": 50, "description": "₹50 off"}]';
 
 -- Update the tournament_public_view to include entry_fee
 DROP VIEW IF EXISTS tournament_public_view;
@@ -38,15 +38,21 @@ FROM tournaments t;
 -- Grant access to the view
 GRANT SELECT ON tournament_public_view TO anon, authenticated;
 
--- Add coupon_code and discount_amount to tournament_public_registrations
+-- Add coupon_code and discount fields to tournament_public_registrations
 ALTER TABLE tournament_public_registrations
 ADD COLUMN IF NOT EXISTS coupon_code TEXT,
+ADD COLUMN IF NOT EXISTS discount_type TEXT,
+ADD COLUMN IF NOT EXISTS discount_value NUMERIC,
 ADD COLUMN IF NOT EXISTS discount_percentage NUMERIC,
+ADD COLUMN IF NOT EXISTS discount_amount NUMERIC,
 ADD COLUMN IF NOT EXISTS original_fee NUMERIC,
 ADD COLUMN IF NOT EXISTS final_fee NUMERIC;
 
--- Add comment
+-- Add comments
 COMMENT ON COLUMN tournament_public_registrations.coupon_code IS 'Coupon code applied during registration';
-COMMENT ON COLUMN tournament_public_registrations.discount_percentage IS 'Percentage discount applied';
+COMMENT ON COLUMN tournament_public_registrations.discount_type IS 'Type of discount: percentage or fixed';
+COMMENT ON COLUMN tournament_public_registrations.discount_value IS 'Discount value (percentage or amount)';
+COMMENT ON COLUMN tournament_public_registrations.discount_percentage IS 'Percentage discount applied (for backward compatibility)';
+COMMENT ON COLUMN tournament_public_registrations.discount_amount IS 'Actual discount amount in rupees';
 COMMENT ON COLUMN tournament_public_registrations.original_fee IS 'Original entry fee before discount';
 COMMENT ON COLUMN tournament_public_registrations.final_fee IS 'Final fee after discount';

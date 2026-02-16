@@ -22,7 +22,8 @@ import { generateId } from '@/utils/pos.utils';
 
 interface DiscountCoupon {
   code: string;
-  discount_percentage: number;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
   description?: string;
 }
 
@@ -469,19 +470,29 @@ const PublicTournaments = () => {
     setCouponError('');
   }, []);
 
-  // Calculate final fee with discount
-  const calculateFinalFee = useCallback((baseFee: number, coupon: DiscountCoupon | null): { originalFee: number; discount: number; finalFee: number } => {
+  // Calculate final fee with discount (supports both percentage and fixed amount)
+  const calculateFinalFee = useCallback((baseFee: number, coupon: DiscountCoupon | null): { originalFee: number; discount: number; finalFee: number; discountAmount: number } => {
     if (!coupon) {
-      return { originalFee: baseFee, discount: 0, finalFee: baseFee };
+      return { originalFee: baseFee, discount: 0, finalFee: baseFee, discountAmount: 0 };
     }
 
-    const discountAmount = Math.round((baseFee * coupon.discount_percentage) / 100);
-    const finalFee = baseFee - discountAmount;
+    let discountAmount = 0;
+    
+    if (coupon.discount_type === 'percentage') {
+      // Percentage discount
+      discountAmount = Math.round((baseFee * coupon.discount_value) / 100);
+    } else {
+      // Fixed amount discount
+      discountAmount = Math.min(coupon.discount_value, baseFee); // Don't exceed base fee
+    }
+    
+    const finalFee = Math.max(baseFee - discountAmount, 0); // Never go below 0
 
     return {
       originalFee: baseFee,
-      discount: coupon.discount_percentage,
-      finalFee: finalFee
+      discount: coupon.discount_value,
+      finalFee: finalFee,
+      discountAmount: discountAmount
     };
   }, []);
 
@@ -594,7 +605,9 @@ const PublicTournaments = () => {
             tournament_name: selectedTournament.name,
             type: "tournament_registration",
             original_fee: feeCalculation.originalFee.toString(),
-            discount_percentage: feeCalculation.discount.toString(),
+            discount_type: appliedCoupon?.discount_type || "",
+            discount_value: feeCalculation.discount.toString(),
+            discount_amount: feeCalculation.discountAmount.toString(),
             coupon_code: appliedCoupon?.code || ""
           },
         }),
@@ -922,7 +935,10 @@ const PublicTournaments = () => {
           registration_source: 'public_website',
           status: 'registered',
           coupon_code: appliedCoupon?.code || null,
-          discount_percentage: feeCalculation.discount || null,
+          discount_type: appliedCoupon?.discount_type || null,
+          discount_value: appliedCoupon ? feeCalculation.discount : null,
+          discount_percentage: appliedCoupon?.discount_type === 'percentage' ? feeCalculation.discount : null,
+          discount_amount: feeCalculation.discountAmount || null,
           original_fee: feeCalculation.originalFee,
           final_fee: feeCalculation.finalFee
         });
@@ -1924,7 +1940,12 @@ const PublicTournaments = () => {
                       <Ticket className="h-4 w-4 text-green-400" />
                       <div>
                         <p className="text-sm font-bold text-green-300">{appliedCoupon.code}</p>
-                        <p className="text-xs text-green-400">{appliedCoupon.discount_percentage}% discount applied</p>
+                        <p className="text-xs text-green-400">
+                          {appliedCoupon.discount_type === 'percentage' 
+                            ? `${appliedCoupon.discount_value}% discount applied`
+                            : `₹${appliedCoupon.discount_value} discount applied`
+                          }
+                        </p>
                       </div>
                     </div>
                     <Button
@@ -2039,7 +2060,10 @@ const PublicTournaments = () => {
                         ₹{calculateFinalFee(selectedTournament?.entry_fee || 250, appliedCoupon).finalFee}
                       </p>
                       <p className="text-[10px] text-green-400">
-                        {appliedCoupon.discount_percentage}% OFF
+                        {appliedCoupon.discount_type === 'percentage' 
+                          ? `${appliedCoupon.discount_value}% OFF`
+                          : `₹${appliedCoupon.discount_value} OFF`
+                        }
                       </p>
                     </div>
                   ) : (
