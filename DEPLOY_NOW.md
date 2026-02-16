@@ -22,7 +22,7 @@ Step 1: Choose booking type
 
 Step 2: Choose game type (3 buttons now!)
   [ PS5 Gaming ]  [ 8-Ball Pool ]  [ VR ]
-   30 min slots     60 min slots     15 min
+   30 min slots     30 min slots     15 min
 
 Step 3: Select time slot
   (Filtered by chosen game type)
@@ -216,7 +216,7 @@ git push
 ```
 ┌─────────────────────────────────────────┐
 │  PS5 Gaming  |  8-Ball Pool  |  VR      │
-│  30 min      |  60 min       |  15 min  │
+│  30 min      |  30 min       |  15 min  │
 └─────────────────────────────────────────┘
 ```
 

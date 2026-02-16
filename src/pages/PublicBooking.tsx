@@ -489,13 +489,12 @@ export default function PublicBooking() {
       const allSlots: TimeSlot[] = [];
       
       // Determine slot duration based on booking type and selected stations
-      // For EVENT: user chooses PS5 (30min), 8-Ball (60min), OR VR (15min)
+      // For EVENT: user chooses PS5 (30min), 8-Ball (30min), OR VR (15min)
       // For Regular: PS5 = 60min, VR = 15min (or station.slot_duration)
       let slotDuration = 60; // Default
       if (isNitEventBooking === true) {
         if (nitEventMode === "vr") slotDuration = 15;
-        else if (nitEventMode === "ps5") slotDuration = 30;
-        else if (nitEventMode === "8ball") slotDuration = 60;
+        else if (nitEventMode === "ps5" || nitEventMode === "8ball") slotDuration = 30; // Both PS5 and 8-Ball use 30min
         else {
           // Event selected but mode not picked yet
           setAvailableSlots([]);
@@ -523,7 +522,7 @@ export default function PublicBooking() {
       
       if (isNitEventBooking === true) {
         if (slotDuration === 30) {
-          // EVENT: PS5 (30min slots)
+          // EVENT: PS5 and 8-Ball (30min slots)
           for (let hour = openingTime; hour <= closingTime; hour++) {
             for (let half = 0; half < 2; half++) {
               const minutes = half * 30;
@@ -559,8 +558,9 @@ export default function PublicBooking() {
                 continue;
               }
               
+              // Include both PS5 and 8-Ball stations for 30min slots
               const eventStations30min = stations.filter(s => 
-                (s.category === 'nit_event' && s.event_enabled && s.type === 'ps5') &&
+                (s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')) &&
                 (selectedStations.length === 0 || selectedStations.includes(s.id))
               );
               let anyAvailable30min = false;
@@ -655,59 +655,6 @@ export default function PublicBooking() {
                 status: anyVRAvailable ? 'available' : 'booked'
               });
             }
-          }
-        } else if (slotDuration === 60) {
-          // EVENT: 8-Ball (60min slots)
-          for (let hour = openingTime; hour < closingTime; hour++) {
-            const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
-            const endTime = `${(hour + 1).toString().padStart(2, '0')}:00:00`;
-            
-            // Check if past
-            let isPast = false;
-            if (isToday) {
-              const now = new Date();
-              const currentHour = now.getHours();
-              isPast = hour < currentHour;
-            }
-            
-            if (isPast) {
-              allSlots.push({
-                start_time: startTime,
-                end_time: endTime,
-                is_available: false,
-                status: 'elapsed'
-              });
-              continue;
-            }
-            
-            const event8BallStations = stations.filter(s => 
-              s.category === 'nit_event' && s.event_enabled && s.type === '8ball' &&
-              (selectedStations.length === 0 || selectedStations.includes(s.id))
-            );
-            let any8BallAvailable = false;
-            
-            if (event8BallStations.length > 0) {
-              try {
-                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
-                  p_date: dateStr,
-                  p_start_time: startTime,
-                  p_end_time: endTime,
-                  p_station_ids: event8BallStations.map(s => s.id)
-                });
-                if (!availError && availabilityData) {
-                  any8BallAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
-                }
-              } catch (e) {
-                console.error("Error checking 8-Ball event station availability:", e);
-              }
-            }
-            
-            allSlots.push({
-              start_time: startTime,
-              end_time: endTime,
-              is_available: any8BallAvailable,
-              status: any8BallAvailable ? 'available' : 'booked'
-            });
           }
         }
       } else if (slotDuration === 15) {
@@ -2525,7 +2472,7 @@ export default function PublicBooking() {
                           setSelectedSlot(null);
                           setSelectedSlots([]);
                           setSelectedStations([]);
-                          toast.info(`🎱 ${eventName} 8-Ball selected (60 min slots).`, { duration: 2000 });
+                          toast.info(`🎱 ${eventName} 8-Ball selected (30 min slots).`, { duration: 2000 });
                         }}
                         className="w-full h-auto py-6 bg-gradient-to-r from-green-600/35 to-emerald-600/25 border-2 border-white/15 hover:from-green-600/45 hover:to-emerald-600/35 text-white font-bold text-lg"
                       >
@@ -2534,7 +2481,7 @@ export default function PublicBooking() {
                             <span className="text-black text-sm font-bold">8</span>
                           </div>
                           <span>8-Ball Pool</span>
-                          <span className="text-xs font-normal text-white/75">60 min slots</span>
+                          <span className="text-xs font-normal text-white/75">30 min slots</span>
                         </div>
                       </Button>
                       <Button

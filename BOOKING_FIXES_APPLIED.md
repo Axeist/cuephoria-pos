@@ -10,7 +10,7 @@
 - Changed grid from `md:grid-cols-2` to `md:grid-cols-3`
 - Added 8-Ball button between PS5 and VR
 - Updated `nitEventMode` type to include `"8ball"`
-- Added 8-Ball slot generation logic (60 min slots)
+- Added 8-Ball to 30-minute slot generation (same as PS5)
 
 **What You'll See Now:**
 ```
@@ -21,7 +21,7 @@
 │ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
 │ │ PS5      │ │ 8-Ball   │ │ VR       │ │
 │ │ Gaming   │ │ Pool     │ │          │ │
-│ │ 30 min   │ │ 60 min   │ │ 15 min   │ │
+│ │ 30 min   │ │ 30 min   │ │ 15 min   │ │
 │ └──────────┘ └──────────┘ └──────────┘ │
 └─────────────────────────────────────────┘
 ```
@@ -86,7 +86,7 @@ npx supabase db push
 
 **Slot Durations:**
 - PS5 Event: 30 minutes
-- 8-Ball Event: 60 minutes
+- 8-Ball Event: 30 minutes
 - VR Event: 15 minutes
 
 ---
@@ -105,7 +105,7 @@ npx supabase db push
 ```
 ┌──────────────────────────────────┐
 │ PS5 Gaming | 8-Ball | VR         │
-│ 30 min     | 60 min | 15 min     │
+│ 30 min     | 30 min | 15 min     │
 └──────────────────────────────────┘
 ```
 
@@ -119,7 +119,7 @@ After deploying:
 - [ ] Select event booking
 - [ ] See **3 buttons**: PS5, 8-Ball, VR
 - [ ] Click PS5 → Shows 30-minute time slots
-- [ ] Go back, click 8-Ball → Shows 60-minute time slots
+- [ ] Go back, click 8-Ball → Shows 30-minute time slots
 - [ ] Go back, click VR → Shows 15-minute time slots
 
 ### Booking Settings (After Migration):
@@ -222,7 +222,7 @@ git push
 | Feature | Before | After | Status |
 |---------|--------|-------|--------|
 | Event Step 2 Options | 2 (PS5, VR) | 3 (PS5, 8-Ball, VR) | ✅ Fixed |
-| 8-Ball Event Slots | Not available | 60 min slots | ✅ Fixed |
+| 8-Ball Event Slots | Not available | 30 min slots | ✅ Fixed |
 | Booking Settings Load | Error | Needs migration | ⚠️ Pending |
 | Coupons Display | No data | Needs migration | ⚠️ Pending |
 
