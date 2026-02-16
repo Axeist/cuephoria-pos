@@ -43,10 +43,15 @@ export interface Tournament {
   matches: Match[];
   winner?: Player;
   runnerUp?: Player; // New field for runner-up
+  thirdPlace?: Player; // New field for third place
   status: 'upcoming' | 'in-progress' | 'completed';
   budget?: number;
   winnerPrize?: number;
   runnerUpPrize?: number;
+  thirdPrize?: number; // New field for third prize
+  winnerPrizeText?: string; // Text-based prize for winner (e.g., "Free gold membership")
+  runnerUpPrizeText?: string; // Text-based prize for runner-up
+  thirdPrizeText?: string; // Text-based prize for third place
   maxPlayers?: number; // Add max_players field
   tournamentFormat: TournamentFormat; // New field for tournament format
   entryFee?: number; // Tournament entry fee
@@ -96,8 +101,13 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     budget: item.budget || undefined,
     winnerPrize: item.winner_prize || undefined,
     runnerUpPrize: item.runner_up_prize || undefined,
+    thirdPrize: item.third_prize || undefined,
+    winnerPrizeText: item.winner_prize_text || undefined,
+    runnerUpPrizeText: item.runner_up_prize_text || undefined,
+    thirdPrizeText: item.third_prize_text || undefined,
     winner: item.winner || undefined,
-    runnerUp: item.runner_up || undefined, // Add runner_up conversion
+    runnerUp: item.runner_up || undefined,
+    thirdPlace: item.third_place || undefined,
     maxPlayers: item.max_players || 16, // Ensure we always have a value
     tournamentFormat: item.tournament_format || 'knockout', // Add tournament format conversion
     entryFee: item.entry_fee || 250, // Default to 250
@@ -129,8 +139,13 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.budget !== undefined) cleanObject.budget = tournament.budget;
   if (tournament.winnerPrize !== undefined) cleanObject.winner_prize = tournament.winnerPrize;
   if (tournament.runnerUpPrize !== undefined) cleanObject.runner_up_prize = tournament.runnerUpPrize;
+  if (tournament.thirdPrize !== undefined) cleanObject.third_prize = tournament.thirdPrize;
+  if (tournament.winnerPrizeText) cleanObject.winner_prize_text = tournament.winnerPrizeText;
+  if (tournament.runnerUpPrizeText) cleanObject.runner_up_prize_text = tournament.runnerUpPrizeText;
+  if (tournament.thirdPrizeText) cleanObject.third_prize_text = tournament.thirdPrizeText;
   if (tournament.winner) cleanObject.winner = tournament.winner;
-  if (tournament.runnerUp) cleanObject.runner_up = tournament.runnerUp; // Add runner_up conversion
+  if (tournament.runnerUp) cleanObject.runner_up = tournament.runnerUp;
+  if (tournament.thirdPlace) cleanObject.third_place = tournament.thirdPlace;
   
   return cleanObject;
 };

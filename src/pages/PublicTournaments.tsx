@@ -37,10 +37,15 @@ interface Tournament {
   budget?: number;
   winner_prize?: number;
   runner_up_prize?: number;
+  third_prize?: number;
+  winner_prize_text?: string;
+  runner_up_prize_text?: string;
+  third_prize_text?: string;
   players: any[];
   matches: any[];
   winner?: any;
-  runner_up?: any;  // Updated to match database field name
+  runner_up?: any;
+  third_place?: any;
   total_registrations: number;
   max_players: number;
   entry_fee?: number;
@@ -156,10 +161,15 @@ const PublicTournaments = () => {
         budget: item.budget,
         winner_prize: item.winner_prize,
         runner_up_prize: item.runner_up_prize,
+        third_prize: item.third_prize,
+        winner_prize_text: item.winner_prize_text,
+        runner_up_prize_text: item.runner_up_prize_text,
+        third_prize_text: item.third_prize_text,
         players: Array.isArray(item.players) ? item.players : [],
         matches: Array.isArray(item.matches) ? item.matches : [],
         winner: item.winner,
-        runner_up: item.runner_up,  // Use the correct field name from database
+        runner_up: item.runner_up,
+        third_place: item.third_place,
         total_registrations: Number(item.total_registrations) || 0,
         max_players: Number(item.max_players) || 16,
         entry_fee: item.entry_fee || 250,
@@ -1134,21 +1144,49 @@ const PublicTournaments = () => {
           </div>
 
           {/* Prize Pool */}
-          {tournament.winner_prize && (
-            <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-lg p-4 space-y-2">
+          {(tournament.winner_prize || tournament.winner_prize_text || tournament.runner_up_prize || tournament.runner_up_prize_text || tournament.third_prize || tournament.third_prize_text) && (
+            <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-lg p-4 space-y-3">
               <h4 className="text-yellow-400 font-semibold flex items-center gap-2">
                 <Star className="h-4 w-4 animate-pulse" />
                 Prize Pool
               </h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 text-yellow-300">
-                  <Crown className="h-4 w-4" />
-                  <span className="text-sm">Winner: ₹{tournament.winner_prize}</span>
-                </div>
-                {tournament.runner_up_prize && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Medal className="h-4 w-4" />
-                    <span className="text-sm">Runner-up: ₹{tournament.runner_up_prize}</span>
+              <div className="space-y-2">
+                {/* Winner Prize */}
+                {(tournament.winner_prize || tournament.winner_prize_text) && (
+                  <div className="flex items-start gap-2 text-yellow-300">
+                    <Crown className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm flex-1">
+                      <span className="font-semibold">Winner:</span>
+                      {tournament.winner_prize && <span> ₹{tournament.winner_prize}</span>}
+                      {tournament.winner_prize && tournament.winner_prize_text && <span> + </span>}
+                      {tournament.winner_prize_text && <span className="text-yellow-200">{tournament.winner_prize_text}</span>}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Runner-up Prize */}
+                {(tournament.runner_up_prize || tournament.runner_up_prize_text) && (
+                  <div className="flex items-start gap-2 text-gray-300">
+                    <Medal className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm flex-1">
+                      <span className="font-semibold">Runner-up:</span>
+                      {tournament.runner_up_prize && <span> ₹{tournament.runner_up_prize}</span>}
+                      {tournament.runner_up_prize && tournament.runner_up_prize_text && <span> + </span>}
+                      {tournament.runner_up_prize_text && <span className="text-gray-200">{tournament.runner_up_prize_text}</span>}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Third Prize */}
+                {(tournament.third_prize || tournament.third_prize_text) && (
+                  <div className="flex items-start gap-2 text-orange-300">
+                    <Medal className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm flex-1">
+                      <span className="font-semibold">3rd Place:</span>
+                      {tournament.third_prize && <span> ₹{tournament.third_prize}</span>}
+                      {tournament.third_prize && tournament.third_prize_text && <span> + </span>}
+                      {tournament.third_prize_text && <span className="text-orange-200">{tournament.third_prize_text}</span>}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1158,8 +1196,8 @@ const PublicTournaments = () => {
           {/* Enhanced Winner Display for Completed Tournaments */}
           {tournament.status === 'completed' && tournament.winner && (
             <div className="space-y-3">
-              <div className="bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-400/40 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-yellow-400 font-semibold mb-2">
+              <div className="bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-400/40 rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-2 text-yellow-400 font-semibold">
                   <Crown className="h-5 w-5 animate-bounce" />
                   <span>Champion: {tournament.winner.name}</span>
                 </div>
@@ -1167,6 +1205,12 @@ const PublicTournaments = () => {
                   <div className="flex items-center gap-2 text-gray-300 font-medium">
                     <Medal className="h-4 w-4" />
                     <span>Runner-up: {tournament.runner_up.name}</span>
+                  </div>
+                )}
+                {tournament.third_place && (
+                  <div className="flex items-center gap-2 text-orange-300 font-medium">
+                    <Medal className="h-4 w-4" />
+                    <span>3rd Place: {tournament.third_place.name}</span>
                   </div>
                 )}
               </div>
@@ -1455,7 +1499,8 @@ const PublicTournaments = () => {
                 ₹{tournaments.reduce((total, t) => {
                   const winnerPrize = t.winner_prize || 0;
                   const runnerUpPrize = t.runner_up_prize || 0;
-                  return total + winnerPrize + runnerUpPrize;
+                  const thirdPrize = t.third_prize || 0;
+                  return total + winnerPrize + runnerUpPrize + thirdPrize;
                 }, 0).toLocaleString()}
               </div>
               <div className="text-xs text-yellow-400 mt-1">Win big rewards!</div>

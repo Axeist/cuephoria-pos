@@ -37,6 +37,10 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
   const [budget, setBudget] = useState('');
   const [winnerPrize, setWinnerPrize] = useState('');
   const [runnerUpPrize, setRunnerUpPrize] = useState('');
+  const [thirdPrize, setThirdPrize] = useState('');
+  const [winnerPrizeText, setWinnerPrizeText] = useState('');
+  const [runnerUpPrizeText, setRunnerUpPrizeText] = useState('');
+  const [thirdPrizeText, setThirdPrizeText] = useState('');
   const [entryFee, setEntryFee] = useState('250');
   const [discountCoupons, setDiscountCoupons] = useState<DiscountCoupon[]>([]);
   
@@ -57,6 +61,10 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       setBudget(tournament.budget?.toString() || '');
       setWinnerPrize(tournament.winnerPrize?.toString() || '');
       setRunnerUpPrize(tournament.runnerUpPrize?.toString() || '');
+      setThirdPrize(tournament.thirdPrize?.toString() || '');
+      setWinnerPrizeText(tournament.winnerPrizeText || '');
+      setRunnerUpPrizeText(tournament.runnerUpPrizeText || '');
+      setThirdPrizeText(tournament.thirdPrizeText || '');
       setTournamentFormat(tournament.tournamentFormat || 'knockout');
       setEntryFee(tournament.entryFee?.toString() || '250');
       setDiscountCoupons(tournament.discountCoupons || []);
@@ -71,6 +79,10 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       setBudget('');
       setWinnerPrize('');
       setRunnerUpPrize('');
+      setThirdPrize('');
+      setWinnerPrizeText('');
+      setRunnerUpPrizeText('');
+      setThirdPrizeText('');
       setTournamentFormat('knockout');
       setEntryFee('250');
       setDiscountCoupons([]);
@@ -128,11 +140,16 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       budget: budget ? parseFloat(budget) : undefined,
       winnerPrize: winnerPrize ? parseFloat(winnerPrize) : undefined,
       runnerUpPrize: runnerUpPrize ? parseFloat(runnerUpPrize) : undefined,
+      thirdPrize: thirdPrize ? parseFloat(thirdPrize) : undefined,
+      winnerPrizeText: winnerPrizeText.trim() || undefined,
+      runnerUpPrizeText: runnerUpPrizeText.trim() || undefined,
+      thirdPrizeText: thirdPrizeText.trim() || undefined,
       tournamentFormat,
       entryFee: entryFee ? parseFloat(entryFee) : 250,
       discountCoupons: discountCoupons,
       winner: tournament?.winner,
       runnerUp: tournament?.runnerUp,
+      thirdPlace: tournament?.thirdPlace,
     };
 
     onSave(tournamentData);
@@ -301,49 +318,126 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
               <h3 className="text-lg font-semibold text-white">Budget & Prizes</h3>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="budget" className="text-gray-200 font-medium">Total Budget (₹)</Label>
-                <Input
-                  id="budget"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  placeholder="0.00"
-                  className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
-                />
+            {/* Total Budget */}
+            <div className="space-y-3">
+              <Label htmlFor="budget" className="text-gray-200 font-medium">Total Budget (₹)</Label>
+              <Input
+                id="budget"
+                type="number"
+                min="0"
+                step="0.01"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="0.00"
+                className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
+              />
+            </div>
+
+            {/* Winner Prize */}
+            <div className="space-y-3 p-4 bg-yellow-500/5 rounded-lg border border-yellow-500/20">
+              <div className="flex items-center gap-2 text-yellow-400 font-semibold mb-2">
+                <Trophy className="h-5 w-5" />
+                1st Place - Winner Prize
               </div>
-              
-              <div className="space-y-3">
-                <Label htmlFor="winnerPrize" className="text-gray-200 font-medium">Winner Prize (₹)</Label>
-                <Input
-                  id="winnerPrize"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={winnerPrize}
-                  onChange={(e) => setWinnerPrize(e.target.value)}
-                  placeholder="0.00"
-                  className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
-                />
-              </div>
-              
-              <div className="space-y-3">
-                <Label htmlFor="runnerUpPrize" className="text-gray-200 font-medium">Runner-up Prize (₹)</Label>
-                <Input
-                  id="runnerUpPrize"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={runnerUpPrize}
-                  onChange={(e) => setRunnerUpPrize(e.target.value)}
-                  placeholder="0.00"
-                  className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
-                />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="winnerPrize" className="text-gray-200 text-sm">Cash Amount (₹)</Label>
+                  <Input
+                    id="winnerPrize"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={winnerPrize}
+                    onChange={(e) => setWinnerPrize(e.target.value)}
+                    placeholder="5000"
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-lg px-3 py-2 h-auto"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="winnerPrizeText" className="text-gray-200 text-sm">Additional Reward (Text)</Label>
+                  <Input
+                    id="winnerPrizeText"
+                    type="text"
+                    value={winnerPrizeText}
+                    onChange={(e) => setWinnerPrizeText(e.target.value)}
+                    placeholder="e.g., Free gold membership, Trophy"
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-lg px-3 py-2 h-auto"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Runner-up Prize */}
+            <div className="space-y-3 p-4 bg-gray-500/5 rounded-lg border border-gray-500/20">
+              <div className="flex items-center gap-2 text-gray-300 font-semibold mb-2">
+                <Medal className="h-5 w-5" />
+                2nd Place - Runner-up Prize
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="runnerUpPrize" className="text-gray-200 text-sm">Cash Amount (₹)</Label>
+                  <Input
+                    id="runnerUpPrize"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={runnerUpPrize}
+                    onChange={(e) => setRunnerUpPrize(e.target.value)}
+                    placeholder="2000"
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-gray-500/80 focus:ring-gray-500/20 rounded-lg px-3 py-2 h-auto"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="runnerUpPrizeText" className="text-gray-200 text-sm">Additional Reward (Text)</Label>
+                  <Input
+                    id="runnerUpPrizeText"
+                    type="text"
+                    value={runnerUpPrizeText}
+                    onChange={(e) => setRunnerUpPrizeText(e.target.value)}
+                    placeholder="e.g., 500 store credits, Medal"
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-gray-500/80 focus:ring-gray-500/20 rounded-lg px-3 py-2 h-auto"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Third Place Prize */}
+            <div className="space-y-3 p-4 bg-orange-500/5 rounded-lg border border-orange-500/20">
+              <div className="flex items-center gap-2 text-orange-400 font-semibold mb-2">
+                <Medal className="h-5 w-5" />
+                3rd Place - Third Prize
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="thirdPrize" className="text-gray-200 text-sm">Cash Amount (₹)</Label>
+                  <Input
+                    id="thirdPrize"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={thirdPrize}
+                    onChange={(e) => setThirdPrize(e.target.value)}
+                    placeholder="1000"
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-orange-500/80 focus:ring-orange-500/20 rounded-lg px-3 py-2 h-auto"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="thirdPrizeText" className="text-gray-200 text-sm">Additional Reward (Text)</Label>
+                  <Input
+                    id="thirdPrizeText"
+                    type="text"
+                    value={thirdPrizeText}
+                    onChange={(e) => setThirdPrizeText(e.target.value)}
+                    placeholder="e.g., 250 store credits, Badge"
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-orange-500/80 focus:ring-orange-500/20 rounded-lg px-3 py-2 h-auto"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 italic">
+              💡 Tip: You can enter cash amount, text reward, or both! Text rewards are great for non-monetary prizes like memberships, credits, or merchandise.
+            </p>
           </div>
 
           <Separator className="bg-gray-700/50" />
