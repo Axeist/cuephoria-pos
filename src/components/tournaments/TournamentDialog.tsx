@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Tournament, GameType, PoolGameVariant, PS5GameTitle, TournamentFormat } from '@/types/tournament.types';
+import { Tournament, GameType, PoolGameVariant, PS5GameTitle, TournamentFormat, DiscountCoupon } from '@/types/tournament.types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { generateId } from '@/utils/pos.utils';
 import { Separator } from '@/components/ui/separator';
 import TournamentFormatSelector from './TournamentFormatSelector';
-import { Trophy, Calendar, Users, Settings, DollarSign, Sparkles } from 'lucide-react';
+import { Trophy, Calendar, Users, Settings, DollarSign, Sparkles, Ticket, X, Plus } from 'lucide-react';
 
 interface TournamentDialogProps {
   open: boolean;
@@ -37,6 +37,13 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
   const [budget, setBudget] = useState('');
   const [winnerPrize, setWinnerPrize] = useState('');
   const [runnerUpPrize, setRunnerUpPrize] = useState('');
+  const [entryFee, setEntryFee] = useState('250');
+  const [discountCoupons, setDiscountCoupons] = useState<DiscountCoupon[]>([]);
+  
+  // Coupon form fields
+  const [newCouponCode, setNewCouponCode] = useState('');
+  const [newCouponDiscount, setNewCouponDiscount] = useState('');
+  const [newCouponDescription, setNewCouponDescription] = useState('');
 
   // Reset form when dialog opens/closes or tournament changes
   useEffect(() => {
@@ -51,6 +58,8 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       setWinnerPrize(tournament.winnerPrize?.toString() || '');
       setRunnerUpPrize(tournament.runnerUpPrize?.toString() || '');
       setTournamentFormat(tournament.tournamentFormat || 'knockout');
+      setEntryFee(tournament.entryFee?.toString() || '250');
+      setDiscountCoupons(tournament.discountCoupons || []);
     } else {
       // Reset form
       setName('');
@@ -63,8 +72,40 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       setWinnerPrize('');
       setRunnerUpPrize('');
       setTournamentFormat('knockout');
+      setEntryFee('250');
+      setDiscountCoupons([]);
     }
+    // Reset coupon form fields
+    setNewCouponCode('');
+    setNewCouponDiscount('');
+    setNewCouponDescription('');
   }, [tournament, open]);
+
+  const handleAddCoupon = () => {
+    if (!newCouponCode.trim() || !newCouponDiscount.trim()) {
+      return;
+    }
+
+    const discount = parseFloat(newCouponDiscount);
+    if (discount <= 0 || discount > 100) {
+      return;
+    }
+
+    const newCoupon: DiscountCoupon = {
+      code: newCouponCode.trim().toUpperCase(),
+      discount_percentage: discount,
+      description: newCouponDescription.trim() || undefined
+    };
+
+    setDiscountCoupons([...discountCoupons, newCoupon]);
+    setNewCouponCode('');
+    setNewCouponDiscount('');
+    setNewCouponDescription('');
+  };
+
+  const handleRemoveCoupon = (index: number) => {
+    setDiscountCoupons(discountCoupons.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +129,8 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       winnerPrize: winnerPrize ? parseFloat(winnerPrize) : undefined,
       runnerUpPrize: runnerUpPrize ? parseFloat(runnerUpPrize) : undefined,
       tournamentFormat,
+      entryFee: entryFee ? parseFloat(entryFee) : 250,
+      discountCoupons: discountCoupons,
       winner: tournament?.winner,
       runnerUp: tournament?.runnerUp,
     };
@@ -299,6 +342,113 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                   placeholder="0.00"
                   className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
                 />
+              </div>
+            </div>
+          </div>
+
+          <Separator className="bg-gray-700/50" />
+
+          {/* Entry Fee & Discount Coupons Section */}
+          <div className="space-y-6 p-6 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/50">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-green-500/20 rounded-lg">
+                <Ticket className="h-5 w-5 text-green-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">Registration Fee & Discounts</h3>
+            </div>
+            
+            {/* Entry Fee */}
+            <div className="space-y-3">
+              <Label htmlFor="entryFee" className="text-gray-200 font-medium flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-green-400" />
+                Entry Fee (₹) *
+              </Label>
+              <Input
+                id="entryFee"
+                type="number"
+                min="0"
+                step="1"
+                value={entryFee}
+                onChange={(e) => setEntryFee(e.target.value)}
+                placeholder="250"
+                className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
+              />
+              <p className="text-xs text-gray-400">Base entry fee before any discounts</p>
+            </div>
+
+            {/* Discount Coupons */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 font-medium">Discount Coupons</Label>
+                <span className="text-xs text-gray-400">{discountCoupons.length} coupon(s)</span>
+              </div>
+
+              {/* Existing Coupons */}
+              {discountCoupons.length > 0 && (
+                <div className="space-y-2">
+                  {discountCoupons.map((coupon, index) => (
+                    <div 
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-gray-800/60 border border-gray-600/40 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-green-400">{coupon.code}</span>
+                          <span className="text-yellow-400 font-semibold">{coupon.discount_percentage}% OFF</span>
+                        </div>
+                        {coupon.description && (
+                          <p className="text-xs text-gray-400 mt-1">{coupon.description}</p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveCoupon(index)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add New Coupon Form */}
+              <div className="space-y-3 p-4 bg-gray-800/40 rounded-lg border border-gray-600/30">
+                <Label className="text-gray-300 text-sm font-semibold">Add New Coupon</Label>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  <Input
+                    placeholder="Coupon Code (e.g., SAVE20)"
+                    value={newCouponCode}
+                    onChange={(e) => setNewCouponCode(e.target.value.toUpperCase())}
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
+                  />
+                  <Input
+                    type="number"
+                    min="1"
+                    max="100"
+                    placeholder="Discount %"
+                    value={newCouponDiscount}
+                    onChange={(e) => setNewCouponDiscount(e.target.value)}
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
+                  />
+                  <Input
+                    placeholder="Description (optional)"
+                    value={newCouponDescription}
+                    onChange={(e) => setNewCouponDescription(e.target.value)}
+                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleAddCoupon}
+                  disabled={!newCouponCode.trim() || !newCouponDiscount.trim()}
+                  className="w-full bg-green-600/80 hover:bg-green-600 text-white rounded-lg"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Coupon
+                </Button>
               </div>
             </div>
           </div>

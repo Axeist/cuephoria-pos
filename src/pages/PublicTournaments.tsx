@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon, CheckCircle2 } from 'lucide-react';
+import { Trophy, Users, Calendar, GamepadIcon, Crown, Medal, Phone, Mail, MapPin, Clock, Star, Shield, FileText, ExternalLink, UserCheck, ChevronDown, TrendingUp, History, CalendarDays, Globe, Activity, Zap, ImageIcon, CheckCircle2, Ticket, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import PublicTournamentHistory from '@/components/tournaments/PublicTournamentHistory';
@@ -19,6 +19,12 @@ import PublicLeaderboard from '@/components/tournaments/PublicLeaderboard';
 import TournamentImageGallery from '@/components/tournaments/TournamentImageGallery';
 import PromotionalPopup from '@/components/PromotionalPopup';
 import { generateId } from '@/utils/pos.utils';
+
+interface DiscountCoupon {
+  code: string;
+  discount_percentage: number;
+  description?: string;
+}
 
 interface Tournament {
   id: string;
@@ -37,6 +43,8 @@ interface Tournament {
   runner_up?: any;  // Updated to match database field name
   total_registrations: number;
   max_players: number;
+  entry_fee?: number;
+  discount_coupons?: DiscountCoupon[];
 }
 
 interface RegistrationForm {
@@ -67,6 +75,9 @@ const PublicTournaments = () => {
   const [existingCustomer, setExistingCustomer] = useState<ExistingCustomer | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<DiscountCoupon | null>(null);
+  const [couponError, setCouponError] = useState('');
   const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
@@ -150,7 +161,9 @@ const PublicTournaments = () => {
         winner: item.winner,
         runner_up: item.runner_up,  // Use the correct field name from database
         total_registrations: Number(item.total_registrations) || 0,
-        max_players: Number(item.max_players) || 16
+        max_players: Number(item.max_players) || 16,
+        entry_fee: item.entry_fee || 250,
+        discount_coupons: Array.isArray(item.discount_coupons) ? item.discount_coupons : []
       }));
 
       console.log('Fetched tournaments with runner_up:', transformedData.map(t => ({ name: t.name, runner_up: t.runner_up })));
@@ -410,6 +423,58 @@ const PublicTournaments = () => {
     }));
   }, [existingCustomer]);
 
+  // Apply and validate coupon code
+  const handleApplyCoupon = useCallback(() => {
+    if (!selectedTournament || !couponCode.trim()) {
+      return;
+    }
+
+    const normalizedCode = couponCode.trim().toUpperCase();
+    const coupon = selectedTournament.discount_coupons?.find(
+      c => c.code.toUpperCase() === normalizedCode
+    );
+
+    if (coupon) {
+      setAppliedCoupon(coupon);
+      setCouponError('');
+      toast({
+        title: "Coupon Applied!",
+        description: `${coupon.discount_percentage}% discount will be applied to your entry fee.`,
+      });
+    } else {
+      setAppliedCoupon(null);
+      setCouponError('Invalid coupon code');
+      toast({
+        title: "Invalid Coupon",
+        description: "The coupon code you entered is not valid for this tournament.",
+        variant: "destructive"
+      });
+    }
+  }, [selectedTournament, couponCode, toast]);
+
+  // Remove applied coupon
+  const handleRemoveCoupon = useCallback(() => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError('');
+  }, []);
+
+  // Calculate final fee with discount
+  const calculateFinalFee = useCallback((baseFee: number, coupon: DiscountCoupon | null): { originalFee: number; discount: number; finalFee: number } => {
+    if (!coupon) {
+      return { originalFee: baseFee, discount: 0, finalFee: baseFee };
+    }
+
+    const discountAmount = Math.round((baseFee * coupon.discount_percentage) / 100);
+    const finalFee = baseFee - discountAmount;
+
+    return {
+      originalFee: baseFee,
+      discount: coupon.discount_percentage,
+      finalFee: finalFee
+    };
+  }, []);
+
   // Generate transaction ID
   const genTxnId = () => {
     return `TXN${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
@@ -447,7 +512,9 @@ const PublicTournaments = () => {
       }
     }
 
-    const entryFee = 250; // Tournament entry fee
+    const baseFee = selectedTournament.entry_fee || 250;
+    const feeCalculation = calculateFinalFee(baseFee, appliedCoupon);
+    const entryFee = feeCalculation.finalFee;
     const transactionFee = Math.round((entryFee * 0.025) * 100) / 100; // 2.5% transaction fee
     const totalWithFee = entryFee + transactionFee;
 
@@ -494,6 +561,9 @@ const PublicTournaments = () => {
           is_existing_customer: registrationForm.is_existing_customer
         },
         entryFee: entryFee,
+        originalFee: feeCalculation.originalFee,
+        discount: feeCalculation.discount,
+        couponCode: appliedCoupon?.code || null,
         transactionFee: transactionFee,
         totalWithFee: totalWithFee
       };
@@ -512,7 +582,10 @@ const PublicTournaments = () => {
             customer_email: registrationForm.customer_email.trim() || "",
             tournament_id: selectedTournament.id,
             tournament_name: selectedTournament.name,
-            type: "tournament_registration"
+            type: "tournament_registration",
+            original_fee: feeCalculation.originalFee.toString(),
+            discount_percentage: feeCalculation.discount.toString(),
+            coupon_code: appliedCoupon?.code || ""
           },
         }),
       });
@@ -824,6 +897,10 @@ const PublicTournaments = () => {
         customerId = newCustomer.id;
       }
 
+      // Calculate fees with discount
+      const baseFee = selectedTournament.entry_fee || 250;
+      const feeCalculation = calculateFinalFee(baseFee, appliedCoupon);
+
       // Register for tournament (normalize phone number for consistency)
       const { error: registrationError } = await supabase
         .from('tournament_public_registrations')
@@ -833,7 +910,11 @@ const PublicTournaments = () => {
           customer_phone: normalizePhoneNumber(registrationForm.customer_phone.trim()),
           customer_email: registrationForm.customer_email.trim() || null,
           registration_source: 'public_website',
-          status: 'registered'
+          status: 'registered',
+          coupon_code: appliedCoupon?.code || null,
+          discount_percentage: feeCalculation.discount || null,
+          original_fee: feeCalculation.originalFee,
+          final_fee: feeCalculation.finalFee
         });
 
       if (registrationError) {
@@ -883,7 +964,7 @@ const PublicTournaments = () => {
         customerPhone: normalizePhoneNumber(registrationForm.customer_phone.trim()),
         tournamentName: selectedTournament.name,
         paymentMethod: 'venue',
-        entryFee: 250
+        entryFee: feeCalculation.finalFee
       });
 
       // Reset form and close registration dialog
@@ -919,6 +1000,9 @@ const PublicTournaments = () => {
       is_existing_customer: false
     });
     setExistingCustomer(null);
+    setCouponCode('');
+    setAppliedCoupon(null);
+    setCouponError('');
   }, []);
 
   const handleDialogOpenChange = useCallback((open: boolean) => {
@@ -1137,8 +1221,14 @@ const PublicTournaments = () => {
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
             <p className="text-sm text-blue-300 flex items-center gap-2">
               <Trophy className="h-4 w-4" />
-              Entry Fee: ₹250 (Pay at venue)
+              Entry Fee: ₹{tournament.entry_fee || 250}
             </p>
+            {tournament.discount_coupons && tournament.discount_coupons.length > 0 && (
+              <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                <Ticket className="h-3 w-3" />
+                {tournament.discount_coupons.length} discount coupon(s) available
+              </p>
+            )}
           </div>
 
           {/* Registration Button */}
@@ -1754,6 +1844,66 @@ const PublicTournaments = () => {
               />
             </div>
 
+            {/* Coupon Code Field */}
+            {selectedTournament?.discount_coupons && selectedTournament.discount_coupons.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="couponCode" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
+                  <Ticket className="h-3.5 w-3.5" />
+                  Discount Coupon (Optional)
+                </Label>
+                {!appliedCoupon ? (
+                  <div className="flex gap-2">
+                    <Input
+                      id="couponCode"
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => {
+                        setCouponCode(e.target.value.toUpperCase());
+                        setCouponError('');
+                      }}
+                      className="bg-cuephoria-dark/80 border-cuephoria-grey/30 text-white focus:border-cuephoria-lightpurple focus:ring-2 focus:ring-cuephoria-lightpurple/20 h-9 text-sm flex-1"
+                      placeholder="Enter coupon code"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={!couponCode.trim()}
+                      className="bg-green-600 hover:bg-green-700 text-white h-9 px-4 text-sm"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 rounded-lg p-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Ticket className="h-4 w-4 text-green-400" />
+                      <div>
+                        <p className="text-sm font-bold text-green-300">{appliedCoupon.code}</p>
+                        <p className="text-xs text-green-400">{appliedCoupon.discount_percentage}% discount applied</p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveCoupon}
+                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-8 px-2"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                {couponError && (
+                  <p className="text-xs text-red-400">{couponError}</p>
+                )}
+                {!appliedCoupon && (
+                  <p className="text-xs text-cuephoria-grey/80 italic">
+                    Available coupons: {selectedTournament.discount_coupons.map(c => c.code).join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Payment Method Selection */}
             <div className="space-y-2">
               <Label className="text-cuephoria-grey text-sm font-semibold">Payment Method *</Label>
@@ -1837,7 +1987,19 @@ const PublicTournaments = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold text-blue-300">Entry Fee</p>
-                  <p className="text-lg font-bold text-white mt-0.5">₹250</p>
+                  {appliedCoupon ? (
+                    <div>
+                      <p className="text-sm text-gray-400 line-through">₹{selectedTournament?.entry_fee || 250}</p>
+                      <p className="text-lg font-bold text-green-400 mt-0.5">
+                        ₹{calculateFinalFee(selectedTournament?.entry_fee || 250, appliedCoupon).finalFee}
+                      </p>
+                      <p className="text-[10px] text-green-400">
+                        {appliedCoupon.discount_percentage}% OFF
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-lg font-bold text-white mt-0.5">₹{selectedTournament?.entry_fee || 250}</p>
+                  )}
                 </div>
                 {paymentMethod === 'venue' && (
                   <div className="text-right">

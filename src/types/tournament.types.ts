@@ -6,6 +6,12 @@ export type MatchStatus = 'scheduled' | 'completed' | 'cancelled';
 export type MatchStage = 'regular' | 'quarter_final' | 'semi_final' | 'final';
 export type TournamentFormat = 'knockout' | 'league';
 
+export interface DiscountCoupon {
+  code: string;
+  discount_percentage: number;
+  description?: string;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -43,6 +49,8 @@ export interface Tournament {
   runnerUpPrize?: number;
   maxPlayers?: number; // Add max_players field
   tournamentFormat: TournamentFormat; // New field for tournament format
+  entryFee?: number; // Tournament entry fee
+  discountCoupons?: DiscountCoupon[]; // Available discount coupons
   // Database sync fields
   created_at?: string;
   updated_at?: string;
@@ -92,6 +100,8 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     runnerUp: item.runner_up || undefined, // Add runner_up conversion
     maxPlayers: item.max_players || 16, // Ensure we always have a value
     tournamentFormat: item.tournament_format || 'knockout', // Add tournament format conversion
+    entryFee: item.entry_fee || 250, // Default to 250
+    discountCoupons: item.discount_coupons || [], // Array of discount coupons
     created_at: item.created_at,
     updated_at: item.updated_at
   };
@@ -109,6 +119,8 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
     status: tournament.status,
     max_players: tournament.maxPlayers || 16, // Always include max_players with a default
     tournament_format: tournament.tournamentFormat || 'knockout', // Add tournament format conversion
+    entry_fee: tournament.entryFee || 250, // Default to 250
+    discount_coupons: tournament.discountCoupons || [], // Array of discount coupons
   };
   
   // Only add optional fields if they have values
