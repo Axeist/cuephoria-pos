@@ -233,7 +233,7 @@ export default function PublicBooking() {
   
   // IIM EVENT booking state
   const [isNitEventBooking, setIsNitEventBooking] = useState<boolean | null>(null); // null = not selected yet, true = EVENT, false = regular
-  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | null>(null); // For EVENT only
+  const [nitEventMode, setNitEventMode] = useState<"vr" | "ps5" | "8ball" | null>(null); // For EVENT only
 
   // Dynamic settings from database
   const [eventName, setEventName] = useState("IIM Event");
@@ -489,14 +489,15 @@ export default function PublicBooking() {
       const allSlots: TimeSlot[] = [];
       
       // Determine slot duration based on booking type and selected stations
-      // For IIM EVENT: user chooses PS5 (30min) OR VR (15min)
+      // For EVENT: user chooses PS5 (30min), 8-Ball (60min), OR VR (15min)
       // For Regular: PS5 = 60min, VR = 15min (or station.slot_duration)
       let slotDuration = 60; // Default
       if (isNitEventBooking === true) {
         if (nitEventMode === "vr") slotDuration = 15;
         else if (nitEventMode === "ps5") slotDuration = 30;
+        else if (nitEventMode === "8ball") slotDuration = 60;
         else {
-          // NIT selected but mode not picked yet
+          // Event selected but mode not picked yet
           setAvailableSlots([]);
           setSlotsLoading(false);
           return;
@@ -522,7 +523,7 @@ export default function PublicBooking() {
       
       if (isNitEventBooking === true) {
         if (slotDuration === 30) {
-          // IIM EVENT: PS5 (30min slots)
+          // EVENT: PS5 (30min slots)
           for (let hour = openingTime; hour <= closingTime; hour++) {
             for (let half = 0; half < 2; half++) {
               const minutes = half * 30;
@@ -588,8 +589,8 @@ export default function PublicBooking() {
               });
             }
           }
-        } else {
-          // NIT: VR (15min slots)
+        } else if (slotDuration === 15) {
+          // EVENT: VR (15min slots)
           for (let hour = openingTime; hour <= closingTime; hour++) {
             for (let quarter = 0; quarter < 4; quarter++) {
               const minutes = quarter * 15;
@@ -654,6 +655,59 @@ export default function PublicBooking() {
                 status: anyVRAvailable ? 'available' : 'booked'
               });
             }
+          }
+        } else if (slotDuration === 60) {
+          // EVENT: 8-Ball (60min slots)
+          for (let hour = openingTime; hour < closingTime; hour++) {
+            const startTime = `${hour.toString().padStart(2, '0')}:00:00`;
+            const endTime = `${(hour + 1).toString().padStart(2, '0')}:00:00`;
+            
+            // Check if past
+            let isPast = false;
+            if (isToday) {
+              const now = new Date();
+              const currentHour = now.getHours();
+              isPast = hour < currentHour;
+            }
+            
+            if (isPast) {
+              allSlots.push({
+                start_time: startTime,
+                end_time: endTime,
+                is_available: false,
+                status: 'elapsed'
+              });
+              continue;
+            }
+            
+            const event8BallStations = stations.filter(s => 
+              s.category === 'nit_event' && s.event_enabled && s.type === '8ball' &&
+              (selectedStations.length === 0 || selectedStations.includes(s.id))
+            );
+            let any8BallAvailable = false;
+            
+            if (event8BallStations.length > 0) {
+              try {
+                const { data: availabilityData, error: availError } = await supabase.rpc("check_stations_availability", {
+                  p_date: dateStr,
+                  p_start_time: startTime,
+                  p_end_time: endTime,
+                  p_station_ids: event8BallStations.map(s => s.id)
+                });
+                if (!availError && availabilityData) {
+                  any8BallAvailable = availabilityData.some((item: { station_id: string, is_available: boolean }) => item.is_available);
+                }
+              } catch (e) {
+                console.error("Error checking 8-Ball event station availability:", e);
+              }
+            }
+            
+            allSlots.push({
+              start_time: startTime,
+              end_time: endTime,
+              is_available: any8BallAvailable,
+              status: any8BallAvailable ? 'available' : 'booked'
+            });
           }
         }
       } else if (slotDuration === 15) {
@@ -2446,7 +2500,7 @@ export default function PublicBooking() {
                     <Label className="text-base font-medium text-gray-200 block text-center mb-2">
                       {eventName}: What would you like to book?
                     </Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Button
                         onClick={() => {
                           setNitEventMode("ps5");
@@ -2462,6 +2516,25 @@ export default function PublicBooking() {
                           <Gamepad2 className="h-6 w-6 text-white" />
                           <span>PS5 Gaming</span>
                           <span className="text-xs font-normal text-white/75">30 min slots</span>
+                        </div>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setNitEventMode("8ball");
+                          setStationType("8ball");
+                          setSelectedSlot(null);
+                          setSelectedSlots([]);
+                          setSelectedStations([]);
+                          toast.info(`🎱 ${eventName} 8-Ball selected (60 min slots).`, { duration: 2000 });
+                        }}
+                        className="w-full h-auto py-6 bg-gradient-to-r from-green-600/35 to-emerald-600/25 border-2 border-white/15 hover:from-green-600/45 hover:to-emerald-600/35 text-white font-bold text-lg"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-white flex items-center justify-center">
+                            <span className="text-black text-sm font-bold">8</span>
+                          </div>
+                          <span>8-Ball Pool</span>
+                          <span className="text-xs font-normal text-white/75">60 min slots</span>
                         </div>
                       </Button>
                       <Button
