@@ -1810,25 +1810,25 @@ const PublicTournaments = () => {
         </div>
       </footer>
 
-      {/* Registration Dialog - Fixed to prevent page refresh */}
+      {/* Registration Dialog - Fixed to prevent page refresh; mobile-friendly width and overflow */}
       <Dialog open={isDialogOpen && selectedTournament !== null} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="bg-gradient-to-br from-cuephoria-dark via-cuephoria-dark to-cuephoria-purple/20 border-cuephoria-lightpurple/30 text-white w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full sm:max-w-lg max-h-[85dvh] sm:max-h-[90vh] overflow-hidden flex flex-col p-4 pt-4 pr-12 pb-4 sm:p-6 sm:pr-6 overflow-x-hidden box-border [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(3rem,env(safe-area-inset-right))] [padding-bottom:max(1rem,env(safe-area-inset-bottom))]">
           {/* Header with gradient background */}
           <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-cuephoria-lightpurple/20 via-cuephoria-blue/20 to-cuephoria-purple/20 blur-3xl -z-10"></div>
           
-          <DialogHeader className="relative z-10 pb-3 border-b border-cuephoria-lightpurple/20 flex-shrink-0">
-            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg">
-              <div className="p-1.5 bg-gradient-to-br from-cuephoria-lightpurple/20 to-cuephoria-blue/20 rounded-lg">
+          <DialogHeader className="relative z-10 pb-3 border-b border-cuephoria-lightpurple/20 flex-shrink-0 min-w-0">
+            <DialogTitle className="text-cuephoria-lightpurple flex items-center gap-2 text-lg min-w-0">
+              <div className="p-1.5 bg-gradient-to-br from-cuephoria-lightpurple/20 to-cuephoria-blue/20 rounded-lg flex-shrink-0">
                 <Trophy className="h-5 w-5 text-yellow-400" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1 break-words">
                 <div className="font-bold text-base">Register for Tournament</div>
                 <div className="text-xs text-cuephoria-grey font-normal mt-0.5">{selectedTournament?.name}</div>
               </div>
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-3 pt-3 relative z-10 overflow-y-auto flex-1 pr-2">
+          <div className="space-y-3 pt-3 relative z-10 overflow-y-auto overflow-x-hidden flex-1 pr-2 min-w-0">
             {/* Phone Number Field (First) */}
             <div className="space-y-1.5">
               <Label htmlFor="phone" className="text-cuephoria-grey flex items-center gap-1.5 text-sm">
