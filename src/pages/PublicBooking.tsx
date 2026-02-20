@@ -1351,10 +1351,10 @@ export default function PublicBooking() {
           return (end.getTime() - start.getTime()) / (1000 * 60);
         })();
         
-        // Filter stations by duration: 30min = PS5, 15min = VR
+        // Filter stations by duration: 30min = PS5 and 8-Ball, 15min = VR
         if (slotDurationMinutes === 30) {
           stationsToCheck = stations.filter(s => 
-            s.category === 'nit_event' && s.event_enabled && s.type === 'ps5'
+            s.category === 'nit_event' && s.event_enabled && (s.type === 'ps5' || s.type === '8ball')
           );
         } else if (slotDurationMinutes === 15) {
           stationsToCheck = stations.filter(s => 
@@ -2611,21 +2611,19 @@ export default function PublicBooking() {
                   >
                     PS5
                   </Button>
-                  {isNitEventBooking !== true && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStationType("8ball")}
-                      className={cn(
-                        "h-9 rounded-full border-white/15 text-[12px]",
-                        stationType === "8ball"
-                          ? "bg-emerald-400/15 text-emerald-300"
-                          : "bg-transparent text-emerald-300"
-                      )}
-                    >
-                      8-Ball
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStationType("8ball")}
+                    className={cn(
+                      "h-9 rounded-full border-white/15 text-[12px]",
+                      stationType === "8ball"
+                        ? "bg-emerald-400/15 text-emerald-300"
+                        : "bg-transparent text-emerald-300"
+                    )}
+                  >
+                    8-Ball
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
