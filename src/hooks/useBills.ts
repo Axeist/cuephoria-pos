@@ -200,8 +200,8 @@ export const useBills = (
 
       let loadedAny = false;
       try {
-        // Smaller pages reduce payload size and timeouts; show first page fast.
-        const pageSize = 200;
+        // Smaller pages reduce payload size and avoid statement timeout (Postgres 57014).
+        const pageSize = 50;
 
         let page = 0;
         let finished = false;

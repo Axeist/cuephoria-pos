@@ -158,7 +158,7 @@ const ReportsPage: React.FC = () => {
       setReportBillsError(null);
       setReportBills([]); // clear immediately so UI reflects the selected range
 
-      const pageSize = 1000;
+      const pageSize = 100;
       let page = 0;
       let finished = false;
 
