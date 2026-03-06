@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronRight, Trash2, Gift, Download, Eye, CreditCard } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Gift, Download, Eye, CreditCard, Pencil } from 'lucide-react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -55,6 +55,7 @@ interface ExpandableBillRowProps {
   getCustomerName: (customerId: string) => string;
   getCustomerPhone?: (customerId: string) => string;
   searchTerm?: string;
+  onEdit?: (bill: Bill) => void;
   onDelete?: (bill: Bill) => void;
 }
 
@@ -63,6 +64,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   getCustomerName, 
   getCustomerPhone,
   searchTerm = '',
+  onEdit,
   onDelete
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -118,6 +120,12 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
     }
     
     setShowReceipt(true);
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (onEdit) onEdit(bill);
   };
 
   return (
@@ -232,6 +240,18 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-1">
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleEditClick}
+                className="h-8 w-8 text-purple-400 hover:text-purple-300 hover:bg-purple-950/30"
+                title="Edit transaction (e.g. change payment)"
+                type="button"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
             {customer && (
               <Button
                 variant="ghost"

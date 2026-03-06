@@ -7,13 +7,16 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import BusinessSummaryReport from '@/components/dashboard/BusinessSummaryReport';
 import { useSessionsData } from '@/hooks/stations/useSessionsData';
 import ExpandableBillRow from '@/components/reports/ExpandableBillRow';
@@ -41,7 +44,8 @@ const ReportsPage: React.FC = () => {
     exportBills,
     exportCustomers,
     stations,
-    deleteBill
+    deleteBill,
+    updateBill
   } = usePOS();
   const {
     sessions,
@@ -606,14 +610,95 @@ const ReportsPage: React.FC = () => {
     }
   }, [deleteSession]);
 
-  // Handler for editing bill
-  const handleEditBill = (bill: any) => {
-    toast({
-      title: "Edit Transaction",
-      description: `Opening editor for bill ${bill.id.substring(0, 8)}...`,
-    });
-    console.log('Edit bill:', bill);
-  };
+  // Edit transaction dialog state (change payment like on dashboard)
+  const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState<Bill['paymentMethod']>('cash');
+  const [editingSplitPayment, setEditingSplitPayment] = useState(false);
+  const [editingCashAmount, setEditingCashAmount] = useState(0);
+  const [editingUpiAmount, setEditingUpiAmount] = useState(0);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const handleEditBill = useCallback((bill: Bill) => {
+    setEditingBill(bill);
+    setEditingPaymentMethod(bill.paymentMethod);
+    setEditingSplitPayment(bill.isSplitPayment || false);
+    setEditingCashAmount(bill.cashAmount || 0);
+    setEditingUpiAmount(bill.upiAmount || 0);
+  }, []);
+
+  const handlePaymentMethodChange = useCallback((value: Bill['paymentMethod']) => {
+    setEditingPaymentMethod(value);
+    if (value === 'split') {
+      setEditingSplitPayment(true);
+      if (editingBill) {
+        const total = editingBill.total;
+        setEditingCashAmount(Math.floor(total / 2));
+        setEditingUpiAmount(total - Math.floor(total / 2));
+      }
+    } else {
+      setEditingSplitPayment(false);
+    }
+  }, [editingBill]);
+
+  const handleSaveEditTransaction = useCallback(async () => {
+    if (!editingBill || !updateBill) return;
+    const customer = customers.find(c => c.id === editingBill.customerId);
+    if (!customer) {
+      toast({
+        title: "Error",
+        description: "Customer not found for this transaction.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (editingSplitPayment) {
+      const sum = editingCashAmount + editingUpiAmount;
+      if (Math.abs(sum - editingBill.total) > 0.01) {
+        toast({
+          title: "Invalid split",
+          description: `Split amounts must equal total (₹${editingBill.total.toFixed(2)}).`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setIsSavingEdit(true);
+    try {
+      const updated = await updateBill(
+        editingBill,
+        editingBill.items,
+        customer,
+        editingBill.discount,
+        editingBill.discountType || 'fixed',
+        editingBill.loyaltyPointsUsed,
+        editingSplitPayment,
+        editingCashAmount,
+        editingUpiAmount,
+        editingPaymentMethod
+      );
+      if (updated) {
+        toast({
+          title: "Transaction updated",
+          description: "Payment method and transaction details have been saved.",
+          variant: "default",
+        });
+        setEditingBill(null);
+        setReportBills(prev => {
+          if (!prev) return prev;
+          return prev.map(b => b.id === updated.id ? { ...b, ...updated, createdAt: b.createdAt } : b);
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Update failed",
+        description: "Could not update the transaction. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }, [editingBill, editingPaymentMethod, editingSplitPayment, editingCashAmount, editingUpiAmount, customers, updateBill, toast]);
 
   // Handler for deleting bill
   const handleDeleteBill = async (bill: any) => {
@@ -1616,6 +1701,127 @@ const ReportsPage: React.FC = () => {
       <div className="space-y-6">
         {renderContent()}
       </div>
+
+      {/* Edit Transaction dialog – change payment method like on dashboard */}
+      <Dialog open={!!editingBill} onOpenChange={(open) => !open && setEditingBill(null)}>
+        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Edit Transaction</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Change payment method for this transaction (same as dashboard).
+            </DialogDescription>
+          </DialogHeader>
+          {editingBill && (
+            <div className="space-y-4 py-2">
+              <div className="text-xs text-gray-400 font-mono break-all">Bill: {editingBill.id}</div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-300">Payment Method</Label>
+                <RadioGroup
+                  value={editingPaymentMethod}
+                  onValueChange={(value) => handlePaymentMethodChange(value as Bill['paymentMethod'])}
+                  className="flex flex-col space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="cash" id="edit-cash" className="text-purple-400" />
+                    <Label htmlFor="edit-cash" className="flex items-center gap-1 cursor-pointer">
+                      <Wallet className="h-4 w-4" /> Cash
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="upi" id="edit-upi" className="text-purple-400" />
+                    <Label htmlFor="edit-upi" className="flex items-center gap-1 cursor-pointer">
+                      <CreditCard className="h-4 w-4" /> UPI
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="credit" id="edit-credit" className="text-purple-400" />
+                    <Label htmlFor="edit-credit" className="flex items-center gap-1 cursor-pointer">
+                      <CreditCard className="h-4 w-4" /> Credit
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="razorpay" id="edit-razorpay" className="text-purple-400" />
+                    <Label htmlFor="edit-razorpay" className="flex items-center gap-1 cursor-pointer">
+                      <CreditCard className="h-4 w-4" /> Razorpay
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="split" id="edit-split" className="text-purple-400" />
+                    <Label htmlFor="edit-split" className="flex items-center gap-1 cursor-pointer">
+                      <X className="h-4 w-4" /> Split
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              {editingPaymentMethod === 'split' && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800/40 rounded-md border border-gray-700">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-cashAmount" className="text-sm text-gray-300">Cash (₹)</Label>
+                    <Input
+                      id="edit-cashAmount"
+                      type="number"
+                      value={editingCashAmount}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setEditingCashAmount(v);
+                        setEditingUpiAmount(Math.max(0, editingBill.total - v));
+                      }}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      min={0}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-upiAmount" className="text-sm text-gray-300">UPI (₹)</Label>
+                    <Input
+                      id="edit-upiAmount"
+                      type="number"
+                      value={editingUpiAmount}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setEditingUpiAmount(v);
+                        setEditingCashAmount(Math.max(0, editingBill.total - v));
+                      }}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      min={0}
+                    />
+                  </div>
+                  {Math.abs(editingCashAmount + editingUpiAmount - editingBill.total) > 0.01 && (
+                    <div className="col-span-2 text-red-400 text-xs">
+                      Split must equal total: <CurrencyDisplay amount={editingBill.total} />
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="text-right text-sm text-gray-400">
+                Total: <CurrencyDisplay amount={editingBill.total} className="text-white font-medium" />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="border-t border-gray-700 pt-4">
+            <Button
+              variant="outline"
+              className="bg-gray-700 hover:bg-gray-600 text-white"
+              onClick={() => setEditingBill(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={handleSaveEditTransaction}
+              disabled={isSavingEdit}
+            >
+              {isSavingEdit ? (
+                <>Saving...</>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
