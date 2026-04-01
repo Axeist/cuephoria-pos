@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Trash2, Save, Calendar, Ticket, Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useLocation } from '@/context/LocationContext';
 
 interface Coupon {
   code: string;
@@ -29,6 +30,7 @@ const BookingSettings = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { activeLocationId } = useLocation();
   
   // Event settings state
   const [eventName, setEventName] = useState('IIM Event');
@@ -46,20 +48,21 @@ const BookingSettings = () => {
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [activeLocationId]);
 
   const fetchSettings = async () => {
+    if (!activeLocationId) return;
     setLoading(true);
     try {
       // @ts-ignore - booking_settings table will exist after migration
-      // Fetch event name settings
       const { data: eventData, error: eventError } = await supabase
         .from('booking_settings')
         .select('setting_value')
         .eq('setting_key', 'event_name')
-        .single();
+        .eq('location_id', activeLocationId)
+        .maybeSingle();
 
-      if (eventError && eventError.code !== 'PGRST116') throw eventError;
+      if (eventError) throw eventError;
 
       if (eventData) {
         const eventSettings = eventData.setting_value as EventSettings;
@@ -68,14 +71,14 @@ const BookingSettings = () => {
       }
 
       // @ts-ignore - booking_settings table will exist after migration
-      // Fetch coupons settings
       const { data: couponsData, error: couponsError } = await supabase
         .from('booking_settings')
         .select('setting_value')
         .eq('setting_key', 'booking_coupons')
-        .single();
+        .eq('location_id', activeLocationId)
+        .maybeSingle();
 
-      if (couponsError && couponsError.code !== 'PGRST116') throw couponsError;
+      if (couponsError) throw couponsError;
 
       if (couponsData) {
         const couponsArray = couponsData.setting_value as Coupon[];
@@ -94,24 +97,29 @@ const BookingSettings = () => {
     }
   };
 
+  const upsertBookingSetting = async (
+    setting_key: string,
+    setting_value: unknown,
+    description?: string
+  ) => {
+    if (!activeLocationId) throw new Error('No branch selected');
+    const res = await fetch('/api/admin/booking-settings', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ setting_key, setting_value, description, location_id: activeLocationId }),
+    });
+    const json = await res.json();
+    if (!json?.ok) throw new Error(json?.error || 'Unknown error');
+  };
+
   const saveEventSettings = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/booking-settings', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          action: 'event',
-          name: eventName,
-          description: eventDescription,
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || `Save failed (${res.status})`);
-      }
-
+      await upsertBookingSetting(
+        'event_name',
+        { name: eventName, description: eventDescription },
+        'Name and description for the special event booking category'
+      );
       toast({
         title: 'Success',
         description: 'Event settings saved successfully'
@@ -131,17 +139,11 @@ const BookingSettings = () => {
   const saveCoupons = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/booking-settings', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'coupons', coupons }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || `Save failed (${res.status})`);
-      }
-
+      await upsertBookingSetting(
+        'booking_coupons',
+        coupons,
+        'List of available coupon codes for bookings'
+      );
       toast({
         title: 'Success',
         description: 'Coupons saved successfully'

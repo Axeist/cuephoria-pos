@@ -9,116 +9,72 @@ import {
 
 export const config = { runtime: "edge" };
 
-function need(name: string): string {
-  const v = getEnv(name);
-  if (!v) throw new Error(`Missing env: ${name}`);
+function getSupabaseUrl() {
+  const v = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
+  if (!v) throw new Error("Missing env: SUPABASE_URL / VITE_SUPABASE_URL");
   return v;
 }
 
-function getSupabaseUrl() {
-  return getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL") || need("VITE_SUPABASE_URL");
-}
-
 function getSupabaseServiceRoleKey() {
-  return getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY");
-}
-
-type Coupon = {
-  code: string;
-  description: string;
-  discount_type: "percentage" | "fixed";
-  discount_value: number;
-  enabled: boolean;
-};
-
-function normalizeCoupon(raw: unknown): Coupon | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-  const code = String(o.code || "").trim().toUpperCase();
-  if (!code) return null;
-  const discount_type = o.discount_type === "fixed" ? "fixed" : "percentage";
-  const dv = o.discount_value;
-  const discount_value =
-    typeof dv === "number" && Number.isFinite(dv) ? dv : Number(dv) || 0;
-  return {
-    code,
-    description: String(o.description ?? ""),
-    discount_type,
-    discount_value: Number.isFinite(discount_value) ? discount_value : 0,
-    enabled: o.enabled !== false,
-  };
+  const v = getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY");
+  if (!v) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
+  return v;
 }
 
 export default async function handler(req: Request) {
-  if (req.method !== "POST") {
-    return j({ ok: false, error: "Method not allowed" }, 405);
-  }
-
   try {
     const cookies = parseCookies(req.headers.get("cookie"));
     const token = cookies[ADMIN_SESSION_COOKIE];
     const sessionUser = token ? await verifyAdminSession(token) : null;
-    if (!sessionUser?.isAdmin) return j({ ok: false, error: "Unauthorized" }, 401);
+    if (!sessionUser) return j({ ok: false, error: "Unauthorized" }, 401);
 
-    const serviceKey = getSupabaseServiceRoleKey();
-    if (!serviceKey) {
-      return j(
-        {
-          ok: false,
-          error:
-            "Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY (required to save booking settings).",
-        },
-        500
-      );
-    }
-
-    const supabase = createClient(getSupabaseUrl(), serviceKey, {
+    const supabase = createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { "x-application-name": "cuephoria-admin-booking-settings" } },
+      global: { headers: { "x-application-name": "cuephoria-admin-api" } },
     });
 
-    const body = await req.json().catch(() => ({}));
-    const action = body?.action;
-
-    if (action === "event") {
-      const name = String(body?.name ?? "").trim() || "IIM Event";
-      const description =
-        String(body?.description ?? "").trim() ||
-        "Choose VR (15m) or PS5 Gaming (30m)";
-      const { error } = await supabase.from("booking_settings").upsert(
-        {
-          setting_key: "event_name",
-          setting_value: { name, description },
-          description: "Name and description for the special event booking category",
-        },
-        { onConflict: "setting_key" }
-      );
-      if (error) return j({ ok: false, error: error.message }, 500);
-      return j({ ok: true }, 200);
-    }
-
-    if (action === "coupons") {
-      const raw = body?.coupons;
-      if (!Array.isArray(raw)) {
-        return j({ ok: false, error: "coupons must be an array" }, 400);
+    // GET: fetch booking settings for a branch (?location_id=uuid)
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      const locationId = url.searchParams.get("location_id");
+      let q = supabase.from("booking_settings").select("setting_key, setting_value");
+      if (locationId) {
+        q = q.eq("location_id", locationId);
       }
-      const coupons = raw.map(normalizeCoupon).filter((c): c is Coupon => c !== null);
-      const { error } = await supabase.from("booking_settings").upsert(
-        {
-          setting_key: "booking_coupons",
-          setting_value: coupons,
-          description: "List of available coupon codes for bookings",
-        },
-        { onConflict: "setting_key" }
-      );
+      const { data, error } = await q;
+
+      if (error) return j({ ok: false, error: error.message }, 500);
+      return j({ ok: true, settings: data ?? [] }, 200);
+    }
+
+    // PUT: upsert a single booking setting
+    if (req.method === "PUT") {
+      const body = await req.json().catch(() => ({}));
+      const { setting_key, setting_value, description, location_id } = body;
+
+      if (!setting_key) return j({ ok: false, error: "Missing setting_key" }, 400);
+      if (setting_value === undefined) return j({ ok: false, error: "Missing setting_value" }, 400);
+      if (!location_id) return j({ ok: false, error: "Missing location_id" }, 400);
+
+      const { error } = await supabase
+        .from("booking_settings")
+        .upsert(
+          {
+            setting_key,
+            setting_value,
+            location_id,
+            ...(description ? { description } : {}),
+          },
+          { onConflict: "location_id,setting_key" }
+        );
+
       if (error) return j({ ok: false, error: error.message }, 500);
       return j({ ok: true }, 200);
     }
 
-    return j({ ok: false, error: "Invalid action" }, 400);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("booking-settings API error:", err);
-    return j({ ok: false, error: msg }, 500);
+    return j({ ok: false, error: "Method not allowed" }, 405);
+  } catch (err: any) {
+    console.error("Booking settings API error:", err);
+    return j({ ok: false, error: String(err?.message || err) }, 500);
   }
 }
