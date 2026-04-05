@@ -134,15 +134,19 @@ const couponRowEmoji = (code: string) => {
   }
 };
 
+/** Hidden on public booking only (still in DB / admin; not accepted here). */
+const PUBLIC_BOOKING_EXCLUDED_COUPON_CODES = new Set([
+  "AXEIST",
+  "TEST210198$",
+  "GAMEINSIDER50",
+]);
+
 const FALLBACK_ALLOWED_COUPON_CODES = [
   "CUEPHORIA20",
   "CUEPHORIA35",
   "HH99",
   "NIT35",
   "AAVEG50",
-  "AXEIST",
-  "TEST210198$",
-  "GAMEINSIDER50",
 ];
 
 // ✅ NEW: Phone number normalization
@@ -329,7 +333,8 @@ export default function PublicBooking() {
                 discount_type: c.discount_type === "fixed" ? "fixed" : "percentage",
                 discount_value: Number.isFinite(num) ? num : 0,
               };
-            });
+            })
+            .filter((c) => !PUBLIC_BOOKING_EXCLUDED_COUPON_CODES.has(c.code));
           setBookingCouponsFromDB(enabled);
         }
       } catch (error) {
@@ -1216,16 +1221,6 @@ export default function PublicBooking() {
       return;
     }
 
-    if (code === "AXEIST") {
-      const ok = window.confirm(
-        "🥷 AXEIST grants 100% OFF for close friends. Apply?"
-      );
-      if (!ok) return;
-      setAppliedCoupons({ all: "AXEIST" });
-      toast.success("🥷 AXEIST applied! 100% OFF — Loyalty matters.");
-      return;
-    }
-
     if (code === "CUEPHORIA20") {
       // For new customers, show Instagram follow dialog
       if (shouldShowInstagramDialog("CUEPHORIA20")) {
@@ -1325,34 +1320,6 @@ export default function PublicBooking() {
       if (selectedHasVR) types.push("VR");
       msg += types.join(" & ") + " stations!";
       toast.success(msg);
-      return;
-    }
-
-    if (code === "TEST210198$") {
-      const ok = window.confirm(
-        "🧪 TEST210198$ is a test coupon that sets the transaction value to ₹1 for payment flow testing. Apply?"
-      );
-      if (!ok) return;
-      setAppliedCoupons({ all: "TEST210198$" });
-      toast.success("🧪 TEST210198$ applied! Transaction value set to ₹1 for testing.");
-      return;
-    }
-
-    if (code === "GAMEINSIDER50") {
-      const ok = window.confirm(
-        "🎮 GAMEINSIDER50 - 50% OFF Collaboration Coupon\n\n" +
-        "⚠️ IMPORTANT: This coupon will be applied only after enrollment verification.\n\n" +
-        "We will manually check your name/email ID used for booking against our enrollment list. " +
-        "If your details are not found on the enrollment list, the discount will not be provided.\n\n" +
-        "Do you want to proceed with applying this coupon?"
-      );
-      if (!ok) return;
-      setAppliedCoupons({ all: "GAMEINSIDER50" });
-      toast.success(
-        "🎮 GAMEINSIDER50 applied: 50% OFF!\n" +
-        "⚠️ Note: Discount will be verified against enrollment list. " +
-        "If your name/email is not found, discount will not be provided."
-      );
       return;
     }
 
@@ -1546,23 +1513,12 @@ export default function PublicBooking() {
       return { total: 0, breakdown: {} as Record<string, number> };
 
     if (appliedCoupons["all"]) {
-      if (appliedCoupons["all"] === "AXEIST")
-        return { total: original, breakdown: { all: original } };
       if (appliedCoupons["all"] === "CUEPHORIA20") {
         const disc = original * 0.20;
         return { total: disc, breakdown: { all: disc } };
       }
       if (appliedCoupons["all"] === "CUEPHORIA35") {
         const disc = original * 0.35;
-        return { total: disc, breakdown: { all: disc } };
-      }
-      if (appliedCoupons["all"] === "TEST210198$") {
-        // Set discount to make final price = 1 rupee
-        const disc = Math.max(original - 1, 0);
-        return { total: disc, breakdown: { all: disc } };
-      }
-      if (appliedCoupons["all"] === "GAMEINSIDER50") {
-        const disc = original * 0.50;
         return { total: disc, breakdown: { all: disc } };
       }
       const dbAll = bookingCouponsFromDB.find(
@@ -3165,7 +3121,6 @@ export default function PublicBooking() {
                         else if (val === "CUEPHORIA20") emoji = "🎉";
                         else if (val === "CUEPHORIA35") emoji = "📚";
                         else if (val === "AAVEG50") emoji = "🏫";
-                        else if (val === "AXEIST") emoji = "🥷";
                         return (
                           <div
                             key={key}
