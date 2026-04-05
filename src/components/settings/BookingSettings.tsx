@@ -97,21 +97,20 @@ const BookingSettings = () => {
   const saveEventSettings = async () => {
     setSaving(true);
     try {
-      // @ts-ignore - booking_settings table will exist after migration
-      const { error } = await supabase
-        .from('booking_settings')
-        .upsert({
-          setting_key: 'event_name',
-          setting_value: {
-            name: eventName,
-            description: eventDescription
-          },
-          description: 'Name and description for the special event booking category'
-        }, {
-          onConflict: 'setting_key'
-        });
-
-      if (error) throw error;
+      const res = await fetch('/api/admin/booking-settings', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          action: 'event',
+          name: eventName,
+          description: eventDescription,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || `Save failed (${res.status})`);
+      }
 
       toast({
         title: 'Success',
@@ -121,7 +120,7 @@ const BookingSettings = () => {
       console.error('Error saving event settings:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save event settings',
+        description: error instanceof Error ? error.message : 'Failed to save event settings',
         variant: 'destructive'
       });
     } finally {
@@ -132,18 +131,16 @@ const BookingSettings = () => {
   const saveCoupons = async () => {
     setSaving(true);
     try {
-      // @ts-ignore - booking_settings table will exist after migration
-      const { error } = await supabase
-        .from('booking_settings')
-        .upsert({
-          setting_key: 'booking_coupons',
-          setting_value: coupons,
-          description: 'List of available coupon codes for bookings'
-        }, {
-          onConflict: 'setting_key'
-        });
-
-      if (error) throw error;
+      const res = await fetch('/api/admin/booking-settings', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'coupons', coupons }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || `Save failed (${res.status})`);
+      }
 
       toast({
         title: 'Success',
@@ -153,7 +150,7 @@ const BookingSettings = () => {
       console.error('Error saving coupons:', error);
       toast({
         title: 'Error',
-        description: 'Failed to save coupons',
+        description: error instanceof Error ? error.message : 'Failed to save coupons',
         variant: 'destructive'
       });
     } finally {
