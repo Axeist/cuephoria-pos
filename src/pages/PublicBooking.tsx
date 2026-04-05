@@ -78,6 +78,14 @@ interface CustomerInfo {
   phone: string;
   email: string;
 }
+
+/** Enabled coupons from booking_settings — drives public list + generic %/fixed discounts */
+interface BookingCouponMeta {
+  code: string;
+  description: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+}
 interface TodayBookingRow {
   id: string;
   booking_date: string;
@@ -110,6 +118,32 @@ const isHappyHour = (date: Date, slot: TimeSlot | null) => {
   const startHour = Number(slot.start_time.split(":")[0]);
   return day >= 1 && day <= 5 && startHour >= 11 && startHour < 16;
 };
+
+const couponRowEmoji = (code: string) => {
+  switch (code) {
+    case "NIT35":
+      return "🎓";
+    case "HH99":
+      return "⏰";
+    case "CUEPHORIA35":
+      return "📚";
+    case "CUEPHORIA20":
+      return "🎉";
+    default:
+      return "🏷️";
+  }
+};
+
+const FALLBACK_ALLOWED_COUPON_CODES = [
+  "CUEPHORIA20",
+  "CUEPHORIA35",
+  "HH99",
+  "NIT35",
+  "AAVEG50",
+  "AXEIST",
+  "TEST210198$",
+  "GAMEINSIDER50",
+];
 
 // ✅ NEW: Phone number normalization
 const normalizePhoneNumber = (phone: string): string => {
@@ -238,7 +272,7 @@ export default function PublicBooking() {
   // Dynamic settings from database
   const [eventName, setEventName] = useState("IIM Event");
   const [eventDescription, setEventDescription] = useState("Choose VR (15m) or PS5 Gaming (30m)");
-  const [allowedCouponsFromDB, setAllowedCouponsFromDB] = useState<string[]>([]);
+  const [bookingCouponsFromDB, setBookingCouponsFromDB] = useState<BookingCouponMeta[]>([]);
 
   // Check if customer info is complete (using useMemo to avoid initialization issues)
   const isCustomerInfoComplete = useMemo(() => 
@@ -274,11 +308,29 @@ export default function PublicBooking() {
           .maybeSingle();
 
         if (!couponsError && couponsData) {
-          const couponsArray = couponsData.setting_value as Array<{ code: string; enabled: boolean }>;
-          const enabledCoupons = couponsArray
-            .filter(c => c.enabled)
-            .map(c => c.code);
-          setAllowedCouponsFromDB(enabledCoupons);
+          const couponsArray = couponsData.setting_value as Array<{
+            code: string;
+            description?: string;
+            discount_type?: string;
+            discount_value?: number;
+            enabled?: boolean;
+          }>;
+          const enabled: BookingCouponMeta[] = couponsArray
+            .filter((c) => c.enabled !== false && String(c.code || "").trim())
+            .map((c) => {
+              const code = String(c.code).trim().toUpperCase();
+              const dv = c.discount_value;
+              const num =
+                typeof dv === "number" && Number.isFinite(dv) ? dv : Number(dv) || 0;
+              return {
+                code,
+                description:
+                  String(c.description ?? "").trim() || `Discount — ${code}`,
+                discount_type: c.discount_type === "fixed" ? "fixed" : "percentage",
+                discount_value: Number.isFinite(num) ? num : 0,
+              };
+            });
+          setBookingCouponsFromDB(enabled);
         }
       } catch (error) {
         console.error('Error fetching booking settings:', error);
@@ -1064,16 +1116,10 @@ export default function PublicBooking() {
   }
 
   // Use dynamic coupons from database, fallback to defaults if not loaded yet
-  const allowedCoupons = allowedCouponsFromDB.length > 0 ? allowedCouponsFromDB : [
-    "CUEPHORIA20",
-    "CUEPHORIA35",
-    "HH99",
-    "NIT35",
-    "AAVEG50",
-    "AXEIST",
-    "TEST210198$",
-    "GAMEINSIDER50",
-  ];
+  const allowedCoupons =
+    bookingCouponsFromDB.length > 0
+      ? bookingCouponsFromDB.map((c) => c.code)
+      : FALLBACK_ALLOWED_COUPON_CODES;
 
   function validateStudentID() {
     return window.confirm(
@@ -1309,6 +1355,22 @@ export default function PublicBooking() {
       );
       return;
     }
+
+    // Configured in Settings → Booking: generic % or fixed off entire selection
+    const dbMeta = bookingCouponsFromDB.find((c) => c.code === code);
+    if (dbMeta) {
+      setAppliedCoupons({ all: dbMeta.code });
+      if (dbMeta.discount_type === "percentage") {
+        toast.success(
+          `🎟️ ${dbMeta.code} applied: ${dbMeta.discount_value}% off your booking!`
+        );
+      } else {
+        toast.success(
+          `🎟️ ${dbMeta.code} applied: ${INR(dbMeta.discount_value)} off your booking!`
+        );
+      }
+      return;
+    }
   }
 
   const handleCouponApply = () => {
@@ -1502,6 +1564,18 @@ export default function PublicBooking() {
       if (appliedCoupons["all"] === "GAMEINSIDER50") {
         const disc = original * 0.50;
         return { total: disc, breakdown: { all: disc } };
+      }
+      const dbAll = bookingCouponsFromDB.find(
+        (c) => c.code === appliedCoupons["all"]
+      );
+      if (dbAll) {
+        if (dbAll.discount_type === "percentage") {
+          const rate = Math.min(100, Math.max(0, dbAll.discount_value)) / 100;
+          const disc = original * rate;
+          return { total: disc, breakdown: { [dbAll.code]: disc } };
+        }
+        const disc = Math.min(original, Math.max(0, dbAll.discount_value));
+        return { total: disc, breakdown: { [dbAll.code]: disc } };
       }
       return { total: 0, breakdown: {} as Record<string, number> };
     }
@@ -2853,7 +2927,67 @@ export default function PublicBooking() {
                       </Label>
                       
                       <div className="space-y-2.5">
-                      {/* NIT35 - Expandable (not available for NIT Event bookings themselves, only regular) */}
+                      {bookingCouponsFromDB.length > 0 ? (
+                        bookingCouponsFromDB.map((coupon) => (
+                          <div
+                            key={coupon.code}
+                            className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden"
+                          >
+                            <div
+                              className="p-2 cursor-pointer flex items-center justify-between gap-2"
+                              onClick={() =>
+                                setExpandedCoupons((prev) => ({
+                                  ...prev,
+                                  [coupon.code]: !prev[coupon.code],
+                                }))
+                              }
+                            >
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <span className="text-sm flex-shrink-0">{couponRowEmoji(coupon.code)}</span>
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-semibold text-gray-200 text-xs font-mono">
+                                    {coupon.code}
+                                  </span>
+                                  {!expandedCoupons[coupon.code] && (
+                                    <span className="text-xs text-gray-400 ml-1.5">
+                                      • {coupon.description}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    applyCoupon(coupon.code);
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
+                                >
+                                  Apply
+                                </Button>
+                                {expandedCoupons[coupon.code] ? (
+                                  <ChevronUp className="h-4 w-4 text-gray-400" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                                )}
+                              </div>
+                            </div>
+                            {expandedCoupons[coupon.code] && (
+                              <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
+                                <p className="text-xs text-gray-400 mt-2">{coupon.description}</p>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  {coupon.discount_type === "percentage"
+                                    ? `${coupon.discount_value}% off the booking total`
+                                    : `${INR(coupon.discount_value)} off the booking total`}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <>
+                      {/* NIT35 - Expandable (fallback when booking_settings coupons not loaded) */}
                       <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
                         <div 
                           className="p-2 cursor-pointer flex items-center justify-between"
@@ -3012,6 +3146,8 @@ export default function PublicBooking() {
                           </div>
                         )}
                       </div>
+                        </>
+                      )}
                       </div>
                     </div>
                   </div>
