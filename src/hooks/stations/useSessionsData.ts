@@ -196,15 +196,15 @@ export const useSessionsData = () => {
         },
         (payload) => {
           console.log('Session change detected via Realtime:', payload.eventType);
-          // Debounce refresh to prevent rapid updates and allow local state to settle
-          // This gives time for manual state updates (like ending sessions) to complete
           if (refreshTimeout) {
             clearTimeout(refreshTimeout);
           }
           refreshTimeout = setTimeout(() => {
             console.log('Refreshing sessions after Realtime change (debounced)');
-            refreshSessions(true); // Silent refresh to avoid loading states
-          }, 500); // 500ms debounce - enough time for DB updates to complete
+            // Bypass cache — DB already has the new state
+            invalidateCache(sessionsCacheKey);
+            refreshSessionsFromDB(true);
+          }, 300);
         }
       )
       .subscribe((status) => {

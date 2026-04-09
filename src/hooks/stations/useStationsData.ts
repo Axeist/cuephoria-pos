@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Station, Session } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
-import { generateId } from '@/utils/pos.utils';
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
 import { useLocation } from '@/context/LocationContext';
 
@@ -20,28 +20,7 @@ export const useStationsData = () => {
     [activeLocationId]
   );
   
-  const refreshStations = async (silent: boolean = false) => {
-    // ✅ Check cache first
-    const cachedStations = getCachedData<Station[]>(stationsCacheKey);
-    
-    if (cachedStations && cachedStations.length > 0 && !silent) {
-      console.log('📦 Using cached stations');
-      setStations(cachedStations);
-      setStationsLoading(false);
-      
-      // Background refresh if cache is stale
-      if (isCacheStale(stationsCacheKey)) {
-        refreshStationsFromDB(true).catch(err => {
-          console.error('Error refreshing stations in background:', err);
-        });
-      }
-      return;
-    }
-    
-    await refreshStationsFromDB(silent);
-  };
-  
-  const refreshStationsFromDB = async (silent: boolean = false) => {
+  const refreshStationsFromDB = useCallback(async (silent: boolean = false) => {
     if (!activeLocationId) {
       setStations([]);
       if (!silent) setStationsLoading(false);
@@ -54,10 +33,8 @@ export const useStationsData = () => {
     }
     
     try {
-      // ✅ OPTIMIZED: Select only needed columns (including event fields)
       const selectFields = 'id,name,type,hourly_rate,is_occupied,currentsession,created_at,category,event_enabled,slot_duration';
       
-      // Fetch all stations using pagination to bypass 1000 record limit
       let page = 0;
       const pageSize = 1000;
       let allStationsData: any[] = [];
@@ -66,7 +43,7 @@ export const useStationsData = () => {
       while (!finished) {
         const { data, error } = await supabase
           .from('stations')
-          .select(selectFields) // ✅ Only fetch needed columns
+          .select(selectFields)
           .eq('location_id', activeLocationId)
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -85,7 +62,6 @@ export const useStationsData = () => {
         
         if (data && data.length > 0) {
           allStationsData = [...allStationsData, ...data];
-          // If we got less than pageSize, we've reached the end
           if (data.length < pageSize) {
             finished = true;
           } else {
@@ -96,21 +72,15 @@ export const useStationsData = () => {
         }
       }
       
-      // Transform data to match our Station type
       if (allStationsData.length > 0) {
-        const data = allStationsData;
-        const transformedStations: Station[] = data.map(item => {
-          // ✅ Parse currentSession from database
+        const transformedStations: Station[] = allStationsData.map(item => {
           let currentSession: Session | null = null;
           
           if (item.currentsession) {
             try {
-              // Parse if it's a string, or use directly if it's already an object
               const sessionData = typeof item.currentsession === 'string' 
                 ? JSON.parse(item.currentsession) 
                 : item.currentsession;
-              
-              console.log('✅ Parsed session data for', item.name, ':', sessionData);
               
               if (sessionData && sessionData.id) {
                 currentSession = {
@@ -125,8 +95,6 @@ export const useStationsData = () => {
                   couponCode: sessionData.couponCode,
                   discountAmount: sessionData.discountAmount
                 };
-                
-                console.log('✅ Created currentSession with coupon:', currentSession.couponCode);
               }
             } catch (error) {
               console.error('❌ Error parsing currentSession:', error, item.currentsession);
@@ -141,26 +109,16 @@ export const useStationsData = () => {
             isOccupied: item.is_occupied,
             currentSession: currentSession,
             category: item.category || null,
-            // Public booking visibility:
-            // - Regular stations default to visible if DB value is NULL
-            // - Event stations default to hidden if DB value is NULL
             eventEnabled: item.event_enabled ?? (item.category ? false : true),
             slotDuration: item.slot_duration || null
           };
         });
         
         setStations(transformedStations);
-        // ✅ Save to cache
         saveToCache(stationsCacheKey, transformedStations);
         console.log("✅ Loaded stations from Supabase:", transformedStations.length, "stations");
       } else {
         console.log("No stations found in Supabase");
-        if (!silent) {
-          toast({
-            title: 'Info',
-            description: 'No stations found in database. Please add stations.',
-          });
-        }
         setStations([]);
         saveToCache(stationsCacheKey, []);
       }
@@ -180,7 +138,30 @@ export const useStationsData = () => {
         setStationsLoading(false);
       }
     }
-  };
+  }, [activeLocationId, stationsCacheKey, toast]);
+
+  const refreshStations = useCallback(async (silent: boolean = false) => {
+    // On explicit (non-silent) refresh, bypass cache for fresh data
+    if (!silent) {
+      await refreshStationsFromDB(false);
+      return;
+    }
+    
+    // Silent refresh: use cache if fresh, otherwise hit DB
+    const cachedStations = getCachedData<Station[]>(stationsCacheKey);
+    if (cachedStations && cachedStations.length > 0) {
+      setStations(cachedStations);
+      setStationsLoading(false);
+      if (isCacheStale(stationsCacheKey)) {
+        refreshStationsFromDB(true).catch(err => {
+          console.error('Error refreshing stations in background:', err);
+        });
+      }
+      return;
+    }
+    
+    await refreshStationsFromDB(silent);
+  }, [stationsCacheKey, refreshStationsFromDB]);
   
   const updateStation = async (stationId: string, name: string, hourlyRate: number) => {
     try {
@@ -357,8 +338,50 @@ export const useStationsData = () => {
   // the previous branch's numbers while new data loads.
   useEffect(() => {
     setStations([]);
-    refreshStations();
+    refreshStationsFromDB(false);
   }, [activeLocationId]);
+
+  // ── REALTIME: listen to any stations row change and refresh immediately ──
+  useEffect(() => {
+    if (!activeLocationId) return;
+
+    let refreshTimeout: NodeJS.Timeout | null = null;
+
+    const channel: RealtimeChannel = supabase
+      .channel(`stations-changes-${activeLocationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'stations',
+          filter: `location_id=eq.${activeLocationId}`,
+        },
+        (payload) => {
+          console.log('📡 Station change detected via Realtime:', payload.eventType);
+          // Debounce so rapid consecutive writes (start → verify) collapse into one refresh
+          if (refreshTimeout) clearTimeout(refreshTimeout);
+          refreshTimeout = setTimeout(() => {
+            console.log('🔄 Refreshing stations after Realtime change');
+            // Bypass cache — realtime means DB already has the new state
+            invalidateCache(stationsCacheKey);
+            refreshStationsFromDB(true);
+          }, 300);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscribed to stations Realtime channel');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Failed to subscribe to stations Realtime channel');
+        }
+      });
+
+    return () => {
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [activeLocationId, stationsCacheKey, refreshStationsFromDB]);
   
   return {
     stations,
