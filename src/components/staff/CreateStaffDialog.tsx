@@ -73,24 +73,31 @@ const CreateStaffDialog: React.FC<CreateStaffDialogProps> = ({
       const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
       const hourlyRate = parseFloat(formData.monthly_salary) / (daysInMonth * shiftHours);
 
-      const { error } = await supabase
-        .from('staff_profiles')
-        .insert({
-          username: formData.username,
-          full_name: formData.full_name || formData.username,
-          designation: formData.designation,
-          email: formData.email || null,
-          phone: formData.phone || null,
-          monthly_salary: parseFloat(formData.monthly_salary),
-          hourly_rate: hourlyRate,
-          shift_start_time: formData.shift_start_time,
-          shift_end_time: formData.shift_end_time,
-          joining_date: format(joiningDate, 'yyyy-MM-dd'),
-          default_shift_hours: shiftHours,
-          role: formData.role,
-          is_active: true,
-          ...(locationId ? { location_id: locationId } : {})
-        });
+      const staffRecord = {
+        username: formData.username,
+        full_name: formData.full_name || formData.username,
+        designation: formData.designation,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        monthly_salary: parseFloat(formData.monthly_salary),
+        hourly_rate: hourlyRate,
+        shift_start_time: formData.shift_start_time,
+        shift_end_time: formData.shift_end_time,
+        joining_date: format(joiningDate, 'yyyy-MM-dd'),
+        default_shift_hours: shiftHours,
+        role: formData.role,
+        is_active: true,
+        ...(locationId ? { location_id: locationId } : {})
+      };
+
+      let { error } = await supabase.from('staff_profiles').insert(staffRecord);
+
+      // If location_id column doesn't exist yet (migration pending), retry without it
+      if (error && (error.code === '42703' || error.message?.includes('location_id'))) {
+        const { location_id: _dropped, ...recordWithoutLocation } = staffRecord as any;
+        const retryResult = await supabase.from('staff_profiles').insert(recordWithoutLocation);
+        error = retryResult.error;
+      }
 
       if (error) throw error;
 

@@ -1957,7 +1957,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         key: finalKeyId,
         amount: orderData.amount, // Amount in paise
         currency: orderData.currency || "INR",
-        name: "Cuephoria Gaming Lounge",
+        name: branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria Gaming Lounge",
         description: `Booking for ${slotsToBook.length} slot(s)`,
         order_id: orderData.orderId,
         handler: function (response: any) {
@@ -2305,8 +2305,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           <div className="flex flex-col items-center mb-8">
             <div className="mb-6">
               <img
-                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-                alt="Cuephoria Logo"
+                src={branchSlug === "lite"
+                  ? "/lovable-uploads/cuephoria-lite-logo.png"
+                  : "/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"}
+                alt={branchSlug === "lite" ? "Cuephoria Lite Logo" : "Cuephoria Logo"}
                 className="h-24 drop-shadow-[0_0_25px_rgba(168,85,247,0.15)]"
               />
             </div>
@@ -3024,167 +3026,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                           </div>
                         ))
                       ) : (
-                        <>
-                      {/* NIT35 - Expandable (fallback when booking_settings coupons not loaded) */}
-                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
-                        <div 
-                          className="p-2 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, NIT35: !prev.NIT35 }))}
-                        >
-                          <div className="flex items-start gap-2 flex-1">
-                            <span className="text-sm">🎓</span>
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-gray-200 text-xs">NIT35</span>
-                              {!expandedCoupons.NIT35 && (
-                                <span className="text-xs text-gray-400 ml-1.5">• 35% off for NIT Students</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                applyCoupon("NIT35");
-                              }}
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
-                            >
-                              Apply
-                            </Button>
-                            {expandedCoupons.NIT35 ? (
-                              <ChevronUp className="h-4 w-4 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-gray-400" />
-                            )}
-                          </div>
-                        </div>
-                        {expandedCoupons.NIT35 && (
-                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
-                            <p className="text-xs text-gray-400 mt-2">35% off for NIT Students</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* HH99 - Expandable */}
-                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
-                        <div 
-                          className="p-2 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, HH99: !prev.HH99 }))}
-                        >
-                          <div className="flex items-start gap-2 flex-1">
-                            <span className="text-sm">⏰</span>
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-gray-200 text-xs">HH99</span>
-                              {!expandedCoupons.HH99 && (
-                                <span className="text-xs text-gray-400 ml-1.5">• PS5 & 8-Ball @ ₹99/hr (Mon–Fri 11 AM–4 PM, not VR)</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                applyCoupon("HH99");
-                              }}
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
-                            >
-                              Apply
-                            </Button>
-                            {expandedCoupons.HH99 ? (
-                              <ChevronUp className="h-4 w-4 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-gray-400" />
-                            )}
-                          </div>
-                        </div>
-                        {expandedCoupons.HH99 && (
-                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
-                            <p className="text-xs text-gray-400 mt-2">PS5 & 8-Ball @ ₹99/hr only Mon–Fri 11 AM–4 PM (not VR)</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* CUEPHORIA35 - Expandable */}
-                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
-                        <div 
-                          className="p-2 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA35: !prev.CUEPHORIA35 }))}
-                        >
-                          <div className="flex items-start gap-2 flex-1">
-                            <span className="text-sm">📚</span>
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA35</span>
-                              {!expandedCoupons.CUEPHORIA35 && (
-                                <span className="text-xs text-gray-400 ml-1.5">• 35% off for students (ID required)</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                applyCoupon("CUEPHORIA35");
-                              }}
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
-                            >
-                              Apply
-                            </Button>
-                            {expandedCoupons.CUEPHORIA35 ? (
-                              <ChevronUp className="h-4 w-4 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-gray-400" />
-                            )}
-                          </div>
-                        </div>
-                        {expandedCoupons.CUEPHORIA35 && (
-                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
-                            <p className="text-xs text-gray-400 mt-2">35% off for students (ID required)</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* CUEPHORIA20 - Expandable */}
-                      <div className="rounded-lg bg-gray-800/30 border border-gray-700/50 overflow-hidden">
-                        <div 
-                          className="p-2 cursor-pointer flex items-center justify-between"
-                          onClick={() => setExpandedCoupons(prev => ({ ...prev, CUEPHORIA20: !prev.CUEPHORIA20 }))}
-                        >
-                          <div className="flex items-start gap-2 flex-1">
-                            <span className="text-sm">🎉</span>
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-gray-200 text-xs">CUEPHORIA20</span>
-                              {!expandedCoupons.CUEPHORIA20 && (
-                                <span className="text-xs text-gray-400 ml-1.5">• 20% off for everyone!</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                applyCoupon("CUEPHORIA20");
-                              }}
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-7"
-                            >
-                              Apply
-                            </Button>
-                            {expandedCoupons.CUEPHORIA20 ? (
-                              <ChevronUp className="h-4 w-4 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-gray-400" />
-                            )}
-                          </div>
-                        </div>
-                        {expandedCoupons.CUEPHORIA20 && (
-                          <div className="px-2 pb-2 pt-0 border-t border-gray-700/50">
-                            <p className="text-xs text-gray-400 mt-2">20% off for everyone!</p>
-                          </div>
-                        )}
-                      </div>
-                        </>
+                        <p className="text-xs text-gray-500 italic py-2">
+                          No coupons available for this branch.
+                        </p>
                       )}
                       </div>
                     </div>
@@ -3675,12 +3519,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center mb-4 md:mb-0">
               <img
-                src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-                alt="Cuephoria Logo"
+                src={branchSlug === "lite"
+                  ? "/lovable-uploads/cuephoria-lite-logo.png"
+                  : "/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"}
+                alt={branchSlug === "lite" ? "Cuephoria Lite Logo" : "Cuephoria Logo"}
                 className="h-8 mr-3"
               />
               <p className="text-gray-400 text-sm">
-                © {new Date().getFullYear()} Cuephoria. All rights reserved.
+                © {new Date().getFullYear()} {branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria"}. All rights reserved.
               </p>
             </div>
             <div className="flex items-center space-x-4">
