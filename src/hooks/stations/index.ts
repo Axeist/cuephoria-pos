@@ -24,64 +24,60 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     sessionsError,
     refreshSessions
   } = useSessionsData();
-  
-  // Connect active sessions to stations
+
+  // Track whether sessions have been fetched at least once so we don't
+  // prematurely clear station state while the sessions query is still in flight.
+  const [sessionsInitialized, setSessionsInitialized] = useState(false);
   useEffect(() => {
-    if (stations.length > 0 && sessions.length >= 0) {
-      console.log("Connecting active sessions to stations");
-      
-      // Find active sessions (without endTime) if sessions exist
-      const activeSessions = sessions.filter(s => !s.endTime);
-      
-      console.log(`Found ${activeSessions.length} active sessions to connect, out of ${sessions.length} total sessions`);
-      
-      // Create a mapping of station ID to session
-      const activeSessionMap = new Map<string, Session>();
-      activeSessions.forEach(session => {
-        activeSessionMap.set(session.stationId, session);
-      });
-      
-      // Update stations with their active sessions
-      // IMPORTANT: Only update stations that don't already have the correct state
-      // This prevents overriding manual state updates (like when ending a session)
-      setStations(prev => prev.map(station => {
-        const activeSession = activeSessionMap.get(station.id);
-        
-        // If station is already correctly set (occupied with session, or unoccupied without), skip update
-        if (activeSession && station.isOccupied && station.currentSession?.id === activeSession.id) {
-          // Station already correctly connected, no update needed
-          return station;
-        }
-        
-        if (!activeSession && !station.isOccupied && !station.currentSession) {
-          // Station already correctly unoccupied, no update needed
-          return station;
-        }
-        
-        // Only update if state needs to change
-        if (activeSession) {
-          console.log(`Connecting session to station ${station.name}`);
-          return {
-            ...station,
-            isOccupied: true,
-            currentSession: activeSession
-          };
-        } else {
-          // If there's no active session for this station, ensure it's marked as unoccupied
-          // But only if it's not already correctly set
-          if (station.isOccupied || station.currentSession) {
-            console.log(`Disconnecting session from station ${station.name}`);
-            return {
-              ...station,
-              isOccupied: false,
-              currentSession: null
-            };
-          }
-          return station;
-        }
-      }));
+    if (!sessionsLoading) {
+      setSessionsInitialized(true);
     }
-  }, [sessions, stations.length]);
+  }, [sessionsLoading]);
+  
+  // Connect active sessions to stations.
+  // IMPORTANT: Only run after sessions have actually been loaded from the DB.
+  // Running with an empty sessions array before the fetch completes would
+  // incorrectly clear isOccupied / currentSession that was already loaded
+  // correctly from the stations table, breaking cross-device sync.
+  useEffect(() => {
+    if (stations.length === 0 || !sessionsInitialized) return;
+      
+    const activeSessions = sessions.filter(s => !s.endTime);
+    
+    console.log(`Connecting ${activeSessions.length} active sessions to ${stations.length} stations`);
+    
+    const activeSessionMap = new Map<string, Session>();
+    activeSessions.forEach(session => {
+      activeSessionMap.set(session.stationId, session);
+    });
+    
+    setStations(prev => prev.map(station => {
+      const activeSession = activeSessionMap.get(station.id);
+      
+      if (activeSession) {
+        // Already correctly connected — skip re-render
+        if (station.isOccupied && station.currentSession?.id === activeSession.id) {
+          return station;
+        }
+        console.log(`Connecting session to station ${station.name}`);
+        return { ...station, isOccupied: true, currentSession: activeSession };
+      } else {
+        // Only mark as unoccupied when sessions have loaded AND the station
+        // row itself does not have a currentsession stored in the DB.
+        // If station.currentSession came from the DB (via refreshStationsFromDB),
+        // trust the DB value — the sessions list might just lag behind slightly.
+        if (station.currentSession) {
+          // DB says occupied — trust it, don't override
+          return station;
+        }
+        if (station.isOccupied) {
+          console.log(`Clearing stale occupied flag from station ${station.name}`);
+          return { ...station, isOccupied: false, currentSession: null };
+        }
+        return station;
+      }
+    }));
+  }, [sessions, sessionsInitialized]);
   
   const {
     startSession,
