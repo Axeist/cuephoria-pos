@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import {
-  Gamepad2,
-  Calendar,
-  Star,
-  Clock,
-  TrendingUp,
-  Shield,
+import { 
+  Gamepad2, 
+  Calendar, 
+  Star, 
+  Clock, 
+  TrendingUp, 
+  Shield, 
   Zap,
   Trophy,
   User,
@@ -132,8 +132,8 @@ const Index: React.FC = () => {
             <Button size="sm"
               className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-purple-600/25 rounded-lg text-sm h-9 px-4"
               onClick={() => navigate('/public/booking')}>
-              Book Now
-            </Button>
+            Book Now
+          </Button>
           </nav>
         </div>
       </header>
@@ -149,15 +149,15 @@ const Index: React.FC = () => {
                 style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#c4b5fd' }}>
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 Now open at 2 locations across Trichy
-              </div>
-
+        </div>
+        
               <h1 className="text-5xl sm:text-6xl md:text-[72px] font-extrabold leading-[1.03] tracking-[-0.02em] mb-6">
                 Trichy's finest<br />
-                <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
                   gaming lounge
-                </span>
-              </h1>
-
+          </span>
+        </h1>
+        
               <p className="text-gray-400 text-lg sm:text-xl leading-relaxed mb-10 max-w-xl mx-auto lg:mx-0">
                 PlayStation 5, professional pool tables, and VR — all bookable online with instant confirmation. Experience gaming the way it should be.
               </p>
@@ -167,22 +167,22 @@ const Index: React.FC = () => {
                   className="bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:opacity-90 text-white text-base px-8 h-14 font-bold shadow-2xl shadow-purple-600/30 rounded-xl transition-all hover:scale-[1.02]"
                   onClick={() => navigate('/customer/login')}>
                   <User size={18} className="mr-2" />
-                  Customer Login
+              Customer Login
                   <ArrowRight size={18} className="ml-2" />
-                </Button>
+          </Button>
                 <Button size="lg" variant="outline"
                   className="border-white/12 text-white hover:bg-white/[0.06] text-base px-8 h-14 rounded-xl backdrop-blur-sm"
                   onClick={() => navigate('/public/booking')}>
                   <Calendar size={18} className="mr-2" />
-                  Book as Guest
-                </Button>
-              </div>
+              Book as Guest
+          </Button>
+          </div>
 
               <p className="text-xs text-gray-600 text-center lg:text-left">
                 No signup needed — your account is auto-created on first booking.
-              </p>
-            </div>
-
+          </p>
+        </div>
+        
             {/* hero visual */}
             <div className="relative flex-shrink-0">
               <div className="absolute inset-0 scale-110 blur-3xl rounded-full"
@@ -258,7 +258,7 @@ const Index: React.FC = () => {
               );
             })}
           </div>
-        </div>
+          </div>
       </section>
 
       {/* ── CUEPHORIA LITE LAUNCH SECTION ── */}
@@ -303,11 +303,11 @@ const Index: React.FC = () => {
                 <div className="flex items-center gap-2 mb-2">
                   <Zap size={16} className="text-cyan-400" />
                   <span className="text-cyan-300 font-bold text-sm tracking-wide">OPENING DAY OFFER</span>
-                </div>
+            </div>
                 <p className="text-2xl font-extrabold text-white">Up to 60% OFF</p>
                 <p className="text-gray-400 text-sm mt-1">For all existing Cuephoria members on opening day</p>
-              </div>
-
+          </div>
+          
               {/* feature list */}
               <div className="grid grid-cols-2 gap-3 mb-8">
                 {LITE_FEATURES.map((f) => {
@@ -338,7 +338,7 @@ const Index: React.FC = () => {
                   View on Maps
                   <ExternalLink size={13} className="ml-2 opacity-60" />
                 </Button>
-              </div>
+          </div>
             </div>
 
             {/* right: map / location card */}
@@ -358,8 +358,8 @@ const Index: React.FC = () => {
                   />
                   <div className="absolute inset-0 pointer-events-none rounded-t-2xl"
                     style={{ background: 'linear-gradient(to bottom, transparent 60%, rgba(5,5,8,0.9))' }} />
-                </div>
-
+        </div>
+        
                 <div className="p-6 space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -374,8 +374,8 @@ const Index: React.FC = () => {
                         Valavandankottai, Tamil Nadu 620015
                       </p>
                     </div>
-                  </div>
-
+          </div>
+          
                   <div className="pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       {[
@@ -453,7 +453,7 @@ const Index: React.FC = () => {
             <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">Find us in Trichy</h2>
             <p className="text-gray-500 max-w-lg mx-auto">Two locations, one legendary experience.</p>
           </div>
-
+          
           <div className="grid md:grid-cols-2 gap-6">
             {/* Main */}
             <div className="rounded-2xl p-7 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300"
@@ -503,7 +503,7 @@ const Index: React.FC = () => {
                   </span>
                 </div>
                 <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse mt-1.5" />
-              </div>
+                    </div>
               <div className="space-y-3 text-sm">
                 {['PS5 Consoles', 'Compact Pool Tables', 'VR Gaming', 'Student-Friendly Pricing', 'NIT Exclusive Discounts', 'Late Night Hours'].map((f) => (
                   <div key={f} className="flex items-center gap-2 text-gray-300">
@@ -602,7 +602,7 @@ const Index: React.FC = () => {
                 Both locations open now
               </div>
             </div>
-
+            
             <div>
               <p className="text-white text-sm font-semibold mb-4">Quick Links</p>
               <div className="space-y-2.5">
@@ -615,11 +615,11 @@ const Index: React.FC = () => {
                   <button key={l.label} onClick={l.action}
                     className="block text-gray-600 hover:text-gray-300 text-sm transition-colors text-left">
                     {l.label}
-                  </button>
+                </button>
                 ))}
-              </div>
-            </div>
-
+                      </div>
+                    </div>
+                    
             <div>
               <p className="text-white text-sm font-semibold mb-4">Locations</p>
               <div className="space-y-4 text-xs text-gray-600">
@@ -627,7 +627,7 @@ const Index: React.FC = () => {
                   <p className="text-gray-400 font-medium mb-1">Main Branch</p>
                   <p>Cuephoria Gaming Lounge<br />Trichy, Tamil Nadu</p>
                 </div>
-                <div>
+                      <div>
                   <p className="text-cyan-500 font-medium mb-1">Lite Branch — NEW</p>
                   <p>Opposite NIT Trichy<br />Valavandankottai, TN 620015</p>
                   <a href="https://maps.app.goo.gl/nvTtK6SG4nGQXenGA" target="_blank" rel="noopener noreferrer"
@@ -645,7 +645,7 @@ const Index: React.FC = () => {
               </div>
             </div>
           </div>
-
+          
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-8"
             style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
             <p className="text-gray-700 text-xs">© {new Date().getFullYear()} Cuephoria. All rights reserved.</p>

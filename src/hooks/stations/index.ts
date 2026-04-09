@@ -1,12 +1,13 @@
-
 // This file exports the useStations hook
 import { useSessionsData } from './useSessionsData';
 import { useStationsData } from './useStationsData';
 import { useSessionActions } from './session-actions';
 import { Station, Session, Customer } from '@/types/pos.types';
 import { useState, useEffect } from 'react';
+import { useLocation } from '@/context/LocationContext';
 
 export const useStations = (initialStations: Station[] = [], updateCustomer: (customer: Customer) => void) => {
+  const { activeLocationId } = useLocation();
   const { 
     stations, 
     setStations,
@@ -25,9 +26,15 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     refreshSessions
   } = useSessionsData();
 
-  // Track whether sessions have been fetched at least once so we don't
-  // prematurely clear station state while the sessions query is still in flight.
+  // sessionsInitialized guards the station↔session connection effect below.
+  // It must be reset to false on every location change so the connection
+  // logic doesn't fire with an empty sessions array for the new location.
   const [sessionsInitialized, setSessionsInitialized] = useState(false);
+
+  useEffect(() => {
+    setSessionsInitialized(false);
+  }, [activeLocationId]);
+
   useEffect(() => {
     if (!sessionsLoading) {
       setSessionsInitialized(true);

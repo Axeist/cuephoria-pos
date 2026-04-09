@@ -12,7 +12,7 @@ import { useLocation } from '@/context/LocationContext';
  */
 export const useSessionsData = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState<boolean>(false);
+  const [sessionsLoading, setSessionsLoading] = useState<boolean>(true); // start true — prevents sessionsInitialized from firing before first fetch
   const [sessionsError, setSessionsError] = useState<Error | null>(null);
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
@@ -173,35 +173,36 @@ export const useSessionsData = () => {
     setSessions([]);
   }, [activeLocationId]);
 
+  // Always fetch fresh sessions from the DB when the location changes.
+  // We intentionally bypass the cache here — stale cache with ended sessions
+  // is the root cause of stations showing as unoccupied on first load.
   useEffect(() => {
-    console.log('Setting up Realtime subscription for sessions');
-    
-    // Initial load
-    refreshSessions();
-    
-    // Debounce timer for Realtime subscription refreshes
+    setSessions([]);
+    refreshSessionsFromDB(false);
+  }, [activeLocationId]);
+
+  // Per-location Realtime subscription: fires on any INSERT/UPDATE/DELETE on
+  // the sessions table for this location only.
+  useEffect(() => {
+    if (!activeLocationId) return;
+
     let refreshTimeout: NodeJS.Timeout | null = null;
-    
-    // ✅ OPTIMIZED: Replace polling with Realtime subscription
-    // This only fetches data when actual database changes occur
-    // Eliminates 720 daily polling requests (every 2 minutes)
+
     const channel: RealtimeChannel = supabase
-      .channel('sessions-changes')
+      .channel(`sessions-changes-${activeLocationId}`)
       .on(
         'postgres_changes',
-        { 
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public', 
-          table: 'sessions' 
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sessions',
+          filter: `location_id=eq.${activeLocationId}`,
         },
         (payload) => {
           console.log('Session change detected via Realtime:', payload.eventType);
-          if (refreshTimeout) {
-            clearTimeout(refreshTimeout);
-          }
+          if (refreshTimeout) clearTimeout(refreshTimeout);
           refreshTimeout = setTimeout(() => {
             console.log('Refreshing sessions after Realtime change (debounced)');
-            // Bypass cache — DB already has the new state
             invalidateCache(sessionsCacheKey);
             refreshSessionsFromDB(true);
           }, 300);
@@ -214,19 +215,12 @@ export const useSessionsData = () => {
           console.error('❌ Failed to subscribe to sessions Realtime channel');
         }
       });
-    
-    // ❌ REMOVED: setInterval polling (was 120000ms / 2 minutes)
-    // ❌ REMOVED: handleVisibilityChange listener
-    // These are replaced by the Realtime subscription above
-    
+
     return () => {
-      console.log('Cleaning up Realtime subscription');
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-      }
+      if (refreshTimeout) clearTimeout(refreshTimeout);
       supabase.removeChannel(channel);
     };
-  }, [refreshSessions]);
+  }, [activeLocationId, sessionsCacheKey, refreshSessionsFromDB]);
   
   return {
     sessions,
