@@ -130,10 +130,10 @@ const Customers = () => {
         
         // Execute parallel queries for each search field
         const queries = [
-          supabase.from('customers').select('*').ilike('name', searchPattern).limit(100),
-          normalizedSearchPhone ? supabase.from('customers').select('*').ilike('phone', phonePattern).limit(100) : null,
-          supabase.from('customers').select('*').ilike('email', searchPattern).limit(100),
-          supabase.from('customers').select('*').ilike('custom_id', searchPattern).limit(100)
+          supabase.from('customers').select('*').ilike('name', searchPattern).eq('location_id', activeLocationId ?? '').limit(100),
+          normalizedSearchPhone ? supabase.from('customers').select('*').ilike('phone', phonePattern).eq('location_id', activeLocationId ?? '').limit(100) : null,
+          supabase.from('customers').select('*').ilike('email', searchPattern).eq('location_id', activeLocationId ?? '').limit(100),
+          supabase.from('customers').select('*').ilike('custom_id', searchPattern).eq('location_id', activeLocationId ?? '').limit(100)
         ].filter(Boolean) as Promise<any>[];
 
         const results = await Promise.all(queries);
@@ -439,6 +439,10 @@ const Customers = () => {
           title: 'Customer Added',
           description: `Customer ${customerID} has been added successfully.`
         });
+
+        // Invalidate cache so the new customer shows after reload
+        localStorage.removeItem(`cuephoria_customers_cache_${activeLocationId ?? 'global'}`);
+        localStorage.removeItem(`cuephoria_customers_cache_ts_${activeLocationId ?? 'global'}`);
 
         window.location.reload();
       }
