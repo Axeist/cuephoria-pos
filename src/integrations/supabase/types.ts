@@ -151,6 +151,7 @@ export type Database = {
           created_at: string
           id: string
           last_accessed_at: string | null
+          location_id: string
         }
         Insert: {
           access_code: string
@@ -158,6 +159,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_accessed_at?: string | null
+          location_id?: string
         }
         Update: {
           access_code?: string
@@ -165,6 +167,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_accessed_at?: string | null
+          location_id?: string
         }
         Relationships: [
           {
