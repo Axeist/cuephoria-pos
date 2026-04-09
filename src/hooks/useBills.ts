@@ -171,6 +171,11 @@ export const useBills = (
   };
 
   useEffect(() => {
+    // Clear stale data immediately when branch changes
+    setBills([]);
+  }, [activeLocationId]);
+
+  useEffect(() => {
     let isMounted = true;
     let dbLoadInFlight = false;
     const BACKGROUND_MAX_PAGES = 5; // keep dashboard fast; Reports loads full range separately

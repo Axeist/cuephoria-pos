@@ -269,11 +269,34 @@ const Settings = () => {
   
   return (
     <div className="container p-4 mx-auto max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your application settings and preferences.
-        </p>
+      <div className="mb-6">
+        <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+            <p className="text-muted-foreground">
+              Manage your application settings and preferences.
+            </p>
+          </div>
+          {/* Branch badge */}
+          {activeLocation && (
+            <div className={`flex items-center gap-2.5 px-4 py-2 rounded-xl border text-sm font-medium ${
+              activeLocation.slug === 'lite'
+                ? 'bg-cyan-500/10 border-cyan-400/30 text-cyan-200'
+                : 'bg-purple-500/10 border-purple-400/30 text-purple-200'
+            }`}>
+              <span className={`relative flex h-2 w-2`}>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-60 ${
+                  activeLocation.slug === 'lite' ? 'bg-cyan-400' : 'bg-purple-400'
+                }`} />
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  activeLocation.slug === 'lite' ? 'bg-cyan-400' : 'bg-purple-400'
+                }`} />
+              </span>
+              Settings for <strong className="ml-1">{activeLocation.name}</strong>
+              <span className="font-mono text-[10px] opacity-50 ml-1">[{activeLocation.short_code}]</span>
+            </div>
+          )}
+        </div>
       </div>
       
       <Tabs defaultValue="general" className="space-y-4">

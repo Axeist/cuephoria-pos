@@ -353,7 +353,10 @@ export const useStationsData = () => {
     }
   };
   
+  // Clear stale data immediately when branch changes so the UI doesn't flash
+  // the previous branch's numbers while new data loads.
   useEffect(() => {
+    setStations([]);
     refreshStations();
   }, [activeLocationId]);
   

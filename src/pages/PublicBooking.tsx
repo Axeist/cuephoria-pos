@@ -2259,11 +2259,25 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   };
 
   return (
-    <div className={`min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] ${customerSession ? 'pb-20' : ''}`}>
+    <div className={`min-h-screen relative overflow-hidden ${
+      branchSlug === "lite"
+        ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+        : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+    } ${customerSession ? 'pb-20' : ''}`}>
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
-        <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
-        <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
+        {branchSlug === "lite" ? (
+          <>
+            <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
+            <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-sky-600/10 blur-3xl" />
+            <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
+          </>
+        ) : (
+          <>
+            <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cuephoria-purple/20 blur-3xl" />
+            <div className="absolute top-1/3 -right-24 h-64 w-64 rounded-full bg-cuephoria-blue/20 blur-3xl" />
+            <div className="absolute bottom-10 left-1/3 h-56 w-56 rounded-full bg-cuephoria-lightpurple/20 blur-3xl" />
+          </>
+        )}
       </div>
 
       <CouponPromotionalPopup 
@@ -2294,24 +2308,41 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               />
             </div>
 
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-widest uppercase text-gray-300 backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5 text-cuephoria-lightpurple" />
-              Premium Gaming Lounge
-            </span>
+            {branchSlug === "lite" ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs tracking-widest uppercase text-cyan-300 backdrop-blur-md">
+                <MapPin className="h-3.5 w-3.5 text-cyan-400" />
+                Cuephoria Lite
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs tracking-widest uppercase text-gray-300 backdrop-blur-md">
+                <Sparkles className="h-3.5 w-3.5 text-cuephoria-lightpurple" />
+                Premium Gaming Lounge
+              </span>
+            )}
 
             <h1 className="mt-3 text-4xl md:text-5xl font-extrabold text-white">
               Book Your Gaming Session
             </h1>
             <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
-              Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria
+              {branchSlug === "lite"
+                ? "Reserve your session at Cuephoria Lite — the compact branch experience"
+                : "Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria"}
             </p>
 
-              <div className="mt-3 w-full max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] sm:text-xs text-gray-300 backdrop-blur-md">
+              <div className={`mt-3 w-full max-w-2xl rounded-2xl border px-4 py-2 text-[11px] sm:text-xs backdrop-blur-md ${
+                branchSlug === "lite"
+                  ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-200/70"
+                  : "border-white/10 bg-white/5 text-gray-300"
+              }`}>
                 <div className="flex flex-col items-center justify-center gap-1 text-center sm:flex-row sm:gap-2">
-                  <span className="font-semibold tracking-wide text-gray-200">Line of Business</span>
+                  <span className={`font-semibold tracking-wide ${branchSlug === "lite" ? "text-cyan-100" : "text-gray-200"}`}>
+                    {branchSlug === "lite" ? "Cuephoria Lite Branch" : "Line of Business"}
+                  </span>
                   <span className="hidden sm:inline text-white/25">•</span>
                   <span className="leading-snug">
-                    Amusement & Gaming Lounge Services (time-based PS5, 8-Ball &amp; VR rentals)
+                    {branchSlug === "lite"
+                      ? "Time-based gaming rentals at our Lite location"
+                      : "Amusement & Gaming Lounge Services (time-based PS5, 8-Ball & VR rentals)"}
                   </span>
                 </div>
               </div>
@@ -2320,15 +2351,22 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       </header>
 
       <main className="px-4 sm:px-6 md:px-8 max-w-7xl mx-auto pb-14 relative z-10">
-        <section className="mb-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-gray-300">
-          <h2 className="mb-1 text-base font-semibold text-white">About Cuephoria</h2>
+        <section className={`mb-6 rounded-2xl border px-4 py-4 text-sm ${
+          branchSlug === "lite"
+            ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-200/80"
+            : "border-white/10 bg-white/5 text-gray-300"
+        }`}>
+          <h2 className={`mb-1 text-base font-semibold ${branchSlug === "lite" ? "text-cyan-100" : "text-white"}`}>
+            About {branchSlug === "lite" ? "Cuephoria Lite" : "Cuephoria"}
+          </h2>
           <p>
-            Cuephoria offers <span className="font-medium">time-based rentals</span> of
-            PlayStation 5 stations, 8-Ball pool tables, and VR Gaming stations. Book 
-            60-minute sessions for PS5/Pool or 15-minute sessions for VR Gaming.
+            {branchSlug === "lite"
+              ? <>Cuephoria Lite is our <span className="font-medium">compact branch</span> — offering the same quality gaming experience in a focused environment. Book your session and enjoy premium gaming at the Lite location.</>
+              : <>Cuephoria offers <span className="font-medium">time-based rentals</span> of PlayStation 5 stations, 8-Ball pool tables, and VR Gaming stations. Book 60-minute sessions for PS5/Pool or 15-minute sessions for VR Gaming.</>
+            }
           </p>
-          <p className="mt-2 text-gray-400">
-            <span className="font-medium text-gray-200">Pricing:</span> All prices are
+          <p className={`mt-2 ${branchSlug === "lite" ? "text-cyan-300/60" : "text-gray-400"}`}>
+            <span className={`font-medium ${branchSlug === "lite" ? "text-cyan-200" : "text-gray-200"}`}>Pricing:</span> All prices are
             displayed in <span className="ml-1 font-semibold">INR (₹)</span>.
           </p>
         </section>

@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { useLocation } from '@/context/LocationContext';
 import { cn } from '@/lib/utils';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
@@ -260,12 +261,22 @@ export default function BookingManagement() {
   
   const [notificationOpen, setNotificationOpen] = useState(false);
 
+  // Branch / location context
+  const { activeLocationId, activeLocation, locations } = useLocation();
+  const [branchView, setBranchView] = useState<'current' | 'all'>('current');
+
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
 
   useEffect(() => {
+    // Reset to current-branch view whenever the active branch changes
+    setBranchView('current');
     fetchBookings();
-  }, []);
+  }, [activeLocationId]);
+
+  useEffect(() => {
+    if (activeLocationId) fetchBookings();
+  }, [branchView]);
 
   useEffect(() => {
     // ✅ OPTIMIZED: Real-time subscription with cache invalidation
@@ -283,7 +294,10 @@ export default function BookingManagement() {
         const analyticsFromDate = filters.datePreset === 'alltime' 
           ? '2020-01-01' 
           : format(subDays(new Date(), 60), 'yyyy-MM-dd');
-        const cacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}`;
+        const cacheKey = cacheKeyWithLocation(
+          `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}_${branchView}`,
+          branchView === 'current' ? activeLocationId : 'all'
+        );
         invalidateCache(cacheKey);
         
         // Optional: Show a subtle notification that data was updated
@@ -305,7 +319,10 @@ export default function BookingManagement() {
     const oldAnalyticsFromDate = filters.datePreset === 'alltime' 
       ? '2020-01-01' 
       : format(subDays(new Date(), 60), 'yyyy-MM-dd');
-    const oldCacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${oldAnalyticsFromDate}`;
+    const oldCacheKey = cacheKeyWithLocation(
+      `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${oldAnalyticsFromDate}_${branchView}`,
+      branchView === 'current' ? activeLocationId : 'all'
+    );
     invalidateCache(oldCacheKey);
     
     const dateRange = getDateRangeFromPreset(preset);
@@ -355,8 +372,11 @@ export default function BookingManagement() {
         ? '2020-01-01' 
         : format(subDays(new Date(), 60), 'yyyy-MM-dd');
       
-      // ✅ Create cache key based on date range
-      const cacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}`;
+      // ✅ Create cache key based on date range + active branch
+      const cacheKey = cacheKeyWithLocation(
+        `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}_${branchView}`,
+        branchView === 'current' ? activeLocationId : 'all'
+      );
       
       // ✅ Check cache first
       const cachedBookings = getCachedData<Booking[]>(cacheKey);
@@ -410,7 +430,7 @@ export default function BookingManagement() {
       let finished = false;
 
       while (!finished) {
-        const { data: bookingsData, error } = await supabase
+        let q = supabase
           .from('bookings')
           .select(`
             id,
@@ -432,11 +452,18 @@ export default function BookingManagement() {
             station_id,
             customer_id,
             created_at
-          `) // ✅ Removed booking_views nested query (fetch separately if needed)
+          `)
           .gte('booking_date', analyticsFromDate)
           .order('booking_date', { ascending: false })
           .order('start_time', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        // Scope to active branch unless All Branches view
+        if (branchView === 'current' && activeLocationId) {
+          q = q.eq('location_id', activeLocationId);
+        }
+
+        const { data: bookingsData, error } = await q;
 
         if (error) throw error;
 
@@ -1909,15 +1936,28 @@ export default function BookingManagement() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
-      {/* Header - Modified to include calendar toggle */}
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight gradient-text font-heading">
             Booking Management
           </h1>
-          <p className="text-muted-foreground">
-            Comprehensive booking analytics and marketing campaign insights
-          </p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <p className="text-muted-foreground">
+              Comprehensive booking analytics and marketing campaign insights
+            </p>
+            {/* Branch context pill */}
+            {activeLocation && (
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                activeLocation.slug === 'lite'
+                  ? 'bg-cyan-500/10 border-cyan-400/30 text-cyan-300'
+                  : 'bg-purple-500/10 border-purple-400/30 text-purple-300'
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${activeLocation.slug === 'lite' ? 'bg-cyan-400' : 'bg-purple-400'}`} />
+                {branchView === 'all' ? 'All Branches' : activeLocation.name}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           {/* Notification Bell */}
@@ -2116,6 +2156,19 @@ export default function BookingManagement() {
           <Button onClick={fetchBookings} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4" />
           </Button>
+          {/* All Branches toggle — only show when multiple locations exist */}
+          {locations.length > 1 && (
+            <Button
+              variant={branchView === 'all' ? 'default' : 'outline'}
+              size="sm"
+              className={`gap-1.5 ${branchView === 'all' ? 'bg-cuephoria-purple hover:bg-cuephoria-lightpurple' : ''}`}
+              onClick={() => setBranchView(prev => prev === 'current' ? 'all' : 'current')}
+              title={branchView === 'all' ? 'Showing all branches — click to filter by active branch' : 'Showing active branch — click to show all branches'}
+            >
+              <Building2 className="h-4 w-4" />
+              {branchView === 'all' ? 'All Branches' : 'This Branch'}
+            </Button>
+          )}
           <Button
             className="flex items-center gap-2"
             onClick={() => window.open('https://admin.cuephoria.in/public/booking', '_blank', 'noopener,noreferrer')}

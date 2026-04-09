@@ -13,9 +13,11 @@ import AttendanceCalendarView from '@/components/staff/AttendanceCalendarView';
 import AdminRegularizationDialog from '@/components/staff/AdminRegularizationDialog';
 import StaffRequestsManagement from '@/components/staff/StaffRequestsManagement';
 import CreateStaffDialog from '@/components/staff/CreateStaffDialog';
+import { useLocation } from '@/context/LocationContext';
 
 const StaffManagement = () => {
   const { toast } = useToast();
+  const { activeLocationId, activeLocation } = useLocation();
   const [staffProfiles, setStaffProfiles] = useState<any[]>([]);
   const [activeShifts, setActiveShifts] = useState<any[]>([]);
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
@@ -27,7 +29,7 @@ const StaffManagement = () => {
 
   useEffect(() => {
     fetchStaffData();
-  }, []);
+  }, [activeLocationId]);
 
   const fetchStaffData = async () => {
     setIsLoading(true);
@@ -40,17 +42,17 @@ const StaffManagement = () => {
       if (profilesError) throw profilesError;
       setStaffProfiles(profiles || []);
 
-      const { data: shifts, error: shiftsError } = await supabase
-        .from('today_active_shifts')
-        .select('*');
-
+      // today_active_shifts is a view backed by staff_attendance (has location_id)
+      let shiftsQuery = supabase.from('today_active_shifts').select('*');
+      if (activeLocationId) shiftsQuery = shiftsQuery.eq('location_id', activeLocationId);
+      const { data: shifts, error: shiftsError } = await shiftsQuery;
       if (shiftsError) throw shiftsError;
       setActiveShifts(shifts || []);
 
-      const { data: leaves, error: leavesError } = await supabase
-        .from('pending_leaves_view')
-        .select('*');
-
+      // pending_leaves_view is backed by staff_leave_requests (has location_id)
+      let leavesQuery = supabase.from('pending_leaves_view').select('*');
+      if (activeLocationId) leavesQuery = leavesQuery.eq('location_id', activeLocationId);
+      const { data: leaves, error: leavesError } = await leavesQuery;
       if (leavesError) throw leavesError;
       setPendingLeaves(leaves || []);
 
@@ -91,6 +93,23 @@ const StaffManagement = () => {
 
   return (
     <div className="flex-1 space-y-6 p-6 text-white">
+      {/* Branch context banner */}
+      {activeLocation && (
+        <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
+          activeLocation.slug === 'lite'
+            ? 'bg-cyan-500/8 border-cyan-400/25 text-cyan-200'
+            : 'bg-purple-500/8 border-purple-400/25 text-purple-200'
+        }`}>
+          <span className={`flex h-2 w-2 rounded-full flex-shrink-0 ${
+            activeLocation.slug === 'lite' ? 'bg-cyan-400' : 'bg-purple-400'
+          }`} />
+          <span className="text-sm font-medium">
+            Viewing staff data for <strong>{activeLocation.name}</strong>
+          </span>
+          <span className="ml-auto text-xs opacity-50 font-mono">[{activeLocation.short_code}]</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">

@@ -168,6 +168,11 @@ export const useSessionsData = () => {
     }
   };
   
+  // Clear stale data immediately when branch changes
+  useEffect(() => {
+    setSessions([]);
+  }, [activeLocationId]);
+
   useEffect(() => {
     console.log('Setting up Realtime subscription for sessions');
     

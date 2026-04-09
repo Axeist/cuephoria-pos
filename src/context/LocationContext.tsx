@@ -1,6 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from "@/utils/dataCache";
+import { BranchSwitchOverlay } from "@/components/BranchSwitchOverlay";
 
 export type VenueLocation = {
   id: string;
@@ -21,6 +22,7 @@ type LocationContextValue = {
   activeLocation: VenueLocation | null;
   setActiveLocationId: (id: string) => void;
   loading: boolean;
+  isSwitching: boolean;
   reportScope: ReportScope;
   setReportScope: (s: ReportScope) => void;
 };
@@ -31,6 +33,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const { user } = useAuth();
   const [locations, setLocations] = useState<VenueLocation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState<VenueLocation | null>(null);
+  const switchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeLocationId, setActiveLocationIdState] = useState<string | null>(() => {
     try {
       return localStorage.getItem(STORAGE_KEY);
@@ -85,6 +90,16 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [locations, activeLocationId]);
 
   const setActiveLocationId = useCallback((id: string) => {
+    // Find the target location for overlay display
+    setLocations(prev => {
+      const target = prev.find(l => l.id === id) ?? null;
+      setSwitchingTo(target);
+      return prev;
+    });
+    setIsSwitching(true);
+    if (switchTimer.current) clearTimeout(switchTimer.current);
+    switchTimer.current = setTimeout(() => setIsSwitching(false), 2000);
+
     setActiveLocationIdState(id);
     try {
       localStorage.setItem(STORAGE_KEY, id);
@@ -113,13 +128,19 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       activeLocation,
       setActiveLocationId,
       loading,
+      isSwitching,
       reportScope,
       setReportScope,
     }),
-    [locations, activeLocationId, activeLocation, setActiveLocationId, loading, reportScope]
+    [locations, activeLocationId, activeLocation, setActiveLocationId, loading, isSwitching, reportScope]
   );
 
-  return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>;
+  return (
+    <LocationContext.Provider value={value}>
+      {children}
+      <BranchSwitchOverlay isVisible={isSwitching} targetLocation={switchingTo} />
+    </LocationContext.Provider>
+  );
 };
 
 export function useLocation(): LocationContextValue {
