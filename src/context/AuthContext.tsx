@@ -86,7 +86,7 @@ interface AuthContextType {
   isLoading: boolean;
   addStaffMember: (username: string, password: string, isAdmin?: boolean, isSuperAdmin?: boolean, locationIds?: string[]) => Promise<boolean>;
   getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[] })[]>;
-  updateStaffMember: (id: string, data: Partial<AdminUser & { locationIds: string[] }>) => Promise<boolean>;
+  updateStaffMember: (id: string, data: Partial<AdminUser & { locationIds: string[]; newPassword?: string }>) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
   getLoginLogs: () => Promise<LoginLog[]>;
   deleteLoginLog: (logId: string) => Promise<boolean>;
@@ -302,7 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateStaffMember = async (id: string, updatedData: Partial<AdminUser & { locationIds: string[] }>): Promise<boolean> => {
+  const updateStaffMember = async (id: string, updatedData: Partial<AdminUser & { locationIds: string[]; newPassword?: string }>): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
         toast.error("Only admins can update staff members");
@@ -313,6 +313,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (updatedData.username) body.username = updatedData.username;
       if (typeof updatedData.isSuperAdmin === 'boolean') body.isSuperAdmin = updatedData.isSuperAdmin;
       if (Array.isArray(updatedData.locationIds)) body.locationIds = updatedData.locationIds;
+      if (typeof updatedData.newPassword === 'string' && updatedData.newPassword.trim()) {
+        body.newPassword = updatedData.newPassword.trim();
+      }
 
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',

@@ -34,41 +34,59 @@ const StaffManagement = () => {
   const fetchStaffData = async () => {
     setIsLoading(true);
     try {
-      const { data: profiles, error: profilesError } = await supabase
+      let profilesQuery = supabase
         .from('staff_profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
+      if (activeLocationId) profilesQuery = profilesQuery.eq('location_id', activeLocationId);
+
+      const { data: profiles, error: profilesError } = await profilesQuery;
+
       if (profilesError) throw profilesError;
       setStaffProfiles(profiles || []);
 
-      // today_active_shifts is a view backed by staff_attendance (has location_id)
-      let shiftsQuery = supabase.from('today_active_shifts').select('*');
-      if (activeLocationId) shiftsQuery = shiftsQuery.eq('location_id', activeLocationId);
-      const { data: shifts, error: shiftsError } = await shiftsQuery;
-      if (shiftsError) throw shiftsError;
-      setActiveShifts(shifts || []);
+      // Filter shifts and leaves by the staff IDs that belong to this branch,
+      // rather than relying on location_id columns that may not exist in those views.
+      const profileIds = (profiles || []).map((p: any) => p.id);
 
-      // pending_leaves_view is backed by staff_leave_requests (has location_id)
-      let leavesQuery = supabase.from('pending_leaves_view').select('*');
-      if (activeLocationId) leavesQuery = leavesQuery.eq('location_id', activeLocationId);
-      const { data: leaves, error: leavesError } = await leavesQuery;
-      if (leavesError) throw leavesError;
-      setPendingLeaves(leaves || []);
+      let shifts: any[] = [];
+      if (profileIds.length > 0) {
+        const { data: shiftsData, error: shiftsError } = await supabase
+          .from('today_active_shifts')
+          .select('*')
+          .in('staff_id', profileIds);
+        if (shiftsError) throw shiftsError;
+        shifts = shiftsData || [];
+      }
+      setActiveShifts(shifts);
+
+      let leaves: any[] = [];
+      if (profileIds.length > 0) {
+        const { data: leavesData, error: leavesError } = await supabase
+          .from('pending_leaves_view')
+          .select('*')
+          .in('staff_id', profileIds);
+        if (leavesError) throw leavesError;
+        leaves = leavesData || [];
+      }
+      setPendingLeaves(leaves);
 
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
-      
-      const { data: payroll, error: payrollError } = await supabase
-        .from('staff_payslip_view')
-        .select('net_salary')
-        .eq('month', currentMonth)
-        .eq('year', currentYear);
 
-      if (payrollError) throw payrollError;
-      
-      const total = (payroll || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
-      setMonthlyPayroll(total);
+      let payrollTotal = 0;
+      if (profileIds.length > 0) {
+        const { data: payroll, error: payrollError } = await supabase
+          .from('staff_payslip_view')
+          .select('net_salary')
+          .eq('month', currentMonth)
+          .eq('year', currentYear)
+          .in('staff_id', profileIds);
+        if (payrollError) throw payrollError;
+        payrollTotal = (payroll || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
+      }
+      setMonthlyPayroll(payrollTotal);
 
     } catch (error: any) {
       console.error('Error fetching staff data:', error);
@@ -337,6 +355,7 @@ const StaffManagement = () => {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onSuccess={fetchStaffData}
+        locationId={activeLocationId || undefined}
       />
 
       <AdminRegularizationDialog

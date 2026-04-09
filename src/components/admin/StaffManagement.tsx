@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -50,6 +50,7 @@ const StaffManagement: React.FC = () => {
   const [allLocations, setAllLocations] = useState<LocationInfo[]>([]);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [userRole, setUserRole] = useState<'admin' | 'staff'>('staff');
   const [newIsSuperAdmin, setNewIsSuperAdmin] = useState(false);
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
@@ -59,6 +60,9 @@ const StaffManagement: React.FC = () => {
   const [editUsername, setEditUsername] = useState('');
   const [editIsSuperAdmin, setEditIsSuperAdmin] = useState(false);
   const [editLocationIds, setEditLocationIds] = useState<string[]>([]);
+  const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const { user, addStaffMember, getStaffMembers, updateStaffMember, deleteStaffMember } = useAuth();
   const { toast } = useToast();
@@ -110,16 +114,24 @@ const StaffManagement: React.FC = () => {
     setEditUsername(staff.username);
     setEditIsSuperAdmin(staff.isSuperAdmin);
     setEditLocationIds(staff.locations.map(l => l.id));
+    setEditPassword('');
+    setShowEditPassword(false);
+    setIsChangingPassword(false);
   };
 
   const handleUpdateStaff = async () => {
     if (!editingStaff) return;
+    if (isChangingPassword && !editPassword.trim()) {
+      toast({ title: 'Error', description: 'Enter a new password or cancel password change', variant: 'destructive' });
+      return;
+    }
     setIsLoading(true);
     try {
       const success = await updateStaffMember(editingStaff.id, {
         username: editUsername,
         isSuperAdmin: editIsSuperAdmin,
         locationIds: editIsSuperAdmin ? [] : editLocationIds,
+        ...(isChangingPassword && editPassword.trim() ? { newPassword: editPassword.trim() } : {}),
       });
       if (success) {
         setEditingStaff(null);
@@ -139,6 +151,7 @@ const StaffManagement: React.FC = () => {
   const resetAddForm = () => {
     setNewUsername('');
     setNewPassword('');
+    setShowNewPassword(false);
     setUserRole('staff');
     setNewIsSuperAdmin(false);
     setSelectedLocationIds([]);
@@ -167,7 +180,7 @@ const StaffManagement: React.FC = () => {
     onToggle: (id: string) => void;
     disabled?: boolean;
   }) => (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="flex flex-col gap-2">
       {allLocations.map((loc) => {
         const c = SLUG_COLORS[loc.slug] ?? DEFAULT_COLOR;
         const checked = selected.includes(loc.id);
@@ -286,7 +299,23 @@ const StaffManagement: React.FC = () => {
                 <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
                   <Lock className="h-4 w-4" /> Password
                 </Label>
-                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter password" className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
+                <div className="relative">
+                  <Input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="bg-cuephoria-darker border-cuephoria-lightpurple/30 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -344,6 +373,42 @@ const StaffManagement: React.FC = () => {
                     />
                   </div>
                 )}
+
+                {/* Password change */}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => { setIsChangingPassword(v => !v); setEditPassword(''); setShowEditPassword(false); }}
+                    className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors w-full ${
+                      isChangingPassword
+                        ? 'border-cuephoria-lightpurple/60 bg-cuephoria-lightpurple/10 text-cuephoria-lightpurple'
+                        : 'border-white/10 bg-white/5 text-white/50 hover:border-white/20 hover:text-white/70'
+                    }`}
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    {isChangingPassword ? 'Cancel password change' : 'Change password'}
+                  </button>
+                  {isChangingPassword && (
+                    <div className="relative">
+                      <Input
+                        type={showEditPassword ? 'text' : 'password'}
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="Enter new password"
+                        className="bg-cuephoria-darker border-cuephoria-lightpurple/30 pr-10"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEditPassword(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

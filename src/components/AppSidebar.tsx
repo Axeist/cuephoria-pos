@@ -33,6 +33,9 @@ const AppSidebar: React.FC = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   
   const isAdmin = user?.isAdmin || false;
+  const isSuperAdmin = user?.isSuperAdmin || false;
+
+  const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff';
 
   if (!user || shouldHide) return null;
 
@@ -114,7 +117,7 @@ const AppSidebar: React.FC = () => {
                               {user.username}
                             </span>
                             <span className="text-xs text-cuephoria-lightpurple font-quicksand">
-                              {isAdmin ? '(Administrator)' : '(Staff)'}
+                                {roleLabel}
                             </span>
                           </div>
                         </div>
@@ -187,7 +190,7 @@ const AppSidebar: React.FC = () => {
                   {user.username}
                 </span>
                 <span className="text-xs text-cuephoria-lightpurple font-quicksand">
-                  {isAdmin ? '(Administrator)' : '(Staff)'}
+                  {roleLabel}
                 </span>
               </div>
             </div>

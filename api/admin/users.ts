@@ -151,6 +151,9 @@ export default async function handler(req: Request) {
       if (typeof body?.username === "string" && body.username.trim()) {
         update.username = body.username.trim();
       }
+      if (typeof body?.newPassword === "string" && body.newPassword.trim()) {
+        update.password = body.newPassword.trim();
+      }
       // Only super-admins can change super-admin status
       if (sessionUser.isSuperAdmin && typeof body?.isSuperAdmin === "boolean") {
         update.is_super_admin = body.isSuperAdmin;

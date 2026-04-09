@@ -23,12 +23,14 @@ interface CreateStaffDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  locationId?: string;
 }
 
 const CreateStaffDialog: React.FC<CreateStaffDialogProps> = ({
   open,
   onOpenChange,
-  onSuccess
+  onSuccess,
+  locationId
 }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,7 +88,8 @@ const CreateStaffDialog: React.FC<CreateStaffDialogProps> = ({
           joining_date: format(joiningDate, 'yyyy-MM-dd'),
           default_shift_hours: shiftHours,
           role: formData.role,
-          is_active: true
+          is_active: true,
+          ...(locationId ? { location_id: locationId } : {})
         });
 
       if (error) throw error;
