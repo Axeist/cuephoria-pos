@@ -41,7 +41,17 @@ const StaffManagement = () => {
 
       if (activeLocationId) profilesQuery = profilesQuery.eq('location_id', activeLocationId);
 
-      const { data: profiles, error: profilesError } = await profilesQuery;
+      let { data: profiles, error: profilesError } = await profilesQuery;
+
+      // If location_id column doesn't exist yet (migration pending), retry without filter
+      if (profilesError && (profilesError.code === '42703' || profilesError.message?.includes('location_id'))) {
+        const retry = await supabase
+          .from('staff_profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        profiles = retry.data;
+        profilesError = retry.error;
+      }
 
       if (profilesError) throw profilesError;
       setStaffProfiles(profiles || []);

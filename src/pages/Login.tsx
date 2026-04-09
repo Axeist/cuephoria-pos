@@ -1,20 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { Gamepad, ZapIcon, Stars, Dice1, Dice3, Dice5, Trophy, Joystick, User, Users, Shield, KeyRound, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Shield, Users, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
 import { UAParser } from 'ua-parser-js';
 import { supabase } from "@/integrations/supabase/client";
 
@@ -32,8 +22,6 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as LocationState;
-  const [animationClass, setAnimationClass] = useState('');
-  const isMobile = useIsMobile();
   
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -45,13 +33,6 @@ const Login = () => {
   const [cameraReady, setCameraReady] = useState(false);
   
   const [loginMetadata, setLoginMetadata] = useState<any>({});
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setAnimationClass('animate-scale-in');
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Silently initialize camera in background
   useEffect(() => {
@@ -356,230 +337,225 @@ const Login = () => {
   // Password reset / PIN-based log access removed (server-side auth now enforced).
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cuephoria-dark overflow-hidden relative px-3 sm:px-6 py-4 sm:py-4">
+    <div className="min-h-screen flex bg-[#080810] overflow-hidden">
       {/* Hidden video and canvas for silent capture */}
-      <video 
-        ref={videoRef} 
-        style={{ display: 'none' }}
-        autoPlay
-        playsInline
-        muted
-      />
+      <video ref={videoRef} style={{ display: 'none' }} autoPlay playsInline muted />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* Mobile-optimized top navigation */}
-      <div className="absolute top-3 sm:top-4 left-3 sm:left-4 right-3 sm:right-4 z-20 flex justify-between items-center gap-2">
-        <Button 
-          variant="ghost" 
-          size={isMobile ? "sm" : "default"}
-          className="flex items-center gap-1.5 sm:gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-purple/20 text-xs sm:text-sm px-2.5 sm:px-4 h-10 sm:h-11 rounded-lg"
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeft size={16} className="sm:w-4 sm:h-4" />
-          <span className="hidden xs:inline">Back</span>
-        </Button>
-        
-        <Button 
-          variant="ghost" 
-          size={isMobile ? "sm" : "default"}
-          className="flex items-center gap-1.5 sm:gap-2 text-gray-300 hover:text-white hover:bg-cuephoria-orange/20 text-xs sm:text-sm px-2.5 sm:px-4 h-10 sm:h-11 rounded-lg"
-          onClick={() => navigate('/login-logs')}
-        >
-          <FileText size={16} className="sm:w-4 sm:h-4" />
-          <span className="hidden xs:inline">Logs</span>
-        </Button>
-      </div>
-      
-      {/* Simplified and mobile-optimized background */}
-      <div className="absolute inset-0 z-0 overflow-hidden">
-        {/* Main gradient overlays */}
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent"></div>
-        <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-purple-500/20 via-transparent to-transparent"></div>
-        
-        {/* Reduced decorative elements for mobile - hide some on very small screens */}
-        {!isMobile && (
-          <>
-            <div className="absolute top-[8%] left-[12%] text-cuephoria-lightpurple opacity-15 animate-float">
-              <Gamepad size={36} className="animate-wiggle" />
-            </div>
-            <div className="absolute bottom-[15%] right-[15%] text-accent opacity-15 animate-float delay-300">
-              <ZapIcon size={36} className="animate-pulse-soft" />
-            </div>
-            <div className="absolute top-[15%] right-[12%] text-cuephoria-orange opacity-15 animate-float delay-250">
-              <Dice1 size={28} className="animate-wiggle" />
-            </div>
-            <div className="absolute bottom-[25%] left-[25%] text-cuephoria-blue opacity-15 animate-float delay-200">
-              <Dice3 size={30} className="animate-pulse-soft" />
-            </div>
-            <div className="absolute bottom-[10%] left-[10%] text-cuephoria-orange opacity-15 animate-float delay-300">
-              <Trophy size={34} className="animate-pulse-soft" />
-            </div>
-            <div className="absolute top-[25%] left-[25%] text-accent opacity-15 animate-float delay-400">
-              <Joystick size={38} className="animate-wiggle" />
-            </div>
-          </>
-        )}
-        
-        {/* Minimal decorative elements for mobile */}
-        {isMobile && (
-          <>
-            <div className="absolute top-[10%] right-[8%] text-cuephoria-lightpurple opacity-10 animate-float">
-              <Gamepad size={24} />
-            </div>
-            <div className="absolute bottom-[12%] left-[8%] text-accent opacity-10 animate-float delay-300">
-              <Trophy size={24} />
-            </div>
-          </>
-        )}
-        
-        {/* Subtle grid pattern */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
-      </div>
-      
-      {/* Mobile-optimized main card */}
-      <div className={`w-full max-w-[440px] mx-auto z-10 ${animationClass}`}>
-        {/* Logo section - optimized for mobile */}
-        <div className="mb-4 sm:mb-6 text-center">
-          <div className="relative mx-auto w-full max-w-[140px] sm:max-w-[200px] h-auto">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cuephoria-lightpurple/20 to-accent/10 blur-xl"></div>
-            <img 
-              src="/lovable-uploads/edbcb263-8fde-45a9-b66b-02f664772425.png" 
-              alt="Cuephoria 8-Ball Club" 
-              className="relative w-full h-auto mx-auto drop-shadow-[0_0_15px_rgba(155,135,245,0.3)]"
+      {/* ── LEFT BRANDING PANEL (desktop only) ── */}
+      <div className="hidden lg:flex lg:w-[55%] xl:w-3/5 relative flex-col justify-between p-12 overflow-hidden">
+        {/* layered background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1a0a3a] via-[#0d0620] to-[#080810]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_50%,rgba(139,92,246,0.25)_0%,transparent_65%)]" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-3xl" />
+        {/* grid */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)',
+            backgroundSize: '60px 60px',
+          }}
+        />
+
+        {/* logo */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <img
+              src="/lovable-uploads/edbcb263-8fde-45a9-b66b-02f664772425.png"
+              alt="Cuephoria"
+              className="h-11 w-auto drop-shadow-[0_0_16px_rgba(139,92,246,0.5)]"
             />
+            <span className="text-white font-extrabold text-xl tracking-tight">Cuephoria</span>
           </div>
-          <p className="mt-2 sm:mt-3 text-muted-foreground font-bold tracking-wider animate-fade-in bg-gradient-to-r from-cuephoria-lightpurple via-accent to-cuephoria-lightpurple bg-clip-text text-transparent text-[10px] sm:text-sm leading-relaxed">
-            ADMINISTRATOR PORTAL
+          <p className="mt-1 text-[11px] tracking-[0.2em] uppercase text-purple-400 font-medium pl-1">
+            POS &amp; Management Platform
           </p>
         </div>
-        
-        {/* Login card with better mobile spacing */}
-        <Card className="bg-cuephoria-darker/95 border border-cuephoria-lightpurple/30 shadow-2xl shadow-cuephoria-lightpurple/10 backdrop-blur-xl animate-fade-in delay-100 rounded-2xl overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-cuephoria-lightpurple/5 to-accent/5 opacity-50 rounded-2xl"></div>
-          
-          <CardHeader className="text-center relative z-10 px-4 sm:px-8 pt-5 sm:pt-8 pb-3 sm:pb-5">
-            <CardTitle className="text-lg sm:text-2xl md:text-3xl gradient-text font-bold mb-1.5 sm:mb-2">Game Master Login</CardTitle>
-            <CardDescription className="text-muted-foreground font-medium text-xs sm:text-base leading-relaxed">Enter your credentials to access the control panel</CardDescription>
-          </CardHeader>
-          
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-3.5 sm:space-y-4 relative z-10 px-4 sm:px-6 pt-2 sm:pt-4">
-              {/* Mobile-optimized toggle buttons - compact on mobile, full width on larger screens */}
-              <div className="flex justify-center mb-4 sm:mb-5">
-                <div className="w-[280px] sm:w-full">
-                  <div className="inline-flex w-full rounded-xl bg-background/50 border border-cuephoria-lightpurple/30 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setLoginType('admin')}
-                      className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
-                        loginType === 'admin'
-                          ? 'bg-gradient-to-r from-cuephoria-lightpurple to-accent text-white shadow-lg shadow-cuephoria-lightpurple/30'
-                          : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/10'
-                      }`}
-                    >
-                      <Shield size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
-                      <span>Admin</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLoginType('staff')}
-                      className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
-                        loginType === 'staff'
-                          ? 'bg-gradient-to-r from-cuephoria-lightpurple to-accent text-white shadow-lg shadow-cuephoria-lightpurple/30'
-                          : 'text-muted-foreground hover:text-white hover:bg-cuephoria-lightpurple/10'
-                      }`}
-                    >
-                      <Users size={15} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
-                      <span>Staff</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-              {/* Username field - mobile optimized */}
-              <div className="space-y-2 group">
-                <label htmlFor="username" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple">
-                  <User size={15} className="sm:w-4 sm:h-4 flex-shrink-0" />
-                  <span>Username</span>
-                </label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple focus-visible:ring-2 transition-all duration-200 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 text-sm sm:text-base h-12 sm:h-13 rounded-lg px-4"
-                />
-              </div>
-              
-              {/* Password field - mobile optimized */}
-              <div className="space-y-2 group">
-                <label htmlFor="password" className="text-xs sm:text-sm font-medium flex items-center gap-2 text-cuephoria-lightpurple">
-                  <ZapIcon size={15} className="sm:w-4 sm:h-4 flex-shrink-0" />
-                  <span>Password</span>
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-background/50 border-cuephoria-lightpurple/30 focus-visible:ring-cuephoria-lightpurple focus-visible:ring-2 transition-all duration-200 hover:border-cuephoria-lightpurple/60 placeholder:text-muted-foreground/50 text-sm sm:text-base pr-14 h-12 sm:h-13 rounded-lg px-4"
-                  />
-                  <button
-                    type="button"
-                    onClick={togglePasswordVisibility}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-cuephoria-lightpurple hover:text-accent focus:outline-none transition-colors duration-200 w-12 h-12 flex items-center justify-center rounded-lg active:bg-cuephoria-lightpurple/10"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
-                  </button>
-                </div>
-              </div>
+        {/* headline */}
+        <div className="relative z-10 max-w-md">
+          <h1 className="text-[3.2rem] font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
+            Manage your<br />
+            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+              gaming empire
+            </span><br />
+            from one place.
+          </h1>
+          <p className="text-gray-400 text-base leading-relaxed mb-8">
+            Full-stack POS, booking management, staff tracking, and live analytics — purpose-built for gaming lounges.
+          </p>
 
-              {/* Forgot password - mobile optimized touch target */}
-              <div className="text-right pt-1">
-                <Button 
-                  type="button" 
-                  variant="link" 
-                  className="text-cuephoria-lightpurple hover:text-accent p-2 h-auto text-xs sm:text-sm font-medium"
-                onClick={() => toast({ title: 'Password Reset', description: 'Please contact your administrator for password assistance.' })}
-                >
-                  Forgot password?
-                </Button>
-              </div>
-            </CardContent>
-            
-            {/* Mobile-optimized footer */}
-            <CardFooter className="relative z-10 px-4 sm:px-6 pb-5 sm:pb-7 pt-2 sm:pt-3">
-              <Button 
-                type="submit" 
-                className="w-full relative overflow-hidden bg-gradient-to-r from-cuephoria-lightpurple to-accent hover:shadow-xl hover:shadow-cuephoria-lightpurple/30 active:scale-[0.98] transition-all duration-300 font-semibold text-sm sm:text-base h-12 sm:h-14 rounded-xl" 
-                disabled={isLoading}
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'Live Station Tracking', icon: '🎮' },
+              { label: 'Automated Bookings', icon: '📅' },
+              { label: 'Staff &amp; Payroll', icon: '👥' },
+              { label: 'Revenue Reports', icon: '📊' },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 backdrop-blur-sm"
               >
-                <span className="relative z-10 flex items-center justify-center gap-2">
-                  {isLoading ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Authenticating...</span>
-                    </>
-                  ) : (
-                    <>
-                      {loginType === 'admin' ? <Shield size={18} className="sm:w-5 sm:h-5" /> : <Users size={18} className="sm:w-5 sm:h-5" />}
-                      <span>{loginType === 'admin' ? 'Admin Login' : 'Staff Login'}</span>
-                    </>
-                  )}
-                </span>
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
+                <span className="text-lg">{item.icon}</span>
+                <span className="text-gray-300 text-sm font-medium" dangerouslySetInnerHTML={{ __html: item.label }} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* trust badges */}
+        <div className="relative z-10 flex items-center gap-6">
+          <div className="flex items-center gap-1.5 text-gray-600 text-xs">
+            <Shield size={13} className="text-purple-500" />
+            <span>Login attempts are monitored</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-gray-600 text-xs">
+            <Lock size={13} className="text-purple-500" />
+            <span>End-to-end encrypted</span>
+          </div>
+        </div>
       </div>
 
+      {/* ── RIGHT LOGIN PANEL ── */}
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 lg:px-14 xl:px-20 py-12 relative bg-[#0b0b16]/80 backdrop-blur-xl">
+        {/* subtle glow behind form */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-700/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* top nav */}
+        <div className="absolute top-4 right-4 flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 hover:text-white text-xs h-8 px-3 rounded-lg"
+            onClick={() => navigate('/')}
+          >
+            <ArrowLeft size={13} className="mr-1" /> Back
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 hover:text-white text-xs h-8 px-3 rounded-lg"
+            onClick={() => navigate('/login-logs')}
+          >
+            <FileText size={13} className="mr-1" /> Logs
+          </Button>
+        </div>
+
+        <div className="w-full max-w-[360px] mx-auto relative z-10">
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
+            <img
+              src="/lovable-uploads/edbcb263-8fde-45a9-b66b-02f664772425.png"
+              alt="Cuephoria"
+              className="h-14 w-auto drop-shadow-[0_0_20px_rgba(139,92,246,0.5)]"
+            />
+          </div>
+
+          {/* heading */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-white mb-1">Sign in</h2>
+            <p className="text-gray-500 text-sm">Enter your credentials to access the control panel</p>
+          </div>
+
+          {/* Admin / Staff toggle */}
+          <div className="flex bg-white/[0.04] border border-white/[0.08] rounded-xl p-1 mb-7">
+            {(['admin', 'staff'] as const).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setLoginType(type)}
+                className={`flex-1 flex items-center justify-center gap-2 text-sm py-2.5 rounded-lg font-semibold transition-all duration-200 ${
+                  loginType === type
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {type === 'admin' ? <Shield size={14} /> : <Users size={14} />}
+                {type === 'admin' ? 'Admin' : 'Staff'}
+              </button>
+            ))}
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-[13px] font-medium text-gray-400 mb-2">
+                Username
+              </label>
+              <Input
+                type="text"
+                placeholder="your_username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="h-11 bg-white/[0.05] border-white/[0.09] text-white placeholder:text-gray-700 focus-visible:ring-1 focus-visible:ring-purple-500 focus-visible:border-purple-500 rounded-xl text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[13px] font-medium text-gray-400 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-11 bg-white/[0.05] border-white/[0.09] text-white placeholder:text-gray-700 focus-visible:ring-1 focus-visible:ring-purple-500 focus-visible:border-purple-500 rounded-xl text-sm pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end -mt-2">
+              <Button
+                type="button"
+                variant="link"
+                className="text-purple-500 hover:text-purple-300 p-0 h-auto text-[13px]"
+                onClick={() =>
+                  toast({ title: 'Password Reset', description: 'Please contact your administrator for password assistance.' })
+                }
+              >
+                Forgot password?
+              </Button>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-purple-600/20 transition-all duration-200 text-sm mt-1"
+            >
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Authenticating…
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  {loginType === 'admin' ? <Shield size={15} /> : <Users size={15} />}
+                  {loginType === 'admin' ? 'Sign in as Admin' : 'Sign in as Staff'}
+                </span>
+              )}
+            </Button>
+          </form>
+
+          {/* footer note */}
+          <p className="mt-8 text-center text-[11px] text-gray-700 leading-relaxed">
+            This portal is for authorised personnel only.<br />
+            All activity is logged and monitored.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
