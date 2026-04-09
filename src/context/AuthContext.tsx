@@ -7,6 +7,7 @@ interface AdminUser {
   id: string;
   username: string;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
 interface LoginMetadata {
@@ -83,9 +84,9 @@ interface AuthContextType {
   login: (username: string, password: string, isAdminLogin: boolean, metadata?: LoginMetadata) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
-  addStaffMember: (username: string, password: string) => Promise<boolean>;
-  getStaffMembers: () => Promise<AdminUser[]>;
-  updateStaffMember: (id: string, data: Partial<AdminUser>) => Promise<boolean>;
+  addStaffMember: (username: string, password: string, isAdmin?: boolean, isSuperAdmin?: boolean, locationIds?: string[]) => Promise<boolean>;
+  getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[] })[]>;
+  updateStaffMember: (id: string, data: Partial<AdminUser & { locationIds: string[] }>) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
   getLoginLogs: () => Promise<LoginLog[]>;
   deleteLoginLog: (logId: string) => Promise<boolean>;
@@ -148,7 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const json = await res.json();
         const u = json?.user;
         if (u?.id && u?.username) {
-          setUser({ id: u.id, username: u.username, isAdmin: !!u.isAdmin });
+          setUser({ id: u.id, username: u.username, isAdmin: !!u.isAdmin, isSuperAdmin: !!u.isSuperAdmin });
         } else {
           setUser(null);
         }
@@ -190,6 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: json.user.id,
           username: json.user.username,
           isAdmin: !!json.user.isAdmin,
+          isSuperAdmin: !!json.user.isSuperAdmin,
         };
         // Trigger login-success splash for management portal
         try {
@@ -246,10 +248,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const addStaffMember = async (username: string, password: string, isAdmin: boolean = false): Promise<boolean> => {
+  const addStaffMember = async (username: string, password: string, isAdmin: boolean = false, isSuperAdmin: boolean = false, locationIds: string[] = []): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
-        console.error("Only admins can add users");
         toast.error("Only admins can add users");
         return false;
       }
@@ -257,7 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username, password, isAdmin }),
+        body: JSON.stringify({ username, password, isAdmin, isSuperAdmin, locationIds }),
       });
       const json = await res.json();
       if (!json?.ok) {
@@ -265,19 +266,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      toast.success(`${isAdmin ? 'Admin' : 'Staff'} user added successfully`);
+      toast.success(`${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added successfully`);
       return true;
     } catch (error) {
-      console.error('Error adding user:', error);
       toast.error('Error adding user');
       return false;
     }
   };
 
-  const getStaffMembers = async (): Promise<AdminUser[]> => {
+  const getStaffMembers = async () => {
     try {
       if (!user?.isAdmin) {
-        console.error("Only admins can view users");
         toast.error("Only admins can view users");
         return [];
       }
@@ -293,32 +292,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return data.map((u: any) => ({
         id: u.id || '',
         username: u.username || '',
-        isAdmin: u.is_admin === true,
+        isAdmin: u.isAdmin === true,
+        isSuperAdmin: u.isSuperAdmin === true,
+        locations: Array.isArray(u.locations) ? u.locations : [],
       }));
     } catch (error) {
-      console.error('Error fetching users:', error);
       toast.error('Error fetching users');
       return [];
     }
   };
 
-  const updateStaffMember = async (id: string, updatedData: Partial<AdminUser>): Promise<boolean> => {
+  const updateStaffMember = async (id: string, updatedData: Partial<AdminUser & { locationIds: string[] }>): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
-        console.error("Only admins can update staff members");
         toast.error("Only admins can update staff members");
         return false;
       }
 
-      if (!updatedData.username) {
-        console.warn("No valid fields to update");
-        return true;
-      }
+      const body: Record<string, any> = { id };
+      if (updatedData.username) body.username = updatedData.username;
+      if (typeof updatedData.isSuperAdmin === 'boolean') body.isSuperAdmin = updatedData.isSuperAdmin;
+      if (Array.isArray(updatedData.locationIds)) body.locationIds = updatedData.locationIds;
 
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id, username: updatedData.username }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!json?.ok) {
@@ -329,7 +328,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success('Staff member updated successfully');
       return true;
     } catch (error) {
-      console.error('Error updating staff member:', error);
       toast.error('Error updating staff member');
       return false;
     }
@@ -338,14 +336,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteStaffMember = async (id: string): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
-        console.error("Only admins can delete staff members");
         toast.error("Only admins can delete staff members");
         return false;
       }
       
-      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       const json = await res.json();
       if (!json?.ok) {
         toast.error(json?.error || 'Error deleting staff member');
@@ -355,7 +350,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success('Staff member deleted successfully');
       return true;
     } catch (error) {
-      console.error('Error deleting staff member:', error);
       toast.error('Error deleting staff member');
       return false;
     }

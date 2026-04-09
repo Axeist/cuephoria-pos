@@ -37,6 +37,18 @@ export default async function handler(req: Request) {
       global: { headers: { "x-application-name": "cuephoria-admin-api" } },
     });
 
+    // Super admins bypass the per-user location table and see every active location.
+    if (sessionUser.isSuperAdmin) {
+      const { data: allLocs, error: allLocErr } = await supabase
+        .from("locations")
+        .select("id, name, slug, short_code, sort_order, is_active")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      if (allLocErr) return j({ ok: false, error: allLocErr.message }, 500);
+      return j({ ok: true, locations: allLocs || [] }, 200);
+    }
+
     const { data: links, error: linkErr } = await supabase
       .from("admin_user_locations")
       .select("location_id")

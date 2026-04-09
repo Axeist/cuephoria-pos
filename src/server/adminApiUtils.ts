@@ -77,12 +77,14 @@ export type AdminSessionUser = {
   id: string;
   username: string;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
 };
 
 type SessionPayload = {
   sub: string;
   username: string;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   iat: number;
   exp: number;
 };
@@ -101,6 +103,7 @@ export async function signAdminSession(user: AdminSessionUser, maxAgeSeconds: nu
     sub: user.id,
     username: user.username,
     isAdmin: user.isAdmin,
+    isSuperAdmin: !!user.isSuperAdmin,
     iat: now,
     exp: now + maxAgeSeconds,
   };
@@ -131,7 +134,7 @@ export async function verifyAdminSession(token: string): Promise<AdminSessionUse
     if (!payload?.sub || !payload?.username) return null;
     if (typeof payload.exp !== "number" || payload.exp <= now) return null;
 
-    return { id: payload.sub, username: payload.username, isAdmin: !!payload.isAdmin };
+    return { id: payload.sub, username: payload.username, isAdmin: !!payload.isAdmin, isSuperAdmin: !!payload.isSuperAdmin };
   } catch {
     return null;
   }

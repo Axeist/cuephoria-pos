@@ -33,11 +33,7 @@ export default async function handler(req: Request) {
     const serviceKey = getSupabaseServiceRoleKey();
     if (!serviceKey) {
       return j(
-        {
-          ok: false,
-          error:
-            "Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY (required for admin user management).",
-        },
+        { ok: false, error: "Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY." },
         500
       );
     }
@@ -47,24 +43,65 @@ export default async function handler(req: Request) {
       global: { headers: { "x-application-name": "cuephoria-admin-api" } },
     });
 
+    // ─── GET ─────────────────────────────────────────────────────────────────
     if (req.method === "GET") {
-      const { data, error } = await supabase
+      const { data: users, error: usersErr } = await supabase
         .from("admin_users")
-        .select("id, username, is_admin")
+        .select("id, username, is_admin, is_super_admin")
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
-      if (error) return j({ ok: false, error: error.message }, 500);
-      return j({ ok: true, users: data ?? [] }, 200);
+      if (usersErr) return j({ ok: false, error: usersErr.message }, 500);
+
+      const userIds = (users ?? []).map((u) => u.id);
+
+      // Fetch location assignments for all users in one query
+      const { data: links } = await supabase
+        .from("admin_user_locations")
+        .select("admin_user_id, location_id")
+        .in("admin_user_id", userIds);
+
+      // Fetch all location names for display
+      const { data: allLocs } = await supabase
+        .from("locations")
+        .select("id, name, slug, short_code")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      const locMap = Object.fromEntries((allLocs ?? []).map((l) => [l.id, l]));
+
+      // Build per-user location list
+      const userLocations: Record<string, typeof allLocs> = {};
+      for (const link of links ?? []) {
+        if (!userLocations[link.admin_user_id]) userLocations[link.admin_user_id] = [];
+        const loc = locMap[link.location_id];
+        if (loc) userLocations[link.admin_user_id]!.push(loc);
+      }
+
+      const result = (users ?? []).map((u) => ({
+        id: u.id,
+        username: u.username,
+        isAdmin: u.is_admin,
+        isSuperAdmin: u.is_super_admin,
+        locations: userLocations[u.id] ?? [],
+      }));
+
+      return j({ ok: true, users: result, allLocations: allLocs ?? [] }, 200);
     }
 
+    // ─── POST (create) ───────────────────────────────────────────────────────
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       const username = String(body?.username || "").trim();
       const password = String(body?.password || "");
       const isAdmin = !!body?.isAdmin;
+      // Only a super-admin can create another super-admin
+      const isSuperAdmin = sessionUser.isSuperAdmin ? !!body?.isSuperAdmin : false;
+      const locationIds: string[] = Array.isArray(body?.locationIds) ? body.locationIds : [];
 
       if (!username || !password) return j({ ok: false, error: "Missing username/password" }, 400);
+      if (!isSuperAdmin && locationIds.length === 0)
+        return j({ ok: false, error: "Assign at least one branch to this user" }, 400);
 
       const { data: existing } = await supabase
         .from("admin_users")
@@ -74,38 +111,89 @@ export default async function handler(req: Request) {
 
       if (existing?.id) return j({ ok: false, error: "Username already exists" }, 409);
 
-      const { error } = await supabase.from("admin_users").insert({
-        username,
-        password, // TODO: store hashed secret (pgcrypto) instead of plaintext
-        is_admin: isAdmin,
-      });
+      const { data: newUser, error: insertErr } = await supabase
+        .from("admin_users")
+        .insert({ username, password, is_admin: isAdmin, is_super_admin: isSuperAdmin })
+        .select("id")
+        .single();
 
-      if (error) return j({ ok: false, error: error.message }, 500);
+      if (insertErr || !newUser) return j({ ok: false, error: insertErr?.message ?? "Insert failed" }, 500);
+
+      // Assign locations
+      const locs = isSuperAdmin
+        ? await (async () => {
+            const { data } = await supabase.from("locations").select("id").eq("is_active", true);
+            return (data ?? []).map((l) => l.id);
+          })()
+        : locationIds;
+
+      if (locs.length) {
+        const { error: linkErr } = await supabase.from("admin_user_locations").insert(
+          locs.map((lid) => ({ admin_user_id: newUser.id, location_id: lid }))
+        );
+        if (linkErr) {
+          // Roll back user creation if linking fails
+          await supabase.from("admin_users").delete().eq("id", newUser.id);
+          return j({ ok: false, error: linkErr.message }, 500);
+        }
+      }
+
       return j({ ok: true }, 200);
     }
 
+    // ─── PATCH (update) ──────────────────────────────────────────────────────
     if (req.method === "PATCH") {
       const body = await req.json().catch(() => ({}));
       const id = String(body?.id || "");
-      const username = typeof body?.username === "string" ? body.username.trim() : undefined;
-
       if (!id) return j({ ok: false, error: "Missing id" }, 400);
 
       const update: Record<string, any> = {};
-      if (username) update.username = username;
+      if (typeof body?.username === "string" && body.username.trim()) {
+        update.username = body.username.trim();
+      }
+      // Only super-admins can change super-admin status
+      if (sessionUser.isSuperAdmin && typeof body?.isSuperAdmin === "boolean") {
+        update.is_super_admin = body.isSuperAdmin;
+      }
 
-      if (Object.keys(update).length === 0) return j({ ok: true }, 200);
+      if (Object.keys(update).length > 0) {
+        const { error: updateErr } = await supabase.from("admin_users").update(update).eq("id", id);
+        if (updateErr) return j({ ok: false, error: updateErr.message }, 500);
+      }
 
-      const { error } = await supabase.from("admin_users").update(update).eq("id", id);
-      if (error) return j({ ok: false, error: error.message }, 500);
+      // Update location assignments if provided
+      if (Array.isArray(body?.locationIds)) {
+        const locationIds: string[] = body.locationIds;
+
+        // Delete existing assignments for this user
+        await supabase.from("admin_user_locations").delete().eq("admin_user_id", id);
+
+        // If super-admin, assign all locations; otherwise use provided list
+        const isSuperAdminNow = update.is_super_admin ?? false;
+        const locs = isSuperAdminNow
+          ? await (async () => {
+              const { data } = await supabase.from("locations").select("id").eq("is_active", true);
+              return (data ?? []).map((l) => l.id);
+            })()
+          : locationIds;
+
+        if (locs.length) {
+          await supabase.from("admin_user_locations").insert(
+            locs.map((lid) => ({ admin_user_id: id, location_id: lid }))
+          );
+        }
+      }
+
       return j({ ok: true }, 200);
     }
 
+    // ─── DELETE ──────────────────────────────────────────────────────────────
     if (req.method === "DELETE") {
       const url = new URL(req.url);
       const id = url.searchParams.get("id");
       if (!id) return j({ ok: false, error: "Missing id" }, 400);
 
+      // admin_user_locations rows are cascade-deleted by FK
       const { error } = await supabase.from("admin_users").delete().eq("id", id);
       if (error) return j({ ok: false, error: error.message }, 500);
       return j({ ok: true }, 200);
@@ -117,4 +205,3 @@ export default async function handler(req: Request) {
     return j({ ok: false, error: String(err?.message || err) }, 500);
   }
 }
-

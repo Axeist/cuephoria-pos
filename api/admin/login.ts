@@ -53,7 +53,7 @@ export default async function handler(req: Request) {
 
     const { data: userRow, error: userErr } = await supabase
       .from("admin_users")
-      .select("id, username, is_admin, password")
+      .select("id, username, is_admin, is_super_admin, password")
       .eq("username", username)
       .eq("is_admin", isAdminLogin)
       .maybeSingle();
@@ -105,7 +105,7 @@ export default async function handler(req: Request) {
     }
 
     const sessionToken = await signAdminSession(
-      { id: userRow.id, username: userRow.username, isAdmin: !!userRow.is_admin },
+      { id: userRow.id, username: userRow.username, isAdmin: !!userRow.is_admin, isSuperAdmin: !!userRow.is_super_admin },
       8 * 60 * 60
     );
 
@@ -121,7 +121,7 @@ export default async function handler(req: Request) {
       {
         ok: true,
         success: true,
-        user: { id: userRow.id, username: userRow.username, isAdmin: !!userRow.is_admin },
+        user: { id: userRow.id, username: userRow.username, isAdmin: !!userRow.is_admin, isSuperAdmin: !!userRow.is_super_admin },
       },
       200,
       { "set-cookie": setCookie }

@@ -50,7 +50,7 @@ const Settings = () => {
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, activeLocation } = useLocation();
 
   const handleImageUploaded = () => {
     // Refresh tournaments list if needed
