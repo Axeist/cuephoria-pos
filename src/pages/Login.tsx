@@ -355,9 +355,6 @@ const Login = () => {
         {/* Fine dot grid */}
         <div className="absolute inset-0 opacity-[0.035]"
           style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-        {/* Diagonal accent line */}
-        <div className="absolute top-0 right-40 w-px h-full opacity-10"
-          style={{ background: 'linear-gradient(to bottom, transparent, rgba(139,92,246,0.8) 30%, rgba(139,92,246,0.8) 70%, transparent)' }} />
 
         {/* Logo */}
         <div className="relative z-10">
