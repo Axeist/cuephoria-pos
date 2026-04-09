@@ -13,6 +13,7 @@ import CustomerCard from '@/components/CustomerCard';
 import CustomerInsightWidgets from '@/components/customers/CustomerInsightWidgets';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useLocation as useLocationCtx } from '@/context/LocationContext';
 
 type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
 type SortDirection = 'asc' | 'desc';
@@ -40,6 +41,7 @@ const Customers = () => {
   const [error, setError] = useState<string | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
   const [isContextLoaded, setIsContextLoaded] = useState(false);
+  const { activeLocationId } = useLocationCtx();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -314,6 +316,7 @@ const Customers = () => {
         .from('customers')
         .select('id, name, customer_id')
         .eq('phone', normalizedPhone)
+        .eq('location_id', activeLocationId ?? '')
         .maybeSingle();
       
       if (existingByPhone) {
@@ -332,6 +335,7 @@ const Customers = () => {
           .from('customers')
           .select('id, name, customer_id')
           .eq('email', normalizedEmail)
+          .eq('location_id', activeLocationId ?? '')
           .maybeSingle();
         
         if (existingByEmail) {
@@ -405,7 +409,8 @@ const Customers = () => {
           is_member: isMember,
           loyalty_points: 0,
           total_spent: 0,
-          total_play_time: 0
+          total_play_time: 0,
+          ...(activeLocationId ? { location_id: activeLocationId } : {})
         };
 
         if (isMember) {
