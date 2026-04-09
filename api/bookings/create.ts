@@ -135,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       if (searchError && searchError.code !== "PGRST116") {
         console.error("❌ Customer search error:", searchError);
-        return j(res, { ok: false, error: "Customer search failed" }, 500);
+        return j(res, { ok: false, error: `Customer search failed: ${searchError.message}` }, 500);
       }
 
       if (existingCustomer) {
@@ -163,7 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         if (customerError) {
           console.error("❌ Customer creation failed:", customerError);
-          return j(res, { ok: false, error: "Failed to create customer" }, 500);
+          return j(res, { ok: false, error: `Failed to create customer: ${customerError.message}` }, 500);
         }
         customerId = newCustomer.id;
         console.log("✅ New customer created:", customerId, "with custom_id:", customerID);
@@ -331,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq("location_id", location_id)
         .eq("is_confirmed", false);
       
-      return j(res, { ok: false, error: "Failed to create booking", details: bookingError.message }, 500);
+      return j(res, { ok: false, error: `Failed to create booking: ${bookingError.message}`, details: bookingError.message }, 500);
     }
 
     // STEP 5: Confirm slot blocks (mark as confirmed)

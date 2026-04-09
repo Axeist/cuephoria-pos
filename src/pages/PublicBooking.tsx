@@ -1718,7 +1718,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           toast.error(json?.error || "Selected slot is no longer available. Please select another time slot.");
           return;
         }
-        throw new Error(json?.error || "Failed to create booking");
+        const errMsg = json?.error || "Failed to create booking";
+        console.error("Booking API error:", errMsg, json?.details);
+        throw new Error(errMsg);
       }
 
       const stationObjects = stations.filter((s) =>
@@ -1769,7 +1771,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       setAvailableSlots([]);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to create booking. Please try again.");
+      const msg = (e as any)?.message;
+      toast.error(msg && msg !== "Failed to create booking" ? msg : "Failed to create booking. Please try again.");
     } finally {
       setLoading(false);
     }
