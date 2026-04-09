@@ -22,6 +22,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { GlobalNotificationBell } from '@/components/GlobalNotificationBell';
+import { useLocation as useLocationCtx } from '@/context/LocationContext';
 
 const AppSidebar: React.FC = () => {
   const location = useLocation();
@@ -36,6 +37,13 @@ const AppSidebar: React.FC = () => {
   const isSuperAdmin = user?.isSuperAdmin || false;
 
   const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff';
+
+  const { activeLocation } = useLocationCtx();
+  const isLite = activeLocation?.slug === 'lite';
+  const logoSrc = isLite
+    ? '/lovable-uploads/cuephoria-lite-logo.png'
+    : '/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png';
+  const brandName = isLite ? 'Cuephoria Lite' : 'Cuephoria';
 
   if (!user || shouldHide) return null;
 
@@ -78,11 +86,11 @@ const AppSidebar: React.FC = () => {
                 <div className="h-full flex flex-col">
                   <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
                     <img
-                      src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
-                      alt="Cuephoria Logo"
+                      src={logoSrc}
+                      alt={`${brandName} Logo`}
                       className="h-10 w-10 sm:h-12 sm:w-12 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
                     />
-                    <span className="text-lg sm:text-xl font-bold gradient-text font-heading">Cuephoria</span>
+                    <span className="text-lg sm:text-xl font-bold gradient-text font-heading">{brandName}</span>
                   </div>
                   <div className="px-3 pb-2">
                     <GlobalNotificationBell />
@@ -137,7 +145,7 @@ const AppSidebar: React.FC = () => {
                 </div>
               </SheetContent>
             </Sheet>
-            <span className="text-lg sm:text-xl font-bold gradient-text font-heading">Cuephoria</span>
+            <span className="text-lg sm:text-xl font-bold gradient-text font-heading">{brandName}</span>
           </div>
           <GlobalNotificationBell />
         </div>
@@ -151,11 +159,11 @@ const AppSidebar: React.FC = () => {
     <Sidebar className="border-r-0 bg-[#1A1F2C] text-white w-[250px]">
       <SidebarHeader className="p-4 flex items-center gap-3">
         <img
-          src="/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png"
-          alt="Cuephoria Logo"
+          src={logoSrc}
+          alt={`${brandName} Logo`}
           className="h-14 w-14 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
         />
-        <span className="text-2xl font-bold gradient-text font-heading">Cuephoria</span>
+        <span className="text-2xl font-bold gradient-text font-heading">{brandName}</span>
       </SidebarHeader>
       <SidebarSeparator className="mx-4 bg-cuephoria-purple/30" />
       <SidebarContent className="mt-2">
