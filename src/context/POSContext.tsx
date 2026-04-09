@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   POSContextType, 
   ResetOptions, 
@@ -84,7 +84,6 @@ const POSContext = createContext<POSContextType>({
 });
 
 export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  console.log('POSProvider initialized');
   
   const [isStudentDiscount, setIsStudentDiscount] = useState<boolean>(false);
   
@@ -250,8 +249,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               await supabase
                 .from('categories')
-                .insert({ name: 'uncategorized', location_id: activeLocationId });
-                
+                .upsert(
+                  { name: 'uncategorized', location_id: activeLocationId },
+                  { onConflict: 'name,location_id', ignoreDuplicates: true }
+                );
               dbCategories.push('uncategorized');
             } catch (err) {
               console.error('Error creating uncategorized category:', err);
@@ -264,19 +265,20 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           const defaultCategories = ['food', 'drinks', 'tobacco', 'challenges', 'membership', 'uncategorized'];
           
-          for (const category of defaultCategories) {
-            try {
-              await supabase
-                .from('categories')
-                .insert({ name: category.toLowerCase(), location_id: activeLocationId });
-            } catch (err) {
-              console.error(`Error creating category ${category}:`, err);
-            }
+          const { error: seedError } = await supabase
+            .from('categories')
+            .upsert(
+              defaultCategories.map(name => ({ name, location_id: activeLocationId })),
+              { onConflict: 'name,location_id', ignoreDuplicates: true }
+            );
+
+          if (seedError) {
+            console.error('Error seeding default categories:', seedError);
           }
           
           setCategories(defaultCategories);
           localStorage.setItem('cuephoriaCategories', JSON.stringify(defaultCategories));
-          console.log('Default categories created:', defaultCategories);
+  console.log('Default categories created:', defaultCategories);
         }
       } catch (error) {
         console.error('Error in fetchCategories:', error);
@@ -757,94 +759,110 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   
-  const handleAddSampleIndianData = () => {
-    const { toast } = useToast();
+  const handleAddSampleIndianData = useCallback(() => {
     toast({
       title: "Info",
       description: "Sample data functionality has been removed. Please add products manually or through database import.",
     });
-  };
+  }, [toast]);
   
-  const deleteBill = async (billId: string, customerId: string): Promise<boolean> => {
+  const deleteBill = useCallback(async (billId: string, customerId: string): Promise<boolean> => {
     return await deleteBillBase(billId, customerId);
-  };
-  
-  console.log('POSProvider rendering with context value');
-  
+  }, [deleteBillBase]);
+
+  // Memoize the entire context value so that consumers only re-render when the
+  // data they depend on actually changes, not on every POSProvider render caused
+  // by unrelated state updates in sibling hooks.
+  const contextValue = useMemo(() => ({
+    products,
+    productsLoading,
+    productsError,
+    stations,
+    customers,
+    sessions,
+    bills,
+    cart,
+    selectedCustomer,
+    discount,
+    discountType,
+    loyaltyPointsUsed,
+    isStudentDiscount,
+    isSplitPayment,
+    cashAmount,
+    upiAmount,
+    setIsSplitPayment,
+    setCashAmount,
+    setUpiAmount,
+    updateSplitAmounts,
+    categories,
+    setIsStudentDiscount,
+    setBills,
+    setCustomers,
+    setStations,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    startSession,
+    endSession,
+    deleteStation,
+    updateStation,
+    addCustomer,
+    updateCustomer,
+    updateCustomerMembership: updateCustomerMembershipWrapper,
+    deleteCustomer,
+    selectCustomer,
+    checkMembershipValidity,
+    deductMembershipHours,
+    addToCart,
+    removeFromCart,
+    updateCartItem,
+    clearCart,
+    setDiscount,
+    setLoyaltyPointsUsed,
+    calculateTotal,
+    completeSale,
+    updateBill,
+    deleteBill,
+    exportBills,
+    exportCustomers,
+    resetToSampleData: handleResetToSampleData,
+    addSampleIndianData: handleAddSampleIndianData
+  }), [
+    products, productsLoading, productsError,
+    stations, customers, sessions, bills,
+    cart, selectedCustomer,
+    discount, discountType, loyaltyPointsUsed,
+    isStudentDiscount, isSplitPayment, cashAmount, upiAmount,
+    setIsSplitPayment, setCashAmount, setUpiAmount, updateSplitAmounts,
+    categories, setIsStudentDiscount, setBills, setCustomers, setStations,
+    addProduct, updateProduct, deleteProduct,
+    addCategory, updateCategory, deleteCategory,
+    startSession, endSession, deleteStation, updateStation,
+    addCustomer, updateCustomer, updateCustomerMembershipWrapper,
+    deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
+    addToCart, removeFromCart, updateCartItem, clearCart,
+    setDiscount, setLoyaltyPointsUsed, calculateTotal,
+    completeSale, updateBill, deleteBill,
+    exportBills, exportCustomers,
+    handleResetToSampleData, handleAddSampleIndianData
+  ]);
+
   return (
-    <POSContext.Provider
-      value={{
-        products,
-        productsLoading,
-        productsError,
-        stations,
-        customers,
-        sessions,
-        bills,
-        cart,
-        selectedCustomer,
-        discount,
-        discountType,
-        loyaltyPointsUsed,
-        isStudentDiscount,
-        isSplitPayment,
-        cashAmount,
-        upiAmount,
-        setIsSplitPayment,
-        setCashAmount: (amount) => setCashAmount(amount),
-        setUpiAmount: (amount) => setUpiAmount(amount),
-        updateSplitAmounts,
-        categories,
-        setIsStudentDiscount,
-        setBills,
-        setCustomers,
-        setStations,
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        addCategory,
-        updateCategory,
-        deleteCategory,
-        startSession,
-        endSession,
-        deleteStation,
-        updateStation,
-        addCustomer,
-        updateCustomer,
-        updateCustomerMembership: updateCustomerMembershipWrapper,
-        deleteCustomer,
-        selectCustomer,
-        checkMembershipValidity,
-        deductMembershipHours,
-        addToCart,
-        removeFromCart,
-        updateCartItem,
-        clearCart,
-        setDiscount,
-        setLoyaltyPointsUsed,
-        calculateTotal,
-        completeSale,
-        updateBill,
-        deleteBill,
-        exportBills,
-        exportCustomers,
-        resetToSampleData: handleResetToSampleData,
-        addSampleIndianData: handleAddSampleIndianData
-      }}
-    >
+    <POSContext.Provider value={contextValue}>
       {children}
     </POSContext.Provider>
   );
 };
 
 export const usePOS = () => {
-  console.log('usePOS hook called');
   const context = useContext(POSContext);
   if (context === undefined) {
     console.error('usePOS must be used within a POSProvider');
     throw new Error('usePOS must be used within a POSProvider');
   }
-  console.log('usePOS hook returning context');
   return context;
 };
 

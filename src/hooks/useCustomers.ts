@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Customer } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
@@ -35,6 +35,10 @@ export const useCustomers = (initialCustomers: Customer[]) => {
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
   
+  // Stable ref so the realtime handler can always call the latest fetchCustomersFromDB
+  // without creating a circular dependency on useCallback deps.
+  const fetchFromDBRef = useRef<((silent: boolean) => Promise<void>) | null>(null);
+
   useEffect(() => {
     // Clear customers immediately when branch changes so stale data is never shown
     setCustomers([]);
@@ -288,6 +292,9 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       }
     };
     
+    // Expose the latest fetchCustomersFromDB for the realtime subscriber below
+    fetchFromDBRef.current = fetchCustomersFromDB;
+
     fetchCustomers();
   }, [activeLocationId]);
   
@@ -303,6 +310,40 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     }
   };
   
+  // ✅ REALTIME: subscribe to customer changes for the active location.
+  // When any INSERT / UPDATE / DELETE lands in the DB for this location_id, bust
+  // the local caches and silently re-fetch so every device stays in sync.
+  useEffect(() => {
+    if (!activeLocationId) return;
+
+    const locKey = activeLocationId;
+
+    const channel = supabase
+      .channel(`customers-realtime-${locKey}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'customers',
+          filter: `location_id=eq.${locKey}`,
+        },
+        () => {
+          // Bust both caches for this location so the next fetch always hits the DB
+          delete memoryCacheByLocation[locKey];
+          localStorage.removeItem(customersCacheKey(locKey));
+          localStorage.removeItem(customersTimestampKey(locKey));
+          fetchFromDBRef.current?.(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeLocationId]);
+
+  // Membership expiry check
   useEffect(() => {
     const now = new Date();
     let customersUpdated = false;

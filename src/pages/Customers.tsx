@@ -400,6 +400,16 @@ const Customers = () => {
 
         window.location.reload();
       } else {
+        // Guard: location MUST be known before inserting – the DB has location_id NOT NULL
+        if (!activeLocationId) {
+          toast({
+            title: 'Location Not Ready',
+            description: 'Please wait a moment for the branch to load, then try again.',
+            variant: 'destructive'
+          });
+          return;
+        }
+
         // ✅ Insert with correct field name: custom_id
         const insertData: any = {
           name: name.trim(),
@@ -410,7 +420,7 @@ const Customers = () => {
           loyalty_points: 0,
           total_spent: 0,
           total_play_time: 0,
-          ...(activeLocationId ? { location_id: activeLocationId } : {})
+          location_id: activeLocationId,
         };
 
         if (isMember) {
@@ -440,15 +450,14 @@ const Customers = () => {
           description: `Customer ${customerID} has been added successfully.`
         });
 
-        // Invalidate cache so the new customer shows after reload
-        localStorage.removeItem(`cuephoria_customers_cache_${activeLocationId ?? 'global'}`);
-        localStorage.removeItem(`cuephoria_customers_cache_ts_${activeLocationId ?? 'global'}`);
+        // Bust cache – the realtime subscription will fire immediately and re-fetch,
+        // so no full page reload is needed.
+        localStorage.removeItem(`cuephoria_customers_cache_${activeLocationId}`);
+        localStorage.removeItem(`cuephoria_customers_cache_ts_${activeLocationId}`);
 
-        window.location.reload();
+        setIsDialogOpen(false);
+        resetForm();
       }
-      
-      setIsDialogOpen(false);
-      resetForm();
     } catch (error: any) {
       console.error('Error saving customer:', error);
       toast({
