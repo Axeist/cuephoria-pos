@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Trash2, Save, Calendar, Ticket, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Save, Calendar, Ticket, Loader2, AlertCircle, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useLocation } from '@/context/LocationContext';
 
@@ -30,7 +30,8 @@ const BookingSettings = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { activeLocationId } = useLocation();
+  const [togglingCode, setTogglingCode] = useState<string | null>(null);
+  const { activeLocationId, activeLocation } = useLocation();
   
   // Event settings state
   const [eventName, setEventName] = useState('IIM Event');
@@ -198,10 +199,34 @@ const BookingSettings = () => {
     setCoupons(coupons.filter(c => c.code !== code));
   };
 
-  const toggleCoupon = (code: string) => {
-    setCoupons(coupons.map(c => 
+  const toggleCoupon = async (code: string) => {
+    const updated = coupons.map(c =>
       c.code === code ? { ...c, enabled: !c.enabled } : c
-    ));
+    );
+    setCoupons(updated);
+    setTogglingCode(code);
+    try {
+      await upsertBookingSetting(
+        'booking_coupons',
+        updated,
+        'List of available coupon codes for bookings'
+      );
+      const isNowEnabled = updated.find(c => c.code === code)?.enabled;
+      toast({
+        title: isNowEnabled ? 'Coupon enabled' : 'Coupon disabled',
+        description: `${code} is now ${isNowEnabled ? 'visible' : 'hidden'} on the public booking page`,
+      });
+    } catch (error) {
+      // Revert local state on failure
+      setCoupons(coupons);
+      toast({
+        title: 'Error',
+        description: 'Failed to save coupon change',
+        variant: 'destructive',
+      });
+    } finally {
+      setTogglingCode(null);
+    }
   };
 
   const updateCoupon = (code: string, field: keyof Coupon, value: any) => {
@@ -293,12 +318,25 @@ const BookingSettings = () => {
       {/* Coupons Settings */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Ticket className="h-5 w-5 text-cuephoria-lightpurple" />
-            <CardTitle>Coupon Codes</CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Ticket className="h-5 w-5 text-cuephoria-lightpurple" />
+              <CardTitle>Coupon Codes</CardTitle>
+            </div>
+            {activeLocation && (
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                activeLocation.slug === 'lite'
+                  ? 'bg-cyan-500/15 border-cyan-400/30 text-cyan-300'
+                  : 'bg-purple-500/15 border-purple-400/30 text-purple-300'
+              }`}>
+                <MapPin className="h-3 w-3" />
+                {activeLocation.name}
+              </span>
+            )}
           </div>
           <CardDescription>
-            Manage coupon codes available for public bookings
+            Manage coupon codes for <strong>{activeLocation?.name ?? 'this branch'}</strong>.
+            Toggling a coupon saves immediately. Changes only affect this branch.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -354,11 +392,16 @@ const BookingSettings = () => {
                       </div>
                     </div>
                     
-                    <div className="flex flex-col gap-2">
-                      <Switch
-                        checked={coupon.enabled}
-                        onCheckedChange={() => toggleCoupon(coupon.code)}
-                      />
+                    <div className="flex flex-col gap-2 items-center">
+                      {togglingCode === coupon.code ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-cuephoria-lightpurple" />
+                      ) : (
+                        <Switch
+                          checked={coupon.enabled}
+                          onCheckedChange={() => toggleCoupon(coupon.code)}
+                          disabled={!!togglingCode}
+                        />
+                      )}
                       <Button
                         variant="destructive"
                         size="sm"
