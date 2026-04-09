@@ -32,6 +32,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
+import { useLocation } from '@/context/LocationContext';
 
 const Settings = () => {
   const { user } = useAuth();
@@ -49,12 +50,13 @@ const Settings = () => {
   const tournamentOps = useTournamentOperations();
   const { toast } = useToast();
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
+  const { activeLocationId } = useLocation();
 
   const handleImageUploaded = () => {
     // Refresh tournaments list if needed
     const loadTournaments = async () => {
       try {
-        const fetchedTournaments = await tournamentOps.fetchTournaments();
+        const fetchedTournaments = await tournamentOps.fetchTournaments(activeLocationId);
         setTournaments(fetchedTournaments);
       } catch (error) {
         console.error("Error loading tournaments:", error);
@@ -81,7 +83,7 @@ const Settings = () => {
     const loadTournaments = async () => {
       setLoading(true);
       try {
-        const fetchedTournaments = await tournamentOps.fetchTournaments();
+        const fetchedTournaments = await tournamentOps.fetchTournaments(activeLocationId);
         setTournaments(fetchedTournaments);
       } catch (error) {
         console.error("Error loading tournaments:", error);
@@ -96,7 +98,7 @@ const Settings = () => {
     };
     
     loadTournaments();
-  }, []);
+  }, [activeLocationId]);
 
   const handleSaveTournament = async (updatedTournament: Tournament) => {
     setLoading(true);
@@ -156,7 +158,7 @@ const Settings = () => {
             }
             
             // Refetch tournaments from server to confirm deletion persisted
-            const refreshed = await tournamentOps.fetchTournaments();
+            const refreshed = await tournamentOps.fetchTournaments(activeLocationId);
             const remainingSummaries = refreshed.map(t => ({ id: t.id, name: t.name }));
             const stillPresent = remainingSummaries.some(t => t.id === id);
             console.log('Remaining tournaments after delete:', remainingSummaries, 'Deleted ID still present:', stillPresent);
@@ -211,11 +213,24 @@ const Settings = () => {
     try {
       console.log('Resetting leaderboard - deleting all entries...');
       
-      // Delete all tournament history entries
-      const { error: historyError } = await supabase
+      // Build base queries, scoped to active location when available
+      let historyQuery: any = supabase
         .from('tournament_history')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+
+      let winnersQuery: any = supabase
+        .from('tournament_winners')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+
+      if (activeLocationId) {
+        historyQuery = historyQuery.eq('location_id', activeLocationId);
+        winnersQuery = winnersQuery.eq('location_id', activeLocationId);
+      }
+
+      // Delete all tournament history entries
+      const { error: historyError } = await historyQuery;
         
       if (historyError) {
         console.error('Error deleting tournament history:', historyError);
@@ -223,10 +238,7 @@ const Settings = () => {
       }
       
       // Delete all tournament winner entries
-      const { error: winnersError } = await supabase
-        .from('tournament_winners')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+      const { error: winnersError } = await winnersQuery;
         
       if (winnersError) {
         console.error('Error deleting tournament winners:', winnersError);

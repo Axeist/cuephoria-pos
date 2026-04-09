@@ -66,7 +66,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const payload = req.body || {};
-    const { customer_phone } = payload;
+    const { customer_phone, location_id: locationIdRaw } = payload;
+    const location_id =
+      typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
 
     // Validate required fields
     if (!customer_phone) {
@@ -74,6 +76,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ok: false, 
         error: "Missing required field: customer_phone"
       }, 400);
+    }
+    if (!location_id) {
+      return j(res, { ok: false, error: "Missing required field: location_id" }, 400);
     }
 
     // Normalize phone number (convert to string first in case it comes as a number)
@@ -113,7 +118,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Do NOT return CRM/financial stats from a public endpoint.
       .select("id, name, phone, email")
       .eq("phone", normalizedPhone)
-      .single();
+      .eq("location_id", location_id)
+      .maybeSingle();
 
     if (customerError) {
       if (customerError.code === "PGRST116") {

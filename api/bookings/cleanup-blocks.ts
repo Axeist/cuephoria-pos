@@ -45,15 +45,25 @@ export default async function handler(req: Request) {
   }
 
   try {
+    const bodyText = typeof req.text === 'function' ? await req.text() : '';
+    let payload: any = {};
+    try { payload = bodyText ? JSON.parse(bodyText) : {}; } catch { /* ignore */ }
+    const locationId: string | null = payload?.location_id || null;
+
     console.log("🧹 Starting cleanup of expired slot blocks...");
 
-    // Delete expired blocks that haven't been confirmed
-    const { data: deletedBlocks, error: deleteError } = await supabase
+    // Delete expired blocks that haven't been confirmed (optionally scoped to a location)
+    let deleteQuery = supabase
       .from("slot_blocks")
       .delete()
       .lt("expires_at", new Date().toISOString())
-      .eq("is_confirmed", false)
-      .select("id");
+      .eq("is_confirmed", false);
+
+    if (locationId) {
+      deleteQuery = deleteQuery.eq("location_id", locationId);
+    }
+
+    const { data: deletedBlocks, error: deleteError } = await deleteQuery.select("id");
 
     if (deleteError) {
       console.error("❌ Error cleaning up expired blocks:", deleteError);

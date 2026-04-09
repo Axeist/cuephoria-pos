@@ -57,6 +57,7 @@ export interface Tournament {
   tournamentFormat: TournamentFormat; // New field for tournament format
   entryFee?: number; // Tournament entry fee
   discountCoupons?: DiscountCoupon[]; // Available discount coupons
+  location_id?: string; // Branch this tournament belongs to
   // Database sync fields
   created_at?: string;
   updated_at?: string;
@@ -113,6 +114,7 @@ export const convertFromSupabaseTournament = (item: any): Tournament => {
     tournamentFormat: item.tournament_format || 'knockout', // Add tournament format conversion
     entryFee: item.entry_fee || 250, // Default to 250
     discountCoupons: item.discount_coupons || [], // Array of discount coupons
+    location_id: item.location_id || undefined,
     created_at: item.created_at,
     updated_at: item.updated_at
   };
@@ -147,6 +149,7 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.winner) cleanObject.winner = tournament.winner;
   if (tournament.runnerUp) cleanObject.runner_up = tournament.runnerUp;
   if (tournament.thirdPlace) cleanObject.third_place = tournament.thirdPlace;
+  if (tournament.location_id) cleanObject.location_id = tournament.location_id;
   
   return cleanObject;
 };

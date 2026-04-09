@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Bill, CartItem, Customer, Product } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { useLocation } from '@/context/LocationContext';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -10,6 +11,11 @@ export const useBills = (
 ) => {
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
+  const billsCacheKey = useMemo(
+    () => cacheKeyWithLocation(CACHE_KEYS.BILLS, activeLocationId),
+    [activeLocationId]
+  );
 
   // Keep cache small (bills can grow very large and localStorage is limited)
   const MAX_CACHED_BILLS = 300;
@@ -102,6 +108,9 @@ export const useBills = (
   };
 
   const fetchBillsPage = async (page: number, pageSize: number) => {
+    if (!activeLocationId) {
+      return { data: [] as RawBillRow[] | null, error: null };
+    }
     // ✅ Select only needed columns + include bill_items
     const { data, error } = await supabase
       .from('bills')
@@ -132,6 +141,7 @@ export const useBills = (
           item_type
         )
       `)
+      .eq('location_id', activeLocationId)
       .order('created_at', { ascending: false })
       .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -168,7 +178,7 @@ export const useBills = (
     const loadBills = async () => {
       try {
         // ✅ Check cache first
-        const cachedBills = getCachedData<Bill[]>(CACHE_KEYS.BILLS);
+        const cachedBills = getCachedData<Bill[]>(billsCacheKey);
         
         if (cachedBills && cachedBills.length > 0) {
           console.log('📦 Using cached bills');
@@ -177,7 +187,7 @@ export const useBills = (
           
           // Always continue loading in background so Reports (older ranges) work.
           // If cache is stale, a 1-page refresh is enough; otherwise we still load older pages quietly.
-          const refreshPages = isCacheStale(CACHE_KEYS.BILLS) ? 1 : BACKGROUND_MAX_PAGES;
+          const refreshPages = isCacheStale(billsCacheKey) ? 1 : BACKGROUND_MAX_PAGES;
           loadBillsFromDB({ silent: true, maxPages: refreshPages }).catch(err => {
             console.error('Error loading bills in background:', err);
           });
@@ -239,7 +249,7 @@ export const useBills = (
 
           // Cache only the most recent subset (keeps localStorage fast and avoids quota issues)
           if (page === 0) {
-            saveToCache(CACHE_KEYS.BILLS, transformed.slice(0, MAX_CACHED_BILLS));
+            saveToCache(billsCacheKey, transformed.slice(0, MAX_CACHED_BILLS));
           }
 
           if (rawPage.length < pageSize) {
@@ -252,7 +262,7 @@ export const useBills = (
         // After a full non-silent load, refresh cache with latest subset from current state
         if (!silent && isMounted) {
           setBills(prev => {
-            saveToCache(CACHE_KEYS.BILLS, prev.slice(0, MAX_CACHED_BILLS));
+            saveToCache(billsCacheKey, prev.slice(0, MAX_CACHED_BILLS));
             return prev;
           });
         }
@@ -277,7 +287,7 @@ export const useBills = (
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [activeLocationId, billsCacheKey]);
 
   // ✅ UPDATED: Added customTimestamp parameter
   const completeSale = async (
@@ -307,6 +317,10 @@ export const useBills = (
         throw new Error('Invalid customer or empty cart');
       }
 
+      if (!activeLocationId) {
+        throw new Error('No branch selected');
+      }
+
       const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
       let discountValue = 0;
       if (discountType === 'percentage') {
@@ -329,6 +343,7 @@ export const useBills = (
         .from('bills')
         .insert({
           customer_id: customer.id,
+          location_id: activeLocationId,
           subtotal: subtotal,
           discount: discount,
           discount_value: discountValue,
@@ -356,6 +371,7 @@ export const useBills = (
 
       const billItemsToInsert = cart.map(item => ({
         bill_id: billData.id,
+        location_id: activeLocationId,
         item_id: item.id,
         name: item.name,
         price: item.price,
@@ -399,7 +415,8 @@ export const useBills = (
       const { error: customerError } = await supabase
         .from('customers')
         .update(customerUpdateData)
-        .eq('id', customer.id);
+        .eq('id', customer.id)
+        .eq('location_id', activeLocationId!);
 
       if (customerError) {
         console.error('Error updating customer:', customerError);
@@ -417,7 +434,8 @@ export const useBills = (
             const { error: productError } = await supabase
               .from('products')
               .update({ stock: newStock })
-              .eq('id', product.id);
+              .eq('id', product.id)
+              .eq('location_id', activeLocationId!);
 
             if (productError) {
               console.error('Error updating product stock:', productError);
@@ -453,12 +471,12 @@ export const useBills = (
       setBills(prevBills => {
         const updated = [completeBill, ...prevBills];
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.BILLS, updated.slice(0, MAX_CACHED_BILLS));
+        saveToCache(billsCacheKey, updated.slice(0, MAX_CACHED_BILLS));
         return updated;
       });
       
       // ✅ Invalidate cache to ensure fresh data
-      invalidateCache(CACHE_KEYS.BILLS);
+      invalidateCache(billsCacheKey);
       
       console.log('Sale completed successfully, bill created:', completeBill);
       
@@ -553,6 +571,7 @@ export const useBills = (
 
       const billItemsToInsert = updatedItems.map(item => ({
         bill_id: originalBill.id,
+        location_id: activeLocationId,
         item_id: item.id,
         name: item.name,
         price: item.price,
@@ -589,12 +608,12 @@ export const useBills = (
       setBills(prevBills => {
         const updated = prevBills.map(bill => bill.id === originalBill.id ? updatedBill : bill);
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.BILLS, updated.slice(0, MAX_CACHED_BILLS));
+        saveToCache(billsCacheKey, updated.slice(0, MAX_CACHED_BILLS));
         return updated;
       });
       
       // ✅ Invalidate cache
-      invalidateCache(CACHE_KEYS.BILLS);
+      invalidateCache(billsCacheKey);
 
       toast({
         title: 'Bill Updated',
@@ -657,12 +676,12 @@ export const useBills = (
       setBills(prevBills => {
         const updated = prevBills.filter(bill => bill.id !== billId);
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.BILLS, updated.slice(0, MAX_CACHED_BILLS));
+        saveToCache(billsCacheKey, updated.slice(0, MAX_CACHED_BILLS));
         return updated;
       });
       
       // ✅ Invalidate cache
-      invalidateCache(CACHE_KEYS.BILLS);
+      invalidateCache(billsCacheKey);
 
       toast({
         title: 'Bill Deleted',

@@ -1,15 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product } from '@/types/pos.types';
 import { supabase, handleSupabaseError, convertFromSupabaseProduct, convertToSupabaseProduct } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { generateId } from '@/utils/pos.utils';
-import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { useLocation } from '@/context/LocationContext';
 
 export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
+  const productsCacheKey = useMemo(
+    () => cacheKeyWithLocation(CACHE_KEYS.PRODUCTS, activeLocationId),
+    [activeLocationId]
+  );
   
   const lowStockProducts = products.filter(p => p.stock < 5 && p.category !== 'membership');
   
@@ -18,7 +24,7 @@ export const useProducts = () => {
     
     const loadProducts = async () => {
       // ✅ Check cache first
-      const cachedProducts = getCachedData<Product[]>(CACHE_KEYS.PRODUCTS);
+      const cachedProducts = getCachedData<Product[]>(productsCacheKey);
       
       if (cachedProducts && cachedProducts.length > 0) {
         console.log('📦 Using cached products');
@@ -26,7 +32,7 @@ export const useProducts = () => {
         setLoading(false);
         
         // Background refresh if cache is stale
-        if (isCacheStale(CACHE_KEYS.PRODUCTS)) {
+        if (isCacheStale(productsCacheKey)) {
           refreshFromDB(true).catch(err => {
             console.error('Error refreshing products in background:', err);
           });
@@ -39,7 +45,7 @@ export const useProducts = () => {
     };
     
     loadProducts();
-  }, []);
+  }, [activeLocationId, productsCacheKey]);
   
   const isProductDuplicate = (productName: string, excludeId?: string): boolean => {
     return products.some(p => 
@@ -50,6 +56,15 @@ export const useProducts = () => {
   
   const addProduct = (product: Omit<Product, 'id'>) => {
     try {
+      if (!activeLocationId) {
+        toast({
+          title: 'Error',
+          description: 'Select a branch before adding products.',
+          variant: 'destructive',
+        });
+        throw new Error('No branch selected');
+      }
+
       if (isProductDuplicate(product.name)) {
         toast({
           title: 'Error',
@@ -70,11 +85,14 @@ export const useProducts = () => {
       setProducts(prev => [...prev, newProduct]);
       
       // ✅ Invalidate cache
-      invalidateCache(CACHE_KEYS.PRODUCTS);
+      invalidateCache(productsCacheKey);
       
       supabase
         .from('products')
-        .insert(convertToSupabaseProduct(newProduct))
+        .insert({
+          ...convertToSupabaseProduct(newProduct),
+          location_id: activeLocationId!,
+        })
         .then(({ error }) => {
           if (error) {
             console.error('Error adding product to DB:', error);
@@ -89,7 +107,7 @@ export const useProducts = () => {
             // Update cache after successful DB insert
             setProducts(prev => {
               const updated = [...prev];
-              saveToCache(CACHE_KEYS.PRODUCTS, updated);
+              saveToCache(productsCacheKey, updated);
               return updated;
             });
           }
@@ -138,17 +156,18 @@ export const useProducts = () => {
       setProducts(prev => {
         const updated = prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.PRODUCTS, updated);
+        saveToCache(productsCacheKey, updated);
         return updated;
       });
       
       // ✅ Invalidate cache
-      invalidateCache(CACHE_KEYS.PRODUCTS);
+      invalidateCache(productsCacheKey);
       
       supabase
         .from('products')
         .update(convertToSupabaseProduct(updatedProduct))
         .eq('id', updatedProduct.id)
+        .eq('location_id', activeLocationId!)
         .then(({ error }) => {
           if (error) {
             console.error('Error updating product in DB:', error);
@@ -160,13 +179,16 @@ export const useProducts = () => {
             });
             return supabase
               .from('products')
-              .insert(convertToSupabaseProduct(updatedProduct));
+              .insert({
+                ...convertToSupabaseProduct(updatedProduct),
+                location_id: activeLocationId!,
+              });
           } else {
             console.log('Product updated in DB:', updatedProduct.name);
             // Update cache after successful DB update
             setProducts(prev => {
               const updated = prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-              saveToCache(CACHE_KEYS.PRODUCTS, updated);
+              saveToCache(productsCacheKey, updated);
               return updated;
             });
           }
@@ -205,17 +227,18 @@ export const useProducts = () => {
       setProducts(prev => {
         const updated = prev.filter(p => p.id !== id);
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.PRODUCTS, updated);
+        saveToCache(productsCacheKey, updated);
         return updated;
       });
       
       // ✅ Invalidate cache
-      invalidateCache(CACHE_KEYS.PRODUCTS);
+      invalidateCache(productsCacheKey);
       
       supabase
         .from('products')
         .delete()
         .eq('id', id)
+        .eq('location_id', activeLocationId!)
         .then(({ error }) => {
           if (error) {
             console.error('Error deleting product from DB:', error);
@@ -230,7 +253,7 @@ export const useProducts = () => {
             // Update cache after successful DB delete
             setProducts(prev => {
               const updated = prev.filter(p => p.id !== id);
-              saveToCache(CACHE_KEYS.PRODUCTS, updated);
+              saveToCache(productsCacheKey, updated);
               return updated;
             });
           }
@@ -261,6 +284,12 @@ export const useProducts = () => {
   
   const refreshFromDB = async (silent: boolean = false) => {
     try {
+      if (!activeLocationId) {
+        setProducts([]);
+        if (!silent) setLoading(false);
+        return [];
+      }
+
       if (!silent) {
         setLoading(true);
         setError(null);
@@ -279,6 +308,7 @@ export const useProducts = () => {
         const { data, error } = await supabase
           .from('products')
           .select(selectFields) // ✅ Only fetch needed columns
+          .eq('location_id', activeLocationId)
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
@@ -347,7 +377,7 @@ export const useProducts = () => {
         console.log('✅ Refreshed from DB:', allProducts.length);
         
         // ✅ Save to cache
-        saveToCache(CACHE_KEYS.PRODUCTS, allProducts);
+        saveToCache(productsCacheKey, allProducts);
         
         return allProducts;
       } else {
@@ -360,7 +390,7 @@ export const useProducts = () => {
         }
         
         const emptyProducts = resetToInitialProducts();
-        saveToCache(CACHE_KEYS.PRODUCTS, emptyProducts);
+        saveToCache(productsCacheKey, emptyProducts);
         return emptyProducts;
       }
     } catch (error) {

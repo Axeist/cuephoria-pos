@@ -65,10 +65,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { data: stations, error } = await supabase
+    const locationId = req.query?.location_id || null;
+
+    let query = supabase
       .from("stations")
       .select("id, name, type, hourly_rate, is_occupied")
       .order("name");
+
+    if (locationId) {
+      query = query.eq("location_id", locationId);
+    }
+
+    const { data: stations, error } = await query;
 
     if (error) {
       console.error("❌ Error fetching stations:", error);

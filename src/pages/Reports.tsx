@@ -27,6 +27,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import type { Bill } from '@/types/pos.types';
+import { useLocation } from '@/context/LocationContext';
+import { Badge } from '@/components/ui/badge';
+import { MapPin, Globe } from 'lucide-react';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -55,6 +58,7 @@ const ReportsPage: React.FC = () => {
   
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { activeLocationId, activeLocation, reportScope, setReportScope } = useLocation();
 
   // ============================================================
   // Reports bills loader (always load ALL bills in selected range)
@@ -168,7 +172,7 @@ const ReportsPage: React.FC = () => {
 
       try {
         while (!finished) {
-          const { data, error } = await supabase
+          let query = supabase
             .from('bills')
             .select(`
               id,
@@ -201,6 +205,13 @@ const ReportsPage: React.FC = () => {
             .lte('created_at', date.to.toISOString())
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          // Filter by active location when scope is 'location'
+          if (reportScope === 'location' && activeLocationId) {
+            query = (query as any).eq('location_id', activeLocationId);
+          }
+
+          const { data, error } = await query;
 
           if (error) {
             throw error;
@@ -236,7 +247,7 @@ const ReportsPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [date?.from, date?.to]);
+  }, [date?.from, date?.to, reportScope, activeLocationId]);
 
   // Memoize customer lookup functions to prevent expensive recalculations
   const customerLookup = useMemo(() => {
@@ -1598,7 +1609,35 @@ const ReportsPage: React.FC = () => {
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 min-h-screen text-white bg-transparent">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
-        <h1 className="text-2xl sm:text-4xl font-bold gradient-text font-heading">Reports</h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl sm:text-4xl font-bold gradient-text font-heading">Reports</h1>
+          {activeLocation && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setReportScope('location')}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-colors ${
+                  reportScope === 'location'
+                    ? 'bg-cuephoria-purple/30 border-cuephoria-lightpurple text-cuephoria-lightpurple font-semibold'
+                    : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                <MapPin className="h-3 w-3" />
+                {activeLocation.name} only
+              </button>
+              <button
+                onClick={() => setReportScope('all')}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-colors ${
+                  reportScope === 'all'
+                    ? 'bg-blue-900/30 border-blue-400 text-blue-300 font-semibold'
+                    : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                <Globe className="h-3 w-3" />
+                All locations
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
           <Select value={dateRangeKey} onValueChange={handleDateRangeChange}>
             <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700 text-white text-sm">

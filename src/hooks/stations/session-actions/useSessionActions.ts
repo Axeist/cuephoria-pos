@@ -7,11 +7,13 @@ import { useToast } from '@/hooks/use-toast';
 import { generateId } from '@/utils/pos.utils';
 import { Session, SessionResult, Customer } from '@/types/pos.types';
 import { isMembershipActive } from '@/utils/membership.utils';
+import { useLocation } from '@/context/LocationContext';
 
 export const useSessionActions = (props: SessionActionsProps) => {
   const { stations, setStations, sessions, setSessions, updateCustomer } = props;
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const { activeLocationId } = useLocation();
   
   // Get the functionality from existing hooks
   const startSessionHook = useStartSession(props);
@@ -85,6 +87,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
             original_rate: originalRate,     // ADDED
             coupon_code: couponCode,         // ADDED
             discount_amount: discountAmount, // ADDED
+            location_id: activeLocationId,
             // No end_time or duration, making it persist until explicitly ended
           } as any)
           .select();

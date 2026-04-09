@@ -93,8 +93,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       finalPrice, 
       appliedCoupons,
       orderId,
-      payment_mode = "venue"
+      payment_mode = "venue",
+      location_id: locationIdRaw,
     } = payload;
+
+    const location_id =
+      typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;
+    if (!location_id) {
+      return j(res, { ok: false, error: "Missing location_id (branch)" }, 400);
+    }
 
     // Validate required fields
     const slotsToBook = Array.isArray(selectedSlots) && selectedSlots.length > 0
@@ -123,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from("customers")
         .select("id")
         .eq("phone", normalizedPhone)
+        .eq("location_id", location_id)
         .maybeSingle();
       
       if (searchError && searchError.code !== "PGRST116") {
@@ -148,6 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             loyalty_points: 0,
             total_spent: 0,
             total_play_time: 0,
+            location_id: location_id,
           })
           .select("id")
           .single();
@@ -172,6 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select("id, station_id, start_time, end_time")
       .in("station_id", selectedStations)
       .eq("booking_date", selectedDate)
+      .eq("location_id", location_id)
       .in("status", ["confirmed", "in-progress"]);
 
     if (checkError) {
@@ -221,6 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select("id, station_id, session_id")
         .in("station_id", selectedStations)
         .eq("booking_date", selectedDate)
+        .eq("location_id", location_id)
         .eq("start_time", slot.start_time)
         .eq("end_time", slot.end_time)
         .gt("expires_at", new Date().toISOString())
@@ -251,6 +262,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const blockRows = (slotsToBook as any[]).flatMap((slot) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
+        location_id: location_id,
         booking_date: selectedDate,
         start_time: slot.start_time,
         end_time: slot.end_time,
@@ -285,6 +297,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       selectedStations.map((stationId: string) => ({
         station_id: stationId,
         customer_id: customerId,
+        location_id: location_id,
         booking_date: selectedDate,
         start_time: slot.start_time,
         end_time: slot.end_time,
@@ -315,6 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .delete()
         .eq("booking_date", selectedDate)
         .eq("session_id", sessionId)
+        .eq("location_id", location_id)
         .eq("is_confirmed", false);
       
       return j(res, { ok: false, error: "Failed to create booking", details: bookingError.message }, 500);
@@ -327,6 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .update({ is_confirmed: true })
       .eq("booking_date", selectedDate)
       .eq("session_id", sessionId)
+      .eq("location_id", location_id)
       .eq("is_confirmed", false);
 
     console.log("✅ Booking created successfully:", inserted.length, "records");

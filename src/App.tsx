@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { LocationProvider } from "@/context/LocationContext";
+import { LocationSwitcher } from "@/components/LocationSwitcher";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
 import { BookingNotificationProvider } from "@/context/BookingNotificationContext";
@@ -111,17 +113,21 @@ const ProtectedRoute = ({
   }
 
   return (
-    <POSProvider>
-      <ExpenseProvider>
-        <BookingNotificationProvider>
-          <SidebarProvider>
-            <div className="flex min-h-screen w-full overflow-x-hidden relative">
-              <AppSidebar />
-              <div className="flex-1 flex flex-col overflow-x-hidden">
-                <div className="hidden md:flex items-center justify-between px-4 py-2 border-b">
-                  <SidebarTrigger />
-                  <GlobalNotificationBell />
-                </div>
+    <LocationProvider>
+      <POSProvider>
+        <ExpenseProvider>
+          <BookingNotificationProvider>
+            <SidebarProvider>
+              <div className="flex min-h-screen w-full overflow-x-hidden relative">
+                <AppSidebar />
+                <div className="flex-1 flex flex-col overflow-x-hidden">
+                  <div className="hidden md:flex items-center justify-between px-4 py-2 border-b gap-3">
+                    <SidebarTrigger />
+                    <div className="flex items-center gap-3 ml-auto">
+                      <LocationSwitcher />
+                      <GlobalNotificationBell />
+                    </div>
+                  </div>
                 <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
                   {children}
                 </div>
@@ -129,11 +135,12 @@ const ProtectedRoute = ({
                   Designed & Developed by RK.
                 </footer>
               </div>
-            </div>
-          </SidebarProvider>
-        </BookingNotificationProvider>
-      </ExpenseProvider>
-    </POSProvider>
+              </div>
+            </SidebarProvider>
+          </BookingNotificationProvider>
+        </ExpenseProvider>
+      </POSProvider>
+    </LocationProvider>
   );
 };
 
@@ -198,6 +205,9 @@ const App = () => {
                 <Route path="/public/tournaments" element={<PublicTournaments />} />
                 <Route path="/public/stations" element={<PublicStations />} />
                 <Route path="/public/booking" element={<PublicBooking />} />
+                <Route path="/lite/public/booking" element={<PublicBooking branchSlug="lite" />} />
+                <Route path="/lite/public/stations" element={<PublicStations branchSlug="lite" />} />
+                <Route path="/lite/public/tournaments" element={<PublicTournaments branchSlug="lite" />} />
 
                 {/* Customer routes */}
                 <Route path="/customer/login" element={<CustomerLogin />} />

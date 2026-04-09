@@ -4,6 +4,7 @@ import { usePOS } from './POSContext';
 import { generateId } from '@/utils/pos.utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
+import { useLocation } from '@/context/LocationContext';
 
 interface ExpenseContextType {
   expenses: Expense[];
@@ -39,15 +40,19 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
   const { bills } = usePOS();
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
 
   const fetchExpenses = async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data: supabaseExpenses, error: supabaseError } = await (supabase
-        .from('expenses' as any)
-        .select('*')
-        .order('date', { ascending: false }) as any);
+      let query = (supabase.from('expenses' as any).select('*').order('date', { ascending: false }) as any);
+
+      if (activeLocationId) {
+        query = query.eq('location_id', activeLocationId);
+      }
+
+      const { data: supabaseExpenses, error: supabaseError } = await query;
 
       if (supabaseError) {
         const storedExpenses = localStorage.getItem(STORAGE_KEY);
@@ -162,7 +167,8 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           frequency: newExpense.frequency,
           date: newExpense.date,
           is_recurring: newExpense.isRecurring,
-          notes: newExpense.notes || null
+          notes: newExpense.notes || null,
+          ...(activeLocationId ? { location_id: activeLocationId } : {}),
         }) as any);
 
       if (supabaseError) {
@@ -184,7 +190,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const updateExpense = async (expense: Expense): Promise<boolean> => {
     try {
-      const { error: supabaseError } = await (supabase
+      let query: any = supabase
         .from('expenses' as any)
         .update({
           name: expense.name,
@@ -194,7 +200,14 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           date: expense.date,
           is_recurring: expense.isRecurring,
           notes: expense.notes || null
-        }).eq('id', expense.id) as any);
+        })
+        .eq('id', expense.id);
+
+      if (activeLocationId) {
+        query = query.eq('location_id', activeLocationId);
+      }
+
+      const { error: supabaseError } = await query;
 
       if (supabaseError) {
         const msg = handleSupabaseError(supabaseError, 'updating expense');
@@ -215,7 +228,11 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteExpense = async (id: string): Promise<boolean> => {
     try {
-      const { error: supabaseError } = await (supabase.from('expenses' as any).delete().eq('id', id) as any);
+      let query: any = supabase.from('expenses' as any).delete().eq('id', id);
+      if (activeLocationId) {
+        query = query.eq('location_id', activeLocationId);
+      }
+      const { error: supabaseError } = await query;
       if (supabaseError) {
         const msg = handleSupabaseError(supabaseError, 'deleting expense');
         toast({ title: 'Error', description: msg, variant: 'destructive' });
@@ -232,7 +249,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  useEffect(() => { fetchExpenses(); }, []);
+  useEffect(() => { fetchExpenses(); }, [activeLocationId]);
   useEffect(() => { calculateBusinessSummary(); }, [bills, expenses]);
 
   const contextValue: ExpenseContextType = {

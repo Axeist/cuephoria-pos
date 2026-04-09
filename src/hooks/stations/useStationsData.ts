@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Station, Session } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { generateId } from '@/utils/pos.utils';
-import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { useLocation } from '@/context/LocationContext';
 
 /**
  * Hook to load and manage station data from Supabase
@@ -13,10 +14,15 @@ export const useStationsData = () => {
   const [stationsLoading, setStationsLoading] = useState<boolean>(false);
   const [stationsError, setStationsError] = useState<Error | null>(null);
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
+  const stationsCacheKey = useMemo(
+    () => cacheKeyWithLocation(CACHE_KEYS.STATIONS, activeLocationId),
+    [activeLocationId]
+  );
   
   const refreshStations = async (silent: boolean = false) => {
     // ✅ Check cache first
-    const cachedStations = getCachedData<Station[]>(CACHE_KEYS.STATIONS);
+    const cachedStations = getCachedData<Station[]>(stationsCacheKey);
     
     if (cachedStations && cachedStations.length > 0 && !silent) {
       console.log('📦 Using cached stations');
@@ -24,7 +30,7 @@ export const useStationsData = () => {
       setStationsLoading(false);
       
       // Background refresh if cache is stale
-      if (isCacheStale(CACHE_KEYS.STATIONS)) {
+      if (isCacheStale(stationsCacheKey)) {
         refreshStationsFromDB(true).catch(err => {
           console.error('Error refreshing stations in background:', err);
         });
@@ -36,6 +42,12 @@ export const useStationsData = () => {
   };
   
   const refreshStationsFromDB = async (silent: boolean = false) => {
+    if (!activeLocationId) {
+      setStations([]);
+      if (!silent) setStationsLoading(false);
+      return;
+    }
+
     if (!silent) {
       setStationsLoading(true);
       setStationsError(null);
@@ -55,6 +67,7 @@ export const useStationsData = () => {
         const { data, error } = await supabase
           .from('stations')
           .select(selectFields) // ✅ Only fetch needed columns
+          .eq('location_id', activeLocationId)
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
           
@@ -138,7 +151,7 @@ export const useStationsData = () => {
         
         setStations(transformedStations);
         // ✅ Save to cache
-        saveToCache(CACHE_KEYS.STATIONS, transformedStations);
+        saveToCache(stationsCacheKey, transformedStations);
         console.log("✅ Loaded stations from Supabase:", transformedStations.length, "stations");
       } else {
         console.log("No stations found in Supabase");
@@ -149,7 +162,7 @@ export const useStationsData = () => {
           });
         }
         setStations([]);
-        saveToCache(CACHE_KEYS.STATIONS, []);
+        saveToCache(stationsCacheKey, []);
       }
     } catch (error) {
       console.error('Error in fetchStations:', error);
@@ -253,7 +266,8 @@ export const useStationsData = () => {
         const { data: sessionsData, error: sessionsError } = await supabase
           .from('sessions')
           .select('id')
-          .eq('station_id', stationId);
+          .eq('station_id', stationId)
+          .eq('location_id', activeLocationId);
           
         if (sessionsError) {
           console.error('Error checking sessions:', sessionsError);
@@ -272,7 +286,8 @@ export const useStationsData = () => {
             .from('bill_items')
             .select('bill_id')
             .in('item_id', sessionIds)
-            .eq('item_type', 'session');
+            .eq('item_type', 'session')
+            .eq('location_id', activeLocationId);
             
           if (billItemsError) {
             console.error('Error checking bill items:', billItemsError);
@@ -340,7 +355,7 @@ export const useStationsData = () => {
   
   useEffect(() => {
     refreshStations();
-  }, []);
+  }, [activeLocationId]);
   
   return {
     stations,

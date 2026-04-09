@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { usePOS } from '@/context/POSContext';
+import { useLocation } from '@/context/LocationContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
 import { generateId } from '@/utils/pos.utils';
@@ -37,6 +38,7 @@ interface AddStationDialogProps {
 const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange }) => {
   const { toast } = useToast();
   const { stations, setStations } = usePOS();
+  const { activeLocationId } = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Initialize the form
@@ -58,6 +60,16 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
     setIsSubmitting(true);
     
     try {
+      if (!activeLocationId) {
+        toast({
+          title: "Error",
+          description: "Select a branch before adding a station.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       // Generate a proper UUID for the new station
       const stationId = crypto.randomUUID();
 
@@ -97,7 +109,8 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
           is_occupied: false,
           category: values.category === 'nit_event' ? 'nit_event' : null,
           event_enabled: publicEnabled,
-          slot_duration: slotDuration
+          slot_duration: slotDuration,
+          location_id: activeLocationId,
         });
       
       if (error) {

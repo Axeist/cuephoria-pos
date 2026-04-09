@@ -2,17 +2,20 @@ import React, { useState } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import { Card, CardContent } from '@/components/ui/card';
-import { Gamepad2, Plus, Table2, Headset, Calendar, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Gamepad2, Plus, Table2, Headset, Calendar, ToggleLeft, ToggleRight, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddStationDialog from '@/components/AddStationDialog';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from '@/context/LocationContext';
+import { Badge } from '@/components/ui/badge';
 
 const Stations = () => {
   const { stations, setStations } = usePOS();
   const { toast } = useToast();
+  const { activeLocation, activeLocationId } = useLocation();
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
   const isMobile = useIsMobile();
@@ -52,15 +55,25 @@ const Stations = () => {
   };
 
   const handleToggleAllEventStations = async (enable: boolean) => {
+    if (!activeLocationId) {
+      toast({
+        title: 'Select a branch',
+        description: 'Choose Main or Lite in the header before changing event stations.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('stations')
         .update({ event_enabled: enable })
-        .eq('category', 'nit_event');
+        .eq('category', 'nit_event')
+        .eq('location_id', activeLocationId);
       
       if (error) throw error;
       
-      // Update local state
+      // Update local state (POS list is already scoped to this branch)
       setStations(stations.map(s => 
         s.category === 'nit_event'
           ? { ...s, eventEnabled: enable }
@@ -81,6 +94,12 @@ const Stations = () => {
     }
   };
 
+  const branchSlug = activeLocation?.slug ?? '';
+  const branchBannerClass =
+    branchSlug === 'lite'
+      ? 'border-l-4 border-l-amber-400 bg-gradient-to-r from-amber-950/40 to-transparent border border-amber-500/25'
+      : 'border-l-4 border-l-cuephoria-lightpurple bg-gradient-to-r from-cuephoria-purple/15 to-transparent border border-cuephoria-purple/25';
+
   return (
     <div className="flex-1 space-y-3 sm:space-y-4 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6">
       {/* Mobile-optimized header */}
@@ -96,6 +115,49 @@ const Stations = () => {
           </Button>
         </div>
       </div>
+
+      {/* Branch scope: Main vs Lite — all grids below are for this venue only */}
+      {activeLocation && (
+        <div
+          className={`rounded-xl px-4 py-3 sm:px-5 sm:py-4 animate-slide-down delay-75 ${branchBannerClass}`}
+          role="region"
+          aria-label={`Stations for ${activeLocation.name}`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-start gap-3">
+              <div
+                className={`mt-0.5 rounded-lg p-2 ${
+                  branchSlug === 'lite' ? 'bg-amber-500/15 text-amber-200' : 'bg-cuephoria-purple/25 text-cuephoria-lightpurple'
+                }`}
+              >
+                <MapPin className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+              </div>
+              <div>
+                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Stations for this branch
+                </p>
+                <p className="text-base sm:text-lg font-semibold font-heading text-foreground mt-0.5">
+                  {activeLocation.name}
+                </p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl">
+                  PlayStation, pool, VR, and event stations shown here apply only to this location. Switch branch in the header
+                  to manage the other venue.
+                </p>
+              </div>
+            </div>
+            <Badge
+              variant="outline"
+              className={`shrink-0 w-fit text-[10px] sm:text-xs uppercase tracking-wide ${
+                branchSlug === 'lite'
+                  ? 'border-amber-400/50 text-amber-100 bg-amber-950/40'
+                  : 'border-cuephoria-lightpurple/40 text-cuephoria-lightpurple bg-cuephoria-purple/10'
+              }`}
+            >
+              {branchSlug === 'lite' ? 'Cuephoria Lite' : branchSlug === 'main' ? 'Main' : activeLocation.short_code}
+            </Badge>
+          </div>
+        </div>
+      )}
 
       {/* PIN Verification Dialog */}
       <PinVerificationDialog 

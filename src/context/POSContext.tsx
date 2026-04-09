@@ -16,6 +16,7 @@ import { useCart } from '@/hooks/useCart';
 import { useBills } from '@/hooks/useBills';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
+import { useLocation } from '@/context/LocationContext';
 import { 
   saveCartToStorage, 
   loadCartFromStorage, 
@@ -164,6 +165,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   } = useBills(updateCustomer, updateProduct);
 
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
 
   // ============================================
   // CART PERSISTENCE: Cleanup expired carts on mount
@@ -229,9 +231,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
+        if (!activeLocationId) return;
+
         const { data, error } = await supabase
           .from('categories')
-          .select('name');
+          .select('name')
+          .eq('location_id', activeLocationId);
         
         if (error) {
           console.error('Error fetching categories:', error);
@@ -245,7 +250,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               await supabase
                 .from('categories')
-                .insert({ name: 'uncategorized' });
+                .insert({ name: 'uncategorized', location_id: activeLocationId });
                 
               dbCategories.push('uncategorized');
             } catch (err) {
@@ -263,7 +268,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               await supabase
                 .from('categories')
-                .insert({ name: category.toLowerCase() });
+                .insert({ name: category.toLowerCase(), location_id: activeLocationId });
             } catch (err) {
               console.error(`Error creating category ${category}:`, err);
             }
@@ -279,7 +284,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     fetchCategories();
-  }, []);
+  }, [activeLocationId]);
 
   const addCategory = async (category: string) => {
     try {
@@ -300,7 +305,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       const { error } = await supabase
         .from('categories')
-        .insert({ name: trimmedCategory });
+        .insert({ name: trimmedCategory, location_id: activeLocationId });
         
       if (error) {
         console.error('Error adding category to Supabase:', error);
@@ -361,7 +366,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { error } = await supabase
         .from('categories')
         .update({ name: trimmedNewCategory })
-        .eq('name', oldCategory.toLowerCase());
+        .eq('name', oldCategory.toLowerCase())
+        .eq('location_id', activeLocationId);
         
       if (error) {
         console.error('Error updating category in Supabase:', error);
@@ -384,7 +390,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { error: updateProductsError } = await supabase
         .from('products')
         .update({ category: trimmedNewCategory })
-        .eq('category', oldCategory);
+        .eq('category', oldCategory)
+        .eq('location_id', activeLocationId);
         
       if (updateProductsError) {
         console.error('Error updating products category in Supabase:', updateProductsError);
@@ -432,7 +439,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { error } = await supabase
         .from('categories')
         .delete()
-        .eq('name', lowerCategory);
+        .eq('name', lowerCategory)
+        .eq('location_id', activeLocationId);
         
       if (error) {
         console.error('Error deleting category from Supabase:', error);
@@ -456,7 +464,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { error: updateProductsError } = await supabase
           .from('products')
           .update({ category: 'uncategorized' })
-          .eq('category', lowerCategory);
+          .eq('category', lowerCategory)
+          .eq('location_id', activeLocationId);
           
         if (updateProductsError) {
           console.error('Error updating products category in Supabase:', updateProductsError);

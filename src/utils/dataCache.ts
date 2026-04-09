@@ -156,3 +156,9 @@ export const CACHE_KEYS = {
   BOOKINGS: 'cuephoria_bookings_cache',
 } as const;
 
+/** Namespaces cache keys per venue so switching branches does not show stale data. */
+export function cacheKeyWithLocation(base: string, locationId: string | null | undefined): string {
+  if (!locationId) return base;
+  return `${base}__${locationId}`;
+}
+

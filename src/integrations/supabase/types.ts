@@ -92,6 +92,7 @@ export type Database = {
           discount_value: number
           id: string
           is_split_payment: boolean | null
+          location_id: string | null
           loyalty_points_earned: number
           loyalty_points_used: number
           payment_method: string
@@ -108,6 +109,7 @@ export type Database = {
           discount_value?: number
           id?: string
           is_split_payment?: boolean | null
+          location_id?: string | null
           loyalty_points_earned?: number
           loyalty_points_used?: number
           payment_method: string
@@ -124,6 +126,7 @@ export type Database = {
           discount_value?: number
           id?: string
           is_split_payment?: boolean | null
+          location_id?: string | null
           loyalty_points_earned?: number
           loyalty_points_used?: number
           payment_method?: string
@@ -319,6 +322,7 @@ export type Database = {
           closing_balance: number
           date: string
           id: string
+          location_id: string
           opening_balance: number
           total_deposits: number
           total_sales: number
@@ -329,6 +333,7 @@ export type Database = {
           closing_balance?: number
           date?: string
           id?: string
+          location_id: string
           opening_balance?: number
           total_deposits?: number
           total_sales?: number
@@ -339,6 +344,7 @@ export type Database = {
           closing_balance?: number
           date?: string
           id?: string
+          location_id?: string
           opening_balance?: number
           total_deposits?: number
           total_sales?: number
@@ -389,18 +395,21 @@ export type Database = {
         Row: {
           current_amount: number
           id: string
+          location_id: string
           updated_at: string
           updated_by: string
         }
         Insert: {
           current_amount?: number
           id?: string
+          location_id: string
           updated_at?: string
           updated_by: string
         }
         Update: {
           current_amount?: number
           id?: string
+          location_id?: string
           updated_at?: string
           updated_by?: string
         }
@@ -412,6 +421,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          location_id: string
           notes: string | null
           person_name: string
           remarks: string | null
@@ -423,6 +433,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          location_id: string
           notes?: string | null
           person_name: string
           remarks?: string | null
@@ -434,6 +445,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          location_id?: string
           notes?: string | null
           person_name?: string
           remarks?: string | null
@@ -446,16 +458,19 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          location_id: string | null
           name: string
         }
         Insert: {
           created_at?: string | null
           id?: string
+          location_id?: string | null
           name: string
         }
         Update: {
           created_at?: string | null
           id?: string
+          location_id?: string | null
           name?: string
         }
         Relationships: []
@@ -511,6 +526,7 @@ export type Database = {
           email: string | null
           id: string
           is_member: boolean
+          location_id: string | null
           loyalty_points: number
           membership_duration: string | null
           membership_expiry_date: string | null
@@ -529,6 +545,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_member?: boolean
+          location_id?: string | null
           loyalty_points?: number
           membership_duration?: string | null
           membership_expiry_date?: string | null
@@ -547,6 +564,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_member?: boolean
+          location_id?: string | null
           loyalty_points?: number
           membership_duration?: string | null
           membership_expiry_date?: string | null
@@ -597,6 +615,7 @@ export type Database = {
           frequency: string
           id: string
           is_recurring: boolean
+          location_id: string | null
           name: string
           notes: string | null
         }
@@ -608,6 +627,7 @@ export type Database = {
           frequency: string
           id: string
           is_recurring?: boolean
+          location_id?: string | null
           name: string
           notes?: string | null
         }
@@ -619,6 +639,7 @@ export type Database = {
           frequency?: string
           id?: string
           is_recurring?: boolean
+          location_id?: string | null
           name?: string
           notes?: string | null
         }
@@ -737,6 +758,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      location_settings: {
+        Row: {
+          id: string
+          location_id: string
+          key: string
+          value: unknown
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          location_id: string
+          key: string
+          value: unknown
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          location_id?: string
+          key?: string
+          value?: unknown
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      locations: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          short_code: string | null
+          address: string | null
+          is_active: boolean
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          short_code?: string | null
+          address?: string | null
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          short_code?: string | null
+          address?: string | null
+          is_active?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       loyalty_transactions: {
         Row: {

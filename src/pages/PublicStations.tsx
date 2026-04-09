@@ -5,7 +5,11 @@ import { Station, Session } from '@/types/pos.types';
 import Logo from '@/components/Logo';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
-const PublicStations = () => {
+type PublicVenue = { id: string; name: string; slug: string };
+
+const PublicStations = ({ branchSlug = 'main' }: { branchSlug?: string }) => {
+  const [publicVenue, setPublicVenue] = useState<PublicVenue | null>(null);
+  const [resolvingVenue, setResolvingVenue] = useState(true);
   const [stations, setStations] = useState<Station[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +19,41 @@ const PublicStations = () => {
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setResolvingVenue(true);
+      setLoading(true);
+      const { data } = await supabase
+        .from('locations')
+        .select('id, name, slug')
+        .eq('slug', branchSlug)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!cancelled) {
+        setPublicVenue(
+          data?.id
+            ? { id: data.id, name: data.name ?? branchSlug, slug: data.slug ?? branchSlug }
+            : null
+        );
+        setResolvingVenue(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [branchSlug]);
+
+  useEffect(() => {
+    if (resolvingVenue) return;
+
+    if (!publicVenue?.id) {
+      setLoading(false);
+      setRefreshing(false);
+      setStations([]);
+      setSessions([]);
+      return;
+    }
+
+    const locationId = publicVenue.id;
+
     const fetchData = async () => {
       setRefreshing(true);
       
@@ -31,6 +70,7 @@ const PublicStations = () => {
           const { data, error: stationsError } = await supabase
             .from('stations')
             .select('*')
+            .eq('location_id', locationId)
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
             
@@ -63,6 +103,7 @@ const PublicStations = () => {
           const { data, error: sessionsError } = await supabase
             .from('sessions')
             .select('*')
+            .eq('location_id', locationId)
             .is('end_time', null)
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -153,7 +194,7 @@ const PublicStations = () => {
       clearInterval(refreshInterval);
       clearInterval(countdownInterval);
     };
-  }, []);
+  }, [publicVenue?.id, resolvingVenue]);
 
   // Calculate session duration in minutes
   const getSessionDuration = (startTime: Date) => {
@@ -175,13 +216,40 @@ const PublicStations = () => {
   const ballStations = stations.filter(station => station.type === '8ball');
   const vrStations = stations.filter(station => station.type === 'vr');
 
-  if (loading) {
+  if (resolvingVenue || loading) {
     return <ImprovedLoadingView error={loadingError} />;
   }
 
-  if (stations.length === 0 && !loading) {
-    return <NoStationsView error={loadingError} />;
+  if (!publicVenue) {
+    return (
+      <ImprovedLoadingView error={`No public venue found for “${branchSlug}”. Check the link or try Main / Lite.`} />
+    );
   }
+
+  if (stations.length === 0 && !loading) {
+    return <NoStationsView error={loadingError} venueName={publicVenue.name} />;
+  }
+
+  const isLiteBranch = publicVenue.slug === 'lite';
+  const venueBadgeClass = isLiteBranch
+    ? 'border-amber-400/50 bg-amber-950/35 text-amber-100'
+    : 'border-cuephoria-lightpurple/45 bg-cuephoria-purple/20 text-cuephoria-lightpurple';
+
+  const branchSectionCaption = (
+    <p
+      className={`mb-5 text-xs sm:text-sm max-w-3xl border-l-2 pl-3 ${
+        isLiteBranch ? 'border-amber-400/50 text-amber-100/80' : 'border-cuephoria-lightpurple/50 text-gray-400'
+      }`}
+    >
+      <span className="font-semibold text-white">{publicVenue.name}</span>
+      <span className="mx-1.5 text-gray-600">—</span>
+      <span>
+        {isLiteBranch
+          ? 'Lite branch: each section below lists only stations for this location (not Main).'
+          : 'Main branch: each section below lists only stations for this location (not Lite).'}
+      </span>
+    </p>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-r from-gray-900 to-black overflow-hidden">
@@ -196,11 +264,22 @@ const PublicStations = () => {
                 className="h-24 shadow-lg shadow-cuephoria-purple/30"
               />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-white font-heading bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple via-cuephoria-lightpurple to-cuephoria-blue animate-text-gradient">
-              Station Live Status
-            </h1>
-            <p className="mt-2 text-xl text-gray-300 max-w-2xl text-center">
-              Check the availability of our gaming stations in real-time
+            <div className="flex flex-col items-center gap-2 w-full max-w-3xl">
+              <h1 className="text-4xl md:text-5xl font-bold text-white font-heading bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple via-cuephoria-lightpurple to-cuephoria-blue animate-text-gradient text-center">
+                Station Live Status
+              </h1>
+              <div
+                className={`flex flex-wrap items-center justify-center gap-2 rounded-xl border px-4 py-2.5 ${venueBadgeClass}`}
+              >
+                <span className="text-xs uppercase tracking-wider text-gray-400">Location</span>
+                <span className="text-lg font-semibold text-white">{publicVenue.name}</span>
+                <span className="text-[10px] sm:text-xs uppercase tracking-widest opacity-90 px-2 py-0.5 rounded-md bg-black/25">
+                  {isLiteBranch ? 'Cuephoria Lite' : publicVenue.slug === 'main' ? 'Main venue' : publicVenue.slug}
+                </span>
+              </div>
+            </div>
+            <p className="mt-4 text-lg sm:text-xl text-gray-300 max-w-2xl text-center px-2">
+              Live availability for this branch only — not combined with other locations.
             </p>
             
             {/* Animated data freshness indicator */}
@@ -265,8 +344,10 @@ const PublicStations = () => {
           opacity: refreshing ? 0.7 : 1,
           transform: refreshing ? 'scale(0.99)' : 'scale(1)'
         }}>
+        <div className="mb-10">{branchSectionCaption}</div>
+
         {/* PlayStation Section */}
-        <section className="mb-12 animate-slide-up">
+        <section className="mb-12 animate-slide-up" aria-label={`PlayStation 5 at ${publicVenue.name}`}>
           <div className="flex items-center mb-6">
             <div className="w-10 h-10 rounded-xl bg-cuephoria-purple/20 flex items-center justify-center mr-3 animate-pulse-soft">
               <Gamepad2 className="h-5 w-5 text-cuephoria-lightpurple" />
@@ -292,7 +373,7 @@ const PublicStations = () => {
         </section>
         
         {/* Pool Tables Section */}
-        <section className="mb-12 animate-slide-up" style={{ animationDelay: '300ms' }}>
+        <section className="mb-12 animate-slide-up" style={{ animationDelay: '300ms' }} aria-label={`Pool tables at ${publicVenue.name}`}>
           <div className="flex items-center mb-6">
             <div className="w-10 h-10 rounded-xl bg-green-900/30 flex items-center justify-center mr-3 animate-pulse-soft">
               <Timer className="h-5 w-5 text-green-500" />
@@ -318,7 +399,7 @@ const PublicStations = () => {
         </section>
 
         {/* VR Gaming Section - NEW SECTION */}
-        <section className="animate-slide-up" style={{ animationDelay: '600ms' }}>
+        <section className="animate-slide-up" style={{ animationDelay: '600ms' }} aria-label={`VR stations at ${publicVenue.name}`}>
           <div className="flex items-center mb-6">
             <div className="w-10 h-10 rounded-xl bg-blue-900/30 flex items-center justify-center mr-3 animate-pulse-soft">
               <Headset className="h-5 w-5 text-blue-400" />
@@ -437,7 +518,7 @@ const ImprovedLoadingView = ({ error }: { error: string | null }) => {
 };
 
 // No Stations View
-const NoStationsView = ({ error }: { error: string | null }) => {
+const NoStationsView = ({ error, venueName }: { error: string | null; venueName?: string }) => {
   return (
     <div className="min-h-screen bg-gradient-to-r from-gray-900 to-black flex items-center justify-center">
       <div className="w-full max-w-md py-12 px-6 flex flex-col items-center justify-center animate-fade-in">
@@ -454,8 +535,13 @@ const NoStationsView = ({ error }: { error: string | null }) => {
             <div className="w-8 h-8 text-yellow-400">⚠️</div>
           </div>
           <h2 className="text-xl font-semibold text-white">No Stations Available</h2>
+          {venueName ? (
+            <p className="text-sm text-cuephoria-lightpurple/90 font-medium">
+              Branch: {venueName}
+            </p>
+          ) : null}
           <p className="text-gray-400">
-            {error || "There are currently no gaming stations in our system. Please check back later."}
+            {error || "There are currently no gaming stations configured for this location yet. Please check back later."}
           </p>
           <button 
             onClick={() => window.location.reload()}

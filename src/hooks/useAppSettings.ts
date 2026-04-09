@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from '@/context/LocationContext';
 
 export interface BusinessInfo {
   name: string;
@@ -135,10 +136,33 @@ export const useAppSettings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
 
   const loadSettings = async () => {
     try {
       setLoading(true);
+
+      if (activeLocationId) {
+        // Read per-branch settings from location_settings
+        const { data, error } = await (supabase as any)
+          .from('location_settings')
+          .select('key, value')
+          .eq('location_id', activeLocationId);
+
+        if (!error && data && data.length > 0) {
+          const loadedSettings: Partial<AppSettings> = { ...defaultSettings };
+          data.forEach((item: { key: string; value: any }) => {
+            const key = item.key as keyof AppSettings;
+            if (key in defaultSettings) {
+              (loadedSettings as any)[key] = item.value;
+            }
+          });
+          setSettings(loadedSettings as AppSettings);
+          return;
+        }
+      }
+
+      // Fallback: global app_settings (used when no location is active or location_settings is empty)
       const { data, error } = await supabase
         .from('app_settings')
         .select('key, value');
@@ -179,18 +203,37 @@ export const useAppSettings = () => {
         value: value as any
       }));
 
-      for (const update of updatesArray) {
-        const { error } = await supabase
-          .from('app_settings')
-          .upsert({
-            key: update.key,
-            value: update.value,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'key'
-          });
+      if (activeLocationId) {
+        // Save per-branch settings to location_settings
+        for (const update of updatesArray) {
+          const { error } = await (supabase as any)
+            .from('location_settings')
+            .upsert({
+              location_id: activeLocationId,
+              key: update.key,
+              value: update.value,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'location_id,key'
+            });
 
-        if (error) throw error;
+          if (error) throw error;
+        }
+      } else {
+        // Fallback: save to global app_settings
+        for (const update of updatesArray) {
+          const { error } = await supabase
+            .from('app_settings')
+            .upsert({
+              key: update.key,
+              value: update.value,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'key'
+            });
+
+          if (error) throw error;
+        }
       }
 
       setSettings(prev => ({ ...prev, ...updates }));
@@ -216,7 +259,7 @@ export const useAppSettings = () => {
 
   useEffect(() => {
     loadSettings();
-  }, []);
+  }, [activeLocationId]);
 
   return {
     settings,

@@ -60,14 +60,20 @@ export const determineWinner = (matches: Match[], players: Player[]): Player | u
   return undefined;
 };
 
-// Fetch all tournaments from Supabase
-export const fetchTournaments = async (): Promise<Tournament[]> => {
+// Fetch all tournaments from Supabase, scoped to a location when provided
+export const fetchTournaments = async (locationId?: string | null): Promise<Tournament[]> => {
   try {
-    const { data, error } = await tournamentsTable
+    let query = tournamentsTable
       .select()
       .select('*')
       .neq('status', 'archived')
       .order('created_at', { ascending: false });
+
+    if (locationId) {
+      query = (query as any).eq('location_id', locationId);
+    }
+
+    const { data, error } = await query;
       
     if (error) {
       console.error('Error fetching tournaments:', error);
@@ -324,8 +330,8 @@ export const useTournamentOperations = () => {
   const { user } = useAuth();
   
   return {
-    fetchTournaments: async () => {
-      const tournaments = await fetchTournaments();
+    fetchTournaments: async (locationId?: string | null) => {
+      const tournaments = await fetchTournaments(locationId);
       if (tournaments.length === 0) {
         console.log("No tournaments found or error occurred");
       }

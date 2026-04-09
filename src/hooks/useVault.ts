@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import type { Database } from '@/integrations/supabase/types'
 import { useToast } from '@/hooks/use-toast'
+import { useLocation } from '@/context/LocationContext'
 
 type VaultTransaction = Database['public']['Tables']['cash_vault_transactions']['Row']
 type CashVault = Database['public']['Tables']['cash_vault']['Row']
@@ -14,11 +15,12 @@ export const useVault = () => {
   const [openingBalance, setOpeningBalance] = useState(0)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const { activeLocationId } = useLocation()
 
   // Load initial data
   useEffect(() => {
     loadVaultData()
-  }, [])
+  }, [activeLocationId])
 
   // Set up real-time subscriptions
   useEffect(() => {
@@ -67,33 +69,16 @@ export const useVault = () => {
 
   const loadCurrentVault = async () => {
     try {
-      const { data, error } = await supabase
-        .from('cash_vault')
-        .select('*')
-        .single()
-
-      if (error && error.code === 'PGRST116') {
-        // Table is empty, initialize with default record
-        console.log('Vault table empty, initializing...')
-        const { data: newVault, error: insertError } = await supabase
-          .from('cash_vault')
-          .insert({ 
-            current_amount: 0, 
-            updated_by: 'system',
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single()
-
-        if (insertError) {
-          console.error('Error initializing vault:', insertError)
-          setCurrentCash(0)
-          return
-        }
-        
+      if (!activeLocationId) {
         setCurrentCash(0)
         return
       }
+
+      const { data, error } = await supabase
+        .from('cash_vault')
+        .select('*')
+        .eq('location_id', activeLocationId)
+        .maybeSingle()
 
       if (error) {
         console.error('Error loading vault:', error)
@@ -102,9 +87,26 @@ export const useVault = () => {
 
       if (data) {
         setCurrentCash(data.current_amount)
-      } else {
-        setCurrentCash(0)
+        return
       }
+
+      console.log('No vault row for location, initializing...')
+      const { error: insertError } = await supabase
+        .from('cash_vault')
+        .insert({
+          current_amount: 0,
+          updated_by: 'system',
+          updated_at: new Date().toISOString(),
+          location_id: activeLocationId,
+        })
+
+      if (insertError) {
+        console.error('Error initializing vault:', insertError)
+        setCurrentCash(0)
+        return
+      }
+
+      setCurrentCash(0)
     } catch (error) {
       console.error('Unexpected error in loadCurrentVault:', error)
       setCurrentCash(0)
@@ -113,9 +115,15 @@ export const useVault = () => {
 
   const loadTransactions = async () => {
     try {
+      if (!activeLocationId) {
+        setTransactions([])
+        return
+      }
+
       const { data, error } = await supabase
         .from('cash_vault_transactions')
         .select('*')
+        .eq('location_id', activeLocationId)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -132,13 +140,19 @@ export const useVault = () => {
 
   const loadTodaySummary = async () => {
     try {
+      if (!activeLocationId) {
+        setOpeningBalance(0)
+        return
+      }
+
       const today = new Date().toISOString().split('T')[0]
       
       const { data, error } = await supabase
         .from('cash_summary')
         .select('*')
         .eq('date', today)
-        .single()
+        .eq('location_id', activeLocationId)
+        .maybeSingle()
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error loading summary:', error)
@@ -159,6 +173,15 @@ export const useVault = () => {
     personName?: string,
     notes?: string
   ) => {
+    if (!activeLocationId) {
+      toast({
+        title: 'Error',
+        description: 'Select a branch before vault operations.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setLoading(true)
     try {
       console.log('Adding transaction:', { type, amount, personName, notes })
@@ -177,7 +200,8 @@ export const useVault = () => {
           remarks: null,
           transaction_number: `TXN-${Date.now()}`,
           created_by: 'current-user',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          location_id: activeLocationId,
         })
         .select()
         .single()
@@ -199,8 +223,9 @@ export const useVault = () => {
         .upsert({
           current_amount: newBalance,
           updated_by: 'current-user',
-          updated_at: new Date().toISOString()
-        })
+          updated_at: new Date().toISOString(),
+          location_id: activeLocationId,
+        }, { onConflict: 'location_id' })
 
       if (vaultError) {
         console.error('Vault update error:', vaultError)
@@ -236,6 +261,15 @@ export const useVault = () => {
     personName?: string,
     notes?: string
   ) => {
+    if (!activeLocationId) {
+      toast({
+        title: 'Error',
+        description: 'Select a branch before vault operations.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setLoading(true)
     try {
       // Find original transaction to reverse its effect
@@ -258,6 +292,7 @@ export const useVault = () => {
           notes: notes || null,
         })
         .eq('id', id)
+        .eq('location_id', activeLocationId)
 
       if (txnError) {
         console.error('Transaction update error:', txnError)
@@ -289,8 +324,9 @@ export const useVault = () => {
         .upsert({
           current_amount: newBalance,
           updated_by: 'current-user',
-          updated_at: new Date().toISOString()
-        })
+          updated_at: new Date().toISOString(),
+          location_id: activeLocationId,
+        }, { onConflict: 'location_id' })
 
       if (vaultError) {
         console.error('Vault update error:', vaultError)
@@ -319,6 +355,15 @@ export const useVault = () => {
   }
 
   const deleteTransaction = async (id: string) => {
+    if (!activeLocationId) {
+      toast({
+        title: 'Error',
+        description: 'Select a branch before vault operations.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setLoading(true)
     try {
       // Find transaction to reverse its effect
@@ -332,6 +377,7 @@ export const useVault = () => {
         .from('cash_vault_transactions')
         .delete()
         .eq('id', id)
+        .eq('location_id', activeLocationId)
 
       if (deleteError) {
         console.error('Transaction delete error:', deleteError)
@@ -350,8 +396,9 @@ export const useVault = () => {
         .upsert({
           current_amount: newBalance,
           updated_by: 'current-user',
-          updated_at: new Date().toISOString()
-        })
+          updated_at: new Date().toISOString(),
+          location_id: activeLocationId,
+        }, { onConflict: 'location_id' })
 
       if (vaultError) {
         console.error('Vault update error:', vaultError)
@@ -380,6 +427,15 @@ export const useVault = () => {
   }
 
   const setOpeningBalanceForToday = async () => {
+    if (!activeLocationId) {
+      toast({
+        title: 'Error',
+        description: 'Select a branch before vault operations.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setLoading(true)
     try {
       const today = new Date().toISOString().split('T')[0]
@@ -395,6 +451,7 @@ export const useVault = () => {
           updated_at: new Date().toISOString()
         })
         .eq('date', today)
+        .eq('location_id', activeLocationId)
         .select()
 
       if (updateError && updateError.code !== 'PGRST116') {
@@ -414,7 +471,8 @@ export const useVault = () => {
             total_sales: 0,
             total_deposits: 0,
             total_withdrawals: 0,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            location_id: activeLocationId,
           })
           .select()
 
@@ -432,6 +490,7 @@ export const useVault = () => {
                 updated_at: new Date().toISOString()
               })
               .eq('date', today)
+              .eq('location_id', activeLocationId)
 
             if (retryUpdateError) {
               throw retryUpdateError

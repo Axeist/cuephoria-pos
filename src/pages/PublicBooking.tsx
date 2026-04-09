@@ -200,9 +200,32 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
 /* =========================
    Component
    ========================= */
-export default function PublicBooking() {
+export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: string }) {
   const navigate = useNavigate();
-  
+
+  const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("locations")
+        .select("id")
+        .eq("slug", branchSlug)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (cancelled) return;
+      if (!error && data?.id) setPublicLocationId(data.id);
+      else {
+        console.warn("Branch slug not found or inactive:", branchSlug, error);
+        setPublicLocationId(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [branchSlug]);
+
   // Check if user is logged in as customer (for bottom nav)
   const customerSession = getCustomerSession();
   
@@ -284,17 +307,17 @@ export default function PublicBooking() {
     [hasSearched, customerNumber, customerInfo]
   );
 
-  // Fetch booking settings from database
-  // NOTE: TypeScript errors here are expected until migration is applied and types are regenerated
+  // Fetch booking settings from database (per branch)
   useEffect(() => {
+    if (!publicLocationId) return;
+
     const fetchBookingSettings = async () => {
       try {
-        // @ts-ignore - booking_settings table will exist after migration
-        // Fetch event name settings
         const { data: eventData, error: eventError } = await supabase
           .from('booking_settings')
           .select('setting_value')
           .eq('setting_key', 'event_name')
+          .eq('location_id', publicLocationId)
           .maybeSingle();
 
         if (!eventError && eventData) {
@@ -303,12 +326,11 @@ export default function PublicBooking() {
           setEventDescription(eventSettings.description || "Choose VR (15m) or PS5 Gaming (30m)");
         }
 
-        // @ts-ignore - booking_settings table will exist after migration
-        // Fetch coupons settings
         const { data: couponsData, error: couponsError } = await supabase
           .from('booking_settings')
           .select('setting_value')
           .eq('setting_key', 'booking_coupons')
+          .eq('location_id', publicLocationId)
           .maybeSingle();
 
         if (!couponsError && couponsData) {
@@ -344,7 +366,7 @@ export default function PublicBooking() {
     };
 
     fetchBookingSettings();
-  }, []);
+  }, [publicLocationId]);
 
   // When switching to EVENT, force-remove any applied coupons
   useEffect(() => {
@@ -378,9 +400,10 @@ export default function PublicBooking() {
   }, []);
 
   useEffect(() => {
+    if (!publicLocationId) return;
     fetchStations();
     fetchTodaysBookings();
-  }, []);
+  }, [publicLocationId]);
 
   // Check if there are enabled event stations for Event option
   const hasEnabledEventStations = useMemo(() => 
@@ -507,10 +530,12 @@ export default function PublicBooking() {
    // NOTE: Slot blocks auto-expire server-side; we do not attempt client-side cleanup.
 
   async function fetchStations() {
+    if (!publicLocationId) return;
     try {
       const { data, error } = await (supabase as any)
         .from("stations")
         .select("id, name, type, hourly_rate, team_name, team_color, max_capacity, single_rate, category, event_enabled, slot_duration")
+        .eq("location_id", publicLocationId)
         // Only show stations enabled for public booking.
         // For legacy regular stations where event_enabled is NULL, we still show them.
         .or("event_enabled.eq.true,and(category.is.null,event_enabled.is.null)")
@@ -967,12 +992,17 @@ export default function PublicBooking() {
       return;
     }
 
+    if (!publicLocationId) {
+      toast.error("Loading branch… please try again in a moment.");
+      return;
+    }
+
     setSearchingCustomer(true);
     try {
       const res = await fetch("/api/webhooks/get-customer", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ customer_phone: normalizedPhone }),
+        body: JSON.stringify({ customer_phone: normalizedPhone, location_id: publicLocationId }),
       });
       const json = await res.json();
       if (!json?.ok) throw new Error(json?.error || "Failed to fetch customer");
@@ -1655,6 +1685,11 @@ export default function PublicBooking() {
       const totalDiscountAmount = discount * slotsCount;
       const totalFinalPrice = finalPrice * slotsCount;
 
+      if (!publicLocationId) {
+        toast.error("Branch not ready. Please refresh the page.");
+        return;
+      }
+
       const res = await fetch("/api/bookings/create", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1673,6 +1708,7 @@ export default function PublicBooking() {
           appliedCoupons,
           payment_mode: "venue",
           sessionId,
+          location_id: publicLocationId,
         }),
       });
 
@@ -2067,6 +2103,10 @@ export default function PublicBooking() {
   }
 
   async function fetchTodaysBookings() {
+    if (!publicLocationId) {
+      setTodayRows([]);
+      return;
+    }
     setTodayLoading(true);
     try {
       const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -2076,6 +2116,7 @@ export default function PublicBooking() {
           "id, booking_date, start_time, end_time, status, station_id, customer_id"
         )
         .eq("booking_date", todayStr)
+        .eq("location_id", publicLocationId)
         .order("start_time", { ascending: true });
 
       if (error) throw error;

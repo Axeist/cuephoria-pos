@@ -68,7 +68,23 @@ interface ExistingCustomer {
   email?: string;
 }
 
-const PublicTournaments = () => {
+const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => {
+  const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('locations')
+        .select('id')
+        .eq('slug', branchSlug)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!cancelled) setPublicLocationId(data?.id ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [branchSlug]);
+
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
@@ -134,10 +150,16 @@ const PublicTournaments = () => {
   }, [searchParams, setSearchParams]);
 
   const fetchTournaments = useCallback(async () => {
+    if (!publicLocationId) {
+      setTournaments([]);
+      setLoading(false);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('tournament_public_view')
         .select('*')
+        .eq('location_id', publicLocationId)
         .order('date', { ascending: true });
 
       if (error) {
@@ -184,7 +206,7 @@ const PublicTournaments = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, publicLocationId]);
 
   useEffect(() => {
     fetchTournaments();
@@ -315,12 +337,13 @@ const PublicTournaments = () => {
 
     setIsCheckingCustomer(true);
     try {
-      // Check for existing customer
+      // Check for existing customer (scoped to this branch)
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .select('id, name, phone, email')
         .eq('phone', phone.trim())
-        .single();
+        .eq('location_id', publicLocationId)
+        .maybeSingle();
 
       if (customerError && customerError.code !== 'PGRST116') {
         console.error('Error checking customer:', customerError);
@@ -905,7 +928,8 @@ const PublicTournaments = () => {
             loyalty_points: 0,
             total_spent: 0,
             total_play_time: 0,
-            created_via_tournament: true
+            created_via_tournament: true,
+            location_id: publicLocationId,
           })
           .select()
           .single();

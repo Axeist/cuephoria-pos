@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Customer } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from '@/context/LocationContext';
 
 // ✅ HELPER FUNCTIONS FOR PHONE NORMALIZATION AND ID GENERATION
 const normalizePhoneNumber = (phone: string): string => {
@@ -15,38 +16,48 @@ const generateCustomerID = (phone: string): string => {
   return `CUE${phoneHash}${timestamp}`;
 };
 
-// ✅ CACHE CONFIGURATION
-const CUSTOMERS_CACHE_KEY = 'cuephoria_customers_cache';
-const CUSTOMERS_CACHE_TIMESTAMP_KEY = 'cuephoria_customers_cache_timestamp';
+// ✅ CACHE CONFIGURATION — keys are per-location to prevent cross-branch cache hits
+const customersCacheKey = (locationId: string | null) =>
+  `cuephoria_customers_cache_${locationId ?? 'global'}`;
+const customersTimestampKey = (locationId: string | null) =>
+  `cuephoria_customers_cache_ts_${locationId ?? 'global'}`;
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes cache
 const DUPLICATE_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Run cleanup once per day
 const LAST_DUPLICATE_CLEANUP_KEY = 'cuephoria_last_duplicate_cleanup';
 
-// ✅ MEMORY CACHE (for current session)
-let memoryCache: { customers: Customer[]; timestamp: number } | null = null;
+// ✅ MEMORY CACHE (per-location for current session)
+const memoryCacheByLocation: Record<string, { customers: Customer[]; timestamp: number }> = {};
 
 export const useCustomers = (initialCustomers: Customer[]) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
   
   useEffect(() => {
+    // Clear customers immediately when branch changes so stale data is never shown
+    setCustomers([]);
+    setSelectedCustomer(null);
+
     const fetchCustomers = async () => {
       try {
         setIsLoading(true);
         
+        const locKey = activeLocationId ?? 'global';
+        const memCache = memoryCacheByLocation[locKey];
+
         // ✅ STEP 1: Check memory cache first (fastest)
-        if (memoryCache && Date.now() - memoryCache.timestamp < CACHE_DURATION_MS) {
+        if (memCache && Date.now() - memCache.timestamp < CACHE_DURATION_MS) {
           console.log('📦 Using memory cache for customers');
-          setCustomers(memoryCache.customers);
+          setCustomers(memCache.customers);
           setIsLoading(false);
           return;
         }
         
         // ✅ STEP 2: Check localStorage cache
-        const cachedTimestamp = localStorage.getItem(CUSTOMERS_CACHE_TIMESTAMP_KEY);
-        const cachedData = localStorage.getItem(CUSTOMERS_CACHE_KEY);
+        const cachedTimestamp = localStorage.getItem(customersTimestampKey(activeLocationId));
+        const cachedData = localStorage.getItem(customersCacheKey(activeLocationId));
         
         if (cachedData && cachedTimestamp) {
           const cacheAge = Date.now() - parseInt(cachedTimestamp, 10);
@@ -64,7 +75,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             }));
             
             setCustomers(customersWithDates);
-            memoryCache = { customers: customersWithDates, timestamp: Date.now() };
+            memoryCacheByLocation[locKey] = { customers: customersWithDates, timestamp: Date.now() };
             setIsLoading(false);
             
             // ✅ Background refresh if cache is older than 2 minutes
@@ -113,6 +124,12 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     const fetchCustomersFromDB = async (silent: boolean = false) => {
       try {
         if (!silent) setIsLoading(true);
+
+        if (!activeLocationId) {
+          setCustomers([]);
+          setIsLoading(false);
+          return;
+        }
         
         // ✅ OPTIMIZED: Select only needed columns (reduces data transfer)
         const selectFields = 'id,customer_id,custom_id,name,phone,email,is_member,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
@@ -127,6 +144,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           const { data, error } = await supabase
             .from('customers')
             .select(selectFields) // ✅ Only fetch needed columns
+            .eq('location_id', activeLocationId)
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
           
@@ -191,6 +209,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
                 const { data, error } = await supabase
                   .from('customers')
                   .select(selectFields)
+                  .eq('location_id', activeLocationId)
                   .order('created_at', { ascending: false })
                   .range(page * pageSize, (page + 1) * pageSize - 1);
                   
@@ -270,14 +289,15 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     };
     
     fetchCustomers();
-  }, []);
+  }, [activeLocationId]);
   
-  // ✅ Shared cache save function
+  // ✅ Shared cache save function (per-location)
   const saveToCache = (customersList: Customer[]) => {
     try {
-      memoryCache = { customers: customersList, timestamp: Date.now() };
-      localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(customersList));
-      localStorage.setItem(CUSTOMERS_CACHE_TIMESTAMP_KEY, Date.now().toString());
+      const locKey = activeLocationId ?? 'global';
+      memoryCacheByLocation[locKey] = { customers: customersList, timestamp: Date.now() };
+      localStorage.setItem(customersCacheKey(activeLocationId), JSON.stringify(customersList));
+      localStorage.setItem(customersTimestampKey(activeLocationId), Date.now().toString());
     } catch (error) {
       console.error('Error saving to cache:', error);
     }
@@ -528,11 +548,12 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       // Normalize phone
       const normalizedPhone = normalizePhoneNumber(customer.phone);
       
-      // ✅ ENHANCED: Check database for duplicates before inserting
+      // ✅ ENHANCED: Check database for duplicates before inserting (scoped to this branch)
       const { data: existingByPhone } = await supabase
         .from('customers')
         .select('*')
         .eq('phone', normalizedPhone)
+        .eq('location_id', activeLocationId)
         .maybeSingle();
       
       if (existingByPhone) {
@@ -569,6 +590,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           .from('customers')
           .select('*')
           .eq('email', normalizedEmail)
+          .eq('location_id', activeLocationId)
           .maybeSingle();
         
         if (existingByEmail) {
@@ -631,7 +653,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           membership_duration: customer.membershipDuration,
           loyalty_points: customer.loyaltyPoints || 0,
           total_spent: customer.totalSpent || 0,
-          total_play_time: customer.totalPlayTime || 0
+          total_play_time: customer.totalPlayTime || 0,
+          location_id: activeLocationId,
         })
         .select()
         .single();
@@ -644,6 +667,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             .from('customers')
             .select('*')
             .eq('phone', normalizedPhone)
+            .eq('location_id', activeLocationId)
             .maybeSingle();
           
           if (existing) {
@@ -1070,11 +1094,12 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     return true;
   };
   
-  // ✅ Cache invalidation helper
+  // ✅ Cache invalidation helper (current location only)
   const invalidateCache = () => {
-    memoryCache = null;
-    localStorage.removeItem(CUSTOMERS_CACHE_KEY);
-    localStorage.removeItem(CUSTOMERS_CACHE_TIMESTAMP_KEY);
+    const locKey = activeLocationId ?? 'global';
+    delete memoryCacheByLocation[locKey];
+    localStorage.removeItem(customersCacheKey(activeLocationId));
+    localStorage.removeItem(customersTimestampKey(activeLocationId));
   };
   
   // ✅ Wrapper functions that invalidate cache on mutations
@@ -1084,10 +1109,12 @@ export const useCustomers = (initialCustomers: Customer[]) => {
       invalidateCache();
       // Refresh customers in background
       setTimeout(() => {
-        const fetchCustomers = async () => {
+        const fetchLatest = async () => {
+          if (!activeLocationId) return;
           const { data } = await supabase
             .from('customers')
             .select('id,customer_id,custom_id,name,phone,email,is_member,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at')
+            .eq('location_id', activeLocationId)
             .order('created_at', { ascending: false })
             .limit(1);
           
@@ -1113,7 +1140,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             saveToCache([newCustomer, ...customers]);
           }
         };
-        fetchCustomers();
+        fetchLatest();
       }, 500);
     }
     return result;

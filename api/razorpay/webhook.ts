@@ -176,6 +176,9 @@ async function createBillFromBooking(
 ) {
   const supabase = await getSupabaseClient();
   
+  // Derive location_id from the first booking row (all bookings share the same location)
+  const locationId: string | null = bookings[0]?.location_id ?? null;
+  
   try {
     // Validate customerId exists
     if (!customerId) {
@@ -267,6 +270,7 @@ async function createBillFromBooking(
         is_split_payment: false,
         cash_amount: 0,
         upi_amount: 0,
+        ...(locationId ? { location_id: locationId } : {}),
       })
       .select()
       .single();
@@ -591,7 +595,7 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
         // Fetch the created bookings with all details needed for bill creation
         const { data: bookingsWithDetails } = await supabase
           .from("bookings")
-          .select("id, station_id, start_time, end_time, final_price, original_price")
+          .select("id, station_id, start_time, end_time, final_price, original_price, location_id")
           .in("id", insertedBookings?.map(b => b.id) || []);
         
         if (bookingsWithDetails && bookingsWithDetails.length > 0) {

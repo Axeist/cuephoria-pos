@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Session } from '@/types/pos.types';
 import { supabase, handleSupabaseError } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS } from '@/utils/dataCache';
+import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { useLocation } from '@/context/LocationContext';
 
 /**
  * ✅ OPTIMIZED: Hook to load and manage session data from Supabase
@@ -14,29 +15,19 @@ export const useSessionsData = () => {
   const [sessionsLoading, setSessionsLoading] = useState<boolean>(false);
   const [sessionsError, setSessionsError] = useState<Error | null>(null);
   const { toast } = useToast();
-  
-  const refreshSessions = useCallback(async (silent: boolean = false) => {
-    // ✅ Check cache first
-    const cachedSessions = getCachedData<Session[]>(CACHE_KEYS.SESSIONS);
-    
-    if (cachedSessions && cachedSessions.length > 0 && !silent) {
-      console.log('📦 Using cached sessions');
-      setSessions(cachedSessions);
-      setSessionsLoading(false);
-      
-      // Background refresh if cache is stale
-      if (isCacheStale(CACHE_KEYS.SESSIONS)) {
-        refreshSessionsFromDB(true).catch(err => {
-          console.error('Error refreshing sessions in background:', err);
-        });
-      }
+  const { activeLocationId } = useLocation();
+  const sessionsCacheKey = useMemo(
+    () => cacheKeyWithLocation(CACHE_KEYS.SESSIONS, activeLocationId),
+    [activeLocationId]
+  );
+
+  const refreshSessionsFromDB = useCallback(async (silent: boolean = false) => {
+    if (!activeLocationId) {
+      setSessions([]);
+      if (!silent) setSessionsLoading(false);
       return;
     }
-    
-    await refreshSessionsFromDB(silent);
-  }, []);
-  
-  const refreshSessionsFromDB = useCallback(async (silent: boolean = false) => {
+
     if (!silent) {
       setSessionsLoading(true);
       setSessionsError(null);
@@ -48,6 +39,7 @@ export const useSessionsData = () => {
       const { data, error } = await supabase
         .from('sessions')
         .select('id, station_id, customer_id, start_time, end_time, duration, hourly_rate, original_rate, coupon_code, discount_amount')
+        .eq('location_id', activeLocationId)
         .order('created_at', { ascending: false })
         .limit(100); // Only fetch 100 most recent sessions
         
@@ -83,7 +75,7 @@ export const useSessionsData = () => {
         console.log(`✅ Loaded ${transformedSessions.length} sessions from Supabase (limited to 100)`);
         setSessions(transformedSessions);
         // ✅ Save to cache
-        saveToCache(CACHE_KEYS.SESSIONS, transformedSessions);
+        saveToCache(sessionsCacheKey, transformedSessions);
         
         const activeSessions = transformedSessions.filter(s => !s.endTime);
         console.log(`Found ${activeSessions.length} active sessions in loaded data`);
@@ -96,7 +88,7 @@ export const useSessionsData = () => {
       } else {
         console.log("No sessions found in Supabase");
         setSessions([]);
-        saveToCache(CACHE_KEYS.SESSIONS, []);
+        saveToCache(sessionsCacheKey, []);
       }
     } catch (error) {
       console.error('Error in fetchSessions:', error);
@@ -113,7 +105,26 @@ export const useSessionsData = () => {
         setSessionsLoading(false);
       }
     }
-  }, [toast]);
+  }, [toast, activeLocationId, sessionsCacheKey]);
+
+  const refreshSessions = useCallback(async (silent: boolean = false) => {
+    const cachedSessions = getCachedData<Session[]>(sessionsCacheKey);
+
+    if (cachedSessions && cachedSessions.length > 0 && !silent) {
+      console.log('📦 Using cached sessions');
+      setSessions(cachedSessions);
+      setSessionsLoading(false);
+
+      if (isCacheStale(sessionsCacheKey)) {
+        refreshSessionsFromDB(true).catch(err => {
+          console.error('Error refreshing sessions in background:', err);
+        });
+      }
+      return;
+    }
+
+    await refreshSessionsFromDB(silent);
+  }, [sessionsCacheKey, refreshSessionsFromDB]);
   
   const deleteSession = async (sessionId: string): Promise<boolean> => {
     try {
@@ -131,12 +142,12 @@ export const useSessionsData = () => {
       setSessions(prevSessions => {
         const updated = prevSessions.filter(session => session.id !== sessionId);
         // ✅ Update cache
-        saveToCache(CACHE_KEYS.SESSIONS, updated);
+        saveToCache(sessionsCacheKey, updated);
         return updated;
       });
       
       // ✅ Invalidate cache
-      invalidateCache(CACHE_KEYS.SESSIONS);
+      invalidateCache(sessionsCacheKey);
       
       toast({
         title: 'Success',

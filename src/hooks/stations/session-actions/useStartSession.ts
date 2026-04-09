@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { SessionActionsProps } from './types';
 import React from 'react';
 import { generateId } from '@/utils/pos.utils';
+import { useLocation } from '@/context/LocationContext';
 
 /**
  * Hook to provide session start functionality with full debugging
@@ -15,6 +16,7 @@ export const useStartSession = ({
   setSessions
 }: SessionActionsProps) => {
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
   
   const startSession = async (
     stationId: string, 
@@ -37,6 +39,15 @@ export const useStartSession = ({
         throw new Error("Station not found");
       }
       
+      if (!activeLocationId) {
+        toast({
+          title: "Branch required",
+          description: "Select a branch before starting a session.",
+          variant: "destructive",
+        });
+        throw new Error("No branch selected");
+      }
+
       if (station.isOccupied || station.currentSession) {
         console.error("❌ Station already occupied");
         toast({
@@ -97,6 +108,7 @@ export const useStartSession = ({
             id: sessionId,
             station_id: dbStationId,
             customer_id: customerId,
+            location_id: activeLocationId,
             start_time: startTime.toISOString(),
             hourly_rate: sessionRate,
             original_rate: originalRate,
@@ -152,6 +164,7 @@ export const useStartSession = ({
               currentsession: newSession
             })
             .eq('id', stationId)
+            .eq('location_id', activeLocationId)
             .select();
           
           if (stationError) {
