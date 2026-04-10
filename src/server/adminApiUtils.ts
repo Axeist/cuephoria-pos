@@ -70,7 +70,7 @@ async function hmacVerifySha256(secret: string, data: string, sig: Uint8Array): 
     false,
     ["sign", "verify"]
   );
-  return await crypto.subtle.verify("HMAC", key, sig, enc.encode(data));
+  return await crypto.subtle.verify("HMAC", key, sig.buffer as ArrayBuffer, enc.encode(data));
 }
 
 export type AdminSessionUser = {

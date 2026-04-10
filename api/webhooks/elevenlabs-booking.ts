@@ -358,8 +358,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Check for active sessions (for today's bookings)
     // Only block if the session's start time overlaps with the requested time slot
-    const today = new Date().toISOString().split('T')[0];
-    if (booking_date === today) {
+    const todayDate = new Date().toISOString().split('T')[0];
+    if (booking_date === todayDate) {
       const { data: activeSessions, error: sessionError } = await supabase
         .from("sessions")
         .select("station_id, start_time")

@@ -372,7 +372,7 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
           data = order.notes.booking_data;
         } else if (order.notes.booking_data_1) {
           // Reconstruct from split fields
-          data = order.notes.booking_data_1 + (order.notes.booking_data_2 || '');
+          data = String(order.notes.booking_data_1) + String(order.notes.booking_data_2 || '');
         } else {
           console.log("⚠️ No booking_data found in order notes");
           return { success: false, message: "No booking data available" };
@@ -654,10 +654,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Invalid request body" }, 400);
     }
 
-    const signature = req.headers?.["x-razorpay-signature"] || 
-                     (Array.isArray(req.headers?.["x-razorpay-signature"]) 
-                       ? req.headers["x-razorpay-signature"][0] 
-                       : "") || "";
+    const rawSig = req.headers?.["x-razorpay-signature"];
+    const signature: string = Array.isArray(rawSig) ? rawSig[0] : (rawSig ?? "");
     
     console.log("📥 Razorpay webhook received:", {
       hasSignature: !!signature,
