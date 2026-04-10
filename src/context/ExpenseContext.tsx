@@ -168,7 +168,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           date: newExpense.date,
           is_recurring: newExpense.isRecurring,
           notes: newExpense.notes || null,
-          ...(activeLocationId ? { location_id: activeLocationId } : {}),
+          location_id: activeLocationId || null,
         }) as any);
 
       if (supabaseError) {

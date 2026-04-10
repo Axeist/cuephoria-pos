@@ -47,7 +47,8 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
             player2_name: player2.name,
             winner_name: winner.name,
             match_date: tournament.date,
-            match_stage: match.stage
+            match_stage: match.stage,
+            location_id: tournament.location_id,
           });
         }
       }
@@ -88,7 +89,8 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
       runner_up_name: runnerUp?.name,
       tournament_date: tournament.date,
       game_type: tournament.gameType,
-      game_variant: tournament.gameVariant
+      game_variant: tournament.gameVariant,
+      location_id: tournament.location_id,
     };
 
     console.log('Saving tournament winner record:', winnerRecord);

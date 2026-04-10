@@ -968,7 +968,8 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           discount_percentage: appliedCoupon?.discount_type === 'percentage' ? feeCalculation.discount : null,
           discount_amount: feeCalculation.discountAmount || null,
           original_fee: feeCalculation.originalFee,
-          final_fee: feeCalculation.finalFee
+          final_fee: feeCalculation.finalFee,
+          location_id: publicLocationId,
         });
 
       if (registrationError) {

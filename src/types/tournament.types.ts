@@ -74,6 +74,7 @@ export interface TournamentHistoryMatch {
   match_date: string;
   match_stage: MatchStage;
   created_at: string;
+  location_id?: string;
 }
 
 export interface TournamentWinner {
@@ -86,6 +87,7 @@ export interface TournamentWinner {
   game_type: string;
   game_variant?: string;
   created_at: string;
+  location_id?: string;
 }
 
 // Database conversion helper functions
@@ -149,7 +151,7 @@ export const convertToSupabaseTournament = (tournament: Tournament): any => {
   if (tournament.winner) cleanObject.winner = tournament.winner;
   if (tournament.runnerUp) cleanObject.runner_up = tournament.runnerUp;
   if (tournament.thirdPlace) cleanObject.third_place = tournament.thirdPlace;
-  if (tournament.location_id) cleanObject.location_id = tournament.location_id;
+  cleanObject.location_id = tournament.location_id || null;
   
   return cleanObject;
 };

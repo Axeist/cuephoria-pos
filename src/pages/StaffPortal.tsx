@@ -274,7 +274,8 @@ const StaffPortal = () => {
           staff_id: selectedStaff.user_id,
           date: new Date().toISOString().split('T')[0],
           clock_in: new Date().toISOString(),
-          status: 'active'
+          status: 'active',
+          location_id: selectedStaff.location_id,
         });
 
       if (error) throw error;
