@@ -607,6 +607,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
           id: registrationForm.customer_id,
           is_existing_customer: registrationForm.is_existing_customer
         },
+        locationId: publicLocationId,
         entryFee: entryFee,
         originalFee: feeCalculation.originalFee,
         discount: feeCalculation.discount,

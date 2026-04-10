@@ -9,6 +9,7 @@ type PendingBooking = {
   slots: Array<{ start_time: string; end_time: string }>;
   duration: number;
   customer: { id?: string; name: string; phone: string; email?: string };
+  locationId?: string | null;
   pricing: { original: number; discount: number; final: number; transactionFee?: number; totalWithFee?: number; coupons: string };
 };
 
@@ -98,6 +99,23 @@ export default function PublicPaymentSuccess() {
       setStatus("creating");
       setMsg("Payment successful! Creating your booking…");
 
+      // Resolve location_id early — needed for both customer and booking inserts
+      let locationId: string | null = pb.locationId || null;
+      if (!locationId) {
+        const { data: loc } = await supabase
+          .from("locations")
+          .select("id")
+          .eq("slug", "main")
+          .limit(1)
+          .maybeSingle();
+        locationId = loc?.id ?? null;
+      }
+      if (!locationId) {
+        setStatus("failed");
+        setMsg("Could not determine venue location. Please contact support or rebook.");
+        return;
+      }
+
       // 3) Ensure customer exists (by phone); create if needed
       let customerId = pb.customer.id;
       if (!customerId) {
@@ -139,6 +157,7 @@ export default function PublicPaymentSuccess() {
               phone: normalizedPhone,
               email: pb.customer.email?.trim() || null,
               custom_id: customerID,
+              location_id: locationId,
               is_member: false,
               loyalty_points: 0,
               total_spent: 0,
@@ -198,6 +217,7 @@ export default function PublicPaymentSuccess() {
             rows.push({
               station_id,
               customer_id: customerId!,
+              location_id: locationId,
               booking_date: pb.selectedDateISO,
               start_time: slot.start_time,
               end_time: slot.end_time,

@@ -1858,6 +1858,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         })),
         duration: bookingDuration,
         customer: customerInfo,
+        locationId: publicLocationId,
         pricing: {
           original: originalPrice * slotsToBook.length,
           discount: discount * slotsToBook.length,

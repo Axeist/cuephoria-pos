@@ -14,6 +14,7 @@ type PendingTournamentRegistration = {
     id?: string;
     is_existing_customer: boolean;
   };
+  locationId?: string | null;
   entryFee: number;
   transactionFee: number;
   totalWithFee: number;
@@ -91,6 +92,23 @@ export default function PublicTournamentPaymentSuccess() {
       setStatus("registering");
       setMsg("Payment successful! Completing your registration…");
 
+      // Resolve location_id — use saved value or fall back to main location
+      let locationId: string | null = pr.locationId || null;
+      if (!locationId) {
+        const { data: loc } = await supabase
+          .from("locations")
+          .select("id")
+          .eq("slug", "main")
+          .limit(1)
+          .maybeSingle();
+        locationId = loc?.id ?? null;
+      }
+      if (!locationId) {
+        setStatus("failed");
+        setMsg("Could not determine venue location. Please contact support.");
+        return;
+      }
+
       // 3) Ensure customer exists (by phone); create if needed
       let customerId = pr.customer.id;
       if (!customerId || !pr.customer.is_existing_customer) {
@@ -130,6 +148,7 @@ export default function PublicTournamentPaymentSuccess() {
               phone: normalizedPhone,
               email: pr.customer.email?.trim() || null,
               custom_id: customerID,
+              location_id: locationId,
               is_member: false,
               loyalty_points: 0,
               total_spent: 0,
@@ -210,6 +229,7 @@ export default function PublicTournamentPaymentSuccess() {
             customer_name: pr.customer.name.trim(),
             customer_phone: normalizedPhone,
             customer_email: pr.customer.email?.trim() || null,
+            location_id: locationId,
             registration_source: 'public_website',
             status: 'registered',
             entry_fee: pr.entryFee,
