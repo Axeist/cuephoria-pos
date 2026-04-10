@@ -109,6 +109,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Normalize phone number (convert to string first in case it comes as a number)
     const phoneString = String(customer_phone || '');
     let normalizedPhone = phoneString.replace(/\D/g, '');
+
+    // Resolve the main location_id upfront — required for customers and bookings inserts
+    let mainLocationId: string | null = null;
+    {
+      const { data: loc } = await supabase
+        .from("locations")
+        .select("id")
+        .eq("slug", "main")
+        .limit(1)
+        .maybeSingle();
+      mainLocationId = loc?.id ?? null;
+    }
     
     // Handle Indian phone numbers: remove country code if present (91 or +91)
     if (normalizedPhone.length === 12 && normalizedPhone.startsWith('91')) {
@@ -285,6 +297,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           loyalty_points: 0,
           total_spent: 0,
           total_play_time: 0,
+          location_id: mainLocationId,
         })
         .select("id")
         .single();
@@ -440,9 +453,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       final_price: basePrice,
       discount_percentage: null,
       coupon_code: null,
-      payment_mode: "venue", // AI bookings default to venue payment
+      payment_mode: "venue",
       payment_txn_id: null,
       notes: notes || null,
+      location_id: mainLocationId,
     }));
 
     console.log("💾 Inserting booking records:", rows.length, "records");

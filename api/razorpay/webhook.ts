@@ -176,8 +176,17 @@ async function createBillFromBooking(
 ) {
   const supabase = await getSupabaseClient();
   
-  // Derive location_id from the first booking row (all bookings share the same location)
-  const locationId: string | null = bookings[0]?.location_id ?? null;
+  // Derive location_id from the first booking row, falling back to the main location
+  let locationId: string | null = bookings[0]?.location_id ?? null;
+  if (!locationId) {
+    const { data: loc } = await supabase
+      .from("locations")
+      .select("id")
+      .eq("slug", "main")
+      .limit(1)
+      .maybeSingle();
+    locationId = loc?.id ?? null;
+  }
   
   try {
     // Validate customerId exists
@@ -259,7 +268,7 @@ async function createBillFromBooking(
       .insert({
         customer_id: customerId,
         subtotal: subtotal,
-        discount: discountValue > 0 ? (discountValue / subtotal) * 100 : 0, // discount percentage
+        discount: discountValue > 0 ? (discountValue / subtotal) * 100 : 0,
         discount_value: discountValue,
         discount_type: "fixed",
         loyalty_points_used: 0,
@@ -270,7 +279,7 @@ async function createBillFromBooking(
         is_split_payment: false,
         cash_amount: 0,
         upi_amount: 0,
-        ...(locationId ? { location_id: locationId } : {}),
+        location_id: locationId,
       })
       .select()
       .single();
@@ -306,12 +315,13 @@ async function createBillFromBooking(
       
       billItems.push({
         bill_id: billData.id,
-        item_id: booking.id, // Use booking ID as item_id
+        item_id: booking.id,
         name: itemName,
         price: booking.final_price,
         quantity: 1,
         total: booking.final_price,
-        item_type: "session", // Use "session" to match existing pattern
+        item_type: "session",
+        location_id: locationId,
       });
     }
     
@@ -360,7 +370,21 @@ async function createBillFromBooking(
 // Create booking from webhook data
 async function createBookingFromWebhook(orderId: string, paymentId: string, bookingData?: any) {
   const supabase = await getSupabaseClient();
-  
+
+  // Resolve the main location_id once upfront — used for both customer and booking inserts
+  let mainLocationId: string | null = null;
+  try {
+    const { data: loc } = await supabase
+      .from("locations")
+      .select("id")
+      .eq("slug", "main")
+      .limit(1)
+      .maybeSingle();
+    mainLocationId = loc?.id ?? null;
+  } catch {
+    // Non-fatal — inserts will fail their own NOT NULL checks if truly required
+  }
+
   try {
     // If booking data not provided, try to fetch from order
     let data = bookingData;
@@ -412,16 +436,49 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
       coupons: data.cp || data.coup || data.coupons || '',
     };
 
-    // Check if booking already exists for this payment
+    // Check if booking already exists for this payment (created by PublicPaymentSuccess.tsx)
     const { data: existingBookings } = await supabase
       .from("bookings")
-      .select("id")
-      .eq("payment_txn_id", paymentId)
-      .limit(1);
+      .select("id, station_id, start_time, end_time, final_price, original_price, location_id, customer_id")
+      .eq("payment_txn_id", paymentId);
 
     if (existingBookings && existingBookings.length > 0) {
-      console.log("✅ Booking already exists for payment:", paymentId);
-      return { success: true, message: "Booking already exists", bookingIds: existingBookings.map(b => b.id) };
+      console.log("✅ Booking already exists for payment:", paymentId, "— checking if bill needs to be created");
+
+      // Resolve the customer from the existing booking
+      const bookingCustomerId = existingBookings[0].customer_id || customerId;
+
+      if (bookingCustomerId) {
+        // Check if a bill already exists for this payment
+        const { data: existingBill } = await supabase
+          .from("bills")
+          .select("id")
+          .eq("customer_id", bookingCustomerId)
+          .eq("payment_method", "razorpay")
+          .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString())
+          .limit(1);
+
+        if (existingBill && existingBill.length > 0) {
+          console.log("✅ Bill already exists for this payment:", existingBill[0].id);
+        } else {
+          console.log("📝 Bill missing — creating bill for existing booking");
+          try {
+            const billResult = await createBillFromBooking(
+              bookingCustomerId,
+              existingBookings,
+              pricing,
+              selectedStations,
+              selectedDateISO,
+              slots
+            );
+            console.log("✅ Bill created for existing booking:", billResult);
+          } catch (billErr: any) {
+            console.error("❌ Failed to create bill for existing booking:", billErr);
+          }
+        }
+      }
+
+      return { success: true, message: "Booking already exists", bookingIds: existingBookings.map((b: any) => b.id) };
     }
 
     // Ensure customer exists
@@ -446,6 +503,7 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
             phone: normalizedPhone,
             email: customer.email?.trim() || null,
             custom_id: customerID,
+            location_id: mainLocationId,
             is_member: false,
             loyalty_points: 0,
             total_spent: 0,
@@ -542,6 +600,7 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
         rows.push({
           station_id,
           customer_id: customerId!,
+          location_id: mainLocationId,
           booking_date: selectedDateISO,
           start_time: slot.start_time,
           end_time: slot.end_time,
@@ -721,8 +780,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (orderIdPaid && paymentIdPaid) {
           try {
             console.log("📝 Attempting to create booking from order.paid webhook...");
-            const bookingDataFromNotes = order?.notes?.booking_data;
-            const result = await createBookingFromWebhook(orderIdPaid, paymentIdPaid, bookingDataFromNotes);
+            // Match same booking_data reconstruction logic as payment.captured
+            const bookingDataFromNotesPaid = order?.notes?.booking_data ||
+                                             (order?.notes?.booking_data_1
+                                               ? String(order.notes.booking_data_1) + String(order.notes.booking_data_2 || '')
+                                               : null) ||
+                                             payment?.notes?.booking_data;
+            const result = await createBookingFromWebhook(orderIdPaid, paymentIdPaid, bookingDataFromNotesPaid || order?.notes);
             console.log("✅ Booking creation result:", result);
           } catch (bookingError: any) {
             console.error("❌ Failed to create booking from webhook:", bookingError);
