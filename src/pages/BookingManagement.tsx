@@ -212,10 +212,12 @@ export default function BookingManagement() {
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [filters, setFilters] = useState<Filters>({
-    datePreset: 'last7days',
-    dateFrom: format(subDays(new Date(), 6), 'yyyy-MM-dd'),
-    dateTo: format(new Date(), 'yyyy-MM-dd'),
+  const [filters, setFilters] = useState<Filters>(() => {
+    const dr = getDateRangeFromPreset('thismonth')!;
+    return {
+    datePreset: 'thismonth',
+    dateFrom: dr.from,
+    dateTo: dr.to,
     status: 'all',
     bookingType: 'all',
     stationType: 'all',
@@ -226,6 +228,7 @@ export default function BookingManagement() {
     duration: 'all',
     customerType: 'all',
     paymentStatus: 'all'
+  };
   });
 
   const [couponOptions, setCouponOptions] = useState<string[]>([]);
@@ -1951,9 +1954,9 @@ export default function BookingManagement() {
   };
 
   const resetFilters = () => {
-    const defaultDateRange = getDateRangeFromPreset('last7days')!;
+    const defaultDateRange = getDateRangeFromPreset('thismonth')!;
     setFilters({
-      datePreset: 'last7days',
+      datePreset: 'thismonth',
       dateFrom: defaultDateRange.from,
       dateTo: defaultDateRange.to,
       status: 'all',
@@ -2079,7 +2082,15 @@ export default function BookingManagement() {
                 <div className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <Bell className="h-5 w-5 text-cuephoria-lightpurple flex-shrink-0" />
-                    <h3 className="font-semibold text-sm truncate">Booking Notifications</h3>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm truncate">Booking Notifications</h3>
+                      {activeLocation && (
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {activeLocation.name}
+                          {activeLocation.slug === 'lite' ? ' · Lite only' : ' · Main only'}
+                        </p>
+                      )}
+                    </div>
                     {unreadCount > 0 && (
                       <Badge variant="secondary" className="ml-1 flex-shrink-0 text-xs px-1.5 py-0">
                         {unreadCount} new

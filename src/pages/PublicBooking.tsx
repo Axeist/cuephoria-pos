@@ -206,6 +206,7 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
    ========================= */
 export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: string }) {
   const navigate = useNavigate();
+  const isLiteBranch = branchSlug === "lite";
 
   const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
   const [branchLocationLoading, setBranchLocationLoading] = useState(true);
@@ -1264,6 +1265,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     
     // Helper function to check if Instagram follow dialog should be shown
     const shouldShowInstagramDialog = (couponCode: string) => {
+      if (isLiteBranch) return false;
       if (!isNewCustomer) return false; // Only for new customers
       
       // Check if any other dialog is open - don't show Instagram popup if so
@@ -2423,10 +2425,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         )}
       </div>
 
+      {!isLiteBranch && (
       <CouponPromotionalPopup 
         onCouponSelect={applyCoupon} 
         blockWhenOpen={showOnlinePaymentPromo || showInstagramFollowDialog || showFollowConfirmation}
       />
+      )}
 
       <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
         <div className="max-w-7xl mx-auto">
@@ -3765,6 +3769,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         />
       )}
 
+      {!isLiteBranch && (
       <OnlinePaymentPromoDialog
         isOpen={showOnlinePaymentPromo}
         onClose={() => setShowOnlinePaymentPromo(false)}
@@ -3772,8 +3777,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         onDecline={handlePromoDecline}
         serviceType={getServiceTypeForPromo()}
       />
+      )}
 
       {/* Instagram Follow Dialog for New Customers */}
+      {!isLiteBranch && (
       <Dialog open={showInstagramFollowDialog} onOpenChange={setShowInstagramFollowDialog}>
         <DialogContent className="sm:max-w-md bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-2 border-pink-400/50 text-white"
         style={{
@@ -3844,8 +3851,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Follow Confirmation Dialog */}
+      {!isLiteBranch && (
       <Dialog open={showFollowConfirmation} onOpenChange={setShowFollowConfirmation}>
         <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-white/10 text-white"
         style={{
@@ -3920,6 +3929,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
 
       {/* Payment Warning Modal */}

@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useBookingNotifications } from '@/context/BookingNotificationContext';
 import { format } from 'date-fns';
+import { useLocation } from '@/context/LocationContext';
 
 export const GlobalNotificationBell: React.FC = () => {
+  const { activeLocation } = useLocation();
   const {
     notifications,
     unreadCount,
@@ -42,7 +44,15 @@ export const GlobalNotificationBell: React.FC = () => {
           <div className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <Bell className="h-5 w-5 text-cuephoria-lightpurple flex-shrink-0" />
-              <h3 className="font-semibold text-sm truncate">Booking Notifications</h3>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm truncate">Booking Notifications</h3>
+                {activeLocation && (
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {activeLocation.name}
+                    {activeLocation.slug === 'lite' ? ' · Lite branch only' : ' · Main branch only'}
+                  </p>
+                )}
+              </div>
               {unreadCount > 0 && (
                 <Badge variant="secondary" className="ml-1 flex-shrink-0 text-xs px-1.5 py-0">
                   {unreadCount} new

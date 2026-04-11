@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useAppSettings, AppSettings } from '@/hooks/useAppSettings';
 import { Separator } from '@/components/ui/separator';
+import { useLocation } from '@/context/LocationContext';
 
 const formSchema = z.object({
   businessInfo: z.object({
@@ -92,6 +93,8 @@ type FormData = z.infer<typeof formSchema>;
 const GeneralSettings = () => {
   const { toast } = useToast();
   const { settings, loading, saving, saveSettings } = useAppSettings();
+  const { activeLocation } = useLocation();
+  const isLiteBranch = activeLocation?.slug === 'lite';
   const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm<FormData>({
@@ -157,7 +160,9 @@ const GeneralSettings = () => {
             <CardTitle>General Settings</CardTitle>
           </div>
           <CardDescription>
-            Manage your application preferences and business settings.
+            {isLiteBranch
+              ? 'Business profile for Cuephoria Lite. Default contact: 7550025155 — used on receipts and customer-facing text when this branch is active.'
+              : 'Manage your application preferences and business settings.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -165,9 +170,14 @@ const GeneralSettings = () => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               {/* Business Information */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Building2 className="h-5 w-5 text-cuephoria-lightpurple" />
                   <h3 className="text-lg font-semibold">Business Information</h3>
+                  {isLiteBranch && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 border border-cyan-500/30">
+                      Cuephoria Lite · 7550025155
+                    </span>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
@@ -177,7 +187,10 @@ const GeneralSettings = () => {
                       <FormItem>
                         <FormLabel>Business Name</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Cuephoria Gaming Lounge" />
+                          <Input
+                            {...field}
+                            placeholder={isLiteBranch ? 'Cuephoria Lite' : 'Cuephoria Gaming Lounge'}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -190,7 +203,10 @@ const GeneralSettings = () => {
                       <FormItem>
                         <FormLabel>Phone Number</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="+91 1234567890" />
+                          <Input
+                            {...field}
+                            placeholder={isLiteBranch ? '7550025155' : '+91 1234567890'}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

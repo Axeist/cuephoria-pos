@@ -1,7 +1,12 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-export const generatePDF = async (element: HTMLElement, billId: string, customerName: string): Promise<void> => {
+export const generatePDF = async (
+  element: HTMLElement,
+  billId: string,
+  customerName: string,
+  opts?: { filePrefix?: string }
+): Promise<void> => {
   if (!element) {
     throw new Error('Receipt element not found');
   }
@@ -140,7 +145,8 @@ export const generatePDF = async (element: HTMLElement, billId: string, customer
     // Format filename
     const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_');
     const shortBillId = billId.substring(0, 8).toUpperCase();
-    const fileName = `Cuephoria_Receipt_${sanitizedCustomerName}_${shortBillId}.pdf`;
+    const prefix = (opts?.filePrefix || 'Cuephoria').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${prefix}_Receipt_${sanitizedCustomerName}_${shortBillId}.pdf`;
     
     pdf.save(fileName);
     

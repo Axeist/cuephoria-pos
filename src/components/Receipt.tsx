@@ -7,6 +7,7 @@ import ReceiptActions from './receipt/ReceiptActions';
 import SuccessMessage from './receipt/SuccessMessage';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
+import { useLocation } from '@/context/LocationContext';
 
 interface ReceiptProps {
   bill: Bill;
@@ -24,6 +25,7 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
   const [customer, setCustomer] = useState<Customer>(initialCustomer);
   const { toast } = useToast();
   const { customers } = usePOS();
+  const { activeLocation } = useLocation();
   
   // Keep the customer data updated if it changes in the context
   useEffect(() => {
@@ -51,7 +53,9 @@ const Receipt: React.FC<ReceiptProps> = ({ bill: initialBill, customer: initialC
     
     try {
       // Pass customer name to generatePDF for filename
-      await generatePDF(receiptRef.current, bill.id, customer.name);
+      await generatePDF(receiptRef.current, bill.id, customer.name, {
+        filePrefix: activeLocation?.slug === 'lite' ? 'CuephoriaLite' : 'Cuephoria',
+      });
       toast({
         title: "Success",
         description: "Receipt downloaded successfully",

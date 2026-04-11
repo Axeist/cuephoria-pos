@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { useLocation } from '@/context/LocationContext';
 
 interface ReceiptTitleProps {
   onClose: () => void;
@@ -7,10 +8,16 @@ interface ReceiptTitleProps {
 }
 
 const ReceiptTitle: React.FC<ReceiptTitleProps> = ({ onClose, date }) => {
+  const { activeLocation } = useLocation();
+  const isLite = activeLocation?.slug === 'lite';
   const billDate = date ? new Date(date) : new Date();
+
+  const barClass = isLite
+    ? 'bg-gradient-to-r from-cyan-700 to-sky-600'
+    : 'bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple';
   
   return (
-    <div className="bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple p-4 text-white flex justify-between items-center no-print">
+    <div className={`${barClass} p-4 text-white flex justify-between items-center no-print`}>
       <div>
         <h2 className="text-xl font-bold font-heading">Payment Receipt</h2>
         {date && (

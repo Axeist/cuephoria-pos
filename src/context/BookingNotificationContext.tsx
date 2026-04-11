@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useLocation } from '@/context/LocationContext';
 
 interface Booking {
   id: string;
@@ -20,6 +21,8 @@ interface Booking {
   status_updated_by?: string | null;
   payment_mode?: string | null;
   payment_txn_id?: string | null;
+  /** When set, notification is shown only for this branch in the bell */
+  location_id?: string | null;
   station: {
     name: string;
     type: string;
@@ -42,6 +45,18 @@ interface BookingNotification {
   isRead?: boolean;
 }
 
+function notificationMatchesActiveBranch(
+  n: BookingNotification,
+  activeLocationId: string | null,
+  locations: { id: string; slug: string }[]
+): boolean {
+  if (!activeLocationId) return true;
+  const mainId = locations.find((l) => l.slug === 'main')?.id;
+  const lid = n.booking.location_id ?? null;
+  if (!lid) return mainId != null && activeLocationId === mainId;
+  return lid === activeLocationId;
+}
+
 interface BookingNotificationContextType {
   notifications: BookingNotification[];
   unreadCount: number;
@@ -56,6 +71,12 @@ interface BookingNotificationContextType {
 const BookingNotificationContext = createContext<BookingNotificationContextType | undefined>(undefined);
 
 export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { activeLocationId, locations } = useLocation();
+  const mainLocationId = useMemo(
+    () => locations.find((l) => l.slug === 'main')?.id ?? null,
+    [locations]
+  );
+
   // Load from localStorage on mount
   const [notifications, setNotifications] = useState<BookingNotification[]>(() => {
     try {
@@ -72,8 +93,9 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
             booking: {
               ...n.booking,
               booking_date: n.booking.booking_date,
-              created_at: n.booking.created_at
-            }
+              created_at: n.booking.created_at,
+              location_id: n.booking.location_id ?? null,
+            },
           }))
           .filter((n: BookingNotification) => n.timestamp.getTime() > oneDayAgo);
         
@@ -103,7 +125,16 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
 
   // Use ref to track previousBookingIds without causing subscription re-creation
   const previousBookingIdsRef = useRef<Set<string>>(previousBookingIds);
-  
+  const activeLocationIdRef = useRef<string | null>(activeLocationId);
+  const mainLocationIdRef = useRef<string | null>(mainLocationId);
+
+  useEffect(() => {
+    activeLocationIdRef.current = activeLocationId;
+  }, [activeLocationId]);
+  useEffect(() => {
+    mainLocationIdRef.current = mainLocationId;
+  }, [mainLocationId]);
+
   // Keep ref in sync with state
   useEffect(() => {
     previousBookingIdsRef.current = previousBookingIds;
@@ -146,6 +177,14 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
   const setSoundEnabled = useCallback((enabled: boolean) => {
     setSoundEnabledState(enabled);
   }, []);
+
+  const visibleNotifications = useMemo(
+    () =>
+      notifications.filter((n) =>
+        notificationMatchesActiveBranch(n, activeLocationId, locations)
+      ),
+    [notifications, activeLocationId, locations]
+  );
 
   // Function to play notification sound
   const playNotificationSound = useCallback((isPaid: boolean) => {
@@ -194,6 +233,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
           status_updated_by,
           payment_mode,
           payment_txn_id,
+          location_id,
           station_id,
           customer_id,
           created_at,
@@ -234,6 +274,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
         status_updated_by: bookingData.status_updated_by ?? null,
         payment_mode: bookingData.payment_mode ?? null,
         payment_txn_id: bookingData.payment_txn_id ?? null,
+        location_id: (bookingData as { location_id?: string }).location_id ?? null,
         created_at: bookingData.created_at,
         booking_views: bookingData.booking_views || [],
         station: { 
@@ -264,55 +305,58 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
   // Add notification function - use ref to avoid recreation
   const addNotificationRef = useRef((booking: Booking) => {
     const isPaid = !!(booking.payment_mode && booking.payment_mode !== 'venue' && booking.payment_txn_id);
-    
-    setNotifications(prev => {
+    const activeId = activeLocationIdRef.current;
+    const mainId = mainLocationIdRef.current;
+    const bookingLoc = booking.location_id ?? null;
+    const isForActiveBranch =
+      !activeId ||
+      (bookingLoc ? bookingLoc === activeId : mainId != null && activeId === mainId);
+
+    setNotifications((prev) => {
       // Check if notification already exists
-      const existingNotification = prev.find(n => n.booking.id === booking.id);
+      const existingNotification = prev.find((n) => n.booking.id === booking.id);
       if (existingNotification) {
         console.log('🔔 Notification already exists for booking:', booking.id);
         return prev;
       }
-      
+
       const notification: BookingNotification = {
         id: `${booking.id}-${Date.now()}`,
         booking,
         timestamp: new Date(),
         isPaid,
-        isRead: false
+        isRead: false,
       };
-      
-      // Play sound using ref to get current value
-      if (soundEnabledRef.current) {
+
+      if (isForActiveBranch && soundEnabledRef.current) {
         try {
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
           const oscillator = audioContext.createOscillator();
           const gainNode = audioContext.createGain();
-          
+
           oscillator.connect(gainNode);
           gainNode.connect(audioContext.destination);
-          
+
           oscillator.frequency.value = isPaid ? 1000 : 600;
           oscillator.type = 'sine';
-          
+
           gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
           gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-          
+
           oscillator.start(audioContext.currentTime);
           oscillator.stop(audioContext.currentTime + 0.3);
         } catch (error) {
           console.error('Error playing notification sound:', error);
         }
       }
-      
-      // Show toast notification
-      toast.success(
-        `New ${isPaid ? 'Paid' : ''} Booking: ${booking.customer.name}`,
-        {
+
+      if (isForActiveBranch) {
+        toast.success(`New ${isPaid ? 'Paid ' : ''}Booking: ${booking.customer.name}`, {
           description: `${booking.station.name} • ${format(new Date(booking.booking_date), 'MMM dd')} • ${booking.start_time}`,
           duration: 5000,
-        }
-      );
-      
+        });
+      }
+
       return [notification, ...prev];
     });
   });
@@ -389,9 +433,10 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     };
   }, []); // Empty deps - use refs for functions to avoid recreation
 
-  // Load existing bookings on mount to populate previousBookingIds
+  // Load existing bookings for the active branch to populate previousBookingIds (no duplicate alerts)
   useEffect(() => {
     const loadExistingBookings = async () => {
+      if (!activeLocationId) return;
       try {
         // Fetch all bookings using pagination to bypass 1000 record limit
         let page = 0;
@@ -404,6 +449,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
           const { data: bookings, error } = await supabase
             .from('bookings')
             .select('id')
+            .eq('location_id', activeLocationId)
             .gte('created_at', oneDayAgo)
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -435,7 +481,7 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     };
 
     loadExistingBookings();
-  }, []);
+  }, [activeLocationId]);
 
   const removeNotification = useCallback((notificationId: string) => {
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
@@ -448,11 +494,21 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
   }, []);
 
   const markAllAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  }, []);
+    setNotifications((prev) =>
+      prev.map((n) =>
+        notificationMatchesActiveBranch(n, activeLocationId, locations)
+          ? { ...n, isRead: true }
+          : n
+      )
+    );
+  }, [activeLocationId, locations]);
 
   const clearAllNotifications = useCallback(() => {
-    setNotifications([]);
+    setNotifications((prev) =>
+      prev.filter(
+        (n) => !notificationMatchesActiveBranch(n, activeLocationId, locations)
+      )
+    );
     setPreviousBookingIds(new Set());
     try {
       localStorage.removeItem('booking-notifications');
@@ -460,14 +516,14 @@ export const BookingNotificationProvider: React.FC<{ children: React.ReactNode }
     } catch (error) {
       console.error('Error clearing localStorage:', error);
     }
-  }, []);
+  }, [activeLocationId, locations]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = visibleNotifications.filter((n) => !n.isRead).length;
 
   return (
     <BookingNotificationContext.Provider
       value={{
-        notifications,
+        notifications: visibleNotifications,
         unreadCount,
         soundEnabled,
         setSoundEnabled,
