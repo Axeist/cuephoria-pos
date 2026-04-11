@@ -48,6 +48,10 @@ import { getCustomerSession, clearCustomerSession } from "@/utils/customerAuth";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import BottomNav from "@/components/customer/BottomNav";
+import {
+  BOOKING_ACCESS_KEYS,
+  parseBookingSettingBool,
+} from "@/utils/bookingAccessSettings";
 
 /* =========================
    Types
@@ -204,10 +208,15 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const navigate = useNavigate();
 
   const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
+  const [branchLocationLoading, setBranchLocationLoading] = useState(true);
+  const [accessSettingsLoading, setAccessSettingsLoading] = useState(false);
+  const [publicBookingEnabled, setPublicBookingEnabled] = useState(true);
+  const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setBranchLocationLoading(true);
       const { data, error } = await supabase
         .from("locations")
         .select("id")
@@ -220,11 +229,56 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         console.warn("Branch slug not found or inactive:", branchSlug, error);
         setPublicLocationId(null);
       }
+      setBranchLocationLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [branchSlug]);
+
+  useEffect(() => {
+    if (!publicLocationId) {
+      setAccessSettingsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setAccessSettingsLoading(true);
+      try {
+        const { data: rows, error } = await supabase
+          .from("booking_settings")
+          .select("setting_key, setting_value")
+          .eq("location_id", publicLocationId)
+          .in("setting_key", [
+            BOOKING_ACCESS_KEYS.publicBooking,
+            BOOKING_ACCESS_KEYS.onlinePayment,
+          ]);
+        if (cancelled) return;
+        if (error) throw error;
+        let pub = true;
+        let online = true;
+        for (const r of rows || []) {
+          if (r.setting_key === BOOKING_ACCESS_KEYS.publicBooking) {
+            pub = parseBookingSettingBool(r.setting_value);
+          }
+          if (r.setting_key === BOOKING_ACCESS_KEYS.onlinePayment) {
+            online = parseBookingSettingBool(r.setting_value);
+          }
+        }
+        setPublicBookingEnabled(pub);
+        setOnlinePaymentEnabled(online);
+      } catch (e) {
+        console.error("booking access settings:", e);
+        setPublicBookingEnabled(true);
+        setOnlinePaymentEnabled(true);
+      } finally {
+        if (!cancelled) setAccessSettingsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [publicLocationId]);
 
   // Razorpay keys differ per branch (lite uses RAZORPAY_*_LITE env vars)
   useEffect(() => {
@@ -273,6 +327,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   const [paymentMethod, setPaymentMethod] = useState<"venue" | "razorpay">("venue");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!onlinePaymentEnabled && paymentMethod === "razorpay") {
+      setPaymentMethod("venue");
+    }
+  }, [onlinePaymentEnabled, paymentMethod]);
 
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
@@ -1785,7 +1845,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   // Load Razorpay script and key ID when payment method is set to razorpay
   useEffect(() => {
-    if (paymentMethod === "razorpay") {
+    if (paymentMethod === "razorpay" && onlinePaymentEnabled) {
       // Load Razorpay script if not already loaded
       if (!(window as any).Razorpay) {
         const script = document.createElement("script");
@@ -1818,9 +1878,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           });
       }
     }
-  }, [paymentMethod, razorpayKeyId, branchSlug]);
+  }, [paymentMethod, razorpayKeyId, branchSlug, onlinePaymentEnabled]);
 
   const initiateRazorpay = async () => {
+    if (!onlinePaymentEnabled) {
+      toast.error("Online payment is unavailable right now. Please pay at the venue or call us to book.");
+      return;
+    }
     // Use selectedSlots if available, otherwise fall back to single selectedSlot
     const slotsToBook = selectedSlots.length > 0 ? selectedSlots : (selectedSlot ? [selectedSlot] : []);
     
@@ -2064,14 +2128,16 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       }
       
       const serviceType = getServiceTypeForPromo();
-      if (serviceType) {
+      if (serviceType && onlinePaymentEnabled) {
         setShowOnlinePaymentPromo(true);
         return;
-      } else {
-        // If no eligible service type, proceed directly with venue booking
-        await createVenueBooking();
       }
+      await createVenueBooking();
     } else {
+      if (!onlinePaymentEnabled) {
+        toast.error("Online payment is unavailable. Please pay at the venue or call us.");
+        return;
+      }
       // Don't show payment warning if Instagram pop-up is open
       if (showInstagramFollowDialog || showFollowConfirmation) {
         // If Instagram pop-up is open, proceed directly with online booking
@@ -2084,7 +2150,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
 
   const handlePromoAccept = async () => {
     setShowOnlinePaymentPromo(false);
-    // Switch to online payment and show warning modal
+    if (!onlinePaymentEnabled) {
+      await createVenueBooking();
+      return;
+    }
     setPaymentMethod("razorpay");
     setShowPaymentWarning(true);
   };
@@ -2270,6 +2339,67 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         );
     }
   };
+
+  const gateLoading =
+    branchLocationLoading || (!!publicLocationId && accessSettingsLoading);
+
+  if (gateLoading) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center p-6 ${
+          branchSlug === "lite"
+            ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+            : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+        }`}
+      >
+        <Loader2 className="h-10 w-10 animate-spin text-cuephoria-purple mb-4" />
+        <p className="text-gray-400 text-sm">Loading booking…</p>
+      </div>
+    );
+  }
+
+  if (!branchLocationLoading && !publicLocationId) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center p-6 ${
+          branchSlug === "lite"
+            ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+            : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+        }`}
+      >
+        <AlertTriangle className="h-12 w-12 text-amber-400 mb-4" />
+        <h1 className="text-xl font-semibold text-white mb-2">Branch unavailable</h1>
+        <p className="text-gray-400 text-center max-w-md">
+          This booking link is not valid or the branch is inactive. Please contact us for assistance.
+        </p>
+      </div>
+    );
+  }
+
+  if (publicLocationId && !publicBookingEnabled) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center p-6 ${
+          branchSlug === "lite"
+            ? "bg-gradient-to-br from-[#060d10] via-[#080e14] to-[#060d10]"
+            : "bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12]"
+        }`}
+      >
+        <Headset className="h-14 w-14 text-cuephoria-purple mb-4 opacity-90" />
+        <h1 className="text-xl font-semibold text-white mb-3 text-center">
+          Booking service unavailable
+        </h1>
+        <p className="text-gray-300 text-center max-w-md leading-relaxed">
+          Sorry for the inconvenience. Online booking is temporarily turned off for this branch.
+          Please call us to make your reservation — our team will be happy to help.
+        </p>
+        <div className="mt-6 flex items-center gap-2 text-sm text-gray-400">
+          <Phone className="h-4 w-4" />
+          <span>Use the phone number on our website or Google listing.</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen relative overflow-hidden ${
@@ -3088,8 +3218,22 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   <Label className="text-xs font-semibold text-gray-400 uppercase">
                     Payment Method
                   </Label>
-                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {!onlinePaymentEnabled ? (
+                    <div className="mt-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-sm text-amber-100/95">
+                      <p className="font-medium">Online payment is temporarily unavailable</p>
+                      <p className="text-xs text-amber-200/80 mt-1">
+                        Please choose <span className="font-semibold">Pay at Venue</span> below, or call us to complete your booking.
+                      </p>
+                    </div>
+                  ) : null}
+                  <div
+                    className={cn(
+                      "mt-2 gap-2",
+                      onlinePaymentEnabled ? "grid grid-cols-1 sm:grid-cols-2" : "grid grid-cols-1"
+                    )}
+                  >
                     <button
+                      type="button"
                       onClick={() => setPaymentMethod("venue")}
                       className={cn(
                         "w-full rounded-xl px-3 py-2.5 text-sm border transition-all",
@@ -3101,11 +3245,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     >
                       Pay at Venue
                     </button>
+                    {onlinePaymentEnabled ? (
                     <button
+                      type="button"
                       onClick={() => setPaymentMethod("razorpay")}
                       className={cn(
                         "w-full rounded-xl px-3 py-3 text-sm border transition-all relative",
-                        // Needs more height on mobile because it has 2 lines + badge.
                         "min-h-[56px] sm:h-12 flex items-center justify-center text-center leading-tight",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3395FF]/60",
                         "gh-pay-online-cta",
@@ -3136,8 +3281,9 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
                       )}
                     </button>
+                    ) : null}
                   </div>
-                  {paymentMethod === "razorpay" && (
+                  {paymentMethod === "razorpay" && onlinePaymentEnabled && (
                     <div className="mt-3 space-y-3 animate-fade-in">
                       {/* Razorpay Branding Card */}
                       <div className="rounded-xl border border-[#3395FF]/30 bg-gradient-to-br from-[#3395FF]/10 via-[#2563EB]/10 to-[#1E40AF]/10 p-4 backdrop-blur-sm">

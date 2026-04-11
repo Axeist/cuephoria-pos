@@ -11,9 +11,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
 import { useLocation } from '@/context/LocationContext';
 import { cn } from '@/lib/utils';
+import {
+  BOOKING_ACCESS_KEYS,
+  parseBookingSettingBool,
+} from '@/utils/bookingAccessSettings';
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
+import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useBookingNotifications } from '@/context/BookingNotificationContext';
@@ -21,7 +26,8 @@ import {
   Calendar, Search, Filter, Download, Phone, Mail, Plus, Clock, MapPin, ChevronDown, ChevronRight, Users,
   Trophy, Gift, Tag, Zap, Megaphone, DollarSign, Percent, Ticket, RefreshCw, TrendingUp, TrendingDown, Activity,
   CalendarDays, Target, UserCheck, Edit2, Trash2, Hash, BarChart3, Building2, Eye, Timer, Star, 
-  GamepadIcon, TrendingUp as TrendingUpIcon, CalendarIcon, Expand, Minimize2, Bell, X, CheckCircle2
+  GamepadIcon, TrendingUp as TrendingUpIcon, CalendarIcon, Expand, Minimize2, Bell, X, CheckCircle2,
+  Globe
 } from 'lucide-react';
 import {
   format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, isToday, isYesterday, isTomorrow
@@ -264,6 +270,97 @@ export default function BookingManagement() {
   // Branch / location context
   const { activeLocationId, activeLocation, locations } = useLocation();
   const [branchView, setBranchView] = useState<'current' | 'all'>('current');
+
+  type BranchAccess = { publicBooking: boolean; onlinePayment: boolean };
+  const [branchAccessByLocation, setBranchAccessByLocation] = useState<
+    Record<string, BranchAccess>
+  >({});
+  const [branchAccessLoading, setBranchAccessLoading] = useState(false);
+  const [savingAccessKey, setSavingAccessKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!locations.length) return;
+    let cancelled = false;
+    (async () => {
+      setBranchAccessLoading(true);
+      const ids = locations.map((l) => l.id);
+      const { data, error } = await supabase
+        .from('booking_settings')
+        .select('location_id, setting_key, setting_value')
+        .in('location_id', ids)
+        .in('setting_key', [
+          BOOKING_ACCESS_KEYS.publicBooking,
+          BOOKING_ACCESS_KEYS.onlinePayment,
+        ]);
+      if (cancelled) return;
+      if (error) {
+        console.error('branch access settings', error);
+        toast.error('Could not load public booking controls');
+        setBranchAccessLoading(false);
+        return;
+      }
+      const next: Record<string, BranchAccess> = {};
+      for (const loc of locations) {
+        next[loc.id] = { publicBooking: true, onlinePayment: true };
+      }
+      for (const row of data || []) {
+        const lid = row.location_id as string;
+        if (!next[lid]) continue;
+        const v = parseBookingSettingBool(row.setting_value);
+        if (row.setting_key === BOOKING_ACCESS_KEYS.publicBooking) next[lid].publicBooking = v;
+        if (row.setting_key === BOOKING_ACCESS_KEYS.onlinePayment) next[lid].onlinePayment = v;
+      }
+      setBranchAccessByLocation(next);
+      setBranchAccessLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [locations]);
+
+  const saveBranchAccess = async (
+    locationId: string,
+    key: typeof BOOKING_ACCESS_KEYS.publicBooking | typeof BOOKING_ACCESS_KEYS.onlinePayment,
+    value: boolean
+  ) => {
+    const slot = `${locationId}:${key}`;
+    setSavingAccessKey(slot);
+    try {
+      const res = await fetch('/api/admin/booking-settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          setting_key: key,
+          setting_value: value,
+          location_id: locationId,
+          description:
+            key === BOOKING_ACCESS_KEYS.publicBooking
+              ? 'Allow the public web booking page for this branch.'
+              : 'Allow Razorpay / online payment on the public booking page.',
+        }),
+      });
+      const json = await res.json();
+      if (!json?.ok) throw new Error(json?.error || 'Save failed');
+      setBranchAccessByLocation((prev) => {
+        const cur = prev[locationId] || { publicBooking: true, onlinePayment: true };
+        return {
+          ...prev,
+          [locationId]: {
+            ...cur,
+            publicBooking:
+              key === BOOKING_ACCESS_KEYS.publicBooking ? value : cur.publicBooking,
+            onlinePayment:
+              key === BOOKING_ACCESS_KEYS.onlinePayment ? value : cur.onlinePayment,
+          },
+        };
+      });
+      toast.success('Saved');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSavingAccessKey(null);
+    }
+  };
 
   const extractCouponCodes = (coupon_code: string) =>
     coupon_code.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
@@ -2178,6 +2275,104 @@ export default function BookingManagement() {
           </Button>
         </div>
       </div>
+
+      <Card className="border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Globe className="h-5 w-5 text-cuephoria-purple" />
+            Public booking &amp; online payment
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Control each branch separately (main vs lite). When public booking is off, customers only see a message
+            asking them to call. When online payment is off, only pay-at-venue is available.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {branchAccessLoading ? (
+            <p className="text-sm text-muted-foreground">Loading branch controls…</p>
+          ) : (
+            locations
+              .slice()
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((loc) => {
+                const acc = branchAccessByLocation[loc.id] || {
+                  publicBooking: true,
+                  onlinePayment: true,
+                };
+                const publicPath =
+                  loc.slug === 'lite' ? '/lite/public/booking' : '/public/booking';
+                return (
+                  <div
+                    key={loc.id}
+                    className="rounded-xl border border-border/50 bg-muted/20 p-4 space-y-4"
+                  >
+                    <div>
+                      <p className="font-semibold text-foreground">{loc.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Customer URL:{' '}
+                        <span className="font-mono text-cuephoria-purple/90">{publicPath}</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <Label htmlFor={`pub-${loc.id}`} className="text-sm font-medium">
+                          Public booking page
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          When off, the page shows “booking unavailable — please call”.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span
+                          className={`text-xs font-medium ${acc.publicBooking ? 'text-emerald-600' : 'text-amber-600'}`}
+                        >
+                          {acc.publicBooking ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <Switch
+                          id={`pub-${loc.id}`}
+                          checked={acc.publicBooking}
+                          disabled={
+                            savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.publicBooking}`
+                          }
+                          onCheckedChange={(c) =>
+                            saveBranchAccess(loc.id, BOOKING_ACCESS_KEYS.publicBooking, c)
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <Label htmlFor={`pay-${loc.id}`} className="text-sm font-medium">
+                          Online payment (Razorpay)
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          When off, customers can only choose pay at venue.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span
+                          className={`text-xs font-medium ${acc.onlinePayment ? 'text-emerald-600' : 'text-amber-600'}`}
+                        >
+                          {acc.onlinePayment ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <Switch
+                          id={`pay-${loc.id}`}
+                          checked={acc.onlinePayment}
+                          disabled={
+                            savingAccessKey === `${loc.id}:${BOOKING_ACCESS_KEYS.onlinePayment}`
+                          }
+                          onCheckedChange={(c) =>
+                            saveBranchAccess(loc.id, BOOKING_ACCESS_KEYS.onlinePayment, c)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+          )}
+        </CardContent>
+      </Card>
 
       {/* Calendar View Toggle */}
       {calendarView && <CalendarDayView />}
