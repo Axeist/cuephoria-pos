@@ -32,6 +32,7 @@ export default function PublicPaymentSuccess() {
   const paymentId = searchParams.get("payment_id") || "";
   const orderId = searchParams.get("order_id") || "";
   const signature = searchParams.get("signature") || "";
+  const razorpayProfile = searchParams.get("profile") || "";
   const [status, setStatus] = useState<"checking" | "creating" | "done" | "failed">("checking");
   const [msg, setMsg] = useState("Verifying your payment…");
 
@@ -66,6 +67,7 @@ export default function PublicPaymentSuccess() {
             razorpay_order_id: orderId,
             razorpay_payment_id: paymentId,
             razorpay_signature: signature,
+            ...(razorpayProfile === "lite" ? { profile: "lite" } : {}),
           }),
         });
 
@@ -298,12 +300,14 @@ export default function PublicPaymentSuccess() {
       localStorage.setItem("bookingConfirmation", JSON.stringify(confirmationData));
       localStorage.removeItem("pendingBooking");
 
-      // Redirect to booking page with success flag
-      navigate("/public/booking?booking_success=true");
+      // Redirect to booking page with success flag (same branch as checkout)
+      const bookingBase =
+        razorpayProfile === "lite" ? "/lite/public/booking" : "/public/booking";
+      navigate(`${bookingBase}?booking_success=true`);
     };
 
     run();
-  }, [paymentId, orderId, signature]);
+  }, [paymentId, orderId, signature, razorpayProfile]);
 
   const title =
     status === "done" ? "Payment Successful!"

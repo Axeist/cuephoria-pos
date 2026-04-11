@@ -1,6 +1,12 @@
 // Using Node.js runtime to use Razorpay SDK
 // export const config = { runtime: "edge" };
 
+import {
+  getRazorpayCredentials,
+  parseRazorpayProfile,
+  type RazorpayProfile,
+} from "../lib/razorpay-credentials";
+
 // Vercel Node.js runtime types
 type VercelRequest = {
   method?: string;
@@ -27,39 +33,18 @@ function j(res: VercelResponse, data: unknown, status = 200) {
   res.status(status).json(data);
 }
 
-// Environment variable getter (Node.js runtime)
-function getEnv(name: string): string | undefined {
-  if (typeof process !== "undefined" && process.env) {
-    return (process.env as any)[name];
-  }
-  // Fallback for Edge runtime
-  const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
-  return fromDeno;
-}
-
-function need(name: string): string {
-  const v = getEnv(name);
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
-}
-
-// Get Razorpay key secret
-function getRazorpayKeySecret() {
-  const mode = getEnv("RAZORPAY_MODE") || "test";
-  const isLive = mode === "live";
-  
-  return isLive
-    ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
-    : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
+function getRazorpayKeySecret(profile: RazorpayProfile) {
+  return getRazorpayCredentials(profile).keySecret;
 }
 
 // Verify Razorpay payment signature
 function verifyPaymentSignature(
   razorpayOrderId: string,
   razorpayPaymentId: string,
-  razorpaySignature: string
+  razorpaySignature: string,
+  profile: RazorpayProfile
 ): boolean {
-  const keySecret = getRazorpayKeySecret();
+  const keySecret = getRazorpayKeySecret(profile);
   
   // Create the signature string: order_id|payment_id
   const payload = `${razorpayOrderId}|${razorpayPaymentId}`;
@@ -81,20 +66,11 @@ function verifyPaymentSignature(
 }
 
 // Fetch payment status from Razorpay API using SDK
-async function fetchPaymentStatus(paymentId: string) {
+async function fetchPaymentStatus(paymentId: string, profile: RazorpayProfile) {
   // Import Razorpay SDK
   const Razorpay = (await import('razorpay')).default;
-  
-  const mode = getEnv("RAZORPAY_MODE") || "test";
-  const isLive = mode === "live";
-  
-  const keyId = isLive 
-    ? (getEnv("RAZORPAY_KEY_ID_LIVE") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_LIVE"))
-    : (getEnv("RAZORPAY_KEY_ID_TEST") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_TEST"));
-    
-  const keySecret = isLive
-    ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
-    : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
+
+  const { keyId, keySecret } = getRazorpayCredentials(profile);
 
   // Initialize Razorpay client
   const razorpay = new Razorpay({
@@ -135,11 +111,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
+      profile: profileRaw,
     } = payload;
+
+    const profile = parseRazorpayProfile(profileRaw);
 
     console.log("🔍 Verifying Razorpay payment:", {
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
+      profile,
     });
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -152,7 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fetch payment status from Razorpay API
     let payment;
     try {
-      payment = await fetchPaymentStatus(razorpay_payment_id);
+      payment = await fetchPaymentStatus(razorpay_payment_id, profile);
     } catch (fetchErr: any) {
       // If payment doesn't exist or fetch fails, it's likely a failed payment
       console.error("❌ Failed to fetch payment:", fetchErr?.message);
@@ -185,7 +165,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const signatureValid = verifyPaymentSignature(
       razorpay_order_id,
       razorpay_payment_id,
-      razorpay_signature
+      razorpay_signature,
+      profile
     );
 
     console.log("✅ Payment verified:", {

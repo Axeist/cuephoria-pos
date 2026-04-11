@@ -1,4 +1,6 @@
 // Using Node.js runtime to use Razorpay SDK and Supabase client
+import { fetchRazorpayOrderWithMerchantFallback } from "../lib/razorpay-credentials";
+
 export const config = {
   maxDuration: 30, // 30 seconds
 };
@@ -86,22 +88,6 @@ const generateCustomerID = (phone: string): string => {
   return `CUE${phoneHash}${timestamp}`;
 };
 
-// Get Razorpay credentials
-function getRazorpayCredentials() {
-  const mode = getEnv("RAZORPAY_MODE") || "test";
-  const isLive = mode === "live";
-  
-  const keyId = isLive 
-    ? (getEnv("RAZORPAY_KEY_ID_LIVE") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_LIVE"))
-    : (getEnv("RAZORPAY_KEY_ID_TEST") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_TEST"));
-    
-  const keySecret = isLive
-    ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
-    : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
-
-  return { keyId, keySecret, isLive };
-}
-
 // Get Supabase client
 async function getSupabaseClient() {
   const { createClient } = await import('@supabase/supabase-js');
@@ -148,14 +134,7 @@ async function getSupabaseClient() {
 // Fetch order details from Razorpay to get full booking data
 async function fetchOrderDetails(orderId: string) {
   try {
-    const Razorpay = (await import('razorpay')).default;
-    const { keyId, keySecret } = getRazorpayCredentials();
-    const razorpay = new Razorpay({
-      key_id: keyId,
-      key_secret: keySecret,
-    });
-    
-    const order = await razorpay.orders.fetch(orderId);
+    const order = await fetchRazorpayOrderWithMerchantFallback(orderId);
     return order;
   } catch (error: any) {
     console.error("❌ Error fetching order from Razorpay:", error);

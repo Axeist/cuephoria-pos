@@ -226,6 +226,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     };
   }, [branchSlug]);
 
+  // Razorpay keys differ per branch (lite uses RAZORPAY_*_LITE env vars)
+  useEffect(() => {
+    setRazorpayKeyId("");
+  }, [branchSlug]);
+
   // Check if user is logged in as customer (for bottom nav)
   const customerSession = getCustomerSession();
   
@@ -1798,7 +1803,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       
       // Pre-fetch Razorpay key ID for faster payment initiation
       if (!razorpayKeyId) {
-        fetch("/api/razorpay/get-key-id")
+        const profileQs = branchSlug === "lite" ? "?profile=lite" : "";
+        fetch(`/api/razorpay/get-key-id${profileQs}`)
           .then((res) => res.json())
           .then((data) => {
             if (data.ok && data.keyId) {
@@ -1812,7 +1818,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           });
       }
     }
-  }, [paymentMethod, razorpayKeyId]);
+  }, [paymentMethod, razorpayKeyId, branchSlug]);
 
   const initiateRazorpay = async () => {
     // Use selectedSlots if available, otherwise fall back to single selectedSlot
@@ -1911,13 +1917,15 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           amount: totalWithFee,
           receipt: txnId,
           notes: notes,
+          ...(branchSlug === "lite" ? { profile: "lite" } : {}),
         }),
       });
 
+      const profileQs = branchSlug === "lite" ? "?profile=lite" : "";
       // Fetch key ID in parallel with order creation if not already cached
       const keyPromise = razorpayKeyId 
         ? Promise.resolve({ keyId: razorpayKeyId })
-        : fetch("/api/razorpay/get-key-id")
+        : fetch(`/api/razorpay/get-key-id${profileQs}`)
             .then((res) => res.json())
             .catch(() => ({ keyId: "" }));
 
@@ -1964,7 +1972,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         handler: function (response: any) {
           console.log("✅ Razorpay payment success:", response);
           // Redirect to success page with payment details
-          window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}`;
+          const liteQs = branchSlug === "lite" ? "&profile=lite" : "";
+          window.location.href = `/public/payment/success?payment_id=${encodeURIComponent(response.razorpay_payment_id)}&order_id=${encodeURIComponent(response.razorpay_order_id)}&signature=${encodeURIComponent(response.razorpay_signature)}${liteQs}`;
         },
         prefill: {
           name: customerInfo.name,

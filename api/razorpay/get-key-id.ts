@@ -1,3 +1,8 @@
+import {
+  getRazorpayKeyId as resolveKeyId,
+  parseRazorpayProfile,
+} from "../lib/razorpay-credentials";
+
 export const config = { runtime: "edge" };
 
 function j(res: unknown, status = 200) {
@@ -12,29 +17,6 @@ function j(res: unknown, status = 200) {
   });
 }
 
-// Edge-safe env getter
-function getEnv(name: string): string | undefined {
-  const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
-  const fromProcess = typeof process !== "undefined" ? (process.env as any)?.[name] : undefined;
-  return fromDeno ?? fromProcess;
-}
-
-function need(name: string): string {
-  const v = getEnv(name);
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
-}
-
-// Get Razorpay Key ID (public key, safe to expose)
-function getRazorpayKeyId() {
-  const mode = getEnv("RAZORPAY_MODE") || "test";
-  const isLive = mode === "live";
-  
-  return isLive 
-    ? (getEnv("RAZORPAY_KEY_ID_LIVE") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_LIVE"))
-    : (getEnv("RAZORPAY_KEY_ID_TEST") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_TEST"));
-}
-
 export default async function handler(req: Request) {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -46,7 +28,9 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const keyId = getRazorpayKeyId();
+    const url = new URL(req.url);
+    const profile = parseRazorpayProfile(url.searchParams.get("profile"));
+    const keyId = resolveKeyId(profile);
     return j({
       ok: true,
       keyId,

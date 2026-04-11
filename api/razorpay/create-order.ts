@@ -1,6 +1,12 @@
 // Using Node.js runtime to use Razorpay SDK
 // export const config = { runtime: "edge" };
 
+import {
+  getRazorpayCredentials,
+  parseRazorpayProfile,
+  type RazorpayProfile,
+} from "../lib/razorpay-credentials";
+
 // Increase timeout to 30 seconds to handle Razorpay API calls
 export const config = {
   maxDuration: 30, // 30 seconds (default is 10s, max is 60s for Pro plan)
@@ -32,48 +38,13 @@ function j(res: VercelResponse, data: unknown, status = 200) {
   res.status(status).json(data);
 }
 
-// Environment variable getter (Node.js runtime)
-function getEnv(name: string): string | undefined {
-  if (typeof process !== "undefined" && process.env) {
-    return (process.env as any)[name];
-  }
-  // Fallback for Edge runtime
-  const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
-  return fromDeno;
-}
-
-function need(name: string): string {
-  const v = getEnv(name);
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
-}
-
-// Get Razorpay credentials (supports both test and live)
-function getRazorpayCredentials() {
-  // Check if we're in live mode (you can set RAZORPAY_MODE=live or use live keys)
-  const mode = getEnv("RAZORPAY_MODE") || "test";
-  const isLive = mode === "live";
-  
-  const keyId = isLive 
-    ? (getEnv("RAZORPAY_KEY_ID_LIVE") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_LIVE"))
-    : (getEnv("RAZORPAY_KEY_ID_TEST") || getEnv("RAZORPAY_KEY_ID") || need("RAZORPAY_KEY_ID_TEST"));
-    
-  const keySecret = isLive
-    ? (getEnv("RAZORPAY_KEY_SECRET_LIVE") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_LIVE"))
-    : (getEnv("RAZORPAY_KEY_SECRET_TEST") || getEnv("RAZORPAY_KEY_SECRET") || need("RAZORPAY_KEY_SECRET_TEST"));
-
-  // Validate key format
-  if (isLive && !keyId.startsWith("rzp_live_")) {
-    console.warn("⚠️ Live mode but key doesn't start with 'rzp_live_'");
-  } else if (!isLive && !keyId.startsWith("rzp_test_")) {
-    console.warn("⚠️ Test mode but key doesn't start with 'rzp_test_'");
-  }
-
-  return { keyId, keySecret, isLive };
-}
-
 // Create Razorpay order using Razorpay SDK (Node.js runtime)
-async function createRazorpayOrder(amount: number, receipt: string, notes?: Record<string, string>) {
+async function createRazorpayOrder(
+  amount: number,
+  receipt: string,
+  notes: Record<string, string> | undefined,
+  profile: RazorpayProfile
+) {
   // Import Razorpay SDK
   const Razorpay = (await import('razorpay')).default;
   
@@ -81,7 +52,7 @@ async function createRazorpayOrder(amount: number, receipt: string, notes?: Reco
   let keySecret: string;
   
   try {
-    const credentials = getRazorpayCredentials();
+    const credentials = getRazorpayCredentials(profile);
     keyId = credentials.keyId;
     keySecret = credentials.keySecret;
   } catch (err: any) {
@@ -174,9 +145,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       amount,
       receipt,
       notes,
+      profile: profileRaw,
     } = payload;
 
-    console.log("💳 Razorpay order request:", { amount, receipt });
+    const profile = parseRazorpayProfile(profileRaw);
+
+    console.log("💳 Razorpay order request:", { amount, receipt, profile });
 
     if (!amount || Number(amount) <= 0) {
       return j(res, { ok: false, error: "Amount must be > 0" }, 400);
@@ -186,7 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Receipt ID is required" }, 400);
     }
 
-    const order = await createRazorpayOrder(Number(amount), receipt, notes);
+    const order = await createRazorpayOrder(Number(amount), receipt, notes, profile);
 
     return j(res, {
       ok: true,
