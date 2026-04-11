@@ -1,5 +1,5 @@
 // Using Node.js runtime to use Razorpay SDK and Supabase client
-import { fetchRazorpayOrderWithMerchantFallback } from "../lib/razorpay-credentials";
+import { fetchRazorpayOrderWithMerchantFallback } from "../lib/razorpay-fetch-order";
 
 export const config = {
   maxDuration: 30, // 30 seconds
@@ -425,7 +425,7 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
       console.log("✅ Booking already exists for payment:", paymentId, "— checking if bill needs to be created");
 
       // Resolve the customer from the existing booking
-      const bookingCustomerId = existingBookings[0].customer_id || customerId;
+      const bookingCustomerId = existingBookings[0].customer_id || customer.id;
 
       if (bookingCustomerId) {
         // Check if a bill already exists for this payment
