@@ -991,3 +991,30 @@
     opacity: 0.03;
   }
 }
+
+/* ─── Cafe order splash animations ─── */
+@keyframes foodFloat {
+  0%   { opacity: 0; transform: translateY(60vh) rotate(0deg) scale(0.7); }
+  10%  { opacity: 0.6; }
+  50%  { opacity: 0.4; transform: translateY(-10vh) rotate(20deg) scale(1); }
+  90%  { opacity: 0; }
+  100% { opacity: 0; transform: translateY(-40vh) rotate(40deg) scale(0.5); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25%      { transform: rotate(-8deg) scale(1.05); }
+  75%      { transform: rotate(8deg) scale(1.05); }
+}
+
+@keyframes steamRise {
+  0%, 100% { opacity: 0; transform: translateY(0) scaleY(1); }
+  30%      { opacity: 0.5; transform: translateY(-8px) scaleY(1.2); }
+  60%      { opacity: 0.2; transform: translateY(-16px) scaleY(0.8); }
+}
+
+@keyframes shimmerSlide {
+  0%   { width: 0%; margin-left: 0; }
+  50%  { width: 100%; margin-left: 0; }
+  100% { width: 0%; margin-left: 100%; }
+}

@@ -34,6 +34,105 @@ const glassCard =
 const accentGrad = 'linear-gradient(135deg, #f97316 0%, #a855f7 60%, #6366f1 100%)';
 const accentGradSoft = 'linear-gradient(135deg, rgba(249,115,22,0.15), rgba(168,85,247,0.12))';
 
+const FOOD_EMOJIS = ['🍕', '🍔', '🌮', '🍜', '🍰', '☕', '🍩', '🧁', '🍪', '🥐', '🍳', '🥘', '🍲', '🎂', '🍿'];
+const PLACING_MESSAGES = [
+  'Sending your order to the kitchen…',
+  'Our chefs are getting excited…',
+  'Warming up the pans…',
+  'Picking the freshest ingredients…',
+  'A delicious meal is on its way…',
+  'Almost there — hang tight!',
+];
+
+const OrderPlacingSplash: React.FC<{ cartTotal: number; itemCount: number }> = ({ cartTotal, itemCount }) => {
+  const [msgIdx, setMsgIdx] = useState(0);
+  const [emojis] = useState(() => {
+    const shuffled = [...FOOD_EMOJIS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 8);
+  });
+
+  useEffect(() => {
+    const iv = setInterval(() => setMsgIdx(i => (i + 1) % PLACING_MESSAGES.length), 2200);
+    return () => clearInterval(iv);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden"
+      style={{ background: 'radial-gradient(ellipse at 50% 40%, hsl(222 47% 10%) 0%, hsl(222 47% 4%) 70%)' }}>
+      
+      {/* Floating food emojis */}
+      {emojis.map((emoji, i) => (
+        <span
+          key={i}
+          className="absolute text-3xl opacity-0 pointer-events-none select-none"
+          style={{
+            left: `${10 + (i % 4) * 22}%`,
+            animation: `foodFloat ${3.5 + (i % 3) * 0.8}s ease-in-out ${i * 0.4}s infinite`,
+          }}
+        >
+          {emoji}
+        </span>
+      ))}
+
+      {/* Warm radial glows */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 h-80 w-80 rounded-full opacity-25 blur-3xl"
+        style={{ background: 'radial-gradient(circle, #f97316, transparent 70%)' }} />
+      <div className="absolute bottom-1/4 left-1/3 h-60 w-60 rounded-full opacity-15 blur-3xl"
+        style={{ background: 'radial-gradient(circle, #a855f7, transparent 70%)' }} />
+
+      <div className="relative z-10 flex flex-col items-center gap-6 px-8 max-w-sm text-center">
+        {/* Animated plate / bowl */}
+        <div className="relative">
+          <div className="h-28 w-28 rounded-full flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(168,85,247,0.15))', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="h-20 w-20 rounded-full flex items-center justify-center animate-pulse"
+              style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.3), rgba(168,85,247,0.2))' }}>
+              <span className="text-5xl" style={{ animation: 'wiggle 1.5s ease-in-out infinite' }}>🍽️</span>
+            </div>
+          </div>
+          {/* Orbiting ring */}
+          <div className="absolute inset-[-6px] rounded-full animate-spin" style={{ animationDuration: '4s' }}>
+            <div className="h-3 w-3 rounded-full absolute -top-1 left-1/2 -translate-x-1/2"
+              style={{ background: accentGrad, boxShadow: '0 0 12px rgba(249,115,22,0.6)' }} />
+          </div>
+          {/* Steam wisps */}
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex gap-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="w-1 bg-white/20 rounded-full"
+                style={{ height: 12 + i * 4, animation: `steamRise 1.8s ease-in-out ${i * 0.3}s infinite` }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Cycling message */}
+        <div className="min-h-[3rem]">
+          <p key={msgIdx} className="text-lg font-heading text-white/90 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {PLACING_MESSAGES[msgIdx]}
+          </p>
+        </div>
+
+        {/* Order summary chip */}
+        <div className="flex items-center gap-3 px-5 py-2.5 rounded-2xl border border-white/[0.08]"
+          style={{ background: 'rgba(255,255,255,0.04)' }}>
+          <span className="text-sm text-zinc-400 font-quicksand">{itemCount} item{itemCount > 1 ? 's' : ''}</span>
+          <span className="h-4 w-px bg-white/10" />
+          <span className="text-sm font-bold text-orange-300 font-quicksand"><CurrencyDisplay amount={cartTotal} /></span>
+        </div>
+
+        {/* Shimmer bar */}
+        <div className="w-48 h-1 rounded-full overflow-hidden bg-white/[0.06]">
+          <div className="h-full rounded-full" style={{
+            background: accentGrad,
+            animation: 'shimmerSlide 1.4s ease-in-out infinite',
+          }} />
+        </div>
+
+        <p className="text-[11px] text-zinc-600 font-quicksand">Please don't close this page</p>
+      </div>
+    </div>
+  );
+};
+
 /* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
 const CafeCustomerOrder: React.FC = () => {
   const [categories, setCategories] = useState<CafeMenuCategory[]>([]);
@@ -75,7 +174,19 @@ const CafeCustomerOrder: React.FC = () => {
       setCustomerPhone(savedPhone);
       setCustomerName(savedName);
       setHistoryPhone(savedPhone);
-      setStep('menu');
+      (async () => {
+        const { data } = await supabase.from('cafe_orders').select('id, order_number, status')
+          .eq('customer_phone', savedPhone).in('status', ['pending', 'confirmed', 'preparing', 'ready'])
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (data) {
+          setOrderId(data.id);
+          setOrderNumber(data.order_number);
+          setOrderStatus(data.status);
+          setStep('tracking');
+        } else {
+          setStep('menu');
+        }
+      })();
     } else {
       setLandingVisible(true);
     }
@@ -289,12 +400,13 @@ const CafeCustomerOrder: React.FC = () => {
 
   const handleSkipIdentify = () => setStep('menu');
 
-  const handleFetchHistory = async () => {
-    if (!historyPhone || historyPhone.length < 10) { toast.error('Enter a valid 10-digit phone number'); return; }
+  const handleFetchHistory = useCallback(async (phone?: string) => {
+    const p = phone || historyPhone;
+    if (!p || p.length < 10) { if (!phone) toast.error('Enter a valid 10-digit phone number'); return; }
     setHistoryLoading(true);
     try {
       const { data, error } = await supabase.from('cafe_orders').select('*')
-        .eq('customer_phone', historyPhone).order('created_at', { ascending: false }).limit(20);
+        .eq('customer_phone', p).order('created_at', { ascending: false }).limit(20);
       if (error) throw error;
       setOrderHistory((data || []).map(r => transformOrderRow(r as unknown as CafeOrderRow)));
     } catch {
@@ -302,7 +414,13 @@ const CafeCustomerOrder: React.FC = () => {
     } finally {
       setHistoryLoading(false);
     }
-  };
+  }, [historyPhone]);
+
+  useEffect(() => {
+    if (step === 'history' && historyPhone && historyPhone.length >= 10 && orderHistory.length === 0) {
+      handleFetchHistory(historyPhone);
+    }
+  }, [step, historyPhone]);
 
   const handlePlaceOrder = async () => {
     if (!customerName.trim()) { toast.error('Please enter your name'); return; }
@@ -310,6 +428,7 @@ const CafeCustomerOrder: React.FC = () => {
     if (cart.length === 0) return;
 
     setIsSubmitting(true);
+    const splashStart = Date.now();
     try {
       const cafeLocation = await supabase.from('locations').select('id').eq('slug', 'cafe').single();
       if (!cafeLocation.data) throw new Error('Cafe not found');
@@ -357,6 +476,10 @@ const CafeCustomerOrder: React.FC = () => {
       localStorage.setItem(PHONE_STORAGE_KEY, customerPhone.trim());
       localStorage.setItem(NAME_STORAGE_KEY, customerName.trim());
 
+      const elapsed = Date.now() - splashStart;
+      const MIN_SPLASH = 2200;
+      if (elapsed < MIN_SPLASH) await new Promise(r => setTimeout(r, MIN_SPLASH - elapsed));
+
       setOrderId(orderData.id);
       setOrderNumber((orderData as any).order_number);
       setOrderStatus('pending');
@@ -369,20 +492,34 @@ const CafeCustomerOrder: React.FC = () => {
     }
   };
 
-  const trackingSteps = [
-    { key: 'pending', label: 'Order Received', desc: 'Your order has been placed successfully', icon: ShoppingCart, emoji: '📝' },
-    { key: 'confirmed', label: 'Order Confirmed', desc: 'Kitchen has accepted your order', icon: CheckCircle2, emoji: '✅' },
-    { key: 'preparing', label: 'Being Prepared', desc: 'Our chef is crafting your delicious food', icon: CookingPot, emoji: '👨‍🍳' },
-    { key: 'ready', label: 'Ready for Pickup', desc: 'Head to the counter to collect your order', icon: Coffee, emoji: '🔔' },
-    { key: 'served', label: 'Picked Up', desc: 'Enjoy your meal!', icon: UtensilsCrossed, emoji: '🍽️' },
-    { key: 'completed', label: 'Completed', desc: 'Thanks for dining with us!', icon: CheckCircle2, emoji: '🎉' },
+  const inventoryCatIds = useMemo(() => new Set(categories.filter(c => c.tracksInventory).map(c => c.id)), [categories]);
+
+  const isInventoryOnly = useMemo(() => {
+    if (cart.length === 0) return false;
+    return cart.every(c => {
+      const item = items.find(i => i.id === c.menuItemId);
+      return item ? inventoryCatIds.has(item.categoryId) : false;
+    });
+  }, [cart, items, inventoryCatIds]);
+
+  const kotTrackingSteps = [
+    { key: 'pending', label: 'Order Received', desc: 'Your order has been placed', icon: ShoppingCart, emoji: '📝' },
+    { key: 'confirmed', label: 'Order Accepted', desc: 'Kitchen has accepted your order', icon: CheckCircle2, emoji: '✅' },
+    { key: 'preparing', label: 'Being Prepared', desc: 'Our chef is preparing your food', icon: CookingPot, emoji: '👨‍🍳' },
+    { key: 'ready', label: 'Ready!', desc: 'Your order is ready — collect from the counter', icon: Coffee, emoji: '🔔' },
   ];
+
+  const directTrackingSteps = [
+    { key: 'pending', label: 'Order Received', desc: 'Your order has been placed', icon: ShoppingCart, emoji: '📝' },
+    { key: 'ready', label: 'Ready!', desc: 'Your order is ready — collect from the counter', icon: Coffee, emoji: '🔔' },
+  ];
+
+  const trackingSteps = isInventoryOnly ? directTrackingSteps : kotTrackingSteps;
 
   const resolvedStatus = useMemo(() => {
     if (orderStatus === 'cancelled') return 'cancelled';
-    if (orderStatus === 'completed') return 'completed';
-    if (orderStatus === 'served') return 'served';
-    if (orderStatus === 'ready' || kotStatus === 'ready') return 'ready';
+    if (['completed', 'served'].includes(orderStatus)) return 'ready';
+    if (orderStatus === 'ready' || kotStatus === 'ready' || kotStatus === 'served') return 'ready';
     if (kotStatus === 'preparing' || orderStatus === 'preparing') return 'preparing';
     if (kotStatus === 'acknowledged' || orderStatus === 'confirmed') return 'confirmed';
     return 'pending';
@@ -423,19 +560,40 @@ const CafeCustomerOrder: React.FC = () => {
   /* ═══════════════════════════════ LOADING ═══════════════════════════════ */
   if (loading && step !== 'landing') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[hsl(222_47%_5%)] relative">
-        <AmbientBg />
-        <div className="relative z-10 flex flex-col items-center gap-6">
-          <div className="relative h-24 w-24">
-            <div className="absolute inset-0 rounded-full animate-spin" style={{ background: 'conic-gradient(from 0deg, #f97316, #a855f7, #6366f1, #f97316)', padding: 3 }}>
-              <div className="flex h-full w-full items-center justify-center rounded-full bg-[hsl(222_47%_5%)]">
-                <Coffee className="h-10 w-10 text-orange-300" />
-              </div>
+      <div className="min-h-screen flex flex-col items-center justify-center overflow-hidden relative"
+        style={{ background: 'radial-gradient(ellipse at 50% 40%, hsl(222 47% 10%) 0%, hsl(222 47% 4%) 70%)' }}>
+        {/* Floating food */}
+        {['☕', '🍰', '🍕', '🥐', '🍔', '🍜'].map((e, i) => (
+          <span key={i} className="absolute text-2xl opacity-0 pointer-events-none select-none"
+            style={{ left: `${8 + (i % 3) * 30}%`, animation: `foodFloat ${3 + (i % 3)}s ease-in-out ${i * 0.5}s infinite` }}>
+            {e}
+          </span>
+        ))}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 h-72 w-72 rounded-full opacity-20 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #f97316, transparent 70%)' }} />
+        <div className="relative z-10 flex flex-col items-center gap-6 px-8">
+          <div className="relative">
+            <div className="h-24 w-24 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(168,85,247,0.15))', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <span className="text-4xl" style={{ animation: 'wiggle 1.5s ease-in-out infinite' }}>☕</span>
             </div>
-        </div>
-        <div className="text-center space-y-2">
-            <p className="text-lg font-heading text-white">Brewing your menu...</p>
+            <div className="absolute inset-[-4px] rounded-full animate-spin" style={{ animationDuration: '3s' }}>
+              <div className="h-2.5 w-2.5 rounded-full absolute -top-0.5 left-1/2 -translate-x-1/2"
+                style={{ background: accentGrad, boxShadow: '0 0 10px rgba(249,115,22,0.5)' }} />
+            </div>
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-0.5 bg-white/20 rounded-full"
+                  style={{ height: 8 + i * 3, animation: `steamRise 1.8s ease-in-out ${i * 0.3}s infinite` }} />
+              ))}
+            </div>
+          </div>
+          <div className="text-center space-y-1.5">
+            <p className="text-lg font-heading text-white">Brewing your menu…</p>
             <p className="text-sm text-zinc-500 font-quicksand">Fresh dishes loading</p>
+          </div>
+          <div className="w-40 h-1 rounded-full overflow-hidden bg-white/[0.06]">
+            <div className="h-full rounded-full" style={{ background: accentGrad, animation: 'shimmerSlide 1.4s ease-in-out infinite' }} />
           </div>
         </div>
       </div>
@@ -569,20 +727,34 @@ const CafeCustomerOrder: React.FC = () => {
     );
   }
 
-  /* Loading overlay for menu step */
+  /* Loading overlay for menu step — reuses the same fancy splash */
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[hsl(222_47%_5%)] relative">
-        <AmbientBg />
-        <div className="relative z-10 flex flex-col items-center gap-6">
-          <div className="relative h-24 w-24">
-            <div className="absolute inset-0 rounded-full animate-spin" style={{ background: 'conic-gradient(from 0deg, #f97316, #a855f7, #6366f1, #f97316)', padding: 3 }}>
-              <div className="flex h-full w-full items-center justify-center rounded-full bg-[hsl(222_47%_5%)]">
-                <Coffee className="h-10 w-10 text-orange-300" />
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center overflow-hidden relative"
+        style={{ background: 'radial-gradient(ellipse at 50% 40%, hsl(222 47% 10%) 0%, hsl(222 47% 4%) 70%)' }}>
+        {['🍩', '🧁', '🍳', '🥘'].map((e, i) => (
+          <span key={i} className="absolute text-2xl opacity-0 pointer-events-none select-none"
+            style={{ left: `${15 + (i % 2) * 35}%`, animation: `foodFloat ${3.2 + i * 0.6}s ease-in-out ${i * 0.4}s infinite` }}>
+            {e}
+          </span>
+        ))}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 h-60 w-60 rounded-full opacity-20 blur-3xl"
+          style={{ background: 'radial-gradient(circle, #f97316, transparent 70%)' }} />
+        <div className="relative z-10 flex flex-col items-center gap-5">
+          <div className="relative">
+            <div className="h-20 w-20 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.2), rgba(168,85,247,0.15))', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <span className="text-3xl" style={{ animation: 'wiggle 1.5s ease-in-out infinite' }}>☕</span>
+            </div>
+            <div className="absolute inset-[-4px] rounded-full animate-spin" style={{ animationDuration: '3s' }}>
+              <div className="h-2 w-2 rounded-full absolute -top-0.5 left-1/2 -translate-x-1/2"
+                style={{ background: accentGrad, boxShadow: '0 0 8px rgba(249,115,22,0.5)' }} />
+            </div>
           </div>
+          <p className="text-lg font-heading text-white">Brewing your menu…</p>
+          <div className="w-36 h-1 rounded-full overflow-hidden bg-white/[0.06]">
+            <div className="h-full rounded-full" style={{ background: accentGrad, animation: 'shimmerSlide 1.4s ease-in-out infinite' }} />
           </div>
-          <p className="text-lg font-heading text-white">Brewing your menu...</p>
         </div>
       </div>
     );
@@ -591,6 +763,7 @@ const CafeCustomerOrder: React.FC = () => {
   /* ═══════════════════════════════ APP SHELL ═══════════════════════════════ */
   return (
     <div className="min-h-screen bg-[hsl(222_47%_5%)] relative">
+      {isSubmitting && <OrderPlacingSplash cartTotal={cartTotal} itemCount={cartCount} />}
       <AmbientBg />
 
       {/* ── HEADER ── */}
@@ -681,27 +854,27 @@ const CafeCustomerOrder: React.FC = () => {
 
           {/* Category Tabs */}
           {!menuSearch && (
-              <div ref={categoryScrollRef} className="flex gap-2 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4">
-                {categories.map(cat => {
-                  const isActive = displayCategory === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setActiveCategory(cat.id)}
-                      className={`px-5 py-2.5 rounded-2xl text-sm font-quicksand font-medium whitespace-nowrap transition-all duration-300 shrink-0 ${
-                        isActive
-                          ? 'text-white shadow-lg shadow-orange-500/20 ring-1 ring-white/10'
-                          : 'bg-white/[0.04] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.08] border border-white/[0.06]'
-                      }`}
-                      style={isActive ? { background: accentGrad } : undefined}
+            <div ref={categoryScrollRef} className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {categories.map(cat => {
+                const isActive = displayCategory === cat.id;
+                const count = items.filter(i => i.categoryId === cat.id).length;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-quicksand font-medium whitespace-nowrap transition-all duration-200 shrink-0 ${
+                      isActive
+                        ? 'text-white shadow-md shadow-orange-500/20'
+                        : 'bg-white/[0.04] text-zinc-500 hover:text-zinc-300 border border-white/[0.06]'
+                    }`}
+                    style={isActive ? { background: accentGrad } : undefined}
                   >
-                    {cat.name}
-                      <span className="ml-1.5 text-[10px] opacity-60">({items.filter(i => i.categoryId === cat.id).length})</span>
+                    {cat.name} <span className="opacity-60">({count})</span>
                   </button>
-                  );
-                })}
+                );
+              })}
               </div>
-            )}
+          )}
 
             {/* Items */}
             <div className="space-y-3 pt-1">
@@ -761,32 +934,32 @@ const CafeCustomerOrder: React.FC = () => {
                       </div>
 
                       {/* Right: image + add */}
-                      <div className="flex flex-col items-center gap-2 shrink-0 w-28">
+                      <div className="flex flex-col items-center shrink-0 w-24">
                         {item.imageUrl ? (
-                          <div className="relative h-24 w-full rounded-xl overflow-hidden">
+                          <div className="relative h-20 w-full rounded-xl overflow-hidden">
                             <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
                           </div>
                         ) : (
-                          <div className="h-24 w-full rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
-                            <Coffee className="h-8 w-8 text-zinc-700" />
+                          <div className="h-20 w-full rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+                            <Coffee className="h-7 w-7 text-zinc-700" />
                           </div>
                         )}
 
                       {inCart ? (
-                          <div className="flex items-center gap-0.5 -mt-5 relative z-10">
-                            <button onClick={() => updateQuantity(item.id, -1)} className="h-9 w-9 rounded-xl bg-zinc-800 border border-white/10 flex items-center justify-center hover:bg-zinc-700 transition-colors active:scale-90 shadow-lg">
-                            <Minus className="h-3.5 w-3.5 text-white" />
+                          <div className="flex items-center gap-1 -mt-4 relative z-10">
+                            <button onClick={() => updateQuantity(item.id, -1)} className="h-7 w-7 rounded-lg bg-zinc-800 border border-white/10 flex items-center justify-center active:scale-90 shadow-md">
+                              <Minus className="h-3 w-3 text-white" />
                           </button>
-                            <span className="text-sm w-8 text-center text-white font-bold font-quicksand">{inCart.quantity}</span>
-                            <button onClick={() => addToCart(item)} className="h-9 w-9 rounded-xl flex items-center justify-center hover:opacity-90 transition-all active:scale-90 shadow-lg shadow-orange-500/25" style={{ background: accentGrad }}>
-                            <Plus className="h-3.5 w-3.5 text-white" />
+                            <span className="text-xs w-6 text-center text-white font-bold font-quicksand">{inCart.quantity}</span>
+                            <button onClick={() => addToCart(item)} className="h-7 w-7 rounded-lg flex items-center justify-center active:scale-90 shadow-md shadow-orange-500/25" style={{ background: accentGrad }}>
+                              <Plus className="h-3 w-3 text-white" />
                           </button>
                         </div>
                       ) : (
                         <button
                           onClick={() => addToCart(item)}
-                            className="px-5 py-2 -mt-5 relative z-10 rounded-xl text-orange-300 text-sm font-quicksand font-bold transition-all active:scale-90 border border-orange-500/30 shadow-lg shadow-black/30"
-                            style={{ background: 'rgba(15,15,25,0.9)', backdropFilter: 'blur(12px)' }}
+                            className="px-4 py-1.5 -mt-4 relative z-10 rounded-lg text-orange-300 text-xs font-quicksand font-bold transition-all active:scale-90 border border-orange-500/30 shadow-md shadow-black/30"
+                            style={{ background: 'rgba(15,15,25,0.92)', backdropFilter: 'blur(12px)' }}
                         >
                           ADD
                         </button>
@@ -1048,6 +1221,16 @@ const CafeCustomerOrder: React.FC = () => {
       {/* ─── TRACKING ─── */}
       {step === 'tracking' && (
         <div className="max-w-md mx-auto px-4 py-5 space-y-5 pb-8">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setStep('menu')} className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/10 transition-colors" title="Back to menu">
+              <ArrowLeft className="h-4 w-4 text-zinc-400" />
+            </button>
+            <span className="text-xs text-zinc-500 font-quicksand">Back to menu</span>
+            <div className="flex-1" />
+            <button onClick={() => setStep('history')} className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/10 transition-colors" title="Order history">
+              <History className="h-4 w-4 text-zinc-400" />
+            </button>
+          </div>
           {/* Hero card */}
           <div className={`${glass} p-6 text-center relative overflow-hidden`}>
             <div className="absolute inset-0 opacity-20" style={{ background: resolvedStatus === 'ready' ? 'radial-gradient(circle at 50% 30%, #10b981 0%, transparent 70%)' : resolvedStatus === 'preparing' ? 'radial-gradient(circle at 50% 30%, #f97316 0%, transparent 70%)' : 'radial-gradient(circle at 50% 30%, #6366f1 0%, transparent 70%)' }} />
@@ -1059,15 +1242,16 @@ const CafeCustomerOrder: React.FC = () => {
               </div>
               <h2 className="text-2xl font-bold text-white font-heading">
                 {resolvedStatus === 'pending' && 'Order Received!'}
-                {resolvedStatus === 'confirmed' && 'Order Confirmed!'}
+                {resolvedStatus === 'confirmed' && 'Order Accepted!'}
                 {resolvedStatus === 'preparing' && 'Being Prepared...'}
                 {resolvedStatus === 'ready' && '🔔 Order Ready!'}
-                {resolvedStatus === 'served' && 'Picked Up!'}
-                {resolvedStatus === 'completed' && 'Thank You!'}
                 {resolvedStatus === 'cancelled' && 'Order Cancelled'}
               </h2>
               <p className="text-sm text-zinc-400 font-quicksand mt-1">{orderNumber}</p>
-              {estimatedPrepTime > 0 && !['ready', 'served', 'completed'].includes(resolvedStatus) && (
+              {isInventoryOnly && resolvedStatus === 'pending' && (
+                <p className="text-xs text-emerald-400/80 font-quicksand mt-2">Pre-made items — no kitchen wait!</p>
+              )}
+              {!isInventoryOnly && estimatedPrepTime > 0 && resolvedStatus !== 'ready' && (
                 <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-quicksand font-medium" style={{ background: accentGradSoft, color: '#fbbf24' }}>
                   <Clock className="h-3 w-3" /> Estimated: ~{estimatedPrepTime} min
                 </div>
@@ -1078,21 +1262,22 @@ const CafeCustomerOrder: React.FC = () => {
           {/* Live progress bar */}
           {resolvedStatus !== 'cancelled' && (
             <div className={`${glassCard} p-4`}>
-              <div className="flex items-center justify-between mb-3">
-                {trackingSteps.slice(0, 4).map((s, i) => {
-                  const allComplete = currentStepIndex >= 4;
-                  const isDone = allComplete || (currentStepIndex >= 0 && i < currentStepIndex);
-                  const isActive = !allComplete && i === currentStepIndex && currentStepIndex < 4;
+              <div className="flex items-center justify-between">
+                {trackingSteps.map((s, i) => {
+                  const isLast = i === trackingSteps.length - 1;
+                  const isDone = currentStepIndex >= 0 && i < currentStepIndex;
+                  const isActive = i === currentStepIndex;
+                  const isFinal = isLast && isActive;
                   return (
                     <React.Fragment key={s.key}>
-                      {i > 0 && <div className={`flex-1 h-1 rounded-full mx-1 transition-all duration-700 ${isDone ? 'bg-green-500' : isActive ? 'bg-gradient-to-r from-green-500 to-orange-500' : 'bg-white/[0.06]'}`} />}
+                      {i > 0 && <div className={`flex-1 h-1 rounded-full mx-1 transition-all duration-700 ${isDone || isFinal ? 'bg-green-500' : isActive ? 'bg-gradient-to-r from-green-500 to-orange-500' : 'bg-white/[0.06]'}`} />}
                       <div className="flex flex-col items-center">
                         <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-500 ${
-                          isDone ? 'bg-green-500/90 shadow-lg shadow-green-500/20' : isActive ? 'shadow-lg shadow-orange-500/20' : 'bg-white/[0.04] border border-white/[0.08]'
-                        }`} style={isActive ? { background: accentGrad } : undefined}>
-                          {isDone ? <CheckCircle2 className="h-4 w-4 text-white" /> : <span className="text-sm">{s.emoji}</span>}
+                          isDone || isFinal ? 'bg-green-500/90 shadow-lg shadow-green-500/20' : isActive ? 'shadow-lg shadow-orange-500/20' : 'bg-white/[0.04] border border-white/[0.08]'
+                        }`} style={isActive && !isFinal ? { background: accentGrad } : undefined}>
+                          {isDone || isFinal ? <CheckCircle2 className="h-4 w-4 text-white" /> : <span className="text-sm">{s.emoji}</span>}
                         </div>
-                        <span className={`text-[9px] mt-1.5 font-quicksand text-center leading-tight max-w-[56px] ${isActive ? 'text-orange-300 font-semibold' : isDone ? 'text-green-400' : 'text-zinc-600'}`}>{s.label.split(' ').slice(0, 2).join(' ')}</span>
+                        <span className={`text-[9px] mt-1.5 font-quicksand text-center leading-tight max-w-[56px] ${isActive ? (isFinal ? 'text-green-400 font-semibold' : 'text-orange-300 font-semibold') : isDone ? 'text-green-400' : 'text-zinc-600'}`}>{s.label}</span>
                       </div>
                     </React.Fragment>
                   );
@@ -1103,30 +1288,33 @@ const CafeCustomerOrder: React.FC = () => {
 
           {/* Detailed timeline */}
           <div className={`${glassCard} p-5 space-y-0`}>
-            <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold mb-4">Order Timeline</p>
+            <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold mb-4">
+              {isInventoryOnly ? 'Order Status' : 'Kitchen Progress'}
+            </p>
             <div className="relative">
               <div className="absolute left-[19px] top-5 bottom-5 w-0.5 bg-white/[0.06]" />
               {trackingSteps.map((s, i) => {
-                const allComplete = resolvedStatus === 'completed';
-                const isActive = !allComplete && i === currentStepIndex;
-                const isCompleted = allComplete || (currentStepIndex >= 0 && i < currentStepIndex);
+                const isLast = i === trackingSteps.length - 1;
+                const isActive = i === currentStepIndex;
+                const isCompleted = currentStepIndex >= 0 && i < currentStepIndex;
+                const isFinal = isLast && isActive;
                 return (
                   <div key={s.key} className={`flex items-start gap-3.5 py-2.5 relative z-10 transition-all duration-300 ${isActive || isCompleted ? 'opacity-100' : 'opacity-30'}`}>
                     <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-500 ${
-                      isCompleted ? 'bg-green-500/90 shadow-md shadow-green-500/20'
+                      isCompleted || isFinal ? 'bg-green-500/90 shadow-md shadow-green-500/20'
                       : isActive ? 'shadow-md shadow-orange-500/20 ring-2 ring-orange-500/30' : 'bg-white/[0.04] border border-white/[0.08]'
-                    }`} style={isActive ? { background: accentGrad } : undefined}>
-                      {isCompleted ? <CheckCircle2 className="h-4 w-4 text-white" /> : <span className="text-base">{s.emoji}</span>}
+                    }`} style={isActive && !isFinal ? { background: accentGrad } : undefined}>
+                      {isCompleted || isFinal ? <CheckCircle2 className="h-4 w-4 text-white" /> : <span className="text-base">{s.emoji}</span>}
                     </div>
                     <div className="pt-0.5 flex-1">
-                      <p className={`text-sm font-quicksand font-semibold transition-colors ${isActive ? 'text-orange-300' : isCompleted ? 'text-green-400' : 'text-zinc-600'}`}>
+                      <p className={`text-sm font-quicksand font-semibold transition-colors ${isActive ? (isFinal ? 'text-green-400' : 'text-orange-300') : isCompleted ? 'text-green-400' : 'text-zinc-600'}`}>
                         {s.label}
                       </p>
                       <p className={`text-[11px] mt-0.5 ${isActive ? 'text-zinc-400' : isCompleted ? 'text-zinc-500' : 'text-zinc-700'}`}>
                         {s.desc}
                       </p>
                     </div>
-                    {isActive && (
+                    {isActive && !isFinal && (
                       <span className="shrink-0 mt-1 h-2 w-2 rounded-full bg-orange-400 animate-pulse" />
                     )}
                   </div>
@@ -1144,6 +1332,13 @@ const CafeCustomerOrder: React.FC = () => {
                 <p className="text-xl font-bold text-green-300 font-heading">Your order is ready!</p>
                 <p className="text-sm text-zinc-400 font-quicksand mt-1">Please collect from the counter</p>
                 <p className="text-xs text-green-400/80 font-quicksand mt-2 font-medium">{orderNumber}</p>
+                <button
+                  onClick={() => { setStep('menu'); setCart([]); setOrderId(null); setKotStatus(null); }}
+                  className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-quicksand font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-orange-500/20"
+                  style={{ background: accentGrad }}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Order More
+                </button>
               </div>
             </div>
           )}
@@ -1154,18 +1349,12 @@ const CafeCustomerOrder: React.FC = () => {
               <div className="text-4xl mb-3">😔</div>
               <p className="text-lg font-bold text-red-300 font-heading">Order was cancelled</p>
               <p className="text-sm text-zinc-400 font-quicksand mt-1">Please contact staff for assistance</p>
-            </div>
-          )}
-
-          {/* Order Again */}
-          {(resolvedStatus === 'served' || resolvedStatus === 'completed') && (
-            <div className="text-center pt-2">
               <button
                 onClick={() => { setStep('menu'); setCart([]); setOrderId(null); setKotStatus(null); }}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-quicksand font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-orange-500/20"
+                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-quicksand font-semibold text-white transition-all hover:scale-[1.02] active:scale-95"
                 style={{ background: accentGrad }}
               >
-                <RefreshCw className="h-4 w-4" /> Order Again
+                <RefreshCw className="h-3.5 w-3.5" /> Try Again
               </button>
             </div>
           )}
@@ -1197,49 +1386,83 @@ const CafeCustomerOrder: React.FC = () => {
 
       {/* ─── HISTORY ─── */}
       {step === 'history' && (
-          <div className="max-w-md mx-auto px-4 py-5 space-y-4 pb-8">
+        <div className="max-w-md mx-auto px-4 py-5 space-y-4 pb-8">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setStep('menu')} className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/10 transition-colors" title="Back to menu">
+              <ArrowLeft className="h-4 w-4 text-zinc-400" />
+            </button>
             <h2 className="text-xl font-bold text-white font-heading flex items-center gap-2">
               <History className="h-5 w-5 text-orange-400" /> Order History
             </h2>
+          </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                <Input type="tel" value={historyPhone}
+              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+              <Input type="tel" value={historyPhone}
                 onChange={e => setHistoryPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 placeholder="Your phone number"
-                  className="pl-11 h-12 bg-white/[0.05] border-white/10 text-white font-quicksand rounded-2xl placeholder:text-zinc-600 backdrop-blur-sm"
-                  maxLength={10} />
+                className="pl-11 h-12 bg-white/[0.05] border-white/10 text-white font-quicksand rounded-2xl placeholder:text-zinc-600 backdrop-blur-sm"
+                maxLength={10} />
             </div>
-              <Button onClick={handleFetchHistory} disabled={historyLoading}
-                className="h-12 w-12 rounded-2xl border border-white/10 text-orange-400 hover:bg-white/[0.06]"
-                style={{ background: 'rgba(249,115,22,0.1)' }}>
+            <Button onClick={handleFetchHistory} disabled={historyLoading}
+              className="h-12 w-12 rounded-2xl border border-white/10 text-orange-400 hover:bg-white/[0.06]"
+              style={{ background: 'rgba(249,115,22,0.1)' }}>
               {historyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
           <ScrollArea className="h-[calc(100vh-16rem)]">
             {orderHistory.length === 0 ? (
-                <div className="text-center py-20 text-zinc-500">
+              <div className="text-center py-20 text-zinc-500">
                 <History className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p className="font-quicksand text-sm">{historyPhone ? 'No orders found' : 'Enter your phone to see past orders'}</p>
+                <p className="font-quicksand text-sm">{historyPhone ? 'No orders found' : 'Enter your phone to see past orders'}</p>
               </div>
             ) : (
-                <div className="space-y-3">
-                {orderHistory.map(order => (
-                    <div key={order.id} className={`${glassCard} p-4`}>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-white font-heading">{order.orderNumber}</span>
+              <div className="space-y-3">
+                {orderHistory.map(order => {
+                  const isActive = !['completed', 'cancelled', 'served'].includes(order.status);
+                  return (
+                    <button
+                      key={order.id}
+                      type="button"
+                      onClick={() => {
+                        if (isActive) {
+                          setOrderId(order.id);
+                          setOrderNumber(order.orderNumber);
+                          setOrderStatus(order.status);
+                          setKotStatus(null);
+                          setStep('tracking');
+                        }
+                      }}
+                      className={`${glassCard} p-4 w-full text-left transition-all ${isActive ? 'hover:border-orange-500/30 hover:shadow-lg hover:shadow-orange-500/10 cursor-pointer' : ''}`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white font-heading">{order.orderNumber}</span>
+                          {isActive && <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />}
+                        </div>
                         <span className={`text-[10px] px-2.5 py-1 rounded-full capitalize font-quicksand font-medium border ${
-                          order.status === 'completed' ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                          order.status === 'completed' || order.status === 'served' ? 'bg-green-500/10 text-green-400 border-green-500/20'
                           : order.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                          : order.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                           : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                      }`}>{order.status}</span>
-                    </div>
-                      <div className="flex justify-between items-center mt-2 text-xs text-zinc-500 font-quicksand">
-                      <span>{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                        <span className="text-orange-300 font-bold text-sm"><CurrencyDisplay amount={order.total} /></span>
-                    </div>
-                  </div>
-                ))}
+                        }`}>{order.status === 'served' ? 'done' : order.status}</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-zinc-500 font-quicksand">
+                          {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {' · '}
+                          {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="text-orange-300 font-bold text-sm font-quicksand"><CurrencyDisplay amount={order.total} /></span>
+                      </div>
+                      {isActive && (
+                        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-orange-400 font-quicksand font-medium">
+                          <ArrowRight className="h-3 w-3" /> Tap to track this order
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
