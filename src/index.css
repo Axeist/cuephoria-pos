@@ -930,9 +930,13 @@
 }
 
 .cafe-glass-card {
-  @apply rounded-2xl border border-white/[0.09] bg-gradient-to-br from-slate-950/88 via-slate-900/82 to-indigo-950/35
+  @apply rounded-2xl border border-white/[0.09]
     shadow-[0_12px_48px_-16px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.07)]
     backdrop-blur-xl;
+  background: linear-gradient(to bottom right,
+    rgb(2 6 23 / 0.88),
+    rgb(15 23 42 / 0.82),
+    rgb(30 27 75 / 0.35));
 }
 
 /* Gen-2 ambient shell: mesh lights + subtle grain (CafeProtectedRoute) */
