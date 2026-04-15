@@ -1,22 +1,28 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useCafeAuth } from '@/context/CafeAuthContext';
 import { useCafeMenu } from '@/hooks/cafe/useCafeMenu';
 import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
 import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { useCafePartner } from '@/hooks/cafe/useCafePartner';
-import { CurrencyDisplay } from '@/components/ui/currency';
+import { usePOS, Customer } from '@/context/POSContext';
+import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
+import CustomerCard from '@/components/CustomerCard';
 import type { CafeCartItem, CafeOrderType, CafePaymentMethod } from '@/types/cafe.types';
 import {
   ShoppingCart, Plus, Minus, Trash2, Coffee, X, ChefHat, User, Search,
   MapPin, Monitor, UtensilsCrossed, CreditCard, Banknote, SplitSquareHorizontal,
-  Percent, MessageSquare, Printer, Gift, Phone
+  Percent, MessageSquare, Printer, Gift, Phone, Check, ReceiptIcon, Award, Star
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const CafePOS: React.FC = () => {
   const { user } = useCafeAuth();
@@ -25,46 +31,83 @@ const CafePOS: React.FC = () => {
   const { createOrder, activeOrders } = useCafeOrders(user?.locationId);
   const { generateKOT } = useCafeKOT(user?.locationId);
   const { partner } = useCafePartner(user?.locationId);
+  const { customers } = usePOS();
+  const isMobile = useIsMobile();
 
   const [cart, setCart] = useState<CafeCartItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('all');
   const [orderType, setOrderType] = useState<CafeOrderType>('dine_in');
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<CafePaymentMethod>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [discount, setDiscount] = useState('');
+
+  // Customer dialog
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+
+  // Checkout dialog
+  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'split' | 'complimentary'>('cash');
+  const [discountAmount, setDiscountAmount] = useState('0');
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('fixed');
+  const [cashAmount, setCashAmount] = useState(0);
+  const [upiAmount, setUpiAmount] = useState(0);
   const [orderNotes, setOrderNotes] = useState('');
-  const [cashAmount, setCashAmount] = useState('');
-  const [upiAmount, setUpiAmount] = useState('');
+
+  // Comp dialog
+  const [isCompDialogOpen, setIsCompDialogOpen] = useState(false);
+  const [compNote, setCompNote] = useState('');
+
+  // Success
+  const [showSuccess, setShowSuccess] = useState(false);
   const [lastOrder, setLastOrder] = useState<{ orderNumber: string; total: number; items: CafeCartItem[] } | null>(null);
-  const receiptRef = useRef<HTMLDivElement>(null);
 
   const activeCategories = categories.filter(c => c.isActive);
-  const displayCategory = activeCategory || activeCategories[0]?.id;
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 };
+    items.filter(i => i.isAvailable).forEach(item => {
+      const cat = activeCategories.find(c => c.id === item.categoryId);
+      if (cat) {
+        counts[cat.id] = (counts[cat.id] || 0) + 1;
+        counts.all++;
+      }
+    });
+    return counts;
+  }, [items, activeCategories]);
 
   const filteredItems = useMemo(() => {
     let result = items.filter(i => i.isAvailable);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(i => i.name.toLowerCase().includes(q) || i.description?.toLowerCase().includes(q));
-    } else if (displayCategory) {
-      result = result.filter(i => i.categoryId === displayCategory);
+    } else if (activeTab !== 'all') {
+      result = result.filter(i => i.categoryId === activeTab);
     }
     return result;
-  }, [items, displayCategory, searchQuery]);
+  }, [items, activeTab, searchQuery]);
 
-  const discountAmount = useMemo(() => {
-    const val = parseFloat(discount);
-    return isNaN(val) || val < 0 ? 0 : val;
-  }, [discount]);
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearchQuery.trim()) return customers.slice(0, 50);
+    const q = customerSearchQuery.toLowerCase();
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.phone.includes(customerSearchQuery) ||
+      c.customerId?.toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [customers, customerSearchQuery]);
 
   const cartSubtotal = useMemo(() => cart.reduce((s, i) => s + i.total, 0), [cart]);
-  const cartTotal = useMemo(() => Math.max(0, cartSubtotal - discountAmount), [cartSubtotal, discountAmount]);
   const cartCount = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
+
+  const discount = useMemo(() => {
+    const val = parseFloat(discountAmount) || 0;
+    if (discountType === 'percentage') return cartSubtotal * (val / 100);
+    return Math.min(val, cartSubtotal);
+  }, [discountAmount, discountType, cartSubtotal]);
+
+  const cartTotal = useMemo(() => Math.max(0, cartSubtotal - discount), [cartSubtotal, discount]);
 
   const addToCart = useCallback((item: typeof items[0]) => {
     setCart(prev => {
@@ -78,61 +121,46 @@ const CafePOS: React.FC = () => {
     });
   }, []);
 
-  const updateQuantity = useCallback((menuItemId: string, delta: number) => {
-    setCart(prev => prev.map(c => {
-      if (c.menuItemId !== menuItemId) return c;
-      const newQty = c.quantity + delta;
-      if (newQty <= 0) return c;
-      return { ...c, quantity: newQty, total: newQty * c.price };
-    }));
+  const updateQuantity = useCallback((menuItemId: string, newQty: number) => {
+    if (newQty < 1) return;
+    setCart(prev => prev.map(c =>
+      c.menuItemId === menuItemId ? { ...c, quantity: newQty, total: newQty * c.price } : c
+    ));
   }, []);
 
   const removeFromCart = useCallback((menuItemId: string) => {
     setCart(prev => prev.filter(c => c.menuItemId !== menuItemId));
   }, []);
 
-  const updateItemNotes = useCallback((menuItemId: string, notes: string) => {
-    setCart(prev => prev.map(c => c.menuItemId === menuItemId ? { ...c, notes } : c));
-  }, []);
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setIsCustomerDialogOpen(false);
+    toast.success(`${customer.name} selected`);
+  };
 
-  const handlePrintReceipt = useCallback(() => {
-    if (!lastOrder) return;
-    const printWindow = window.open('', '_blank', 'width=300,height=600');
-    if (!printWindow) { toast.error('Please allow popups'); return; }
-    printWindow.document.write(`<html><head><title>Receipt</title>
-      <style>body{font-family:monospace;font-size:12px;padding:8px;max-width:280px;margin:0 auto}
-      .center{text-align:center}.bold{font-weight:bold}.line{border-top:1px dashed #000;margin:6px 0}
-      .row{display:flex;justify-content:space-between}.small{font-size:10px}</style></head><body>
-      <div class="center bold" style="font-size:16px">CUEPHORIA CAFE</div>
-      <div class="center small">Order: ${lastOrder.orderNumber}</div>
-      <div class="center small">${new Date().toLocaleString('en-IN')}</div>
-      <div class="line"></div>
-      ${lastOrder.items.map(i => `<div class="row"><span>${i.quantity}x ${i.name}</span><span>₹${i.total.toFixed(2)}</span></div>`).join('')}
-      <div class="line"></div>
-      <div class="row bold"><span>Total</span><span>₹${lastOrder.total.toFixed(2)}</span></div>
-      <div class="line"></div>
-      <div class="center small" style="margin-top:8px">Thank you for visiting!</div>
-      <script>setTimeout(()=>{window.print();window.close()},300)</script></body></html>`);
-    printWindow.document.close();
-  }, [lastOrder]);
+  const handlePaymentMethodChange = (value: 'cash' | 'upi' | 'split' | 'complimentary') => {
+    setPaymentMethod(value);
+    if (value === 'split') {
+      const half = Math.floor(cartTotal / 2);
+      setCashAmount(half);
+      setUpiAmount(cartTotal - half);
+    }
+  };
 
   const handlePlaceOrder = useCallback(async () => {
     if (!user || !partner || cart.length === 0) return;
     if (orderType === 'dine_in' && !selectedTableId) {
-      toast.error('Please select a table');
+      toast.error('Please select a table for dine-in');
       return;
     }
-    if (paymentMethod === 'split') {
-      const cash = parseFloat(cashAmount) || 0;
-      const upi = parseFloat(upiAmount) || 0;
-      if (Math.abs(cash + upi - cartTotal) > 0.5) {
-        toast.error(`Split amounts must equal ₹${cartTotal.toFixed(2)}`);
-        return;
-      }
+    if (paymentMethod === 'split' && Math.abs(cashAmount + upiAmount - cartTotal) > 0.5) {
+      toast.error(`Split amounts must equal ${formatCurrency(cartTotal)}`);
+      return;
     }
 
     setIsSubmitting(true);
     try {
+      const pm: CafePaymentMethod = paymentMethod === 'complimentary' ? 'complimentary' : paymentMethod;
       const order = await createOrder({
         locationId: user.locationId,
         partnerId: partner.id,
@@ -141,78 +169,103 @@ const CafePOS: React.FC = () => {
         orderType,
         orderSource: 'pos',
         cafeTableId: orderType === 'dine_in' ? selectedTableId : null,
-        customerName: customerName || undefined,
-        customerPhone: customerPhone || undefined,
+        customerId: selectedCustomer?.id || null,
+        customerName: selectedCustomer?.name || undefined,
+        customerPhone: selectedCustomer?.phone || undefined,
         items: cart,
-        discount: discountAmount,
-        paymentMethod,
-        cashAmount: paymentMethod === 'split' ? parseFloat(cashAmount) || 0 : undefined,
-        upiAmount: paymentMethod === 'split' ? parseFloat(upiAmount) || 0 : undefined,
-        notes: orderNotes || undefined,
+        discount,
+        paymentMethod: pm,
+        cashAmount: paymentMethod === 'split' ? cashAmount : undefined,
+        upiAmount: paymentMethod === 'split' ? upiAmount : undefined,
+        notes: orderNotes || compNote || undefined,
         createdBy: user.id,
       });
 
       if (order) {
         if (orderType === 'dine_in' && selectedTableId) {
-          const assigned = await assignTable(selectedTableId, order.id);
-          if (!assigned) toast.warning('Table was just taken. Order created without table.');
+          await assignTable(selectedTableId, order.id);
         }
         await generateKOT(order.id, cart, user.id);
-        toast.success(`Order ${order.orderNumber} placed!`);
+
         setLastOrder({ orderNumber: order.orderNumber, total: cartTotal, items: [...cart] });
+        setIsCheckoutDialogOpen(false);
+        setIsCompDialogOpen(false);
+        setShowSuccess(true);
+
+        // Reset
         setCart([]);
         setSelectedTableId(null);
-        setCustomerName('');
-        setCustomerPhone('');
-        setShowPayment(false);
-        setDiscount('');
+        setDiscountAmount('0');
         setOrderNotes('');
-        setCashAmount('');
-        setUpiAmount('');
+        setCompNote('');
       }
     } catch (err: any) {
       toast.error(err?.message || 'Failed to place order');
     } finally {
       setIsSubmitting(false);
     }
-  }, [user, partner, cart, orderType, selectedTableId, customerName, customerPhone, paymentMethod, discountAmount, orderNotes, cashAmount, upiAmount, cartTotal, createOrder, assignTable, generateKOT]);
+  }, [user, partner, cart, orderType, selectedTableId, selectedCustomer, paymentMethod, discount, cashAmount, upiAmount, orderNotes, compNote, cartTotal, createOrder, assignTable, generateKOT]);
 
-  const categoryColors: Record<number, string> = {
-    0: 'bg-orange-500 shadow-orange-500/30',
-    1: 'bg-cuephoria-purple shadow-cuephoria-purple/30',
-    2: 'bg-cuephoria-blue shadow-cuephoria-blue/30',
-    3: 'bg-green-500 shadow-green-500/30',
-    4: 'bg-red-500 shadow-red-500/30',
-    5: 'bg-violet-500 shadow-violet-500/30',
+  const handlePrintReceipt = useCallback(() => {
+    if (!lastOrder) return;
+    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    if (!printWindow) { toast.error('Allow popups to print'); return; }
+    printWindow.document.write(`<html><head><title>Receipt</title>
+      <style>body{font-family:monospace;font-size:12px;padding:8px;max-width:280px;margin:0 auto}
+      .center{text-align:center}.bold{font-weight:bold}.line{border-top:1px dashed #000;margin:6px 0}
+      .row{display:flex;justify-content:space-between}</style></head><body>
+      <div class="center bold" style="font-size:16px">CUEPHORIA CAFE</div>
+      <div class="center">${lastOrder.orderNumber}</div>
+      <div class="center">${new Date().toLocaleString('en-IN')}</div>
+      ${selectedCustomer ? `<div class="center">${selectedCustomer.name} - ${selectedCustomer.phone}</div>` : ''}
+      <div class="line"></div>
+      ${lastOrder.items.map(i => `<div class="row"><span>${i.quantity}x ${i.name}</span><span>₹${i.total.toFixed(2)}</span></div>`).join('')}
+      <div class="line"></div>
+      <div class="row bold"><span>Total</span><span>₹${lastOrder.total.toFixed(2)}</span></div>
+      <div class="line"></div>
+      <div class="center" style="margin-top:8px;font-size:10px">Thank you for visiting!</div>
+      <script>setTimeout(()=>{window.print();window.close()},300)</script></body></html>`);
+    printWindow.document.close();
+  }, [lastOrder, selectedCustomer]);
+
+  const categoryColorMap: Record<number, { active: string; inactive: string }> = {
+    0: { active: 'bg-orange-500 text-white shadow-lg shadow-orange-500/30', inactive: 'text-muted-foreground hover:text-white hover:bg-orange-500/20' },
+    1: { active: 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30', inactive: 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20' },
+    2: { active: 'bg-cuephoria-blue text-white shadow-lg shadow-cuephoria-blue/30', inactive: 'text-muted-foreground hover:text-white hover:bg-cuephoria-blue/20' },
+    3: { active: 'bg-green-500 text-white shadow-lg shadow-green-500/30', inactive: 'text-muted-foreground hover:text-white hover:bg-green-500/20' },
+    4: { active: 'bg-red-500 text-white shadow-lg shadow-red-500/30', inactive: 'text-muted-foreground hover:text-white hover:bg-red-500/20' },
+    5: { active: 'bg-violet-500 text-white shadow-lg shadow-violet-500/30', inactive: 'text-muted-foreground hover:text-white hover:bg-violet-500/20' },
   };
 
   return (
-    <div className="flex-1 p-3 sm:p-6 md:p-8">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading animate-slide-down">Cafe POS</h1>
-        <div className="flex items-center gap-2">
-          {activeOrders.length > 0 && (
-            <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-1 rounded-full font-quicksand animate-pulse-soft">
-              {activeOrders.length} active
-            </span>
-          )}
-          {lastOrder && (
-            <Button size="sm" onClick={handlePrintReceipt} variant="outline" className="border-gray-700 text-gray-400 hover:text-white h-8 text-xs">
-              <Printer className="h-3.5 w-3.5 mr-1" /> Print Last
-            </Button>
-          )}
-        </div>
+    <div className="flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6">
+      <div className="flex items-center justify-between mb-4 sm:mb-6 animate-slide-down">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Cafe POS</h2>
+        {activeOrders.length > 0 && (
+          <span className="text-xs bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full font-quicksand animate-pulse-soft">
+            {activeOrders.length} active orders
+          </span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-12rem)]">
-        {/* Cart Panel */}
-        <Card className="lg:col-span-1 bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl flex flex-col animate-slide-up">
-          <CardHeader className="pb-3 border-b border-gray-700/30">
-            <CardTitle className="text-base font-heading text-white flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-orange-400" />
-              Order <span className="ml-auto text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">{cartCount} items</span>
-            </CardTitle>
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
+        {/* ===== CART (Left, 1 col) ===== */}
+        <Card className={`lg:col-span-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up`}>
+          <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-orange-500/20 to-transparent px-3 sm:px-6 pt-3 sm:pt-6">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-base sm:text-xl font-heading">
+                <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 inline-block mr-2 text-orange-400" />
+                Cart
+              </CardTitle>
+              <Button variant="ghost" size={isMobile ? 'sm' : 'default'} onClick={() => setCart([])}
+                className="hover:text-red-500 transition-colors h-8 sm:h-10 px-2 sm:px-4 text-xs sm:text-sm">
+                Clear
+              </Button>
+            </div>
+            <CardDescription className="text-xs sm:text-sm">
+              {cart.length} {cart.length === 1 ? 'item' : 'items'} in cart
+            </CardDescription>
+            {/* Order Type */}
             <div className="flex gap-1 p-1 rounded-lg bg-gray-800/50 mt-2">
               {([
                 { type: 'dine_in' as const, label: 'Dine In', icon: UtensilsCrossed },
@@ -227,260 +280,418 @@ const CafePOS: React.FC = () => {
                 </button>
               ))}
             </div>
-
             {orderType === 'dine_in' && (
-              <div className="mt-2 space-y-1">
-                <p className="text-xs text-gray-400">Select Table:</p>
-                <ScrollArea className="h-24">
-                  <div className="flex flex-wrap gap-1.5">
-                    {zones.map(zone => (
-                      <React.Fragment key={zone}>
-                        <span className="text-[10px] text-gray-500 w-full uppercase tracking-wider">{zone}</span>
-                        {(tablesByZone[zone] || []).map(table => (
-                          <button key={table.id} onClick={() => !table.isOccupied && setSelectedTableId(table.id)}
-                            disabled={table.isOccupied}
-                            className={`px-2 py-1 rounded text-xs font-quicksand border transition-all ${
-                              selectedTableId === table.id
-                                ? 'bg-orange-500/20 border-orange-500 text-orange-400'
-                                : table.isOccupied
-                                  ? 'bg-red-500/10 border-red-500/30 text-red-400/50 cursor-not-allowed'
-                                  : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:border-orange-500/30'
-                            }`}>
-                            {table.tableName}
-                          </button>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
-
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div className="relative">
-                <User className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
-                <Input value={customerName} onChange={e => setCustomerName(e.target.value)}
-                  placeholder="Customer name" className="h-8 text-xs pl-7 bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
-              </div>
-              <div className="relative">
-                <Phone className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
-                <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
-                  placeholder="Phone" className="h-8 text-xs pl-7 bg-gray-800/50 border-gray-700/50 text-white font-quicksand" maxLength={10} />
-              </div>
-            </div>
-          </CardHeader>
-
-          <ScrollArea className="flex-1 px-4 py-2">
-            {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                <ShoppingCart className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-sm font-quicksand">Cart is empty</p>
-                <p className="text-[10px] font-quicksand text-gray-600 mt-1">Tap items from the menu to add</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {cart.map(item => (
-                  <div key={item.menuItemId} className="p-2 bg-gray-800/30 rounded-lg border border-gray-700/20 group">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate font-quicksand flex items-center gap-1">
-                          <span className={`h-2 w-2 rounded-full ${item.isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-gray-500"><CurrencyDisplay amount={item.price} /> each</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => updateQuantity(item.menuItemId, -1)} className="h-6 w-6 rounded bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white">
-                          <Minus className="h-3 w-3" />
+              <ScrollArea className="h-16 mt-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {zones.map(zone => (
+                    <React.Fragment key={zone}>
+                      <span className="text-[10px] text-gray-500 w-full uppercase tracking-wider">{zone}</span>
+                      {(tablesByZone[zone] || []).map(table => (
+                        <button key={table.id} onClick={() => !table.isOccupied && setSelectedTableId(table.id)}
+                          disabled={table.isOccupied}
+                          className={`px-2 py-0.5 rounded text-[10px] font-quicksand border transition-all ${
+                            selectedTableId === table.id ? 'bg-orange-500/20 border-orange-500 text-orange-400'
+                            : table.isOccupied ? 'bg-red-500/10 border-red-500/30 text-red-400/50 cursor-not-allowed'
+                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:border-orange-500/30'
+                          }`}>
+                          {table.tableName}
                         </button>
-                        <span className="text-sm w-6 text-center text-white font-quicksand">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.menuItemId, 1)} className="h-6 w-6 rounded bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white">
-                          <Plus className="h-3 w-3" />
-                        </button>
-                        <button onClick={() => removeFromCart(item.menuItemId)} className="h-6 w-6 rounded flex items-center justify-center text-gray-500 hover:text-red-400 ml-1">
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <Input value={item.notes || ''} onChange={e => updateItemNotes(item.menuItemId, e.target.value)}
-                        placeholder="Notes..." className="h-6 text-[10px] bg-transparent border-0 border-b border-gray-700/30 rounded-none px-0 text-gray-400 font-quicksand focus:ring-0" />
-                      <span className="text-sm font-bold text-orange-400 ml-2 whitespace-nowrap"><CurrencyDisplay amount={item.total} /></span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-
-          {/* Cart Footer */}
-          <div className="p-4 border-t border-gray-700/30 space-y-2">
-            {cart.length > 0 && (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Percent className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
-                    <Input value={discount} onChange={e => setDiscount(e.target.value)} type="number" min="0"
-                      placeholder="Discount ₹" className="h-7 text-xs pl-7 bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
-                  </div>
-                  <div className="relative flex-1">
-                    <MessageSquare className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
-                    <Input value={orderNotes} onChange={e => setOrderNotes(e.target.value)}
-                      placeholder="Order notes" className="h-7 text-xs pl-7 bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
-                  </div>
-                </div>
-                {discountAmount > 0 && (
-                  <div className="flex justify-between text-xs text-gray-400 font-quicksand">
-                    <span>Subtotal</span>
-                    <span><CurrencyDisplay amount={cartSubtotal} /></span>
-                  </div>
-                )}
-                {discountAmount > 0 && (
-                  <div className="flex justify-between text-xs text-green-400 font-quicksand">
-                    <span>Discount</span>
-                    <span>-<CurrencyDisplay amount={discountAmount} /></span>
-                  </div>
-                )}
-              </>
-            )}
-            <div className="flex justify-between text-lg font-bold">
-              <span className="text-white font-heading">Total</span>
-              <span className="text-orange-400"><CurrencyDisplay amount={cartTotal} /></span>
-            </div>
-
-            {showPayment ? (
-              <div className="space-y-2">
-                <div className="flex gap-1.5">
-                  {([
-                    { method: 'cash' as const, label: 'Cash', icon: Banknote },
-                    { method: 'upi' as const, label: 'UPI', icon: CreditCard },
-                    { method: 'split' as const, label: 'Split', icon: SplitSquareHorizontal },
-                    { method: 'complimentary' as const, label: 'Comp', icon: Gift },
-                  ]).map(p => (
-                    <button key={p.method} onClick={() => setPaymentMethod(p.method)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-quicksand flex items-center justify-center gap-1 transition-all ${
-                        paymentMethod === p.method ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'bg-gray-800/50 text-gray-400 border border-gray-700/30'
-                      }`}>
-                      <p.icon className="h-3 w-3" /> {p.label}
-                    </button>
-                  ))}
-                </div>
-                {paymentMethod === 'split' && (
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Banknote className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-green-400" />
-                      <Input type="number" value={cashAmount} onChange={e => { setCashAmount(e.target.value); setUpiAmount(String(Math.max(0, cartTotal - (parseFloat(e.target.value) || 0)).toFixed(2))); }}
-                        placeholder="Cash ₹" className="h-8 text-xs pl-7 bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
-                    </div>
-                    <div className="relative flex-1">
-                      <CreditCard className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-blue-400" />
-                      <Input type="number" value={upiAmount} onChange={e => { setUpiAmount(e.target.value); setCashAmount(String(Math.max(0, cartTotal - (parseFloat(e.target.value) || 0)).toFixed(2))); }}
-                        placeholder="UPI ₹" className="h-8 text-xs pl-7 bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
-                    </div>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Button onClick={() => setShowPayment(false)} variant="outline" className="flex-1 border-gray-700 text-gray-400 h-10">
-                    Back
-                  </Button>
-                  <Button onClick={handlePlaceOrder} disabled={isSubmitting || cart.length === 0}
-                    className="flex-1 h-10 text-white font-quicksand font-semibold border-0"
-                    style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)', boxShadow: '0 4px 15px rgba(249,115,22,0.3)' }}>
-                    {isSubmitting ? 'Placing...' : 'Place Order'}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button onClick={() => cart.length > 0 && setShowPayment(true)} disabled={cart.length === 0}
-                className="w-full h-11 text-white font-quicksand font-semibold border-0"
-                style={{ background: cart.length > 0 ? 'linear-gradient(135deg, #f97316, #6E59A5)' : undefined, boxShadow: cart.length > 0 ? '0 4px 15px rgba(249,115,22,0.3)' : undefined }}>
-                <ChefHat className="mr-2 h-4 w-4" /> Checkout
-              </Button>
-            )}
-          </div>
-        </Card>
-
-        {/* Menu Panel */}
-        <Card className="lg:col-span-2 bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl flex flex-col animate-slide-up" style={{ animationDelay: '100ms' }}>
-          <CardHeader className="pb-3 border-b border-gray-700/30">
-            <div className="flex items-center gap-3">
-              <CardTitle className="text-base font-heading text-white">Menu</CardTitle>
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
-                <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search items..." className="h-8 pl-8 text-xs bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2">
-                    <X className="h-3 w-3 text-gray-500" />
-                  </button>
-                )}
-              </div>
-              <span className="text-xs text-gray-500 font-quicksand">{filteredItems.length} items</span>
-            </div>
-            {!searchQuery && (
-              <ScrollArea className="w-full mt-2" orientation="horizontal">
-                <div className="flex gap-2 pb-1">
-                  {activeCategories.map((cat, i) => (
-                    <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-quicksand font-medium whitespace-nowrap transition-all ${
-                        displayCategory === cat.id
-                          ? `text-white ${categoryColors[i % 6] || 'bg-orange-500 shadow-orange-500/30'} shadow-lg`
-                          : 'bg-gray-800/50 text-gray-400 hover:text-white'
-                      }`}>
-                      {cat.name} ({items.filter(i => i.categoryId === cat.id && i.isAvailable).length})
-                    </button>
+                      ))}
+                    </React.Fragment>
                   ))}
                 </div>
               </ScrollArea>
             )}
           </CardHeader>
 
-          <ScrollArea className="flex-1 p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-              {filteredItems.map((item, i) => {
-                const inCart = cart.find(c => c.menuItemId === item.id);
-                return (
-                  <button key={item.id} onClick={() => addToCart(item)}
-                    className="group p-3 rounded-xl bg-gray-800/40 border border-gray-700/30 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-200 text-left animate-fade-in relative"
-                    style={{ animationDelay: `${i * 30}ms` }}>
-                    {inCart && (
-                      <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold z-10 shadow-lg">
-                        {inCart.quantity}
-                      </span>
-                    )}
-                    {item.imageUrl && (
-                      <img src={item.imageUrl} alt={item.name} className="w-full h-20 object-cover rounded-lg mb-2" />
-                    )}
-                    <div className="flex items-start justify-between gap-1">
-                      <p className="text-sm font-medium text-white font-quicksand group-hover:text-orange-200 transition-colors leading-tight">
+          <CardContent className={`flex-grow overflow-auto px-3 sm:px-6 ${isMobile ? 'max-h-[400px]' : ''}`}>
+            {cart.length > 0 ? (
+              <div className="space-y-3 sm:space-y-4">
+                {cart.map((item, index) => (
+                  <div key={item.menuItemId}
+                    className="flex items-center justify-between border-b border-gray-700/30 pb-2 sm:pb-3 animate-fade-in"
+                    style={{ animationDelay: `${index * 50}ms` }}>
+                    <div className="flex flex-col justify-center flex-1 min-w-0">
+                      <p className="font-medium font-quicksand truncate text-sm sm:text-base flex items-center gap-1">
+                        <span className={`h-2 w-2 rounded-full flex-shrink-0 ${item.isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
                         {item.name}
                       </p>
-                      <span className={`h-3 w-3 rounded-sm border flex-shrink-0 mt-0.5 ${item.isVeg ? 'border-green-400' : 'border-red-400'}`}>
-                        <span className={`block h-1.5 w-1.5 rounded-full m-[1.5px] ${item.isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
-                      </span>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">
+                        <CurrencyDisplay amount={item.price} /> each
+                      </p>
                     </div>
-                    {item.description && (
-                      <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{item.description}</p>
-                    )}
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={item.price} /></span>
-                      {item.prepTimeMinutes && (
-                        <span className="text-[9px] text-gray-500 font-quicksand">{item.prepTimeMinutes}min</span>
-                      )}
+                    <div className="flex items-center space-x-1.5 sm:space-x-2">
+                      <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                        onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}>-</Button>
+                      <span className="w-6 sm:w-8 text-center text-sm">{item.quantity}</span>
+                      <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                        onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}>+</Button>
                     </div>
-                  </button>
-                );
-              })}
-              {filteredItems.length === 0 && (
-                <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-500">
-                  <Coffee className="h-10 w-10 mb-2 opacity-30" />
-                  <p className="text-sm font-quicksand">No items found</p>
+                    <div className="flex items-center gap-2 ml-2">
+                      <div className="font-mono text-right text-sm sm:text-base text-orange-400 font-bold">
+                        <CurrencyDisplay amount={item.total} />
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 sm:h-7 sm:w-7 p-0 text-destructive hover:bg-red-500/10"
+                        onClick={() => removeFromCart(item.menuItemId)}>
+                        <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full animate-fade-in py-8">
+                <ShoppingCart className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4 animate-pulse-soft" />
+                <h3 className="text-lg sm:text-xl font-medium font-heading">Cart Empty</h3>
+                <p className="text-muted-foreground mt-2 text-center text-xs sm:text-sm px-4">
+                  Add items from the menu to begin
+                </p>
+              </div>
+            )}
+          </CardContent>
+
+          <CardFooter className="border-t pt-3 sm:pt-4 flex flex-col bg-gradient-to-r from-transparent to-orange-500/10 px-3 sm:px-6 pb-3 sm:pb-4">
+            <div className="w-full text-sm sm:text-base">
+              <div className="flex justify-between py-1">
+                <span className="text-xs sm:text-sm">Subtotal</span>
+                <CurrencyDisplay amount={cartSubtotal} className="text-xs sm:text-base" />
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between py-1 text-green-400">
+                  <span className="text-xs sm:text-sm">Discount</span>
+                  <span>-<CurrencyDisplay amount={discount} /></span>
+                </div>
+              )}
+              <div className="flex justify-between py-1 text-base sm:text-lg font-bold border-t border-gray-700/30 mt-2 pt-2">
+                <span>Total</span>
+                <CurrencyDisplay amount={cartTotal} className="text-orange-400" />
+              </div>
+            </div>
+
+            <div className="flex flex-col space-y-2 sm:space-y-3 w-full mt-3 sm:mt-4">
+              <Button
+                variant={selectedCustomer ? 'outline' : 'default'}
+                size={isMobile ? 'sm' : 'default'}
+                className={`w-full btn-hover-effect ${selectedCustomer ? 'border-orange-500/30' : 'bg-gradient-to-r from-orange-500 to-cuephoria-purple'} h-10 sm:h-11 text-xs sm:text-sm rounded-lg`}
+                onClick={() => setIsCustomerDialogOpen(true)}>
+                <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="truncate">{selectedCustomer ? selectedCustomer.name : 'Select Customer'}</span>
+                {selectedCustomer && (
+                  <span className="ml-1 text-[10px] text-gray-400">({selectedCustomer.phone})</span>
+                )}
+              </Button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 transition-all duration-300 active:scale-95 h-10 sm:h-11 text-xs sm:text-sm rounded-lg font-medium"
+                  disabled={cart.length === 0}
+                  onClick={() => setIsCheckoutDialogOpen(true)}>
+                  <ReceiptIcon className="mr-1.5 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  Checkout
+                </Button>
+                <Button
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 transition-all duration-300 active:scale-95 h-10 sm:h-11 text-xs sm:text-sm rounded-lg font-medium"
+                  disabled={cart.length === 0}
+                  onClick={() => setIsCompDialogOpen(true)}>
+                  <Gift className="mr-1.5 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  Comp
+                </Button>
+              </div>
+            </div>
+          </CardFooter>
+        </Card>
+
+        {/* ===== MENU ITEMS (Right, 2 cols) ===== */}
+        <Card className={`lg:col-span-2 ${isMobile ? 'h-auto min-h-[500px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up delay-200`}>
+          <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-transparent to-orange-500/10 flex-shrink-0 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-base sm:text-xl font-heading mb-2 sm:mb-3">Menu</CardTitle>
+            <div className="flex space-x-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                <Input placeholder="Search menu items..." className="pl-8 font-quicksand h-9 sm:h-10 text-sm rounded-lg"
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-2.5"><X className="h-4 w-4 text-gray-500" /></button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+
+          <div className="flex flex-col flex-grow min-h-0">
+            {/* Category tabs — same style as gaming POS */}
+            <div className="px-2 sm:px-3 md:px-6 bg-gradient-to-r from-orange-500/10 to-cuephoria-purple/10 flex-shrink-0 animate-scale-in">
+              <div className={`${isMobile ? 'flex w-full overflow-x-auto scrollbar-hide gap-1 mb-3 p-1' : 'flex flex-wrap gap-1 mb-4 p-1'}`}>
+                <button type="button" onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
+                  className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                    activeTab === 'all' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-muted-foreground hover:text-white hover:bg-orange-500/20'
+                  }`}>
+                  All ({categoryCounts.all || 0})
+                </button>
+                {activeCategories.map((cat, i) => {
+                  const colors = categoryColorMap[(i + 1) % 6] || categoryColorMap[0];
+                  return (
+                    <button key={cat.id} type="button" onClick={() => { setActiveTab(cat.id); setSearchQuery(''); }}
+                      className={`text-[10px] sm:text-xs px-2 py-2 whitespace-nowrap flex-shrink-0 rounded-lg font-medium transition-all duration-200 ${
+                        activeTab === cat.id ? colors.active : colors.inactive
+                      }`}>
+                      {cat.name} ({categoryCounts[cat.id] || 0})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex-grow min-h-0 m-0 p-4 sm:p-6 overflow-auto">
+              {filteredItems.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr">
+                  {filteredItems.map((item, index) => {
+                    const inCart = cart.find(c => c.menuItemId === item.id);
+                    return (
+                      <div key={item.id} className="animate-scale-in" style={{ animationDelay: `${(index % 8) * 50}ms` }}>
+                        <Card className="h-full flex flex-col group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/10 hover:-translate-y-1 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border-gray-700/50 cursor-pointer"
+                          onClick={() => addToCart(item)}>
+                          {inCart && (
+                            <div className="absolute top-2 right-2 z-10 h-6 min-w-[24px] px-1.5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold shadow-lg">
+                              {inCart.quantity}
+                            </div>
+                          )}
+                          {item.imageUrl && (
+                            <div className="h-24 overflow-hidden">
+                              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            </div>
+                          )}
+                          <CardContent className="flex-1 p-3">
+                            <div className="flex items-start justify-between gap-1">
+                              <p className="text-sm font-medium text-white font-quicksand group-hover:text-orange-200 transition-colors leading-tight">
+                                {item.name}
+                              </p>
+                              <span className={`h-3 w-3 rounded-sm border flex-shrink-0 mt-0.5 ${item.isVeg ? 'border-green-400' : 'border-red-400'}`}>
+                                <span className={`block h-1.5 w-1.5 rounded-full m-[1.5px] ${item.isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
+                              </span>
+                            </div>
+                            {item.description && (
+                              <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{item.description}</p>
+                            )}
+                          </CardContent>
+                          <CardFooter className="p-3 pt-0 flex justify-between items-center">
+                            <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={item.price} /></span>
+                            {item.prepTimeMinutes && (
+                              <span className="text-[9px] text-gray-500 font-quicksand">{item.prepTimeMinutes}min</span>
+                            )}
+                          </CardFooter>
+                        </Card>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                  <Coffee className="h-12 w-12 text-muted-foreground mb-4 opacity-30" />
+                  <h3 className="text-xl font-medium font-heading">No Items Found</h3>
+                  <p className="text-muted-foreground mt-2">Try a different search or category</p>
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </Card>
       </div>
+
+      {/* ===== CUSTOMER SELECTION DIALOG ===== */}
+      <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Select Customer</DialogTitle>
+            <DialogDescription>Choose a customer from the main database</DialogDescription>
+          </DialogHeader>
+          <div className="relative mb-4">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search by name, phone, or ID..." className="pl-8 font-quicksand"
+              value={customerSearchQuery} onChange={(e) => setCustomerSearchQuery(e.target.value)} />
+          </div>
+          <div className="max-h-[60vh] overflow-auto">
+            {filteredCustomers.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredCustomers.map((customer, index) => (
+                  <div key={customer.id} className="animate-scale-in" style={{ animationDelay: `${(index % 6) * 100}ms` }}>
+                    <CustomerCard customer={customer} isSelectable={true} onSelect={handleSelectCustomer} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8">
+                <User className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-medium font-heading">No Customers Found</h3>
+                <p className="text-muted-foreground mt-2">Try a different search</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== CHECKOUT DIALOG ===== */}
+      <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Complete Transaction</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {selectedCustomer && (
+              <div className="border rounded-md p-3 bg-gradient-to-r from-orange-500/10 to-transparent animate-fade-in">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="font-medium flex items-center">
+                      <User className="h-4 w-4 mr-2 text-orange-400" /> {selectedCustomer.name}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{selectedCustomer.phone}</div>
+                  </div>
+                  {selectedCustomer.isMember && (
+                    <div className="bg-cuephoria-purple text-white text-xs px-2 py-1 rounded">Member</div>
+                  )}
+                </div>
+                {selectedCustomer.loyaltyPoints > 0 && (
+                  <div className="mt-2 text-sm flex items-center gap-1">
+                    <Star className="h-3 w-3 text-yellow-400" />
+                    Points: <span className="font-semibold text-yellow-400">{selectedCustomer.loyaltyPoints}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-3 animate-slide-up delay-100">
+              <h4 className="font-medium font-heading">Discount</h4>
+              <div className="flex space-x-2">
+                <Input type="number" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)}
+                  placeholder="Amount" className="font-quicksand flex-1" />
+                <select className="px-3 py-2 rounded-md border border-input bg-background font-quicksand"
+                  value={discountType} onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}>
+                  <option value="percentage">%</option>
+                  <option value="fixed">₹</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2 animate-slide-up delay-100">
+              <Label className="font-heading">Order Notes</Label>
+              <Input value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Optional notes..." className="font-quicksand" />
+            </div>
+
+            <div className="border-t pt-4 mt-2 animate-slide-up delay-200">
+              <div className="flex justify-between py-1"><span>Subtotal</span><CurrencyDisplay amount={cartSubtotal} /></div>
+              {discount > 0 && (
+                <div className="flex justify-between py-1 text-green-400">
+                  <span>Discount {discountType === 'percentage' ? `(${discountAmount}%)` : ''}</span>
+                  <span>-<CurrencyDisplay amount={discount} /></span>
+                </div>
+              )}
+              <div className="flex justify-between py-1 text-lg font-bold border-t mt-2 pt-2">
+                <span>Total</span><CurrencyDisplay amount={cartTotal} className="text-orange-400" />
+              </div>
+            </div>
+
+            <div className="space-y-3 animate-slide-up delay-300">
+              <h4 className="font-medium font-heading">Payment Method</h4>
+              <RadioGroup value={paymentMethod} onValueChange={(v) => handlePaymentMethodChange(v as any)} className="flex flex-wrap gap-4">
+                <div className="flex items-center space-x-2"><RadioGroupItem value="cash" id="cafe-cash" /><Label htmlFor="cafe-cash" className="font-quicksand">Cash</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="upi" id="cafe-upi" /><Label htmlFor="cafe-upi" className="font-quicksand">UPI</Label></div>
+                <div className="flex items-center space-x-2"><RadioGroupItem value="split" id="cafe-split" /><Label htmlFor="cafe-split" className="font-quicksand">Split</Label></div>
+              </RadioGroup>
+            </div>
+
+            {paymentMethod === 'split' && (
+              <div className="grid grid-cols-2 gap-3 animate-slide-up delay-350">
+                <div className="space-y-1">
+                  <Label className="text-sm font-quicksand">Cash</Label>
+                  <Input type="number" value={cashAmount} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setCashAmount(v); setUpiAmount(Math.max(0, cartTotal - v)); }}
+                    className="font-quicksand" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-quicksand">UPI</Label>
+                  <Input type="number" value={upiAmount} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setUpiAmount(v); setCashAmount(Math.max(0, cartTotal - v)); }}
+                    className="font-quicksand" />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="animate-slide-up delay-400">
+            <Button variant="outline" onClick={() => setIsCheckoutDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handlePlaceOrder} disabled={isSubmitting || cart.length === 0}
+              className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90">
+              {isSubmitting ? 'Processing...' : `Place Order (${formatCurrency(cartTotal)})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== COMP DIALOG ===== */}
+      <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md animate-scale-in">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl flex items-center gap-2">
+              <Gift className="h-5 w-5 text-orange-500" /> Complimentary
+            </DialogTitle>
+            <DialogDescription>Items given free. No payment recorded.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {selectedCustomer && (
+              <div className="border border-orange-500/20 rounded-md p-3 bg-gradient-to-r from-orange-900/20 to-transparent">
+                <div className="flex items-center gap-2"><User className="h-4 w-4 text-orange-400" /><span className="font-medium">{selectedCustomer.name}</span></div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="cafe-comp-note" className="font-heading">Reason (Optional)</Label>
+              <Input id="cafe-comp-note" placeholder="e.g., Owner, Staff meal..." value={compNote}
+                onChange={(e) => setCompNote(e.target.value)} className="font-quicksand" />
+            </div>
+            <div className="border rounded-md p-3 bg-gradient-to-r from-orange-500/10 to-cuephoria-purple/10">
+              <h4 className="font-medium mb-2 font-heading">Items</h4>
+              <div className="space-y-1 max-h-32 overflow-auto">
+                {cart.map(item => (
+                  <div key={item.menuItemId} className="flex justify-between text-sm">
+                    <span className="font-quicksand">{item.name} x {item.quantity}</span>
+                    <span className="font-mono font-semibold"><CurrencyDisplay amount={item.total} /></span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between font-bold border-t mt-2 pt-2">
+                <span className="font-heading">Total Value</span>
+                <CurrencyDisplay amount={cartSubtotal} className="text-orange-400" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsCompDialogOpen(false); setCompNote(''); }}>Cancel</Button>
+            <Button onClick={() => { setPaymentMethod('complimentary'); handlePlaceOrder(); }}
+              disabled={isSubmitting} className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90">
+              <Gift className="mr-2 h-4 w-4" /> {isSubmitting ? 'Processing...' : 'Confirm Comp'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== SUCCESS DIALOG ===== */}
+      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+        <DialogContent className="max-w-md animate-scale-in text-center">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-heading mb-2 flex items-center justify-center gap-2">
+              <div className="rounded-full bg-green-500/20 p-3"><Check className="h-8 w-8 text-green-400" /></div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-4">
+            <h3 className="text-2xl font-bold mb-2">Order Placed!</h3>
+            <DialogDescription className="text-center mb-4">{lastOrder?.orderNumber}</DialogDescription>
+            <div className="bg-gradient-to-r from-green-900/20 to-emerald-900/20 p-4 rounded-lg w-full mb-4">
+              <p className="font-bold text-3xl mb-2 text-green-400"><CurrencyDisplay amount={lastOrder?.total || 0} /></p>
+              <p className="text-sm text-muted-foreground">{new Date().toLocaleString('en-IN')}</p>
+            </div>
+            <div className="flex flex-col gap-2 w-full">
+              <Button onClick={handlePrintReceipt} className="w-full bg-cuephoria-purple hover:bg-cuephoria-purple/90">
+                <Printer className="mr-2 h-4 w-4" /> Print Receipt
+              </Button>
+              <Button variant="outline" onClick={() => { setShowSuccess(false); setLastOrder(null); }} className="w-full">Close</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
