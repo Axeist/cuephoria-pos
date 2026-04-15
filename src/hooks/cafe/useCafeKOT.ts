@@ -21,12 +21,21 @@ export function useCafeKOT(locationId?: string) {
     try {
       const { data, error } = await supabase
         .from('cafe_kot')
-        .select('*')
+        .select('*, cafe_orders!inner(order_source, customer_name, order_type)')
         .eq('location_id', locationId)
         .in('status', ['pending', 'acknowledged', 'preparing', 'ready'])
         .order('created_at', { ascending: true });
       if (!error && data) {
-        const transformed = data.map(r => transformKOTRow(r as unknown as CafeKOTRow));
+        const transformed = data.map(r => {
+          const kot = transformKOTRow(r as unknown as CafeKOTRow);
+          const orderData = (r as any).cafe_orders;
+          if (orderData) {
+            (kot as any).orderSource = orderData.order_source;
+            (kot as any).customerName = orderData.customer_name;
+            (kot as any).orderType = orderData.order_type;
+          }
+          return kot;
+        });
         transformed.forEach(k => seenKotIds.current.add(k.id));
         setKots(transformed);
       }

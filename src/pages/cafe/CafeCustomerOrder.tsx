@@ -50,7 +50,9 @@ const CafeCustomerOrder: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [orderStatus, setOrderStatus] = useState<string>('pending');
+  const [kotStatus, setKotStatus] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
+  const readyNotified = useRef(false);
   const [menuSearch, setMenuSearch] = useState('');
   const [historyPhone, setHistoryPhone] = useState('');
   const [orderHistory, setOrderHistory] = useState<CafeOrder[]>([]);
@@ -76,6 +78,9 @@ const CafeCustomerOrder: React.FC = () => {
       setStep('menu');
     } else {
       setLandingVisible(true);
+    }
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
     }
   }, []);
 
@@ -123,14 +128,47 @@ const CafeCustomerOrder: React.FC = () => {
 
   useEffect(() => {
     if (!orderId) return;
-    const channel: RealtimeChannel = supabase
+    readyNotified.current = false;
+
+    const orderChannel: RealtimeChannel = supabase
       .channel(`customer-order-${orderId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cafe_orders', filter: `id=eq.${orderId}` }, (payload) => {
-        if (payload.new) setOrderStatus((payload.new as any).status);
+        if (payload.new) {
+          const newStatus = (payload.new as any).status;
+          setOrderStatus(newStatus);
+          if (newStatus === 'ready' && !readyNotified.current) {
+            readyNotified.current = true;
+            try {
+              if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]);
+              const audio = new Audio('/notification.mp3');
+              audio.volume = 0.8;
+              audio.play().catch(() => {});
+            } catch {}
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('Your order is ready!', { body: `Order ${orderNumber} — collect from the counter`, icon: '/favicon.ico' });
+            }
+          }
+        }
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [orderId]);
+
+    const kotChannel: RealtimeChannel = supabase
+      .channel(`customer-kot-${orderId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cafe_kot', filter: `order_id=eq.${orderId}` }, (payload) => {
+        if (payload.new) setKotStatus((payload.new as any).status);
+      })
+      .subscribe();
+
+    (async () => {
+      const { data } = await supabase.from('cafe_kot').select('status').eq('order_id', orderId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (data) setKotStatus(data.status);
+    })();
+
+    return () => {
+      supabase.removeChannel(orderChannel);
+      supabase.removeChannel(kotChannel);
+    };
+  }, [orderId, orderNumber]);
 
   /* ── Derived data ── */
   const displayCategory = activeCategory || categories[0]?.id;
@@ -276,8 +314,8 @@ const CafeCustomerOrder: React.FC = () => {
       const cafeLocation = await supabase.from('locations').select('id').eq('slug', 'cafe').single();
       if (!cafeLocation.data) throw new Error('Cafe not found');
 
-      const partnerRes = await supabase.from('cafe_partners').select('id, partner_rate, cuephoria_rate').eq('location_id', cafeLocation.data.id).eq('is_active', true).single();
-      if (!partnerRes.data) throw new Error('Cafe not configured');
+      const partnerRes = await supabase.from('cafe_partners').select('id, partner_rate, cuephoria_rate').eq('location_id', cafeLocation.data.id).eq('is_active', true).limit(1).maybeSingle();
+      if (!partnerRes.data) throw new Error('Cafe not configured — please contact staff');
 
       const subtotal = cart.reduce((s, i) => s + i.total, 0);
       const total = subtotal;
@@ -332,15 +370,26 @@ const CafeCustomerOrder: React.FC = () => {
   };
 
   const trackingSteps = [
-    { key: 'pending', label: 'Order placed', desc: 'Waiting for kitchen to accept', icon: ShoppingCart },
-    { key: 'confirmed', label: 'Confirmed', desc: 'Kitchen has accepted your order', icon: CheckCircle2 },
-    { key: 'preparing', label: 'Preparing', desc: 'Chef is cooking your food', icon: CookingPot },
-    { key: 'ready', label: 'Ready for pickup', desc: 'Collect from the counter', icon: Coffee },
-    { key: 'served', label: 'Served', desc: 'Enjoy your meal!', icon: UtensilsCrossed },
-    { key: 'completed', label: 'Completed', desc: 'Thanks for ordering', icon: CheckCircle2 },
+    { key: 'pending', label: 'Order Received', desc: 'Your order has been placed successfully', icon: ShoppingCart, emoji: '📝' },
+    { key: 'confirmed', label: 'Order Confirmed', desc: 'Kitchen has accepted your order', icon: CheckCircle2, emoji: '✅' },
+    { key: 'preparing', label: 'Being Prepared', desc: 'Our chef is crafting your delicious food', icon: CookingPot, emoji: '👨‍🍳' },
+    { key: 'ready', label: 'Ready for Pickup', desc: 'Head to the counter to collect your order', icon: Coffee, emoji: '🔔' },
+    { key: 'served', label: 'Picked Up', desc: 'Enjoy your meal!', icon: UtensilsCrossed, emoji: '🍽️' },
+    { key: 'completed', label: 'Completed', desc: 'Thanks for dining with us!', icon: CheckCircle2, emoji: '🎉' },
   ];
+
+  const resolvedStatus = useMemo(() => {
+    if (orderStatus === 'cancelled') return 'cancelled';
+    if (orderStatus === 'completed') return 'completed';
+    if (orderStatus === 'served') return 'served';
+    if (orderStatus === 'ready' || kotStatus === 'ready') return 'ready';
+    if (kotStatus === 'preparing' || orderStatus === 'preparing') return 'preparing';
+    if (kotStatus === 'acknowledged' || orderStatus === 'confirmed') return 'confirmed';
+    return 'pending';
+  }, [orderStatus, kotStatus]);
+
   const currentStepIndex =
-    orderStatus === 'cancelled' ? -1 : Math.max(0, trackingSteps.findIndex(s => s.key === orderStatus));
+    resolvedStatus === 'cancelled' ? -1 : Math.max(0, trackingSteps.findIndex(s => s.key === resolvedStatus));
 
   const estimatedPrepTime = useMemo(() => {
     const maxTime = cart.reduce((m, c) => {
@@ -383,8 +432,8 @@ const CafeCustomerOrder: React.FC = () => {
                 <Coffee className="h-10 w-10 text-orange-300" />
               </div>
             </div>
-          </div>
-          <div className="text-center space-y-2">
+        </div>
+        <div className="text-center space-y-2">
             <p className="text-lg font-heading text-white">Brewing your menu...</p>
             <p className="text-sm text-zinc-500 font-quicksand">Fresh dishes loading</p>
           </div>
@@ -404,20 +453,20 @@ const CafeCustomerOrder: React.FC = () => {
         >
           {/* Glass logo card */}
           <div className={`${glass} p-8 w-full flex flex-col items-center gap-6`}>
-            <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">
               <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-20 w-20 rounded-2xl object-contain bg-white/5 p-1.5 shadow-xl shadow-orange-500/15 ring-1 ring-white/10" />
               <span className="text-3xl text-zinc-600 font-thin select-none">×</span>
               <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-20 w-20 rounded-2xl object-contain bg-white/5 p-1.5 shadow-xl shadow-purple-500/15 ring-1 ring-white/10" />
-            </div>
+          </div>
 
-            <div className="text-center space-y-2">
+          <div className="text-center space-y-2">
               <h1 className="text-3xl sm:text-4xl font-heading font-bold bg-gradient-to-r from-orange-200 via-amber-100 to-violet-200 bg-clip-text text-transparent leading-tight">
                 Choco Loca
-              </h1>
+            </h1>
               <p className="text-zinc-500 font-quicksand text-sm tracking-[0.25em] uppercase">
                 Cakes & Cafe at Cuephoria
-              </p>
-            </div>
+            </p>
+          </div>
 
             <div className="w-20 h-0.5 rounded-full bg-gradient-to-r from-orange-500 via-violet-500 to-indigo-500 opacity-60" />
 
@@ -452,67 +501,67 @@ const CafeCustomerOrder: React.FC = () => {
         <AmbientBg />
         <div className="relative z-10 max-w-sm w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className={`${glass} p-8 space-y-6`}>
-            <div className="text-center space-y-2">
+          <div className="text-center space-y-2">
               <div className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto shadow-xl shadow-orange-500/20 relative overflow-hidden" style={{ background: accentGrad }}>
                 <User className="h-8 w-8 text-white relative z-10" />
-              </div>
+            </div>
               <h2 className="text-2xl font-heading font-bold text-white mt-4">Welcome!</h2>
               <p className="text-zinc-400 font-quicksand text-sm">Enter your phone to earn loyalty points & track orders</p>
-            </div>
+          </div>
 
-            <div className="space-y-4">
-              <div className="relative">
+          <div className="space-y-4">
+            <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
-                <input
+              <input
                   type="tel" inputMode="numeric"
-                  value={customerPhone}
-                  onChange={e => handlePhoneChange(e.target.value)}
+                value={customerPhone}
+                onChange={e => handlePhoneChange(e.target.value)}
                   placeholder="10-digit phone number"
                   maxLength={10} autoFocus
                   className="w-full h-14 pl-12 pr-12 rounded-2xl bg-white/[0.05] border border-white/10 text-white font-quicksand text-lg tracking-wider placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/10 transition-all backdrop-blur-sm"
                 />
                 {customerSearching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-orange-400 animate-spin" />}
                 {customerFound === true && !customerSearching && <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-green-400" />}
-              </div>
-
-              {customerFound === true && customerName && (
-                <div className={`${glassCard} border-green-500/20 p-4 text-center animate-in fade-in duration-300`}>
-                  <p className="text-green-400 font-quicksand font-medium">
-                    Welcome back, <span className="font-bold text-green-300">{customerName}</span>! 🎉
-                  </p>
-                </div>
-              )}
-
-              {customerFound === false && customerPhone.length === 10 && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <p className="text-sm text-zinc-400 font-quicksand flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-orange-400" /> New here? Tell us your name</p>
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
-                    <input
-                      type="text" value={customerName}
-                      onChange={e => setCustomerName(e.target.value)}
-                      placeholder="Your name"
-                      className="w-full h-14 pl-12 pr-4 rounded-2xl bg-white/[0.05] border border-white/10 text-white font-quicksand text-lg placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/10 transition-all backdrop-blur-sm"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
+            {customerFound === true && customerName && (
+                <div className={`${glassCard} border-green-500/20 p-4 text-center animate-in fade-in duration-300`}>
+                <p className="text-green-400 font-quicksand font-medium">
+                    Welcome back, <span className="font-bold text-green-300">{customerName}</span>! 🎉
+                </p>
+              </div>
+            )}
+
+            {customerFound === false && customerPhone.length === 10 && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <p className="text-sm text-zinc-400 font-quicksand flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-orange-400" /> New here? Tell us your name</p>
+                <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
+                  <input
+                      type="text" value={customerName}
+                    onChange={e => setCustomerName(e.target.value)}
+                    placeholder="Your name"
+                      className="w-full h-14 pl-12 pr-4 rounded-2xl bg-white/[0.05] border border-white/10 text-white font-quicksand text-lg placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/10 transition-all backdrop-blur-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
             <div className="space-y-3 pt-2">
-              <button
-                onClick={handleIdentifySubmit}
-                disabled={customerPhone.length < 10 || customerSearching || (!customerName && customerFound !== true)}
-                className="w-full py-4 rounded-2xl text-white font-quicksand font-semibold text-lg transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:hover:scale-100 shadow-lg shadow-orange-500/20"
+            <button
+              onClick={handleIdentifySubmit}
+              disabled={customerPhone.length < 10 || customerSearching || (!customerName && customerFound !== true)}
+              className="w-full py-4 rounded-2xl text-white font-quicksand font-semibold text-lg transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:hover:scale-100 shadow-lg shadow-orange-500/20"
                 style={{ background: accentGrad }}
-              >
+            >
                 {loading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : (
                   <span className="flex items-center justify-center gap-2">Continue <ArrowRight className="h-4 w-4" /></span>
                 )}
-              </button>
+            </button>
               <button onClick={handleSkipIdentify} className="w-full py-3 rounded-2xl text-zinc-500 font-quicksand text-sm hover:text-zinc-400 transition-colors">
                 Skip — order as guest
-              </button>
+            </button>
             </div>
           </div>
         </div>
@@ -530,8 +579,8 @@ const CafeCustomerOrder: React.FC = () => {
             <div className="absolute inset-0 rounded-full animate-spin" style={{ background: 'conic-gradient(from 0deg, #f97316, #a855f7, #6366f1, #f97316)', padding: 3 }}>
               <div className="flex h-full w-full items-center justify-center rounded-full bg-[hsl(222_47%_5%)]">
                 <Coffee className="h-10 w-10 text-orange-300" />
-              </div>
-            </div>
+        </div>
+          </div>
           </div>
           <p className="text-lg font-heading text-white">Brewing your menu...</p>
         </div>
@@ -548,65 +597,65 @@ const CafeCustomerOrder: React.FC = () => {
       <header className="sticky top-0 z-30 border-b border-white/[0.08]" style={{ background: 'rgba(10,12,22,0.85)', backdropFilter: 'blur(20px) saturate(1.5)' }}>
         <div className="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
-            {step !== 'menu' && step !== 'tracking' && (
+          {step !== 'menu' && step !== 'tracking' && (
               <button onClick={() => setStep(step === 'checkout' ? 'cart' : step === 'history' ? 'menu' : 'menu')} className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/10 transition-colors">
                 <ArrowLeft className="h-4 w-4 text-zinc-300" />
-              </button>
-            )}
+            </button>
+          )}
             <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/15 overflow-hidden" style={{ background: accentGrad }}>
-              <Coffee className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex flex-col">
+            <Coffee className="h-5 w-5 text-white" />
+          </div>
+          <div className="flex flex-col">
               <span className="text-sm font-bold bg-gradient-to-r from-orange-200 to-violet-200 bg-clip-text text-transparent font-heading leading-tight">Choco Loca</span>
               <span className="text-[10px] text-zinc-500 font-quicksand tracking-wider uppercase">at Cuephoria</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {step === 'menu' && (
-              <button onClick={() => setStep('history')} className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 transition-colors" title="Order history">
-                <History className="h-4 w-4 text-zinc-400" />
-              </button>
-            )}
-            {step === 'menu' && cartCount > 0 && (
-              <button onClick={() => setStep('cart')} className="relative p-2.5 rounded-xl hover:bg-white/10 transition-colors" style={{ background: 'rgba(249,115,22,0.12)' }}>
-                <ShoppingCart className="h-5 w-5 text-orange-400" />
-                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold shadow-lg shadow-orange-500/30" style={{ background: accentGrad }}>
-                  {cartCount}
-                </span>
-              </button>
-            )}
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          {step === 'menu' && (
+              <button onClick={() => setStep('history')} className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 transition-colors" title="Order history">
+                <History className="h-4 w-4 text-zinc-400" />
+            </button>
+          )}
+          {step === 'menu' && cartCount > 0 && (
+              <button onClick={() => setStep('cart')} className="relative p-2.5 rounded-xl hover:bg-white/10 transition-colors" style={{ background: 'rgba(249,115,22,0.12)' }}>
+              <ShoppingCart className="h-5 w-5 text-orange-400" />
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-[10px] flex items-center justify-center font-bold shadow-lg shadow-orange-500/30" style={{ background: accentGrad }}>
+                {cartCount}
+              </span>
+            </button>
+          )}
+        </div>
+      </div>
       </header>
 
       <div className="relative z-10">
-        {/* ─── MENU ─── */}
-        {step === 'menu' && (
+      {/* ─── MENU ─── */}
+      {step === 'menu' && (
           <div className="max-w-2xl mx-auto px-4 pb-32">
-            {/* Greeting */}
-            {customerName && (
+          {/* Greeting */}
+          {customerName && (
               <div className="flex items-center gap-2 pt-5 pb-2 animate-in fade-in duration-500">
                 <span className="text-sm text-zinc-500 font-quicksand">Hey,</span>
-                <span className="text-sm text-white font-quicksand font-semibold">{customerName}</span>
-                <span className="text-sm">👋</span>
-              </div>
-            )}
+              <span className="text-sm text-white font-quicksand font-semibold">{customerName}</span>
+              <span className="text-sm">👋</span>
+            </div>
+          )}
 
             {/* Search + veg filter */}
             <div className="pt-4 pb-3 space-y-3">
-              <div className="relative">
+          <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                <Input
-                  value={menuSearch}
-                  onChange={e => setMenuSearch(e.target.value)}
+            <Input
+              value={menuSearch}
+              onChange={e => setMenuSearch(e.target.value)}
                   placeholder="Search dishes, cuisines..."
                   className="pl-11 h-12 bg-white/[0.05] border-white/10 text-white font-quicksand rounded-2xl placeholder:text-zinc-600 focus-visible:ring-orange-500/20 backdrop-blur-sm"
-                />
-                {menuSearch && (
-                  <button onClick={() => setMenuSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2">
+            />
+            {menuSearch && (
+              <button onClick={() => setMenuSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2">
                     <X className="h-4 w-4 text-zinc-500" />
-                  </button>
-                )}
+              </button>
+            )}
               </div>
               {/* Veg / Non-Veg filter — Swiggy / Zomato style */}
               <div className="flex items-center gap-2">
@@ -628,10 +677,10 @@ const CafeCustomerOrder: React.FC = () => {
                   </button>
                 ))}
               </div>
-            </div>
+          </div>
 
-            {/* Category Tabs */}
-            {!menuSearch && (
+          {/* Category Tabs */}
+          {!menuSearch && (
               <div ref={categoryScrollRef} className="flex gap-2 overflow-x-auto pb-3 scrollbar-none -mx-4 px-4">
                 {categories.map(cat => {
                   const isActive = displayCategory === cat.id;
@@ -645,10 +694,10 @@ const CafeCustomerOrder: React.FC = () => {
                           : 'bg-white/[0.04] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.08] border border-white/[0.06]'
                       }`}
                       style={isActive ? { background: accentGrad } : undefined}
-                    >
-                      {cat.name}
+                  >
+                    {cat.name}
                       <span className="ml-1.5 text-[10px] opacity-60">({items.filter(i => i.categoryId === cat.id).length})</span>
-                    </button>
+                  </button>
                   );
                 })}
               </div>
@@ -657,16 +706,16 @@ const CafeCustomerOrder: React.FC = () => {
             {/* Items */}
             <div className="space-y-3 pt-1">
               {filteredItems.map((item) => {
-                const inCart = cart.find(c => c.menuItemId === item.id);
-                const isPopular = popularItemIds.has(item.id);
+              const inCart = cart.find(c => c.menuItemId === item.id);
+              const isPopular = popularItemIds.has(item.id);
                 const isBestseller = bestsellerIds.has(item.id);
-                const justAdded = addedItemId === item.id;
+              const justAdded = addedItemId === item.id;
                 const isExpanded = expandedItemId === item.id;
                 const catName = itemCategoryMap.get(item.categoryId);
 
-                return (
-                  <div
-                    key={item.id}
+              return (
+                <div
+                  key={item.id}
                     className={`${glassCard} overflow-hidden transition-all duration-300 ${justAdded ? 'ring-2 ring-orange-500/40 scale-[0.98]' : ''}`}
                   >
                     <div className="flex gap-3 p-3.5">
@@ -681,9 +730,9 @@ const CafeCustomerOrder: React.FC = () => {
                           )}
                           {isPopular && !isBestseller && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-500/15 text-violet-300 text-[10px] font-bold font-quicksand uppercase tracking-wider">
-                              <Sparkles className="h-2.5 w-2.5" /> Popular
-                            </span>
-                          )}
+                        <Sparkles className="h-2.5 w-2.5" /> Popular
+                      </span>
+                    )}
                         </div>
                         <p className="text-[15px] font-semibold text-white font-quicksand leading-tight">{item.name}</p>
                         <p className="text-base font-bold text-orange-300 font-quicksand"><CurrencyDisplay amount={item.price} /></p>
@@ -693,12 +742,12 @@ const CafeCustomerOrder: React.FC = () => {
                           {item.prepTimeMinutes && item.prepTimeMinutes > 0 && (
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3 text-zinc-600" /> {item.prepTimeMinutes} min
-                            </span>
+                    </span>
                           )}
                           {catName && <span className="text-zinc-600">{catName}</span>}
-                        </div>
+                  </div>
 
-                        {item.description && (
+                    {item.description && (
                           <button type="button" onClick={() => setExpandedItemId(isExpanded ? null : item.id)} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-quicksand flex items-center gap-1">
                             {isExpanded ? 'Less' : 'More info'}
                             <ChevronRight className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -723,70 +772,70 @@ const CafeCustomerOrder: React.FC = () => {
                           </div>
                         )}
 
-                        {inCart ? (
+                      {inCart ? (
                           <div className="flex items-center gap-0.5 -mt-5 relative z-10">
                             <button onClick={() => updateQuantity(item.id, -1)} className="h-9 w-9 rounded-xl bg-zinc-800 border border-white/10 flex items-center justify-center hover:bg-zinc-700 transition-colors active:scale-90 shadow-lg">
-                              <Minus className="h-3.5 w-3.5 text-white" />
-                            </button>
+                            <Minus className="h-3.5 w-3.5 text-white" />
+                          </button>
                             <span className="text-sm w-8 text-center text-white font-bold font-quicksand">{inCart.quantity}</span>
                             <button onClick={() => addToCart(item)} className="h-9 w-9 rounded-xl flex items-center justify-center hover:opacity-90 transition-all active:scale-90 shadow-lg shadow-orange-500/25" style={{ background: accentGrad }}>
-                              <Plus className="h-3.5 w-3.5 text-white" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => addToCart(item)}
+                            <Plus className="h-3.5 w-3.5 text-white" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => addToCart(item)}
                             className="px-5 py-2 -mt-5 relative z-10 rounded-xl text-orange-300 text-sm font-quicksand font-bold transition-all active:scale-90 border border-orange-500/30 shadow-lg shadow-black/30"
                             style={{ background: 'rgba(15,15,25,0.9)', backdropFilter: 'blur(12px)' }}
-                          >
-                            ADD
-                          </button>
-                        )}
-                      </div>
+                        >
+                          ADD
+                        </button>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-              {filteredItems.length === 0 && (
+                </div>
+              );
+            })}
+            {filteredItems.length === 0 && (
                 <div className="text-center py-20 text-zinc-500">
                   <Search className="h-12 w-12 mx-auto mb-3 opacity-20" />
                   <p className="font-quicksand text-sm">No dishes found</p>
                   <p className="font-quicksand text-xs text-zinc-600 mt-1">Try a different search or category</p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ─── FLOATING CART BAR ─── */}
-        {step === 'menu' && cartCount > 0 && (
+      {/* ─── FLOATING CART BAR ─── */}
+      {step === 'menu' && cartCount > 0 && (
           <div className="fixed bottom-0 left-0 right-0 p-4 z-30" style={{ background: 'linear-gradient(to top, hsl(222 47% 5%) 60%, transparent)' }}>
-            <button
-              onClick={() => setStep('cart')}
+          <button
+            onClick={() => setStep('cart')}
               className="w-full max-w-2xl mx-auto flex items-center justify-between p-4 rounded-2xl text-white font-quicksand font-semibold transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] shadow-2xl shadow-orange-500/25 ring-1 ring-white/10"
               style={{ background: accentGrad }}
-            >
-              <div className="flex items-center gap-3">
+          >
+            <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <ShoppingCart className="h-4 w-4" />
-                </div>
+                <ShoppingCart className="h-4 w-4" />
+              </div>
                 <div className="text-left">
                   <p className="text-sm font-bold">{cartCount} {cartCount === 1 ? 'item' : 'items'}</p>
                   {estimatedPrepTime > 0 && (
                     <p className="text-[10px] opacity-80 flex items-center gap-1"><Clock className="h-2.5 w-2.5" /> ~{estimatedPrepTime} min</p>
                   )}
-                </div>
+            </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-bold"><CurrencyDisplay amount={cartTotal} /></span>
+            <span className="text-lg font-bold"><CurrencyDisplay amount={cartTotal} /></span>
                 <ChevronRight className="h-4 w-4 opacity-70" />
               </div>
-            </button>
-          </div>
-        )}
+          </button>
+        </div>
+      )}
 
-        {/* ─── CART ─── */}
-        {step === 'cart' && (
+      {/* ─── CART ─── */}
+      {step === 'cart' && (
           <div className="max-w-2xl mx-auto px-4 py-5 space-y-4 pb-28">
             <h2 className="text-xl font-bold text-white font-heading flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-orange-400" /> Your Order
@@ -796,58 +845,58 @@ const CafeCustomerOrder: React.FC = () => {
                 </span>
               )}
             </h2>
-            {cart.length === 0 ? (
+          {cart.length === 0 ? (
               <div className={`${glassCard} text-center py-16 text-zinc-500`}>
-                <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-20" />
                 <p className="font-quicksand text-sm">Your cart is empty</p>
                 <Button onClick={() => setStep('menu')} className="mt-4 bg-white/5 text-zinc-400 hover:bg-white/10 border border-white/10 rounded-xl" variant="outline">Browse Menu</Button>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3">
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
                   {cart.map(item => {
                     const menuItem = items.find(i => i.id === item.menuItemId);
                     return (
                       <div key={item.menuItemId} className={`${glassCard} p-4`}>
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-white font-quicksand flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white font-quicksand flex items-center gap-2">
                               <VegBadge isVeg={item.isVeg} />
-                              <span className="truncate">{item.name}</span>
-                            </p>
+                          <span className="truncate">{item.name}</span>
+                        </p>
                             <div className="flex items-center gap-2 mt-1 text-xs text-zinc-500 font-quicksand">
                               <CurrencyDisplay amount={item.price} /> each
                               {menuItem?.prepTimeMinutes && menuItem.prepTimeMinutes > 0 && (
                                 <span className="flex items-center gap-0.5"><Clock className="h-2.5 w-2.5" /> {menuItem.prepTimeMinutes}m</span>
                               )}
-                            </div>
+                      </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button onClick={() => updateQuantity(item.menuItemId, -1)} className="h-8 w-8 rounded-xl bg-white/[0.07] border border-white/10 flex items-center justify-center hover:bg-white/15 transition-colors active:scale-90">
-                              <Minus className="h-3.5 w-3.5 text-white" />
-                            </button>
-                            <span className="text-sm w-6 text-center text-white font-bold font-quicksand">{item.quantity}</span>
+                          <Minus className="h-3.5 w-3.5 text-white" />
+                        </button>
+                        <span className="text-sm w-6 text-center text-white font-bold font-quicksand">{item.quantity}</span>
                             <button onClick={() => updateQuantity(item.menuItemId, 1)} className="h-8 w-8 rounded-xl flex items-center justify-center hover:opacity-90 transition-colors active:scale-90" style={{ background: accentGrad }}>
-                              <Plus className="h-3.5 w-3.5 text-white" />
-                            </button>
+                          <Plus className="h-3.5 w-3.5 text-white" />
+                        </button>
                             <button onClick={() => removeFromCart(item.menuItemId)} className="ml-1 p-1.5 hover:bg-red-500/10 rounded-lg transition-colors">
                               <Trash2 className="h-3.5 w-3.5 text-red-400/70 hover:text-red-400" />
-                            </button>
-                          </div>
-                        </div>
+                        </button>
+                      </div>
+                    </div>
                         <div className="flex justify-between items-center mt-3 gap-3">
-                          <Input
-                            value={item.notes || ''}
-                            onChange={e => setCart(prev => prev.map(c => c.menuItemId === item.menuItemId ? { ...c, notes: e.target.value } : c))}
+                      <Input
+                        value={item.notes || ''}
+                        onChange={e => setCart(prev => prev.map(c => c.menuItemId === item.menuItemId ? { ...c, notes: e.target.value } : c))}
                             placeholder="Add cooking instructions..."
                             className="h-8 text-xs bg-transparent border-0 border-b border-white/[0.06] rounded-none px-0 text-zinc-400 font-quicksand placeholder:text-zinc-700 focus-visible:ring-0 focus-visible:border-orange-500/30"
-                          />
+                      />
                           <span className="text-base font-bold text-orange-300 font-quicksand whitespace-nowrap"><CurrencyDisplay amount={item.total} /></span>
-                        </div>
-                      </div>
+                    </div>
+                  </div>
                     );
                   })}
-                </div>
+              </div>
 
                 {/* Bill summary */}
                 <div className={`${glassCard} p-4 space-y-2`}>
@@ -864,40 +913,40 @@ const CafeCustomerOrder: React.FC = () => {
                     <span className="text-white font-heading">To pay</span>
                     <span className="text-orange-300"><CurrencyDisplay amount={cartTotal} /></span>
                   </div>
-                </div>
+              </div>
 
-                <div className="flex gap-3 pt-1">
+              <div className="flex gap-3 pt-1">
                   <Button onClick={() => setStep('menu')} variant="outline" className="flex-1 h-12 border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] rounded-2xl backdrop-blur-sm">
-                    <Plus className="h-4 w-4 mr-1.5" /> Add More
-                  </Button>
+                  <Plus className="h-4 w-4 mr-1.5" /> Add More
+                </Button>
                   <button
-                    onClick={() => setStep('checkout')}
-                    disabled={cart.length === 0}
+                  onClick={() => setStep('checkout')}
+                  disabled={cart.length === 0}
                     className="flex-1 h-12 text-base font-quicksand font-semibold text-white rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
                     style={{ background: accentGrad }}
-                  >
+                >
                     Checkout <ArrowRight className="h-4 w-4" />
                   </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-        {/* ─── CHECKOUT ─── */}
-        {step === 'checkout' && (
+      {/* ─── CHECKOUT ─── */}
+      {step === 'checkout' && (
           <div className="max-w-md mx-auto px-4 py-5 space-y-5 pb-8">
             <h2 className="text-xl font-bold text-white font-heading">Confirm & place order</h2>
 
             <div className={`${glassCard} p-5 space-y-4`}>
               <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold">Your details</p>
-              <div className="space-y-3">
-                <div className="relative">
+          <div className="space-y-3">
+            <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
                   <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Your name *"
                     className="pl-11 h-12 bg-white/[0.04] border-white/10 text-white font-quicksand rounded-2xl placeholder:text-zinc-600 backdrop-blur-sm" />
-                </div>
-                <div className="relative">
+            </div>
+            <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
                   <Input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Phone number *"
                     className="pl-11 h-12 bg-white/[0.04] border-white/10 text-white font-quicksand rounded-2xl placeholder:text-zinc-600 backdrop-blur-sm" maxLength={10} />
@@ -907,7 +956,7 @@ const CafeCustomerOrder: React.FC = () => {
 
             <div className={`${glassCard} p-5 space-y-4`}>
               <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold">Order type</p>
-              <div className="flex gap-2">
+            <div className="flex gap-2">
                 {[
                   { take: false, label: 'Dine In', icon: MapPin, desc: 'Eat at the cafe' },
                   { take: true, label: 'Takeaway', icon: Coffee, desc: 'Pack and go' },
@@ -923,52 +972,52 @@ const CafeCustomerOrder: React.FC = () => {
                     <t.icon className="h-5 w-5 mx-auto mb-1.5" />
                     <p className="text-sm font-semibold">{t.label}</p>
                     <p className="text-[10px] opacity-60 mt-0.5">{t.desc}</p>
-                  </button>
+              </button>
                 ))}
-              </div>
+            </div>
 
               {!isTakeaway && zones.length > 0 && (
                 <div className="space-y-3 pt-1">
                   <p className="text-xs text-zinc-400 font-quicksand">Select your table:</p>
-                  {zones.map(zone => {
-                    const availableTables = tables.filter(t => t.zone === zone && !t.isOccupied);
-                    if (availableTables.length === 0) return null;
-                    return (
-                      <div key={zone}>
+                {zones.map(zone => {
+                  const availableTables = tables.filter(t => t.zone === zone && !t.isOccupied);
+                  if (availableTables.length === 0) return null;
+                  return (
+                    <div key={zone}>
                         <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-2 font-quicksand font-semibold">{zone}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {availableTables.map(table => (
+                      <div className="flex flex-wrap gap-2">
+                        {availableTables.map(table => (
                             <button key={table.id} onClick={() => setSelectedTableId(table.id)}
                               className={`px-4 py-2.5 rounded-xl text-xs font-quicksand font-medium border transition-all duration-300 ${
-                                selectedTableId === table.id
+                              selectedTableId === table.id
                                   ? 'border-orange-500/40 text-orange-200 shadow-lg shadow-orange-500/10'
                                   : 'bg-white/[0.03] border-white/[0.08] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]'
-                              }`}
+                            }`}
                               style={selectedTableId === table.id ? { background: accentGradSoft } : undefined}
-                            >
+                          >
                               {table.tableName} <span className="opacity-50">({table.capacity})</span>
-                            </button>
-                          ))}
-                        </div>
+                          </button>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-            {/* Order Summary */}
+          {/* Order Summary */}
             <div className={`${glassCard} p-4 space-y-2`}>
               <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold">Order summary</p>
-              {cart.map(item => (
-                <div key={item.menuItemId} className="flex justify-between text-sm font-quicksand">
+            {cart.map(item => (
+              <div key={item.menuItemId} className="flex justify-between text-sm font-quicksand">
                   <span className="text-zinc-400 flex items-center gap-2">
                     <VegBadge isVeg={item.isVeg} />
                     {item.quantity}× {item.name}
                   </span>
-                  <span className="text-white font-medium"><CurrencyDisplay amount={item.total} /></span>
-                </div>
-              ))}
+                <span className="text-white font-medium"><CurrencyDisplay amount={item.total} /></span>
+              </div>
+            ))}
               {estimatedPrepTime > 0 && (
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-quicksand pt-1">
                   <Clock className="h-3 w-3" /> Estimated cooking: ~{estimatedPrepTime} min
@@ -977,12 +1026,12 @@ const CafeCustomerOrder: React.FC = () => {
               <div className="flex justify-between text-lg font-bold pt-2 border-t border-white/[0.08] mt-2">
                 <span className="text-white font-heading">To pay</span>
                 <span className="text-orange-300"><CurrencyDisplay amount={cartTotal} /></span>
-              </div>
             </div>
+          </div>
 
             <button
-              onClick={handlePlaceOrder}
-              disabled={isSubmitting || cart.length === 0}
+            onClick={handlePlaceOrder}
+            disabled={isSubmitting || cart.length === 0}
               className="w-full h-14 text-base font-quicksand font-semibold text-white rounded-2xl transition-all hover:scale-[1.01] active:scale-95 shadow-xl shadow-orange-500/25 disabled:opacity-50 flex items-center justify-center gap-2"
               style={{ background: accentGrad }}
             >
@@ -993,131 +1042,209 @@ const CafeCustomerOrder: React.FC = () => {
             <p className="text-[11px] text-zinc-600 text-center font-quicksand flex items-center justify-center gap-1.5">
               <Shield className="h-3 w-3" /> Pay at counter · No online payment required
             </p>
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* ─── TRACKING ─── */}
-        {step === 'tracking' && (
-          <div className="max-w-md mx-auto px-4 py-5 space-y-6 pb-8">
-            <div className={`${glass} p-6 text-center`}>
-              <div className="h-20 w-20 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-xl shadow-green-500/20 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                <CheckCircle2 className="h-10 w-10 text-white relative z-10" />
+      {/* ─── TRACKING ─── */}
+      {step === 'tracking' && (
+        <div className="max-w-md mx-auto px-4 py-5 space-y-5 pb-8">
+          {/* Hero card */}
+          <div className={`${glass} p-6 text-center relative overflow-hidden`}>
+            <div className="absolute inset-0 opacity-20" style={{ background: resolvedStatus === 'ready' ? 'radial-gradient(circle at 50% 30%, #10b981 0%, transparent 70%)' : resolvedStatus === 'preparing' ? 'radial-gradient(circle at 50% 30%, #f97316 0%, transparent 70%)' : 'radial-gradient(circle at 50% 30%, #6366f1 0%, transparent 70%)' }} />
+            <div className="relative z-10">
+              <div className={`h-20 w-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl relative overflow-hidden ${
+                resolvedStatus === 'ready' ? 'shadow-green-500/30' : resolvedStatus === 'preparing' ? 'shadow-orange-500/30' : 'shadow-violet-500/30'
+              }`} style={{ background: resolvedStatus === 'ready' ? 'linear-gradient(135deg, #10b981, #059669)' : resolvedStatus === 'preparing' ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                {resolvedStatus === 'ready' ? <Coffee className="h-10 w-10 text-white" /> : resolvedStatus === 'preparing' ? <CookingPot className="h-10 w-10 text-white animate-pulse" /> : <CheckCircle2 className="h-10 w-10 text-white" />}
               </div>
-              <h2 className="text-2xl font-bold text-white font-heading">Order Placed!</h2>
-              <p className="text-sm text-zinc-400 font-quicksand mt-1.5">{orderNumber}</p>
-              {estimatedPrepTime > 0 && (
+              <h2 className="text-2xl font-bold text-white font-heading">
+                {resolvedStatus === 'pending' && 'Order Received!'}
+                {resolvedStatus === 'confirmed' && 'Order Confirmed!'}
+                {resolvedStatus === 'preparing' && 'Being Prepared...'}
+                {resolvedStatus === 'ready' && '🔔 Order Ready!'}
+                {resolvedStatus === 'served' && 'Picked Up!'}
+                {resolvedStatus === 'completed' && 'Thank You!'}
+                {resolvedStatus === 'cancelled' && 'Order Cancelled'}
+              </h2>
+              <p className="text-sm text-zinc-400 font-quicksand mt-1">{orderNumber}</p>
+              {estimatedPrepTime > 0 && !['ready', 'served', 'completed'].includes(resolvedStatus) && (
                 <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-quicksand font-medium" style={{ background: accentGradSoft, color: '#fbbf24' }}>
                   <Clock className="h-3 w-3" /> Estimated: ~{estimatedPrepTime} min
                 </div>
               )}
             </div>
+          </div>
 
-            <div className={`${glassCard} p-5 space-y-0`}>
-              <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold mb-4">Live tracking</p>
-              <div className="relative">
-                <div className="absolute left-[23px] top-6 bottom-6 w-0.5 bg-white/[0.06]" />
-                {trackingSteps.map((s, i) => {
-                  const allComplete = orderStatus === 'completed';
-                  const isActive = !allComplete && i === currentStepIndex;
-                  const isCompleted = allComplete || (currentStepIndex >= 0 && i < currentStepIndex);
+          {/* Live progress bar */}
+          {resolvedStatus !== 'cancelled' && (
+            <div className={`${glassCard} p-4`}>
+              <div className="flex items-center justify-between mb-3">
+                {trackingSteps.slice(0, 4).map((s, i) => {
+                  const allComplete = currentStepIndex >= 4;
+                  const isDone = allComplete || (currentStepIndex >= 0 && i < currentStepIndex);
+                  const isActive = !allComplete && i === currentStepIndex && currentStepIndex < 4;
                   return (
-                    <div key={s.key} className="flex items-start gap-4 py-3 relative z-10">
-                      <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-500 ${
-                        isCompleted ? 'bg-green-500/90 shadow-lg shadow-green-500/30'
-                        : isActive ? 'shadow-lg shadow-orange-500/30 animate-pulse' : 'bg-white/[0.04] border border-white/[0.08]'
-                      }`} style={isActive ? { background: accentGrad } : undefined}>
-                        <s.icon className={`h-5 w-5 ${isCompleted || isActive ? 'text-white' : 'text-zinc-700'}`} />
+                    <React.Fragment key={s.key}>
+                      {i > 0 && <div className={`flex-1 h-1 rounded-full mx-1 transition-all duration-700 ${isDone ? 'bg-green-500' : isActive ? 'bg-gradient-to-r from-green-500 to-orange-500' : 'bg-white/[0.06]'}`} />}
+                      <div className="flex flex-col items-center">
+                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-500 ${
+                          isDone ? 'bg-green-500/90 shadow-lg shadow-green-500/20' : isActive ? 'shadow-lg shadow-orange-500/20' : 'bg-white/[0.04] border border-white/[0.08]'
+                        }`} style={isActive ? { background: accentGrad } : undefined}>
+                          {isDone ? <CheckCircle2 className="h-4 w-4 text-white" /> : <span className="text-sm">{s.emoji}</span>}
+                        </div>
+                        <span className={`text-[9px] mt-1.5 font-quicksand text-center leading-tight max-w-[56px] ${isActive ? 'text-orange-300 font-semibold' : isDone ? 'text-green-400' : 'text-zinc-600'}`}>{s.label.split(' ').slice(0, 2).join(' ')}</span>
                       </div>
-                      <div className="pt-1">
-                        <p className={`text-sm font-quicksand font-semibold transition-colors ${isActive ? 'text-orange-300' : isCompleted ? 'text-green-400' : 'text-zinc-700'}`}>
-                          {s.label}
-                        </p>
-                        <p className={`text-xs mt-0.5 ${isActive ? 'text-zinc-400' : isCompleted ? 'text-zinc-500' : 'text-zinc-700'}`}>
-                          {s.desc}
-                        </p>
-                      </div>
-                    </div>
+                    </React.Fragment>
                   );
                 })}
               </div>
             </div>
+          )}
 
-            {orderStatus === 'ready' && (
-              <div className={`${glassCard} border-green-500/20 p-6 text-center animate-in fade-in zoom-in-95 duration-500`}>
-                <Coffee className="h-10 w-10 text-green-400 mx-auto mb-3" />
+          {/* Detailed timeline */}
+          <div className={`${glassCard} p-5 space-y-0`}>
+            <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold mb-4">Order Timeline</p>
+            <div className="relative">
+              <div className="absolute left-[19px] top-5 bottom-5 w-0.5 bg-white/[0.06]" />
+              {trackingSteps.map((s, i) => {
+                const allComplete = resolvedStatus === 'completed';
+                const isActive = !allComplete && i === currentStepIndex;
+                const isCompleted = allComplete || (currentStepIndex >= 0 && i < currentStepIndex);
+                return (
+                  <div key={s.key} className={`flex items-start gap-3.5 py-2.5 relative z-10 transition-all duration-300 ${isActive || isCompleted ? 'opacity-100' : 'opacity-30'}`}>
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-500 ${
+                      isCompleted ? 'bg-green-500/90 shadow-md shadow-green-500/20'
+                      : isActive ? 'shadow-md shadow-orange-500/20 ring-2 ring-orange-500/30' : 'bg-white/[0.04] border border-white/[0.08]'
+                    }`} style={isActive ? { background: accentGrad } : undefined}>
+                      {isCompleted ? <CheckCircle2 className="h-4 w-4 text-white" /> : <span className="text-base">{s.emoji}</span>}
+                    </div>
+                    <div className="pt-0.5 flex-1">
+                      <p className={`text-sm font-quicksand font-semibold transition-colors ${isActive ? 'text-orange-300' : isCompleted ? 'text-green-400' : 'text-zinc-600'}`}>
+                        {s.label}
+                      </p>
+                      <p className={`text-[11px] mt-0.5 ${isActive ? 'text-zinc-400' : isCompleted ? 'text-zinc-500' : 'text-zinc-700'}`}>
+                        {s.desc}
+                      </p>
+                    </div>
+                    {isActive && (
+                      <span className="shrink-0 mt-1 h-2 w-2 rounded-full bg-orange-400 animate-pulse" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Ready banner */}
+          {resolvedStatus === 'ready' && (
+            <div className={`${glassCard} border-green-500/25 p-6 text-center animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden`}>
+              <div className="absolute inset-0 opacity-15" style={{ background: 'radial-gradient(circle at 50% 50%, #10b981, transparent 70%)' }} />
+              <div className="relative z-10">
+                <div className="text-5xl mb-3">🔔</div>
                 <p className="text-xl font-bold text-green-300 font-heading">Your order is ready!</p>
                 <p className="text-sm text-zinc-400 font-quicksand mt-1">Please collect from the counter</p>
+                <p className="text-xs text-green-400/80 font-quicksand mt-2 font-medium">{orderNumber}</p>
               </div>
-            )}
+            </div>
+          )}
 
-            {(orderStatus === 'served' || orderStatus === 'completed') && (
-              <div className="text-center pt-2">
-                <button
-                  onClick={() => { setStep('menu'); setCart([]); setOrderId(null); }}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-quicksand font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-orange-500/20"
-                  style={{ background: accentGrad }}
-                >
-                  <RefreshCw className="h-4 w-4" /> Order Again
-                </button>
+          {/* Cancelled */}
+          {resolvedStatus === 'cancelled' && (
+            <div className={`${glassCard} border-red-500/20 p-6 text-center`}>
+              <div className="text-4xl mb-3">😔</div>
+              <p className="text-lg font-bold text-red-300 font-heading">Order was cancelled</p>
+              <p className="text-sm text-zinc-400 font-quicksand mt-1">Please contact staff for assistance</p>
+            </div>
+          )}
+
+          {/* Order Again */}
+          {(resolvedStatus === 'served' || resolvedStatus === 'completed') && (
+            <div className="text-center pt-2">
+              <button
+                onClick={() => { setStep('menu'); setCart([]); setOrderId(null); setKotStatus(null); }}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-quicksand font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-orange-500/20"
+                style={{ background: accentGrad }}
+              >
+                <RefreshCw className="h-4 w-4" /> Order Again
+              </button>
+            </div>
+          )}
+
+          {/* Cart summary on tracking */}
+          {cart.length > 0 && (
+            <div className={`${glassCard} p-4`}>
+              <p className="text-xs text-zinc-500 font-quicksand uppercase tracking-wider font-semibold mb-2">Your Items</p>
+              <div className="space-y-1.5">
+                {cart.map(item => (
+                  <div key={item.menuItemId} className="flex justify-between text-sm font-quicksand">
+                    <span className="text-zinc-400">{item.quantity}× {item.name}</span>
+                    <span className="text-white"><CurrencyDisplay amount={item.total} /></span>
+                  </div>
+                ))}
               </div>
-            )}
+              <div className="border-t border-white/[0.06] mt-2 pt-2 flex justify-between text-sm font-quicksand font-bold">
+                <span className="text-zinc-300">Total</span>
+                <span className="text-orange-400"><CurrencyDisplay amount={cartTotal} /></span>
+              </div>
+            </div>
+          )}
 
-            <p className="text-[10px] text-zinc-600 text-center font-quicksand flex items-center justify-center gap-1.5">
-              <Shield className="h-3 w-3" /> Powered by Cuephoria
-            </p>
-          </div>
-        )}
+          <p className="text-[10px] text-zinc-600 text-center font-quicksand flex items-center justify-center gap-1.5">
+            <Shield className="h-3 w-3" /> Powered by Cuephoria
+          </p>
+        </div>
+      )}
 
-        {/* ─── HISTORY ─── */}
-        {step === 'history' && (
+      {/* ─── HISTORY ─── */}
+      {step === 'history' && (
           <div className="max-w-md mx-auto px-4 py-5 space-y-4 pb-8">
             <h2 className="text-xl font-bold text-white font-heading flex items-center gap-2">
               <History className="h-5 w-5 text-orange-400" /> Order History
             </h2>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
                 <Input type="tel" value={historyPhone}
-                  onChange={e => setHistoryPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="Your phone number"
+                onChange={e => setHistoryPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="Your phone number"
                   className="pl-11 h-12 bg-white/[0.05] border-white/10 text-white font-quicksand rounded-2xl placeholder:text-zinc-600 backdrop-blur-sm"
                   maxLength={10} />
-              </div>
+            </div>
               <Button onClick={handleFetchHistory} disabled={historyLoading}
                 className="h-12 w-12 rounded-2xl border border-white/10 text-orange-400 hover:bg-white/[0.06]"
                 style={{ background: 'rgba(249,115,22,0.1)' }}>
-                {historyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </Button>
-            </div>
-            <ScrollArea className="h-[calc(100vh-16rem)]">
-              {orderHistory.length === 0 ? (
+              {historyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+          <ScrollArea className="h-[calc(100vh-16rem)]">
+            {orderHistory.length === 0 ? (
                 <div className="text-center py-20 text-zinc-500">
-                  <History className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <History className="h-12 w-12 mx-auto mb-3 opacity-20" />
                   <p className="font-quicksand text-sm">{historyPhone ? 'No orders found' : 'Enter your phone to see past orders'}</p>
-                </div>
-              ) : (
+              </div>
+            ) : (
                 <div className="space-y-3">
-                  {orderHistory.map(order => (
+                {orderHistory.map(order => (
                     <div key={order.id} className={`${glassCard} p-4`}>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-bold text-white font-heading">{order.orderNumber}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-white font-heading">{order.orderNumber}</span>
                         <span className={`text-[10px] px-2.5 py-1 rounded-full capitalize font-quicksand font-medium border ${
                           order.status === 'completed' ? 'bg-green-500/10 text-green-400 border-green-500/20'
                           : order.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border-red-500/20'
                           : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                        }`}>{order.status}</span>
-                      </div>
-                      <div className="flex justify-between items-center mt-2 text-xs text-zinc-500 font-quicksand">
-                        <span>{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                        <span className="text-orange-300 font-bold text-sm"><CurrencyDisplay amount={order.total} /></span>
-                      </div>
+                      }`}>{order.status}</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </div>
-        )}
+                      <div className="flex justify-between items-center mt-2 text-xs text-zinc-500 font-quicksand">
+                      <span>{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <span className="text-orange-300 font-bold text-sm"><CurrencyDisplay amount={order.total} /></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+      )}
       </div>
     </div>
   );

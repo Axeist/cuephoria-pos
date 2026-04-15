@@ -59,13 +59,23 @@ const KOTCard: React.FC<{
       }}
     >
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-lg font-bold text-white font-heading">{kot.kotNumber}</span>
           <span className={`text-xs px-2 py-0.5 rounded-full font-quicksand font-semibold uppercase tracking-wider ${
             config.border.replace('border-', 'bg-').replace('500', '500/20')
           } ${config.border.replace('border-', 'text-')}`}>
             {config.label}
           </span>
+          {(kot as any).orderSource === 'customer' && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-quicksand font-bold uppercase tracking-wider border border-violet-500/20">
+              Self-Order
+            </span>
+          )}
+          {(kot as any).orderType === 'takeaway' && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-quicksand font-bold uppercase tracking-wider border border-cyan-500/20">
+              Takeaway
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => onPrint(kot)} className="h-6 w-6 rounded-md bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-600/50 transition-colors" title="Print KOT">
@@ -78,7 +88,12 @@ const KOTCard: React.FC<{
         </div>
       </div>
 
-      {/* Prominent item count */}
+      {(kot as any).customerName && (
+        <p className="text-xs text-zinc-400 font-quicksand mb-2 truncate flex items-center gap-1.5">
+          <span className="text-zinc-600">👤</span> {(kot as any).customerName}
+        </p>
+      )}
+
       <div className={`flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-lg ${isServed ? 'bg-emerald-900/15' : 'bg-white/[0.04]'} border ${isServed ? 'border-emerald-800/20' : 'border-white/[0.06]'}`}>
         <UtensilsCrossed className={`h-3.5 w-3.5 ${isServed ? 'text-emerald-500/60' : 'text-orange-400'}`} />
         <span className={`text-sm font-quicksand font-bold ${isServed ? 'text-emerald-400/60' : 'text-white'}`}>
