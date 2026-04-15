@@ -7,6 +7,12 @@ import type {
 import { transformMenuCategoryRow, transformMenuItemRow } from '@/types/cafe.types';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+/** PostgREST/Supabase when DB is missing `tracks_inventory` (migration not applied). */
+function isMissingTracksInventoryColumn(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes('tracks_inventory') && (m.includes('schema') || m.includes('column') || m.includes('does not exist'));
+}
+
 export function useCafeMenu(locationId?: string) {
   const [categories, setCategories] = useState<CafeMenuCategory[]>([]);
   const [items, setItems] = useState<CafeMenuItem[]>([]);
@@ -75,12 +81,23 @@ export function useCafeMenu(locationId?: string) {
     if (!locationId) {
       return { category: null, error: 'No location selected' };
     }
-    const { data, error } = await supabase.from('cafe_menu_categories').insert({
-      location_id: locationId, partner_id: partnerId, name,
-      description: opts?.description || null, image_url: opts?.imageUrl || null,
+    const base = {
+      location_id: locationId,
+      partner_id: partnerId,
+      name,
+      description: opts?.description || null,
+      image_url: opts?.imageUrl || null,
       sort_order: categories.length,
+    };
+    const withTracks = {
+      ...base,
       tracks_inventory: opts?.tracksInventory ?? false,
-    }).select().single();
+    };
+
+    let { data, error } = await supabase.from('cafe_menu_categories').insert(withTracks).select().single();
+    if (error && isMissingTracksInventoryColumn(error.message)) {
+      ({ data, error } = await supabase.from('cafe_menu_categories').insert(base).select().single());
+    }
     if (error) {
       console.error(error);
       return { category: null, error: error.message };
@@ -98,7 +115,22 @@ export function useCafeMenu(locationId?: string) {
     if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
     if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
     if (updates.tracksInventory !== undefined) dbUpdates.tracks_inventory = updates.tracksInventory;
-    const { error } = await supabase.from('cafe_menu_categories').update(dbUpdates).eq('id', id);
+
+    let { error } = await supabase.from('cafe_menu_categories').update(dbUpdates).eq('id', id);
+    if (error && isMissingTracksInventoryColumn(error.message) && updates.tracksInventory !== undefined) {
+      const { tracksInventory: _t, ...rest } = updates;
+      const fallback: Record<string, unknown> = {};
+      if (rest.name !== undefined) fallback.name = rest.name;
+      if (rest.description !== undefined) fallback.description = rest.description;
+      if (rest.imageUrl !== undefined) fallback.image_url = rest.imageUrl;
+      if (rest.isActive !== undefined) fallback.is_active = rest.isActive;
+      if (rest.sortOrder !== undefined) fallback.sort_order = rest.sortOrder;
+      if (Object.keys(fallback).length > 0) {
+        ({ error } = await supabase.from('cafe_menu_categories').update(fallback).eq('id', id));
+      } else {
+        return false;
+      }
+    }
     if (error) { console.error(error); return false; }
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     return true;
