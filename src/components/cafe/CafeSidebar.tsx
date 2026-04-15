@@ -63,13 +63,22 @@ const CafeSidebar: React.FC = () => {
               </SheetTrigger>
               <SheetContent side="left" className="p-0 w-[85%] sm:w-[80%] max-w-[280px] bg-[#1A1F2C] border-r-0">
                 <div className="h-full flex flex-col">
-                  <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-gradient-to-br from-orange-500 to-cuephoria-purple flex items-center justify-center shadow-lg shadow-orange-500/30">
-                      <Coffee className="h-6 w-6 text-white" />
+                  <div className="p-3 sm:p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="h-9 w-9 rounded-lg bg-[#f5f0e0] flex items-center justify-center shadow-md p-0.5 flex-shrink-0">
+                        <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-md" />
+                      </div>
+                      <span className="text-[10px] text-gray-600">&times;</span>
+                      <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-md p-0.5 flex-shrink-0">
+                        <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-full w-full object-contain rounded-md" />
+                      </div>
+                      <div className="flex flex-col ml-1">
+                        <span className="text-base font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight">
+                          Choco Loca
+                        </span>
+                        <span className="text-[9px] text-gray-500 font-quicksand">&times; Cuephoria</span>
+                      </div>
                     </div>
-                    <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading">
-                      Cuephoria Cafe
-                    </span>
                   </div>
                   <div className="mx-4 h-px bg-orange-500/30" />
                   <div className="flex-1 overflow-auto py-2">
@@ -119,9 +128,14 @@ const CafeSidebar: React.FC = () => {
                 </div>
               </SheetContent>
             </Sheet>
-            <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading">
-              Cuephoria Cafe
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-md bg-[#f5f0e0] flex items-center justify-center p-0.5">
+                <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-sm" />
+              </div>
+              <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading">
+                Choco Loca
+              </span>
+            </div>
           </div>
         </div>
         <div className="pt-[64px] sm:pt-16"></div>
@@ -131,13 +145,22 @@ const CafeSidebar: React.FC = () => {
 
   return (
     <Sidebar className="border-r-0 bg-[#1A1F2C] text-white w-[250px]">
-      <SidebarHeader className="p-4 flex items-center gap-3">
-        <div className="h-14 w-14 rounded-full bg-gradient-to-br from-orange-500 to-cuephoria-purple flex items-center justify-center shadow-lg shadow-orange-500/30 animate-neon-pulse">
-          <Coffee className="h-8 w-8 text-white" />
+      <SidebarHeader className="p-4">
+        <div className="flex items-center gap-2.5">
+          <div className="h-11 w-11 rounded-xl bg-[#f5f0e0] flex items-center justify-center shadow-lg shadow-orange-500/20 p-1 flex-shrink-0">
+            <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-lg" />
+          </div>
+          <span className="text-gray-600 text-xs">&times;</span>
+          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-lg shadow-purple-500/15 p-0.5 flex-shrink-0">
+            <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-full w-full object-contain rounded-lg" />
+          </div>
         </div>
-        <span className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading">
-          Cuephoria Cafe
-        </span>
+        <div className="mt-2">
+          <span className="text-lg font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight">
+            Choco Loca
+          </span>
+          <span className="text-[10px] text-gray-500 font-quicksand block">Cakes and Cafe &times; Cuephoria</span>
+        </div>
       </SidebarHeader>
       <SidebarSeparator className="mx-4 bg-orange-500/30" />
       <SidebarContent className="mt-2">
