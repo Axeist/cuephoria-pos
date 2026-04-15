@@ -185,6 +185,13 @@ export interface POSContextType {
     upiAmount?: number,
     paymentMethod?: 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay'
   ) => Promise<Bill | null>;
+
+  /** Mark a credit bill as collected: cash, UPI, or split (updates DB only; no line-item rewrite). */
+  realiseCreditPayment: (
+    bill: Bill,
+    mode: 'cash' | 'upi' | 'split',
+    options?: { splitCash?: number; splitUpi?: number; silent?: boolean }
+  ) => Promise<Bill | null>;
   
   exportBills: () => void;
   exportCustomers: () => void;

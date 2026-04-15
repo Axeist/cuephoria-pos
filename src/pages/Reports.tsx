@@ -7,12 +7,13 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -48,7 +49,8 @@ const ReportsPage: React.FC = () => {
     exportCustomers,
     stations,
     deleteBill,
-    updateBill
+    updateBill,
+    realiseCreditPayment
   } = usePOS();
   const {
     sessions,
@@ -420,6 +422,11 @@ const ReportsPage: React.FC = () => {
     });
   }, [filteredData.filteredBills, sortField, sortDirection, getCustomerName]);
 
+  const creditBillsFiltered = useMemo(
+    () => sortedBills.filter((b) => b.paymentMethod === 'credit'),
+    [sortedBills]
+  );
+
   // Handle sorting
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -628,6 +635,14 @@ const ReportsPage: React.FC = () => {
   const [editingCashAmount, setEditingCashAmount] = useState(0);
   const [editingUpiAmount, setEditingUpiAmount] = useState(0);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const [creditRealiseMode, setCreditRealiseMode] = useState(false);
+  const [selectedCreditIds, setSelectedCreditIds] = useState<Set<string>>(() => new Set());
+  const [singleRealiseBill, setSingleRealiseBill] = useState<Bill | null>(null);
+  const [singleRealiseMode, setSingleRealiseMode] = useState<'cash' | 'upi' | 'split'>('cash');
+  const [singleSplitCash, setSingleSplitCash] = useState(0);
+  const [singleSplitUpi, setSingleSplitUpi] = useState(0);
+  const [isBulkRealising, setIsBulkRealising] = useState(false);
 
   const handleEditBill = useCallback((bill: Bill) => {
     setEditingBill(bill);
@@ -988,10 +1003,113 @@ const ReportsPage: React.FC = () => {
     };
   }, [currentPage, sortedBills, filteredData, itemsPerPage]);
 
+  const patchReportBill = useCallback((updated: Bill) => {
+    setReportBills((prev) => {
+      if (!prev) return prev;
+      return prev.map((b) => (b.id === updated.id ? { ...b, ...updated, createdAt: b.createdAt } : b));
+    });
+  }, []);
+
+  const toggleCreditRowSelect = useCallback((billId: string, selected: boolean) => {
+    setSelectedCreditIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(billId);
+      else next.delete(billId);
+      return next;
+    });
+  }, []);
+
+  const selectAllCreditFiltered = useCallback(() => {
+    setSelectedCreditIds(new Set(creditBillsFiltered.map((b) => b.id)));
+  }, [creditBillsFiltered]);
+
+  const selectAllCreditOnPage = useCallback(() => {
+    setSelectedCreditIds((prev) => {
+      const next = new Set(prev);
+      paginatedData.bills.forEach((b) => {
+        if (b.paymentMethod === 'credit') next.add(b.id);
+      });
+      return next;
+    });
+  }, [paginatedData.bills]);
+
+  const clearCreditSelection = useCallback(() => setSelectedCreditIds(new Set()), []);
+
+  const setCreditRealiseModeOn = useCallback((on: boolean) => {
+    setCreditRealiseMode(on);
+    if (!on) setSelectedCreditIds(new Set());
+  }, []);
+
+  const openSingleRealise = useCallback((bill: Bill) => {
+    setSingleRealiseBill(bill);
+    setSingleRealiseMode('cash');
+    const t = bill.total;
+    const c = Math.floor((t * 100) / 2) / 100;
+    setSingleSplitCash(c);
+    setSingleSplitUpi(Math.round((t - c) * 100) / 100);
+  }, []);
+
+  const handleConfirmSingleRealise = useCallback(async () => {
+    if (!singleRealiseBill) return;
+    const opts =
+      singleRealiseMode === 'split'
+        ? { splitCash: singleSplitCash, splitUpi: singleSplitUpi }
+        : undefined;
+    const updated = await realiseCreditPayment(singleRealiseBill, singleRealiseMode, opts);
+    if (updated) {
+      patchReportBill(updated);
+      setSingleRealiseBill(null);
+    }
+  }, [singleRealiseBill, singleRealiseMode, singleSplitCash, singleSplitUpi, realiseCreditPayment, patchReportBill]);
+
+  const runBulkRealise = useCallback(
+    async (mode: 'cash' | 'upi' | 'split') => {
+      const ids = Array.from(selectedCreditIds);
+      if (ids.length === 0) {
+        toast({
+          title: 'No bills selected',
+          description: 'Select at least one credit bill.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setIsBulkRealising(true);
+      let ok = 0;
+      let fail = 0;
+      try {
+        for (const id of ids) {
+          const bill = sortedBills.find((b) => b.id === id);
+          if (!bill || bill.paymentMethod !== 'credit') continue;
+          const updated = await realiseCreditPayment(bill, mode, { silent: true });
+          if (updated) {
+            ok++;
+            patchReportBill(updated);
+          } else fail++;
+        }
+        toast({
+          title: 'Bulk realise complete',
+          description:
+            fail > 0
+              ? `Updated ${ok} bill(s). ${fail} could not be updated.`
+              : `Recorded ${ok} bill(s) as ${mode === 'split' ? 'split (cash + UPI)' : mode.toUpperCase()}.`,
+          variant: fail > 0 ? 'destructive' : 'default',
+        });
+        if (ok > 0) setSelectedCreditIds(new Set());
+      } finally {
+        setIsBulkRealising(false);
+      }
+    },
+    [selectedCreditIds, sortedBills, realiseCreditPayment, patchReportBill, toast]
+  );
+
   // Reset pagination when tab or filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, date, searchQuery, billSearchQuery, sortField, sortDirection, paymentTypeFilter]);
+
+  useEffect(() => {
+    if (activeTab !== 'bills') setCreditRealiseModeOn(false);
+  }, [activeTab, setCreditRealiseModeOn]);
 
   // Render content based on active tab
   const renderContent = () => {
@@ -1010,7 +1128,15 @@ const ReportsPage: React.FC = () => {
   };
 
   // Bills tab
-  const renderBillsTab = () => (
+  const renderBillsTab = () => {
+    const pageCreditBills = paginatedData.bills.filter((b) => b.paymentMethod === 'credit');
+    const pageCreditIds = pageCreditBills.map((b) => b.id);
+    const allPageCreditSelected =
+      pageCreditIds.length > 0 && pageCreditIds.every((id) => selectedCreditIds.has(id));
+    const tableLeadCol = creditRealiseMode ? 1 : 0;
+    const tableColSpan = 11 + tableLeadCol;
+
+    return (
     <div className="space-y-4">
       <SalesWidgets filteredBills={filteredData.filteredBills} />
       <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
@@ -1020,6 +1146,62 @@ const ReportsPage: React.FC = () => {
             View all transactions 
             {date?.from && date?.to ? ` from ${format(date.from, 'MMMM do, yyyy')} to ${format(date.to, 'MMMM do, yyyy')}` : ''}
           </p>
+          
+          <div className="mt-4 flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center">
+            <Button
+              type="button"
+              variant={creditRealiseMode ? 'default' : 'outline'}
+              size="sm"
+              className={
+                creditRealiseMode
+                  ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-500'
+                  : 'border-orange-800 text-orange-300 hover:bg-orange-950/40'
+              }
+              onClick={() => setCreditRealiseModeOn(!creditRealiseMode)}
+            >
+              <CircleDollarSign className="h-4 w-4 mr-2" />
+              {creditRealiseMode ? 'Exit realise mode' : 'Realise credit'}
+            </Button>
+            {creditRealiseMode && (
+              <span className="text-sm text-gray-400 self-center">
+                {creditBillsFiltered.length} credit bill{creditBillsFiltered.length !== 1 ? 's' : ''} in view · {selectedCreditIds.size} selected
+              </span>
+            )}
+          </div>
+
+          {creditRealiseMode && (
+            <div className="mt-4 flex flex-col lg:flex-row lg:flex-wrap gap-2 p-3 rounded-lg border border-orange-900/40 bg-orange-950/20">
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={selectAllCreditFiltered} disabled={creditBillsFiltered.length === 0}>
+                  Select all credit ({creditBillsFiltered.length})
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={selectAllCreditOnPage} disabled={pageCreditIds.length === 0}>
+                  Add page to selection
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={clearCreditSelection} disabled={selectedCreditIds.size === 0}>
+                  Clear selection
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 lg:ml-auto">
+                <Button type="button" size="sm" variant="outline" disabled={selectedCreditIds.size === 0 || isBulkRealising} onClick={() => runBulkRealise('cash')}>
+                  Bulk → Cash
+                </Button>
+                <Button type="button" size="sm" variant="outline" disabled={selectedCreditIds.size === 0 || isBulkRealising} onClick={() => runBulkRealise('upi')}>
+                  Bulk → UPI
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={selectedCreditIds.size === 0 || isBulkRealising}
+                  onClick={() => runBulkRealise('split')}
+                  title="Each bill split ~50/50 cash and UPI"
+                >
+                  Bulk → Split
+                </Button>
+              </div>
+            </div>
+          )}
           
           <div className="mt-4 flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
@@ -1096,6 +1278,26 @@ const ReportsPage: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                {creditRealiseMode && (
+                  <TableHead className="w-10 align-middle">
+                    {pageCreditIds.length > 0 ? (
+                      <Checkbox
+                        checked={allPageCreditSelected}
+                        onCheckedChange={(v) => {
+                          if (v === true) selectAllCreditOnPage();
+                          else {
+                            setSelectedCreditIds((prev) => {
+                              const next = new Set(prev);
+                              pageCreditIds.forEach((id) => next.delete(id));
+                              return next;
+                            });
+                          }
+                        }}
+                        aria-label="Select all credit bills on this page"
+                      />
+                    ) : null}
+                  </TableHead>
+                )}
                 <TableHead>
                   <Button
                     variant="ghost"
@@ -1164,12 +1366,17 @@ const ReportsPage: React.FC = () => {
                   searchTerm={billSearchQuery}
                   onEdit={handleEditBill}
                   onDelete={handleDeleteBill}
+                  creditRealiseMode={creditRealiseMode}
+                  creditSelected={selectedCreditIds.has(bill.id)}
+                  onCreditSelectToggle={toggleCreditRowSelect}
+                  onRealiseSingle={openSingleRealise}
+                  tableColSpan={tableColSpan}
                 />
               ))}
               
               {paginatedData.bills.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={tableColSpan} className="text-center py-16 text-gray-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 mb-2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1225,7 +1432,8 @@ const ReportsPage: React.FC = () => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderCustomersTab = () => (
     <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
@@ -1857,6 +2065,123 @@ const ReportsPage: React.FC = () => {
                   Save Changes
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!singleRealiseBill} onOpenChange={(open) => !open && setSingleRealiseBill(null)}>
+        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Realise credit payment</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Record how this credit sale was collected. This only updates payment (cash / UPI / split), not line items.
+            </DialogDescription>
+          </DialogHeader>
+          {singleRealiseBill && (
+            <div className="space-y-4 py-2">
+              <div className="text-xs text-gray-400 font-mono break-all">{singleRealiseBill.id}</div>
+              <div className="text-sm text-gray-300">
+                Total:{' '}
+                <CurrencyDisplay amount={singleRealiseBill.total} className="text-white font-semibold inline" />
+              </div>
+              <Label className="text-sm font-medium text-gray-300">Collected as</Label>
+              <RadioGroup
+                value={singleRealiseMode}
+                onValueChange={(v) => {
+                  const m = v as 'cash' | 'upi' | 'split';
+                  setSingleRealiseMode(m);
+                  if (m === 'split' && singleRealiseBill) {
+                    const t = singleRealiseBill.total;
+                    const c = Math.floor((t * 100) / 2) / 100;
+                    setSingleSplitCash(c);
+                    setSingleSplitUpi(Math.round((t - c) * 100) / 100);
+                  }
+                }}
+                className="flex flex-col space-y-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="cash" id="rl-cash" className="text-orange-400" />
+                  <Label htmlFor="rl-cash" className="flex items-center gap-1 cursor-pointer">
+                    <Wallet className="h-4 w-4" /> Cash
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="upi" id="rl-upi" className="text-orange-400" />
+                  <Label htmlFor="rl-upi" className="flex items-center gap-1 cursor-pointer">
+                    <CreditCard className="h-4 w-4" /> UPI
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="split" id="rl-split" className="text-orange-400" />
+                  <Label htmlFor="rl-split" className="flex items-center gap-1 cursor-pointer">
+                    <X className="h-4 w-4" /> Split (cash + UPI)
+                  </Label>
+                </div>
+              </RadioGroup>
+              {singleRealiseMode === 'split' && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800/40 rounded-md border border-gray-700">
+                  <div className="space-y-2">
+                    <Label htmlFor="rl-cash-amt" className="text-sm text-gray-300">
+                      Cash (₹)
+                    </Label>
+                    <Input
+                      id="rl-cash-amt"
+                      type="number"
+                      value={singleSplitCash}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setSingleSplitCash(v);
+                        setSingleSplitUpi(Math.max(0, Math.round((singleRealiseBill.total - v) * 100) / 100));
+                      }}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      min={0}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rl-upi-amt" className="text-sm text-gray-300">
+                      UPI (₹)
+                    </Label>
+                    <Input
+                      id="rl-upi-amt"
+                      type="number"
+                      value={singleSplitUpi}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setSingleSplitUpi(v);
+                        setSingleSplitCash(Math.max(0, Math.round((singleRealiseBill.total - v) * 100) / 100));
+                      }}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      min={0}
+                    />
+                  </div>
+                  {Math.abs(singleSplitCash + singleSplitUpi - singleRealiseBill.total) > 0.01 && (
+                    <div className="col-span-2 text-red-400 text-xs">
+                      Split must equal total: <CurrencyDisplay amount={singleRealiseBill.total} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="border-t border-gray-700 pt-4">
+            <Button
+              variant="outline"
+              className="bg-gray-700 hover:bg-gray-600 text-white"
+              onClick={() => setSingleRealiseBill(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              onClick={handleConfirmSingleRealise}
+              disabled={
+                !!singleRealiseBill &&
+                singleRealiseMode === 'split' &&
+                Math.abs(singleSplitCash + singleSplitUpi - singleRealiseBill.total) > 0.01
+              }
+            >
+              Confirm realise
             </Button>
           </DialogFooter>
         </DialogContent>

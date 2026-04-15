@@ -72,6 +72,7 @@ const POSContext = createContext<POSContextType>({
   calculateTotal: () => 0,
   completeSale: () => undefined,
   updateBill: async () => null,
+  realiseCreditPayment: async () => null,
   deleteBill: async () => false,
   exportBills: () => {},
   exportCustomers: () => {},
@@ -159,6 +160,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     completeSale: completeSaleBase, 
     deleteBill: deleteBillBase,
     updateBill: updateBillBase,
+    realiseCreditPayment: realiseCreditPaymentBase,
     exportBills: exportBillsBase, 
     exportCustomers: exportCustomersBase 
   } = useBills(updateCustomer, updateProduct);
@@ -733,6 +735,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       paymentMethod
     );
   };
+
+  const realiseCreditPayment = async (
+    bill: Bill,
+    mode: 'cash' | 'upi' | 'split',
+    options?: { splitCash?: number; splitUpi?: number; silent?: boolean }
+  ): Promise<Bill | null> => {
+    return realiseCreditPaymentBase(bill, mode, options);
+  };
   
   const handleResetToSampleData = async (options?: ResetOptions) => {
     try {
@@ -825,6 +835,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     calculateTotal,
     completeSale,
     updateBill,
+    realiseCreditPayment,
     deleteBill,
     exportBills,
     exportCustomers,
@@ -845,7 +856,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
     addToCart, removeFromCart, updateCartItem, clearCart,
     setDiscount, setLoyaltyPointsUsed, calculateTotal,
-    completeSale, updateBill, deleteBill,
+    completeSale, updateBill, realiseCreditPayment, deleteBill,
     exportBills, exportCustomers,
     handleResetToSampleData, handleAddSampleIndianData
   ]);

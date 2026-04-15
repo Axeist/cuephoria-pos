@@ -638,6 +638,119 @@ export const useBills = (
     }
   };
 
+  const realiseCreditPayment = async (
+    bill: Bill,
+    mode: 'cash' | 'upi' | 'split',
+    options?: { splitCash?: number; splitUpi?: number; silent?: boolean }
+  ): Promise<Bill | null> => {
+    try {
+      if (bill.paymentMethod !== 'credit') {
+        if (!options?.silent) {
+          toast({
+            title: 'Not a credit bill',
+            description: 'Only bills on credit can be realised.',
+            variant: 'destructive',
+          });
+        }
+        return null;
+      }
+      if (!activeLocationId) {
+        throw new Error('No branch selected');
+      }
+
+      const total = bill.total;
+      let payment_method: 'cash' | 'upi' | 'split';
+      let is_split_payment = false;
+      let cash_amount = 0;
+      let upi_amount = 0;
+
+      if (mode === 'cash') {
+        payment_method = 'cash';
+        cash_amount = total;
+      } else if (mode === 'upi') {
+        payment_method = 'upi';
+        upi_amount = total;
+      } else {
+        payment_method = 'split';
+        is_split_payment = true;
+        const sc = options?.splitCash;
+        const su = options?.splitUpi;
+        if (sc !== undefined && su !== undefined && Number.isFinite(sc) && Number.isFinite(su)) {
+          if (Math.abs(sc + su - total) > 0.01) {
+            if (!options?.silent) {
+              toast({
+                title: 'Invalid split',
+                description: `Cash + UPI must equal ₹${total.toFixed(2)}.`,
+                variant: 'destructive',
+              });
+            }
+            return null;
+          }
+          cash_amount = sc;
+          upi_amount = su;
+        } else {
+          const c = Math.floor((total * 100) / 2) / 100;
+          cash_amount = c;
+          upi_amount = Math.round((total - c) * 100) / 100;
+        }
+      }
+
+      const { error } = await supabase
+        .from('bills')
+        .update({
+          payment_method,
+          is_split_payment,
+          cash_amount,
+          upi_amount,
+        })
+        .eq('id', bill.id)
+        .eq('location_id', activeLocationId);
+
+      if (error) {
+        console.error('Error realising credit bill:', error);
+        throw new Error(error.message || 'Failed to update bill');
+      }
+
+      const updatedBill: Bill = {
+        ...bill,
+        paymentMethod: payment_method,
+        isSplitPayment: is_split_payment,
+        cashAmount: cash_amount,
+        upiAmount: upi_amount,
+      };
+
+      setBills((prevBills) => {
+        const updated = prevBills.map((b) => (b.id === bill.id ? updatedBill : b));
+        saveToCache(billsCacheKey, updated.slice(0, MAX_CACHED_BILLS));
+        return updated;
+      });
+      invalidateCache(billsCacheKey);
+
+      if (!options?.silent) {
+        toast({
+          title: 'Payment realised',
+          description:
+            payment_method === 'split'
+              ? `Recorded as split: cash ₹${cash_amount.toFixed(2)} + UPI ₹${upi_amount.toFixed(2)}.`
+              : `Recorded as ${payment_method.toUpperCase()}.`,
+          variant: 'default',
+        });
+      }
+
+      return updatedBill;
+    } catch (error) {
+      console.error('Error in realiseCreditPayment:', error);
+      if (!options?.silent) {
+        toast({
+          title: 'Could not realise payment',
+          description: error instanceof Error ? error.message : 'Update failed',
+          variant: 'destructive',
+        });
+      }
+      return null;
+    }
+  };
+
   const deleteBill = async (billId: string, customerId: string): Promise<boolean> => {
     try {
       console.log('Starting bill deletion for bill ID:', billId);
@@ -781,6 +894,7 @@ export const useBills = (
     setBills,
     completeSale,
     updateBill,
+    realiseCreditPayment,
     deleteBill,
     exportBills,
     exportCustomers,

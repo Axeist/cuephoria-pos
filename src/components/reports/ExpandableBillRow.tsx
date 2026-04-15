@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronRight, Trash2, Gift, Download, Eye, CreditCard, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Gift, Eye, CreditCard, Pencil, CircleDollarSign } from 'lucide-react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +58,14 @@ interface ExpandableBillRowProps {
   searchTerm?: string;
   onEdit?: (bill: Bill) => void;
   onDelete?: (bill: Bill) => void;
+  /** When on, show a leading checkbox for credit bills (bulk realise selection). */
+  creditRealiseMode?: boolean;
+  creditSelected?: boolean;
+  onCreditSelectToggle?: (billId: string, selected: boolean) => void;
+  /** Quick action on a credit row to open the realise dialog (individual). */
+  onRealiseSingle?: (bill: Bill) => void;
+  /** Colspan for expanded detail row (default 11; add 1 when creditRealiseMode). */
+  tableColSpan?: number;
 }
 
 const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({ 
@@ -65,7 +74,12 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   getCustomerPhone,
   searchTerm = '',
   onEdit,
-  onDelete
+  onDelete,
+  creditRealiseMode = false,
+  creditSelected = false,
+  onCreditSelectToggle,
+  onRealiseSingle,
+  tableColSpan = 11,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -82,6 +96,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
   
   const isComplimentary = bill.paymentMethod?.toLowerCase() === 'complimentary';
   const isSplit = bill.isSplitPayment || (bill.splitPayment && bill.splitPayment.length > 0);
+  const isCredit = bill.paymentMethod === 'credit';
 
   const matchesSearch = !searchTerm || 
     customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -133,8 +148,19 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
       <TableRow 
         className={`hover:bg-gray-800/50 transition-colors ${
           isComplimentary ? 'bg-amber-950/20 hover:bg-amber-950/30' : ''
-        }`}
+        } ${creditRealiseMode && isCredit && creditSelected ? 'bg-orange-950/15' : ''}`}
       >
+        {creditRealiseMode && (
+          <TableCell className="w-10 align-middle" onClick={(e) => e.stopPropagation()}>
+            {isCredit ? (
+              <Checkbox
+                checked={creditSelected}
+                onCheckedChange={(v) => onCreditSelectToggle?.(bill.id, v === true)}
+                aria-label="Select credit bill"
+              />
+            ) : null}
+          </TableCell>
+        )}
         <TableCell className="text-white">
           <div>{format(billDate, 'd MMM yyyy')}</div>
           <div className="text-gray-400 text-xs">{format(billDate, 'HH:mm')}</div>
@@ -239,7 +265,24 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
           )}
         </TableCell>
         <TableCell>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            {isCredit && onRealiseSingle && !creditRealiseMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onRealiseSingle(bill);
+                }}
+                className="h-8 px-2 text-orange-400 hover:text-orange-300 hover:bg-orange-950/30 gap-1"
+                title="Realise credit (record cash / UPI / split)"
+                type="button"
+              >
+                <CircleDollarSign className="h-4 w-4" />
+                <span className="text-xs hidden sm:inline">Realise</span>
+              </Button>
+            )}
             {onEdit && (
               <Button
                 variant="ghost"
@@ -282,7 +325,7 @@ const ExpandableBillRow: React.FC<ExpandableBillRowProps> = ({
       
       {isExpanded && (
         <TableRow className={isComplimentary ? 'bg-amber-950/10' : 'bg-gray-800/30'}>
-          <TableCell colSpan={11} className="p-4">
+          <TableCell colSpan={tableColSpan} className="p-4">
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-white mb-2">Items in this transaction:</h4>
               <div className="grid gap-2">
