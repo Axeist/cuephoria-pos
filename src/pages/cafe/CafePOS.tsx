@@ -120,6 +120,19 @@ const CafePOS: React.FC = () => {
 
   const cartTotal = useMemo(() => Math.max(0, cartSubtotal - discount), [cartSubtotal, discount]);
 
+  const inventoryCategoryIds = useMemo(() => {
+    const set = new Set<string>();
+    categories.filter(c => c.tracksInventory).forEach(c => set.add(c.id));
+    return set;
+  }, [categories]);
+
+  const isInventoryItem = useCallback((menuItemId: string) => {
+    const item = items.find(i => i.id === menuItemId);
+    return item ? inventoryCategoryIds.has(item.categoryId) : false;
+  }, [items, inventoryCategoryIds]);
+
+  const kotCartItems = useMemo(() => cart.filter(c => !isInventoryItem(c.menuItemId)), [cart, isInventoryItem]);
+
   const addToCart = useCallback((item: typeof items[0]) => {
     setCart(prev => {
       const existing = prev.find(c => c.menuItemId === item.id);
@@ -190,14 +203,14 @@ const CafePOS: React.FC = () => {
       });
       if (order) {
         if (orderType === 'dine_in' && selectedTableId) await assignTable(selectedTableId, order.id);
-        await generateKOT(order.id, cart, user.id);
+        if (kotCartItems.length > 0) await generateKOT(order.id, kotCartItems, user.id);
         setLastOrder({ orderNumber: order.orderNumber, total: cartTotal, items: [...cart] });
         setIsCheckoutDialogOpen(false); setIsCompDialogOpen(false); setShowSuccess(true);
         setCart([]); setSelectedTableId(null); setDiscountAmount('0'); setOrderNotes(''); setCompNote('');
       }
     } catch (err: any) { toast.error(err?.message || 'Failed to place order'); }
     finally { setIsSubmitting(false); }
-  }, [user, partner, cart, orderType, selectedTableId, selectedCustomer, paymentMethod, discount, cashAmount, upiAmount, orderNotes, compNote, cartTotal, createOrder, assignTable, generateKOT]);
+  }, [user, partner, cart, kotCartItems, orderType, selectedTableId, selectedCustomer, paymentMethod, discount, cashAmount, upiAmount, orderNotes, compNote, cartTotal, createOrder, assignTable, generateKOT]);
 
   const handlePrintReceipt = useCallback(() => {
     if (!lastOrder) return;
@@ -225,14 +238,14 @@ const CafePOS: React.FC = () => {
       });
       if (order) {
         if (orderType === 'dine_in' && selectedTableId) await assignTable(selectedTableId, order.id);
-        await generateKOT(order.id, cart, user.id);
+        if (kotCartItems.length > 0) await generateKOT(order.id, kotCartItems, user.id);
         toast.success(`Order ${order.orderNumber} placed — payment pending`);
         setIsCheckoutDialogOpen(false); setShowSuccess(false);
         setCart([]); setSelectedTableId(null); setDiscountAmount('0'); setOrderNotes('');
       }
     } catch (err: any) { toast.error(err?.message || 'Failed to place order'); }
     finally { setIsSubmitting(false); }
-  }, [user, partner, cart, orderType, selectedTableId, selectedCustomer, discount, orderNotes, createOrder, assignTable, generateKOT]);
+  }, [user, partner, cart, kotCartItems, orderType, selectedTableId, selectedCustomer, discount, orderNotes, createOrder, assignTable, generateKOT]);
 
   const handleSettleOrder = useCallback(async () => {
     if (!settleOrderId) return;
@@ -483,29 +496,28 @@ const CafePOS: React.FC = () => {
             </div>
           </CardHeader>
 
-          {/* Category tabs */}
-          <div className="px-4 flex-shrink-0 border-b border-white/[0.04]">
-            <ScrollArea className="w-full">
-              <div className="flex items-center gap-1.5 py-2 pb-2.5">
-                <button onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
-                  className={`whitespace-nowrap text-xs px-2.5 py-1 rounded-md font-medium transition-all shrink-0 ${
-                    activeTab === 'all' ? categoryColors[0].a : categoryColors[0].i
-                  }`}>
-                  All ({categoryCounts.all || 0})
-                </button>
-                {activeCategories.map((cat, i) => {
-                  const c = categoryColors[(i + 1) % categoryColors.length];
-                  return (
-                    <button key={cat.id} onClick={() => { setActiveTab(cat.id); setSearchQuery(''); }}
-                      className={`whitespace-nowrap text-xs px-2.5 py-1 rounded-md font-medium transition-all shrink-0 ${
-                        activeTab === cat.id ? c.a : c.i
-                      }`}>
-                      {cat.name} ({categoryCounts[cat.id] || 0})
-                    </button>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+          {/* Category tabs — horizontal scroll */}
+          <div className="flex-shrink-0 border-b border-white/[0.04] overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+            style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex items-center gap-1.5 px-4 py-2 pb-2.5 w-max">
+              <button onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
+                className={`whitespace-nowrap text-xs px-2.5 py-1 rounded-md font-medium transition-all shrink-0 ${
+                  activeTab === 'all' ? categoryColors[0].a : categoryColors[0].i
+                }`}>
+                All ({categoryCounts.all || 0})
+              </button>
+              {activeCategories.map((cat, i) => {
+                const c = categoryColors[(i + 1) % categoryColors.length];
+                return (
+                  <button key={cat.id} onClick={() => { setActiveTab(cat.id); setSearchQuery(''); }}
+                    className={`whitespace-nowrap text-xs px-2.5 py-1 rounded-md font-medium transition-all shrink-0 ${
+                      activeTab === cat.id ? c.a : c.i
+                    }`}>
+                    {cat.name} ({categoryCounts[cat.id] || 0})
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Menu Grid — fixed height with internal scroll */}
