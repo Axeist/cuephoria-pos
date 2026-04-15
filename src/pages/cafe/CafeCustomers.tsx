@@ -6,7 +6,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCafeAuth } from '@/context/CafeAuthContext';
 import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
-import { usePOS, Customer } from '@/context/POSContext';
+import { useCafeCustomers } from '@/hooks/cafe/useCafeCustomers';
+import type { Customer } from '@/types/pos.types';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -29,7 +30,7 @@ interface CafeCustomerSpend {
 const CafeCustomers: React.FC = () => {
   const { user } = useCafeAuth();
   const { orders } = useCafeOrders(user?.locationId);
-  const { customers } = usePOS();
+  const { customers } = useCafeCustomers();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'cafe_spent' | 'total_spent' | 'loyalty'>('cafe_spent');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);

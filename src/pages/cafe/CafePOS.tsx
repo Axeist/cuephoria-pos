@@ -12,9 +12,9 @@ import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
 import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { useCafePartner } from '@/hooks/cafe/useCafePartner';
-import { usePOS, Customer } from '@/context/POSContext';
+import { useCafeCustomers } from '@/hooks/cafe/useCafeCustomers';
+import type { Customer } from '@/types/pos.types';
 import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
-import CustomerCard from '@/components/CustomerCard';
 import type { CafeCartItem, CafeOrderType, CafePaymentMethod } from '@/types/cafe.types';
 import {
   ShoppingCart, Plus, Minus, Trash2, Coffee, X, ChefHat, User, Search,
@@ -31,7 +31,7 @@ const CafePOS: React.FC = () => {
   const { createOrder, activeOrders } = useCafeOrders(user?.locationId);
   const { generateKOT } = useCafeKOT(user?.locationId);
   const { partner } = useCafePartner(user?.locationId);
-  const { customers } = usePOS();
+  const { customers } = useCafeCustomers();
   const isMobile = useIsMobile();
 
   const [cart, setCart] = useState<CafeCartItem[]>([]);
@@ -512,9 +512,51 @@ const CafePOS: React.FC = () => {
             {filteredCustomers.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredCustomers.map((customer, index) => (
-                  <div key={customer.id} className="animate-scale-in" style={{ animationDelay: `${(index % 6) * 100}ms` }}>
-                    <CustomerCard customer={customer} isSelectable={true} onSelect={handleSelectCustomer} />
-                  </div>
+                  <Card key={customer.id}
+                    className="group cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/20 hover:-translate-y-1 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border-gray-700/50 animate-scale-in"
+                    style={{ animationDelay: `${(index % 6) * 80}ms` }}
+                    onClick={() => handleSelectCustomer(customer)}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-600 to-cuephoria-purple flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {customer.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{customer.name}</p>
+                          <div className="flex items-center gap-1 text-xs text-gray-400">
+                            <Phone className="h-3 w-3" /> {customer.phone}
+                          </div>
+                        </div>
+                        {customer.isMember && (
+                          <span className="text-[9px] bg-cuephoria-purple/30 text-purple-300 px-1.5 py-0.5 rounded">Member</span>
+                        )}
+                      </div>
+                      {customer.customerId && (
+                        <div className="flex items-center gap-1 mb-2 text-[10px] text-purple-300 font-mono bg-purple-900/20 rounded px-2 py-1 border border-purple-500/10">
+                          <span>#{customer.customerId}</span>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-gray-800/40 rounded p-1.5">
+                          <p className="text-xs font-bold text-yellow-400">{customer.loyaltyPoints}</p>
+                          <p className="text-[9px] text-gray-500">Points</p>
+                        </div>
+                        <div className="bg-gray-800/40 rounded p-1.5">
+                          <p className="text-xs font-bold text-green-400"><CurrencyDisplay amount={customer.totalSpent} /></p>
+                          <p className="text-[9px] text-gray-500">Spent</p>
+                        </div>
+                        <div className="bg-gray-800/40 rounded p-1.5">
+                          <p className="text-xs font-bold text-blue-400">{Math.floor(customer.totalPlayTime / 60)}h</p>
+                          <p className="text-[9px] text-gray-500">Play</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="p-3 pt-0">
+                      <Button className="w-full bg-gradient-to-r from-orange-600 to-cuephoria-purple hover:opacity-90 text-white border-0 text-xs h-8">
+                        Select Customer
+                      </Button>
+                    </CardFooter>
+                  </Card>
                 ))}
               </div>
             ) : (
