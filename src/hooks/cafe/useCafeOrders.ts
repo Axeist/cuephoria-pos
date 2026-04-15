@@ -175,10 +175,12 @@ export function useCafeOrders(locationId?: string) {
 
       // Update customer total_spent atomically if linked
       if (params.customerId && total > 0 && params.paymentMethod !== 'complimentary') {
-        await supabase.rpc('increment_customer_total_spent', {
-          p_customer_id: params.customerId,
-          p_amount: total,
-        }).catch(err => console.error('Failed to update customer spend:', err));
+        try {
+          await supabase.rpc('increment_customer_total_spent', {
+            p_customer_id: params.customerId,
+            p_amount: total,
+          });
+        } catch (err) { console.error('Failed to update customer spend:', err); }
       }
 
       const order = transformOrderRow(orderData as unknown as CafeOrderRow);

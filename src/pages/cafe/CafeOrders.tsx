@@ -118,7 +118,7 @@ const CafeOrders: React.FC = () => {
     await updateOrderStatus(paymentDialog, newStatus, selectedPayment);
     if (order.customerId && order.total > 0 && order.paymentMethod === 'pending') {
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }).catch(() => {});
+      try { await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }); } catch {}
     }
     setPaymentDialog(null);
     toast.success(completeOrder ? 'Payment settled & order completed' : 'Payment settled');

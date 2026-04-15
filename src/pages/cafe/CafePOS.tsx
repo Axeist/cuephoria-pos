@@ -250,7 +250,7 @@ const CafePOS: React.FC = () => {
       if (ok) {
         if (order.customerId && order.total > 0) {
           const { supabase } = await import('@/integrations/supabase/client');
-          await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }).catch(() => {});
+          try { await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }); } catch {};
         }
         toast.success(`Order ${order.orderNumber} settled!`);
         setSettleOrderId(null);

@@ -37,13 +37,26 @@ export function useCafeCustomers() {
 
   const fetchCustomers = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .order('name', { ascending: true });
+      const PAGE_SIZE = 1000;
+      let allRows: any[] = [];
+      let from = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      setCustomers((data || []).map(mapRow));
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .order('name', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) throw error;
+        const rows = data || [];
+        allRows = allRows.concat(rows);
+        hasMore = rows.length === PAGE_SIZE;
+        from += PAGE_SIZE;
+      }
+
+      setCustomers(allRows.map(mapRow));
     } catch (err) {
       console.error('Error fetching customers:', err);
     } finally {
