@@ -105,9 +105,23 @@ CREATE TABLE IF NOT EXISTS public.cafe_users (
 CREATE INDEX IF NOT EXISTS idx_cafe_users_location ON public.cafe_users(location_id);
 CREATE INDEX IF NOT EXISTS idx_cafe_users_partner ON public.cafe_users(partner_id);
 
--- Seed default cafe admin user (password: cafe123 — should be changed)
+-- Seed default cafe users (passwords should be changed after first login)
 INSERT INTO public.cafe_users (location_id, partner_id, username, password, display_name, role)
 SELECT loc.id, cp.id, 'cafeadmin', 'cafe123', 'Cafe Admin', 'cafe_admin'
+FROM public.locations loc
+JOIN public.cafe_partners cp ON cp.location_id = loc.id
+WHERE loc.slug = 'cafe'
+ON CONFLICT (username) DO NOTHING;
+
+INSERT INTO public.cafe_users (location_id, partner_id, username, password, display_name, role)
+SELECT loc.id, cp.id, 'cafecashier', 'cafe123', 'Cashier', 'cashier'
+FROM public.locations loc
+JOIN public.cafe_partners cp ON cp.location_id = loc.id
+WHERE loc.slug = 'cafe'
+ON CONFLICT (username) DO NOTHING;
+
+INSERT INTO public.cafe_users (location_id, partner_id, username, password, display_name, role)
+SELECT loc.id, cp.id, 'cafekitchen', 'cafe123', 'Kitchen Staff', 'kitchen'
 FROM public.locations loc
 JOIN public.cafe_partners cp ON cp.location_id = loc.id
 WHERE loc.slug = 'cafe'
