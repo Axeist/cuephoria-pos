@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useCafeAuth } from '@/context/CafeAuthContext';
@@ -466,7 +467,7 @@ const CafePOS: React.FC = () => {
         </Card>
 
         {/* ===== RIGHT: MENU ===== */}
-        <Card className="lg:col-span-2 flex flex-col cafe-glass-card border-orange-500/10">
+        <Card className="lg:col-span-2 flex flex-col cafe-glass-card border-orange-500/10 max-h-[calc(100vh-8rem)] overflow-hidden">
           <CardHeader className="pb-2 px-4 pt-4 flex-shrink-0 space-y-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base sm:text-xl font-heading">Menu</CardTitle>
@@ -483,30 +484,32 @@ const CafePOS: React.FC = () => {
           </CardHeader>
 
           {/* Category tabs */}
-          <div className="px-4 flex-shrink-0">
-            <div className="flex flex-wrap gap-1 py-2">
-              <button onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
-                className={`text-xs sm:text-sm px-2.5 py-1.5 rounded-md font-medium transition-all ${
-                  activeTab === 'all' ? categoryColors[0].a : categoryColors[0].i
-                }`}>
-                All ({categoryCounts.all || 0})
-              </button>
-              {activeCategories.map((cat, i) => {
-                const c = categoryColors[(i + 1) % categoryColors.length];
-                return (
-                  <button key={cat.id} onClick={() => { setActiveTab(cat.id); setSearchQuery(''); }}
-                    className={`text-xs sm:text-sm px-2.5 py-1.5 rounded-md font-medium transition-all ${
-                      activeTab === cat.id ? c.a : c.i
-                    }`}>
-                    {cat.name} ({categoryCounts[cat.id] || 0})
-                  </button>
-                );
-              })}
-            </div>
+          <div className="px-4 flex-shrink-0 border-b border-white/[0.04]">
+            <ScrollArea className="w-full">
+              <div className="flex items-center gap-1.5 py-2 pb-2.5">
+                <button onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
+                  className={`whitespace-nowrap text-xs px-2.5 py-1 rounded-md font-medium transition-all shrink-0 ${
+                    activeTab === 'all' ? categoryColors[0].a : categoryColors[0].i
+                  }`}>
+                  All ({categoryCounts.all || 0})
+                </button>
+                {activeCategories.map((cat, i) => {
+                  const c = categoryColors[(i + 1) % categoryColors.length];
+                  return (
+                    <button key={cat.id} onClick={() => { setActiveTab(cat.id); setSearchQuery(''); }}
+                      className={`whitespace-nowrap text-xs px-2.5 py-1 rounded-md font-medium transition-all shrink-0 ${
+                        activeTab === cat.id ? c.a : c.i
+                      }`}>
+                      {cat.name} ({categoryCounts[cat.id] || 0})
+                    </button>
+                  );
+                })}
+              </div>
+            </ScrollArea>
           </div>
 
-          {/* Menu Grid */}
-          <div className="flex-1 overflow-auto px-4 pb-4">
+          {/* Menu Grid — fixed height with internal scroll */}
+          <ScrollArea className="flex-1 min-h-0 px-4 pb-4 pt-3">
             {filteredItems.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
                 {filteredItems.map((item) => {
@@ -551,7 +554,7 @@ const CafePOS: React.FC = () => {
                 <p className="text-xs text-gray-600 mt-1">Try a different search or category</p>
               </div>
             )}
-          </div>
+          </ScrollArea>
         </Card>
       </div>
 

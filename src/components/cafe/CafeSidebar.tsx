@@ -14,6 +14,7 @@ import {
   Menu,
   LogOut,
   ShoppingCart,
+  CookingPot,
 } from "lucide-react";
 import { useCafeAuth } from "@/context/CafeAuthContext";
 import { useCafeOrders } from "@/hooks/cafe/useCafeOrders";
@@ -137,6 +138,7 @@ export function CafeSidebar() {
       return [
         { label: "Dashboard", href: "/cafe/dashboard", icon: LayoutDashboard },
         { label: "POS", href: "/cafe/pos", icon: ShoppingCart },
+        { label: "Kitchen (KOT)", href: "/cafe/kitchen", icon: CookingPot },
         { label: "Menu & Tables", href: "/cafe/menu", icon: UtensilsCrossed },
         { label: "Customers", href: "/cafe/customers", icon: Users },
         { label: "Orders", href: "/cafe/orders", icon: ClipboardList, badge: orderBadge },
@@ -146,6 +148,7 @@ export function CafeSidebar() {
     }
     return [
       { label: "POS", href: "/cafe/pos", icon: ShoppingCart },
+      { label: "Kitchen (KOT)", href: "/cafe/kitchen", icon: CookingPot },
       { label: "Menu & Tables", href: "/cafe/menu", icon: UtensilsCrossed },
       { label: "Customers", href: "/cafe/customers", icon: Users },
       { label: "Orders", href: "/cafe/orders", icon: ClipboardList, badge: orderBadge },

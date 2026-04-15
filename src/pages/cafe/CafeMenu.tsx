@@ -8,7 +8,7 @@ import { useCafeMenu } from '@/hooks/cafe/useCafeMenu';
 import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafePartner } from '@/hooks/cafe/useCafePartner';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee, Upload, Download, Loader2, Search, EyeOff, Eye, ToggleLeft, ToggleRight, Package, Minus, ImagePlus, XCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee, Upload, Download, Loader2, Search, EyeOff, Eye, ToggleLeft, ToggleRight, Package, Minus, ImagePlus, XCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Switch } from '@/components/ui/switch';
@@ -67,23 +67,31 @@ const CafeMenu: React.FC = () => {
   const [tableEditId, setTableEditId] = useState<string | null>(null);
   const [tableForm, setTableForm] = useState({ tableName: '', zone: 'indoor', capacity: '4' });
 
+  // Delete All
+  const [deleteAllDialog, setDeleteAllDialog] = useState(false);
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('');
+  const [deleteAllRunning, setDeleteAllRunning] = useState(false);
+
   // CSV upload
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [csvUploading, setCsvUploading] = useState(false);
 
   const downloadSampleCSV = () => {
-    const header = 'category,name,price,cost_price,description,is_veg,prep_time_minutes';
+    const header = 'category,name,price,cost_price,description,is_veg,prep_time_minutes,tracks_inventory,initial_stock';
     const rows = [
-      'Starters,Masala Fries,149,60,Crispy fries with masala seasoning,true,10',
-      'Starters,Paneer Tikka,199,80,Tandoori paneer cubes,true,15',
-      'Starters,Chicken Wings,249,100,Spicy buffalo wings,false,12',
-      'Main Course,Veg Biryani,229,90,Aromatic vegetable biryani,true,20',
-      'Main Course,Chicken Biryani,279,110,Hyderabadi style biryani,false,25',
-      'Beverages,Cold Coffee,129,40,Iced coffee with cream,true,5',
-      'Beverages,Mango Shake,149,50,Fresh mango milkshake,true,5',
-      'Beverages,Masala Chai,49,15,Indian spiced tea,true,5',
-      'Desserts,Brownie,149,50,Warm chocolate brownie,true,8',
-      'Desserts,Ice Cream Sundae,179,60,Vanilla with hot fudge,true,5',
+      'Starters,Masala Fries,149,60,Crispy fries with masala seasoning,true,10,false,0',
+      'Starters,Paneer Tikka,199,80,Tandoori paneer cubes,true,15,false,0',
+      'Starters,Chicken Wings,249,100,Spicy buffalo wings,false,12,false,0',
+      'Main Course,Veg Biryani,229,90,Aromatic vegetable biryani,true,20,false,0',
+      'Main Course,Chicken Biryani,279,110,Hyderabadi style biryani,false,25,false,0',
+      'Cakes,Chocolate Truffle Cake,599,250,Rich Belgian chocolate cake,true,0,true,10',
+      'Cakes,Red Velvet Cake,649,280,Classic cream cheese frosted,true,0,true,8',
+      'Cakes,Blueberry Cheesecake,699,300,New York style cheesecake,true,0,true,5',
+      'Beverages,Cold Coffee,129,40,Iced coffee with cream,true,5,false,0',
+      'Beverages,Mango Shake,149,50,Fresh mango milkshake,true,5,false,0',
+      'Beverages,Masala Chai,49,15,Indian spiced tea,true,5,false,0',
+      'Desserts,Brownie,149,50,Warm chocolate brownie,true,8,false,0',
+      'Desserts,Ice Cream Sundae,179,60,Vanilla with hot fudge,true,5,false,0',
     ];
     const csv = [header, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -119,24 +127,28 @@ const CafeMenu: React.FC = () => {
       const descIdx = cols.indexOf('description');
       const vegIdx = cols.indexOf('is_veg');
       const prepIdx = cols.indexOf('prep_time_minutes');
+      const tracksInvIdx = cols.indexOf('tracks_inventory');
+      const stockIdx = cols.indexOf('initial_stock');
 
-      // Collect unique categories and auto-create missing ones
       const categoryMap = new Map<string, string>();
       categories.forEach(c => categoryMap.set(c.name.toLowerCase(), c.id));
 
       const dataRows = lines.slice(1);
-      const newCategoryNames = new Set<string>();
+
+      // Collect unique categories; detect if any row marks tracks_inventory=true
+      const newCatMeta = new Map<string, boolean>();
       for (const line of dataRows) {
         const vals = parseCSVLine(line);
-        const catName = vals[catIdx]?.trim();
-        if (catName && !categoryMap.has(catName.toLowerCase())) {
-          newCategoryNames.add(catName);
+        const cn = vals[catIdx]?.trim();
+        if (cn && !categoryMap.has(cn.toLowerCase())) {
+          const tracksInv = tracksInvIdx >= 0 && vals[tracksInvIdx]?.trim().toLowerCase() === 'true';
+          const existing = newCatMeta.get(cn);
+          newCatMeta.set(cn, existing || tracksInv);
         }
       }
 
-      // Create missing categories
-      for (const catNameStr of newCategoryNames) {
-        const { category, error } = await addCategory(catNameStr, partnerId);
+      for (const [catNameStr, tracksInv] of newCatMeta.entries()) {
+        const { category, error } = await addCategory(catNameStr, partnerId, { tracksInventory: tracksInv });
         if (category) categoryMap.set(catNameStr.toLowerCase(), category.id);
         else console.error('Failed to create category from CSV:', catNameStr, error);
       }
@@ -159,7 +171,7 @@ const CafeMenu: React.FC = () => {
         const price = parseFloat(priceStr);
         if (isNaN(price) || price <= 0) { errorCount++; continue; }
 
-        itemRows.push({
+        const row: Record<string, unknown> = {
           category_id: categoryId,
           location_id: user.locationId,
           name: itemName,
@@ -169,7 +181,11 @@ const CafeMenu: React.FC = () => {
           is_veg: vegIdx >= 0 ? vals[vegIdx]?.trim().toLowerCase() !== 'false' : true,
           prep_time_minutes: prepIdx >= 0 && vals[prepIdx]?.trim() ? parseInt(vals[prepIdx].trim()) || null : null,
           sort_order: 0,
-        });
+        };
+        if (stockIdx >= 0 && vals[stockIdx]?.trim()) {
+          row.stock_quantity = Math.max(0, parseInt(vals[stockIdx].trim()) || 0);
+        }
+        itemRows.push(row);
       }
 
       if (itemRows.length > 0) {
@@ -425,6 +441,12 @@ const CafeMenu: React.FC = () => {
                         Upload CSV
                       </Button>
                       <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+                      {items.length > 0 && (
+                        <Button size="sm" onClick={() => { setDeleteAllDialog(true); setDeleteAllConfirmText(''); }} variant="outline"
+                          className="border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-300 text-xs">
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete All
+                        </Button>
+                      )}
                     </>
                   )}
                   <Button size="sm" onClick={() => {
@@ -793,6 +815,62 @@ const CafeMenu: React.FC = () => {
             <Button variant="outline" onClick={() => setTableDialog(false)} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
             <Button onClick={handleSaveTable} disabled={!tableForm.tableName.trim()} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Save</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete All Items Dialog */}
+      <Dialog open={deleteAllDialog} onOpenChange={(open) => { setDeleteAllDialog(open); if (!open) setDeleteAllConfirmText(''); }}>
+        <DialogContent className="cafe-glass-card !rounded-2xl border-red-500/15 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white font-heading flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-400" /> Delete All Menu Items
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-1">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 space-y-1.5">
+              <p className="text-sm text-red-300 font-quicksand font-medium">This will permanently delete all {items.length} menu items.</p>
+              <p className="text-xs text-red-400/80 font-quicksand">Categories and tables will not be affected. This action cannot be undone.</p>
+            </div>
+            <div>
+              <label className="text-[11px] text-zinc-500 font-quicksand block mb-1.5">
+                Type <span className="text-red-400 font-bold">DELETE ALL</span> to confirm
+              </label>
+              <Input
+                value={deleteAllConfirmText}
+                onChange={e => setDeleteAllConfirmText(e.target.value)}
+                placeholder="DELETE ALL"
+                className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg font-mono"
+                autoFocus
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={() => setDeleteAllDialog(false)}
+                className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
+              <Button
+                disabled={deleteAllConfirmText !== 'DELETE ALL' || deleteAllRunning}
+                onClick={async () => {
+                  setDeleteAllRunning(true);
+                  try {
+                    const ids = items.map(i => i.id);
+                    const { error } = await supabase.from('cafe_menu_items').delete().in('id', ids);
+                    if (error) { toast.error('Failed to delete items'); console.error(error); }
+                    else {
+                      await refresh();
+                      toast.success(`Deleted ${ids.length} items`);
+                      setDeleteAllDialog(false);
+                      setDeleteAllConfirmText('');
+                    }
+                  } catch (err: any) {
+                    toast.error(err?.message || 'Failed');
+                  } finally { setDeleteAllRunning(false); }
+                }}
+                className="bg-red-500 hover:bg-red-600 text-white border-0 rounded-lg disabled:opacity-40"
+              >
+                {deleteAllRunning ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1.5" />}
+                Delete All
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </CafePageShell>
