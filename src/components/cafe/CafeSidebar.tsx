@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, User, Users, UserPlus } from 'lucide-react';
+import { Home, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, User, Users, UserPlus, LayoutGrid } from 'lucide-react';
 import { useCafeAuth } from '@/context/CafeAuthContext';
 import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
 import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
@@ -20,21 +20,31 @@ const CafeSidebar: React.FC = () => {
   if (!user) return null;
 
   const isCafeAdmin = user.role === 'cafe_admin';
-  const isKitchen = user.role === 'kitchen';
-  const roleLabel = isCafeAdmin ? 'Cafe Admin' : isKitchen ? 'Kitchen' : 'Cashier';
+  const isUnifiedStaff = user.role === 'cashier' || user.role === 'kitchen' || user.role === 'staff';
+  const roleLabel =
+    isCafeAdmin ? 'Cafe Admin' : user.role === 'staff' ? 'Staff' : user.role === 'kitchen' ? 'Kitchen' : user.role === 'cashier' ? 'Cashier' : 'Staff';
   const activeOrderCount = activeOrders.length;
   const pendingKotCount = pendingKots.length;
 
-  const menuItems = [
+  const adminMenuItems = [
     { icon: Home, label: 'Dashboard', path: '/cafe/dashboard', roles: ['cafe_admin'], badge: 0 },
-    { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin', 'cashier', 'kitchen'], badge: 0 },
-    { icon: ChefHat, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin', 'kitchen', 'cashier'], badge: pendingKotCount },
+    { icon: LayoutGrid, label: 'Staff workspace', path: '/cafe/workspace', roles: ['cafe_admin'], badge: 0 },
+    { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin'], badge: 0 },
+    { icon: ChefHat, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin'], badge: pendingKotCount },
     { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', roles: ['cafe_admin'], badge: 0 },
-    { icon: Users, label: 'Customers', path: '/cafe/customers', roles: ['cafe_admin', 'cashier'], badge: 0 },
-    { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin', 'cashier'], badge: activeOrderCount },
+    { icon: Users, label: 'Customers', path: '/cafe/customers', roles: ['cafe_admin'], badge: 0 },
+    { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin'], badge: activeOrderCount },
     { icon: BarChart2, label: 'Reports', path: '/cafe/reports', roles: ['cafe_admin'], badge: 0 },
     { icon: UserPlus, label: 'Staff', path: '/cafe/staff', roles: ['cafe_admin'], badge: 0 },
-  ].filter(item => item.roles.includes(user.role));
+  ];
+
+  const staffHubMenu = [
+    { icon: LayoutGrid, label: 'Staff workspace', path: '/cafe/workspace', badge: activeOrderCount + pendingKotCount },
+  ];
+
+  const menuItems = isUnifiedStaff
+    ? staffHubMenu
+    : adminMenuItems.filter(item => item.roles.includes(user.role));
 
   if (isMobile) {
     return (

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-type StaffRole = 'cafe_admin' | 'cashier' | 'kitchen';
+type StaffRole = 'cafe_admin' | 'cashier' | 'kitchen' | 'staff';
 
 interface StaffUser {
   id: string;
@@ -31,6 +31,7 @@ interface StaffUser {
 
 const ROLE_CONFIG: Record<StaffRole, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   cafe_admin: { label: 'Admin', color: 'text-purple-400', bg: 'bg-purple-500/20', icon: Shield },
+  staff:      { label: 'Staff', color: 'text-cyan-400', bg: 'bg-cyan-500/20', icon: UserCheck },
   cashier:    { label: 'Cashier', color: 'text-blue-400', bg: 'bg-blue-500/20', icon: ShoppingCart },
   kitchen:    { label: 'Kitchen', color: 'text-orange-400', bg: 'bg-orange-500/20', icon: ChefHat },
 };
@@ -45,7 +46,7 @@ const CafeStaff: React.FC = () => {
 
   // Add dialog
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ username: '', password: '', confirmPassword: '', display_name: '', role: 'cashier' as StaffRole });
+  const [addForm, setAddForm] = useState({ username: '', password: '', confirmPassword: '', display_name: '', role: 'staff' as StaffRole });
   const [isAdding, setIsAdding] = useState(false);
 
   // Edit dialog
@@ -95,7 +96,7 @@ const CafeStaff: React.FC = () => {
   }), [staff]);
 
   /* ───────── Add Staff ───────── */
-  const resetAddForm = () => setAddForm({ username: '', password: '', confirmPassword: '', display_name: '', role: 'cashier' });
+  const resetAddForm = () => setAddForm({ username: '', password: '', confirmPassword: '', display_name: '', role: 'staff' });
 
   const handleAdd = async () => {
     const { username, password, confirmPassword, display_name, role } = addForm;
@@ -119,8 +120,9 @@ const CafeStaff: React.FC = () => {
 
       const { error } = await supabase.from('cafe_users').insert({
         location_id: locationId!,
+        partner_id: user!.partnerId,
         username: username.trim().toLowerCase(),
-        password_hash: password,
+        password,
         display_name: display_name.trim(),
         role,
         is_active: true,
@@ -396,6 +398,9 @@ const CafeStaff: React.FC = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="staff">
+                    <span className="flex items-center gap-2"><UserCheck className="h-3.5 w-3.5 text-cyan-400" /> Staff (unified workspace)</span>
+                  </SelectItem>
                   <SelectItem value="cashier">
                     <span className="flex items-center gap-2"><ShoppingCart className="h-3.5 w-3.5 text-blue-400" /> Cashier</span>
                   </SelectItem>
@@ -449,6 +454,9 @@ const CafeStaff: React.FC = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="staff">
+                    <span className="flex items-center gap-2"><UserCheck className="h-3.5 w-3.5 text-cyan-400" /> Staff (unified workspace)</span>
+                  </SelectItem>
                   <SelectItem value="cashier">
                     <span className="flex items-center gap-2"><ShoppingCart className="h-3.5 w-3.5 text-blue-400" /> Cashier</span>
                   </SelectItem>

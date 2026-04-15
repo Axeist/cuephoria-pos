@@ -11,10 +11,11 @@ import type {
 import { transformMenuCategoryRow, transformMenuItemRow, transformTableRow, transformOrderRow } from '@/types/cafe.types';
 import {
   Coffee, Plus, Minus, Trash2, ShoppingCart, User, Phone, MapPin, ArrowLeft,
-  Loader2, Clock, CheckCircle2, ChefHat, Search, X, History, RefreshCw, Sparkles
+  Loader2, Clock, CheckCircle2, ChefHat, Search, X, History, RefreshCw, Sparkles, UtensilsCrossed
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { normalizeIndianMobile10, phoneMatchVariants } from '@/lib/cafeCustomerLookup';
 
 type Step = 'landing' | 'identify' | 'menu' | 'cart' | 'checkout' | 'tracking' | 'history';
 
@@ -74,6 +75,7 @@ const CafeCustomerOrder: React.FC = () => {
   const [customerSearching, setCustomerSearching] = useState(false);
   const [customerFound, setCustomerFound] = useState<boolean | null>(null);
   const [addedItemId, setAddedItemId] = useState<string | null>(null);
+  const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null);
   const phoneSearchTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   // Auto-detect existing session on mount
@@ -182,19 +184,39 @@ const CafeCustomerOrder: React.FC = () => {
   }, []);
 
   const searchCustomerByPhone = useCallback(async (phone: string) => {
-    if (phone.length < 10 || !locId) return;
+    const core = normalizeIndianMobile10(phone);
+    if (!core) return;
     setCustomerSearching(true);
     setCustomerFound(null);
+    setLinkedCustomerId(null);
     try {
-      const { data } = await supabase
+      const variants = phoneMatchVariants(core);
+      const orClause = variants.map(v => `phone.eq.${v}`).join(',');
+      let { data: rows, error } = await supabase
         .from('customers')
-        .select('name, phone')
-        .eq('phone', phone)
-        .eq('location_id', locId)
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        setCustomerName(data.name);
+        .select('id, name, phone')
+        .or(orClause)
+        .limit(20);
+      if (error) throw error;
+      if (!rows?.length) {
+        const { data: loose } = await supabase
+          .from('customers')
+          .select('id, name, phone')
+          .ilike('phone', `%${core}%`)
+          .limit(20);
+        rows = loose || [];
+      }
+      let match = rows?.find(r => normalizeIndianMobile10(r.phone || '') === core);
+      if (!match && rows?.length === 1) match = rows[0];
+      if (!match && rows && rows.length > 1) {
+        match = rows.find(r => {
+          const d = normalizeIndianMobile10(r.phone || '');
+          return d === core;
+        }) || rows[0];
+      }
+      if (match) {
+        setCustomerName(match.name || '');
+        setLinkedCustomerId(match.id);
         setCustomerFound(true);
       } else {
         setCustomerFound(false);
@@ -204,12 +226,13 @@ const CafeCustomerOrder: React.FC = () => {
     } finally {
       setCustomerSearching(false);
     }
-  }, [locId]);
+  }, []);
 
   const handlePhoneChange = useCallback((value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 10);
     setCustomerPhone(digits);
     setCustomerFound(null);
+    setLinkedCustomerId(null);
     setCustomerName('');
     if (phoneSearchTimeout.current) clearTimeout(phoneSearchTimeout.current);
     if (digits.length === 10) {
@@ -268,6 +291,7 @@ const CafeCustomerOrder: React.FC = () => {
         order_type: isTakeaway ? 'self_order' : 'dine_in',
         order_source: 'customer',
         cafe_table_id: !isTakeaway ? selectedTableId : null,
+        customer_id: linkedCustomerId,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         subtotal, total,
@@ -309,12 +333,17 @@ const CafeCustomerOrder: React.FC = () => {
   };
 
   const trackingSteps = [
-    { key: 'pending', label: 'Order Placed', icon: ShoppingCart },
+    { key: 'pending', label: 'Placed', icon: ShoppingCart },
     { key: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
     { key: 'preparing', label: 'Preparing', icon: ChefHat },
-    { key: 'ready', label: 'Ready!', icon: Coffee },
+    { key: 'ready', label: 'Ready', icon: Coffee },
+    { key: 'served', label: 'Served', icon: UtensilsCrossed },
+    { key: 'completed', label: 'Completed', icon: CheckCircle2 },
   ];
-  const currentStepIndex = trackingSteps.findIndex(s => s.key === orderStatus);
+  const currentStepIndex =
+    orderStatus === 'cancelled'
+      ? -1
+      : Math.max(0, trackingSteps.findIndex(s => s.key === orderStatus));
 
   /* ═══════════════════════════════ LOADING ═══════════════════════════════ */
   if (loading && step !== 'landing') {
@@ -880,8 +909,9 @@ const CafeCustomerOrder: React.FC = () => {
           <div className="space-y-0 relative">
             <div className="absolute left-[23px] top-6 bottom-6 w-0.5 bg-gray-800/50" />
             {trackingSteps.map((s, i) => {
-              const isActive = i === currentStepIndex;
-              const isCompleted = i < currentStepIndex;
+              const allComplete = orderStatus === 'completed';
+              const isActive = !allComplete && i === currentStepIndex;
+              const isCompleted = allComplete || (currentStepIndex >= 0 && i < currentStepIndex);
               return (
                 <div key={s.key} className="flex items-center gap-4 py-3.5 relative z-10">
                   <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-500 ${

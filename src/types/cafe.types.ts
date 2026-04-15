@@ -23,7 +23,7 @@ export interface CafeUser {
   createdAt: Date;
 }
 
-export type CafeUserRole = 'cafe_admin' | 'cashier' | 'kitchen';
+export type CafeUserRole = 'cafe_admin' | 'cashier' | 'kitchen' | 'staff';
 
 export interface CafeSessionUser {
   id: string;

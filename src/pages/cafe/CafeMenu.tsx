@@ -17,6 +17,7 @@ import {
 
 const CafeMenu: React.FC = () => {
   const { user } = useCafeAuth();
+  const isCafeAdmin = user?.role === 'cafe_admin';
   const { categories, items, addCategory, updateCategory, deleteCategory, addItem, updateItem, deleteItem, refresh } = useCafeMenu(user?.locationId);
   const { tables, zones, tablesByZone, addTable, updateTable, deleteTable } = useCafeTables(user?.locationId);
   const { partner } = useCafePartner(user?.locationId);
@@ -271,7 +272,9 @@ const CafeMenu: React.FC = () => {
                     <span className="text-sm text-white font-quicksand">{cat.name}</span>
                     <span className="text-xs text-gray-500">({items.filter(i => i.categoryId === cat.id).length})</span>
                     <button onClick={() => { setCatEditId(cat.id); setCatName(cat.name); setCatDialog(true); }} className="opacity-0 group-hover:opacity-100 ml-1"><Pencil className="h-3 w-3 text-gray-400" /></button>
-                    <button onClick={() => handleDeleteCategory(cat.id)} className="opacity-0 group-hover:opacity-100"><Trash2 className="h-3 w-3 text-red-400" /></button>
+                    {isCafeAdmin && (
+                      <button onClick={() => handleDeleteCategory(cat.id)} className="opacity-0 group-hover:opacity-100"><Trash2 className="h-3 w-3 text-red-400" /></button>
+                    )}
                   </div>
                 ))}
                 {categories.length === 0 && <p className="text-sm text-gray-500 font-quicksand">No categories yet. Add one to get started.</p>}
@@ -291,15 +294,19 @@ const CafeMenu: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={downloadSampleCSV} variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
-                    <Download className="h-3.5 w-3.5 mr-1" /> Sample CSV
-                  </Button>
-                  <Button size="sm" onClick={() => csvInputRef.current?.click()} disabled={csvUploading}
-                    variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
-                    {csvUploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-                    Upload CSV
-                  </Button>
-                  <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+                  {isCafeAdmin && (
+                    <>
+                      <Button size="sm" onClick={downloadSampleCSV} variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
+                        <Download className="h-3.5 w-3.5 mr-1" /> Sample CSV
+                      </Button>
+                      <Button size="sm" onClick={() => csvInputRef.current?.click()} disabled={csvUploading}
+                        variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
+                        {csvUploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+                        Upload CSV
+                      </Button>
+                      <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+                    </>
+                  )}
                   <Button size="sm" onClick={() => {
                     setItemDialog(true); setItemEditId(null);
                     setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: categories[0]?.id || '', isVeg: true, prepTime: '' });
@@ -375,7 +382,9 @@ const CafeMenu: React.FC = () => {
                                     setItemForm({ name: item.name, price: String(item.price), costPrice: item.costPrice ? String(item.costPrice) : '', description: item.description || '', categoryId: item.categoryId, isVeg: item.isVeg, prepTime: item.prepTimeMinutes ? String(item.prepTimeMinutes) : '' });
                                     setItemDialog(true);
                                   }}><Pencil className="h-3 w-3 text-gray-400 hover:text-white" /></button>
-                                  <button onClick={async () => { await deleteItem(item.id); toast.success('Item deleted'); }}><Trash2 className="h-3 w-3 text-red-400" /></button>
+                                  {isCafeAdmin && (
+                                    <button onClick={async () => { await deleteItem(item.id); toast.success('Item deleted'); }}><Trash2 className="h-3 w-3 text-red-400" /></button>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center justify-between mt-2">
@@ -449,7 +458,7 @@ const CafeMenu: React.FC = () => {
                                   setTableForm({ tableName: table.tableName, zone: table.zone, capacity: String(table.capacity) });
                                   setTableDialog(true);
                                 }}><Pencil className="h-3 w-3 text-gray-400" /></button>
-                                {!table.isOccupied && <button onClick={async () => { await deleteTable(table.id); toast.success('Table removed'); }}><Trash2 className="h-3 w-3 text-red-400" /></button>}
+                                {isCafeAdmin && !table.isOccupied && <button onClick={async () => { await deleteTable(table.id); toast.success('Table removed'); }}><Trash2 className="h-3 w-3 text-red-400" /></button>}
                               </div>
                             </div>
                             <p className="text-xs text-gray-500">{table.capacity} seats</p>

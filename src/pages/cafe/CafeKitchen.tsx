@@ -4,7 +4,7 @@ import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { CafeKOT, KOTStatus } from '@/types/cafe.types';
-import { ChefHat, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, Bell, AlertTriangle, UtensilsCrossed } from 'lucide-react';
+import { ChefHat, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, Bell, AlertTriangle, UtensilsCrossed, CircleDot } from 'lucide-react';
 import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; border: string; bg: string; accent: string; next?: KOTStatus; nextLabel?: string; nextIcon?: React.ElementType }> = {
@@ -279,8 +279,34 @@ const CafeKitchen: React.FC = () => {
         </div>
       </div>
 
+      {/* Full pipeline — all KOT stages visible (not limited to 3 summary chips) */}
+      <div className="px-4 py-3 bg-black/20 border-b border-white/[0.06] overflow-x-auto">
+        <p className="text-[10px] uppercase tracking-widest text-gray-500 font-quicksand mb-2">Kitchen pipeline</p>
+        <div className="flex items-stretch gap-1 min-w-max sm:flex-wrap sm:min-w-0">
+          {([
+            { key: 'pending', label: 'New', count: pendingKots.length, color: 'bg-yellow-500/15 border-yellow-500/25 text-yellow-300' },
+            { key: 'ack', label: 'Accepted', count: acknowledgedKots.length, color: 'bg-blue-500/15 border-blue-500/25 text-blue-300' },
+            { key: 'preparing', label: 'Cooking', count: preparingKots.length, color: 'bg-orange-500/15 border-orange-500/25 text-orange-300' },
+            { key: 'ready', label: 'Ready', count: readyKots.length, color: 'bg-green-500/15 border-green-500/25 text-green-300' },
+            { key: 'served', label: 'Served', count: servedKots.length, color: 'bg-emerald-500/15 border-emerald-500/25 text-emerald-300' },
+          ] as const).map((stage, idx, arr) => (
+            <React.Fragment key={stage.key}>
+              <div className={`flex flex-col items-center justify-center px-3 py-2 rounded-xl border min-w-[88px] ${stage.color}`}>
+                <span className="text-[10px] font-quicksand text-gray-400 uppercase tracking-wide">{stage.label}</span>
+                <span className="text-lg font-bold font-heading tabular-nums">{stage.count}</span>
+              </div>
+              {idx < arr.length - 1 && (
+                <div className="flex items-center px-0.5 text-gray-600">
+                  <CircleDot className="h-3 w-3 opacity-50" />
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
       {/* Summary bar */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-white/[0.02] border-b border-white/[0.04]">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-white/[0.02] border-b border-white/[0.04]">
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/10">
           <Bell className="h-3 w-3 text-yellow-400" />
           <span className="text-xs sm:text-sm font-quicksand text-yellow-400 font-medium">{pendingKots.length} pending</span>

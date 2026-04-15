@@ -4,12 +4,10 @@ import { useCafeAuth } from '@/context/CafeAuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
-  Coffee, User, Lock, ChefHat, ShoppingCart, UtensilsCrossed,
+  Coffee, User, Lock, ShoppingCart, UtensilsCrossed,
   BarChart2, Shield, Loader2, Eye, EyeOff, Users, TrendingUp,
   CreditCard
 } from 'lucide-react';
-import type { CafeUserRole } from '@/types/cafe.types';
-
 const CafeLogin: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading: authLoading } = useCafeAuth();
@@ -17,7 +15,8 @@ const CafeLogin: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<CafeUserRole>('cashier');
+  /** Visual hint only — real role comes from the server after login. */
+  const [loginKind, setLoginKind] = useState<'staff' | 'admin'>('staff');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,22 +25,20 @@ const CafeLogin: React.FC = () => {
     try {
       const loggedInUser = await login(username.trim(), password);
       if (loggedInUser) {
-        const roleRedirects: Record<CafeUserRole, string> = {
-          cafe_admin: '/cafe/dashboard',
-          cashier: '/cafe/pos',
-          kitchen: '/cafe/pos',
-        };
-        navigate(roleRedirects[loggedInUser.role] || '/cafe/pos');
+        if (loggedInUser.role === 'cafe_admin') {
+          navigate('/cafe/dashboard');
+        } else {
+          navigate('/cafe/workspace');
+        }
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const roles: { value: CafeUserRole; label: string; icon: React.ElementType; desc: string }[] = [
-    { value: 'cashier', label: 'Cashier', icon: ShoppingCart, desc: 'Orders & billing' },
-    { value: 'kitchen', label: 'Kitchen', icon: ChefHat, desc: 'KOT & prep' },
-    { value: 'cafe_admin', label: 'Admin', icon: Shield, desc: 'Full access' },
+  const roles: { value: 'staff' | 'admin'; label: string; icon: React.ElementType; desc: string }[] = [
+    { value: 'staff', label: 'Staff', icon: ShoppingCart, desc: 'POS, kitchen, menu & orders' },
+    { value: 'admin', label: 'Admin', icon: Shield, desc: 'Dashboard & reports' },
   ];
 
   return (
@@ -167,11 +164,11 @@ const CafeLogin: React.FC = () => {
           <div className="flex p-1 rounded-xl mb-7"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
             {roles.map((r) => (
-              <button key={r.value} type="button" onClick={() => setSelectedRole(r.value)}
+              <button key={r.value} type="button" onClick={() => setLoginKind(r.value)}
                 className={`flex-1 flex items-center justify-center gap-2 text-[13px] py-2.5 rounded-lg font-semibold transition-all duration-200 ${
-                  selectedRole === r.value ? 'text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
+                  loginKind === r.value ? 'text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
                 }`}
-                style={selectedRole === r.value ? {
+                style={loginKind === r.value ? {
                   background: 'linear-gradient(135deg, #f97316, #9333ea)',
                   boxShadow: '0 4px 16px rgba(249,115,22,0.3)'
                 } : {}}>
@@ -221,8 +218,8 @@ const CafeLogin: React.FC = () => {
                 </span>
               ) : (
                 <span className="flex items-center gap-2.5">
-                  {selectedRole === 'cafe_admin' ? <Shield size={15} /> : selectedRole === 'kitchen' ? <ChefHat size={15} /> : <ShoppingCart size={15} />}
-                  Sign in as {roles.find(r => r.value === selectedRole)?.label}
+                  {loginKind === 'admin' ? <Shield size={15} /> : <ShoppingCart size={15} />}
+                  Sign in as {roles.find(r => r.value === loginKind)?.label}
                 </span>
               )}
             </Button>
