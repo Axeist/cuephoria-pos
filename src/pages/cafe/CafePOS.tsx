@@ -428,17 +428,22 @@ const CafePOS: React.FC = () => {
                 <span>Total</span><CurrencyDisplay amount={cartTotal} className="text-orange-400" />
               </div>
             </div>
+            {cart.length > 0 && !selectedCustomer && (
+              <div className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-quicksand">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Select a customer before checkout
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2 w-full">
               <Button className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm font-medium"
-                disabled={cart.length === 0} onClick={() => setIsCheckoutDialogOpen(true)}>
+                disabled={cart.length === 0 || !selectedCustomer} onClick={() => { if (!selectedCustomer) { toast.error('Please select a customer first'); return; } setIsCheckoutDialogOpen(true); }}>
                 <ReceiptIcon className="h-3.5 w-3.5 mr-1" /> Checkout
               </Button>
               <Button className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm font-medium text-black"
-                disabled={cart.length === 0 || isSubmitting} onClick={handlePayLater}>
+                disabled={cart.length === 0 || isSubmitting || !selectedCustomer} onClick={() => { if (!selectedCustomer) { toast.error('Please select a customer first'); return; } handlePayLater(); }}>
                 <Clock className="h-3.5 w-3.5 mr-1" /> Pay Later
               </Button>
               <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm font-medium"
-                disabled={cart.length === 0} onClick={() => setIsCompDialogOpen(true)}>
+                disabled={cart.length === 0 || !selectedCustomer} onClick={() => { if (!selectedCustomer) { toast.error('Please select a customer first'); return; } setIsCompDialogOpen(true); }}>
                 <Gift className="h-3.5 w-3.5 mr-1" /> Comp
               </Button>
             </div>
