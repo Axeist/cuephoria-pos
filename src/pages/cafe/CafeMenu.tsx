@@ -367,7 +367,7 @@ const CafeMenu: React.FC = () => {
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {categories.map(cat => (
-                  <div key={cat.id} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-800/50 border border-gray-700/30 group">
+                  <div key={cat.id} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06] group">
                     {cat.tracksInventory && (
                       <Package className="h-3 w-3 text-amber-400/90 shrink-0" aria-hidden />
                     )}
@@ -398,11 +398,11 @@ const CafeMenu: React.FC = () => {
                 <div className="flex items-center gap-2">
                   {isCafeAdmin && (
                     <>
-                      <Button size="sm" onClick={downloadSampleCSV} variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
+                      <Button size="sm" onClick={downloadSampleCSV} variant="outline" className="border-white/[0.08] text-zinc-400 hover:text-white text-xs">
                         <Download className="h-3.5 w-3.5 mr-1" /> Sample CSV
                       </Button>
                       <Button size="sm" onClick={() => csvInputRef.current?.click()} disabled={csvUploading}
-                        variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
+                        variant="outline" className="border-white/[0.08] text-zinc-400 hover:text-white text-xs">
                         {csvUploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
                         Upload CSV
                       </Button>
@@ -421,7 +421,7 @@ const CafeMenu: React.FC = () => {
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
                   <Input value={menuSearch} onChange={e => setMenuSearch(e.target.value)}
-                    placeholder="Search menu items..." className="h-8 pl-8 text-xs bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
+                    placeholder="Search menu items..." className="h-8 pl-8 text-xs bg-white/[0.03] border-white/[0.06] text-white font-quicksand rounded-lg" />
                   {menuSearch && (
                     <button onClick={() => setMenuSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
                       <X className="h-3 w-3 text-gray-500" />
@@ -430,7 +430,7 @@ const CafeMenu: React.FC = () => {
                 </div>
                 <button onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-quicksand transition-all ${
-                    showOnlyAvailable ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-800/50 text-gray-400 border border-gray-700/30'
+                    showOnlyAvailable ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/[0.04] text-zinc-400 border border-white/[0.06]'
                   }`}>
                   {showOnlyAvailable ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                   {showOnlyAvailable ? 'Available only' : 'Show all'}
@@ -472,7 +472,7 @@ const CafeMenu: React.FC = () => {
                             const tracksItem = catTracks;
                             return (
                             <div key={item.id} className={`p-3 rounded-lg border group hover:border-orange-500/30 transition-all ${
-                              item.isAvailable ? 'bg-gray-800/40 border-gray-700/30' : 'bg-gray-800/20 border-red-500/20 opacity-60'
+                              item.isAvailable ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-white/[0.02] border-red-500/20 opacity-60'
                             }`}>
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -511,7 +511,7 @@ const CafeMenu: React.FC = () => {
                                 </div>
                               </div>
                               {tracksItem && (
-                                <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-gray-700/40">
+                                <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-white/[0.06]">
                                   <span className="text-xs text-gray-400 font-quicksand">
                                     Stock: <span className="text-white font-semibold tabular-nums">{item.stockQuantity}</span>
                                   </span>
@@ -612,10 +612,10 @@ const CafeMenu: React.FC = () => {
         setCatDialog(open);
         if (!open) { setCatEditId(null); setCatName(''); setCatTracksInventory(false); }
       }}>
-        <DialogContent className="bg-gray-900 border-gray-700">
+        <DialogContent className="cafe-glass-card !rounded-2xl border-white/[0.08]">
           <DialogHeader><DialogTitle className="text-white font-heading">{catEditId ? 'Edit Category' : 'Add Category'}</DialogTitle></DialogHeader>
-          <Input value={catName} onChange={e => setCatName(e.target.value)} placeholder="Category name" className="bg-gray-800/50 border-gray-700 text-white" autoFocus />
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-700/50 bg-gray-800/30 px-3 py-2.5">
+          <Input value={catName} onChange={e => setCatName(e.target.value)} placeholder="Category name" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" autoFocus />
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
             <div className="space-y-0.5 min-w-0">
               <Label htmlFor="cat-tracks-inv" className="text-white text-sm font-quicksand cursor-pointer">Track inventory</Label>
               <p className="text-xs text-gray-500 font-quicksand">Stock counts and add/reduce controls for items in this category.</p>
@@ -623,8 +623,8 @@ const CafeMenu: React.FC = () => {
             <Switch id="cat-tracks-inv" checked={catTracksInventory} onCheckedChange={setCatTracksInventory} className="shrink-0 data-[state=checked]:bg-orange-500" />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCatDialog(false)} className="border-gray-700 text-gray-400">Cancel</Button>
-            <Button onClick={handleSaveCategory} disabled={!catName.trim()} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Save</Button>
+            <Button variant="outline" onClick={() => setCatDialog(false)} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
+            <Button onClick={handleSaveCategory} disabled={!catName.trim()} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0 rounded-lg">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -632,7 +632,7 @@ const CafeMenu: React.FC = () => {
       <Dialog open={invDialog !== null} onOpenChange={(open) => {
         if (!open) { setInvDialog(null); setInvItem(null); setInvQty('1'); setInvPin(''); }
       }}>
-        <DialogContent className="bg-gray-900 border-gray-700 max-w-sm">
+        <DialogContent className="cafe-glass-card !rounded-2xl border-white/[0.08] max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white font-heading">{invDialog === 'reduce' ? 'Reduce stock' : 'Add stock'}</DialogTitle>
           </DialogHeader>
@@ -649,7 +649,7 @@ const CafeMenu: React.FC = () => {
                 value={invPin}
                 onChange={e => setInvPin(e.target.value)}
                 placeholder="Enter PIN"
-                className="bg-gray-800/50 border-gray-700 text-white"
+                className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg"
               />
             </div>
           )}
@@ -660,11 +660,11 @@ const CafeMenu: React.FC = () => {
               min={1}
               value={invQty}
               onChange={e => setInvQty(e.target.value)}
-              className="bg-gray-800/50 border-gray-700 text-white"
+              className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg"
             />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setInvDialog(null); setInvItem(null); setInvPin(''); }} className="border-gray-700 text-gray-400">Cancel</Button>
+            <Button variant="outline" onClick={() => { setInvDialog(null); setInvItem(null); setInvPin(''); }} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
             <Button onClick={handleConfirmStockAdjust} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Confirm</Button>
           </DialogFooter>
         </DialogContent>
@@ -672,17 +672,17 @@ const CafeMenu: React.FC = () => {
 
       {/* Item Dialog */}
       <Dialog open={itemDialog} onOpenChange={setItemDialog}>
-        <DialogContent className="bg-gray-900 border-gray-700 max-w-md">
+        <DialogContent className="cafe-glass-card !rounded-2xl border-white/[0.08] max-w-md">
           <DialogHeader><DialogTitle className="text-white font-heading">{itemEditId ? 'Edit Item' : 'Add Item'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Input value={itemForm.name} onChange={e => setItemForm(f => ({ ...f, name: e.target.value }))} placeholder="Item name" className="bg-gray-800/50 border-gray-700 text-white" />
+            <Input value={itemForm.name} onChange={e => setItemForm(f => ({ ...f, name: e.target.value }))} placeholder="Item name" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" />
             <div className="grid grid-cols-2 gap-3">
-              <Input type="number" value={itemForm.price} onChange={e => setItemForm(f => ({ ...f, price: e.target.value }))} placeholder="Price" className="bg-gray-800/50 border-gray-700 text-white" />
-              <Input type="number" value={itemForm.costPrice} onChange={e => setItemForm(f => ({ ...f, costPrice: e.target.value }))} placeholder="Cost price (optional)" className="bg-gray-800/50 border-gray-700 text-white" />
+              <Input type="number" value={itemForm.price} onChange={e => setItemForm(f => ({ ...f, price: e.target.value }))} placeholder="Price" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" />
+              <Input type="number" value={itemForm.costPrice} onChange={e => setItemForm(f => ({ ...f, costPrice: e.target.value }))} placeholder="Cost price (optional)" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" />
             </div>
-            <Input value={itemForm.description} onChange={e => setItemForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" className="bg-gray-800/50 border-gray-700 text-white" />
+            <Input value={itemForm.description} onChange={e => setItemForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" />
             <select value={itemForm.categoryId} onChange={e => setItemForm(f => ({ ...f, categoryId: e.target.value }))}
-              className="w-full h-10 px-3 rounded-md bg-gray-800/50 border border-gray-700 text-white text-sm">
+              className="w-full h-10 px-3 rounded-lg bg-white/[0.03] border border-white/[0.06] text-white text-sm">
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <div className="flex items-center gap-4">
@@ -691,7 +691,7 @@ const CafeMenu: React.FC = () => {
                 <Leaf className="h-4 w-4" /> {itemForm.isVeg ? 'Veg' : 'Non-Veg'}
               </button>
               <Input type="number" value={itemForm.prepTime} onChange={e => setItemForm(f => ({ ...f, prepTime: e.target.value }))}
-                placeholder="Prep time (min)" className="bg-gray-800/50 border-gray-700 text-white flex-1" />
+                placeholder="Prep time (min)" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg flex-1" />
             </div>
             {categories.find(c => c.id === itemForm.categoryId)?.tracksInventory && (
               <div className="space-y-1.5">
@@ -702,13 +702,13 @@ const CafeMenu: React.FC = () => {
                   value={itemForm.initialStock}
                   onChange={e => setItemForm(f => ({ ...f, initialStock: e.target.value }))}
                   placeholder="0"
-                  className="bg-gray-800/50 border-gray-700 text-white"
+                  className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg"
                 />
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setItemDialog(false)} className="border-gray-700 text-gray-400">Cancel</Button>
+            <Button variant="outline" onClick={() => setItemDialog(false)} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
             <Button onClick={handleSaveItem} disabled={!itemForm.name.trim() || !itemForm.price} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Save</Button>
           </DialogFooter>
         </DialogContent>
@@ -716,19 +716,19 @@ const CafeMenu: React.FC = () => {
 
       {/* Table Dialog */}
       <Dialog open={tableDialog} onOpenChange={setTableDialog}>
-        <DialogContent className="bg-gray-900 border-gray-700">
+        <DialogContent className="cafe-glass-card !rounded-2xl border-white/[0.08]">
           <DialogHeader><DialogTitle className="text-white font-heading">{tableEditId ? 'Edit Table' : 'Add Table'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Input value={tableForm.tableName} onChange={e => setTableForm(f => ({ ...f, tableName: e.target.value }))} placeholder="Table name (e.g. T1, R-5)" className="bg-gray-800/50 border-gray-700 text-white" autoFocus />
-            <Input value={tableForm.zone} onChange={e => setTableForm(f => ({ ...f, zone: e.target.value }))} placeholder="Zone (e.g. indoor, rooftop, counter)" className="bg-gray-800/50 border-gray-700 text-white" list="zone-suggestions" />
+            <Input value={tableForm.tableName} onChange={e => setTableForm(f => ({ ...f, tableName: e.target.value }))} placeholder="Table name (e.g. T1, R-5)" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" autoFocus />
+            <Input value={tableForm.zone} onChange={e => setTableForm(f => ({ ...f, zone: e.target.value }))} placeholder="Zone (e.g. indoor, rooftop, counter)" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" list="zone-suggestions" />
             <datalist id="zone-suggestions">
               {zones.map(z => <option key={z} value={z} />)}
               <option value="indoor" /><option value="rooftop" /><option value="counter" />
             </datalist>
-            <Input type="number" value={tableForm.capacity} onChange={e => setTableForm(f => ({ ...f, capacity: e.target.value }))} placeholder="Capacity (seats)" className="bg-gray-800/50 border-gray-700 text-white" />
+            <Input type="number" value={tableForm.capacity} onChange={e => setTableForm(f => ({ ...f, capacity: e.target.value }))} placeholder="Capacity (seats)" className="bg-white/[0.03] border-white/[0.06] text-white rounded-lg" />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTableDialog(false)} className="border-gray-700 text-gray-400">Cancel</Button>
+            <Button variant="outline" onClick={() => setTableDialog(false)} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
             <Button onClick={handleSaveTable} disabled={!tableForm.tableName.trim()} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Save</Button>
           </DialogFooter>
         </DialogContent>

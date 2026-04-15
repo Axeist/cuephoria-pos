@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,6 @@ import {
   UserCog,
   Menu,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
   ShoppingCart,
 } from "lucide-react";
 import { useCafeAuth } from "@/context/CafeAuthContext";
@@ -113,34 +111,19 @@ export function CafeSidebar() {
   const { user, logout } = useCafeAuth();
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pinned, setPinned] = useState(() => {
-    try {
-      return localStorage.getItem("cafe-sidebar-expanded") !== "false";
-    } catch {
-      return true;
-    }
-  });
   const [hovered, setHovered] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const expanded = pinned || hovered;
+  const expanded = hovered;
   const collapsed = !expanded;
 
   const { activeOrders } = useCafeOrders(user?.locationId);
   const orderBadge = activeOrders.length;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("cafe-sidebar-expanded", String(pinned));
-    } catch {
-      /* noop */
-    }
-  }, [pinned]);
-
   const onEnter = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    if (!pinned) setHovered(true);
-  }, [pinned]);
+    setHovered(true);
+  }, []);
 
   const onLeave = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -329,19 +312,7 @@ export function CafeSidebar() {
         expanded ? "w-[236px]" : "w-[52px]"
       )}
     >
-      {expanded && (
-        <div className="absolute -right-3 top-14 z-10">
-          <Button
-            size="icon"
-            variant="secondary"
-            className="h-6 w-6 rounded-full border border-white/10 bg-zinc-900/95 shadow-lg backdrop-blur-sm hover:bg-zinc-800"
-            onClick={() => setPinned(!pinned)}
-            aria-label={pinned ? "Unpin sidebar" : "Pin sidebar"}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
+      {/* no collapse button — hover auto-expands */}
       {sidebarInner({})}
     </aside>
   );

@@ -215,7 +215,7 @@ const CafeReports: React.FC = () => {
           <Download className="h-3.5 w-3.5 mr-1" /> Export CSV
         </Button>
       }
-      contentClassName="space-y-5 overflow-x-hidden"
+      contentClassName="space-y-4 overflow-x-hidden"
     >
       {/* Period + advanced filters (dropdowns, like main POS) */}
       <div className="cafe-glass-card border-white/[0.06] p-4 space-y-3">
@@ -225,10 +225,10 @@ const CafeReports: React.FC = () => {
               <Calendar className="h-3 w-3 text-orange-400" /> Date range
             </Label>
             <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
-              <SelectTrigger className="h-10 bg-gray-950/80 border-gray-700/80 text-white font-quicksand">
+              <SelectTrigger className="h-10 bg-white/[0.03] border-white/[0.06] text-white font-quicksand">
                 <SelectValue placeholder="Period" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-950 border-gray-700">
+              <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
                 <SelectItem value="today">Today</SelectItem>
                 <SelectItem value="7d">Last 7 days</SelectItem>
                 <SelectItem value="30d">Last 30 days</SelectItem>
@@ -239,16 +239,16 @@ const CafeReports: React.FC = () => {
           {dateRange === 'custom' && (
             <div className="flex flex-wrap items-center gap-2">
               <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                className="h-10 px-3 rounded-lg bg-gray-950/80 border border-gray-700/80 text-white text-xs font-quicksand" />
+                className="h-10 px-3 rounded-lg bg-white/[0.03] border border-white/[0.06] text-white text-xs font-quicksand" />
               <span className="text-gray-500 text-xs">to</span>
               <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                className="h-10 px-3 rounded-lg bg-gray-950/80 border border-gray-700/80 text-white text-xs font-quicksand" />
+                className="h-10 px-3 rounded-lg bg-white/[0.03] border border-white/[0.06] text-white text-xs font-quicksand" />
             </div>
           )}
           <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen} className="w-full lg:w-auto lg:ml-auto">
             <CollapsibleTrigger asChild>
               <Button type="button" variant="outline" size="sm"
-                className="border-gray-600/80 bg-white/[0.04] text-gray-200 hover:bg-white/[0.08] font-quicksand gap-2">
+                className="border-white/[0.08] bg-white/[0.04] text-gray-200 hover:bg-white/[0.08] font-quicksand gap-2">
                 <SlidersHorizontal className="h-3.5 w-3.5 text-orange-400" />
                 Advanced filters
                 {activeFilterCount > 0 && (
@@ -262,10 +262,10 @@ const CafeReports: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Order type</Label>
                   <Select value={filterOrderType} onValueChange={(v) => setFilterOrderType(v as 'all' | CafeOrderType)}>
-                    <SelectTrigger className="h-9 bg-gray-950/80 border-gray-700/80 text-white text-xs font-quicksand">
+                    <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.06] text-white text-xs font-quicksand">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-950 border-gray-700">
+                    <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
                       <SelectItem value="all">All types</SelectItem>
                       <SelectItem value="dine_in">Dine in</SelectItem>
                       <SelectItem value="takeaway">Takeaway</SelectItem>
@@ -277,10 +277,10 @@ const CafeReports: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Payment</Label>
                   <Select value={filterPayment} onValueChange={(v) => setFilterPayment(v as 'all' | CafePaymentMethod)}>
-                    <SelectTrigger className="h-9 bg-gray-950/80 border-gray-700/80 text-white text-xs font-quicksand">
+                    <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.06] text-white text-xs font-quicksand">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-950 border-gray-700">
+                    <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
                       <SelectItem value="all">All methods</SelectItem>
                       <SelectItem value="cash">Cash</SelectItem>
                       <SelectItem value="upi">UPI</SelectItem>
@@ -293,10 +293,10 @@ const CafeReports: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Source</Label>
                   <Select value={filterSource} onValueChange={(v) => setFilterSource(v as 'all' | CafeOrderSource)}>
-                    <SelectTrigger className="h-9 bg-gray-950/80 border-gray-700/80 text-white text-xs font-quicksand">
+                    <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.06] text-white text-xs font-quicksand">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-950 border-gray-700">
+                    <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
                       <SelectItem value="all">All sources</SelectItem>
                       <SelectItem value="pos">POS</SelectItem>
                       <SelectItem value="customer">Customer app</SelectItem>
@@ -376,7 +376,7 @@ const CafeReports: React.FC = () => {
                       const catName = categories.find(c => c.id === i.categoryId)?.name ?? '—';
                       const low = i.stockQuantity <= LOW_STOCK_THRESHOLD;
                       return (
-                        <div key={i.id} className={`flex items-center justify-between p-2 rounded-lg text-sm font-quicksand ${low ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/20'}`}>
+                        <div key={i.id} className={`flex items-center justify-between p-2 rounded-lg text-sm font-quicksand ${low ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-white/[0.03]'}`}>
                           <div className="min-w-0">
                             <p className="text-white truncate">{i.name}</p>
                             <p className="text-[10px] text-gray-500">{catName}</p>
@@ -408,7 +408,7 @@ const CafeReports: React.FC = () => {
                         m.movement_type === 'sale' ? 'Sale' :
                         m.movement_type === 'adjustment_add' ? 'Add' : 'Reduce';
                       return (
-                        <div key={m.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-gray-800/20 text-xs font-quicksand">
+                        <div key={m.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/[0.03] text-xs font-quicksand">
                           <div className="min-w-0">
                             <p className="text-white truncate">{itemName}</p>
                             <p className="text-[10px] text-gray-500">
@@ -443,7 +443,7 @@ const CafeReports: React.FC = () => {
                 {dailyTrend.map((d, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1 group min-w-0">
                     <div className="relative w-full flex justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-zinc-900 border border-white/[0.08] px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
                         <CurrencyDisplay amount={d.revenue} /> ({d.orders})
                       </div>
                       <div className="w-full max-w-[32px] rounded-t-sm bg-gradient-to-t from-orange-500/80 to-orange-400/40 hover:from-orange-500 hover:to-orange-400/60 transition-all"
@@ -523,7 +523,7 @@ const CafeReports: React.FC = () => {
                       <span className="text-white">{cat.name}</span>
                       <span className="text-orange-400"><CurrencyDisplay amount={cat.revenue} /> ({cat.qty} items)</span>
                     </div>
-                    <div className="w-full bg-gray-700/20 rounded-full h-2">
+                    <div className="w-full bg-white/[0.06] rounded-full h-2">
                       <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-cuephoria-purple transition-all duration-500"
                         style={{ width: `${(cat.revenue / maxCatRevenue) * 100}%` }} />
                     </div>
@@ -548,10 +548,10 @@ const CafeReports: React.FC = () => {
               ) : (
                 <div className="space-y-1.5">
                   {itemAnalysis.map((item, i) => (
-                    <div key={item.name} className="flex items-center justify-between p-2 bg-gray-800/20 rounded-lg">
+                    <div key={item.name} className="flex items-center justify-between p-2 bg-white/[0.03] rounded-lg">
                       <div className="flex items-center gap-2">
                         <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                          i < 3 ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-700/50 text-gray-500'
+                          i < 3 ? 'bg-orange-500/20 text-orange-400' : 'bg-white/[0.04] text-zinc-500'
                         }`}>{i + 1}</span>
                         <span className="text-sm text-white font-quicksand">{item.name}</span>
                       </div>
@@ -588,7 +588,7 @@ const CafeReports: React.FC = () => {
                   <p className="text-xs text-gray-400 font-quicksand">Cuephoria ({partner.cuephoriaRate}%)</p>
                 </div>
               </div>
-              <div className="w-full bg-gray-700/20 rounded-full h-4 overflow-hidden flex">
+              <div className="w-full bg-white/[0.06] rounded-full h-4 overflow-hidden flex">
                 <div className="h-full bg-orange-500 transition-all" style={{ width: `${partner.partnerRate}%` }} />
                 <div className="h-full bg-cuephoria-purple transition-all" style={{ width: `${partner.cuephoriaRate}%` }} />
               </div>
@@ -604,7 +604,7 @@ const CafeReports: React.FC = () => {
             </CardTitle>
             <div className="flex items-center gap-2">
               <input type="date" value={settlementDate} onChange={e => setSettlementDate(e.target.value)}
-                className="h-8 px-2 rounded-md bg-gray-800/50 border border-gray-700 text-white text-xs" />
+                className="h-8 px-2 rounded-md bg-white/[0.03] border border-white/[0.06] text-white text-xs" />
               <Button size="sm" onClick={handleGenerateSettlement}
                 className="h-8 text-xs bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
                 Generate
@@ -618,7 +618,7 @@ const CafeReports: React.FC = () => {
               ) : (
                 <div className="space-y-2">
                   {settlements.map(s => (
-                    <div key={s.id} className="p-3 bg-gray-800/20 rounded-lg space-y-2">
+                    <div key={s.id} className="p-3 bg-white/[0.03] rounded-lg space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-xs font-medium text-white font-quicksand">{s.settlementDate}</p>

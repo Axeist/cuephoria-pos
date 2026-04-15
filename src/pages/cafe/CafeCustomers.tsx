@@ -142,7 +142,7 @@ const CafeCustomers: React.FC = () => {
           <Plus className="h-4 w-4 mr-1.5" /> Add Customer
         </Button>
       }
-      contentClassName="gap-6 overflow-auto"
+      contentClassName="gap-4 overflow-auto"
     >
       {/* Stats Row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -265,14 +265,14 @@ const CafeCustomers: React.FC = () => {
 
               {/* Overall stats */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2 p-2 bg-gray-800/30 rounded-lg">
+                <div className="flex items-center gap-2 p-2 bg-white/[0.03] rounded-lg">
                   <Star className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0" />
                   <div>
                     <p className="text-lg sm:text-xl font-semibold text-yellow-400">{customer.loyaltyPoints}</p>
                     <p className="text-xs text-gray-500">Points</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-2 bg-gray-800/30 rounded-lg">
+                <div className="flex items-center gap-2 p-2 bg-white/[0.03] rounded-lg">
                   <CreditCard className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
                   <div>
                     <p className="text-lg sm:text-xl font-semibold text-green-400"><CurrencyDisplay amount={customer.totalSpent} /></p>
@@ -302,7 +302,7 @@ const CafeCustomers: React.FC = () => {
 
       {/* ===== ADD CUSTOMER DIALOG ===== */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-md animate-scale-in">
+        <DialogContent className="cafe-glass-card !rounded-2xl border-white/[0.08] max-w-md animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2">
               <Plus className="h-5 w-5 text-orange-400" /> Add New Customer
@@ -342,7 +342,7 @@ const CafeCustomers: React.FC = () => {
 
       {/* ===== VIEW CUSTOMER DIALOG ===== */}
       <Dialog open={!!selectedCustomerId} onOpenChange={() => setSelectedCustomerId(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in">
+        <DialogContent className="cafe-glass-card !rounded-2xl border-white/[0.08] max-w-lg max-h-[85vh] overflow-y-auto animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2">
               <Coffee className="h-5 w-5 text-orange-400" />
@@ -401,7 +401,7 @@ const CafeCustomers: React.FC = () => {
                   ) : (
                     <div className="space-y-2">
                       {customerOrders.map((order: any) => (
-                        <div key={order.id} className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/20">
+                        <div key={order.id} className="p-3 bg-white/[0.03] rounded-lg border border-white/[0.05]">
                           <div className="flex justify-between items-center">
                             <span className="text-sm font-bold text-white font-heading">{order.order_number}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${

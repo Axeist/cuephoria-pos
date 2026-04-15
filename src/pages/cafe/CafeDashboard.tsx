@@ -112,7 +112,7 @@ const CafeDashboard: React.FC = () => {
           )}
         </div>
       }
-      contentClassName="space-y-6"
+      contentClassName="space-y-4"
     >
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -120,7 +120,7 @@ const CafeDashboard: React.FC = () => {
           <Card key={card.label} className={`cafe-glass-card bg-gradient-to-br ${card.bg} border-white/[0.06] shadow-lg animate-slide-up`} style={{ animationDelay: `${i * 50}ms` }}>
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
-                <div className={`h-8 w-8 rounded-lg bg-gray-800/50 flex items-center justify-center`}>
+                <div className={`h-8 w-8 rounded-lg bg-white/[0.05] flex items-center justify-center`}>
                   <card.icon className={`h-4 w-4 ${card.color}`} />
                 </div>
               </div>
@@ -146,7 +146,7 @@ const CafeDashboard: React.FC = () => {
               {hourlyData.map((h, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
                   <div className="relative w-full flex justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
+                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-zinc-900 border border-white/[0.08] px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
                       <CurrencyDisplay amount={h.revenue} /> ({h.orders})
                     </div>
                     <div
@@ -179,13 +179,13 @@ const CafeDashboard: React.FC = () => {
                   <span className="text-gray-400">{item.label}</span>
                   <span className="text-white font-medium">{item.value}</span>
                 </div>
-                <div className="w-full bg-gray-700/30 rounded-full h-1.5">
+                <div className="w-full bg-white/[0.06] rounded-full h-1.5">
                   <div className={`h-full rounded-full ${item.color} transition-all duration-500`}
                     style={{ width: `${item.total > 0 ? (item.value / item.total) * 100 : 0}%` }} />
                 </div>
               </div>
             ))}
-            <div className="pt-2 border-t border-gray-700/30 space-y-1.5">
+            <div className="pt-2 border-t border-white/[0.06] space-y-1.5">
               <div className="flex justify-between text-xs font-quicksand">
                 <span className="text-gray-400">Cash</span>
                 <span className="text-green-400 font-medium"><CurrencyDisplay amount={stats.cashRevenue} /></span>
@@ -246,10 +246,10 @@ const CafeDashboard: React.FC = () => {
             ) : (
               <div className="space-y-2">
                 {topItems.map((item, i) => (
-                  <div key={item.name} className="flex items-center justify-between p-2 bg-gray-800/30 rounded-lg">
+                  <div key={item.name} className="flex items-center justify-between p-2 bg-white/[0.03] rounded-lg">
                     <div className="flex items-center gap-2">
                       <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        i === 0 ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-700/50 text-gray-400'
+                        i === 0 ? 'bg-orange-500/20 text-orange-400' : 'bg-white/[0.04] text-zinc-400'
                       }`}>{i + 1}</span>
                       <span className="text-sm text-white font-quicksand truncate max-w-[120px]">{item.name}</span>
                     </div>
@@ -278,7 +278,7 @@ const CafeDashboard: React.FC = () => {
               ) : (
                 <div className="space-y-1.5">
                   {recentActivity.map(order => (
-                    <div key={order.id} className="flex items-center justify-between p-2 bg-gray-800/20 rounded-lg">
+                    <div key={order.id} className="flex items-center justify-between p-2 bg-white/[0.03] rounded-lg">
                       <div className="flex items-center gap-2">
                         <span className={`h-2 w-2 rounded-full ${
                           order.status === 'completed' ? 'bg-green-400'
@@ -315,7 +315,7 @@ const CafeDashboard: React.FC = () => {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {settlements.slice(0, 3).map(s => (
-                <div key={s.id} className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/20">
+                <div key={s.id} className="p-3 bg-white/[0.03] rounded-lg border border-white/[0.05]">
                   <div className="flex justify-between items-center mb-1">
                     <p className="text-xs font-medium text-white font-quicksand">{s.settlementDate}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${

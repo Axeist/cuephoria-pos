@@ -32,9 +32,7 @@ export function CafePageShell({
   const max =
     variant === "full"
       ? "max-w-none"
-      : variant === "wide"
-        ? "max-w-[1800px]"
-        : "max-w-7xl";
+      : "max-w-none";
 
   const showHeader = Boolean(eyebrow || title || description || action);
 
@@ -44,12 +42,12 @@ export function CafePageShell({
         "relative z-[1] flex min-h-0 flex-1 flex-col overflow-x-hidden",
         max,
         "mx-auto w-full",
-        variant === "full" ? "px-0 py-0" : "px-4 py-6 sm:px-6 sm:py-8 lg:px-8",
+        variant === "full" ? "px-0 py-0" : "px-4 py-4 sm:px-5 sm:py-5 lg:px-6",
         className
       )}
     >
       {showHeader && (
-        <header className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
+        <header className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0 space-y-1">
             {eyebrow && (
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
@@ -66,7 +64,7 @@ export function CafePageShell({
           {action && <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div>}
         </header>
       )}
-      <div className={cn("flex min-h-0 flex-1 flex-col gap-6", contentClassName)}>{children}</div>
+      <div className={cn("flex min-h-0 flex-1 flex-col gap-4", contentClassName)}>{children}</div>
     </div>
   );
 }

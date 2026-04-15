@@ -7,10 +7,15 @@ import type {
 import { transformMenuCategoryRow, transformMenuItemRow } from '@/types/cafe.types';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
-/** PostgREST/Supabase when DB is missing `tracks_inventory` (migration not applied). */
-function isMissingTracksInventoryColumn(message: string): boolean {
+/** PostgREST/Supabase when DB is missing a column (migration not applied). */
+function isMissingColumn(message: string, column?: string): boolean {
   const m = message.toLowerCase();
-  return m.includes('tracks_inventory') && (m.includes('schema') || m.includes('column') || m.includes('does not exist'));
+  const colCheck = column ? m.includes(column.toLowerCase()) : true;
+  return colCheck && (m.includes('schema') || m.includes('column') || m.includes('does not exist'));
+}
+
+function isMissingTracksInventoryColumn(message: string): boolean {
+  return isMissingColumn(message, 'tracks_inventory');
 }
 
 export function useCafeMenu(locationId?: string) {
@@ -189,7 +194,16 @@ export function useCafeMenu(locationId?: string) {
     if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId;
     if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
     if (updates.stockQuantity !== undefined) dbUpdates.stock_quantity = Math.max(0, Math.floor(updates.stockQuantity));
-    const { error } = await supabase.from('cafe_menu_items').update(dbUpdates).eq('id', id);
+
+    let { error } = await supabase.from('cafe_menu_items').update(dbUpdates).eq('id', id);
+    if (error && isMissingColumn(error.message, 'stock_quantity') && updates.stockQuantity !== undefined) {
+      delete dbUpdates.stock_quantity;
+      if (Object.keys(dbUpdates).length > 0) {
+        ({ error } = await supabase.from('cafe_menu_items').update(dbUpdates).eq('id', id));
+      } else {
+        error = null;
+      }
+    }
     if (error) { console.error(error); return false; }
     setItems(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
     return true;
@@ -213,25 +227,46 @@ export function useCafeMenu(locationId?: string) {
     const q = Math.floor(quantity);
     if (q <= 0) return false;
 
-    const { data: row, error: fetchErr } = await supabase
+    let row: Record<string, unknown> | null = null;
+    let stockColumnExists = true;
+
+    const { data: d1, error: e1 } = await supabase
       .from('cafe_menu_items')
       .select('id, stock_quantity, category_id')
       .eq('id', itemId)
       .eq('location_id', locationId)
       .single();
-    if (fetchErr || !row) {
-      console.error(fetchErr);
+
+    if (e1 && isMissingColumn(e1.message, 'stock_quantity')) {
+      stockColumnExists = false;
+      const { data: d2, error: e2 } = await supabase
+        .from('cafe_menu_items')
+        .select('id, category_id')
+        .eq('id', itemId)
+        .eq('location_id', locationId)
+        .single();
+      if (e2 || !d2) { console.error(e2); return false; }
+      row = d2 as Record<string, unknown>;
+    } else if (e1 || !d1) {
+      console.error(e1);
       return false;
+    } else {
+      row = d1 as Record<string, unknown>;
     }
 
     const { data: catRow, error: catErr } = await supabase
       .from('cafe_menu_categories')
       .select('tracks_inventory')
-      .eq('id', row.category_id)
+      .eq('id', row!.category_id as string)
       .single();
     if (catErr || !catRow?.tracks_inventory) return false;
 
-    const current = row.stock_quantity ?? 0;
+    if (!stockColumnExists) {
+      console.warn('stock_quantity column missing — cannot adjust stock. Apply the migration to add it.');
+      return false;
+    }
+
+    const current = (row as any).stock_quantity ?? 0;
     let delta: number;
     let newStock: number;
     if (mode === 'add') {

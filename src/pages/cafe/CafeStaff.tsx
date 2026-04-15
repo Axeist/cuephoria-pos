@@ -250,7 +250,7 @@ const CafeStaff: React.FC = () => {
           </Button>
         </div>
       }
-      contentClassName="space-y-6 overflow-auto"
+      contentClassName="space-y-4 overflow-auto"
     >
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -307,7 +307,7 @@ const CafeStaff: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredStaff.map(s => (
             <Card key={s.id}
-              className={`group overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/10 bg-gradient-to-br from-gray-900/60 to-gray-800/60 border-gray-700/40 ${
+              className={`group overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/10 cafe-glass-card !border-white/[0.06] ${
                 !s.is_active ? 'opacity-60' : ''
               }`}>
               <CardContent className="p-4 space-y-3">
