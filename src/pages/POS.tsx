@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock } from 'lucide-react';
+import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock, Lock, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS, Customer, Product, Bill } from '@/context/POSContext';
 import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
@@ -69,6 +69,25 @@ const POS = () => {
   const [customBillDate, setCustomBillDate] = useState('');
   const [customBillTime, setCustomBillTime] = useState('');
   const [useCustomDateTime, setUseCustomDateTime] = useState(false);
+
+  // Late-night (post midnight) discount lock
+  const LATE_NIGHT_PIN = '2101';
+  const isLateNight = () => new Date().getHours() < 6;
+  const [discountPinUnlocked, setDiscountPinUnlocked] = useState(false);
+  const [discountPinInput, setDiscountPinInput] = useState('');
+  const [discountPinError, setDiscountPinError] = useState(false);
+  const discountLocked = isLateNight() && !discountPinUnlocked;
+
+  const handleDiscountPinSubmit = () => {
+    if (discountPinInput === LATE_NIGHT_PIN) {
+      setDiscountPinUnlocked(true);
+      setDiscountPinError(false);
+      setDiscountPinInput('');
+    } else {
+      setDiscountPinError(true);
+      setTimeout(() => setDiscountPinError(false), 2000);
+    }
+  };
 
   // Initialize custom date/time when dialogs open
   useEffect(() => {
@@ -873,32 +892,70 @@ const POS = () => {
             )}
             
             <div className="space-y-3 animate-slide-up delay-100">
-              <h4 className="font-medium font-heading">Apply Discount</h4>
-              <div className="flex space-x-2">
-                <div className="flex-1">
-                  <Input
-                    type="number"
-                    value={customDiscountAmount}
-                    onChange={(e) => setCustomDiscountAmount(e.target.value)}
-                    placeholder="Discount amount"
-                    className="font-quicksand"
-                  />
+              <h4 className="font-medium font-heading flex items-center gap-2">
+                Apply Discount
+                {discountLocked && <Lock className="h-3.5 w-3.5 text-amber-500" />}
+              </h4>
+              {discountLocked ? (
+                <div className="bg-amber-50 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-amber-900 dark:text-amber-100">
+                      <strong>After midnight:</strong> Discounts are locked. Enter manager PIN to unlock.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={discountPinInput}
+                      onChange={e => { setDiscountPinInput(e.target.value.replace(/\D/g, '').slice(0, 4)); setDiscountPinError(false); }}
+                      onKeyDown={e => e.key === 'Enter' && handleDiscountPinSubmit()}
+                      placeholder="4-digit PIN"
+                      className={`flex-1 font-mono tracking-widest ${discountPinError ? 'border-red-500 ring-red-500/20' : ''}`}
+                    />
+                    <Button onClick={handleDiscountPinSubmit} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
+                      <ShieldCheck className="h-4 w-4 mr-1" /> Unlock
+                    </Button>
+                  </div>
+                  {discountPinError && <p className="text-xs text-red-500 font-medium">Incorrect PIN</p>}
                 </div>
-                <select
-                  className="px-3 py-2 rounded-md border border-input bg-background font-quicksand"
-                  value={customDiscountType}
-                  onChange={(e) => setCustomDiscountType(e.target.value as 'percentage' | 'fixed')}
-                >
-                  <option value="percentage">%</option>
-                  <option value="fixed">₹</option>
-                </select>
-                <Button 
-                  onClick={handleApplyDiscount}
-                  className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
-                >
-                  Apply
-                </Button>
-              </div>
+              ) : (
+                <>
+                  {!discountLocked && discountPinUnlocked && isLateNight() && (
+                    <div className="bg-green-50 dark:bg-green-950/25 border border-green-200 dark:border-green-800 rounded-md p-2 flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <p className="text-xs text-green-800 dark:text-green-200 font-medium">Manager override active — discounts unlocked</p>
+                    </div>
+                  )}
+                  <div className="flex space-x-2">
+                    <div className="flex-1">
+                      <Input
+                        type="number"
+                        value={customDiscountAmount}
+                        onChange={(e) => setCustomDiscountAmount(e.target.value)}
+                        placeholder="Discount amount"
+                        className="font-quicksand"
+                      />
+                    </div>
+                    <select
+                      className="px-3 py-2 rounded-md border border-input bg-background font-quicksand"
+                      value={customDiscountType}
+                      onChange={(e) => setCustomDiscountType(e.target.value as 'percentage' | 'fixed')}
+                    >
+                      <option value="percentage">%</option>
+                      <option value="fixed">₹</option>
+                    </select>
+                    <Button 
+                      onClick={handleApplyDiscount}
+                      className="bg-cuephoria-purple hover:bg-cuephoria-purple/80"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
             
             {selectedCustomer && selectedCustomer.loyaltyPoints > 0 && (

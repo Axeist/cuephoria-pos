@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import {
   User, Lock, ShoppingCart, UtensilsCrossed,
   BarChart2, Shield, Loader2, Eye, EyeOff, Users, TrendingUp,
-  CreditCard, ClipboardList,
+  CreditCard, ClipboardList, ExternalLink,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 const CafeLogin: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading: authLoading } = useCafeAuth();
@@ -252,6 +253,12 @@ const CafeLogin: React.FC = () => {
                 </span>
               ))}
             </div>
+            <Link
+              to="/cafe/order"
+              className="inline-flex items-center gap-1.5 text-[11px] text-orange-400/80 hover:text-orange-300 transition-colors font-quicksand"
+            >
+              <UtensilsCrossed size={11} /> Customer Self-Order Menu <ExternalLink size={9} />
+            </Link>
             <div className="flex items-center justify-center gap-3 mt-1 opacity-50">
               <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-5 w-5 rounded object-contain bg-[#f5f0e0] p-0.5" />
               <span className="text-[10px] text-gray-600">&times;</span>

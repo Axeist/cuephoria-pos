@@ -4,10 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Gift, Tag, Clock, AlertCircle, User as UserIcon } from 'lucide-react';
+import { Search, Gift, Tag, Clock, AlertCircle, User as UserIcon, Lock, ShieldCheck } from 'lucide-react';
 import { usePOS, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
+
+const LATE_NIGHT_OVERRIDE_PIN = '2101';
+const isLateNight = () => new Date().getHours() < 6;
 
 interface StartSessionDialogProps {
   open: boolean;
@@ -39,6 +42,22 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedCoupon, setSelectedCoupon] = useState<string>('none');
   const [finalRate, setFinalRate] = useState(baseRate);
+  const [lateNightPinUnlocked, setLateNightPinUnlocked] = useState(false);
+  const [lateNightPinInput, setLateNightPinInput] = useState('');
+  const [lateNightPinError, setLateNightPinError] = useState(false);
+
+  const lateNightLocked = isLateNight() && !lateNightPinUnlocked;
+
+  const handleLateNightPin = () => {
+    if (lateNightPinInput === LATE_NIGHT_OVERRIDE_PIN) {
+      setLateNightPinUnlocked(true);
+      setLateNightPinError(false);
+      setLateNightPinInput('');
+    } else {
+      setLateNightPinError(true);
+      setTimeout(() => setLateNightPinError(false), 2000);
+    }
+  };
   
   // Helper to get rate label based on station type and category
   const getRateLabel = (): string => {
@@ -304,9 +323,44 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
               <Label className="text-base font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" />
                 Apply Coupon (Optional)
+                {lateNightLocked && <Lock className="h-3.5 w-3.5 text-amber-500 ml-1" />}
               </Label>
 
-              {couponWalkInMode !== "full" && (
+              {lateNightLocked && (
+                <div className="bg-amber-50 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-amber-900 dark:text-amber-100">
+                      <strong>After midnight:</strong> Coupons are locked. Enter the manager PIN to unlock.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={lateNightPinInput}
+                      onChange={e => { setLateNightPinInput(e.target.value.replace(/\D/g, '').slice(0, 4)); setLateNightPinError(false); }}
+                      onKeyDown={e => e.key === 'Enter' && handleLateNightPin()}
+                      placeholder="4-digit PIN"
+                      className={`flex-1 font-mono tracking-widest ${lateNightPinError ? 'border-red-500 ring-red-500/20' : ''}`}
+                    />
+                    <Button onClick={handleLateNightPin} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">
+                      <ShieldCheck className="h-4 w-4 mr-1" /> Unlock
+                    </Button>
+                  </div>
+                  {lateNightPinError && <p className="text-xs text-red-500 font-medium">Incorrect PIN</p>}
+                </div>
+              )}
+
+              {!lateNightLocked && lateNightPinUnlocked && isLateNight() && (
+                <div className="bg-green-50 dark:bg-green-950/25 border border-green-200 dark:border-green-800 rounded-md p-2 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <p className="text-xs text-green-800 dark:text-green-200 font-medium">Manager override active — coupons unlocked</p>
+                </div>
+              )}
+
+              {couponWalkInMode !== "full" && !lateNightLocked && (
                 <div className="bg-sky-50 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-800 rounded-md p-3 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-sky-600 dark:text-sky-400 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-sky-900 dark:text-sky-100">
@@ -350,7 +404,7 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                   }
                   setSelectedCoupon(v);
                 }}
-                disabled={couponWalkInMode === "none"}
+                disabled={couponWalkInMode === "none" || lateNightLocked}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="No coupon (regular price)" />
