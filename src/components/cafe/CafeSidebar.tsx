@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, Coffee, User, Bell } from 'lucide-react';
+import { Home, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, Coffee, User, Bell, Users } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -45,6 +45,7 @@ const CafeSidebar: React.FC = () => {
     { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin', 'cashier'], badge: 0 },
     { icon: ChefHat, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin', 'kitchen'], badge: pendingKotCount },
     { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', roles: ['cafe_admin'], badge: 0 },
+    { icon: Users, label: 'Customers', path: '/cafe/customers', roles: ['cafe_admin', 'cashier'], badge: 0 },
     { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin', 'cashier'], badge: activeOrderCount },
     { icon: BarChart2, label: 'Reports', path: '/cafe/reports', roles: ['cafe_admin'], badge: 0 },
   ].filter(item => item.roles.includes(user.role));

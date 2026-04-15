@@ -67,6 +67,7 @@ import CafeOrders from "./pages/cafe/CafeOrders";
 import CafeDashboard from "./pages/cafe/CafeDashboard";
 import CafeReports from "./pages/cafe/CafeReports";
 import CafeCustomerOrder from "./pages/cafe/CafeCustomerOrder";
+import CafeCustomers from "./pages/cafe/CafeCustomers";
 import { CafeAuthProvider, useCafeAuth } from "@/context/CafeAuthContext";
 import CafeSidebar from "@/components/cafe/CafeSidebar";
 
@@ -408,6 +409,7 @@ const App = () => {
                 <Route path="/cafe/menu" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeMenu /></CafeProtectedRoute>} />
                 <Route path="/cafe/orders" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier']}><CafeOrders /></CafeProtectedRoute>} />
                 <Route path="/cafe/reports" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeReports /></CafeProtectedRoute>} />
+                <Route path="/cafe/customers" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier']}><CafeCustomers /></CafeProtectedRoute>} />
 
                 <Route path="*" element={<NotFound />} />
             </Routes>
