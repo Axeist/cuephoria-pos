@@ -10,7 +10,7 @@ import type { CafeOrderStatus, CafeOrderItem, CafePaymentMethod } from '@/types/
 import {
   ClipboardList, Search, Clock, CheckCircle2, XCircle, Eye, Banknote,
   CreditCard, SplitSquareHorizontal, Download, Calendar, Printer, ChefHat,
-  ShoppingCart, Coffee, UtensilsCrossed, ArrowRight, AlertCircle
+  ShoppingCart, Coffee, UtensilsCrossed, ArrowRight, AlertCircle, Pencil, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -38,7 +38,7 @@ type DateFilter = 'today' | '7d' | '30d' | 'custom';
 
 const CafeOrders: React.FC = () => {
   const { user } = useCafeAuth();
-  const { orders, fetchOrderItems, updateOrderStatus, cancelOrder } = useCafeOrders(user?.locationId);
+  const { orders, fetchOrderItems, updateOrderStatus, cancelOrder, deleteOrder, updateOrderDetails } = useCafeOrders(user?.locationId);
   const [filter, setFilter] = useState<'active' | 'all' | 'pending_payment' | CafeOrderStatus>('all');
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
@@ -48,6 +48,10 @@ const CafeOrders: React.FC = () => {
   const [detailItems, setDetailItems] = useState<CafeOrderItem[]>([]);
   const [paymentDialog, setPaymentDialog] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<CafePaymentMethod>('cash');
+  const [editDialog, setEditDialog] = useState<string | null>(null);
+  const [editDiscount, setEditDiscount] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -122,6 +126,39 @@ const CafeOrders: React.FC = () => {
     }
     setPaymentDialog(null);
     toast.success(completeOrder ? 'Payment settled & order completed' : 'Payment settled');
+  };
+
+  const handleEditOrder = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    setEditDiscount(String(order.discount || 0));
+    setEditNotes(order.notes || '');
+    setEditDialog(orderId);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editDialog) return;
+    const ok = await updateOrderDetails(editDialog, {
+      discount: Number(editDiscount) || 0,
+      notes: editNotes,
+    });
+    if (ok) {
+      toast.success('Order updated');
+      setEditDialog(null);
+    } else {
+      toast.error('Failed to update');
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!deleteDialog) return;
+    const ok = await deleteOrder(deleteDialog);
+    if (ok) {
+      toast.success('Order deleted');
+      setDeleteDialog(null);
+    } else {
+      toast.error('Failed to delete order');
+    }
   };
 
   const handleExport = useCallback(() => {
@@ -281,14 +318,22 @@ const CafeOrders: React.FC = () => {
                         <span className="text-xs px-2 py-0.5 rounded-full bg-cuephoria-purple/20 text-cuephoria-lightpurple">Self-order</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={order.total} /></span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-orange-400 mr-1"><CurrencyDisplay amount={order.total} /></span>
+                      <button onClick={() => handleEditOrder(order.id)} className="p-1.5 rounded-md hover:bg-gray-700/50" title="Edit">
+                        <Pencil className="h-3.5 w-3.5 text-gray-500 hover:text-blue-400" />
+                      </button>
                       <button onClick={() => handlePrintOrder(order.id)} className="p-1.5 rounded-md hover:bg-gray-700/50" title="Print">
-                        <Printer className="h-4 w-4 text-gray-500" />
+                        <Printer className="h-3.5 w-3.5 text-gray-500" />
                       </button>
                       <button onClick={() => handleViewDetails(order.id)} className="p-1.5 rounded-md hover:bg-gray-700/50" title="Details">
-                        <Eye className="h-4 w-4 text-gray-400" />
+                        <Eye className="h-3.5 w-3.5 text-gray-400" />
                       </button>
+                      {['completed', 'cancelled'].includes(order.status) && (
+                        <button onClick={() => setDeleteDialog(order.id)} className="p-1.5 rounded-md hover:bg-red-500/20" title="Delete">
+                          <Trash2 className="h-3.5 w-3.5 text-gray-500 hover:text-red-400" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-xs text-gray-500 font-quicksand">
@@ -419,6 +464,79 @@ const CafeOrders: React.FC = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Order Dialog */}
+      <Dialog open={!!editDialog} onOpenChange={() => setEditDialog(null)}>
+        <DialogContent className="bg-gray-900 border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white font-heading flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-blue-400" /> Edit Order
+            </DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const eOrder = orders.find(o => o.id === editDialog);
+            if (!eOrder) return null;
+            return (
+              <div className="space-y-4">
+                <div className="p-3 rounded-lg bg-gray-800/50 border border-gray-700/30">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-white">#{eOrder.orderNumber}</span>
+                    <span className="text-sm text-orange-400 font-bold"><CurrencyDisplay amount={eOrder.subtotal} /></span>
+                  </div>
+                  {eOrder.customerName && <p className="text-xs text-gray-400 mt-1">{eOrder.customerName}</p>}
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 font-quicksand block mb-1">Discount Amount</label>
+                  <Input type="number" value={editDiscount} onChange={e => setEditDiscount(e.target.value)}
+                    className="bg-gray-800/50 border-gray-700 text-white" placeholder="0" min="0" />
+                  {Number(editDiscount) > 0 && (
+                    <p className="text-xs text-green-400 mt-1">New total: <CurrencyDisplay amount={Math.max(0, eOrder.subtotal - Number(editDiscount))} /></p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 font-quicksand block mb-1">Order Notes</label>
+                  <Input value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                    className="bg-gray-800/50 border-gray-700 text-white" placeholder="Add notes..." />
+                </div>
+                <Button onClick={handleSaveEdit} className="w-full h-10 text-sm text-white border-0"
+                  style={{ background: 'linear-gradient(135deg, #3B82F6, #2563EB)' }}>
+                  Save Changes
+                </Button>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>
+        <DialogContent className="bg-gray-900 border-gray-700 sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-white font-heading flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-400" /> Delete Order
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400 font-quicksand">
+              Are you sure you want to permanently delete this order? This cannot be undone.
+            </p>
+            {(() => {
+              const dOrder = orders.find(o => o.id === deleteDialog);
+              if (!dOrder) return null;
+              return (
+                <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                  <span className="text-sm font-bold text-white">#{dOrder.orderNumber}</span>
+                  <span className="text-sm text-red-400 font-bold ml-2"><CurrencyDisplay amount={dOrder.total} /></span>
+                </div>
+              );
+            })()}
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => setDeleteDialog(null)} variant="outline" className="border-gray-700 text-gray-400">Cancel</Button>
+              <Button onClick={handleDeleteOrder} className="bg-red-500 hover:bg-red-600 text-white border-0">Delete</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

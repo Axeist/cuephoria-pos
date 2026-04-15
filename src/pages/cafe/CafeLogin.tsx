@@ -24,14 +24,14 @@ const CafeLogin: React.FC = () => {
     if (isSubmitting || !username.trim() || !password) return;
     setIsSubmitting(true);
     try {
-      const success = await login(username.trim(), password);
-      if (success) {
+      const loggedInUser = await login(username.trim(), password);
+      if (loggedInUser) {
         const roleRedirects: Record<CafeUserRole, string> = {
           cafe_admin: '/cafe/dashboard',
           cashier: '/cafe/pos',
-          kitchen: '/cafe/kitchen',
+          kitchen: '/cafe/pos',
         };
-        navigate(roleRedirects[selectedRole] || '/cafe/pos');
+        navigate(roleRedirects[loggedInUser.role] || '/cafe/pos');
       }
     } finally {
       setIsSubmitting(false);

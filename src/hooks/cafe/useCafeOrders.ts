@@ -250,6 +250,65 @@ export function useCafeOrders(locationId?: string) {
     return updateOrderStatus(orderId, 'cancelled');
   }, [updateOrderStatus]);
 
+  const deleteOrder = useCallback(async (orderId: string) => {
+    try {
+      await supabase.from('cafe_order_items').delete().eq('order_id', orderId);
+      const { error } = await supabase.from('cafe_orders').delete().eq('id', orderId);
+      if (error) throw error;
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      return true;
+    } catch (err) {
+      console.error('Error deleting order:', err);
+      return false;
+    }
+  }, []);
+
+  const updateOrderDetails = useCallback(async (orderId: string, updates: { discount?: number; notes?: string; payment_method?: string; cash_amount?: number; upi_amount?: number }) => {
+    try {
+      const dbUpdates: Record<string, unknown> = {};
+      if (updates.discount !== undefined) dbUpdates.discount = updates.discount;
+      if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+      if (updates.payment_method) dbUpdates.payment_method = updates.payment_method;
+      if (updates.cash_amount !== undefined) dbUpdates.cash_amount = updates.cash_amount;
+      if (updates.upi_amount !== undefined) dbUpdates.upi_amount = updates.upi_amount;
+
+      if (updates.discount !== undefined) {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          const newTotal = Math.max(0, order.subtotal - updates.discount);
+          const partnerShare = Number(((newTotal * order.partnerRateSnapshot) / 100).toFixed(2));
+          const cuephoriaShare = Number((newTotal - partnerShare).toFixed(2));
+          dbUpdates.total = newTotal;
+          dbUpdates.partner_share = partnerShare;
+          dbUpdates.cuephoria_share = cuephoriaShare;
+        }
+      }
+
+      const { error } = await supabase.from('cafe_orders').update(dbUpdates).eq('id', orderId);
+      if (error) throw error;
+
+      setOrders(prev => prev.map(o => {
+        if (o.id !== orderId) return o;
+        const updated = { ...o };
+        if (updates.discount !== undefined) {
+          updated.discount = updates.discount;
+          updated.total = Math.max(0, o.subtotal - updates.discount);
+          updated.partnerShare = Number(((updated.total * o.partnerRateSnapshot) / 100).toFixed(2));
+          updated.cuephoriaShare = Number((updated.total - updated.partnerShare).toFixed(2));
+        }
+        if (updates.notes !== undefined) updated.notes = updates.notes;
+        if (updates.payment_method) updated.paymentMethod = updates.payment_method as any;
+        if (updates.cash_amount !== undefined) updated.cashAmount = updates.cash_amount;
+        if (updates.upi_amount !== undefined) updated.upiAmount = updates.upi_amount;
+        return updated;
+      }));
+      return true;
+    } catch (err) {
+      console.error('Error updating order:', err);
+      return false;
+    }
+  }, [orders]);
+
   // Active orders (not completed/cancelled)
   const activeOrders = orders.filter(o => !['completed', 'cancelled'].includes(o.status));
   const todayOrders = orders.filter(o => {
@@ -261,5 +320,6 @@ export function useCafeOrders(locationId?: string) {
   return {
     orders, activeOrders, todayOrders, loading,
     fetchOrders, fetchOrderItems, createOrder, updateOrderStatus, cancelOrder,
+    deleteOrder, updateOrderDetails,
   };
 }

@@ -4,14 +4,15 @@ import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { CafeKOT, KOTStatus } from '@/types/cafe.types';
-import { ChefHat, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, Bell, AlertTriangle } from 'lucide-react';
+import { ChefHat, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, Bell, AlertTriangle, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 
-const statusConfig: Record<string, { label: string; border: string; bg: string; next?: KOTStatus; nextLabel?: string; nextIcon?: React.ElementType }> = {
-  pending: { label: 'NEW', border: 'border-yellow-500', bg: 'bg-yellow-500/10', next: 'acknowledged', nextLabel: 'Start', nextIcon: ArrowRight },
-  acknowledged: { label: 'ACCEPTED', border: 'border-blue-500', bg: 'bg-blue-500/10', next: 'preparing', nextLabel: 'Cooking', nextIcon: ChefHat },
-  preparing: { label: 'COOKING', border: 'border-orange-500', bg: 'bg-orange-500/10', next: 'ready', nextLabel: 'Ready', nextIcon: CheckCircle2 },
-  ready: { label: 'READY', border: 'border-green-500', bg: 'bg-green-500/10', next: 'served', nextLabel: 'Served', nextIcon: CheckCircle2 },
+const statusConfig: Record<string, { label: string; border: string; bg: string; accent: string; next?: KOTStatus; nextLabel?: string; nextIcon?: React.ElementType }> = {
+  pending: { label: 'NEW', border: 'border-yellow-500', bg: 'bg-yellow-500/10', accent: 'yellow', next: 'acknowledged', nextLabel: 'Start', nextIcon: ArrowRight },
+  acknowledged: { label: 'ACCEPTED', border: 'border-blue-500', bg: 'bg-blue-500/10', accent: 'blue', next: 'preparing', nextLabel: 'Cooking', nextIcon: ChefHat },
+  preparing: { label: 'COOKING', border: 'border-orange-500', bg: 'bg-orange-500/10', accent: 'orange', next: 'ready', nextLabel: 'Ready', nextIcon: CheckCircle2 },
+  ready: { label: 'READY', border: 'border-green-500', bg: 'bg-green-500/10', accent: 'green', next: 'served', nextLabel: 'Served', nextIcon: CheckCircle2 },
+  served: { label: 'SERVED', border: 'border-emerald-600/40', bg: 'bg-emerald-900/10', accent: 'emerald' },
 };
 
 function getElapsedColor(minutes: number): string {
@@ -28,14 +29,34 @@ function getElapsedBgColor(minutes: number): string {
   return 'bg-red-400/10';
 }
 
-const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOTStatus) => void; now: number; onPrint: (kot: CafeKOT) => void }> = React.memo(({ kot, onUpdateStatus, now, onPrint }) => {
+const KOTCard: React.FC<{
+  kot: CafeKOT;
+  onUpdateStatus: (id: string, status: KOTStatus) => void;
+  now: number;
+  onPrint: (kot: CafeKOT) => void;
+  isServed?: boolean;
+}> = React.memo(({ kot, onUpdateStatus, now, onPrint, isServed }) => {
   const config = statusConfig[kot.status] || statusConfig.pending;
   const elapsed = Math.floor((now - new Date(kot.createdAt).getTime()) / 60000);
-  const elapsedColor = getElapsedColor(elapsed);
-  const elapsedBg = getElapsedBgColor(elapsed);
+  const elapsedColor = isServed ? 'text-emerald-600' : getElapsedColor(elapsed);
+  const elapsedBg = isServed ? 'bg-emerald-900/10' : getElapsedBgColor(elapsed);
+  const totalItems = kot.items.reduce((s, i) => s + i.qty, 0);
 
   return (
-    <div className={`rounded-xl border-2 ${config.border} ${config.bg} p-4 animate-scale-in transition-all duration-300 ${kot.status === 'pending' ? 'ring-2 ring-yellow-500/30' : ''}`}>
+    <div
+      className={`
+        rounded-xl border-2 ${config.border} p-4 transition-all duration-300
+        backdrop-blur-md bg-white/[0.03] shadow-lg
+        ${isServed ? 'opacity-60 border-emerald-700/30' : ''}
+        ${kot.status === 'pending' ? 'ring-2 ring-yellow-500/30' : ''}
+      `}
+      style={{
+        animation: 'kotSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
+        boxShadow: isServed
+          ? '0 2px 12px rgba(16, 185, 129, 0.06)'
+          : '0 4px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}
+    >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-white font-heading">{kot.kotNumber}</span>
@@ -46,7 +67,7 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => onPrint(kot)} className="h-6 w-6 rounded-md bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white transition-colors" title="Print KOT">
+          <button onClick={() => onPrint(kot)} className="h-6 w-6 rounded-md bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-600/50 transition-colors" title="Print KOT">
             <Printer className="h-3 w-3" />
           </button>
           <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${elapsedBg}`}>
@@ -56,7 +77,18 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
         </div>
       </div>
 
-      {elapsed > 15 && kot.status !== 'ready' && (
+      {/* Prominent item count */}
+      <div className={`flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-lg ${isServed ? 'bg-emerald-900/15' : 'bg-white/[0.04]'} border ${isServed ? 'border-emerald-800/20' : 'border-white/[0.06]'}`}>
+        <UtensilsCrossed className={`h-3.5 w-3.5 ${isServed ? 'text-emerald-500/60' : 'text-orange-400'}`} />
+        <span className={`text-sm font-quicksand font-bold ${isServed ? 'text-emerald-400/60' : 'text-white'}`}>
+          {totalItems} {totalItems === 1 ? 'item' : 'items'}
+        </span>
+        <span className="text-xs text-gray-500 font-quicksand ml-auto">
+          {new Date(kot.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+
+      {!isServed && elapsed > 15 && kot.status !== 'ready' && (
         <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md bg-red-500/10 border border-red-500/20">
           <AlertTriangle className="h-3 w-3 text-red-400" />
           <span className="text-xs text-red-400 font-quicksand font-medium">Delayed - {elapsed} minutes</span>
@@ -66,9 +98,9 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
       <div className="space-y-2 mb-4">
         {kot.items.map((item, i) => (
           <div key={i} className="flex items-start gap-2">
-            <span className="text-sm font-bold text-orange-400 min-w-[24px]">{item.qty}x</span>
+            <span className={`text-sm font-bold min-w-[24px] ${isServed ? 'text-emerald-500/50' : 'text-orange-400'}`}>{item.qty}x</span>
             <div className="flex-1">
-              <p className="text-sm sm:text-base font-medium text-white font-quicksand">{item.name}</p>
+              <p className={`text-sm sm:text-base font-medium font-quicksand ${isServed ? 'text-gray-400 line-through decoration-emerald-600/30' : 'text-white'}`}>{item.name}</p>
               {item.notes && (
                 <p className="text-xs text-yellow-400 italic mt-0.5">"{item.notes}"</p>
               )}
@@ -77,12 +109,7 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
         ))}
       </div>
 
-      <div className="text-xs text-gray-500 font-quicksand mb-2">
-        {new Date(kot.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-        {kot.items.length > 0 && ` · ${kot.items.reduce((s, i) => s + i.qty, 0)} items`}
-      </div>
-
-      {config.next && (
+      {config.next && !isServed && (
         <Button
           onClick={() => onUpdateStatus(kot.id, config.next!)}
           className="w-full h-12 text-sm sm:text-base font-quicksand font-semibold text-white border-0 transition-all hover:scale-[1.01] active:scale-[0.98]"
@@ -105,10 +132,12 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
 
 KOTCard.displayName = 'KOTCard';
 
+type TabKey = 'all' | 'pending' | 'cooking' | 'ready' | 'completed';
+
 const CafeKitchen: React.FC = () => {
   const { user } = useCafeAuth();
   const { kots, pendingKots, preparingKots, readyKots, connected, updateKOTStatus, loading } = useCafeKOT(user?.locationId);
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'cooking' | 'ready'>('all');
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -123,15 +152,19 @@ const CafeKitchen: React.FC = () => {
   }, []);
 
   const acknowledgedKots = useMemo(() => kots.filter(k => k.status === 'acknowledged'), [kots]);
+  const servedKots = useMemo(() => kots.filter(k => k.status === 'served'), [kots]);
+
+  const activeKots = useMemo(() => kots.filter(k => k.status !== 'served'), [kots]);
 
   const displayKots = useMemo(() => {
     switch (activeTab) {
       case 'pending': return [...pendingKots, ...acknowledgedKots];
       case 'cooking': return preparingKots;
       case 'ready': return readyKots;
-      default: return kots;
+      case 'completed': return servedKots;
+      default: return activeKots;
     }
-  }, [activeTab, kots, pendingKots, acknowledgedKots, preparingKots, readyKots]);
+  }, [activeTab, activeKots, pendingKots, acknowledgedKots, preparingKots, readyKots, servedKots]);
 
   const handleUpdateStatus = async (kotId: string, status: KOTStatus) => {
     const ok = await updateKOTStatus(kotId, status);
@@ -162,15 +195,37 @@ const CafeKitchen: React.FC = () => {
     return Math.round(active.reduce((s, k) => s + (now - new Date(k.createdAt).getTime()) / 60000, 0) / active.length);
   }, [kots, now]);
 
+  const tabs: { key: TabKey; label: string; count: number; highlight?: boolean }[] = [
+    { key: 'all', label: 'Active', count: activeKots.length },
+    { key: 'pending', label: 'New', count: pendingKots.length + acknowledgedKots.length, highlight: pendingKots.length > 0 },
+    { key: 'cooking', label: 'Cooking', count: preparingKots.length },
+    { key: 'ready', label: 'Ready', count: readyKots.length, highlight: readyKots.length > 0 },
+    { key: 'completed', label: 'Completed', count: servedKots.length },
+  ];
+
   return (
     <div className="flex-1 flex flex-col h-screen bg-cuephoria-darker">
-      <div className="flex items-center justify-between p-4 border-b border-gray-700/30 bg-[#1A1F2C]">
+      <style>{`
+        @keyframes kotSlideIn {
+          from { opacity: 0; transform: translateY(12px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
+
+      {/* Header with dark gradient */}
+      <div
+        className="flex items-center justify-between p-4 border-b border-white/[0.06]"
+        style={{ background: 'linear-gradient(135deg, #0f1219 0%, #1a1f2c 50%, #161b26 100%)' }}
+      >
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-cuephoria-purple flex items-center justify-center">
+          <div
+            className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #f97316, #9333ea)', boxShadow: '0 4px 15px rgba(249,115,22,0.25)' }}
+          >
             <ChefHat className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white font-heading">Kitchen Display</h1>
+            <h1 className="text-xl font-bold text-white font-heading tracking-tight">Kitchen Display</h1>
             <div className="flex items-center gap-2 mt-0.5">
               <div className={`flex items-center gap-1 text-xs font-quicksand ${connected ? 'text-green-400' : 'text-red-400 animate-pulse'}`}>
                 {connected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
@@ -186,20 +241,28 @@ const CafeKitchen: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex gap-1 bg-gray-800/50 rounded-lg p-1">
-            {([
-              { key: 'all' as const, label: `All (${kots.length})` },
-              { key: 'pending' as const, label: `New (${pendingKots.length + acknowledgedKots.length})`, highlight: pendingKots.length > 0 },
-              { key: 'cooking' as const, label: `Cooking (${preparingKots.length})` },
-              { key: 'ready' as const, label: `Ready (${readyKots.length})`, highlight: readyKots.length > 0 },
-            ]).map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`px-3 py-1.5 rounded-md text-xs font-quicksand transition-all relative ${
-                  activeTab === tab.key ? 'bg-orange-500/20 text-orange-400' : 'text-gray-500 hover:text-white'
-                }`}>
+          {/* Pill-shaped tabs */}
+          <div className="flex gap-1 bg-white/[0.04] backdrop-blur-sm rounded-full p-1 border border-white/[0.06]">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`
+                  px-3 py-1.5 rounded-full text-xs font-quicksand font-medium transition-all duration-200 relative whitespace-nowrap
+                  ${activeTab === tab.key
+                    ? tab.key === 'completed'
+                      ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
+                      : 'bg-orange-500/20 text-orange-400 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
+                  }
+                `}
+              >
                 {tab.label}
+                <span className={`ml-1 text-[10px] ${activeTab === tab.key ? 'opacity-80' : 'opacity-50'}`}>
+                  {tab.count}
+                </span>
                 {tab.highlight && activeTab !== tab.key && (
-                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 animate-pulse ring-2 ring-[#0f1219]" />
                 )}
               </button>
             ))}
@@ -217,18 +280,22 @@ const CafeKitchen: React.FC = () => {
       </div>
 
       {/* Summary bar */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/20 border-b border-gray-700/20">
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10">
+      <div className="flex items-center gap-3 px-4 py-2 bg-white/[0.02] border-b border-white/[0.04]">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/10">
           <Bell className="h-3 w-3 text-yellow-400" />
           <span className="text-xs sm:text-sm font-quicksand text-yellow-400 font-medium">{pendingKots.length} pending</span>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/10">
           <ChefHat className="h-3 w-3 text-orange-400" />
           <span className="text-xs sm:text-sm font-quicksand text-orange-400 font-medium">{preparingKots.length} cooking</span>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10">
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/10">
           <CheckCircle2 className="h-3 w-3 text-green-400" />
           <span className="text-xs sm:text-sm font-quicksand text-green-400 font-medium">{readyKots.length} ready</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/10">
+          <UtensilsCrossed className="h-3 w-3 text-emerald-400" />
+          <span className="text-xs sm:text-sm font-quicksand text-emerald-400 font-medium">{servedKots.length} served</span>
         </div>
       </div>
 
@@ -237,14 +304,30 @@ const CafeKitchen: React.FC = () => {
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <ChefHat className="h-16 w-16 mb-4 opacity-20" />
             <p className="text-lg font-quicksand">
-              {loading ? 'Loading...' : activeTab === 'all' ? 'No active orders' : `No ${activeTab} orders`}
+              {loading
+                ? 'Loading...'
+                : activeTab === 'completed'
+                  ? 'No completed orders yet'
+                  : activeTab === 'all'
+                    ? 'No active orders'
+                    : `No ${activeTab} orders`
+              }
             </p>
-            <p className="text-sm text-gray-600 font-quicksand mt-1">Orders will appear here in real-time</p>
+            <p className="text-sm text-gray-600 font-quicksand mt-1">
+              {activeTab === 'completed' ? 'Served orders will appear here' : 'Orders will appear here in real-time'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
             {displayKots.map(kot => (
-              <KOTCard key={kot.id} kot={kot} onUpdateStatus={handleUpdateStatus} now={now} onPrint={handlePrintKOT} />
+              <KOTCard
+                key={kot.id}
+                kot={kot}
+                onUpdateStatus={handleUpdateStatus}
+                now={now}
+                onPrint={handlePrintKOT}
+                isServed={kot.status === 'served'}
+              />
             ))}
           </div>
         )}

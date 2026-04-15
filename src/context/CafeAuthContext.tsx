@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 interface CafeAuthContextType {
   user: CafeSessionUser | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<CafeSessionUser | null>;
   logout: () => Promise<void>;
   hasRole: (...roles: CafeUserRole[]) => boolean;
 }
@@ -57,7 +57,7 @@ export const CafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => { cancelled = true; };
   }, []);
 
-  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string): Promise<CafeSessionUser | null> => {
     try {
       const res = await fetch('/api/cafe/login', {
         method: 'POST',
@@ -68,13 +68,13 @@ export const CafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const data = await res.json();
       if (data?.ok && data.success && data.user) {
         setUser(data.user);
-        return true;
+        return data.user;
       }
       toast.error(data?.error || 'Invalid credentials');
-      return false;
+      return null;
     } catch {
       toast.error('Login failed. Please try again.');
-      return false;
+      return null;
     }
   }, []);
 

@@ -67,6 +67,7 @@ import CafeOrders from "./pages/cafe/CafeOrders";
 import CafeDashboard from "./pages/cafe/CafeDashboard";
 import CafeReports from "./pages/cafe/CafeReports";
 import CafeCustomerOrder from "./pages/cafe/CafeCustomerOrder";
+const CafeStaff = React.lazy(() => import("./pages/cafe/CafeStaff"));
 import CafeCustomers from "./pages/cafe/CafeCustomers";
 import { CafeAuthProvider, useCafeAuth } from "@/context/CafeAuthContext";
 import CafeSidebar from "@/components/cafe/CafeSidebar";
@@ -404,12 +405,13 @@ const App = () => {
                 <Route path="/cafe/login" element={<CafeLogin />} />
                 <Route path="/cafe/order" element={<CafeCustomerOrder />} />
                 <Route path="/cafe/dashboard" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeDashboard /></CafeProtectedRoute>} />
-                <Route path="/cafe/pos" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier']}><CafePOS /></CafeProtectedRoute>} />
-                <Route path="/cafe/kitchen" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'kitchen']}><CafeKitchen /></CafeProtectedRoute>} />
+                <Route path="/cafe/pos" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen']}><CafePOS /></CafeProtectedRoute>} />
+                <Route path="/cafe/kitchen" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'kitchen', 'cashier']}><CafeKitchen /></CafeProtectedRoute>} />
                 <Route path="/cafe/menu" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeMenu /></CafeProtectedRoute>} />
-                <Route path="/cafe/orders" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier']}><CafeOrders /></CafeProtectedRoute>} />
+                <Route path="/cafe/orders" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen']}><CafeOrders /></CafeProtectedRoute>} />
                 <Route path="/cafe/reports" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeReports /></CafeProtectedRoute>} />
-                <Route path="/cafe/customers" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier']}><CafeCustomers /></CafeProtectedRoute>} />
+                <Route path="/cafe/customers" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen']}><CafeCustomers /></CafeProtectedRoute>} />
+                <Route path="/cafe/staff" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><React.Suspense fallback={<div />}><CafeStaff /></React.Suspense></CafeProtectedRoute>} />
 
                 <Route path="*" element={<NotFound />} />
             </Routes>
