@@ -239,9 +239,11 @@ const CafeMenu: React.FC = () => {
   };
 
   const handleSaveItem = async () => {
-    if (!itemForm.name.trim() || !itemForm.price || !itemForm.categoryId) return;
+    if (!itemForm.name.trim()) { toast.error('Enter an item name'); return; }
+    if (!itemForm.price || isNaN(parseFloat(itemForm.price)) || parseFloat(itemForm.price) <= 0) { toast.error('Enter a valid price'); return; }
+    if (!itemForm.categoryId) { toast.error('Select a category'); return; }
     const selectedCat = categories.find(c => c.id === itemForm.categoryId);
-    const base = {
+    const base: Record<string, unknown> = {
       name: itemForm.name.trim(),
       price: parseFloat(itemForm.price),
       costPrice: itemForm.costPrice ? parseFloat(itemForm.costPrice) : undefined,
@@ -250,28 +252,31 @@ const CafeMenu: React.FC = () => {
       isVeg: itemForm.isVeg,
       prepTimeMinutes: itemForm.prepTime ? parseInt(itemForm.prepTime) : undefined,
     };
-    if (itemEditId) {
-      const upd = { ...base };
-      if (selectedCat?.tracksInventory) {
-        upd.stockQuantity = itemForm.initialStock.trim() === ''
-          ? 0
-          : Math.max(0, parseInt(itemForm.initialStock, 10) || 0);
+    try {
+      if (itemEditId) {
+        if (selectedCat?.tracksInventory) {
+          base.stockQuantity = itemForm.initialStock.trim() === ''
+            ? 0
+            : Math.max(0, parseInt(itemForm.initialStock, 10) || 0);
+        }
+        const ok = await updateItem(itemEditId, base as any);
+        if (ok) toast.success('Item updated');
+        else toast.error('Could not update item — check console for details');
+      } else {
+        if (selectedCat?.tracksInventory) {
+          base.stockQuantity = itemForm.initialStock.trim() === ''
+            ? 0
+            : Math.max(0, parseInt(itemForm.initialStock, 10) || 0);
+        }
+        const item = await addItem(base as any);
+        if (item) toast.success('Item added');
+        else toast.error('Could not add item — check console for details');
       }
-      const ok = await updateItem(itemEditId, upd);
-      if (ok) toast.success('Item updated');
-    } else {
-      const extra = selectedCat?.tracksInventory
-        ? {
-            stockQuantity: itemForm.initialStock.trim() === ''
-              ? 0
-              : Math.max(0, parseInt(itemForm.initialStock, 10) || 0),
-          }
-        : {};
-      const item = await addItem({ ...base, ...extra });
-      if (item) toast.success('Item added');
+      setItemDialog(false); setItemEditId(null);
+      setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '' });
+    } catch (err: any) {
+      toast.error(err?.message || 'Unexpected error saving item');
     }
-    setItemDialog(false); setItemEditId(null);
-    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '' });
   };
 
   const handleConfirmStockAdjust = async () => {

@@ -151,15 +151,22 @@ export function useCafeMenu(locationId?: string) {
     stockQuantity?: number;
   }) => {
     if (!locationId) return null;
-    const { data, error } = await supabase.from('cafe_menu_items').insert({
+    const payload: Record<string, unknown> = {
       category_id: item.categoryId, location_id: locationId, name: item.name,
       price: item.price, cost_price: item.costPrice || null,
       description: item.description || null, image_url: item.imageUrl || null,
       is_veg: item.isVeg ?? true, prep_time_minutes: item.prepTimeMinutes || null,
       sort_order: items.filter(i => i.categoryId === item.categoryId).length,
-      stock_quantity: Math.max(0, Math.floor(item.stockQuantity ?? 0)),
-    }).select().single();
-    if (error) { console.error(error); return null; }
+    };
+    if (item.stockQuantity !== undefined && item.stockQuantity > 0) {
+      payload.stock_quantity = Math.max(0, Math.floor(item.stockQuantity));
+    }
+    let { data, error } = await supabase.from('cafe_menu_items').insert(payload).select().single();
+    if (error && error.message?.toLowerCase().includes('stock_quantity')) {
+      delete payload.stock_quantity;
+      ({ data, error } = await supabase.from('cafe_menu_items').insert(payload).select().single());
+    }
+    if (error) { console.error('addItem error:', error); return null; }
     const menuItem = transformMenuItemRow(data as unknown as CafeMenuItemRow);
     setItems(prev => [...prev, menuItem]);
     return menuItem;

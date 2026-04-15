@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,8 +50,8 @@ function NavLink({
           to={item.href}
           onClick={onNavigate}
           className={cn(
-            "group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-200",
-            expanded ? "px-3" : "justify-center px-0",
+            "group relative flex items-center gap-2.5 rounded-lg py-1.5 text-[13px] font-medium transition-all duration-200",
+            expanded ? "px-2.5" : "justify-center px-0",
             active
               ? "bg-gradient-to-r from-orange-500/[0.18] via-orange-500/[0.08] to-transparent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-white/[0.1]"
               : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
@@ -59,13 +59,13 @@ function NavLink({
         >
           <span
             className={cn(
-              "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+              "relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
               active
                 ? "bg-orange-500/25 text-orange-200 shadow-inner"
-                : "bg-white/[0.04] text-zinc-500 group-hover:bg-white/[0.07] group-hover:text-zinc-300"
+                : "text-zinc-500 group-hover:text-zinc-300"
             )}
           >
-            <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <Icon className="h-4 w-4" strokeWidth={1.75} />
             {badge > 0 && !expanded && (
               <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-zinc-950" />
             )}
@@ -84,7 +84,7 @@ function NavLink({
             </span>
           )}
           {active && expanded && (
-            <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b from-orange-400 to-amber-500 shadow-[0_0_12px_rgba(251,146,60,0.45)]" />
+            <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-orange-400 to-amber-500 shadow-[0_0_12px_rgba(251,146,60,0.45)]" />
           )}
         </Link>
       </TooltipTrigger>
@@ -103,7 +103,7 @@ export function CafeSidebar() {
   const { user, logout } = useCafeAuth();
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [expanded, setExpanded] = useState(() => {
+  const [pinned, setPinned] = useState(() => {
     try {
       const v = localStorage.getItem("cafe-sidebar-expanded");
       return v !== "false";
@@ -111,17 +111,31 @@ export function CafeSidebar() {
       return true;
     }
   });
+  const [hovered, setHovered] = useState(false);
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const expanded = pinned || hovered;
 
   const { activeOrders } = useCafeOrders(user?.locationId);
   const orderBadge = activeOrders.length;
 
   useEffect(() => {
     try {
-      localStorage.setItem("cafe-sidebar-expanded", String(expanded));
+      localStorage.setItem("cafe-sidebar-expanded", String(pinned));
     } catch {
       /* ignore */
     }
-  }, [expanded]);
+  }, [pinned]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    if (!pinned) setHovered(true);
+  }, [pinned]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    hoverTimeout.current = setTimeout(() => setHovered(false), 200);
+  }, []);
 
   const navItems: NavItem[] = useMemo(() => {
     if (!user) return [];
@@ -165,58 +179,56 @@ export function CafeSidebar() {
       <div className="flex h-full min-h-0 flex-col">
         <div
           className={cn(
-            "flex shrink-0 items-center border-b border-white/[0.06] px-3 py-4",
+            "flex shrink-0 items-center border-b border-white/[0.06] px-3 py-3",
             !expanded && !opts.mobile && "justify-center px-2"
           )}
         >
           <div
             className={cn(
-              "flex min-w-0 items-center gap-2.5",
+              "flex min-w-0 items-center gap-2",
               !expanded && !opts.mobile && "justify-center"
             )}
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f5f0e0] p-0.5 shadow-lg shadow-orange-500/15 ring-1 ring-white/10">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f5f0e0] p-0.5 shadow-md shadow-orange-500/15 ring-1 ring-white/10">
               <img
                 src="/choco-loca-logo.png"
                 alt=""
-                className="h-full w-full rounded-lg object-contain"
+                className="h-full w-full rounded-md object-contain"
               />
             </div>
             {(expanded || opts.mobile) && (
               <>
-                <span className="text-zinc-600 text-xs flex-shrink-0">×</span>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 p-0.5 shadow-lg shadow-purple-500/15 ring-1 ring-white/10">
+                <span className="text-zinc-600 text-[10px] flex-shrink-0">×</span>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-800 to-zinc-900 p-0.5 shadow-md shadow-purple-500/15 ring-1 ring-white/10">
                   <img
                     src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
                     alt=""
-                    className="h-full w-full rounded-lg object-contain"
+                    className="h-full w-full rounded-md object-contain"
                   />
+                </div>
+                <div className="min-w-0 ml-1">
+                  <p className="font-heading text-sm font-bold leading-tight text-transparent bg-gradient-to-r from-orange-400 to-[hsl(270_60%_65%)] bg-clip-text">
+                    Choco Loca
+                  </p>
+                  <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+                    Cakes & Cafe × Cuephoria
+                  </p>
                 </div>
               </>
             )}
           </div>
         </div>
-        {(expanded || opts.mobile) && (
-          <div className="border-b border-white/[0.06] px-4 pb-4">
-            <p className="font-heading text-xl font-bold leading-tight text-transparent bg-gradient-to-r from-orange-400 to-[hsl(270_60%_65%)] bg-clip-text">
-              Choco Loca
-            </p>
-            <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
-              Cakes & Cafe × Cuephoria
-            </p>
-          </div>
-        )}
 
-        <ScrollArea className="min-h-0 flex-1 px-2 py-4">
+        <ScrollArea className="min-h-0 flex-1 px-2 py-2.5">
           <p
             className={cn(
-              "mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600",
+              "mb-1.5 px-2.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-zinc-600",
               !expanded && !opts.mobile && "sr-only"
             )}
           >
             Navigate
           </p>
-          <nav className="flex flex-col gap-1">
+          <nav className="flex flex-col gap-0.5">
             {navItems.map((item) => (
               <NavLink
                 key={item.href}
@@ -229,34 +241,35 @@ export function CafeSidebar() {
           </nav>
         </ScrollArea>
 
-        <div className="shrink-0 space-y-3 border-t border-white/[0.06] p-3">
+        <div className="shrink-0 space-y-1.5 border-t border-white/[0.06] p-2.5">
           <div
             className={cn(
-              "rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3 backdrop-blur-sm",
-              !expanded && !opts.mobile && "px-2 py-3"
+              "rounded-xl border border-white/[0.06] bg-white/[0.03] p-2 backdrop-blur-sm",
+              !expanded && !opts.mobile && "px-1.5 py-2"
             )}
           >
             <div
               className={cn(
-                "flex items-center gap-3",
+                "flex items-center gap-2",
                 !expanded && !opts.mobile && "justify-center"
               )}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-zinc-700 to-zinc-900 text-sm font-semibold text-white ring-1 ring-white/10">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-700 to-zinc-900 text-xs font-semibold text-white ring-1 ring-white/10">
                 {user.displayName?.charAt(0).toUpperCase() ?? "?"}
               </div>
               {(expanded || opts.mobile) && (
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-zinc-100">{user.displayName}</p>
-                  <p className="truncate text-[11px] capitalize text-zinc-500">{roleLabel}</p>
+                  <p className="truncate text-xs font-semibold text-zinc-100">{user.displayName}</p>
+                  <p className="truncate text-[10px] capitalize text-zinc-500">{roleLabel}</p>
                 </div>
               )}
             </div>
           </div>
           <Button
             variant="ghost"
+            size="sm"
             className={cn(
-              "w-full justify-start gap-2 rounded-xl text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200",
+              "w-full justify-start gap-2 rounded-lg text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200 h-8 text-xs",
               !expanded && !opts.mobile && "justify-center px-0"
             )}
             onClick={() => {
@@ -264,7 +277,7 @@ export function CafeSidebar() {
               logout();
             }}
           >
-            <LogOut className="h-4 w-4 shrink-0" />
+            <LogOut className="h-3.5 w-3.5 shrink-0" />
             {(expanded || opts.mobile) && <span>Sign out</span>}
           </Button>
         </div>
@@ -296,20 +309,22 @@ export function CafeSidebar() {
 
   return (
     <aside
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={cn(
-        "relative z-20 hidden h-screen shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950/98 shadow-[4px_0_32px_-12px_rgba(0,0,0,0.6)] backdrop-blur-2xl transition-[width] duration-300 ease-out lg:flex",
-        expanded ? "w-[272px]" : "w-[76px]"
+        "relative z-20 hidden h-screen shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950/98 shadow-[4px_0_32px_-12px_rgba(0,0,0,0.6)] backdrop-blur-2xl transition-[width] duration-200 ease-out lg:flex",
+        expanded ? "w-[240px]" : "w-[60px]"
       )}
     >
-      <div className="absolute -right-3 top-20 z-10">
+      <div className="absolute -right-3 top-16 z-10">
         <Button
           size="icon"
           variant="secondary"
-          className="h-7 w-7 rounded-full border border-white/10 bg-zinc-900/95 shadow-lg backdrop-blur-sm hover:bg-zinc-800"
-          onClick={() => setExpanded(!expanded)}
-          aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+          className="h-6 w-6 rounded-full border border-white/10 bg-zinc-900/95 shadow-lg backdrop-blur-sm hover:bg-zinc-800"
+          onClick={() => setPinned(!pinned)}
+          aria-label={pinned ? "Unpin sidebar" : "Pin sidebar"}
         >
-          {expanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          {pinned ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         </Button>
       </div>
       {sidebarInner({})}
