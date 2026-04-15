@@ -64,6 +64,7 @@ import CafeLogin from "./pages/cafe/CafeLogin";
 import CafePOS from "./pages/cafe/CafePOS";
 import CafeMenu from "./pages/cafe/CafeMenu";
 import CafeOrders from "./pages/cafe/CafeOrders";
+import CafeKitchen from "./pages/cafe/CafeKitchen";
 import CafeDashboard from "./pages/cafe/CafeDashboard";
 import CafeReports from "./pages/cafe/CafeReports";
 import CafeCustomerOrder from "./pages/cafe/CafeCustomerOrder";
@@ -414,7 +415,7 @@ const App = () => {
                 <Route path="/cafe/dashboard" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeDashboard /></CafeProtectedRoute>} />
                 <Route path="/cafe/workspace" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><Navigate to="/cafe/pos" replace /></CafeProtectedRoute>} />
                 <Route path="/cafe/pos" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafePOS /></CafeProtectedRoute>} />
-                <Route path="/cafe/kitchen" element={<Navigate to="/cafe/pos" replace />} />
+                <Route path="/cafe/kitchen" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeKitchen /></CafeProtectedRoute>} />
                 <Route path="/cafe/menu" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeMenu /></CafeProtectedRoute>} />
                 <Route path="/cafe/orders" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeOrders /></CafeProtectedRoute>} />
                 <Route path="/cafe/reports" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeReports /></CafeProtectedRoute>} />
