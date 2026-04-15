@@ -1,0 +1,24 @@
+category,name,price,cost_price,description,is_veg,prep_time_minutes
+Starters,Masala Fries,149,60,Crispy fries with masala seasoning,true,10
+Starters,Paneer Tikka,199,80,Tandoori paneer cubes with mint chutney,true,15
+Starters,Chicken Wings,249,100,Spicy buffalo wings with ranch dip,false,12
+Starters,Spring Rolls,129,50,Crispy veg spring rolls,true,10
+Starters,Fish Fingers,229,90,Crispy battered fish fingers,false,12
+Main Course,Veg Biryani,229,90,Aromatic vegetable biryani with raita,true,20
+Main Course,Chicken Biryani,279,110,Hyderabadi style chicken biryani,false,25
+Main Course,Paneer Butter Masala,249,95,Rich creamy paneer curry with naan,true,18
+Main Course,Butter Chicken,289,120,Classic butter chicken with naan,false,20
+Main Course,Veg Fried Rice,179,65,Indo-Chinese style fried rice,true,12
+Beverages,Cold Coffee,129,40,Iced coffee with cream,true,5
+Beverages,Mango Shake,149,50,Fresh mango milkshake,true,5
+Beverages,Masala Chai,49,15,Indian spiced tea,true,5
+Beverages,Fresh Lime Soda,79,20,Refreshing lime soda sweet/salt,true,3
+Beverages,Oreo Shake,169,55,Oreo cookies milkshake,true,5
+Beverages,Blue Lagoon,129,35,Blue curacao mocktail,true,5
+Snacks,Veg Sandwich,99,35,Grilled vegetable sandwich,true,8
+Snacks,Chicken Sandwich,129,50,Grilled chicken club sandwich,false,10
+Snacks,French Fries,99,30,Classic salted french fries,true,8
+Snacks,Loaded Nachos,179,65,Nachos with cheese and salsa,true,10
+Desserts,Brownie with Ice Cream,179,60,Warm chocolate brownie with vanilla,true,8
+Desserts,Gulab Jamun,99,30,Warm gulab jamun (2 pcs),true,5
+Desserts,Ice Cream Sundae,149,45,Vanilla sundae with hot fudge,true,5

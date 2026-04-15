@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,18 +8,32 @@ import { useCafeMenu } from '@/hooks/cafe/useCafeMenu';
 import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafePartner } from '@/hooks/cafe/useCafePartner';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee } from 'lucide-react';
+import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee, Upload, Download, Loader2, Search, EyeOff, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
 
 const CafeMenu: React.FC = () => {
   const { user } = useCafeAuth();
-  const { categories, items, addCategory, updateCategory, deleteCategory, addItem, updateItem, deleteItem } = useCafeMenu(user?.locationId);
+  const { categories, items, addCategory, updateCategory, deleteCategory, addItem, updateItem, deleteItem, refresh } = useCafeMenu(user?.locationId);
   const { tables, zones, tablesByZone, addTable, updateTable, deleteTable } = useCafeTables(user?.locationId);
   const { partner } = useCafePartner(user?.locationId);
   const [activeTab, setActiveTab] = useState<'menu' | 'tables'>('menu');
+  const [menuSearch, setMenuSearch] = useState('');
+  const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
+
+  const menuStats = useMemo(() => ({
+    total: items.length,
+    available: items.filter(i => i.isAvailable).length,
+    unavailable: items.filter(i => !i.isAvailable).length,
+    veg: items.filter(i => i.isVeg).length,
+    nonVeg: items.filter(i => !i.isVeg).length,
+    categories: categories.length,
+    occupiedTables: tables.filter(t => t.isOccupied).length,
+    totalTables: tables.length,
+  }), [items, categories, tables]);
 
   // Category dialog
   const [catDialog, setCatDialog] = useState(false);
@@ -35,6 +49,141 @@ const CafeMenu: React.FC = () => {
   const [tableDialog, setTableDialog] = useState(false);
   const [tableEditId, setTableEditId] = useState<string | null>(null);
   const [tableForm, setTableForm] = useState({ tableName: '', zone: 'indoor', capacity: '4' });
+
+  // CSV upload
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const [csvUploading, setCsvUploading] = useState(false);
+
+  const downloadSampleCSV = () => {
+    const header = 'category,name,price,cost_price,description,is_veg,prep_time_minutes';
+    const rows = [
+      'Starters,Masala Fries,149,60,Crispy fries with masala seasoning,true,10',
+      'Starters,Paneer Tikka,199,80,Tandoori paneer cubes,true,15',
+      'Starters,Chicken Wings,249,100,Spicy buffalo wings,false,12',
+      'Main Course,Veg Biryani,229,90,Aromatic vegetable biryani,true,20',
+      'Main Course,Chicken Biryani,279,110,Hyderabadi style biryani,false,25',
+      'Beverages,Cold Coffee,129,40,Iced coffee with cream,true,5',
+      'Beverages,Mango Shake,149,50,Fresh mango milkshake,true,5',
+      'Beverages,Masala Chai,49,15,Indian spiced tea,true,5',
+      'Desserts,Brownie,149,50,Warm chocolate brownie,true,8',
+      'Desserts,Ice Cream Sundae,179,60,Vanilla with hot fudge,true,5',
+    ];
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'cafe_menu_sample.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !partner || !user) return;
+    setCsvUploading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) { toast.error('CSV must have a header row and at least one data row'); return; }
+
+      const header = lines[0].toLowerCase();
+      if (!header.includes('category') || !header.includes('name') || !header.includes('price')) {
+        toast.error('CSV must have columns: category, name, price'); return;
+      }
+
+      const cols = lines[0].split(',').map(c => c.trim().toLowerCase().replace(/\s+/g, '_'));
+      const catIdx = cols.indexOf('category');
+      const nameIdx = cols.indexOf('name');
+      const priceIdx = cols.indexOf('price');
+      const costIdx = cols.indexOf('cost_price');
+      const descIdx = cols.indexOf('description');
+      const vegIdx = cols.indexOf('is_veg');
+      const prepIdx = cols.indexOf('prep_time_minutes');
+
+      // Collect unique categories and auto-create missing ones
+      const categoryMap = new Map<string, string>();
+      categories.forEach(c => categoryMap.set(c.name.toLowerCase(), c.id));
+
+      const dataRows = lines.slice(1);
+      const newCategoryNames = new Set<string>();
+      for (const line of dataRows) {
+        const vals = parseCSVLine(line);
+        const catName = vals[catIdx]?.trim();
+        if (catName && !categoryMap.has(catName.toLowerCase())) {
+          newCategoryNames.add(catName);
+        }
+      }
+
+      // Create missing categories
+      for (const catNameStr of newCategoryNames) {
+        const cat = await addCategory(catNameStr, partner.id);
+        if (cat) categoryMap.set(catNameStr.toLowerCase(), cat.id);
+      }
+
+      // Insert items
+      let successCount = 0;
+      let errorCount = 0;
+      const itemRows: Array<Record<string, unknown>> = [];
+
+      for (const line of dataRows) {
+        const vals = parseCSVLine(line);
+        const catName = vals[catIdx]?.trim();
+        const itemName = vals[nameIdx]?.trim();
+        const priceStr = vals[priceIdx]?.trim();
+        if (!catName || !itemName || !priceStr) { errorCount++; continue; }
+
+        const categoryId = categoryMap.get(catName.toLowerCase());
+        if (!categoryId) { errorCount++; continue; }
+
+        const price = parseFloat(priceStr);
+        if (isNaN(price) || price <= 0) { errorCount++; continue; }
+
+        itemRows.push({
+          category_id: categoryId,
+          location_id: user.locationId,
+          name: itemName,
+          price,
+          cost_price: costIdx >= 0 && vals[costIdx]?.trim() ? parseFloat(vals[costIdx].trim()) || null : null,
+          description: descIdx >= 0 ? vals[descIdx]?.trim() || null : null,
+          is_veg: vegIdx >= 0 ? vals[vegIdx]?.trim().toLowerCase() !== 'false' : true,
+          prep_time_minutes: prepIdx >= 0 && vals[prepIdx]?.trim() ? parseInt(vals[prepIdx].trim()) || null : null,
+          sort_order: 0,
+        });
+      }
+
+      if (itemRows.length > 0) {
+        // Batch insert in chunks of 50
+        for (let i = 0; i < itemRows.length; i += 50) {
+          const chunk = itemRows.slice(i, i + 50);
+          const { error } = await supabase.from('cafe_menu_items').insert(chunk);
+          if (error) { console.error(error); errorCount += chunk.length; }
+          else { successCount += chunk.length; }
+        }
+      }
+
+      await refresh();
+      toast.success(`Uploaded ${successCount} items${errorCount > 0 ? `, ${errorCount} skipped` : ''}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to process CSV');
+    } finally {
+      setCsvUploading(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
+
+  // Parse a CSV line respecting quoted fields
+  function parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === ',' && !inQuotes) { result.push(current); current = ''; continue; }
+      current += ch;
+    }
+    result.push(current);
+    return result;
+  }
 
   const handleSaveCategory = async () => {
     if (!catName.trim() || !partner) return;
@@ -132,27 +281,84 @@ const CafeMenu: React.FC = () => {
 
           {/* Items */}
           <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up" style={{ animationDelay: '100ms' }}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-heading text-white">Menu Items</CardTitle>
-              <Button size="sm" onClick={() => {
-                setItemDialog(true); setItemEditId(null);
-                setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: categories[0]?.id || '', isVeg: true, prepTime: '' });
-              }} className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0" disabled={categories.length === 0}>
-                <Plus className="h-4 w-4 mr-1" /> Add Item
-              </Button>
+            <CardHeader className="space-y-3">
+              <div className="flex flex-row items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-base font-heading text-white">Menu Items</CardTitle>
+                  <span className="text-xs font-quicksand text-gray-500">
+                    {menuStats.available}/{menuStats.total} available
+                    {' · '}{menuStats.veg} veg · {menuStats.nonVeg} non-veg
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={downloadSampleCSV} variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
+                    <Download className="h-3.5 w-3.5 mr-1" /> Sample CSV
+                  </Button>
+                  <Button size="sm" onClick={() => csvInputRef.current?.click()} disabled={csvUploading}
+                    variant="outline" className="border-gray-700 text-gray-400 hover:text-white text-xs">
+                    {csvUploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+                    Upload CSV
+                  </Button>
+                  <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+                  <Button size="sm" onClick={() => {
+                    setItemDialog(true); setItemEditId(null);
+                    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: categories[0]?.id || '', isVeg: true, prepTime: '' });
+                  }} className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0" disabled={categories.length === 0}>
+                    <Plus className="h-4 w-4 mr-1" /> Add Item
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+                  <Input value={menuSearch} onChange={e => setMenuSearch(e.target.value)}
+                    placeholder="Search menu items..." className="h-8 pl-8 text-xs bg-gray-800/50 border-gray-700/50 text-white font-quicksand" />
+                  {menuSearch && (
+                    <button onClick={() => setMenuSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <X className="h-3 w-3 text-gray-500" />
+                    </button>
+                  )}
+                </div>
+                <button onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-quicksand transition-all ${
+                    showOnlyAvailable ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-800/50 text-gray-400 border border-gray-700/30'
+                  }`}>
+                  {showOnlyAvailable ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                  {showOnlyAvailable ? 'Available only' : 'Show all'}
+                </button>
+              </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[calc(100vh-28rem)]">
+              <ScrollArea className="h-[calc(100vh-30rem)]">
                 <div className="space-y-2">
                   {categories.map(cat => {
-                    const catItems = items.filter(i => i.categoryId === cat.id);
+                    let catItems = items.filter(i => i.categoryId === cat.id);
+                    if (showOnlyAvailable) catItems = catItems.filter(i => i.isAvailable);
+                    if (menuSearch) {
+                      const q = menuSearch.toLowerCase();
+                      catItems = catItems.filter(i => i.name.toLowerCase().includes(q) || i.description?.toLowerCase().includes(q));
+                    }
                     if (catItems.length === 0) return null;
                     return (
                       <div key={cat.id}>
-                        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2 font-quicksand">{cat.name}</p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs text-gray-500 uppercase tracking-wider font-quicksand">{cat.name} ({catItems.length})</p>
+                          <button onClick={async () => {
+                            const allAvailable = catItems.every(i => i.isAvailable);
+                            for (const item of catItems) {
+                              await updateItem(item.id, { isAvailable: !allAvailable });
+                            }
+                            toast.success(`${cat.name}: all items ${allAvailable ? 'hidden' : 'shown'}`);
+                          }} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-orange-400 transition-colors font-quicksand" title="Toggle all availability">
+                            {catItems.every(i => i.isAvailable) ? <ToggleRight className="h-3 w-3" /> : <ToggleLeft className="h-3 w-3" />}
+                            Toggle all
+                          </button>
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
                           {catItems.map(item => (
-                            <div key={item.id} className="p-3 bg-gray-800/40 rounded-lg border border-gray-700/30 group hover:border-orange-500/30 transition-all">
+                            <div key={item.id} className={`p-3 rounded-lg border group hover:border-orange-500/30 transition-all ${
+                              item.isAvailable ? 'bg-gray-800/40 border-gray-700/30' : 'bg-gray-800/20 border-red-500/20 opacity-60'
+                            }`}>
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
                                   <p className="text-sm font-medium text-white font-quicksand flex items-center gap-1">
@@ -173,11 +379,16 @@ const CafeMenu: React.FC = () => {
                                 </div>
                               </div>
                               <div className="flex items-center justify-between mt-2">
-                                <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={item.price} /></span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={item.price} /></span>
+                                  {item.costPrice && (
+                                    <span className="text-[10px] text-gray-600">cost: <CurrencyDisplay amount={item.costPrice} /></span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-2">
                                   {item.prepTimeMinutes && <span className="text-[10px] text-gray-500">{item.prepTimeMinutes}min</span>}
                                   <button onClick={() => updateItem(item.id, { isAvailable: !item.isAvailable })}
-                                    className={`text-[10px] px-2 py-0.5 rounded-full ${item.isAvailable ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${item.isAvailable ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                                     {item.isAvailable ? 'Available' : 'Unavailable'}
                                   </button>
                                 </div>
@@ -188,6 +399,13 @@ const CafeMenu: React.FC = () => {
                       </div>
                     );
                   })}
+                  {items.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                      <UtensilsCrossed className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                      <p className="font-quicksand text-sm">No menu items yet</p>
+                      <p className="font-quicksand text-xs text-gray-600 mt-1">Add items manually or upload a CSV file</p>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             </CardContent>

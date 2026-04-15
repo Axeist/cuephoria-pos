@@ -492,78 +492,52 @@ ALTER TABLE public.cafe_order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cafe_kot ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cafe_settlements ENABLE ROW LEVEL SECURITY;
 
--- Public read for menu (customer self-order page)
-DROP POLICY IF EXISTS cafe_menu_categories_public_read ON public.cafe_menu_categories;
-CREATE POLICY cafe_menu_categories_public_read ON public.cafe_menu_categories
-  FOR SELECT TO anon, authenticated USING (is_active = true);
-
-DROP POLICY IF EXISTS cafe_menu_items_public_read ON public.cafe_menu_items;
-CREATE POLICY cafe_menu_items_public_read ON public.cafe_menu_items
-  FOR SELECT TO anon, authenticated USING (is_available = true);
-
--- Public read on tables (customer sees availability)
-DROP POLICY IF EXISTS cafe_tables_public_read ON public.cafe_tables;
-CREATE POLICY cafe_tables_public_read ON public.cafe_tables
-  FOR SELECT TO anon, authenticated USING (is_active = true);
-
--- Public read on orders (customer tracks own order by id)
-DROP POLICY IF EXISTS cafe_orders_public_read ON public.cafe_orders;
-CREATE POLICY cafe_orders_public_read ON public.cafe_orders
-  FOR SELECT TO anon, authenticated USING (true);
-
-DROP POLICY IF EXISTS cafe_order_items_public_read ON public.cafe_order_items;
-CREATE POLICY cafe_order_items_public_read ON public.cafe_order_items
-  FOR SELECT TO anon, authenticated USING (true);
-
--- Authenticated full access (service role handles cafe staff ops)
+-- Anon + authenticated full access on all cafe tables
+-- (Cafe module uses custom cookie auth, not Supabase Auth, so browser queries run as anon)
+DROP POLICY IF EXISTS cafe_partners_anon_all ON public.cafe_partners;
+CREATE POLICY cafe_partners_anon_all ON public.cafe_partners FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_partners_auth_all ON public.cafe_partners;
-CREATE POLICY cafe_partners_auth_all ON public.cafe_partners
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_partners_auth_all ON public.cafe_partners FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS cafe_users_anon_read ON public.cafe_users;
-CREATE POLICY cafe_users_anon_read ON public.cafe_users
-  FOR SELECT TO anon USING (true);
-
+DROP POLICY IF EXISTS cafe_users_anon_all ON public.cafe_users;
+CREATE POLICY cafe_users_anon_all ON public.cafe_users FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_users_auth_all ON public.cafe_users;
-CREATE POLICY cafe_users_auth_all ON public.cafe_users
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_users_auth_all ON public.cafe_users FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_menu_categories_anon_all ON public.cafe_menu_categories;
+CREATE POLICY cafe_menu_categories_anon_all ON public.cafe_menu_categories FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_menu_categories_auth_all ON public.cafe_menu_categories;
-CREATE POLICY cafe_menu_categories_auth_all ON public.cafe_menu_categories
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_menu_categories_auth_all ON public.cafe_menu_categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_menu_items_anon_all ON public.cafe_menu_items;
+CREATE POLICY cafe_menu_items_anon_all ON public.cafe_menu_items FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_menu_items_auth_all ON public.cafe_menu_items;
-CREATE POLICY cafe_menu_items_auth_all ON public.cafe_menu_items
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_menu_items_auth_all ON public.cafe_menu_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_tables_anon_all ON public.cafe_tables;
+CREATE POLICY cafe_tables_anon_all ON public.cafe_tables FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_tables_auth_all ON public.cafe_tables;
-CREATE POLICY cafe_tables_auth_all ON public.cafe_tables
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_tables_auth_all ON public.cafe_tables FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_orders_anon_all ON public.cafe_orders;
+CREATE POLICY cafe_orders_anon_all ON public.cafe_orders FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_orders_auth_all ON public.cafe_orders;
-CREATE POLICY cafe_orders_auth_all ON public.cafe_orders
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_orders_auth_all ON public.cafe_orders FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_order_items_anon_all ON public.cafe_order_items;
+CREATE POLICY cafe_order_items_anon_all ON public.cafe_order_items FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_order_items_auth_all ON public.cafe_order_items;
-CREATE POLICY cafe_order_items_auth_all ON public.cafe_order_items
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_order_items_auth_all ON public.cafe_order_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_kot_anon_all ON public.cafe_kot;
+CREATE POLICY cafe_kot_anon_all ON public.cafe_kot FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_kot_auth_all ON public.cafe_kot;
-CREATE POLICY cafe_kot_auth_all ON public.cafe_kot
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY cafe_kot_auth_all ON public.cafe_kot FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_settlements_anon_all ON public.cafe_settlements;
+CREATE POLICY cafe_settlements_anon_all ON public.cafe_settlements FOR ALL TO anon USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS cafe_settlements_auth_all ON public.cafe_settlements;
-CREATE POLICY cafe_settlements_auth_all ON public.cafe_settlements
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
--- Anon insert for customer self-orders
-DROP POLICY IF EXISTS cafe_orders_anon_insert ON public.cafe_orders;
-CREATE POLICY cafe_orders_anon_insert ON public.cafe_orders
-  FOR INSERT TO anon WITH CHECK (order_source = 'customer');
-
-DROP POLICY IF EXISTS cafe_order_items_anon_insert ON public.cafe_order_items;
-CREATE POLICY cafe_order_items_anon_insert ON public.cafe_order_items
-  FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY cafe_settlements_auth_all ON public.cafe_settlements FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
 -- 16) Enable Realtime on key cafe tables (safe if publication exists)

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCafeAuth } from '@/context/CafeAuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Coffee, User, Lock, ChefHat, ShoppingCart, UtensilsCrossed, BarChart2, Shield, Loader2 } from 'lucide-react';
+import { Coffee, User, Lock, ChefHat, ShoppingCart, UtensilsCrossed, BarChart2, Shield, Loader2, Eye, EyeOff } from 'lucide-react';
 import type { CafeUserRole } from '@/types/cafe.types';
 
 const CafeLogin: React.FC = () => {
@@ -11,6 +11,7 @@ const CafeLogin: React.FC = () => {
   const { login, isLoading: authLoading } = useCafeAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedRole, setSelectedRole] = useState<CafeUserRole>('cashier');
 
@@ -162,13 +163,21 @@ const CafeLogin: React.FC = () => {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                 <Input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
-                  className="pl-10 h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-600 focus:border-orange-500/50 focus:ring-orange-500/20 font-quicksand"
+                  className="pl-10 pr-10 h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-gray-600 focus:border-orange-500/50 focus:ring-orange-500/20 font-quicksand"
                   autoComplete="current-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 

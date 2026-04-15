@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, Coffee, User } from 'lucide-react';
+import { Home, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, Coffee, User, Bell } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -16,6 +16,8 @@ import {
   useSidebar
 } from '@/components/ui/sidebar';
 import { useCafeAuth } from '@/context/CafeAuthContext';
+import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
+import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -26,6 +28,8 @@ const CafeSidebar: React.FC = () => {
   const isMobile = useIsMobile();
   const { toggleSidebar } = useSidebar();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { activeOrders } = useCafeOrders(user?.locationId);
+  const { pendingKots } = useCafeKOT(user?.locationId);
 
   if (!user) return null;
 
@@ -33,14 +37,16 @@ const CafeSidebar: React.FC = () => {
   const isKitchen = user.role === 'kitchen';
 
   const roleLabel = isCafeAdmin ? 'Cafe Admin' : isKitchen ? 'Kitchen' : 'Cashier';
+  const activeOrderCount = activeOrders.length;
+  const pendingKotCount = pendingKots.length;
 
   const menuItems = [
-    { icon: Home, label: 'Dashboard', path: '/cafe/dashboard', roles: ['cafe_admin'] },
-    { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin', 'cashier'] },
-    { icon: ChefHat, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin', 'kitchen'] },
-    { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', roles: ['cafe_admin'] },
-    { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin', 'cashier'] },
-    { icon: BarChart2, label: 'Reports', path: '/cafe/reports', roles: ['cafe_admin'] },
+    { icon: Home, label: 'Dashboard', path: '/cafe/dashboard', roles: ['cafe_admin'], badge: 0 },
+    { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin', 'cashier'], badge: 0 },
+    { icon: ChefHat, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin', 'kitchen'], badge: pendingKotCount },
+    { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', roles: ['cafe_admin'], badge: 0 },
+    { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin', 'cashier'], badge: activeOrderCount },
+    { icon: BarChart2, label: 'Reports', path: '/cafe/reports', roles: ['cafe_admin'], badge: 0 },
   ].filter(item => item.roles.includes(user.role));
 
   if (isMobile) {
@@ -79,7 +85,12 @@ const CafeSidebar: React.FC = () => {
                           }`}
                         >
                           <item.icon className={`mr-3 h-5 w-5 ${location.pathname === item.path ? 'text-orange-400 animate-pulse-soft' : ''}`} />
-                          <span className="font-quicksand text-base">{item.label}</span>
+                          <span className="font-quicksand text-base flex-1">{item.label}</span>
+                          {item.badge > 0 && (
+                            <span className="ml-auto h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold">
+                              {item.badge}
+                            </span>
+                          )}
                         </Link>
                       ))}
                     </div>
@@ -135,9 +146,14 @@ const CafeSidebar: React.FC = () => {
               {menuItems.map((item, index) => (
                 <SidebarMenuItem key={item.path} className={`animate-fade-in delay-${index * 100} text-base`}>
                   <SidebarMenuButton asChild isActive={location.pathname === item.path}>
-                    <Link to={item.path} className="flex items-center menu-item py-2.5">
+                    <Link to={item.path} className="flex items-center menu-item py-2.5 relative">
                       <item.icon className={`mr-3 h-6 w-6 ${location.pathname === item.path ? 'text-orange-400 animate-pulse-soft' : ''}`} />
-                      <span className="font-quicksand">{item.label}</span>
+                      <span className="font-quicksand flex-1">{item.label}</span>
+                      {item.badge > 0 && (
+                        <span className="ml-auto h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold animate-pulse-soft">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
