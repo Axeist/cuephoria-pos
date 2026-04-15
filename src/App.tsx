@@ -167,12 +167,12 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
   if (isLoading) {
     return (
       <>
-        <div className="min-h-screen bg-cuephoria-darker" aria-hidden />
+        <div className="cafe-ambient min-h-screen" aria-hidden />
         <AppLoadingOverlay
           visible
           variant="cafe"
           title="Restoring your session"
-          subtitle="Checking secure credentials…"
+          subtitle="Checking secure credentials and syncing your workspace…"
         />
       </>
     );
@@ -190,7 +190,7 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
 
   return (
     <SidebarProvider>
-      <div className="cafe-shell cafe-page-bg flex min-h-screen w-full overflow-x-hidden bg-cuephoria-darker">
+      <div className="cafe-shell cafe-ambient flex min-h-screen w-full overflow-x-hidden">
         <CafeSidebar />
         <div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
           <div className={`flex-1 ${isMobile ? 'pb-4' : ''}`}>

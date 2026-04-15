@@ -1,274 +1,320 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, User, Users, UserPlus } from 'lucide-react';
-import { useCafeAuth } from '@/context/CafeAuthContext';
-import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useState, useEffect, useMemo } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  LayoutDashboard,
+  UtensilsCrossed,
+  Users,
+  ClipboardList,
+  BarChart3,
+  UserCog,
+  Menu,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  ShoppingCart,
+} from "lucide-react";
+import { useCafeAuth } from "@/context/CafeAuthContext";
+import { useCafeOrders } from "@/hooks/cafe/useCafeOrders";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { LucideIcon } from "lucide-react";
 
-const CafeSidebar: React.FC = () => {
+type NavItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: number;
+};
+
+function NavLink({
+  item,
+  active,
+  expanded,
+  onNavigate,
+}: {
+  item: NavItem;
+  active: boolean;
+  expanded: boolean;
+  onNavigate?: () => void;
+}) {
+  const Icon = item.icon;
+  const badge = item.badge ?? 0;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to={item.href}
+          onClick={onNavigate}
+          className={cn(
+            "group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-200",
+            expanded ? "px-3" : "justify-center px-0",
+            active
+              ? "bg-gradient-to-r from-orange-500/[0.18] via-orange-500/[0.08] to-transparent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-white/[0.1]"
+              : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
+          )}
+        >
+          <span
+            className={cn(
+              "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+              active
+                ? "bg-orange-500/25 text-orange-200 shadow-inner"
+                : "bg-white/[0.04] text-zinc-500 group-hover:bg-white/[0.07] group-hover:text-zinc-300"
+            )}
+          >
+            <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            {badge > 0 && !expanded && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-zinc-950" />
+            )}
+          </span>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate transition-[opacity,width] duration-200",
+              expanded ? "opacity-100" : "w-0 overflow-hidden opacity-0"
+            )}
+          >
+            {item.label}
+          </span>
+          {badge > 0 && expanded && (
+            <span className="mr-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white">
+              {badge > 99 ? "99+" : badge}
+            </span>
+          )}
+          {active && expanded && (
+            <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b from-orange-400 to-amber-500 shadow-[0_0_12px_rgba(251,146,60,0.45)]" />
+          )}
+        </Link>
+      </TooltipTrigger>
+      {!expanded && (
+        <TooltipContent side="right" className="border-white/10 bg-zinc-900/95 font-quicksand text-xs">
+          {item.label}
+          {badge > 0 ? ` (${badge} active)` : ""}
+        </TooltipContent>
+      )}
+    </Tooltip>
+  );
+}
+
+export function CafeSidebar() {
   const location = useLocation();
   const { user, logout } = useCafeAuth();
   const isMobile = useIsMobile();
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [expanded, setExpanded] = useState(() => {
+    try {
+      const v = localStorage.getItem("cafe-sidebar-expanded");
+      return v !== "false";
+    } catch {
+      return true;
+    }
+  });
+
   const { activeOrders } = useCafeOrders(user?.locationId);
+  const orderBadge = activeOrders.length;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("cafe-sidebar-expanded", String(expanded));
+    } catch {
+      /* ignore */
+    }
+  }, [expanded]);
+
+  const navItems: NavItem[] = useMemo(() => {
+    if (!user) return [];
+    const isAdmin = user.role === "cafe_admin";
+    if (isAdmin) {
+      return [
+        { label: "Dashboard", href: "/cafe/dashboard", icon: LayoutDashboard },
+        { label: "POS", href: "/cafe/pos", icon: ShoppingCart },
+        { label: "Menu & Tables", href: "/cafe/menu", icon: UtensilsCrossed },
+        { label: "Customers", href: "/cafe/customers", icon: Users },
+        { label: "Orders", href: "/cafe/orders", icon: ClipboardList, badge: orderBadge },
+        { label: "Reports", href: "/cafe/reports", icon: BarChart3 },
+        { label: "Staff", href: "/cafe/staff", icon: UserCog },
+      ];
+    }
+    return [
+      { label: "POS", href: "/cafe/pos", icon: ShoppingCart },
+      { label: "Menu & Tables", href: "/cafe/menu", icon: UtensilsCrossed },
+      { label: "Customers", href: "/cafe/customers", icon: Users },
+      { label: "Orders", href: "/cafe/orders", icon: ClipboardList, badge: orderBadge },
+    ];
+  }, [user, orderBadge]);
 
   if (!user) return null;
 
-  const isCafeAdmin = user.role === 'cafe_admin';
-  const isUnifiedStaff = user.role === 'cashier' || user.role === 'kitchen' || user.role === 'staff';
-  const roleLabel = isCafeAdmin ? 'Cafe Admin' : 'Staff';
-  const activeOrderCount = activeOrders.length;
+  const closeMobile = () => setMobileOpen(false);
 
-  const adminMenuItems = [
-    { icon: Home, label: 'Dashboard', path: '/cafe/dashboard', roles: ['cafe_admin'], badge: 0 },
-    { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin'], badge: 0 },
-    { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', roles: ['cafe_admin'], badge: 0 },
-    { icon: Users, label: 'Customers', path: '/cafe/customers', roles: ['cafe_admin'], badge: 0 },
-    { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin'], badge: activeOrderCount },
-    { icon: BarChart2, label: 'Reports', path: '/cafe/reports', roles: ['cafe_admin'], badge: 0 },
-    { icon: UserPlus, label: 'Staff', path: '/cafe/staff', roles: ['cafe_admin'], badge: 0 },
-  ];
+  const roleLabel =
+    user.role === "cafe_admin"
+      ? "Cafe admin"
+      : user.role === "staff"
+        ? "Staff"
+        : user.role === "cashier"
+          ? "Cashier"
+          : user.role === "kitchen"
+            ? "Kitchen"
+            : user.role;
 
-  /** Same operational sections as admin (no dashboard / reports / staff management). */
-  const staffMenuItems = [
-    { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', badge: 0 },
-    { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', badge: 0 },
-    { icon: Users, label: 'Customers', path: '/cafe/customers', badge: 0 },
-    { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', badge: activeOrderCount },
-  ];
+  const sidebarInner = (opts: { mobile?: boolean }) => (
+    <TooltipProvider delayDuration={0}>
+      <div className="flex h-full min-h-0 flex-col">
+        <div
+          className={cn(
+            "flex shrink-0 items-center border-b border-white/[0.06] px-3 py-4",
+            !expanded && !opts.mobile && "justify-center px-2"
+          )}
+        >
+          <div
+            className={cn(
+              "flex min-w-0 items-center gap-2.5",
+              !expanded && !opts.mobile && "justify-center"
+            )}
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f5f0e0] p-0.5 shadow-lg shadow-orange-500/15 ring-1 ring-white/10">
+              <img
+                src="/choco-loca-logo.png"
+                alt=""
+                className="h-full w-full rounded-lg object-contain"
+              />
+            </div>
+            {(expanded || opts.mobile) && (
+              <>
+                <span className="text-zinc-600 text-xs flex-shrink-0">×</span>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 p-0.5 shadow-lg shadow-purple-500/15 ring-1 ring-white/10">
+                  <img
+                    src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
+                    alt=""
+                    className="h-full w-full rounded-lg object-contain"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        {(expanded || opts.mobile) && (
+          <div className="border-b border-white/[0.06] px-4 pb-4">
+            <p className="font-heading text-xl font-bold leading-tight text-transparent bg-gradient-to-r from-orange-400 to-[hsl(270_60%_65%)] bg-clip-text">
+              Choco Loca
+            </p>
+            <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
+              Cakes & Cafe × Cuephoria
+            </p>
+          </div>
+        )}
 
-  const menuItems = isUnifiedStaff
-    ? staffMenuItems
-    : adminMenuItems.filter(item => item.roles.includes(user.role));
+        <ScrollArea className="min-h-0 flex-1 px-2 py-4">
+          <p
+            className={cn(
+              "mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600",
+              !expanded && !opts.mobile && "sr-only"
+            )}
+          >
+            Navigate
+          </p>
+          <nav className="flex flex-col gap-1">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={location.pathname === item.href}
+                expanded={opts.mobile ? true : expanded}
+                onNavigate={opts.mobile ? closeMobile : undefined}
+              />
+            ))}
+          </nav>
+        </ScrollArea>
+
+        <div className="shrink-0 space-y-3 border-t border-white/[0.06] p-3">
+          <div
+            className={cn(
+              "rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3 backdrop-blur-sm",
+              !expanded && !opts.mobile && "px-2 py-3"
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center gap-3",
+                !expanded && !opts.mobile && "justify-center"
+              )}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-zinc-700 to-zinc-900 text-sm font-semibold text-white ring-1 ring-white/10">
+                {user.displayName?.charAt(0).toUpperCase() ?? "?"}
+              </div>
+              {(expanded || opts.mobile) && (
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-zinc-100">{user.displayName}</p>
+                  <p className="truncate text-[11px] capitalize text-zinc-500">{roleLabel}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start gap-2 rounded-xl text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200",
+              !expanded && !opts.mobile && "justify-center px-0"
+            )}
+            onClick={() => {
+              closeMobile();
+              logout();
+            }}
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            {(expanded || opts.mobile) && <span>Sign out</span>}
+          </Button>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
 
   if (isMobile) {
     return (
       <>
-        <div className="fixed top-0 left-0 w-full z-30 bg-[#1A1F2C] p-3 sm:p-4 flex justify-between items-center shadow-md">
-          <div className="flex items-center gap-2">
-            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white h-10 w-10">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[85%] sm:w-[80%] max-w-[280px] bg-[#1A1F2C] border-r-0">
-                <div className="h-full flex flex-col">
-                  <div className="p-3 sm:p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-9 w-9 rounded-lg bg-[#f5f0e0] flex items-center justify-center shadow-md p-0.5 flex-shrink-0">
-                        <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-md" />
-                      </div>
-                      <span className="text-xs text-gray-600">&times;</span>
-                      <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-md p-0.5 flex-shrink-0">
-                        <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-full w-full object-contain rounded-md" />
-                      </div>
-                      <div className="flex flex-col ml-1">
-                        <span className="text-xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight">
-                          Choco Loca
-                        </span>
-                        <span className="text-xs text-gray-500 font-quicksand">&times; Cuephoria</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mx-4 h-px bg-orange-500/30" />
-                  <div className="flex-1 overflow-auto py-2">
-                    <div className="px-2">
-                      {menuItems.map((item) => (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          onClick={() => setSheetOpen(false)}
-                          className={`flex items-center py-3 px-3 rounded-md my-1 ${
-                            location.pathname === item.path
-                              ? 'bg-cuephoria-dark text-orange-400'
-                              : 'text-white hover:bg-cuephoria-dark/50'
-                          }`}
-                        >
-                          <item.icon className={`mr-3 h-5 w-5 ${location.pathname === item.path ? 'text-orange-400 animate-pulse-soft' : ''}`} />
-                          <span className="font-quicksand text-base flex-1">{item.label}</span>
-                          {item.badge > 0 && (
-                            <span className="ml-auto h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold">
-                              {item.badge}
-                            </span>
-                          )}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="group bg-cuephoria-dark rounded-lg p-4 shadow-lg border border-orange-500/20 hover:border-orange-500/60 hover:shadow-[0_0_20px_rgba(249,115,22,0.3)] transition-all duration-300 ease-in-out">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <User className="h-6 w-6 text-orange-400" />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium font-quicksand text-white">{user.displayName}</span>
-                            <span className="text-xs text-orange-400 font-quicksand">{roleLabel}</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => { setSheetOpen(false); logout(); }}
-                          className="p-2 rounded-md bg-cuephoria-darker hover:bg-red-500 transition-all duration-300"
-                          title="Logout"
-                        >
-                          <PowerOff className="h-4 w-4 text-white" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-md bg-[#f5f0e0] flex items-center justify-center p-0.5">
-                <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-sm" />
-              </div>
-              <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading">
-                Choco Loca
-              </span>
-            </div>
-          </div>
+        <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-white/[0.08] bg-zinc-950/90 px-4 backdrop-blur-xl lg:hidden">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-zinc-300 hover:bg-white/10">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[280px] border-white/10 bg-zinc-950/98 p-0 backdrop-blur-2xl">
+              {sidebarInner({ mobile: true })}
+            </SheetContent>
+          </Sheet>
+          <span className="font-display text-base font-semibold text-white">Choco Loca</span>
+          <div className="w-10" />
         </div>
-        <div className="pt-[64px] sm:pt-16"></div>
+        <div className="h-14 shrink-0 lg:hidden" aria-hidden />
       </>
     );
   }
 
   return (
-    <div
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
-      className={`${
-        expanded ? 'w-[250px]' : 'w-[60px]'
-      } transition-all duration-300 ease-in-out bg-[#1A1F2C] text-white h-screen sticky top-0 flex-shrink-0 overflow-hidden flex flex-col z-20`}
+    <aside
+      className={cn(
+        "relative z-20 hidden h-screen shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950/98 shadow-[4px_0_32px_-12px_rgba(0,0,0,0.6)] backdrop-blur-2xl transition-[width] duration-300 ease-out lg:flex",
+        expanded ? "w-[272px]" : "w-[76px]"
+      )}
     >
-      {/* Header: logo row clips naturally at 60px, brand text fades in/out */}
-      <div className="px-[10px] pt-3 pb-2">
-        <div className="flex items-center gap-2.5">
-          <div className="h-10 w-10 rounded-xl bg-[#f5f0e0] flex items-center justify-center shadow-lg shadow-orange-500/20 p-0.5 flex-shrink-0">
-            <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-lg" />
-          </div>
-          <span className="text-gray-600 text-xs flex-shrink-0">&times;</span>
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-lg shadow-purple-500/15 p-0.5 flex-shrink-0">
-            <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-full w-full object-contain rounded-lg" />
-          </div>
-        </div>
-        <div
-          className={`overflow-hidden transition-all duration-300 ${
-            expanded ? 'max-h-16 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
-          }`}
+      <div className="absolute -right-3 top-20 z-10">
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 rounded-full border border-white/10 bg-zinc-900/95 shadow-lg backdrop-blur-sm hover:bg-zinc-800"
+          onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
         >
-          <span className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight whitespace-nowrap block">
-            Choco Loca
-          </span>
-          <span className="text-xs text-gray-500 font-quicksand whitespace-nowrap block">
-            Cakes and Cafe &times; Cuephoria
-          </span>
-        </div>
+          {expanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </Button>
       </div>
-
-      <div className="mx-3 h-px bg-orange-500/30 flex-shrink-0" />
-
-      {/* Menu: icon container is 44px = exactly fills the collapsed 60px minus 8px padding each side */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2">
-        {menuItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              title={item.label}
-              className={`flex items-center py-2.5 rounded-md my-0.5 whitespace-nowrap ${
-                isActive
-                  ? 'bg-cuephoria-dark text-orange-400'
-                  : 'text-white hover:bg-cuephoria-dark/50'
-              } transition-colors duration-200`}
-            >
-              <div className="w-[44px] flex items-center justify-center flex-shrink-0 relative">
-                <item.icon
-                  className={`h-5 w-5 ${isActive ? 'text-orange-400 animate-pulse-soft' : ''}`}
-                />
-                {item.badge > 0 && (
-                  <span
-                    className={`absolute -top-1 right-1 h-2.5 w-2.5 rounded-full bg-orange-500 animate-pulse-soft transition-opacity duration-300 ${
-                      expanded ? 'opacity-0' : 'opacity-100'
-                    }`}
-                  />
-                )}
-              </div>
-              <span
-                className={`font-quicksand text-sm transition-opacity duration-300 ${
-                  expanded ? 'opacity-100' : 'opacity-0'
-                }`}
-              >
-                {item.label}
-              </span>
-              {item.badge > 0 && (
-                <span
-                  className={`ml-auto mr-2 h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center font-bold animate-pulse-soft transition-opacity duration-300 ${
-                    expanded ? 'opacity-100' : 'opacity-0'
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Footer: cross-fade between collapsed avatar and expanded user card */}
-      <div className="flex-shrink-0 p-2">
-        <div
-          className={`overflow-hidden transition-all duration-300 ${
-            expanded ? 'max-h-0 opacity-0' : 'max-h-24 opacity-100'
-          }`}
-        >
-          <div className="flex flex-col items-center gap-1.5 py-1">
-            <div className="h-8 w-8 rounded-full bg-cuephoria-dark flex items-center justify-center border border-orange-500/30">
-              <User className="h-4 w-4 text-orange-400" />
-            </div>
-            <button
-              onClick={logout}
-              className="p-1.5 rounded-md hover:bg-red-500/80 transition-colors"
-              title="Logout"
-            >
-              <PowerOff className="h-3.5 w-3.5 text-gray-400" />
-            </button>
-          </div>
-        </div>
-        <div
-          className={`overflow-hidden transition-all duration-300 ${
-            expanded ? 'max-h-24 opacity-100' : 'max-h-0 opacity-0'
-          }`}
-        >
-          <div className="group bg-cuephoria-dark rounded-lg p-3 shadow-lg border border-orange-500/20 hover:border-orange-500/60 hover:shadow-[0_0_20px_rgba(249,115,22,0.3)] transition-all duration-300 ease-in-out">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 overflow-hidden">
-                <User className="h-5 w-5 text-orange-400 flex-shrink-0" />
-                <div className="flex flex-col overflow-hidden">
-                  <span className="text-sm font-medium font-quicksand text-white truncate">
-                    {user.displayName}
-                  </span>
-                  <span className="text-xs text-orange-400 font-quicksand">{roleLabel}</span>
-                </div>
-              </div>
-              <button
-                onClick={logout}
-                className="p-2 rounded-md bg-cuephoria-darker hover:bg-red-500 transition-all duration-300 group-hover:shadow-lg flex-shrink-0"
-                title="Logout"
-              >
-                <PowerOff className="h-4 w-4 text-white" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      {sidebarInner({})}
+    </aside>
   );
-};
+}
 
 export default CafeSidebar;

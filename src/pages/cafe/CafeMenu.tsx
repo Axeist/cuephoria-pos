@@ -18,6 +18,7 @@ import { CAFE_STOCK_ADMIN_PIN } from '@/constants/cafeInventory';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 
 const CafeMenu: React.FC = () => {
   const { user } = useCafeAuth();
@@ -317,23 +318,40 @@ const CafeMenu: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading animate-slide-down">Menu & Tables</h1>
-        <div className="flex gap-1 bg-gray-800/50 rounded-lg p-1">
-          <button onClick={() => setActiveTab('menu')} className={`px-4 py-2 rounded-md text-sm font-quicksand ${activeTab === 'menu' ? 'bg-orange-500/20 text-orange-400' : 'text-gray-400'}`}>
-            <UtensilsCrossed className="h-4 w-4 inline mr-1" /> Menu
+    <CafePageShell
+      eyebrow="Catalog"
+      title="Menu & Tables"
+      description="Manage categories, pricing, stock-aware categories, and dining zones."
+      action={
+        <div className="cafe-segment flex flex-wrap">
+          <button
+            type="button"
+            data-active={activeTab === 'menu'}
+            onClick={() => setActiveTab('menu')}
+            className={`rounded-lg px-4 py-2 text-sm font-quicksand transition-all ${
+              activeTab === 'menu' ? 'cafe-segment-active' : 'text-zinc-500 hover:text-white'
+            }`}
+          >
+            <UtensilsCrossed className="mr-1 inline h-4 w-4" /> Menu
           </button>
-          <button onClick={() => setActiveTab('tables')} className={`px-4 py-2 rounded-md text-sm font-quicksand ${activeTab === 'tables' ? 'bg-orange-500/20 text-orange-400' : 'text-gray-400'}`}>
-            <MapPin className="h-4 w-4 inline mr-1" /> Tables
+          <button
+            type="button"
+            data-active={activeTab === 'tables'}
+            onClick={() => setActiveTab('tables')}
+            className={`rounded-lg px-4 py-2 text-sm font-quicksand transition-all ${
+              activeTab === 'tables' ? 'cafe-segment-active' : 'text-zinc-500 hover:text-white'
+            }`}
+          >
+            <MapPin className="mr-1 inline h-4 w-4" /> Tables
           </button>
         </div>
-      </div>
-
+      }
+      contentClassName="space-y-4"
+    >
       {activeTab === 'menu' ? (
         <div className="space-y-4">
           {/* Categories */}
-          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+          <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base font-heading text-white">Categories</CardTitle>
               <Button size="sm" onClick={() => { setCatDialog(true); setCatEditId(null); setCatName(''); setCatTracksInventory(false); }}
@@ -362,7 +380,7 @@ const CafeMenu: React.FC = () => {
           </Card>
 
           {/* Items */}
-          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up" style={{ animationDelay: '100ms' }}>
+          <Card className="cafe-glass-card border-white/[0.06] animate-slide-up" style={{ animationDelay: '100ms' }}>
             <CardHeader className="space-y-3">
               <div className="flex flex-row items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
@@ -527,7 +545,7 @@ const CafeMenu: React.FC = () => {
         </div>
       ) : (
         /* Tables Tab */
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+        <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base font-heading text-white">Tables & Zones</CardTitle>
             <Button size="sm" onClick={() => { setTableDialog(true); setTableEditId(null); setTableForm({ tableName: '', zone: zones[0] || 'indoor', capacity: '4' }); }}
@@ -710,7 +728,7 @@ const CafeMenu: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </CafePageShell>
   );
 };
 

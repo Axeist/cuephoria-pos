@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/20 text-yellow-400',
@@ -205,13 +206,17 @@ const CafeOrders: React.FC = () => {
   const detailStatusIndex = detailOrder ? statusTimeline.findIndex(s => s.key === detailOrder.status) : -1;
 
   return (
-    <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-4 overflow-x-hidden">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading animate-slide-down">Orders</h1>
-        <Button size="sm" onClick={handleExport} className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
+    <CafePageShell
+      eyebrow="Operations"
+      title="Orders"
+      description="Filter by date, status, and payment. Export when you need a spreadsheet."
+      action={
+        <Button size="sm" onClick={handleExport} className="border border-orange-500/30 bg-orange-500/15 text-orange-200 hover:bg-orange-500/25">
           <Download className="h-3.5 w-3.5 mr-1" /> Export
         </Button>
-      </div>
+      }
+      contentClassName="space-y-4 overflow-x-hidden"
+    >
 
       {/* Date Filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -296,7 +301,7 @@ const CafeOrders: React.FC = () => {
       </div>
 
       {/* Orders List */}
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+      <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
         <CardContent className="p-0">
           <ScrollArea className="h-[calc(100vh-22rem)]">
             <div className="divide-y divide-gray-800/50">
@@ -589,7 +594,7 @@ const CafeOrders: React.FC = () => {
           })()}
         </DialogContent>
       </Dialog>
-    </div>
+    </CafePageShell>
   );
 };
 

@@ -16,6 +16,7 @@ import {
   Shield, UserCheck, UserX, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 
 type StaffRole = 'cafe_admin' | 'cashier' | 'kitchen' | 'staff';
 
@@ -224,22 +225,33 @@ const CafeStaff: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading">Staff Management</h1>
+    <CafePageShell
+      eyebrow="Team"
+      title="Staff management"
+      description="Create cafe logins, assign roles, and control who can access the POS."
+      action={
         <div className="flex items-center gap-2">
-          <Button onClick={fetchStaff} variant="outline" size="icon"
-            className="h-9 w-9 border-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-800">
+          <Button
+            onClick={fetchStaff}
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 border-white/10 bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white"
+          >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button onClick={() => { resetAddForm(); setIsAddOpen(true); }}
-            className="bg-gradient-to-r from-orange-500 to-cuephoria-purple hover:opacity-90 text-white text-xs sm:text-sm h-9 sm:h-10">
-            <Plus className="h-4 w-4 mr-1.5" /> Add Staff
+          <Button
+            onClick={() => {
+              resetAddForm();
+              setIsAddOpen(true);
+            }}
+            className="bg-gradient-to-r from-orange-500 to-violet-600 text-white text-xs shadow-lg shadow-orange-500/20 sm:text-sm h-9 sm:h-10 hover:opacity-95"
+          >
+            <Plus className="mr-1.5 h-4 w-4" /> Add Staff
           </Button>
         </div>
-      </div>
-
+      }
+      contentClassName="space-y-6 overflow-auto"
+    >
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {[
@@ -248,7 +260,7 @@ const CafeStaff: React.FC = () => {
           { label: 'Inactive', value: stats.inactive, icon: UserX, color: 'text-red-400' },
           { label: 'Admins', value: stats.admins, icon: Shield, color: 'text-purple-400' },
         ].map(s => (
-          <Card key={s.label} className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/30">
+          <Card key={s.label} className="cafe-glass-card border-white/[0.06]">
             <CardContent className="p-3 flex items-center gap-3">
               <s.icon className={`h-5 w-5 ${s.color} flex-shrink-0`} />
               <div className="min-w-0">
@@ -519,7 +531,7 @@ const CafeStaff: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </CafePageShell>
   );
 };
 

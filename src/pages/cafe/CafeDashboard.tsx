@@ -9,6 +9,7 @@ import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafeSettlements } from '@/hooks/cafe/useCafeSettlements';
 import { DollarSign, ShoppingCart, TrendingUp, Clock, Users, BarChart2, CookingPot, MapPin, Coffee, ArrowUpRight, ArrowDownRight, Flame, UtensilsCrossed } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 
 const CafeDashboard: React.FC = () => {
   const { user } = useCafeAuth();
@@ -97,26 +98,26 @@ const CafeDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-6 overflow-x-hidden">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading animate-slide-down">Cafe Dashboard</h1>
-          <p className="text-sm text-gray-500 font-quicksand mt-0.5">
-            {currentTime.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
+    <CafePageShell
+      eyebrow="Overview"
+      title="Cafe Dashboard"
+      description={currentTime.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      action={
         <div className="text-right">
-          <p className="text-2xl font-bold text-white font-heading">{currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+          <p className="text-2xl font-bold text-white font-heading tabular-nums">
+            {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          </p>
           {stats.selfOrdersToday > 0 && (
-            <p className="text-xs text-cuephoria-lightpurple font-quicksand">{stats.selfOrdersToday} self-orders today</p>
+            <p className="text-xs text-violet-300/90 font-quicksand">{stats.selfOrdersToday} self-orders today</p>
           )}
         </div>
-      </div>
-
+      }
+      contentClassName="space-y-6"
+    >
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {statCards.map((card, i) => (
-          <Card key={card.label} className={`bg-gradient-to-br ${card.bg} border-gray-700/30 shadow-lg animate-slide-up`} style={{ animationDelay: `${i * 50}ms` }}>
+          <Card key={card.label} className={`cafe-glass-card bg-gradient-to-br ${card.bg} border-white/[0.06] shadow-lg animate-slide-up`} style={{ animationDelay: `${i * 50}ms` }}>
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <div className={`h-8 w-8 rounded-lg bg-gray-800/50 flex items-center justify-center`}>
@@ -134,7 +135,7 @@ const CafeDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Hourly Revenue Chart */}
-        <Card className="lg:col-span-2 bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '300ms' }}>
+        <Card className="cafe-glass-card lg:col-span-2 border-white/[0.06] shadow-xl animate-slide-up" style={{ animationDelay: '300ms' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <BarChart2 className="h-4 w-4 text-orange-400" /> Hourly Revenue
@@ -161,7 +162,7 @@ const CafeDashboard: React.FC = () => {
         </Card>
 
         {/* Order Type Breakdown */}
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '350ms' }}>
+        <Card className="cafe-glass-card border-white/[0.06] shadow-xl animate-slide-up" style={{ animationDelay: '350ms' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4 text-orange-400" /> Order Breakdown
@@ -207,7 +208,7 @@ const CafeDashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Revenue Split */}
         {partner && (
-          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '400ms' }}>
+          <Card className="cafe-glass-card border-white/[0.06] shadow-xl animate-slide-up" style={{ animationDelay: '400ms' }}>
             <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-orange-400" /> Revenue Split
@@ -233,7 +234,7 @@ const CafeDashboard: React.FC = () => {
         )}
 
         {/* Top Selling Items */}
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '450ms' }}>
+        <Card className="cafe-glass-card border-white/[0.06] shadow-xl animate-slide-up" style={{ animationDelay: '450ms' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <Flame className="h-4 w-4 text-orange-400" /> Top Items Today
@@ -264,7 +265,7 @@ const CafeDashboard: React.FC = () => {
         </Card>
 
         {/* Live Activity */}
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '500ms' }}>
+        <Card className="cafe-glass-card border-white/[0.06] shadow-xl animate-slide-up" style={{ animationDelay: '500ms' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <Coffee className="h-4 w-4 text-orange-400" /> Recent Activity
@@ -307,7 +308,7 @@ const CafeDashboard: React.FC = () => {
 
       {/* Settlements */}
       {settlements.length > 0 && (
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '550ms' }}>
+        <Card className="cafe-glass-card border-white/[0.06] shadow-xl animate-slide-up" style={{ animationDelay: '550ms' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading text-white">Recent Settlements</CardTitle>
           </CardHeader>
@@ -335,7 +336,7 @@ const CafeDashboard: React.FC = () => {
           </CardContent>
         </Card>
       )}
-    </div>
+    </CafePageShell>
   );
 };
 

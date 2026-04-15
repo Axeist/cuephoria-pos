@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 
 interface CafeCustomerSpend {
   totalCafeSpent: number;
@@ -129,18 +130,22 @@ const CafeCustomers: React.FC = () => {
   const getInitials = (name: string) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   return (
-    <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold gradient-text font-heading">Cafe Customers</h1>
-        <Button onClick={() => setIsAddOpen(true)}
-          className="bg-gradient-to-r from-orange-500 to-cuephoria-purple hover:opacity-90 text-white text-xs sm:text-sm h-9 sm:h-10">
+    <CafePageShell
+      eyebrow="CRM"
+      title="Cafe Customers"
+      description="Search loyalty profiles, cafe spend, and order history in one place."
+      action={
+        <Button
+          onClick={() => setIsAddOpen(true)}
+          className="bg-gradient-to-r from-orange-500 to-violet-600 hover:opacity-90 text-white text-xs sm:text-sm h-9 sm:h-10 shadow-lg shadow-orange-500/20"
+        >
           <Plus className="h-4 w-4 mr-1.5" /> Add Customer
         </Button>
-      </div>
-
+      }
+      contentClassName="gap-6 overflow-auto"
+    >
       {/* Stats Row */}
-      <div className="grid grid-cols-5 gap-3 mb-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {[
           { label: 'Total Customers', value: stats.total, icon: User, color: 'text-blue-400', isCurrency: false },
           { label: 'Cafe Customers', value: stats.cafeCustomers, icon: Coffee, color: 'text-orange-400', isCurrency: false },
@@ -148,14 +153,14 @@ const CafeCustomers: React.FC = () => {
           { label: 'Cafe Orders', value: stats.orders, icon: ShoppingCart, color: 'text-purple-400', isCurrency: false },
           { label: 'Avg / Customer', value: stats.avg, icon: TrendingUp, color: 'text-cyan-400', isCurrency: true },
         ].map((s) => (
-          <Card key={s.label} className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/30">
+          <Card key={s.label} className="cafe-glass-card border-white/[0.06]">
             <CardContent className="p-3 flex items-center gap-3">
               <s.icon className={`h-5 w-5 ${s.color} flex-shrink-0`} />
               <div className="min-w-0">
                 <p className={`text-lg sm:text-xl font-bold ${s.color} font-heading truncate`}>
                   {s.isCurrency ? <CurrencyDisplay amount={s.value as number} /> : s.value}
                 </p>
-                <p className="text-xs text-gray-500 font-quicksand truncate">{s.label}</p>
+                <p className="text-xs text-zinc-500 font-quicksand truncate">{s.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -163,33 +168,42 @@ const CafeCustomers: React.FC = () => {
       </div>
 
       {/* Search + Sort */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="relative flex-1 max-w-sm">
+      <div className="cafe-glass-card flex flex-col gap-3 border-white/[0.06] p-4 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search name, phone, email, ID..." className="pl-8 font-quicksand h-9"
-            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          <Input
+            placeholder="Search name, phone, email, ID..."
+            className="border-white/10 bg-black/20 pl-8 font-quicksand h-9 backdrop-blur-sm"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-2.5">
+            <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2.5 top-2.5">
               <X className="h-4 w-4 text-gray-500" />
             </button>
           )}
         </div>
-        <div className="flex gap-0.5 bg-gray-800/50 rounded-lg p-0.5">
+        <div className="cafe-segment flex flex-wrap">
           {([
             { key: 'cafe_spent' as const, label: 'Cafe Spent' },
             { key: 'total_spent' as const, label: 'Total Spent' },
             { key: 'loyalty' as const, label: 'Points' },
             { key: 'name' as const, label: 'Name' },
-          ]).map(s => (
-            <button key={s.key} onClick={() => setSortBy(s.key)}
-              className={`px-2.5 py-1 rounded-md text-xs sm:text-sm font-quicksand transition-all ${
-                sortBy === s.key ? 'bg-orange-500/20 text-orange-400' : 'text-gray-500 hover:text-white'
-              }`}>
+          ]).map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              data-active={sortBy === s.key}
+              onClick={() => setSortBy(s.key)}
+              className={`rounded-lg px-2.5 py-1.5 text-xs sm:text-sm font-quicksand transition-all ${
+                sortBy === s.key ? 'cafe-segment-active rounded-lg' : 'text-zinc-500 hover:text-white'
+              }`}
+            >
               {s.label}
             </button>
           ))}
         </div>
-        <span className="text-xs text-gray-500 font-quicksand ml-auto flex-shrink-0">
+        <span className="text-xs text-zinc-500 font-quicksand sm:ml-auto sm:flex-shrink-0">
           {filteredCustomers.length} of {customers.length}
         </span>
       </div>
@@ -198,7 +212,7 @@ const CafeCustomers: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filteredCustomers.map((customer) => (
           <Card key={customer.id}
-            className="group overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/10 bg-gradient-to-br from-gray-900/60 to-gray-800/60 border-gray-700/40">
+            className="cafe-glass-card group overflow-hidden border-white/[0.07] transition-all duration-200 hover:border-orange-500/20 hover:shadow-lg hover:shadow-orange-500/15">
 
             <CardContent className="p-4 space-y-3">
               {/* Header row */}
@@ -419,7 +433,7 @@ const CafeCustomers: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </CafePageShell>
   );
 };
 

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 import type { CafeInventoryMovementRow, CafeOrderType, CafePaymentMethod, CafeOrderSource } from '@/types/cafe.types';
 
 type DateRange = 'today' | '7d' | '30d' | 'custom';
@@ -205,17 +206,17 @@ const CafeReports: React.FC = () => {
     (filterSource !== 'all' ? 1 : 0);
 
   return (
-    <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-5 overflow-x-hidden">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading animate-slide-down">Reports</h1>
-          <p className="text-xs text-gray-500 font-quicksand mt-1">Analytics for the selected period and filters</p>
-        </div>
-        <Button size="sm" onClick={handleExport} className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
+    <CafePageShell
+      eyebrow="Analytics"
+      title="Reports"
+      description="Slice revenue, payments, inventory, and settlements for any period."
+      action={
+        <Button size="sm" onClick={handleExport} className="border border-orange-500/30 bg-orange-500/15 text-orange-200 hover:bg-orange-500/25">
           <Download className="h-3.5 w-3.5 mr-1" /> Export CSV
         </Button>
-      </div>
-
+      }
+      contentClassName="space-y-5 overflow-x-hidden"
+    >
       {/* Period + advanced filters (dropdowns, like main POS) */}
       <div className="cafe-glass-card border-white/[0.06] p-4 space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap">
@@ -346,7 +347,7 @@ const CafeReports: React.FC = () => {
             { label: `Low stock (≤${LOW_STOCK_THRESHOLD})`, value: inventorySummary.lowStockCount, icon: AlertTriangle, color: 'text-amber-400', type: 'number' as const },
             { label: 'Net movement (period)', value: inventorySummary.movementNet, icon: BarChart2, color: inventorySummary.movementNet >= 0 ? 'text-emerald-400' : 'text-rose-400', type: 'number' as const },
           ].map((stat, i) => (
-            <Card key={stat.label} className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/30 animate-slide-up" style={{ animationDelay: `${i * 30}ms` }}>
+            <Card key={stat.label} className="cafe-glass-card border-white/[0.06] animate-slide-up" style={{ animationDelay: `${i * 30}ms` }}>
               <CardContent className="p-3">
                 <stat.icon className={`h-4 w-4 ${stat.color} mb-1.5`} />
                 <p className={`text-lg font-bold ${stat.color} font-heading tabular-nums`}>{stat.value}</p>
@@ -359,7 +360,7 @@ const CafeReports: React.FC = () => {
 
       {inventorySummary.trackedSkus > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+          <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <Package className="h-4 w-4 text-cyan-400" /> Current stock (tracked items)
@@ -389,7 +390,7 @@ const CafeReports: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+          <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <BarChart2 className="h-4 w-4 text-orange-400" /> Inventory activity (period)
@@ -431,7 +432,7 @@ const CafeReports: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Revenue Trend */}
         {dailyTrend.length > 1 && (
-          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+          <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-orange-400" /> Revenue Trend
@@ -457,7 +458,7 @@ const CafeReports: React.FC = () => {
         )}
 
         {/* Payment Methods */}
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+        <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
           <CardHeader className="pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-orange-400" /> Payment Analysis
@@ -505,7 +506,7 @@ const CafeReports: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Category Analysis */}
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+        <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
           <CardHeader className="pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <BarChart2 className="h-4 w-4 text-orange-400" /> Category Analysis
@@ -534,7 +535,7 @@ const CafeReports: React.FC = () => {
         </Card>
 
         {/* Top Items */}
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+        <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
           <CardHeader className="pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <Flame className="h-4 w-4 text-orange-400" /> Top Selling Items
@@ -570,7 +571,7 @@ const CafeReports: React.FC = () => {
       {/* Revenue Split + Settlement */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {partner && (
-          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+          <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <Percent className="h-4 w-4 text-orange-400" /> Revenue Split
@@ -596,7 +597,7 @@ const CafeReports: React.FC = () => {
         )}
 
         {/* Settlements */}
-        <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+        <Card className="cafe-glass-card border-white/[0.06] animate-slide-up">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <FileText className="h-4 w-4 text-orange-400" /> Settlements
@@ -664,7 +665,7 @@ const CafeReports: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </CafePageShell>
   );
 };
 

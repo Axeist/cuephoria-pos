@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 
 const CafePOS: React.FC = () => {
   const { user } = useCafeAuth();
@@ -272,17 +273,22 @@ const CafePOS: React.FC = () => {
   const occupiedTables = tables.filter(t => t.isOccupied);
 
   return (
-    <div className="flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6 overflow-auto">
-      <div className="flex items-center justify-between mb-4 sm:mb-5">
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Cafe POS</h2>
+    <CafePageShell variant="wide" contentClassName="gap-4 overflow-auto pb-4 sm:gap-5 sm:pb-6" className="!py-4 sm:!py-6 lg:!px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Point of sale</p>
+          <h2 className="font-heading text-xl font-bold tracking-tight text-transparent bg-gradient-to-r from-orange-100 to-violet-200 bg-clip-text sm:text-2xl md:text-3xl">
+            Cafe POS
+          </h2>
+        </div>
         {activeOrders.length > 0 && (
-          <span className="text-xs bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full font-quicksand">
+          <span className="rounded-full border border-orange-500/25 bg-orange-500/15 px-3 py-1.5 text-xs font-medium text-orange-200 shadow-sm backdrop-blur-sm font-quicksand">
             {activeOrders.length} active
           </span>
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-5">
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
         {/* ===== LEFT: ORDER / CART ===== */}
         <Card className="lg:col-span-1 flex flex-col cafe-glass-card border-orange-500/10">
           <CardHeader className="pb-2 px-4 pt-4 space-y-3">
@@ -917,7 +923,7 @@ const CafePOS: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </CafePageShell>
   );
 };
 

@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import type { CafeKOT, KOTStatus } from '@/types/cafe.types';
 import { CookingPot, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, AlertTriangle, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
+import { CafePageShell } from '@/components/cafe/CafePageShell';
 
 const statusConfig: Record<string, { label: string; border: string; bg: string; accent: string; next?: KOTStatus; nextLabel?: string; nextIcon?: React.ElementType }> = {
   pending: { label: 'NEW', border: 'border-yellow-500', bg: 'bg-yellow-500/10', accent: 'yellow', next: 'acknowledged', nextLabel: 'Start', nextIcon: ArrowRight },
@@ -204,7 +205,7 @@ const CafeKitchen: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 h-full bg-cuephoria-darker">
+    <CafePageShell variant="full" className="min-h-0 flex-1 !px-2 !py-3 sm:!px-4 sm:!py-4" contentClassName="flex min-h-0 flex-1 flex-col gap-0">
       <style>{`
         @keyframes kotSlideIn {
           from { opacity: 0; transform: translateY(12px) scale(0.97); }
@@ -213,14 +214,7 @@ const CafeKitchen: React.FC = () => {
       `}</style>
 
       {/* Header */}
-      <div
-        className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border-b border-white/[0.06] shrink-0"
-        style={{
-          background:
-            'linear-gradient(135deg, rgba(15,18,25,0.98) 0%, rgba(26,31,44,0.95) 45%, rgba(22,27,38,0.98) 100%)',
-          boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.04)',
-        }}
-      >
+      <div className="cafe-glass-card mb-3 flex shrink-0 flex-col gap-3 border-white/[0.08] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div
             className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg"
@@ -283,7 +277,7 @@ const CafeKitchen: React.FC = () => {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0 p-4">
+      <ScrollArea className="min-h-0 flex-1 px-1 sm:px-0">
         {displayKots.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-[40vh] text-gray-500 rounded-2xl border border-dashed border-white/[0.08] bg-gradient-to-b from-white/[0.02] to-transparent px-6 py-12">
             <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-orange-500/15 to-purple-600/15 flex items-center justify-center mb-4 border border-white/[0.06]">
@@ -318,7 +312,7 @@ const CafeKitchen: React.FC = () => {
           </div>
         )}
       </ScrollArea>
-    </div>
+    </CafePageShell>
   );
 };
 
