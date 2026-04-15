@@ -287,11 +287,11 @@ const CafePOS: React.FC = () => {
         <Card className="lg:col-span-1 flex flex-col bg-gradient-to-br from-gray-900/80 to-gray-800/80 border-gray-700/40">
           <CardHeader className="pb-2 px-4 pt-4 space-y-3">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-base font-heading flex items-center gap-2">
+              <CardTitle className="text-base sm:text-xl font-heading flex items-center gap-2">
                 <ShoppingCart className="h-4 w-4 text-orange-400" /> Order
-                <span className="text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.quantity, 0)} items</span>
+                <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">{cart.reduce((s, i) => s + i.quantity, 0)} items</span>
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setCart([])} className="hover:text-red-500 text-xs h-7 px-2">Clear</Button>
+              <Button variant="ghost" size="sm" onClick={() => setCart([])} className="hover:text-red-500 text-xs sm:text-sm h-8 sm:h-9 px-2">Clear</Button>
             </div>
 
             {/* Order Type */}
@@ -302,7 +302,7 @@ const CafePOS: React.FC = () => {
                 { type: 'delivery_to_station' as const, label: 'To Station', icon: Monitor },
               ]).map(t => (
                 <button key={t.type} onClick={() => { setOrderType(t.type); setSelectedTableId(null); }}
-                  className={`flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-quicksand transition-all ${
+                  className={`flex items-center justify-center gap-1.5 py-2 rounded-md text-xs sm:text-sm font-quicksand transition-all ${
                     orderType === t.type ? 'bg-orange-500/20 text-orange-400 font-medium' : 'text-gray-500 hover:text-gray-300'
                   }`}>
                   <t.icon className="h-3.5 w-3.5" /> {t.label}
@@ -313,11 +313,11 @@ const CafePOS: React.FC = () => {
             {/* Table Selection — proper visibility */}
             {orderType === 'dine_in' && tables.length > 0 && (
               <div className="space-y-2">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-quicksand">Select Table</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-quicksand">Select Table</p>
                 <div className="max-h-28 overflow-y-auto pr-1 space-y-2">
                   {zones.map(zone => (
                     <div key={zone}>
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{zone}</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{zone}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(tablesByZone[zone] || []).map(table => (
                           <button key={table.id}
@@ -337,7 +337,7 @@ const CafePOS: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <div className="flex gap-3 text-[10px] text-gray-500">
+                <div className="flex gap-3 text-xs text-gray-500">
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-400" /> {availableTables.length} free</span>
                   <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400" /> {occupiedTables.length} occupied</span>
                 </div>
@@ -363,7 +363,7 @@ const CafePOS: React.FC = () => {
                   <div key={item.menuItemId} className="flex items-center gap-2 py-1.5 border-b border-gray-700/20">
                     <span className={`h-2 w-2 rounded-full flex-shrink-0 ${item.isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-quicksand text-white truncate">{item.name}</p>
+                      <p className="text-sm sm:text-base font-quicksand text-white truncate">{item.name}</p>
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
@@ -372,7 +372,7 @@ const CafePOS: React.FC = () => {
                       <button onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
                         className="h-6 w-6 rounded border border-gray-600 text-xs text-gray-300 hover:bg-gray-700 flex items-center justify-center">+</button>
                     </div>
-                    <span className="text-xs font-bold text-orange-400 w-14 text-right"><CurrencyDisplay amount={item.total} /></span>
+                    <span className="text-sm sm:text-base font-bold text-orange-400 w-14 text-right"><CurrencyDisplay amount={item.total} /></span>
                     <button onClick={() => removeFromCart(item.menuItemId)} className="h-5 w-5 text-red-400/60 hover:text-red-400 flex items-center justify-center">
                       <X className="h-3 w-3" />
                     </button>
@@ -383,7 +383,7 @@ const CafePOS: React.FC = () => {
               <div className="flex flex-col items-center justify-center h-full py-6 text-gray-500">
                 <ShoppingCart className="h-8 w-8 mb-2 opacity-30" />
                 <p className="text-sm font-heading">Cart is empty</p>
-                <p className="text-[10px] text-gray-600">Tap items from the menu to add</p>
+                <p className="text-xs text-gray-600">Tap items from the menu to add</p>
               </div>
             )}
           </CardContent>
@@ -399,21 +399,21 @@ const CafePOS: React.FC = () => {
                 <span>Total</span><CurrencyDisplay amount={cartTotal} className="text-orange-400" />
               </div>
             </div>
-            <Button className={`w-full h-9 text-xs ${selectedCustomer ? 'border-orange-500/30' : 'bg-gradient-to-r from-orange-500 to-cuephoria-purple'}`}
+            <Button className={`w-full h-9 sm:h-10 text-xs sm:text-sm ${selectedCustomer ? 'border-orange-500/30' : 'bg-gradient-to-r from-orange-500 to-cuephoria-purple'}`}
               variant={selectedCustomer ? 'outline' : 'default'} onClick={() => setIsCustomerDialogOpen(true)}>
               <User className="h-3.5 w-3.5 mr-1.5" />
               {selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.phone})` : 'Select Customer'}
             </Button>
             <div className="grid grid-cols-3 gap-2 w-full">
-              <Button className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 h-9 text-xs font-medium"
+              <Button className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm font-medium"
                 disabled={cart.length === 0} onClick={() => setIsCheckoutDialogOpen(true)}>
                 <ReceiptIcon className="h-3.5 w-3.5 mr-1" /> Checkout
               </Button>
-              <Button className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:opacity-90 h-9 text-xs font-medium text-black"
+              <Button className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm font-medium text-black"
                 disabled={cart.length === 0 || isSubmitting} onClick={handlePayLater}>
                 <Clock className="h-3.5 w-3.5 mr-1" /> Pay Later
               </Button>
-              <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 h-9 text-xs font-medium"
+              <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm font-medium"
                 disabled={cart.length === 0} onClick={() => setIsCompDialogOpen(true)}>
                 <Gift className="h-3.5 w-3.5 mr-1" /> Comp
               </Button>
@@ -425,9 +425,9 @@ const CafePOS: React.FC = () => {
                 <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
                   <div className="flex items-center gap-1.5">
                     <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
-                    <span className="text-[11px] font-quicksand text-amber-300">{pendingPaymentOrders.length} pending payment{pendingPaymentOrders.length > 1 ? 's' : ''}</span>
+                    <span className="text-xs font-quicksand text-amber-300">{pendingPaymentOrders.length} pending payment{pendingPaymentOrders.length > 1 ? 's' : ''}</span>
                   </div>
-                  <span className="text-[11px] font-bold text-amber-400 font-quicksand">
+                  <span className="text-xs font-bold text-amber-400 font-quicksand">
                     <CurrencyDisplay amount={pendingPaymentOrders.reduce((s, o) => s + o.total, 0)} />
                   </span>
                 </div>
@@ -440,8 +440,8 @@ const CafePOS: React.FC = () => {
         <Card className="lg:col-span-2 flex flex-col bg-gradient-to-br from-gray-900/80 to-gray-800/80 border-gray-700/40">
           <CardHeader className="pb-2 px-4 pt-4 flex-shrink-0 space-y-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-heading">Menu</CardTitle>
-              <span className="text-[10px] text-gray-500 font-quicksand">{filteredItems.length} items</span>
+              <CardTitle className="text-base sm:text-xl font-heading">Menu</CardTitle>
+              <span className="text-xs text-gray-500 font-quicksand">{filteredItems.length} items</span>
             </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
@@ -457,7 +457,7 @@ const CafePOS: React.FC = () => {
           <div className="px-4 flex-shrink-0">
             <div className="flex flex-wrap gap-1 py-2">
               <button onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
-                className={`text-[11px] px-2.5 py-1.5 rounded-md font-medium transition-all ${
+                className={`text-xs sm:text-sm px-2.5 py-1.5 rounded-md font-medium transition-all ${
                   activeTab === 'all' ? categoryColors[0].a : categoryColors[0].i
                 }`}>
                 All ({categoryCounts.all || 0})
@@ -466,7 +466,7 @@ const CafePOS: React.FC = () => {
                 const c = categoryColors[(i + 1) % categoryColors.length];
                 return (
                   <button key={cat.id} onClick={() => { setActiveTab(cat.id); setSearchQuery(''); }}
-                    className={`text-[11px] px-2.5 py-1.5 rounded-md font-medium transition-all ${
+                    className={`text-xs sm:text-sm px-2.5 py-1.5 rounded-md font-medium transition-all ${
                       activeTab === cat.id ? c.a : c.i
                     }`}>
                     {cat.name} ({categoryCounts[cat.id] || 0})
@@ -487,23 +487,23 @@ const CafePOS: React.FC = () => {
                       className="group cursor-pointer overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/10 hover:-translate-y-0.5 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border-gray-700/40 relative"
                       onClick={() => addToCart(item)}>
                       {inCart && (
-                        <div className="absolute top-1.5 right-1.5 z-10 h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-[9px] flex items-center justify-center font-bold">
+                        <div className="absolute top-1.5 right-1.5 z-10 h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold">
                           {inCart.quantity}
                         </div>
                       )}
                       <CardContent className="p-3">
                         <div className="flex items-start justify-between gap-1 mb-1">
-                          <p className="text-xs font-medium text-white font-quicksand leading-tight group-hover:text-orange-200 transition-colors">
+                          <p className="text-sm sm:text-base font-medium text-white font-quicksand leading-tight group-hover:text-orange-200 transition-colors">
                             {item.name}
                           </p>
                           <span className={`h-3 w-3 rounded-sm border flex-shrink-0 mt-0.5 ${item.isVeg ? 'border-green-400' : 'border-red-400'}`}>
                             <span className={`block h-1.5 w-1.5 rounded-full m-[1.5px] ${item.isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
                           </span>
                         </div>
-                        {item.description && <p className="text-[9px] text-gray-500 line-clamp-1">{item.description}</p>}
+                        {item.description && <p className="text-xs text-gray-500 line-clamp-1">{item.description}</p>}
                         <div className="flex items-center justify-between mt-2">
-                          <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={item.price} /></span>
-                          {item.prepTimeMinutes ? <span className="text-[9px] text-gray-500">{item.prepTimeMinutes}min</span> : null}
+                          <span className="text-sm sm:text-base font-bold text-orange-400"><CurrencyDisplay amount={item.price} /></span>
+                          {item.prepTimeMinutes ? <span className="text-xs text-gray-500">{item.prepTimeMinutes}min</span> : null}
                         </div>
                       </CardContent>
                     </Card>
@@ -529,8 +529,8 @@ const CafePOS: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-amber-400" />
-                  <CardTitle className="text-sm font-heading text-amber-300">Pending Payments</CardTitle>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-quicksand">{pendingPaymentOrders.length}</span>
+                  <CardTitle className="text-base sm:text-xl font-heading text-amber-300">Pending Payments</CardTitle>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-quicksand">{pendingPaymentOrders.length}</span>
                 </div>
                 <span className="text-xs font-bold text-amber-400 font-quicksand">
                   Total: <CurrencyDisplay amount={pendingPaymentOrders.reduce((s, o) => s + o.total, 0)} />
@@ -545,20 +545,20 @@ const CafePOS: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-white font-heading">#{order.orderNumber}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-quicksand ${
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-quicksand ${
                           order.orderType === 'dine_in' ? 'bg-blue-500/15 text-blue-400' :
                           order.orderType === 'takeaway' ? 'bg-green-500/15 text-green-400' :
                           'bg-purple-500/15 text-purple-400'
                         }`}>{order.orderType === 'dine_in' ? 'Dine-in' : order.orderType === 'takeaway' ? 'Takeaway' : 'Station'}</span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        {order.customerName && <span className="text-[10px] text-gray-400 truncate">{order.customerName}</span>}
-                        <span className="text-[10px] text-gray-500">{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        {order.customerName && <span className="text-xs text-gray-400 truncate">{order.customerName}</span>}
+                        <span className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={order.total} /></span>
-                      <Button size="sm" className="h-7 text-[10px] px-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
+                      <Button size="sm" className="h-9 sm:h-10 text-xs sm:text-sm px-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
                         onClick={() => {
                           setSettleOrderId(order.id);
                           setSettlePayMethod('cash');
@@ -658,19 +658,19 @@ const CafePOS: React.FC = () => {
                 {settlePayMethod === 'split' && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-gray-400">Cash Amount</Label>
+                      <Label className="text-[13px] font-semibold text-gray-400">Cash Amount</Label>
                       <Input type="number" min={0} max={o.total} value={settleCash}
                         onChange={e => { const v = Number(e.target.value); setSettleCash(v); setSettleUpi(Math.max(0, o.total - v)); }}
                         className="h-9 text-sm font-quicksand" />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-gray-400">UPI Amount</Label>
+                      <Label className="text-[13px] font-semibold text-gray-400">UPI Amount</Label>
                       <Input type="number" min={0} max={o.total} value={settleUpi}
                         onChange={e => { const v = Number(e.target.value); setSettleUpi(v); setSettleCash(Math.max(0, o.total - v)); }}
                         className="h-9 text-sm font-quicksand" />
                     </div>
                     {Math.abs(settleCash + settleUpi - o.total) > 0.5 && (
-                      <p className="col-span-2 text-[10px] text-red-400 text-center">
+                      <p className="col-span-2 text-xs text-red-400 text-center">
                         Split must equal {formatCurrency(o.total)} — currently {formatCurrency(settleCash + settleUpi)}
                       </p>
                     )}
@@ -681,8 +681,8 @@ const CafePOS: React.FC = () => {
           })()}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSettleOrderId(null)} className="h-9">Cancel</Button>
-            <Button className="h-9 bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
+            <Button variant="outline" onClick={() => setSettleOrderId(null)} className="h-9 sm:h-10 text-xs sm:text-sm">Cancel</Button>
+            <Button className="h-9 sm:h-10 text-xs sm:text-sm bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
               disabled={isSettling || (settlePayMethod === 'split' && Math.abs(settleCash + settleUpi - (pendingPaymentOrders.find(x => x.id === settleOrderId)?.total || 0)) > 0.5)}
               onClick={handleSettleOrder}>
               {isSettling ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1" /> Settle Payment</>}
@@ -706,7 +706,7 @@ const CafePOS: React.FC = () => {
                 value={customerSearchQuery} onChange={(e) => setCustomerSearchQuery(e.target.value)} />
             </div>
             <Button size="sm" onClick={() => setShowAddCustomerForm(!showAddCustomerForm)}
-              variant={showAddCustomerForm ? 'secondary' : 'outline'} className="h-9 text-xs">
+              variant={showAddCustomerForm ? 'secondary' : 'outline'} className="h-9 sm:h-10 text-xs sm:text-sm">
               <Plus className="h-3.5 w-3.5 mr-1" /> New
             </Button>
           </div>
@@ -724,7 +724,7 @@ const CafePOS: React.FC = () => {
                   className="h-8 text-xs font-quicksand" type="email" />
               </div>
               <Button size="sm" onClick={handleAddNewCustomer} disabled={isAddingCustomer || !newCustName.trim() || !newCustPhone.trim()}
-                className="bg-gradient-to-r from-orange-500 to-cuephoria-purple hover:opacity-90 h-8 text-xs">
+                className="bg-gradient-to-r from-orange-500 to-cuephoria-purple hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm">
                 {isAddingCustomer ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
                 {isAddingCustomer ? 'Adding...' : 'Add & Select'}
               </Button>
@@ -739,32 +739,32 @@ const CafePOS: React.FC = () => {
                   <button key={customer.id} onClick={() => handleSelectCustomer(customer)}
                     className="text-left p-3 rounded-lg border border-gray-700/40 bg-gray-800/30 hover:bg-gray-800/60 hover:border-orange-500/30 transition-all group">
                     <div className="flex items-center gap-2.5">
-                      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-600 to-cuephoria-purple flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-600 to-cuephoria-purple flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                         {customer.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate group-hover:text-orange-200">{customer.name}</p>
-                        <p className="text-[11px] text-gray-400 font-mono">{customer.phone}</p>
+                        <p className="text-xs text-gray-400 font-mono">{customer.phone}</p>
                       </div>
-                      {customer.isMember && <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1 py-0.5 rounded flex-shrink-0">M</span>}
+                      {customer.isMember && <span className="text-xs bg-purple-500/20 text-purple-300 px-1 py-0.5 rounded flex-shrink-0">M</span>}
                     </div>
                     {customer.customerId && (
-                      <div className="flex items-center gap-1 mt-1.5 text-[9px] text-purple-300 font-mono">
+                      <div className="flex items-center gap-1 mt-1.5 text-xs text-purple-300 font-mono">
                         <Hash className="h-2.5 w-2.5" /> {customer.customerId}
                       </div>
                     )}
                     <div className="grid grid-cols-3 gap-1.5 mt-2 text-center">
                       <div className="bg-gray-800/50 rounded px-1 py-1">
-                        <p className="text-[10px] font-bold text-yellow-400">{customer.loyaltyPoints}</p>
-                        <p className="text-[8px] text-gray-500">Points</p>
+                        <p className="text-lg sm:text-xl font-bold text-yellow-400">{customer.loyaltyPoints}</p>
+                        <p className="text-xs text-gray-500">Points</p>
                       </div>
                       <div className="bg-gray-800/50 rounded px-1 py-1">
-                        <p className="text-[10px] font-bold text-green-400"><CurrencyDisplay amount={customer.totalSpent} /></p>
-                        <p className="text-[8px] text-gray-500">Spent</p>
+                        <p className="text-lg sm:text-xl font-bold text-green-400"><CurrencyDisplay amount={customer.totalSpent} /></p>
+                        <p className="text-xs text-gray-500">Spent</p>
                       </div>
                       <div className="bg-gray-800/50 rounded px-1 py-1">
-                        <p className="text-[10px] font-bold text-blue-400">{Math.floor(customer.totalPlayTime / 60)}h</p>
-                        <p className="text-[8px] text-gray-500">Play</p>
+                        <p className="text-lg sm:text-xl font-bold text-blue-400">{Math.floor(customer.totalPlayTime / 60)}h</p>
+                        <p className="text-xs text-gray-500">Play</p>
                       </div>
                     </div>
                   </button>
@@ -794,7 +794,7 @@ const CafePOS: React.FC = () => {
                   <User className="h-4 w-4 text-orange-400" />
                   <span className="font-medium text-sm">{selectedCustomer.name}</span>
                   <span className="text-xs text-gray-400">({selectedCustomer.phone})</span>
-                  {selectedCustomer.isMember && <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded ml-auto">Member</span>}
+                  {selectedCustomer.isMember && <span className="text-xs bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded ml-auto">Member</span>}
                 </div>
                 {selectedCustomer.loyaltyPoints > 0 && (
                   <div className="mt-1.5 text-xs flex items-center gap-1 text-yellow-400">

@@ -349,7 +349,7 @@ const CafeMenu: React.FC = () => {
                               await updateItem(item.id, { isAvailable: !allAvailable });
                             }
                             toast.success(`${cat.name}: all items ${allAvailable ? 'hidden' : 'shown'}`);
-                          }} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-orange-400 transition-colors font-quicksand" title="Toggle all availability">
+                          }} className="flex items-center gap-1 text-xs text-gray-500 hover:text-orange-400 transition-colors font-quicksand" title="Toggle all availability">
                             {catItems.every(i => i.isAvailable) ? <ToggleRight className="h-3 w-3" /> : <ToggleLeft className="h-3 w-3" />}
                             Toggle all
                           </button>
@@ -367,7 +367,7 @@ const CafeMenu: React.FC = () => {
                                     </span>
                                     {item.name}
                                   </p>
-                                  {item.description && <p className="text-[10px] text-gray-500 mt-0.5">{item.description}</p>}
+                                  {item.description && <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>}
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button onClick={() => {
@@ -382,13 +382,13 @@ const CafeMenu: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={item.price} /></span>
                                   {item.costPrice && (
-                                    <span className="text-[10px] text-gray-600">cost: <CurrencyDisplay amount={item.costPrice} /></span>
+                                    <span className="text-xs text-gray-600">cost: <CurrencyDisplay amount={item.costPrice} /></span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {item.prepTimeMinutes && <span className="text-[10px] text-gray-500">{item.prepTimeMinutes}min</span>}
+                                  {item.prepTimeMinutes && <span className="text-xs text-gray-500">{item.prepTimeMinutes}min</span>}
                                   <button onClick={() => updateItem(item.id, { isAvailable: !item.isAvailable })}
-                                    className={`text-[10px] px-2 py-0.5 rounded-full transition-all ${item.isAvailable ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    className={`text-xs px-2 py-0.5 rounded-full transition-all ${item.isAvailable ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                                     {item.isAvailable ? 'Available' : 'Unavailable'}
                                   </button>
                                 </div>
@@ -452,8 +452,8 @@ const CafeMenu: React.FC = () => {
                                 {!table.isOccupied && <button onClick={async () => { await deleteTable(table.id); toast.success('Table removed'); }}><Trash2 className="h-3 w-3 text-red-400" /></button>}
                               </div>
                             </div>
-                            <p className="text-[10px] text-gray-500">{table.capacity} seats</p>
-                            <span className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full ${
+                            <p className="text-xs text-gray-500">{table.capacity} seats</p>
+                            <span className={`text-xs mt-1 inline-block px-2 py-0.5 rounded-full ${
                               table.isOccupied ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
                             }`}>
                               {table.isOccupied ? 'Occupied' : 'Available'}

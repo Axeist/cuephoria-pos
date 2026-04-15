@@ -68,15 +68,15 @@ const CafeSidebar: React.FC = () => {
                       <div className="h-9 w-9 rounded-lg bg-[#f5f0e0] flex items-center justify-center shadow-md p-0.5 flex-shrink-0">
                         <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-md" />
                       </div>
-                      <span className="text-[10px] text-gray-600">&times;</span>
+                      <span className="text-xs text-gray-600">&times;</span>
                       <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-md p-0.5 flex-shrink-0">
                         <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-full w-full object-contain rounded-md" />
                       </div>
                       <div className="flex flex-col ml-1">
-                        <span className="text-base font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight">
+                        <span className="text-xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight">
                           Choco Loca
                         </span>
-                        <span className="text-[9px] text-gray-500 font-quicksand">&times; Cuephoria</span>
+                        <span className="text-xs text-gray-500 font-quicksand">&times; Cuephoria</span>
                       </div>
                     </div>
                   </div>
@@ -156,10 +156,10 @@ const CafeSidebar: React.FC = () => {
           </div>
         </div>
         <div className="mt-2">
-          <span className="text-lg font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight">
+          <span className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-cuephoria-lightpurple bg-clip-text text-transparent font-heading leading-tight">
             Choco Loca
           </span>
-          <span className="text-[10px] text-gray-500 font-quicksand block">Cakes and Cafe &times; Cuephoria</span>
+          <span className="text-xs text-gray-500 font-quicksand block">Cakes and Cafe &times; Cuephoria</span>
         </div>
       </SidebarHeader>
       <SidebarSeparator className="mx-4 bg-orange-500/30" />
@@ -168,7 +168,7 @@ const CafeSidebar: React.FC = () => {
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
               {menuItems.map((item, index) => (
-                <SidebarMenuItem key={item.path} className={`animate-fade-in delay-${index * 100} text-base`}>
+                <SidebarMenuItem key={item.path} className={`animate-fade-in delay-${index * 100} text-sm`}>
                   <SidebarMenuButton asChild isActive={location.pathname === item.path}>
                     <Link to={item.path} className="flex items-center menu-item py-2.5 relative">
                       <item.icon className={`mr-3 h-6 w-6 ${location.pathname === item.path ? 'text-orange-400 animate-pulse-soft' : ''}`} />

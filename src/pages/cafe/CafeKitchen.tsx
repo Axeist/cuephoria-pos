@@ -39,7 +39,7 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold text-white font-heading">{kot.kotNumber}</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-quicksand font-semibold uppercase tracking-wider ${
+          <span className={`text-xs px-2 py-0.5 rounded-full font-quicksand font-semibold uppercase tracking-wider ${
             config.border.replace('border-', 'bg-').replace('500', '500/20')
           } ${config.border.replace('border-', 'text-')}`}>
             {config.label}
@@ -59,7 +59,7 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
       {elapsed > 15 && kot.status !== 'ready' && (
         <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md bg-red-500/10 border border-red-500/20">
           <AlertTriangle className="h-3 w-3 text-red-400" />
-          <span className="text-[10px] text-red-400 font-quicksand font-medium">Delayed - {elapsed} minutes</span>
+          <span className="text-xs text-red-400 font-quicksand font-medium">Delayed - {elapsed} minutes</span>
         </div>
       )}
 
@@ -68,7 +68,7 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
           <div key={i} className="flex items-start gap-2">
             <span className="text-sm font-bold text-orange-400 min-w-[24px]">{item.qty}x</span>
             <div className="flex-1">
-              <p className="text-sm font-medium text-white font-quicksand">{item.name}</p>
+              <p className="text-sm sm:text-base font-medium text-white font-quicksand">{item.name}</p>
               {item.notes && (
                 <p className="text-xs text-yellow-400 italic mt-0.5">"{item.notes}"</p>
               )}
@@ -77,7 +77,7 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
         ))}
       </div>
 
-      <div className="text-[10px] text-gray-500 font-quicksand mb-2">
+      <div className="text-xs text-gray-500 font-quicksand mb-2">
         {new Date(kot.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
         {kot.items.length > 0 && ` · ${kot.items.reduce((s, i) => s + i.qty, 0)} items`}
       </div>
@@ -85,7 +85,7 @@ const KOTCard: React.FC<{ kot: CafeKOT; onUpdateStatus: (id: string, status: KOT
       {config.next && (
         <Button
           onClick={() => onUpdateStatus(kot.id, config.next!)}
-          className="w-full h-12 text-base font-quicksand font-semibold text-white border-0 transition-all hover:scale-[1.01] active:scale-[0.98]"
+          className="w-full h-12 text-sm sm:text-base font-quicksand font-semibold text-white border-0 transition-all hover:scale-[1.01] active:scale-[0.98]"
           style={{
             background: kot.status === 'preparing'
               ? 'linear-gradient(135deg, #10B981, #059669)'
@@ -209,7 +209,7 @@ const CafeKitchen: React.FC = () => {
             <div className="text-2xl font-heading text-white tabular-nums">
               {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
-            <div className="text-[10px] text-gray-500 font-quicksand">
+            <div className="text-xs text-gray-500 font-quicksand">
               {currentTime.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
             </div>
           </div>
@@ -220,15 +220,15 @@ const CafeKitchen: React.FC = () => {
       <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/20 border-b border-gray-700/20">
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10">
           <Bell className="h-3 w-3 text-yellow-400" />
-          <span className="text-xs font-quicksand text-yellow-400 font-medium">{pendingKots.length} pending</span>
+          <span className="text-xs sm:text-sm font-quicksand text-yellow-400 font-medium">{pendingKots.length} pending</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10">
           <ChefHat className="h-3 w-3 text-orange-400" />
-          <span className="text-xs font-quicksand text-orange-400 font-medium">{preparingKots.length} cooking</span>
+          <span className="text-xs sm:text-sm font-quicksand text-orange-400 font-medium">{preparingKots.length} cooking</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10">
           <CheckCircle2 className="h-3 w-3 text-green-400" />
-          <span className="text-xs font-quicksand text-green-400 font-medium">{readyKots.length} ready</span>
+          <span className="text-xs sm:text-sm font-quicksand text-green-400 font-medium">{readyKots.length} ready</span>
         </div>
       </div>
 

@@ -189,7 +189,7 @@ const CafeReports: React.FC = () => {
               <p className={`text-lg font-bold ${stat.color} font-heading`}>
                 {stat.type === 'currency' ? <CurrencyDisplay amount={stat.value as number} /> : stat.value}
               </p>
-              <p className="text-[10px] text-gray-500 font-quicksand">{stat.label}</p>
+              <p className="text-xs text-gray-500 font-quicksand">{stat.label}</p>
             </CardContent>
           </Card>
         ))}
@@ -200,7 +200,7 @@ const CafeReports: React.FC = () => {
         {dailyTrend.length > 1 && (
           <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-orange-400" /> Revenue Trend
               </CardTitle>
             </CardHeader>
@@ -209,13 +209,13 @@ const CafeReports: React.FC = () => {
                 {dailyTrend.map((d, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1 group min-w-0">
                     <div className="relative w-full flex justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 px-2 py-1 rounded text-[9px] text-white whitespace-nowrap z-10 shadow-lg">
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
                         <CurrencyDisplay amount={d.revenue} /> ({d.orders})
                       </div>
                       <div className="w-full max-w-[32px] rounded-t-sm bg-gradient-to-t from-orange-500/80 to-orange-400/40 hover:from-orange-500 hover:to-orange-400/60 transition-all"
                         style={{ height: `${Math.max(4, (d.revenue / maxDailyRevenue) * 100)}%` }} />
                     </div>
-                    <span className="text-[7px] text-gray-600 font-quicksand truncate w-full text-center">{d.day}</span>
+                    <span className="text-[10px] text-gray-600 font-quicksand truncate w-full text-center">{d.day}</span>
                   </div>
                 ))}
               </div>
@@ -226,8 +226,8 @@ const CafeReports: React.FC = () => {
         {/* Payment Methods */}
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-orange-400" /> Payment Analysis
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-orange-400" /> Payment Analysis
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -235,25 +235,25 @@ const CafeReports: React.FC = () => {
               <div className="p-3 bg-green-500/5 rounded-lg text-center border border-green-500/10">
                 <Banknote className="h-5 w-5 text-green-400 mx-auto mb-1" />
                 <p className="text-lg font-bold text-green-400 font-heading">{summary.cashOrders}</p>
-                <p className="text-[10px] text-gray-500">Cash</p>
+                <p className="text-xs text-gray-500">Cash</p>
                 <p className="text-xs text-green-400 mt-0.5"><CurrencyDisplay amount={summary.cashRevenue} /></p>
               </div>
               <div className="p-3 bg-blue-500/5 rounded-lg text-center border border-blue-500/10">
                 <CreditCard className="h-5 w-5 text-blue-400 mx-auto mb-1" />
                 <p className="text-lg font-bold text-blue-400 font-heading">{summary.upiOrders}</p>
-                <p className="text-[10px] text-gray-500">UPI</p>
+                <p className="text-xs text-gray-500">UPI</p>
                 <p className="text-xs text-blue-400 mt-0.5"><CurrencyDisplay amount={summary.upiRevenue} /></p>
               </div>
               <div className="p-3 bg-purple-500/5 rounded-lg text-center border border-purple-500/10">
                 <UtensilsCrossed className="h-5 w-5 text-purple-400 mx-auto mb-1" />
                 <p className="text-lg font-bold text-purple-400 font-heading">{summary.splitOrders}</p>
-                <p className="text-[10px] text-gray-500">Split</p>
+                <p className="text-xs text-gray-500">Split</p>
               </div>
               {summary.pendingPayOrders > 0 && (
                 <div className="p-3 bg-amber-500/5 rounded-lg text-center border border-amber-500/10">
                   <Clock className="h-5 w-5 text-amber-400 mx-auto mb-1" />
                   <p className="text-lg font-bold text-amber-400 font-heading">{summary.pendingPayOrders}</p>
-                  <p className="text-[10px] text-gray-500">Unpaid</p>
+                  <p className="text-xs text-gray-500">Unpaid</p>
                   <p className="text-xs text-amber-400 mt-0.5"><CurrencyDisplay amount={summary.pendingPayRevenue} /></p>
                 </div>
               )}
@@ -274,8 +274,8 @@ const CafeReports: React.FC = () => {
         {/* Category Analysis */}
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
-              <BarChart2 className="h-4 w-4 text-orange-400" /> Category Analysis
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-orange-400" /> Category Analysis
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -303,8 +303,8 @@ const CafeReports: React.FC = () => {
         {/* Top Items */}
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
-              <Flame className="h-4 w-4 text-orange-400" /> Top Selling Items
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
+                <Flame className="h-4 w-4 text-orange-400" /> Top Selling Items
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -316,10 +316,10 @@ const CafeReports: React.FC = () => {
                   {itemAnalysis.map((item, i) => (
                     <div key={item.name} className="flex items-center justify-between p-2 bg-gray-800/20 rounded-lg">
                       <div className="flex items-center gap-2">
-                        <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        <span className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
                           i < 3 ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-700/50 text-gray-500'
                         }`}>{i + 1}</span>
-                        <span className="text-xs text-white font-quicksand">{item.name}</span>
+                        <span className="text-sm text-white font-quicksand">{item.name}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400">{item.qty} sold</span>
@@ -339,7 +339,7 @@ const CafeReports: React.FC = () => {
         {partner && (
           <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
                 <Percent className="h-4 w-4 text-orange-400" /> Revenue Split
               </CardTitle>
             </CardHeader>
@@ -365,14 +365,14 @@ const CafeReports: React.FC = () => {
         {/* Settlements */}
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
-              <FileText className="h-4 w-4 text-orange-400" /> Settlements
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
+                <FileText className="h-4 w-4 text-orange-400" /> Settlements
             </CardTitle>
             <div className="flex items-center gap-2">
               <input type="date" value={settlementDate} onChange={e => setSettlementDate(e.target.value)}
-                className="h-7 px-2 rounded-md bg-gray-800/50 border border-gray-700 text-white text-[10px]" />
+                className="h-8 px-2 rounded-md bg-gray-800/50 border border-gray-700 text-white text-xs" />
               <Button size="sm" onClick={handleGenerateSettlement}
-                className="h-7 text-[10px] bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
+                className="h-8 text-xs bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
                 Generate
               </Button>
             </div>
@@ -388,23 +388,23 @@ const CafeReports: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-xs font-medium text-white font-quicksand">{s.settlementDate}</p>
-                          <p className="text-[10px] text-gray-500">{s.totalOrders} orders &middot; Total: <CurrencyDisplay amount={s.netRevenue} /></p>
+                          <p className="text-xs text-gray-500">{s.totalOrders} orders &middot; Total: <CurrencyDisplay amount={s.netRevenue} /></p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
                             s.status === 'paid' ? 'bg-green-500/20 text-green-400' :
                             s.status === 'confirmed' ? 'bg-blue-500/20 text-blue-400' :
                             'bg-gray-500/20 text-gray-400'
                           }`}>{s.status}</span>
                           {s.status === 'draft' && (
                             <Button size="sm" onClick={() => updateSettlementStatus(s.id, 'confirmed')}
-                              className="h-6 text-[10px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-0 px-2">
+                              className="h-7 text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-0 px-2">
                               <CheckCircle2 className="h-3 w-3 mr-0.5" /> Confirm
                             </Button>
                           )}
                           {s.status === 'confirmed' && (
                             <Button size="sm" onClick={() => updateSettlementStatus(s.id, 'paid')}
-                              className="h-6 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 border-0 px-2">
+                              className="h-7 text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 border-0 px-2">
                               <CheckCircle2 className="h-3 w-3 mr-0.5" /> Mark Paid
                             </Button>
                           )}
@@ -412,16 +412,16 @@ const CafeReports: React.FC = () => {
                       </div>
                       <div className="flex gap-2">
                         <div className="flex-1 px-2 py-1 rounded bg-orange-500/5 border border-orange-500/10">
-                          <p className="text-[10px] text-gray-500 font-quicksand">Partner (70%)</p>
-                          <p className="text-xs font-bold text-orange-400"><CurrencyDisplay amount={s.partnerPayout} /></p>
+                          <p className="text-xs text-gray-500 font-quicksand">Partner (70%)</p>
+                          <p className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={s.partnerPayout} /></p>
                         </div>
                         <div className="flex-1 px-2 py-1 rounded bg-purple-500/5 border border-purple-500/10">
-                          <p className="text-[10px] text-gray-500 font-quicksand">Cuephoria (30%)</p>
-                          <p className="text-xs font-bold text-cuephoria-lightpurple"><CurrencyDisplay amount={s.cuephoriaRevenue} /></p>
+                          <p className="text-xs text-gray-500 font-quicksand">Cuephoria (30%)</p>
+                          <p className="text-sm font-bold text-cuephoria-lightpurple"><CurrencyDisplay amount={s.cuephoriaRevenue} /></p>
                         </div>
                       </div>
                       {s.totalDiscount > 0 && (
-                        <p className="text-[10px] text-green-400 font-quicksand">Discounts: <CurrencyDisplay amount={s.totalDiscount} /></p>
+                        <p className="text-xs text-green-400 font-quicksand">Discounts: <CurrencyDisplay amount={s.totalDiscount} /></p>
                       )}
                     </div>
                   ))}

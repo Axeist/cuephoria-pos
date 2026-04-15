@@ -132,7 +132,7 @@ const CafeCustomers: React.FC = () => {
     <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading">Cafe Customers</h1>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold gradient-text font-heading">Cafe Customers</h1>
         <Button onClick={() => setIsAddOpen(true)}
           className="bg-gradient-to-r from-orange-500 to-cuephoria-purple hover:opacity-90 text-white text-xs sm:text-sm h-9 sm:h-10">
           <Plus className="h-4 w-4 mr-1.5" /> Add Customer
@@ -152,10 +152,10 @@ const CafeCustomers: React.FC = () => {
             <CardContent className="p-3 flex items-center gap-3">
               <s.icon className={`h-5 w-5 ${s.color} flex-shrink-0`} />
               <div className="min-w-0">
-                <p className={`text-base font-bold ${s.color} font-heading truncate`}>
+                <p className={`text-lg sm:text-xl font-bold ${s.color} font-heading truncate`}>
                   {s.isCurrency ? <CurrencyDisplay amount={s.value as number} /> : s.value}
                 </p>
-                <p className="text-[10px] text-gray-500 font-quicksand truncate">{s.label}</p>
+                <p className="text-xs text-gray-500 font-quicksand truncate">{s.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -182,14 +182,14 @@ const CafeCustomers: React.FC = () => {
             { key: 'name' as const, label: 'Name' },
           ]).map(s => (
             <button key={s.key} onClick={() => setSortBy(s.key)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-quicksand transition-all ${
+              className={`px-2.5 py-1 rounded-md text-xs sm:text-sm font-quicksand transition-all ${
                 sortBy === s.key ? 'bg-orange-500/20 text-orange-400' : 'text-gray-500 hover:text-white'
               }`}>
               {s.label}
             </button>
           ))}
         </div>
-        <span className="text-[11px] text-gray-500 font-quicksand ml-auto flex-shrink-0">
+        <span className="text-xs text-gray-500 font-quicksand ml-auto flex-shrink-0">
           {filteredCustomers.length} of {customers.length}
         </span>
       </div>
@@ -216,13 +216,13 @@ const CafeCustomers: React.FC = () => {
                   </div>
                 </div>
                 {customer.isMember && (
-                  <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded flex-shrink-0">Member</span>
+                  <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded flex-shrink-0">Member</span>
                 )}
               </div>
 
               {/* Customer ID */}
               {customer.customerId && (
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-900/20 rounded border border-purple-500/15 text-[10px] font-mono text-purple-300">
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-900/20 rounded border border-purple-500/15 text-xs font-mono text-purple-300">
                   <Hash className="h-3 w-3 flex-shrink-0" /> {customer.customerId}
                 </div>
               )}
@@ -231,20 +231,20 @@ const CafeCustomers: React.FC = () => {
               <div className="p-2.5 bg-orange-500/5 rounded-lg border border-orange-500/10">
                 <div className="flex items-center gap-1.5 mb-2">
                   <Coffee className="h-3 w-3 text-orange-400" />
-                  <span className="text-[10px] text-orange-400 font-quicksand font-medium">Cafe Activity</span>
+                  <span className="text-xs text-orange-400 font-quicksand font-medium">Cafe Activity</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <p className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={customer.cafe.totalCafeSpent} /></p>
-                    <p className="text-[9px] text-gray-500">Spent</p>
+                    <p className="text-lg sm:text-xl font-bold text-orange-400"><CurrencyDisplay amount={customer.cafe.totalCafeSpent} /></p>
+                    <p className="text-xs text-gray-500">Spent</p>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white">{customer.cafe.totalCafeOrders}</p>
-                    <p className="text-[9px] text-gray-500">Orders</p>
+                    <p className="text-lg sm:text-xl font-bold text-white">{customer.cafe.totalCafeOrders}</p>
+                    <p className="text-xs text-gray-500">Orders</p>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-cyan-400"><CurrencyDisplay amount={customer.cafe.avgOrderValue} /></p>
-                    <p className="text-[9px] text-gray-500">Avg</p>
+                    <p className="text-lg sm:text-xl font-bold text-cyan-400"><CurrencyDisplay amount={customer.cafe.avgOrderValue} /></p>
+                    <p className="text-xs text-gray-500">Avg</p>
                   </div>
                 </div>
               </div>
@@ -254,22 +254,22 @@ const CafeCustomers: React.FC = () => {
                 <div className="flex items-center gap-2 p-2 bg-gray-800/30 rounded-lg">
                   <Star className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-semibold text-yellow-400">{customer.loyaltyPoints}</p>
-                    <p className="text-[9px] text-gray-500">Points</p>
+                    <p className="text-lg sm:text-xl font-semibold text-yellow-400">{customer.loyaltyPoints}</p>
+                    <p className="text-xs text-gray-500">Points</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 p-2 bg-gray-800/30 rounded-lg">
                   <CreditCard className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-semibold text-green-400"><CurrencyDisplay amount={customer.totalSpent} /></p>
-                    <p className="text-[9px] text-gray-500">Total Spent</p>
+                    <p className="text-lg sm:text-xl font-semibold text-green-400"><CurrencyDisplay amount={customer.totalSpent} /></p>
+                    <p className="text-xs text-gray-500">Total Spent</p>
                   </div>
                 </div>
               </div>
             </CardContent>
 
             <CardFooter className="px-4 pb-4 pt-0">
-              <Button className="w-full bg-gradient-to-r from-orange-600 to-cuephoria-purple hover:opacity-90 text-white border-0 text-xs h-8"
+              <Button className="w-full bg-gradient-to-r from-orange-600 to-cuephoria-purple hover:opacity-90 text-white border-0 text-xs sm:text-sm h-9 sm:h-10"
                 onClick={() => handleViewCustomer(customer.id)}>
                 <Eye className="h-3.5 w-3.5 mr-1.5" /> View Cafe Orders
               </Button>
@@ -357,15 +357,15 @@ const CafeCustomers: React.FC = () => {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="p-3 bg-orange-500/5 rounded-lg text-center border border-orange-500/10">
                     <p className="text-lg font-bold text-orange-400"><CurrencyDisplay amount={selectedCafe.totalCafeSpent} /></p>
-                    <p className="text-[10px] text-gray-500">Cafe Spent</p>
+                    <p className="text-xs text-gray-500">Cafe Spent</p>
                   </div>
                   <div className="p-3 bg-blue-500/5 rounded-lg text-center border border-blue-500/10">
                     <p className="text-lg font-bold text-blue-400">{selectedCafe.totalCafeOrders}</p>
-                    <p className="text-[10px] text-gray-500">Orders</p>
+                    <p className="text-xs text-gray-500">Orders</p>
                   </div>
                   <div className="p-3 bg-green-500/5 rounded-lg text-center border border-green-500/10">
                     <p className="text-lg font-bold text-green-400"><CurrencyDisplay amount={selectedCafe.avgOrderValue} /></p>
-                    <p className="text-[10px] text-gray-500">Avg Order</p>
+                    <p className="text-xs text-gray-500">Avg Order</p>
                   </div>
                 </div>
               )}
@@ -390,7 +390,7 @@ const CafeCustomers: React.FC = () => {
                         <div key={order.id} className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/20">
                           <div className="flex justify-between items-center">
                             <span className="text-sm font-bold text-white font-heading">{order.order_number}</span>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${
+                            <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
                               order.status === 'completed' ? 'bg-green-500/20 text-green-400'
                               : order.status === 'cancelled' ? 'bg-red-500/20 text-red-400'
                               : 'bg-orange-500/20 text-orange-400'
@@ -404,7 +404,7 @@ const CafeCustomers: React.FC = () => {
                             </span>
                             <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={Number(order.total)} /></span>
                           </div>
-                          <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                             <span className="capitalize">{order.order_type?.replace('_', ' ')}</span>
                             <span className="capitalize">{order.payment_method}</span>
                             {Number(order.discount) > 0 && <span className="text-green-400">-<CurrencyDisplay amount={Number(order.discount)} /></span>}

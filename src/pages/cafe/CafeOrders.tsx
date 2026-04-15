@@ -247,7 +247,7 @@ const CafeOrders: React.FC = () => {
               }`}>
               {f.label}
               {f.key === 'pending_payment' && pendingPaymentCount > 0 && (
-                <span className="ml-1 text-[9px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded-full">{pendingPaymentCount}</span>
+                <span className="ml-1 text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full">{pendingPaymentCount}</span>
               )}
             </button>
           ))}
@@ -268,17 +268,17 @@ const CafeOrders: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-wrap">
                       <span className="text-base font-bold text-white font-heading">{order.orderNumber}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-quicksand uppercase ${statusColors[order.status]}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-quicksand uppercase ${statusColors[order.status]}`}>
                         {order.status}
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-700/30 text-gray-400 capitalize">{order.orderType.replace('_', ' ')}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700/30 text-gray-400 capitalize">{order.orderType.replace('_', ' ')}</span>
                       {order.paymentMethod === 'pending' && !['cancelled', 'completed'].includes(order.status) && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium flex items-center gap-1">
-                          <AlertCircle className="h-2.5 w-2.5" /> Unpaid
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> Unpaid
                         </span>
                       )}
                       {order.orderSource === 'customer' && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-cuephoria-purple/20 text-cuephoria-lightpurple">Self-order</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-cuephoria-purple/20 text-cuephoria-lightpurple">Self-order</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -302,8 +302,8 @@ const CafeOrders: React.FC = () => {
                     <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       {order.status === 'pending' && (
                         <Button size="sm" onClick={() => { updateOrderStatus(order.id, 'confirmed'); toast.success('Order confirmed'); }}
-                          className="h-7 text-[10px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-0">
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm
+                          className="h-8 text-xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-0">
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Confirm
                         </Button>
                       )}
                       {order.paymentMethod === 'pending' && (
@@ -311,19 +311,19 @@ const CafeOrders: React.FC = () => {
                           setPaymentDialog(order.id);
                           setSelectedPayment('cash');
                         }}
-                          className="h-7 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-0">
-                          <Banknote className="h-3 w-3 mr-1" /> Settle Payment
+                          className="h-8 text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-0">
+                          <Banknote className="h-3.5 w-3.5 mr-1" /> Settle Payment
                         </Button>
                       )}
                       {['confirmed', 'ready', 'served'].includes(order.status) && (
                         <Button size="sm" onClick={() => handleCompleteOrder(order.id)}
-                          className="h-7 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 border-0">
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Complete
+                          className="h-8 text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 border-0">
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Complete
                         </Button>
                       )}
                       <Button size="sm" onClick={() => { cancelOrder(order.id); toast.success('Order cancelled'); }}
-                        className="h-7 text-[10px] bg-red-500/20 text-red-400 hover:bg-red-500/30 border-0">
-                        <XCircle className="h-3 w-3 mr-1" /> Cancel
+                        className="h-8 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 border-0">
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
                       </Button>
                     </div>
                   )}
@@ -359,14 +359,14 @@ const CafeOrders: React.FC = () => {
                           <div className={`flex-1 h-0.5 ${isCompleted || i <= detailStatusIndex ? 'bg-green-500' : 'bg-gray-700'}`} />
                         )}
                         <div className="flex flex-col items-center" title={step.label}>
-                          <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] ${
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center ${
                             isCompleted ? 'bg-green-500 text-white'
                             : isActive ? 'bg-orange-500 text-white ring-2 ring-orange-500/30'
                             : 'bg-gray-800 text-gray-600 border border-gray-700'
                           }`}>
                             <step.icon className="h-3 w-3" />
                           </div>
-                          <span className={`text-[8px] mt-0.5 font-quicksand ${isActive ? 'text-orange-400' : isCompleted ? 'text-green-400' : 'text-gray-600'}`}>
+                          <span className={`text-[10px] mt-0.5 font-quicksand ${isActive ? 'text-orange-400' : isCompleted ? 'text-green-400' : 'text-gray-600'}`}>
                             {step.label}
                           </span>
                         </div>
@@ -401,7 +401,7 @@ const CafeOrders: React.FC = () => {
                   <div key={item.id} className="flex justify-between items-center p-2 bg-gray-800/30 rounded-lg">
                     <div>
                       <span className="text-sm text-white font-quicksand">{item.quantity}x {item.itemName}</span>
-                      {item.notes && <p className="text-[10px] text-yellow-400 italic">"{item.notes}"</p>}
+                      {item.notes && <p className="text-xs text-yellow-400 italic">"{item.notes}"</p>}
                     </div>
                     <span className="text-sm text-orange-400"><CurrencyDisplay amount={item.total} /></span>
                   </div>

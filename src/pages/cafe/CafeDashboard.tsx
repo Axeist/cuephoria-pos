@@ -126,7 +126,7 @@ const CafeDashboard: React.FC = () => {
               <p className={`text-xl font-bold ${card.color} font-heading`}>
                 {card.format === 'currency' ? <CurrencyDisplay amount={card.value as number} /> : card.value}
               </p>
-              <p className="text-[10px] text-gray-500 font-quicksand mt-0.5">{card.label}</p>
+              <p className="text-xs text-gray-500 font-quicksand mt-0.5">{card.label}</p>
             </CardContent>
           </Card>
         ))}
@@ -136,7 +136,7 @@ const CafeDashboard: React.FC = () => {
         {/* Hourly Revenue Chart */}
         <Card className="lg:col-span-2 bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '300ms' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
+            <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <BarChart2 className="h-4 w-4 text-orange-400" /> Hourly Revenue
             </CardTitle>
           </CardHeader>
@@ -145,7 +145,7 @@ const CafeDashboard: React.FC = () => {
               {hourlyData.map((h, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
                   <div className="relative w-full flex justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 px-2 py-1 rounded text-[9px] text-white whitespace-nowrap z-10 shadow-lg">
+                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-800 px-2 py-1 rounded text-[10px] text-white whitespace-nowrap z-10 shadow-lg">
                       <CurrencyDisplay amount={h.revenue} /> ({h.orders})
                     </div>
                     <div
@@ -153,7 +153,7 @@ const CafeDashboard: React.FC = () => {
                       style={{ height: `${Math.max(2, (h.revenue / maxHourlyRevenue) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-[8px] text-gray-600 font-quicksand">{h.hour}</span>
+                  <span className="text-[10px] text-gray-600 font-quicksand">{h.hour}</span>
                 </div>
               ))}
             </div>
@@ -163,7 +163,7 @@ const CafeDashboard: React.FC = () => {
         {/* Order Type Breakdown */}
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '350ms' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
+            <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4 text-orange-400" /> Order Breakdown
             </CardTitle>
           </CardHeader>
@@ -209,8 +209,8 @@ const CafeDashboard: React.FC = () => {
         {partner && (
           <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '400ms' }}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-orange-400" /> Revenue Split
+            <CardTitle className="text-base font-heading text-white flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-orange-400" /> Revenue Split
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -221,11 +221,11 @@ const CafeDashboard: React.FC = () => {
               <div className="flex gap-2">
                 <div className="flex-1 p-3 bg-orange-500/10 rounded-lg text-center border border-orange-500/20">
                   <p className="text-lg font-bold text-orange-400"><CurrencyDisplay amount={stats.partnerShare} /></p>
-                  <p className="text-[10px] text-gray-400 font-quicksand">Partner ({partner.partnerRate}%)</p>
+                  <p className="text-xs text-gray-400 font-quicksand">Partner ({partner.partnerRate}%)</p>
                 </div>
                 <div className="flex-1 p-3 bg-cuephoria-purple/10 rounded-lg text-center border border-cuephoria-purple/20">
                   <p className="text-lg font-bold text-cuephoria-lightpurple"><CurrencyDisplay amount={stats.cuephoriaShare} /></p>
-                  <p className="text-[10px] text-gray-400 font-quicksand">Cuephoria ({partner.cuephoriaRate}%)</p>
+                  <p className="text-xs text-gray-400 font-quicksand">Cuephoria ({partner.cuephoriaRate}%)</p>
                 </div>
               </div>
             </CardContent>
@@ -235,7 +235,7 @@ const CafeDashboard: React.FC = () => {
         {/* Top Selling Items */}
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '450ms' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
+            <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <Flame className="h-4 w-4 text-orange-400" /> Top Items Today
             </CardTitle>
           </CardHeader>
@@ -250,11 +250,11 @@ const CafeDashboard: React.FC = () => {
                       <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                         i === 0 ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-700/50 text-gray-400'
                       }`}>{i + 1}</span>
-                      <span className="text-xs text-white font-quicksand truncate max-w-[120px]">{item.name}</span>
+                      <span className="text-sm text-white font-quicksand truncate max-w-[120px]">{item.name}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-bold text-orange-400">{item.qty}x</span>
-                      <p className="text-[10px] text-gray-500"><CurrencyDisplay amount={item.revenue} /></p>
+                      <span className="text-sm font-bold text-orange-400">{item.qty}x</span>
+                      <p className="text-xs text-gray-500"><CurrencyDisplay amount={item.revenue} /></p>
                     </div>
                   </div>
                 ))}
@@ -266,7 +266,7 @@ const CafeDashboard: React.FC = () => {
         {/* Live Activity */}
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '500ms' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white flex items-center gap-2">
+            <CardTitle className="text-base font-heading text-white flex items-center gap-2">
               <Coffee className="h-4 w-4 text-orange-400" /> Recent Activity
             </CardTitle>
           </CardHeader>
@@ -286,13 +286,13 @@ const CafeDashboard: React.FC = () => {
                           : 'bg-blue-400 animate-pulse'
                         }`} />
                         <div>
-                          <p className="text-xs text-white font-quicksand">{order.orderNumber}</p>
-                          <p className="text-[10px] text-gray-500">{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-sm text-white font-quicksand">{order.orderNumber}</p>
+                          <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-white"><CurrencyDisplay amount={order.total} /></p>
-                        <p className={`text-[10px] capitalize ${
+                        <p className="text-sm font-bold text-white"><CurrencyDisplay amount={order.total} /></p>
+                        <p className={`text-xs capitalize ${
                           order.status === 'completed' ? 'text-green-400' : order.status === 'cancelled' ? 'text-red-400' : 'text-orange-400'
                         }`}>{order.status}</p>
                       </div>
@@ -309,7 +309,7 @@ const CafeDashboard: React.FC = () => {
       {settlements.length > 0 && (
         <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl animate-slide-up" style={{ animationDelay: '550ms' }}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-heading text-white">Recent Settlements</CardTitle>
+            <CardTitle className="text-base font-heading text-white">Recent Settlements</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -317,17 +317,17 @@ const CafeDashboard: React.FC = () => {
                 <div key={s.id} className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/20">
                   <div className="flex justify-between items-center mb-1">
                     <p className="text-xs font-medium text-white font-quicksand">{s.settlementDate}</p>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
                       s.status === 'paid' ? 'bg-green-500/20 text-green-400' :
                       s.status === 'confirmed' ? 'bg-blue-500/20 text-blue-400' :
                       'bg-gray-500/20 text-gray-400'
                     }`}>{s.status}</span>
                   </div>
                   <p className="text-lg font-bold text-white"><CurrencyDisplay amount={s.netRevenue} /></p>
-                  <p className="text-[10px] text-gray-500">{s.totalOrders} orders</p>
+                  <p className="text-xs text-gray-500">{s.totalOrders} orders</p>
                   <div className="flex gap-2 mt-1.5">
-                    <span className="text-[10px] text-orange-400 font-quicksand">Partner: <CurrencyDisplay amount={s.partnerPayout} /></span>
-                    <span className="text-[10px] text-cuephoria-lightpurple font-quicksand">Cuephoria: <CurrencyDisplay amount={s.cuephoriaRevenue} /></span>
+                    <span className="text-xs text-orange-400 font-quicksand">Partner: <CurrencyDisplay amount={s.partnerPayout} /></span>
+                    <span className="text-xs text-cuephoria-lightpurple font-quicksand">Cuephoria: <CurrencyDisplay amount={s.cuephoriaRevenue} /></span>
                   </div>
                 </div>
               ))}
