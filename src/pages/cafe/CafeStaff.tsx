@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import {
   Users, Plus, Pencil, Trash2, Search, X, Loader2,
-  Shield, ShoppingCart, CookingPot, UserCheck, UserX, RefreshCw,
+  Shield, UserCheck, UserX, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,12 +29,13 @@ interface StaffUser {
   created_at: string;
 }
 
-const ROLE_CONFIG: Record<StaffRole, { label: string; color: string; bg: string; icon: React.ElementType }> = {
+const ROLE_CONFIG: Record<'cafe_admin' | 'staff', { label: string; color: string; bg: string; icon: React.ElementType }> = {
   cafe_admin: { label: 'Admin', color: 'text-purple-400', bg: 'bg-purple-500/20', icon: Shield },
   staff:      { label: 'Staff', color: 'text-cyan-400', bg: 'bg-cyan-500/20', icon: UserCheck },
-  cashier:    { label: 'Cashier', color: 'text-blue-400', bg: 'bg-blue-500/20', icon: ShoppingCart },
-  kitchen:    { label: 'Kitchen', color: 'text-orange-400', bg: 'bg-orange-500/20', icon: CookingPot },
 };
+
+const roleBadgeKey = (role: StaffRole): 'cafe_admin' | 'staff' =>
+  (role === 'cafe_admin' ? 'cafe_admin' : 'staff');
 
 const CafeStaff: React.FC = () => {
   const { user } = useCafeAuth();
@@ -51,7 +52,7 @@ const CafeStaff: React.FC = () => {
 
   // Edit dialog
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
-  const [editForm, setEditForm] = useState({ display_name: '', role: 'cashier' as StaffRole, is_active: true });
+  const [editForm, setEditForm] = useState({ display_name: '', role: 'staff' as StaffRole, is_active: true });
   const [isSaving, setIsSaving] = useState(false);
 
   // Delete confirmation
@@ -142,7 +143,9 @@ const CafeStaff: React.FC = () => {
   /* ───────── Edit Staff ───────── */
   const openEdit = (s: StaffUser) => {
     setEditingStaff(s);
-    setEditForm({ display_name: s.display_name, role: s.role, is_active: s.is_active });
+    const role =
+      s.role === 'cashier' || s.role === 'kitchen' ? 'staff' : s.role;
+    setEditForm({ display_name: s.display_name, role, is_active: s.is_active });
   };
 
   const handleEdit = async () => {
@@ -211,7 +214,7 @@ const CafeStaff: React.FC = () => {
   };
 
   const RoleBadge = ({ role }: { role: StaffRole }) => {
-    const cfg = ROLE_CONFIG[role];
+    const cfg = ROLE_CONFIG[roleBadgeKey(role)];
     const Icon = cfg.icon;
     return (
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
@@ -405,13 +408,7 @@ const CafeStaff: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">
-                    <span className="flex items-center gap-2"><UserCheck className="h-3.5 w-3.5 text-cyan-400" /> Staff (unified workspace)</span>
-                  </SelectItem>
-                  <SelectItem value="cashier">
-                    <span className="flex items-center gap-2"><ShoppingCart className="h-3.5 w-3.5 text-blue-400" /> Cashier</span>
-                  </SelectItem>
-                  <SelectItem value="kitchen">
-                    <span className="flex items-center gap-2"><CookingPot className="h-3.5 w-3.5 text-orange-400" /> Kitchen</span>
+                    <span className="flex items-center gap-2"><UserCheck className="h-3.5 w-3.5 text-cyan-400" /> Staff</span>
                   </SelectItem>
                   <SelectItem value="cafe_admin">
                     <span className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-purple-400" /> Admin</span>
@@ -461,13 +458,7 @@ const CafeStaff: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">
-                    <span className="flex items-center gap-2"><UserCheck className="h-3.5 w-3.5 text-cyan-400" /> Staff (unified workspace)</span>
-                  </SelectItem>
-                  <SelectItem value="cashier">
-                    <span className="flex items-center gap-2"><ShoppingCart className="h-3.5 w-3.5 text-blue-400" /> Cashier</span>
-                  </SelectItem>
-                  <SelectItem value="kitchen">
-                    <span className="flex items-center gap-2"><CookingPot className="h-3.5 w-3.5 text-orange-400" /> Kitchen</span>
+                    <span className="flex items-center gap-2"><UserCheck className="h-3.5 w-3.5 text-cyan-400" /> Staff</span>
                   </SelectItem>
                   <SelectItem value="cafe_admin">
                     <span className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-purple-400" /> Admin</span>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { CafeSessionUser, CafeUserRole } from '@/types/cafe.types';
-import { toast } from 'sonner';
+import { appToast } from '@/lib/appToast';
 
 interface CafeAuthContextType {
   user: CafeSessionUser | null;
@@ -24,7 +24,7 @@ export const CafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (user) {
       idleTimer.current = setTimeout(() => {
         setUser(null);
-        toast.info('Session expired due to inactivity');
+        appToast.info('Session expired', 'Sign in again to continue.');
       }, IDLE_TIMEOUT_MS);
     }
   }, [user]);
@@ -68,12 +68,19 @@ export const CafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const data = await res.json();
       if (data?.ok && data.success && data.user) {
         setUser(data.user);
+        // Brief delay so the login overlay can dismiss first; toast reads clearly above the fold
+        window.setTimeout(() => {
+          appToast.success(
+            'Signed in successfully',
+            `${data.user.displayName || data.user.username} — your workspace is ready.`,
+          );
+        }, 220);
         return data.user;
       }
-      toast.error(data?.error || 'Invalid credentials');
+      appToast.error(data?.error || 'Invalid credentials', 'Check username and password, then try again.');
       return null;
     } catch {
-      toast.error('Login failed. Please try again.');
+      appToast.error('Login failed', 'Network error — please try again.');
       return null;
     }
   }, []);

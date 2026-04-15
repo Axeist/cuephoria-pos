@@ -67,18 +67,27 @@ export function useCafeMenu(locationId?: string) {
   }, [locationId, fetchItems, fetchCategories]);
 
   // Category CRUD
-  const addCategory = useCallback(async (name: string, partnerId: string, opts?: { description?: string; imageUrl?: string; tracksInventory?: boolean }) => {
-    if (!locationId) return null;
+  const addCategory = useCallback(async (
+    name: string,
+    partnerId: string,
+    opts?: { description?: string; imageUrl?: string; tracksInventory?: boolean },
+  ): Promise<{ category: CafeMenuCategory | null; error: string | null }> => {
+    if (!locationId) {
+      return { category: null, error: 'No location selected' };
+    }
     const { data, error } = await supabase.from('cafe_menu_categories').insert({
       location_id: locationId, partner_id: partnerId, name,
       description: opts?.description || null, image_url: opts?.imageUrl || null,
       sort_order: categories.length,
       tracks_inventory: opts?.tracksInventory ?? false,
     }).select().single();
-    if (error) { console.error(error); return null; }
+    if (error) {
+      console.error(error);
+      return { category: null, error: error.message };
+    }
     const cat = transformMenuCategoryRow(data as unknown as CafeMenuCategoryRow);
     setCategories(prev => [...prev, cat]);
-    return cat;
+    return { category: cat, error: null };
   }, [locationId, categories.length]);
 
   const updateCategory = useCallback(async (id: string, updates: Partial<{ name: string; description: string; imageUrl: string; isActive: boolean; sortOrder: number; tracksInventory: boolean }>) => {

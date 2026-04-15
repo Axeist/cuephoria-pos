@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, Phone, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { appToast } from '@/lib/appToast';
+import AppLoadingOverlay from '@/components/loading/AppLoadingOverlay';
 import {
   getCustomerSession,
   setCustomerSession,
@@ -35,7 +36,7 @@ export default function CustomerLogin() {
     e.preventDefault();
 
     if (!phone || !password) {
-      toast.error('Please enter phone and password');
+      appToast.error('Missing details', 'Enter your phone number and password.');
       return;
     }
 
@@ -43,7 +44,7 @@ export default function CustomerLogin() {
     const normalizedPhone = normalizePhoneNumber(phone);
     const validation = validatePhoneNumber(normalizedPhone);
     if (!validation.valid) {
-      toast.error(validation.error);
+      appToast.error('Invalid phone', validation.error);
       return;
     }
 
@@ -58,13 +59,13 @@ export default function CustomerLogin() {
         .single();
 
       if (error || !customer) {
-        toast.error('Customer not found. Please check your phone number or visit us to register.');
+        appToast.error('Customer not found', 'Check your phone number or register at the venue.');
         return;
       }
 
       // Check if password is set
       if (!customer.password_hash) {
-        toast.error('Password not set. Please visit the venue to set up your account.');
+        appToast.error('Password not set', 'Visit the venue to activate your account.');
         return;
       }
 
@@ -87,11 +88,11 @@ export default function CustomerLogin() {
         
         // For MVP, just check if password matches the default format
         if (password !== defaultPassword) {
-          toast.error('Incorrect password. Default password is CUE followed by your phone number.');
+          appToast.error('Incorrect password', 'Default is CUE + your phone number.');
           return;
         }
       } else if (!verifyResult) {
-        toast.error('Incorrect password. Default password is CUE followed by your phone number.');
+        appToast.error('Incorrect password', 'Default is CUE + your phone number.');
         return;
       }
 
@@ -114,13 +115,13 @@ export default function CustomerLogin() {
 
       setCustomerSession(customerSession);
 
-      toast.success(`Welcome back, ${customer.name}! 👋`);
+      appToast.success(`Welcome back, ${customer.name}!`, 'Taking you to your dashboard…');
 
       // Always redirect to dashboard
       navigate('/customer/dashboard');
     } catch (err) {
       console.error('Login error:', err);
-      toast.error('Login failed. Please try again.');
+      appToast.error('Login failed', 'Check your phone and password, then try again.');
     } finally {
       setLoading(false);
     }
@@ -128,6 +129,12 @@ export default function CustomerLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900/30 to-gray-900 p-4 relative overflow-hidden">
+      <AppLoadingOverlay
+        visible={loading}
+        variant="default"
+        title="Signing you in"
+        subtitle="Verifying your customer account…"
+      />
       {/* Enhanced Background effects */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-purple-500/30 blur-3xl animate-pulse"></div>

@@ -89,7 +89,11 @@ const CafeMenu: React.FC = () => {
 
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !partner || !user) return;
+    const partnerId = partner?.id ?? user?.partnerId;
+    if (!file || !user || !partnerId) {
+      if (file && !partnerId) toast.error('Could not resolve cafe partner. Refresh or sign in again.');
+      return;
+    }
     setCsvUploading(true);
     try {
       const text = await file.text();
@@ -126,8 +130,9 @@ const CafeMenu: React.FC = () => {
 
       // Create missing categories
       for (const catNameStr of newCategoryNames) {
-        const cat = await addCategory(catNameStr, partner.id);
-        if (cat) categoryMap.set(catNameStr.toLowerCase(), cat.id);
+        const { category, error } = await addCategory(catNameStr, partnerId);
+        if (category) categoryMap.set(catNameStr.toLowerCase(), category.id);
+        else console.error('Failed to create category from CSV:', catNameStr, error);
       }
 
       // Insert items
@@ -197,15 +202,32 @@ const CafeMenu: React.FC = () => {
   }
 
   const handleSaveCategory = async () => {
-    if (!catName.trim() || !partner) return;
+    const partnerId = partner?.id ?? user?.partnerId;
+    if (!catName.trim()) {
+      toast.error('Enter a category name');
+      return;
+    }
+    if (!partnerId) {
+      toast.error('Could not resolve cafe partner. Refresh the page or sign out and sign in again.');
+      return;
+    }
     if (catEditId) {
       const ok = await updateCategory(catEditId, { name: catName.trim(), tracksInventory: catTracksInventory });
-      if (ok) toast.success('Category updated');
-    } else {
-      const cat = await addCategory(catName.trim(), partner.id, { tracksInventory: catTracksInventory });
-      if (cat) toast.success('Category added');
+      if (ok) {
+        toast.success('Category updated');
+        setCatDialog(false); setCatName(''); setCatEditId(null); setCatTracksInventory(false);
+      } else {
+        toast.error('Could not update category');
+      }
+      return;
     }
-    setCatDialog(false); setCatName(''); setCatEditId(null); setCatTracksInventory(false);
+    const { category, error } = await addCategory(catName.trim(), partnerId, { tracksInventory: catTracksInventory });
+    if (category) {
+      toast.success('Category added');
+      setCatDialog(false); setCatName(''); setCatEditId(null); setCatTracksInventory(false);
+    } else {
+      toast.error(error || 'Could not add category');
+    }
   };
 
   const handleDeleteCategory = async (id: string) => {
@@ -278,12 +300,16 @@ const CafeMenu: React.FC = () => {
   };
 
   const handleSaveTable = async () => {
-    if (!tableForm.tableName.trim() || !partner) return;
+    const partnerId = partner?.id ?? user?.partnerId;
+    if (!tableForm.tableName.trim() || !partnerId) {
+      if (tableForm.tableName.trim() && !partnerId) toast.error('Could not resolve cafe partner. Refresh or sign in again.');
+      return;
+    }
     if (tableEditId) {
       const ok = await updateTable(tableEditId, { tableName: tableForm.tableName.trim(), zone: tableForm.zone, capacity: parseInt(tableForm.capacity) || 4 });
       if (ok) toast.success('Table updated');
     } else {
-      const t = await addTable({ tableName: tableForm.tableName.trim(), zone: tableForm.zone, capacity: parseInt(tableForm.capacity) || 4, partnerId: partner.id });
+      const t = await addTable({ tableName: tableForm.tableName.trim(), zone: tableForm.zone, capacity: parseInt(tableForm.capacity) || 4, partnerId });
       if (t) toast.success('Table added');
     }
     setTableDialog(false); setTableEditId(null);

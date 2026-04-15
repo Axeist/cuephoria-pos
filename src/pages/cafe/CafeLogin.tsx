@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCafeAuth } from '@/context/CafeAuthContext';
+import AppLoadingOverlay from '@/components/loading/AppLoadingOverlay';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
-  Coffee, User, Lock, ShoppingCart, UtensilsCrossed,
+  User, Lock, ShoppingCart, UtensilsCrossed,
   BarChart2, Shield, Loader2, Eye, EyeOff, Users, TrendingUp,
-  CreditCard, CookingPot,
+  CreditCard, ClipboardList,
 } from 'lucide-react';
 const CafeLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ const CafeLogin: React.FC = () => {
         if (loggedInUser.role === 'cafe_admin') {
           navigate('/cafe/dashboard');
         } else {
-          navigate('/cafe/workspace');
+          navigate('/cafe/pos');
         }
       }
     } finally {
@@ -37,12 +38,18 @@ const CafeLogin: React.FC = () => {
   };
 
   const roles: { value: 'staff' | 'admin'; label: string; icon: React.ElementType; desc: string }[] = [
-    { value: 'staff', label: 'Staff', icon: ShoppingCart, desc: 'POS, kitchen, menu & orders' },
+    { value: 'staff', label: 'Staff', icon: ShoppingCart, desc: 'POS, menu & orders' },
     { value: 'admin', label: 'Admin', icon: Shield, desc: 'Dashboard & reports' },
   ];
 
   return (
-    <div className="min-h-screen flex bg-[#050508] overflow-hidden">
+    <div className="min-h-screen flex bg-[#050508] overflow-hidden relative">
+      <AppLoadingOverlay
+        visible={isSubmitting}
+        variant="cafe"
+        title="Signing you in"
+        subtitle="Validating credentials and opening your workspace…"
+      />
       {/* ── LEFT BRANDING PANEL ── */}
       <div className="hidden lg:flex lg:w-[58%] relative flex-col justify-between p-14 overflow-hidden">
         <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #0a0515 0%, #0f0520 50%, #050508 100%)' }} />
@@ -78,7 +85,7 @@ const CafeLogin: React.FC = () => {
           <div className="inline-flex items-center gap-2 mb-8 px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-wide"
             style={{ background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.2)', color: '#fb923c' }}>
             <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            Live · POS · KOT · Kitchen Display
+            Live · POS · orders & menu
           </div>
 
           <h1 className="text-5xl font-extrabold text-white leading-[1.08] tracking-[-0.02em] mb-6">
@@ -90,13 +97,13 @@ const CafeLogin: React.FC = () => {
           </h1>
 
           <p className="text-gray-400 text-[15px] leading-relaxed mb-10">
-            Complete cafe POS with kitchen order tokens, real-time display, menu management, revenue split tracking, and customer analytics — powered by Cuephoria.
+            Complete cafe POS with order tracking, menu management, revenue split tracking, and customer analytics — powered by Cuephoria.
           </p>
 
           <div className="grid grid-cols-2 gap-2.5">
             {[
               { icon: ShoppingCart, label: 'Smart POS System', color: 'text-orange-400' },
-              { icon: CookingPot, label: 'Kitchen Display (KDS)', color: 'text-purple-400' },
+              { icon: ClipboardList, label: 'Orders & fulfilment', color: 'text-purple-400' },
               { icon: UtensilsCrossed, label: 'Menu & Inventory', color: 'text-blue-400' },
               { icon: TrendingUp, label: 'Revenue Analytics', color: 'text-green-400' },
               { icon: Users, label: 'Customer Hub', color: 'text-cyan-400' },
@@ -238,7 +245,7 @@ const CafeLogin: React.FC = () => {
               <span>Activity is logged</span>
             </div>
             <div className="flex items-center justify-center gap-4">
-              {['Cafe POS', 'KOT System', '70/30 Split'].map((badge) => (
+              {['Cafe POS', 'Orders', '70/30 Split'].map((badge) => (
                 <span key={badge} className="text-[10px] px-2 py-0.5 rounded-full"
                   style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.12)', color: '#c2410c' }}>
                   {badge}

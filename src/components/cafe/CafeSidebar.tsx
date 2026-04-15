@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, CookingPot, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, User, Users, UserPlus, LayoutGrid } from 'lucide-react';
+import { Home, ShoppingCart, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, User, Users, UserPlus } from 'lucide-react';
 import { useCafeAuth } from '@/context/CafeAuthContext';
 import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
-import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -15,22 +14,17 @@ const CafeSidebar: React.FC = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const { activeOrders } = useCafeOrders(user?.locationId);
-  const { pendingKots } = useCafeKOT(user?.locationId);
 
   if (!user) return null;
 
   const isCafeAdmin = user.role === 'cafe_admin';
   const isUnifiedStaff = user.role === 'cashier' || user.role === 'kitchen' || user.role === 'staff';
-  const roleLabel =
-    isCafeAdmin ? 'Cafe Admin' : user.role === 'staff' ? 'Staff' : user.role === 'kitchen' ? 'Kitchen' : user.role === 'cashier' ? 'Cashier' : 'Staff';
+  const roleLabel = isCafeAdmin ? 'Cafe Admin' : 'Staff';
   const activeOrderCount = activeOrders.length;
-  const pendingKotCount = pendingKots.length;
 
   const adminMenuItems = [
     { icon: Home, label: 'Dashboard', path: '/cafe/dashboard', roles: ['cafe_admin'], badge: 0 },
-    { icon: LayoutGrid, label: 'Staff workspace', path: '/cafe/workspace', roles: ['cafe_admin'], badge: 0 },
     { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin'], badge: 0 },
-    { icon: CookingPot, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin'], badge: pendingKotCount },
     { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', roles: ['cafe_admin'], badge: 0 },
     { icon: Users, label: 'Customers', path: '/cafe/customers', roles: ['cafe_admin'], badge: 0 },
     { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin'], badge: activeOrderCount },
@@ -38,12 +32,16 @@ const CafeSidebar: React.FC = () => {
     { icon: UserPlus, label: 'Staff', path: '/cafe/staff', roles: ['cafe_admin'], badge: 0 },
   ];
 
-  const staffHubMenu = [
-    { icon: LayoutGrid, label: 'Staff workspace', path: '/cafe/workspace', badge: activeOrderCount + pendingKotCount },
+  /** Same operational sections as admin (no dashboard / reports / staff management). */
+  const staffMenuItems = [
+    { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', badge: 0 },
+    { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', badge: 0 },
+    { icon: Users, label: 'Customers', path: '/cafe/customers', badge: 0 },
+    { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', badge: activeOrderCount },
   ];
 
   const menuItems = isUnifiedStaff
-    ? staffHubMenu
+    ? staffMenuItems
     : adminMenuItems.filter(item => item.roles.includes(user.role));
 
   if (isMobile) {

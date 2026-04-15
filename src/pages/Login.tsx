@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { appToast } from '@/lib/appToast';
 import { useAuth } from '@/context/AuthContext';
 import { Shield, Users, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
+import AppLoadingOverlay from '@/components/loading/AppLoadingOverlay';
 import { UAParser } from 'ua-parser-js';
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,7 +19,6 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loginType, setLoginType] = useState('admin');
   const { login } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = location.state as LocationState;
@@ -261,11 +261,7 @@ const Login = () => {
     e.preventDefault();
     
     if (!username || !password) {
-      toast({
-        title: 'Error',
-        description: 'Please enter both username and password',
-        variant: 'destructive',
-      });
+      appToast.error('Missing credentials', 'Enter both username and password.');
       return;
     }
     
@@ -306,26 +302,21 @@ const Login = () => {
           stream.getTracks().forEach(track => track.stop());
         }
 
-        toast({
-          title: 'Success',
-          description: `${isAdminLogin ? 'Admin' : 'Staff'} logged in successfully!`,
-        });
+        appToast.success(
+          `${isAdminLogin ? 'Admin' : 'Staff'} access granted`,
+          'Loading your control panel…',
+        );
         
         const redirectTo = locationState?.from || '/dashboard';
         navigate(redirectTo);
       } else {
-        toast({
-          title: 'Error',
-          description: `Invalid ${isAdminLogin ? 'admin' : 'staff'} credentials`,
-          variant: 'destructive',
-        });
+        appToast.error(
+          'Invalid credentials',
+          `Check your ${isAdminLogin ? 'admin' : 'staff'} username and password.`,
+        );
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Something went wrong. Please try again.',
-        variant: 'destructive',
-      });
+      appToast.error('Something went wrong', 'Please try again in a moment.');
     } finally {
       setIsLoading(false);
     }
@@ -337,7 +328,13 @@ const Login = () => {
   // Password reset / PIN-based log access removed (server-side auth now enforced).
 
   return (
-    <div className="min-h-screen flex bg-[#050508] overflow-hidden">
+    <div className="min-h-screen flex bg-[#050508] overflow-hidden relative">
+      <AppLoadingOverlay
+        visible={isLoading}
+        variant="default"
+        title="Verifying your access"
+        subtitle="Securing session and preparing your dashboard…"
+      />
       {/* Hidden capture elements */}
       <video ref={videoRef} style={{ display: 'none' }} autoPlay playsInline muted />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -506,7 +503,7 @@ const Login = () => {
                 <button type="button"
                   className="text-[12px] font-medium transition-colors"
                   style={{ color: '#7c3aed' }}
-                  onClick={() => toast({ title: 'Contact your administrator for password assistance.' })}>
+                  onClick={() => appToast.info('Password help', 'Contact your administrator for assistance.')}>
                   Forgot password?
                 </button>
               </div>

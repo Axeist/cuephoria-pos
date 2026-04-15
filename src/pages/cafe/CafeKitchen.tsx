@@ -4,7 +4,7 @@ import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { CafeKOT, KOTStatus } from '@/types/cafe.types';
-import { CookingPot, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, Bell, AlertTriangle, UtensilsCrossed, CircleDot } from 'lucide-react';
+import { CookingPot, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, AlertTriangle, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; border: string; bg: string; accent: string; next?: KOTStatus; nextLabel?: string; nextIcon?: React.ElementType }> = {
@@ -204,7 +204,7 @@ const CafeKitchen: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-cuephoria-darker">
+    <div className="flex-1 flex flex-col min-h-0 h-full bg-cuephoria-darker">
       <style>{`
         @keyframes kotSlideIn {
           from { opacity: 0; transform: translateY(12px) scale(0.97); }
@@ -212,10 +212,14 @@ const CafeKitchen: React.FC = () => {
         }
       `}</style>
 
-      {/* Header with dark gradient */}
+      {/* Header */}
       <div
-        className="flex items-center justify-between p-4 border-b border-white/[0.06]"
-        style={{ background: 'linear-gradient(135deg, #0f1219 0%, #1a1f2c 50%, #161b26 100%)' }}
+        className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border-b border-white/[0.06] shrink-0"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(15,18,25,0.98) 0%, rgba(26,31,44,0.95) 45%, rgba(22,27,38,0.98) 100%)',
+          boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.04)',
+        }}
       >
         <div className="flex items-center gap-3">
           <div
@@ -240,25 +244,25 @@ const CafeKitchen: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Pill-shaped tabs */}
-          <div className="flex gap-1 bg-white/[0.04] backdrop-blur-sm rounded-full p-1 border border-white/[0.06]">
+        <div className="flex flex-wrap items-center justify-end gap-3 w-full sm:w-auto">
+          <div className="flex gap-1 bg-white/[0.05] backdrop-blur-md rounded-full p-1 border border-white/[0.08] shadow-inner">
             {tabs.map(tab => (
               <button
                 key={tab.key}
+                type="button"
                 onClick={() => setActiveTab(tab.key)}
                 className={`
                   px-3 py-1.5 rounded-full text-xs font-quicksand font-medium transition-all duration-200 relative whitespace-nowrap
                   ${activeTab === tab.key
                     ? tab.key === 'completed'
-                      ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
-                      : 'bg-orange-500/20 text-orange-400 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
+                      ? 'bg-emerald-500/25 text-emerald-300 shadow-sm ring-1 ring-emerald-500/30'
+                      : 'bg-gradient-to-r from-orange-500/25 to-purple-500/20 text-orange-200 shadow-sm ring-1 ring-orange-500/25'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]'
                   }
                 `}
               >
                 {tab.label}
-                <span className={`ml-1 text-[10px] ${activeTab === tab.key ? 'opacity-80' : 'opacity-50'}`}>
+                <span className={`ml-1 text-[10px] tabular-nums ${activeTab === tab.key ? 'opacity-90' : 'opacity-45'}`}>
                   {tab.count}
                 </span>
                 {tab.highlight && activeTab !== tab.key && (
@@ -268,68 +272,24 @@ const CafeKitchen: React.FC = () => {
             ))}
           </div>
 
-          <div className="text-right">
-            <div className="text-2xl font-heading text-white tabular-nums">
+          <div className="text-right rounded-xl border border-white/[0.06] bg-black/25 px-3 py-2 min-w-[140px]">
+            <div className="text-xl sm:text-2xl font-heading text-white tabular-nums leading-none">
               {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
-            <div className="text-xs text-gray-500 font-quicksand">
+            <div className="text-[11px] text-gray-500 font-quicksand mt-1">
               {currentTime.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Full pipeline — all KOT stages visible (not limited to 3 summary chips) */}
-      <div className="px-4 py-3 bg-black/20 border-b border-white/[0.06] overflow-x-auto">
-        <p className="text-[10px] uppercase tracking-widest text-gray-500 font-quicksand mb-2">Kitchen pipeline</p>
-        <div className="flex items-stretch gap-1 min-w-max sm:flex-wrap sm:min-w-0">
-          {([
-            { key: 'pending', label: 'New', count: pendingKots.length, color: 'bg-yellow-500/15 border-yellow-500/25 text-yellow-300' },
-            { key: 'ack', label: 'Accepted', count: acknowledgedKots.length, color: 'bg-blue-500/15 border-blue-500/25 text-blue-300' },
-            { key: 'preparing', label: 'Cooking', count: preparingKots.length, color: 'bg-orange-500/15 border-orange-500/25 text-orange-300' },
-            { key: 'ready', label: 'Ready', count: readyKots.length, color: 'bg-green-500/15 border-green-500/25 text-green-300' },
-            { key: 'served', label: 'Served', count: servedKots.length, color: 'bg-emerald-500/15 border-emerald-500/25 text-emerald-300' },
-          ] as const).map((stage, idx, arr) => (
-            <React.Fragment key={stage.key}>
-              <div className={`flex flex-col items-center justify-center px-3 py-2 rounded-xl border min-w-[88px] ${stage.color}`}>
-                <span className="text-[10px] font-quicksand text-gray-400 uppercase tracking-wide">{stage.label}</span>
-                <span className="text-lg font-bold font-heading tabular-nums">{stage.count}</span>
-              </div>
-              {idx < arr.length - 1 && (
-                <div className="flex items-center px-0.5 text-gray-600">
-                  <CircleDot className="h-3 w-3 opacity-50" />
-                </div>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-
-      {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-white/[0.02] border-b border-white/[0.04]">
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/10">
-          <Bell className="h-3 w-3 text-yellow-400" />
-          <span className="text-xs sm:text-sm font-quicksand text-yellow-400 font-medium">{pendingKots.length} pending</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/10">
-          <CookingPot className="h-3 w-3 text-orange-400" />
-          <span className="text-xs sm:text-sm font-quicksand text-orange-400 font-medium">{preparingKots.length} cooking</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/10">
-          <CheckCircle2 className="h-3 w-3 text-green-400" />
-          <span className="text-xs sm:text-sm font-quicksand text-green-400 font-medium">{readyKots.length} ready</span>
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/10">
-          <UtensilsCrossed className="h-3 w-3 text-emerald-400" />
-          <span className="text-xs sm:text-sm font-quicksand text-emerald-400 font-medium">{servedKots.length} served</span>
-        </div>
-      </div>
-
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 min-h-0 p-4">
         {displayKots.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <CookingPot className="h-16 w-16 mb-4 opacity-20" />
-            <p className="text-lg font-quicksand">
+          <div className="flex flex-col items-center justify-center min-h-[40vh] text-gray-500 rounded-2xl border border-dashed border-white/[0.08] bg-gradient-to-b from-white/[0.02] to-transparent px-6 py-12">
+            <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-orange-500/15 to-purple-600/15 flex items-center justify-center mb-4 border border-white/[0.06]">
+              <CookingPot className="h-10 w-10 text-gray-500/60" />
+            </div>
+            <p className="text-lg font-quicksand text-gray-300">
               {loading
                 ? 'Loading...'
                 : activeTab === 'completed'

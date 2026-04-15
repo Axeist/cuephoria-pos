@@ -2,6 +2,15 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useCafeAuth } from '@/context/CafeAuthContext';
 import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
 import { useCafePartner } from '@/hooks/cafe/useCafePartner';
@@ -11,11 +20,11 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import {
   BarChart2, TrendingUp, DollarSign, ShoppingCart, Calendar, FileText,
   CheckCircle2, Download, Flame, Coffee, CreditCard, Banknote,
-  ArrowUpRight, ArrowDownRight, Percent, UtensilsCrossed, Clock, Package, AlertTriangle
+  Percent, UtensilsCrossed, Clock, Package, AlertTriangle, SlidersHorizontal, ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import type { CafeInventoryMovementRow } from '@/types/cafe.types';
+import type { CafeInventoryMovementRow, CafeOrderType, CafePaymentMethod, CafeOrderSource } from '@/types/cafe.types';
 
 type DateRange = 'today' | '7d' | '30d' | 'custom';
 
@@ -30,6 +39,10 @@ const CafeReports: React.FC = () => {
   const [dateRange, setDateRange] = useState<DateRange>('today');
   const [customStart, setCustomStart] = useState(new Date().toISOString().split('T')[0]);
   const [customEnd, setCustomEnd] = useState(new Date().toISOString().split('T')[0]);
+  const [filterOrderType, setFilterOrderType] = useState<'all' | CafeOrderType>('all');
+  const [filterPayment, setFilterPayment] = useState<'all' | CafePaymentMethod>('all');
+  const [filterSource, setFilterSource] = useState<'all' | CafeOrderSource>('all');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [settlementDate, setSettlementDate] = useState(new Date().toISOString().split('T')[0]);
   const [inventoryMovements, setInventoryMovements] = useState<CafeInventoryMovementRow[]>([]);
 
@@ -74,11 +87,19 @@ const CafeReports: React.FC = () => {
     return { totalUnits, lowStockCount, trackedSkus, movementNet };
   }, [items, categories, inventoryMovements]);
 
-  const filteredOrders = useMemo(() =>
+  const ordersInDateRange = useMemo(() =>
     orders.filter(o => {
       const d = new Date(o.createdAt);
       return d >= dateFilter.start && d <= dateFilter.end;
     }), [orders, dateFilter]);
+
+  const filteredOrders = useMemo(() => {
+    let list = ordersInDateRange;
+    if (filterOrderType !== 'all') list = list.filter(o => o.orderType === filterOrderType);
+    if (filterPayment !== 'all') list = list.filter(o => o.paymentMethod === filterPayment);
+    if (filterSource !== 'all') list = list.filter(o => o.orderSource === filterSource);
+    return list;
+  }, [ordersInDateRange, filterOrderType, filterPayment, filterSource]);
 
   const completedOrders = useMemo(() => filteredOrders.filter(o => o.status !== 'cancelled'), [filteredOrders]);
   const paidOrders = useMemo(() => filteredOrders.filter(o => o.status === 'completed'), [filteredOrders]);
@@ -178,34 +199,121 @@ const CafeReports: React.FC = () => {
     else toast.error('Failed to generate settlement');
   };
 
+  const activeFilterCount =
+    (filterOrderType !== 'all' ? 1 : 0) +
+    (filterPayment !== 'all' ? 1 : 0) +
+    (filterSource !== 'all' ? 1 : 0);
+
   return (
     <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-5 overflow-x-hidden">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading animate-slide-down">Reports</h1>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold gradient-text font-heading animate-slide-down">Reports</h1>
+          <p className="text-xs text-gray-500 font-quicksand mt-1">Analytics for the selected period and filters</p>
+        </div>
         <Button size="sm" onClick={handleExport} className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
           <Download className="h-3.5 w-3.5 mr-1" /> Export CSV
         </Button>
       </div>
 
-      {/* Date Range Selector */}
-      <div className="flex flex-wrap items-center gap-2">
-        {(['today', '7d', '30d', 'custom'] as DateRange[]).map(r => (
-          <button key={r} onClick={() => setDateRange(r)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-quicksand transition-all ${
-              dateRange === r ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'bg-gray-800/50 text-gray-400 border border-gray-700/30'
-            }`}>
-            {r === 'today' ? 'Today' : r === '7d' ? 'Last 7 Days' : r === '30d' ? 'Last 30 Days' : 'Custom'}
-          </button>
-        ))}
-        {dateRange === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-              className="h-8 px-2 rounded-md bg-gray-800/50 border border-gray-700 text-white text-xs" />
-            <span className="text-gray-500 text-xs">to</span>
-            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-              className="h-8 px-2 rounded-md bg-gray-800/50 border border-gray-700 text-white text-xs" />
+      {/* Period + advanced filters (dropdowns, like main POS) */}
+      <div className="cafe-glass-card border-white/[0.06] p-4 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap">
+          <div className="space-y-1.5 min-w-[200px] flex-1 max-w-xs">
+            <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand flex items-center gap-1.5">
+              <Calendar className="h-3 w-3 text-orange-400" /> Date range
+            </Label>
+            <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
+              <SelectTrigger className="h-10 bg-gray-950/80 border-gray-700/80 text-white font-quicksand">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-950 border-gray-700">
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="7d">Last 7 days</SelectItem>
+                <SelectItem value="30d">Last 30 days</SelectItem>
+                <SelectItem value="custom">Custom range…</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
+          {dateRange === 'custom' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                className="h-10 px-3 rounded-lg bg-gray-950/80 border border-gray-700/80 text-white text-xs font-quicksand" />
+              <span className="text-gray-500 text-xs">to</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                className="h-10 px-3 rounded-lg bg-gray-950/80 border border-gray-700/80 text-white text-xs font-quicksand" />
+            </div>
+          )}
+          <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen} className="w-full lg:w-auto lg:ml-auto">
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="outline" size="sm"
+                className="border-gray-600/80 bg-white/[0.04] text-gray-200 hover:bg-white/[0.08] font-quicksand gap-2">
+                <SlidersHorizontal className="h-3.5 w-3.5 text-orange-400" />
+                Advanced filters
+                {activeFilterCount > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/25 text-orange-300">{activeFilterCount}</span>
+                )}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out">
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl border border-white/[0.06] bg-black/25">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Order type</Label>
+                  <Select value={filterOrderType} onValueChange={(v) => setFilterOrderType(v as 'all' | CafeOrderType)}>
+                    <SelectTrigger className="h-9 bg-gray-950/80 border-gray-700/80 text-white text-xs font-quicksand">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-950 border-gray-700">
+                      <SelectItem value="all">All types</SelectItem>
+                      <SelectItem value="dine_in">Dine in</SelectItem>
+                      <SelectItem value="takeaway">Takeaway</SelectItem>
+                      <SelectItem value="delivery_to_station">To station</SelectItem>
+                      <SelectItem value="self_order">Self-order</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Payment</Label>
+                  <Select value={filterPayment} onValueChange={(v) => setFilterPayment(v as 'all' | CafePaymentMethod)}>
+                    <SelectTrigger className="h-9 bg-gray-950/80 border-gray-700/80 text-white text-xs font-quicksand">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-950 border-gray-700">
+                      <SelectItem value="all">All methods</SelectItem>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="upi">UPI</SelectItem>
+                      <SelectItem value="split">Split</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="complimentary">Complimentary</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Source</Label>
+                  <Select value={filterSource} onValueChange={(v) => setFilterSource(v as 'all' | CafeOrderSource)}>
+                    <SelectTrigger className="h-9 bg-gray-950/80 border-gray-700/80 text-white text-xs font-quicksand">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-950 border-gray-700">
+                      <SelectItem value="all">All sources</SelectItem>
+                      <SelectItem value="pos">POS</SelectItem>
+                      <SelectItem value="customer">Customer app</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {activeFilterCount > 0 && (
+                  <div className="sm:col-span-3 flex justify-end">
+                    <Button type="button" variant="ghost" size="sm" className="text-xs text-gray-400 h-8"
+                      onClick={() => { setFilterOrderType('all'); setFilterPayment('all'); setFilterSource('all'); }}>
+                      Clear filters
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -218,7 +326,7 @@ const CafeReports: React.FC = () => {
           { label: 'Cancelled', value: summary.cancelledCount, icon: Clock, color: 'text-red-400', type: 'number' },
           { label: 'Self-Orders', value: summary.selfOrders, icon: Coffee, color: 'text-purple-400', type: 'number' },
         ].map((stat, i) => (
-          <Card key={stat.label} className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/30 animate-slide-up" style={{ animationDelay: `${i * 40}ms` }}>
+          <Card key={stat.label} className="cafe-glass-card border-white/[0.06] animate-slide-up" style={{ animationDelay: `${i * 40}ms` }}>
             <CardContent className="p-3">
               <stat.icon className={`h-4 w-4 ${stat.color} mb-1.5`} />
               <p className={`text-lg font-bold ${stat.color} font-heading`}>

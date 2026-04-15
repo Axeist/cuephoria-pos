@@ -17,6 +17,7 @@ import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
+import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Pages
@@ -61,13 +62,11 @@ import ShippingAndDelivery from "./pages/ShippingAndDelivery";
 // Cafe pages
 import CafeLogin from "./pages/cafe/CafeLogin";
 import CafePOS from "./pages/cafe/CafePOS";
-import CafeKitchen from "./pages/cafe/CafeKitchen";
 import CafeMenu from "./pages/cafe/CafeMenu";
 import CafeOrders from "./pages/cafe/CafeOrders";
 import CafeDashboard from "./pages/cafe/CafeDashboard";
 import CafeReports from "./pages/cafe/CafeReports";
 import CafeCustomerOrder from "./pages/cafe/CafeCustomerOrder";
-import CafeStaffWorkspace from "./pages/cafe/CafeStaffWorkspace";
 const CafeStaff = React.lazy(() => import("./pages/cafe/CafeStaff"));
 import CafeCustomers from "./pages/cafe/CafeCustomers";
 import { CafeAuthProvider, useCafeAuth } from "@/context/CafeAuthContext";
@@ -167,9 +166,15 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cuephoria-darker">
-        <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-orange-400 border-t-transparent"></div>
-      </div>
+      <>
+        <div className="min-h-screen bg-cuephoria-darker" aria-hidden />
+        <AppLoadingOverlay
+          visible
+          variant="cafe"
+          title="Restoring your session"
+          subtitle="Checking secure credentials…"
+        />
+      </>
     );
   }
 
@@ -179,15 +184,15 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     const fallback =
-      user.role === 'cafe_admin' ? '/cafe/dashboard' : '/cafe/workspace';
+      user.role === 'cafe_admin' ? '/cafe/dashboard' : '/cafe/pos';
     return <Navigate to={fallback} replace />;
   }
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full overflow-x-hidden bg-cuephoria-darker">
+      <div className="cafe-shell cafe-page-bg flex min-h-screen w-full overflow-x-hidden bg-cuephoria-darker">
         <CafeSidebar />
-        <div className="flex-1 flex flex-col overflow-x-hidden">
+        <div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
           <div className={`flex-1 ${isMobile ? 'pb-4' : ''}`}>
             {children}
           </div>
@@ -407,9 +412,9 @@ const App = () => {
                 <Route path="/cafe/login" element={<CafeLogin />} />
                 <Route path="/cafe/order" element={<CafeCustomerOrder />} />
                 <Route path="/cafe/dashboard" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeDashboard /></CafeProtectedRoute>} />
-                <Route path="/cafe/workspace" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeStaffWorkspace /></CafeProtectedRoute>} />
+                <Route path="/cafe/workspace" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><Navigate to="/cafe/pos" replace /></CafeProtectedRoute>} />
                 <Route path="/cafe/pos" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafePOS /></CafeProtectedRoute>} />
-                <Route path="/cafe/kitchen" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'kitchen', 'cashier', 'staff']}><CafeKitchen /></CafeProtectedRoute>} />
+                <Route path="/cafe/kitchen" element={<Navigate to="/cafe/pos" replace />} />
                 <Route path="/cafe/menu" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeMenu /></CafeProtectedRoute>} />
                 <Route path="/cafe/orders" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeOrders /></CafeProtectedRoute>} />
                 <Route path="/cafe/reports" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeReports /></CafeProtectedRoute>} />

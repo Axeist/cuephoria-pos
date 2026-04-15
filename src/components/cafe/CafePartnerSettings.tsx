@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import type { CafePartner, CafePartnerRow, CafeUser, CafeUserRow, CafeUserRole } from '@/types/cafe.types';
 import { transformPartnerRow, transformCafeUserRow } from '@/types/cafe.types';
-import { Coffee, Percent, Users, Plus, Pencil, Trash2, Shield, CookingPot, ShoppingCart, Save, Loader2 } from 'lucide-react';
+import { Coffee, Percent, Users, Plus, Pencil, Trash2, Shield, UserCheck, ShoppingCart, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
@@ -25,7 +25,7 @@ const CafePartnerSettings: React.FC = () => {
   // User dialog
   const [userDialog, setUserDialog] = useState(false);
   const [editUserId, setEditUserId] = useState<string | null>(null);
-  const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'cashier' as CafeUserRole });
+  const [userForm, setUserForm] = useState({ username: '', password: '', displayName: '', role: 'staff' as CafeUserRole });
 
   useEffect(() => {
     (async () => {
@@ -97,7 +97,7 @@ const CafePartnerSettings: React.FC = () => {
       const loc = await supabase.from('locations').select('id').eq('slug', 'cafe').single();
       const { data, error } = await supabase.from('cafe_users').insert({
         location_id: loc.data!.id, partner_id: partner.id,
-        username: userForm.username.trim(), password: userForm.password,
+        username: userForm.username.trim().toLowerCase(), password: userForm.password,
         display_name: userForm.displayName || null, role: userForm.role,
       }).select('id, location_id, partner_id, username, display_name, role, is_active, created_at').single();
       if (error) { toast.error(error.message.includes('unique') ? 'Username already exists' : 'Failed to create user'); return; }
@@ -114,7 +114,7 @@ const CafePartnerSettings: React.FC = () => {
     toast.success('User deleted');
   };
 
-  const roleIcons: Record<string, React.ElementType> = { cafe_admin: Shield, kitchen: CookingPot, cashier: ShoppingCart };
+  const roleIcons: Record<string, React.ElementType> = { cafe_admin: Shield, staff: UserCheck, kitchen: UserCheck, cashier: UserCheck };
 
   if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-orange-400" /></div>;
   if (!partner) return <p className="text-sm text-gray-500 font-quicksand">No cafe partner configured. Run the database migration first.</p>;
@@ -187,7 +187,7 @@ const CafePartnerSettings: React.FC = () => {
             </CardTitle>
             <CardDescription className="text-gray-400">Manage cafe user accounts and roles.</CardDescription>
           </div>
-          <Button size="sm" onClick={() => { setUserDialog(true); setEditUserId(null); setUserForm({ username: '', password: '', displayName: '', role: 'cashier' }); }}
+          <Button size="sm" onClick={() => { setUserDialog(true); setEditUserId(null); setUserForm({ username: '', password: '', displayName: '', role: 'staff' }); }}
             className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
             <Plus className="h-4 w-4 mr-1" /> Add User
           </Button>
@@ -211,7 +211,9 @@ const CafePartnerSettings: React.FC = () => {
                     </span>
                     <button onClick={() => {
                       setEditUserId(u.id);
-                      setUserForm({ username: u.username, password: '', displayName: u.displayName || '', role: u.role });
+                      const role =
+                        u.role === 'cashier' || u.role === 'kitchen' ? 'staff' : u.role;
+                      setUserForm({ username: u.username, password: '', displayName: u.displayName || '', role });
                       setUserDialog(true);
                     }}><Pencil className="h-3.5 w-3.5 text-gray-400 hover:text-white" /></button>
                     <button onClick={() => handleDeleteUser(u.id)}><Trash2 className="h-3.5 w-3.5 text-red-400" /></button>
@@ -247,14 +249,14 @@ const CafePartnerSettings: React.FC = () => {
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Role</label>
               <div className="flex gap-2">
-                {(['cashier', 'kitchen', 'cafe_admin'] as CafeUserRole[]).map(role => {
-                  const Icon = roleIcons[role] || ShoppingCart;
+                {(['staff', 'cafe_admin'] as CafeUserRole[]).map(role => {
+                  const Icon = roleIcons[role] || UserCheck;
                   return (
                     <button key={role} onClick={() => setUserForm(f => ({ ...f, role }))}
                       className={`flex-1 py-2 rounded-lg text-xs font-quicksand flex items-center justify-center gap-1.5 transition-all ${
                         userForm.role === role ? 'bg-orange-500/20 border border-orange-500 text-orange-400' : 'bg-gray-800/50 border border-gray-700/30 text-gray-400'
                       }`}>
-                      <Icon className="h-4 w-4" /> {role === 'cafe_admin' ? 'Admin' : role.charAt(0).toUpperCase() + role.slice(1)}
+                      <Icon className="h-4 w-4" /> {role === 'cafe_admin' ? 'Admin' : 'Staff'}
                     </button>
                   );
                 })}

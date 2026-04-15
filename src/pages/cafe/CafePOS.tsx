@@ -18,7 +18,7 @@ import type { CafeCartItem, CafeOrderType, CafePaymentMethod } from '@/types/caf
 import {
   ShoppingCart, Coffee, X, User, Search, Monitor, UtensilsCrossed,
   Printer, Gift, Phone, Check, ReceiptIcon, Star, Plus, Loader2, Hash,
-  Clock, Banknote, CreditCard, AlertCircle
+  Clock, Banknote, CreditCard, AlertCircle, ChevronRight, UserCircle2, MapPinned
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -284,7 +284,7 @@ const CafePOS: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-5">
         {/* ===== LEFT: ORDER / CART ===== */}
-        <Card className="lg:col-span-1 flex flex-col bg-gradient-to-br from-gray-900/80 to-gray-800/80 border-gray-700/40">
+        <Card className="lg:col-span-1 flex flex-col cafe-glass-card border-orange-500/10">
           <CardHeader className="pb-2 px-4 pt-4 space-y-3">
             <div className="flex justify-between items-center">
               <CardTitle className="text-base sm:text-xl font-heading flex items-center gap-2">
@@ -310,26 +310,40 @@ const CafePOS: React.FC = () => {
               ))}
             </div>
 
-            {/* Table Selection — proper visibility */}
+            {/* Table selection — zone-aligned grid */}
             {orderType === 'dine_in' && tables.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs text-gray-500 uppercase tracking-wider font-quicksand">Select Table</p>
-                <div className="max-h-28 overflow-y-auto pr-1 space-y-2">
+              <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-gray-200 uppercase tracking-wider font-quicksand flex items-center gap-1.5">
+                    <MapPinned className="h-3.5 w-3.5 text-orange-400" /> Tables
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-quicksand shrink-0">
+                    <span className="text-emerald-400/90">{availableTables.length} free</span>
+                    <span className="text-gray-600 mx-1">·</span>
+                    <span className="text-rose-400/80">{occupiedTables.length} busy</span>
+                  </span>
+                </div>
+                <div className="max-h-[200px] overflow-y-auto pr-1 space-y-3">
                   {zones.map(zone => (
-                    <div key={zone}>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{zone}</p>
-                      <div className="flex flex-wrap gap-1.5">
+                    <div key={zone} className="flex flex-col sm:flex-row sm:items-stretch gap-2 sm:gap-3">
+                      <div className="sm:w-28 shrink-0 flex items-center sm:items-start sm:pt-2">
+                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wide text-orange-400/95 leading-tight">{zone}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 flex-1 min-w-0">
                         {(tablesByZone[zone] || []).map(table => (
-                          <button key={table.id}
+                          <button
+                            key={table.id}
+                            type="button"
                             onClick={() => !table.isOccupied && setSelectedTableId(table.id)}
                             disabled={table.isOccupied}
-                            className={`px-3 py-1.5 rounded-md text-xs font-quicksand border transition-all ${
+                            className={`min-h-[40px] min-w-[52px] px-3 py-2 rounded-lg text-xs font-semibold font-quicksand border transition-all ${
                               selectedTableId === table.id
-                                ? 'bg-orange-500 border-orange-500 text-white font-medium shadow-md shadow-orange-500/30'
+                                ? 'bg-gradient-to-br from-orange-500 to-orange-600 border-orange-400 text-white shadow-lg shadow-orange-500/25 scale-[1.02]'
                                 : table.isOccupied
-                                  ? 'bg-red-500/10 border-red-500/20 text-red-400/60 cursor-not-allowed line-through'
-                                  : 'bg-gray-800/60 border-gray-700/40 text-gray-300 hover:border-orange-500/40 hover:text-orange-300'
-                            }`}>
+                                  ? 'bg-rose-950/40 border-rose-500/25 text-rose-300/50 cursor-not-allowed line-through'
+                                  : 'bg-white/[0.04] border-white/[0.08] text-gray-200 hover:border-orange-500/35 hover:bg-orange-500/10 hover:text-orange-200'
+                            }`}
+                          >
                             {table.tableName}
                           </button>
                         ))}
@@ -337,22 +351,31 @@ const CafePOS: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <div className="flex gap-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-400" /> {availableTables.length} free</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400" /> {occupiedTables.length} occupied</span>
-                </div>
               </div>
             )}
 
-            {/* Customer */}
-            <div className="flex items-center gap-2">
-              <Input readOnly placeholder="Customer name"
-                value={selectedCustomer?.name || ''} className="h-8 text-xs font-quicksand flex-1 cursor-pointer"
-                onClick={() => setIsCustomerDialogOpen(true)} />
-              <Input readOnly placeholder="Phone"
-                value={selectedCustomer?.phone || ''} className="h-8 text-xs font-quicksand w-28 cursor-pointer"
-                onClick={() => setIsCustomerDialogOpen(true)} />
-            </div>
+            {/* Single customer entry — opens picker (no duplicate fields) */}
+            <button
+              type="button"
+              onClick={() => setIsCustomerDialogOpen(true)}
+              className="w-full flex items-center gap-3 rounded-xl border border-white/[0.08] bg-gradient-to-r from-white/[0.05] to-purple-500/[0.06] px-3 py-2.5 text-left transition-all hover:border-orange-500/30 hover:shadow-md hover:shadow-orange-500/5"
+            >
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-500/30 to-purple-600/30 flex items-center justify-center border border-white/10 shrink-0">
+                <UserCircle2 className="h-5 w-5 text-orange-200" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Customer</p>
+                {selectedCustomer ? (
+                  <>
+                    <p className="text-sm font-semibold text-white font-quicksand truncate">{selectedCustomer.name}</p>
+                    <p className="text-xs text-gray-400 font-quicksand truncate">{selectedCustomer.phone}</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-400 font-quicksand">Tap to search or add customer</p>
+                )}
+              </div>
+              <ChevronRight className="h-4 w-4 text-gray-500 shrink-0" />
+            </button>
           </CardHeader>
 
           {/* Cart Items */}
@@ -399,11 +422,6 @@ const CafePOS: React.FC = () => {
                 <span>Total</span><CurrencyDisplay amount={cartTotal} className="text-orange-400" />
               </div>
             </div>
-            <Button className={`w-full h-9 sm:h-10 text-xs sm:text-sm ${selectedCustomer ? 'border-orange-500/30' : 'bg-gradient-to-r from-orange-500 to-cuephoria-purple'}`}
-              variant={selectedCustomer ? 'outline' : 'default'} onClick={() => setIsCustomerDialogOpen(true)}>
-              <User className="h-3.5 w-3.5 mr-1.5" />
-              {selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.phone})` : 'Select Customer'}
-            </Button>
             <div className="grid grid-cols-3 gap-2 w-full">
               <Button className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 h-9 sm:h-10 text-xs sm:text-sm font-medium"
                 disabled={cart.length === 0} onClick={() => setIsCheckoutDialogOpen(true)}>
@@ -437,7 +455,7 @@ const CafePOS: React.FC = () => {
         </Card>
 
         {/* ===== RIGHT: MENU ===== */}
-        <Card className="lg:col-span-2 flex flex-col bg-gradient-to-br from-gray-900/80 to-gray-800/80 border-gray-700/40">
+        <Card className="lg:col-span-2 flex flex-col cafe-glass-card border-orange-500/10">
           <CardHeader className="pb-2 px-4 pt-4 flex-shrink-0 space-y-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base sm:text-xl font-heading">Menu</CardTitle>

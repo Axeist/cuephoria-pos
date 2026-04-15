@@ -30,7 +30,8 @@ export default async function handler(req: Request) {
     });
 
     const payload = await req.json().catch(() => ({}));
-    const username = String(payload?.username || '').trim();
+    // Must match how staff are created (see CafeStaff insert): lowercase username.
+    const username = String(payload?.username || '').trim().toLowerCase();
     const password = String(payload?.password || '');
 
     if (!username || !password) {
