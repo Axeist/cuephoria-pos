@@ -39,7 +39,7 @@ type DateFilter = 'today' | '7d' | '30d' | 'custom';
 const CafeOrders: React.FC = () => {
   const { user } = useCafeAuth();
   const { orders, fetchOrderItems, updateOrderStatus, cancelOrder } = useCafeOrders(user?.locationId);
-  const [filter, setFilter] = useState<'active' | 'all' | 'pending_payment' | CafeOrderStatus>('active');
+  const [filter, setFilter] = useState<'active' | 'all' | 'pending_payment' | CafeOrderStatus>('all');
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
   const [customStart, setCustomStart] = useState(new Date().toISOString().split('T')[0]);
@@ -91,7 +91,7 @@ const CafeOrders: React.FC = () => {
     active: filteredOrders.filter(o => !['completed', 'cancelled'].includes(o.status)).length,
     completed: filteredOrders.filter(o => o.status === 'completed').length,
     cancelled: filteredOrders.filter(o => o.status === 'cancelled').length,
-    revenue: filteredOrders.filter(o => o.status === 'completed').reduce((s, o) => s + o.total, 0),
+    revenue: filteredOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.total, 0),
   }), [filteredOrders]);
 
   const handleViewDetails = async (orderId: string) => {

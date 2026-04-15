@@ -45,7 +45,8 @@ const CafeReports: React.FC = () => {
       return d >= dateFilter.start && d <= dateFilter.end;
     }), [orders, dateFilter]);
 
-  const completedOrders = useMemo(() => filteredOrders.filter(o => o.status === 'completed'), [filteredOrders]);
+  const completedOrders = useMemo(() => filteredOrders.filter(o => o.status !== 'cancelled'), [filteredOrders]);
+  const paidOrders = useMemo(() => filteredOrders.filter(o => o.status === 'completed'), [filteredOrders]);
   const cancelledOrders = useMemo(() => filteredOrders.filter(o => o.status === 'cancelled'), [filteredOrders]);
 
   const summary = useMemo(() => {
@@ -57,8 +58,10 @@ const CafeReports: React.FC = () => {
     const cashOrders = completedOrders.filter(o => o.paymentMethod === 'cash');
     const upiOrders = completedOrders.filter(o => o.paymentMethod === 'upi');
     const splitOrders = completedOrders.filter(o => o.paymentMethod === 'split');
+    const pendingPayOrders = completedOrders.filter(o => o.paymentMethod === 'pending');
     const cashRevenue = cashOrders.reduce((s, o) => s + o.total, 0);
     const upiRevenue = upiOrders.reduce((s, o) => s + o.total, 0);
+    const pendingPayRevenue = pendingPayOrders.reduce((s, o) => s + o.total, 0);
     const selfOrders = completedOrders.filter(o => o.orderSource === 'customer');
     const dineIn = completedOrders.filter(o => o.orderType === 'dine_in');
     const takeaway = completedOrders.filter(o => o.orderType === 'takeaway');
@@ -66,6 +69,7 @@ const CafeReports: React.FC = () => {
       totalRevenue, partnerShare, cuephoriaShare, totalDiscount, avgOrder,
       totalOrders: completedOrders.length, cancelledCount: cancelledOrders.length,
       cashOrders: cashOrders.length, upiOrders: upiOrders.length, splitOrders: splitOrders.length,
+      pendingPayOrders: pendingPayOrders.length, pendingPayRevenue,
       cashRevenue, upiRevenue, selfOrders: selfOrders.length,
       dineIn: dineIn.length, takeaway: takeaway.length,
     };
@@ -227,7 +231,7 @@ const CafeReports: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 bg-green-500/5 rounded-lg text-center border border-green-500/10">
                 <Banknote className="h-5 w-5 text-green-400 mx-auto mb-1" />
                 <p className="text-lg font-bold text-green-400 font-heading">{summary.cashOrders}</p>
@@ -245,6 +249,14 @@ const CafeReports: React.FC = () => {
                 <p className="text-lg font-bold text-purple-400 font-heading">{summary.splitOrders}</p>
                 <p className="text-[10px] text-gray-500">Split</p>
               </div>
+              {summary.pendingPayOrders > 0 && (
+                <div className="p-3 bg-amber-500/5 rounded-lg text-center border border-amber-500/10">
+                  <Clock className="h-5 w-5 text-amber-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-amber-400 font-heading">{summary.pendingPayOrders}</p>
+                  <p className="text-[10px] text-gray-500">Unpaid</p>
+                  <p className="text-xs text-amber-400 mt-0.5"><CurrencyDisplay amount={summary.pendingPayRevenue} /></p>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-quicksand">
@@ -372,30 +384,45 @@ const CafeReports: React.FC = () => {
               ) : (
                 <div className="space-y-2">
                   {settlements.map(s => (
-                    <div key={s.id} className="p-3 bg-gray-800/20 rounded-lg flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-white font-quicksand">{s.settlementDate}</p>
-                        <p className="text-[10px] text-gray-500">{s.totalOrders} orders &middot; <CurrencyDisplay amount={s.netRevenue} /></p>
+                    <div key={s.id} className="p-3 bg-gray-800/20 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-white font-quicksand">{s.settlementDate}</p>
+                          <p className="text-[10px] text-gray-500">{s.totalOrders} orders &middot; Total: <CurrencyDisplay amount={s.netRevenue} /></p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            s.status === 'paid' ? 'bg-green-500/20 text-green-400' :
+                            s.status === 'confirmed' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>{s.status}</span>
+                          {s.status === 'draft' && (
+                            <Button size="sm" onClick={() => updateSettlementStatus(s.id, 'confirmed')}
+                              className="h-6 text-[10px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-0 px-2">
+                              <CheckCircle2 className="h-3 w-3 mr-0.5" /> Confirm
+                            </Button>
+                          )}
+                          {s.status === 'confirmed' && (
+                            <Button size="sm" onClick={() => updateSettlementStatus(s.id, 'paid')}
+                              className="h-6 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 border-0 px-2">
+                              <CheckCircle2 className="h-3 w-3 mr-0.5" /> Mark Paid
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                          s.status === 'paid' ? 'bg-green-500/20 text-green-400' :
-                          s.status === 'confirmed' ? 'bg-blue-500/20 text-blue-400' :
-                          'bg-gray-500/20 text-gray-400'
-                        }`}>{s.status}</span>
-                        {s.status === 'draft' && (
-                          <Button size="sm" onClick={() => updateSettlementStatus(s.id, 'confirmed')}
-                            className="h-6 text-[10px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-0 px-2">
-                            <CheckCircle2 className="h-3 w-3 mr-0.5" /> Confirm
-                          </Button>
-                        )}
-                        {s.status === 'confirmed' && (
-                          <Button size="sm" onClick={() => updateSettlementStatus(s.id, 'paid')}
-                            className="h-6 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 border-0 px-2">
-                            <CheckCircle2 className="h-3 w-3 mr-0.5" /> Mark Paid
-                          </Button>
-                        )}
+                      <div className="flex gap-2">
+                        <div className="flex-1 px-2 py-1 rounded bg-orange-500/5 border border-orange-500/10">
+                          <p className="text-[10px] text-gray-500 font-quicksand">Partner (70%)</p>
+                          <p className="text-xs font-bold text-orange-400"><CurrencyDisplay amount={s.partnerPayout} /></p>
+                        </div>
+                        <div className="flex-1 px-2 py-1 rounded bg-purple-500/5 border border-purple-500/10">
+                          <p className="text-[10px] text-gray-500 font-quicksand">Cuephoria (30%)</p>
+                          <p className="text-xs font-bold text-cuephoria-lightpurple"><CurrencyDisplay amount={s.cuephoriaRevenue} /></p>
+                        </div>
                       </div>
+                      {s.totalDiscount > 0 && (
+                        <p className="text-[10px] text-green-400 font-quicksand">Discounts: <CurrencyDisplay amount={s.totalDiscount} /></p>
+                      )}
                     </div>
                   ))}
                 </div>

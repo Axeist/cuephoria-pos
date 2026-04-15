@@ -50,56 +50,85 @@ export function useCafeKOT(locationId?: string) {
     } catch {}
   }, []);
 
-  // Realtime with connection monitoring
+  // Realtime with connection monitoring + visibility change + keepalive
   useEffect(() => {
     if (!locationId) return;
     let debounce: ReturnType<typeof setTimeout> | null = null;
+    let keepaliveRef: ReturnType<typeof setInterval> | null = null;
+    let channelRef: RealtimeChannel | null = null;
 
-    const channel: RealtimeChannel = supabase
-      .channel(`cafe-kot-${locationId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'cafe_kot',
-        filter: `location_id=eq.${locationId}`,
-      }, (payload) => {
-        if (debounce) clearTimeout(debounce);
-        debounce = setTimeout(() => {
-          fetchKOTs(true);
-          // Play alert for new KOTs (deduped)
-          if (payload.eventType === 'INSERT' && payload.new) {
-            const newId = (payload.new as any).id;
-            if (!seenKotIds.current.has(newId)) {
-              seenKotIds.current.add(newId);
-              playAlert();
-            }
-          }
-        }, 300);
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setConnected(true);
-          // Stop heartbeat polling if was running
-          if (heartbeatRef.current) {
-            clearInterval(heartbeatRef.current);
-            heartbeatRef.current = null;
-          }
-          // Re-fetch to catch missed events during disconnect
-          if (lastDisconnect.current > 0) {
+    const setupChannel = () => {
+      if (channelRef) supabase.removeChannel(channelRef);
+
+      channelRef = supabase
+        .channel(`cafe-kot-${locationId}-${Date.now()}`)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'cafe_kot',
+          filter: `location_id=eq.${locationId}`,
+        }, (payload) => {
+          if (debounce) clearTimeout(debounce);
+          debounce = setTimeout(() => {
             fetchKOTs(true);
+            if (payload.eventType === 'INSERT' && payload.new) {
+              const newId = (payload.new as any).id;
+              if (!seenKotIds.current.has(newId)) {
+                seenKotIds.current.add(newId);
+                playAlert();
+              }
+            }
+          }, 300);
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            setConnected(true);
+            if (heartbeatRef.current) {
+              clearInterval(heartbeatRef.current);
+              heartbeatRef.current = null;
+            }
+            if (lastDisconnect.current > 0) {
+              fetchKOTs(true);
+            }
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            setConnected(false);
+            lastDisconnect.current = Date.now();
+            if (!heartbeatRef.current) {
+              heartbeatRef.current = setInterval(() => fetchKOTs(true), 5000);
+            }
+            setTimeout(() => setupChannel(), 3000);
           }
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setConnected(false);
-          lastDisconnect.current = Date.now();
-          // Start heartbeat polling fallback
-          if (!heartbeatRef.current) {
-            heartbeatRef.current = setInterval(() => fetchKOTs(true), 5000);
+        });
+    };
+
+    setupChannel();
+
+    // Keepalive: poll every 30s even when connected to catch silent disconnects
+    keepaliveRef = setInterval(() => fetchKOTs(true), 30000);
+
+    // Visibility change: refetch + reconnect when tab becomes visible
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchKOTs(true);
+        if (channelRef) {
+          const state = (channelRef as any).state;
+          if (state !== 'joined' && state !== 'joining') {
+            setupChannel();
           }
         }
-      });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Online/offline events
+    const handleOnline = () => { fetchKOTs(true); setupChannel(); };
+    window.addEventListener('online', handleOnline);
 
     return () => {
       if (debounce) clearTimeout(debounce);
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-      supabase.removeChannel(channel);
+      if (keepaliveRef) clearInterval(keepaliveRef);
+      if (channelRef) supabase.removeChannel(channelRef);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
     };
   }, [locationId, fetchKOTs, playAlert]);
 

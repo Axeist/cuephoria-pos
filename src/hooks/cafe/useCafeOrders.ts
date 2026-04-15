@@ -38,10 +38,10 @@ export function useCafeOrders(locationId?: string) {
     try {
       let query = supabase
         .from('cafe_orders')
-        .select('*')
+        .select('*, cafe_order_items(*)')
         .eq('location_id', locationId)
         .order('created_at', { ascending: false })
-        .limit(opts?.limit || 100);
+        .limit(opts?.limit || 500);
 
       if (opts?.status && opts.status.length > 0) {
         query = query.in('status', opts.status);
@@ -49,7 +49,14 @@ export function useCafeOrders(locationId?: string) {
 
       const { data, error } = await query;
       if (!error && data) {
-        setOrders(data.map(r => transformOrderRow(r as unknown as CafeOrderRow)));
+        setOrders(data.map(r => {
+          const order = transformOrderRow(r as unknown as CafeOrderRow);
+          const rawItems = (r as any).cafe_order_items;
+          if (Array.isArray(rawItems) && rawItems.length > 0) {
+            order.items = rawItems.map((ri: any) => transformOrderItemRow(ri as CafeOrderItemRow));
+          }
+          return order;
+        }));
       }
     } catch (err) {
       console.error('Error fetching cafe orders:', err);
@@ -60,21 +67,46 @@ export function useCafeOrders(locationId?: string) {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  // Realtime for order status changes
+  // Realtime for order status changes with reconnect
   useEffect(() => {
     if (!locationId) return;
     let debounce: ReturnType<typeof setTimeout> | null = null;
-    const channel: RealtimeChannel = supabase
-      .channel(`cafe-orders-${locationId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'cafe_orders',
-        filter: `location_id=eq.${locationId}`,
-      }, () => {
-        if (debounce) clearTimeout(debounce);
-        debounce = setTimeout(() => fetchOrders({ silent: true }), 300);
-      })
-      .subscribe();
-    return () => { if (debounce) clearTimeout(debounce); supabase.removeChannel(channel); };
+    let channelRef: RealtimeChannel | null = null;
+    let keepalive: ReturnType<typeof setInterval> | null = null;
+
+    const setup = () => {
+      if (channelRef) supabase.removeChannel(channelRef);
+      channelRef = supabase
+        .channel(`cafe-orders-${locationId}-${Date.now()}`)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'cafe_orders',
+          filter: `location_id=eq.${locationId}`,
+        }, () => {
+          if (debounce) clearTimeout(debounce);
+          debounce = setTimeout(() => fetchOrders({ silent: true }), 300);
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            setTimeout(() => setup(), 3000);
+          }
+        });
+    };
+
+    setup();
+    keepalive = setInterval(() => fetchOrders({ silent: true }), 30000);
+
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchOrders({ silent: true }); };
+    document.addEventListener('visibilitychange', onVisible);
+    const onOnline = () => { fetchOrders({ silent: true }); setup(); };
+    window.addEventListener('online', onOnline);
+
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      if (keepalive) clearInterval(keepalive);
+      if (channelRef) supabase.removeChannel(channelRef);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+    };
   }, [locationId, fetchOrders]);
 
   const fetchOrderItems = useCallback(async (orderId: string): Promise<CafeOrderItem[]> => {

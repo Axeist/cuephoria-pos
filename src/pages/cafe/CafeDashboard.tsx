@@ -25,38 +25,41 @@ const CafeDashboard: React.FC = () => {
   }, []);
 
   const stats = useMemo(() => {
-    const completed = todayOrders.filter(o => o.status === 'completed');
-    const totalRevenue = completed.reduce((s, o) => s + o.total, 0);
-    const partnerShare = completed.reduce((s, o) => s + o.partnerShare, 0);
-    const cuephoriaShare = completed.reduce((s, o) => s + o.cuephoriaShare, 0);
-    const avgOrderValue = completed.length > 0 ? totalRevenue / completed.length : 0;
+    const nonCancelled = todayOrders.filter(o => o.status !== 'cancelled');
+    const totalRevenue = nonCancelled.reduce((s, o) => s + o.total, 0);
+    const partnerShare = nonCancelled.reduce((s, o) => s + o.partnerShare, 0);
+    const cuephoriaShare = nonCancelled.reduce((s, o) => s + o.cuephoriaShare, 0);
+    const avgOrderValue = nonCancelled.length > 0 ? totalRevenue / nonCancelled.length : 0;
     const pendingOrders = activeOrders.filter(o => o.status === 'pending').length;
     const cancelledToday = todayOrders.filter(o => o.status === 'cancelled').length;
     const selfOrdersToday = todayOrders.filter(o => o.orderSource === 'customer').length;
     const occupiedTables = tables.filter(t => t.isOccupied).length;
-    const dineInOrders = completed.filter(o => o.orderType === 'dine_in').length;
-    const takeawayOrders = completed.filter(o => o.orderType === 'takeaway').length;
-    const selfOrders = completed.filter(o => o.orderType === 'self_order').length;
-    const cashOrders = completed.filter(o => o.paymentMethod === 'cash');
-    const upiOrders = completed.filter(o => o.paymentMethod === 'upi');
+    const dineInOrders = nonCancelled.filter(o => o.orderType === 'dine_in').length;
+    const takeawayOrders = nonCancelled.filter(o => o.orderType === 'takeaway').length;
+    const selfOrders = nonCancelled.filter(o => o.orderSource === 'customer').length;
+    const cashOrders = nonCancelled.filter(o => o.paymentMethod === 'cash');
+    const upiOrders = nonCancelled.filter(o => o.paymentMethod === 'upi');
+    const pendingPayOrders = nonCancelled.filter(o => o.paymentMethod === 'pending');
     const cashRevenue = cashOrders.reduce((s, o) => s + o.total, 0);
     const upiRevenue = upiOrders.reduce((s, o) => s + o.total, 0);
+    const pendingPayRevenue = pendingPayOrders.reduce((s, o) => s + o.total, 0);
 
     return {
-      totalRevenue, partnerShare, cuephoriaShare, completedOrders: completed.length,
+      totalRevenue, partnerShare, cuephoriaShare, completedOrders: nonCancelled.length,
       avgOrderValue, pendingOrders, activeOrdersCount: activeOrders.length,
       cancelledToday, selfOrdersToday, occupiedTables, totalTables: tables.length,
       dineInOrders, takeawayOrders, selfOrders, cashRevenue, upiRevenue,
+      pendingPayOrders: pendingPayOrders.length, pendingPayRevenue,
     };
   }, [todayOrders, activeOrders, tables]);
 
   // Hourly revenue breakdown
   const hourlyData = useMemo(() => {
     const hours: { hour: string; revenue: number; orders: number }[] = [];
-    const completed = todayOrders.filter(o => o.status === 'completed');
+    const valid = todayOrders.filter(o => o.status !== 'cancelled');
     for (let h = 8; h <= 23; h++) {
       const label = `${h > 12 ? h - 12 : h}${h >= 12 ? 'PM' : 'AM'}`;
-      const hourOrders = completed.filter(o => new Date(o.createdAt).getHours() === h);
+      const hourOrders = valid.filter(o => new Date(o.createdAt).getHours() === h);
       hours.push({ hour: label, revenue: hourOrders.reduce((s, o) => s + o.total, 0), orders: hourOrders.length });
     }
     return hours;
@@ -67,7 +70,7 @@ const CafeDashboard: React.FC = () => {
   // Top selling items
   const topItems = useMemo(() => {
     const itemMap = new Map<string, { name: string; qty: number; revenue: number }>();
-    todayOrders.filter(o => o.status === 'completed' && o.items).forEach(order => {
+    todayOrders.filter(o => o.status !== 'cancelled' && o.items).forEach(order => {
       order.items?.forEach(item => {
         const key = item.itemName;
         const existing = itemMap.get(key) || { name: key, qty: 0, revenue: 0 };
@@ -322,6 +325,10 @@ const CafeDashboard: React.FC = () => {
                   </div>
                   <p className="text-lg font-bold text-white"><CurrencyDisplay amount={s.netRevenue} /></p>
                   <p className="text-[10px] text-gray-500">{s.totalOrders} orders</p>
+                  <div className="flex gap-2 mt-1.5">
+                    <span className="text-[10px] text-orange-400 font-quicksand">Partner: <CurrencyDisplay amount={s.partnerPayout} /></span>
+                    <span className="text-[10px] text-cuephoria-lightpurple font-quicksand">Cuephoria: <CurrencyDisplay amount={s.cuephoriaRevenue} /></span>
+                  </div>
                 </div>
               ))}
             </div>
