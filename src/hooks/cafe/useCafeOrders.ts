@@ -202,7 +202,13 @@ export function useCafeOrders(locationId?: string) {
       .update(updates)
       .eq('id', orderId);
     if (error) { console.error(error); return false; }
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, ...(status === 'completed' ? { completedAt: new Date() } : {}) } : o));
+    setOrders(prev => prev.map(o => o.id === orderId ? {
+      ...o, status,
+      ...(status === 'completed' ? { completedAt: new Date() } : {}),
+      ...(paymentMethod ? { paymentMethod } : {}),
+      ...(cashAmount !== undefined ? { cashAmount } : {}),
+      ...(upiAmount !== undefined ? { upiAmount } : {}),
+    } : o));
     return true;
   }, []);
 

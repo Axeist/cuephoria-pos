@@ -17,7 +17,8 @@ import { CurrencyDisplay, formatCurrency } from '@/components/ui/currency';
 import type { CafeCartItem, CafeOrderType, CafePaymentMethod } from '@/types/cafe.types';
 import {
   ShoppingCart, Coffee, X, User, Search, Monitor, UtensilsCrossed,
-  Printer, Gift, Phone, Check, ReceiptIcon, Star, Plus, Loader2, Hash
+  Printer, Gift, Phone, Check, ReceiptIcon, Star, Plus, Loader2, Hash,
+  Clock, Banknote, CreditCard, AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -26,7 +27,7 @@ const CafePOS: React.FC = () => {
   const { user } = useCafeAuth();
   const { categories, items } = useCafeMenu(user?.locationId);
   const { tables, tablesByZone, zones, assignTable } = useCafeTables(user?.locationId);
-  const { createOrder, activeOrders } = useCafeOrders(user?.locationId);
+  const { createOrder, activeOrders, orders, updateOrderStatus, fetchOrderItems } = useCafeOrders(user?.locationId);
   const { generateKOT } = useCafeKOT(user?.locationId);
   const { partner } = useCafePartner(user?.locationId);
   const { customers, addCustomer } = useCafeCustomers();
@@ -65,6 +66,17 @@ const CafePOS: React.FC = () => {
   // Success
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastOrder, setLastOrder] = useState<{ orderNumber: string; total: number; items: CafeCartItem[] } | null>(null);
+
+  // Settle pending order dialog
+  const [settleOrderId, setSettleOrderId] = useState<string | null>(null);
+  const [settlePayMethod, setSettlePayMethod] = useState<'cash' | 'upi' | 'split'>('cash');
+  const [settleCash, setSettleCash] = useState(0);
+  const [settleUpi, setSettleUpi] = useState(0);
+  const [isSettling, setIsSettling] = useState(false);
+
+  const pendingPaymentOrders = useMemo(() =>
+    orders.filter(o => o.paymentMethod === 'pending' && !['cancelled', 'completed'].includes(o.status)),
+  [orders]);
 
   const activeCategories = categories.filter(c => c.isActive);
 
@@ -192,6 +204,60 @@ const CafePOS: React.FC = () => {
     w.document.write(`<html><head><title>Receipt</title><style>body{font-family:monospace;font-size:12px;padding:8px;max-width:280px;margin:0 auto}.center{text-align:center}.bold{font-weight:bold}.line{border-top:1px dashed #000;margin:6px 0}.row{display:flex;justify-content:space-between}</style></head><body><div class="center bold" style="font-size:16px">CUEPHORIA CAFE</div><div class="center">${lastOrder.orderNumber}</div><div class="center">${new Date().toLocaleString('en-IN')}</div>${selectedCustomer ? `<div class="center">${selectedCustomer.name} - ${selectedCustomer.phone}</div>` : ''}<div class="line"></div>${lastOrder.items.map(i => `<div class="row"><span>${i.quantity}x ${i.name}</span><span>₹${i.total.toFixed(2)}</span></div>`).join('')}<div class="line"></div><div class="row bold"><span>Total</span><span>₹${lastOrder.total.toFixed(2)}</span></div><div class="line"></div><div class="center" style="margin-top:8px;font-size:10px">Thank you!</div><script>setTimeout(()=>{window.print();window.close()},300)</script></body></html>`);
     w.document.close();
   }, [lastOrder, selectedCustomer]);
+
+  const handlePayLater = useCallback(async () => {
+    if (!user || !partner || cart.length === 0) return;
+    if (orderType === 'dine_in' && !selectedTableId) { toast.error('Please select a table for dine-in'); return; }
+    setIsSubmitting(true);
+    try {
+      const order = await createOrder({
+        locationId: user.locationId, partnerId: partner.id,
+        partnerRate: partner.partnerRate, cuephoriaRate: partner.cuephoriaRate,
+        orderType, orderSource: 'pos',
+        cafeTableId: orderType === 'dine_in' ? selectedTableId : null,
+        customerId: selectedCustomer?.id || null,
+        customerName: selectedCustomer?.name || undefined,
+        customerPhone: selectedCustomer?.phone || undefined,
+        items: cart, discount, paymentMethod: 'pending',
+        notes: orderNotes || undefined, createdBy: user.id,
+      });
+      if (order) {
+        if (orderType === 'dine_in' && selectedTableId) await assignTable(selectedTableId, order.id);
+        await generateKOT(order.id, cart, user.id);
+        toast.success(`Order ${order.orderNumber} placed — payment pending`);
+        setIsCheckoutDialogOpen(false); setShowSuccess(false);
+        setCart([]); setSelectedTableId(null); setDiscountAmount('0'); setOrderNotes('');
+      }
+    } catch (err: any) { toast.error(err?.message || 'Failed to place order'); }
+    finally { setIsSubmitting(false); }
+  }, [user, partner, cart, orderType, selectedTableId, selectedCustomer, discount, orderNotes, createOrder, assignTable, generateKOT]);
+
+  const handleSettleOrder = useCallback(async () => {
+    if (!settleOrderId) return;
+    const order = pendingPaymentOrders.find(o => o.id === settleOrderId);
+    if (!order) return;
+    if (settlePayMethod === 'split' && Math.abs(settleCash + settleUpi - order.total) > 0.5) {
+      toast.error(`Split amounts must equal ${formatCurrency(order.total)}`); return;
+    }
+    setIsSettling(true);
+    try {
+      const ok = await updateOrderStatus(
+        settleOrderId, 'completed',
+        settlePayMethod,
+        settlePayMethod === 'split' ? settleCash : settlePayMethod === 'cash' ? order.total : undefined,
+        settlePayMethod === 'split' ? settleUpi : settlePayMethod === 'upi' ? order.total : undefined,
+      );
+      if (ok) {
+        if (order.customerId && order.total > 0) {
+          const { supabase } = await import('@/integrations/supabase/client');
+          await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }).catch(() => {});
+        }
+        toast.success(`Order ${order.orderNumber} settled!`);
+        setSettleOrderId(null);
+      }
+    } catch (err: any) { toast.error(err?.message || 'Failed to settle'); }
+    finally { setIsSettling(false); }
+  }, [settleOrderId, settlePayMethod, settleCash, settleUpi, pendingPaymentOrders, updateOrderStatus]);
 
   const categoryColors = [
     { a: 'bg-orange-500 text-white shadow-lg shadow-orange-500/30', i: 'text-muted-foreground hover:text-white hover:bg-orange-500/20' },
@@ -338,16 +404,35 @@ const CafePOS: React.FC = () => {
               <User className="h-3.5 w-3.5 mr-1.5" />
               {selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.phone})` : 'Select Customer'}
             </Button>
-            <div className="grid grid-cols-2 gap-2 w-full">
+            <div className="grid grid-cols-3 gap-2 w-full">
               <Button className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 h-9 text-xs font-medium"
                 disabled={cart.length === 0} onClick={() => setIsCheckoutDialogOpen(true)}>
                 <ReceiptIcon className="h-3.5 w-3.5 mr-1" /> Checkout
+              </Button>
+              <Button className="bg-gradient-to-r from-amber-500 to-yellow-600 hover:opacity-90 h-9 text-xs font-medium text-black"
+                disabled={cart.length === 0 || isSubmitting} onClick={handlePayLater}>
+                <Clock className="h-3.5 w-3.5 mr-1" /> Pay Later
               </Button>
               <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 h-9 text-xs font-medium"
                 disabled={cart.length === 0} onClick={() => setIsCompDialogOpen(true)}>
                 <Gift className="h-3.5 w-3.5 mr-1" /> Comp
               </Button>
             </div>
+
+            {/* Pending Payments Badge */}
+            {pendingPaymentOrders.length > 0 && (
+              <div className="w-full">
+                <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <div className="flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="text-[11px] font-quicksand text-amber-300">{pendingPaymentOrders.length} pending payment{pendingPaymentOrders.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-400 font-quicksand">
+                    <CurrencyDisplay amount={pendingPaymentOrders.reduce((s, o) => s + o.total, 0)} />
+                  </span>
+                </div>
+              </div>
+            )}
           </CardFooter>
         </Card>
 
@@ -435,6 +520,176 @@ const CafePOS: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* ===== PENDING PAYMENTS SECTION ===== */}
+      {pendingPaymentOrders.length > 0 && (
+        <div className="mt-4">
+          <Card className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 border-amber-500/20">
+            <CardHeader className="pb-2 px-4 pt-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-400" />
+                  <CardTitle className="text-sm font-heading text-amber-300">Pending Payments</CardTitle>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-quicksand">{pendingPaymentOrders.length}</span>
+                </div>
+                <span className="text-xs font-bold text-amber-400 font-quicksand">
+                  Total: <CurrencyDisplay amount={pendingPaymentOrders.reduce((s, o) => s + o.total, 0)} />
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {pendingPaymentOrders.map(order => (
+                  <div key={order.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-700/30 bg-gray-800/50 hover:border-amber-500/30 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white font-heading">#{order.orderNumber}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-quicksand ${
+                          order.orderType === 'dine_in' ? 'bg-blue-500/15 text-blue-400' :
+                          order.orderType === 'takeaway' ? 'bg-green-500/15 text-green-400' :
+                          'bg-purple-500/15 text-purple-400'
+                        }`}>{order.orderType === 'dine_in' ? 'Dine-in' : order.orderType === 'takeaway' ? 'Takeaway' : 'Station'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {order.customerName && <span className="text-[10px] text-gray-400 truncate">{order.customerName}</span>}
+                        <span className="text-[10px] text-gray-500">{new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-sm font-bold text-orange-400"><CurrencyDisplay amount={order.total} /></span>
+                      <Button size="sm" className="h-7 text-[10px] px-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
+                        onClick={() => {
+                          setSettleOrderId(order.id);
+                          setSettlePayMethod('cash');
+                          setSettleCash(0);
+                          setSettleUpi(0);
+                        }}>
+                        <Banknote className="h-3 w-3 mr-1" /> Settle
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ===== SETTLE PAYMENT DIALOG ===== */}
+      <Dialog open={!!settleOrderId} onOpenChange={(open) => { if (!open) setSettleOrderId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-green-400" />
+              Settle Payment
+            </DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const o = pendingPaymentOrders.find(x => x.id === settleOrderId);
+                return o ? `Order #${o.orderNumber} — ${formatCurrency(o.total)}` : '';
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+
+          {(() => {
+            const o = pendingPaymentOrders.find(x => x.id === settleOrderId);
+            if (!o) return null;
+            return (
+              <div className="space-y-4">
+                <div className="p-3 rounded-lg bg-gray-800/50 border border-gray-700/30 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">Order</span>
+                    <span className="text-white font-bold">#{o.orderNumber}</span>
+                  </div>
+                  {o.customerName && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Customer</span>
+                      <span className="text-white">{o.customerName}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">Type</span>
+                    <span className="text-white capitalize">{o.orderType.replace('_', ' ')}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">Placed at</span>
+                    <span className="text-white">{new Date(o.createdAt).toLocaleString('en-IN')}</span>
+                  </div>
+                  {o.discount > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Discount</span>
+                      <span className="text-green-400">-<CurrencyDisplay amount={o.discount} /></span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-bold pt-1 border-t border-gray-700/20">
+                    <span>Total Due</span>
+                    <CurrencyDisplay amount={o.total} className="text-orange-400" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-gray-400">Payment Method</Label>
+                  <RadioGroup value={settlePayMethod} onValueChange={(v) => {
+                    setSettlePayMethod(v as any);
+                    if (v === 'split') { const h = Math.floor(o.total / 2); setSettleCash(h); setSettleUpi(o.total - h); }
+                  }}>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 'cash', label: 'Cash', icon: Banknote, color: 'green' },
+                        { value: 'upi', label: 'UPI', icon: CreditCard, color: 'blue' },
+                        { value: 'split', label: 'Split', icon: ReceiptIcon, color: 'purple' },
+                      ].map(pm => (
+                        <label key={pm.value}
+                          className={`flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition-all ${
+                            settlePayMethod === pm.value
+                              ? `border-${pm.color}-500/40 bg-${pm.color}-500/10`
+                              : 'border-gray-700/30 bg-gray-800/30 hover:border-gray-600'
+                          }`}>
+                          <RadioGroupItem value={pm.value} className="sr-only" />
+                          <pm.icon className={`h-4 w-4 ${settlePayMethod === pm.value ? `text-${pm.color}-400` : 'text-gray-500'}`} />
+                          <span className={`text-xs font-quicksand ${settlePayMethod === pm.value ? 'text-white' : 'text-gray-400'}`}>{pm.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {settlePayMethod === 'split' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-gray-400">Cash Amount</Label>
+                      <Input type="number" min={0} max={o.total} value={settleCash}
+                        onChange={e => { const v = Number(e.target.value); setSettleCash(v); setSettleUpi(Math.max(0, o.total - v)); }}
+                        className="h-9 text-sm font-quicksand" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-gray-400">UPI Amount</Label>
+                      <Input type="number" min={0} max={o.total} value={settleUpi}
+                        onChange={e => { const v = Number(e.target.value); setSettleUpi(v); setSettleCash(Math.max(0, o.total - v)); }}
+                        className="h-9 text-sm font-quicksand" />
+                    </div>
+                    {Math.abs(settleCash + settleUpi - o.total) > 0.5 && (
+                      <p className="col-span-2 text-[10px] text-red-400 text-center">
+                        Split must equal {formatCurrency(o.total)} — currently {formatCurrency(settleCash + settleUpi)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettleOrderId(null)} className="h-9">Cancel</Button>
+            <Button className="h-9 bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
+              disabled={isSettling || (settlePayMethod === 'split' && Math.abs(settleCash + settleUpi - (pendingPaymentOrders.find(x => x.id === settleOrderId)?.total || 0)) > 0.5)}
+              onClick={handleSettleOrder}>
+              {isSettling ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1" /> Settle Payment</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== CUSTOMER DIALOG ===== */}
       <Dialog open={isCustomerDialogOpen} onOpenChange={(open) => { setIsCustomerDialogOpen(open); if (!open) setShowAddCustomerForm(false); }}>

@@ -10,7 +10,7 @@ import type { CafeOrderStatus, CafeOrderItem, CafePaymentMethod } from '@/types/
 import {
   ClipboardList, Search, Clock, CheckCircle2, XCircle, Eye, Banknote,
   CreditCard, SplitSquareHorizontal, Download, Calendar, Printer, ChefHat,
-  ShoppingCart, Coffee, UtensilsCrossed, ArrowRight
+  ShoppingCart, Coffee, UtensilsCrossed, ArrowRight, AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -39,7 +39,7 @@ type DateFilter = 'today' | '7d' | '30d' | 'custom';
 const CafeOrders: React.FC = () => {
   const { user } = useCafeAuth();
   const { orders, fetchOrderItems, updateOrderStatus, cancelOrder } = useCafeOrders(user?.locationId);
-  const [filter, setFilter] = useState<'active' | 'all' | CafeOrderStatus>('active');
+  const [filter, setFilter] = useState<'active' | 'all' | 'pending_payment' | CafeOrderStatus>('active');
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
   const [customStart, setCustomStart] = useState(new Date().toISOString().split('T')[0]);
@@ -68,6 +68,7 @@ const CafeOrders: React.FC = () => {
       })
       .filter(o => {
         if (filter === 'active') return !['completed', 'cancelled'].includes(o.status);
+        if (filter === 'pending_payment') return o.paymentMethod === 'pending' && !['cancelled', 'completed'].includes(o.status);
         if (filter !== 'all') return o.status === filter;
         return true;
       })
@@ -77,6 +78,13 @@ const CafeOrders: React.FC = () => {
         return o.orderNumber.toLowerCase().includes(q) || o.customerName?.toLowerCase().includes(q) || o.customerPhone?.includes(q);
       });
   }, [orders, dateRange, filter, search]);
+
+  const pendingPaymentCount = useMemo(() =>
+    orders.filter(o => o.paymentMethod === 'pending' && !['cancelled', 'completed'].includes(o.status)).length,
+  [orders]);
+  const pendingPaymentTotal = useMemo(() =>
+    orders.filter(o => o.paymentMethod === 'pending' && !['cancelled', 'completed'].includes(o.status)).reduce((s, o) => s + o.total, 0),
+  [orders]);
 
   const stats = useMemo(() => ({
     total: filteredOrders.length,
@@ -102,11 +110,18 @@ const CafeOrders: React.FC = () => {
     }
   };
 
-  const handlePayAndComplete = async () => {
+  const handlePayAndComplete = async (completeOrder: boolean = true) => {
     if (!paymentDialog) return;
-    await updateOrderStatus(paymentDialog, 'completed', selectedPayment);
+    const order = orders.find(o => o.id === paymentDialog);
+    if (!order) return;
+    const newStatus: CafeOrderStatus = completeOrder ? 'completed' : order.status;
+    await updateOrderStatus(paymentDialog, newStatus, selectedPayment);
+    if (order.customerId && order.total > 0 && order.paymentMethod === 'pending') {
+      const { supabase } = await import('@/integrations/supabase/client');
+      await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }).catch(() => {});
+    }
     setPaymentDialog(null);
-    toast.success('Order completed');
+    toast.success(completeOrder ? 'Payment settled & order completed' : 'Payment settled');
   };
 
   const handleExport = useCallback(() => {
@@ -196,6 +211,14 @@ const CafeOrders: React.FC = () => {
           <span className="text-xs text-gray-400 font-quicksand">Revenue: </span>
           <span className="text-xs text-green-400 font-bold"><CurrencyDisplay amount={stats.revenue} /></span>
         </div>
+        {pendingPaymentCount > 0 && (
+          <div className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:border-amber-500/40 transition-colors"
+            onClick={() => setFilter('pending_payment')}>
+            <span className="text-xs text-gray-400 font-quicksand">Unpaid: </span>
+            <span className="text-xs text-amber-400 font-bold">{pendingPaymentCount}</span>
+            <span className="text-xs text-amber-400/60 ml-1">(<CurrencyDisplay amount={pendingPaymentTotal} />)</span>
+          </div>
+        )}
         {stats.cancelled > 0 && (
           <div className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
             <span className="text-xs text-gray-400 font-quicksand">Cancelled: </span>
@@ -206,11 +229,26 @@ const CafeOrders: React.FC = () => {
 
       {/* Status Filters + Search */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 bg-gray-800/50 rounded-lg p-1">
-          {(['active', 'all', 'pending', 'preparing', 'ready', 'completed', 'cancelled'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-md text-xs font-quicksand capitalize ${filter === f ? 'bg-orange-500/20 text-orange-400' : 'text-gray-500 hover:text-white'}`}>
-              {f}
+        <div className="flex gap-1 bg-gray-800/50 rounded-lg p-1 flex-wrap">
+          {([
+            { key: 'active' as const, label: 'Active' },
+            { key: 'all' as const, label: 'All' },
+            { key: 'pending_payment' as const, label: 'Unpaid' },
+            { key: 'pending' as const, label: 'Pending' },
+            { key: 'preparing' as const, label: 'Preparing' },
+            { key: 'ready' as const, label: 'Ready' },
+            { key: 'completed' as const, label: 'Completed' },
+            { key: 'cancelled' as const, label: 'Cancelled' },
+          ]).map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              className={`px-3 py-1.5 rounded-md text-xs font-quicksand ${filter === f.key
+                ? f.key === 'pending_payment' ? 'bg-amber-500/20 text-amber-400' : 'bg-orange-500/20 text-orange-400'
+                : 'text-gray-500 hover:text-white'
+              }`}>
+              {f.label}
+              {f.key === 'pending_payment' && pendingPaymentCount > 0 && (
+                <span className="ml-1 text-[9px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded-full">{pendingPaymentCount}</span>
+              )}
             </button>
           ))}
         </div>
@@ -234,6 +272,11 @@ const CafeOrders: React.FC = () => {
                         {order.status}
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-700/30 text-gray-400 capitalize">{order.orderType.replace('_', ' ')}</span>
+                      {order.paymentMethod === 'pending' && !['cancelled', 'completed'].includes(order.status) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium flex items-center gap-1">
+                          <AlertCircle className="h-2.5 w-2.5" /> Unpaid
+                        </span>
+                      )}
                       {order.orderSource === 'customer' && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-cuephoria-purple/20 text-cuephoria-lightpurple">Self-order</span>
                       )}
@@ -261,6 +304,15 @@ const CafeOrders: React.FC = () => {
                         <Button size="sm" onClick={() => { updateOrderStatus(order.id, 'confirmed'); toast.success('Order confirmed'); }}
                           className="h-7 text-[10px] bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-0">
                           <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm
+                        </Button>
+                      )}
+                      {order.paymentMethod === 'pending' && (
+                        <Button size="sm" onClick={() => {
+                          setPaymentDialog(order.id);
+                          setSelectedPayment('cash');
+                        }}
+                          className="h-7 text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-0">
+                          <Banknote className="h-3 w-3 mr-1" /> Settle Payment
                         </Button>
                       )}
                       {['confirmed', 'ready', 'served'].includes(order.status) && (
@@ -372,26 +424,51 @@ const CafeOrders: React.FC = () => {
 
       {/* Payment Dialog */}
       <Dialog open={!!paymentDialog} onOpenChange={() => setPaymentDialog(null)}>
-        <DialogContent className="bg-gray-900 border-gray-700">
-          <DialogHeader><DialogTitle className="text-white font-heading">Select Payment Method</DialogTitle></DialogHeader>
-          <div className="flex gap-2">
-            {([
-              { method: 'cash' as const, label: 'Cash', icon: Banknote },
-              { method: 'upi' as const, label: 'UPI', icon: CreditCard },
-              { method: 'split' as const, label: 'Split', icon: SplitSquareHorizontal },
-            ]).map(p => (
-              <button key={p.method} onClick={() => setSelectedPayment(p.method)}
-                className={`flex-1 py-4 rounded-xl flex flex-col items-center gap-2 text-sm font-quicksand transition-all ${
-                  selectedPayment === p.method ? 'bg-orange-500/20 border-2 border-orange-500 text-orange-400' : 'bg-gray-800/50 border-2 border-gray-700/30 text-gray-400'
-                }`}>
-                <p.icon className="h-6 w-6" /> {p.label}
-              </button>
-            ))}
-          </div>
-          <Button onClick={handlePayAndComplete} className="w-full h-11 text-white font-quicksand border-0"
-            style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}>
-            <CheckCircle2 className="mr-2 h-4 w-4" /> Complete Order
-          </Button>
+        <DialogContent className="bg-gray-900 border-gray-700 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white font-heading flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-amber-400" /> Settle Payment
+            </DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const pOrder = orders.find(o => o.id === paymentDialog);
+            if (!pOrder) return null;
+            return (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center p-3 rounded-lg bg-gray-800/50 border border-gray-700/30">
+                  <div>
+                    <span className="text-sm font-bold text-white font-heading">#{pOrder.orderNumber}</span>
+                    {pOrder.customerName && <span className="text-xs text-gray-400 ml-2">{pOrder.customerName}</span>}
+                  </div>
+                  <span className="text-lg font-bold text-orange-400"><CurrencyDisplay amount={pOrder.total} /></span>
+                </div>
+                <div className="flex gap-2">
+                  {([
+                    { method: 'cash' as const, label: 'Cash', icon: Banknote },
+                    { method: 'upi' as const, label: 'UPI', icon: CreditCard },
+                    { method: 'split' as const, label: 'Split', icon: SplitSquareHorizontal },
+                  ]).map(p => (
+                    <button key={p.method} onClick={() => setSelectedPayment(p.method)}
+                      className={`flex-1 py-4 rounded-xl flex flex-col items-center gap-2 text-sm font-quicksand transition-all ${
+                        selectedPayment === p.method ? 'bg-orange-500/20 border-2 border-orange-500 text-orange-400' : 'bg-gray-800/50 border-2 border-gray-700/30 text-gray-400'
+                      }`}>
+                      <p.icon className="h-6 w-6" /> {p.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={() => handlePayAndComplete(false)} variant="outline"
+                    className="h-10 text-sm font-quicksand border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+                    <Banknote className="mr-1.5 h-4 w-4" /> Settle Only
+                  </Button>
+                  <Button onClick={() => handlePayAndComplete(true)} className="h-10 text-sm text-white font-quicksand border-0"
+                    style={{ background: 'linear-gradient(135deg, #10B981, #059669)' }}>
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" /> Settle & Complete
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
