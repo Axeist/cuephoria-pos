@@ -12,7 +12,7 @@ import { transformMenuCategoryRow, transformMenuItemRow, transformTableRow, tran
 import {
   Coffee, Plus, Minus, Trash2, ShoppingCart, User, Phone, MapPin, ArrowLeft,
   Loader2, Clock, CheckCircle2, CookingPot, Search, X, History, RefreshCw,
-  Sparkles, UtensilsCrossed, Leaf, ChevronRight, Flame, Star, ArrowRight, Shield,
+  Sparkles, UtensilsCrossed, Leaf, ChevronRight, ChevronDown, Flame, Star, ArrowRight, Shield, Wallet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -151,6 +151,7 @@ const CafeCustomerOrder: React.FC = () => {
   const [orderStatus, setOrderStatus] = useState<string>('pending');
   const [kotStatus, setKotStatus] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
+  const [orderPayment, setOrderPayment] = useState<string>('pending');
   const readyNotified = useRef(false);
   const [menuSearch, setMenuSearch] = useState('');
   const [historyPhone, setHistoryPhone] = useState('');
@@ -175,13 +176,14 @@ const CafeCustomerOrder: React.FC = () => {
       setCustomerName(savedName);
       setHistoryPhone(savedPhone);
       (async () => {
-        const { data } = await supabase.from('cafe_orders').select('id, order_number, status')
+        const { data } = await supabase.from('cafe_orders').select('id, order_number, status, payment_method')
           .eq('customer_phone', savedPhone).in('status', ['pending', 'confirmed', 'preparing', 'ready'])
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (data) {
           setOrderId(data.id);
           setOrderNumber(data.order_number);
           setOrderStatus(data.status);
+          setOrderPayment(data.payment_method || 'pending');
           setStep('tracking');
         } else {
           setStep('menu');
@@ -246,7 +248,9 @@ const CafeCustomerOrder: React.FC = () => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cafe_orders', filter: `id=eq.${orderId}` }, (payload) => {
         if (payload.new) {
           const newStatus = (payload.new as any).status;
+          const newPayment = (payload.new as any).payment_method;
           setOrderStatus(newStatus);
+          if (newPayment) setOrderPayment(newPayment);
           if (newStatus === 'ready' && !readyNotified.current) {
             readyNotified.current = true;
             try {
@@ -400,15 +404,26 @@ const CafeCustomerOrder: React.FC = () => {
 
   const handleSkipIdentify = () => setStep('menu');
 
+  const [historyItems, setHistoryItems] = useState<Record<string, { name: string; qty: number; price: number }[]>>({});
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
   const handleFetchHistory = useCallback(async (phone?: string) => {
     const p = phone || historyPhone;
     if (!p || p.length < 10) { if (!phone) toast.error('Enter a valid 10-digit phone number'); return; }
     setHistoryLoading(true);
     try {
-      const { data, error } = await supabase.from('cafe_orders').select('*')
+      const { data, error } = await supabase.from('cafe_orders')
+        .select('*, cafe_order_items(item_name, quantity, unit_price)')
         .eq('customer_phone', p).order('created_at', { ascending: false }).limit(20);
       if (error) throw error;
-      setOrderHistory((data || []).map(r => transformOrderRow(r as unknown as CafeOrderRow)));
+      const orders = (data || []).map(r => {
+        const itemsArr = ((r as any).cafe_order_items || []).map((i: any) => ({ name: i.item_name, qty: i.quantity, price: i.unit_price }));
+        return { order: transformOrderRow(r as unknown as CafeOrderRow), items: itemsArr };
+      });
+      setOrderHistory(orders.map(o => o.order));
+      const itemMap: Record<string, { name: string; qty: number; price: number }[]> = {};
+      orders.forEach(o => { itemMap[o.order.id] = o.items; });
+      setHistoryItems(itemMap);
     } catch {
       toast.error('Failed to fetch history');
     } finally {
@@ -509,6 +524,7 @@ const CafeCustomerOrder: React.FC = () => {
       setOrderId(orderData.id);
       setOrderNumber((orderData as any).order_number);
       setOrderStatus('pending');
+      setOrderPayment('pending');
       setStep('tracking');
       toast.success('Order placed successfully!');
     } catch (err: any) {
@@ -1359,12 +1375,45 @@ const CafeCustomerOrder: React.FC = () => {
                 <p className="text-sm text-zinc-400 font-quicksand mt-1">Please collect from the counter</p>
                 <p className="text-xs text-green-400/80 font-quicksand mt-2 font-medium">{orderNumber}</p>
                 <button
-                  onClick={() => { setStep('menu'); setCart([]); setOrderId(null); setKotStatus(null); }}
+                  onClick={() => { setStep('menu'); setCart([]); setOrderId(null); setKotStatus(null); setOrderPayment('pending'); }}
                   className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-quicksand font-semibold text-white transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-orange-500/20"
                   style={{ background: accentGrad }}
                 >
                   <RefreshCw className="h-3.5 w-3.5" /> Order More
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Payment status card */}
+          {orderPayment === 'pending' ? (
+            <div className={`${glassCard} border-amber-500/25 p-4 relative overflow-hidden`}>
+              <div className="absolute inset-0 opacity-10" style={{ background: 'radial-gradient(circle at 30% 50%, #f59e0b, transparent 70%)' }} />
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(249,115,22,0.2))', border: '1px solid rgba(245,158,11,0.3)' }}>
+                  <Wallet className="h-5 w-5 text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-amber-300 font-heading">Payment Pending</p>
+                  <p className="text-xs text-zinc-400 font-quicksand mt-0.5">Pay at the counter · Amount: <span className="text-amber-300 font-bold"><CurrencyDisplay amount={cartTotal} /></span></p>
+                </div>
+                <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              </div>
+            </div>
+          ) : (
+            <div className={`${glassCard} border-green-500/20 p-4 relative overflow-hidden`}>
+              <div className="absolute inset-0 opacity-10" style={{ background: 'radial-gradient(circle at 30% 50%, #10b981, transparent 70%)' }} />
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.25), rgba(5,150,105,0.2))', border: '1px solid rgba(16,185,129,0.3)' }}>
+                  <CheckCircle2 className="h-5 w-5 text-green-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-green-300 font-heading">Payment Complete</p>
+                  <p className="text-xs text-zinc-400 font-quicksand mt-0.5">Paid via {orderPayment === 'complimentary' ? 'Complimentary' : orderPayment.toUpperCase()}</p>
+                </div>
+                <span className="text-green-400 text-xs font-quicksand font-bold px-2 py-1 rounded-full bg-green-500/15 border border-green-500/20">Paid</span>
               </div>
             </div>
           )}
@@ -1376,7 +1425,7 @@ const CafeCustomerOrder: React.FC = () => {
               <p className="text-lg font-bold text-red-300 font-heading">Order was cancelled</p>
               <p className="text-sm text-zinc-400 font-quicksand mt-1">Please contact staff for assistance</p>
               <button
-                onClick={() => { setStep('menu'); setCart([]); setOrderId(null); setKotStatus(null); }}
+                onClick={() => { setStep('menu'); setCart([]); setOrderId(null); setKotStatus(null); setOrderPayment('pending'); }}
                 className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-quicksand font-semibold text-white transition-all hover:scale-[1.02] active:scale-95"
                 style={{ background: accentGrad }}
               >
@@ -1446,47 +1495,89 @@ const CafeCustomerOrder: React.FC = () => {
               <div className="space-y-3">
                 {orderHistory.map(order => {
                   const isActive = !['completed', 'cancelled', 'served'].includes(order.status);
+                  const isExpanded = expandedOrderId === order.id;
+                  const orderItems = historyItems[order.id] || [];
+                  const isPaid = order.paymentMethod !== 'pending';
                   return (
-                    <button
-                      key={order.id}
-                      type="button"
-                      onClick={() => {
-                        if (isActive) {
-                          setOrderId(order.id);
-                          setOrderNumber(order.orderNumber);
-                          setOrderStatus(order.status);
-                          setKotStatus(null);
-                          setStep('tracking');
-                        }
-                      }}
-                      className={`${glassCard} p-4 w-full text-left transition-all ${isActive ? 'hover:border-orange-500/30 hover:shadow-lg hover:shadow-orange-500/10 cursor-pointer' : ''}`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white font-heading">{order.orderNumber}</span>
-                          {isActive && <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />}
+                    <div key={order.id} className={`${glassCard} transition-all ${isActive ? 'hover:border-orange-500/30 hover:shadow-lg hover:shadow-orange-500/10' : ''}`}>
+                      {/* Main row — tap to track (active) or expand (completed) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isActive) {
+                            setOrderId(order.id);
+                            setOrderNumber(order.orderNumber);
+                            setOrderStatus(order.status);
+                            setOrderPayment(order.paymentMethod);
+                            setKotStatus(null);
+                            setStep('tracking');
+                          } else {
+                            setExpandedOrderId(isExpanded ? null : order.id);
+                          }
+                        }}
+                        className="w-full text-left p-4"
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-white font-heading">{order.orderNumber}</span>
+                            {isActive && <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isPaid ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-quicksand font-bold bg-green-500/15 text-green-400 border border-green-500/20">Paid</span>
+                            ) : !['cancelled'].includes(order.status) ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-quicksand font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20 animate-pulse">Unpaid</span>
+                            ) : null}
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize font-quicksand font-medium border ${
+                              order.status === 'completed' || order.status === 'served' ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                              : order.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                              : order.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                            }`}>{order.status === 'served' ? 'done' : order.status}</span>
+                            {!isActive && (
+                              <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                            )}
+                          </div>
                         </div>
-                        <span className={`text-[10px] px-2.5 py-1 rounded-full capitalize font-quicksand font-medium border ${
-                          order.status === 'completed' || order.status === 'served' ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                          : order.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                          : order.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                        }`}>{order.status === 'served' ? 'done' : order.status}</span>
-                      </div>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className="text-xs text-zinc-500 font-quicksand">
-                          {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          {' · '}
-                          {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="text-orange-300 font-bold text-sm font-quicksand"><CurrencyDisplay amount={order.total} /></span>
-                      </div>
-                      {isActive && (
-                        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-orange-400 font-quicksand font-medium">
-                          <ArrowRight className="h-3 w-3" /> Tap to track this order
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="text-xs text-zinc-500 font-quicksand">
+                            {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            {' · '}
+                            {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="text-orange-300 font-bold text-sm font-quicksand"><CurrencyDisplay amount={order.total} /></span>
+                        </div>
+                        {isActive && (
+                          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-orange-400 font-quicksand font-medium">
+                            <ArrowRight className="h-3 w-3" /> Tap to track this order
+                          </div>
+                        )}
+                      </button>
+
+                      {/* Expanded item details */}
+                      {isExpanded && orderItems.length > 0 && (
+                        <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <p className="text-[10px] text-zinc-500 font-quicksand uppercase tracking-wider font-semibold mb-2">Items</p>
+                          <div className="space-y-1.5">
+                            {orderItems.map((item, i) => (
+                              <div key={i} className="flex justify-between text-sm font-quicksand">
+                                <span className="text-zinc-400">{item.qty}× {item.name}</span>
+                                <span className="text-zinc-300 tabular-nums"><CurrencyDisplay amount={item.qty * item.price} /></span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="border-t border-white/[0.06] mt-2 pt-2 flex justify-between text-sm font-quicksand font-bold">
+                            <span className="text-zinc-300">Total</span>
+                            <span className="text-orange-400"><CurrencyDisplay amount={order.total} /></span>
+                          </div>
                         </div>
                       )}
-                    </button>
+                      {isExpanded && orderItems.length === 0 && (
+                        <div className="border-t border-white/[0.06] px-4 pb-4 pt-3">
+                          <p className="text-xs text-zinc-500 font-quicksand">No item details available</p>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

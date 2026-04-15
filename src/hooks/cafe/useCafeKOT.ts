@@ -6,8 +6,21 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 
 const KOT_ALERT_SOUND_URL = '/notification.mp3';
 
+function enrichKot(r: any): CafeKOT {
+  const kot = transformKOTRow(r as unknown as CafeKOTRow);
+  const orderData = (r as any).cafe_orders;
+  if (orderData) {
+    (kot as any).orderSource = orderData.order_source;
+    (kot as any).customerName = orderData.customer_name;
+    (kot as any).orderType = orderData.order_type;
+  }
+  return kot;
+}
+
 export function useCafeKOT(locationId?: string) {
   const [kots, setKots] = useState<CafeKOT[]>([]);
+  const [completedKots, setCompletedKots] = useState<CafeKOT[]>([]);
+  const [completedLoading, setCompletedLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
   const seenKotIds = useRef(new Set<string>());
@@ -23,19 +36,10 @@ export function useCafeKOT(locationId?: string) {
         .from('cafe_kot')
         .select('*, cafe_orders!inner(order_source, customer_name, order_type)')
         .eq('location_id', locationId)
-        .in('status', ['pending', 'acknowledged', 'preparing', 'ready'])
+        .in('status', ['pending', 'acknowledged', 'preparing', 'ready', 'served'])
         .order('created_at', { ascending: true });
       if (!error && data) {
-        const transformed = data.map(r => {
-          const kot = transformKOTRow(r as unknown as CafeKOTRow);
-          const orderData = (r as any).cafe_orders;
-          if (orderData) {
-            (kot as any).orderSource = orderData.order_source;
-            (kot as any).customerName = orderData.customer_name;
-            (kot as any).orderType = orderData.order_type;
-          }
-          return kot;
-        });
+        const transformed = data.map(enrichKot);
         transformed.forEach(k => seenKotIds.current.add(k.id));
         setKots(transformed);
       }
@@ -43,6 +47,31 @@ export function useCafeKOT(locationId?: string) {
       console.error('Error fetching KOTs:', err);
     } finally {
       if (!silent) setLoading(false);
+    }
+  }, [locationId]);
+
+  const fetchCompletedKOTs = useCallback(async (filters?: { dateFrom?: string; dateTo?: string; customerSearch?: string }) => {
+    if (!locationId) return;
+    setCompletedLoading(true);
+    try {
+      let q = supabase
+        .from('cafe_kot')
+        .select('*, cafe_orders!inner(order_source, customer_name, customer_phone, order_type)')
+        .eq('location_id', locationId)
+        .eq('status', 'served')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (filters?.dateFrom) q = q.gte('created_at', `${filters.dateFrom}T00:00:00`);
+      if (filters?.dateTo) q = q.lte('created_at', `${filters.dateTo}T23:59:59`);
+      if (filters?.customerSearch) {
+        q = q.or(`customer_name.ilike.%${filters.customerSearch}%,customer_phone.ilike.%${filters.customerSearch}%`, { referencedTable: 'cafe_orders' });
+      }
+      const { data, error } = await q;
+      if (!error && data) setCompletedKots(data.map(enrichKot));
+    } catch (err) {
+      console.error('Error fetching completed KOTs:', err);
+    } finally {
+      setCompletedLoading(false);
     }
   }, [locationId]);
 
@@ -227,9 +256,11 @@ export function useCafeKOT(locationId?: string) {
   const pendingKots = kots.filter(k => k.status === 'pending');
   const preparingKots = kots.filter(k => k.status === 'acknowledged' || k.status === 'preparing');
   const readyKots = kots.filter(k => k.status === 'ready');
+  const servedKots = kots.filter(k => k.status === 'served');
 
   return {
-    kots, pendingKots, preparingKots, readyKots,
+    kots, pendingKots, preparingKots, readyKots, servedKots,
+    completedKots, completedLoading, fetchCompletedKOTs,
     loading, connected, fetchKOTs,
     generateKOT, updateKOTStatus,
   };
