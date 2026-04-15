@@ -8,13 +8,14 @@ import { useCafeMenu } from '@/hooks/cafe/useCafeMenu';
 import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafePartner } from '@/hooks/cafe/useCafePartner';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee, Upload, Download, Loader2, Search, EyeOff, Eye, ToggleLeft, ToggleRight, Package, Minus } from 'lucide-react';
+import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee, Upload, Download, Loader2, Search, EyeOff, Eye, ToggleLeft, ToggleRight, Package, Minus, ImagePlus, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import type { CafeMenuItem } from '@/types/cafe.types';
 import { CAFE_STOCK_ADMIN_PIN } from '@/constants/cafeInventory';
+import { uploadMenuItemImage } from '@/utils/cafeImageUpload';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
@@ -50,7 +51,11 @@ const CafeMenu: React.FC = () => {
   // Item dialog
   const [itemDialog, setItemDialog] = useState(false);
   const [itemEditId, setItemEditId] = useState<string | null>(null);
-  const [itemForm, setItemForm] = useState({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '' });
+  const [itemForm, setItemForm] = useState({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '', imageUrl: '' });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const [invDialog, setInvDialog] = useState<'add' | 'reduce' | null>(null);
   const [invItem, setInvItem] = useState<CafeMenuItem | null>(null);
@@ -243,6 +248,17 @@ const CafeMenu: React.FC = () => {
     if (!itemForm.price || isNaN(parseFloat(itemForm.price)) || parseFloat(itemForm.price) <= 0) { toast.error('Enter a valid price'); return; }
     if (!itemForm.categoryId) { toast.error('Select a category'); return; }
     const selectedCat = categories.find(c => c.id === itemForm.categoryId);
+
+    let finalImageUrl: string | undefined = itemForm.imageUrl || undefined;
+
+    if (imageFile && user?.locationId) {
+      setImageUploading(true);
+      const { url, error: imgErr } = await uploadMenuItemImage(imageFile, user.locationId, itemEditId || undefined);
+      setImageUploading(false);
+      if (imgErr) { toast.error(imgErr); return; }
+      if (url) finalImageUrl = url;
+    }
+
     const base: Record<string, unknown> = {
       name: itemForm.name.trim(),
       price: parseFloat(itemForm.price),
@@ -251,6 +267,7 @@ const CafeMenu: React.FC = () => {
       categoryId: itemForm.categoryId,
       isVeg: itemForm.isVeg,
       prepTimeMinutes: itemForm.prepTime ? parseInt(itemForm.prepTime) : undefined,
+      imageUrl: finalImageUrl || null,
     };
     try {
       if (itemEditId) {
@@ -273,7 +290,8 @@ const CafeMenu: React.FC = () => {
         else toast.error('Could not add item — check console for details');
       }
       setItemDialog(false); setItemEditId(null);
-      setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '' });
+      setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '', imageUrl: '' });
+      setImageFile(null); setImagePreview(null);
     } catch (err: any) {
       toast.error(err?.message || 'Unexpected error saving item');
     }
@@ -411,7 +429,8 @@ const CafeMenu: React.FC = () => {
                   )}
                   <Button size="sm" onClick={() => {
                     setItemDialog(true); setItemEditId(null);
-                    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: categories[0]?.id || '', isVeg: true, prepTime: '', initialStock: '' });
+                    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: categories[0]?.id || '', isVeg: true, prepTime: '', initialStock: '', imageUrl: '' });
+                    setImageFile(null); setImagePreview(null);
                   }} className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0" disabled={categories.length === 0}>
                     <Plus className="h-4 w-4 mr-1" /> Add Item
                   </Button>
@@ -471,9 +490,15 @@ const CafeMenu: React.FC = () => {
                           {catItems.map(item => {
                             const tracksItem = catTracks;
                             return (
-                            <div key={item.id} className={`p-3 rounded-lg border group hover:border-orange-500/30 transition-all ${
+                            <div key={item.id} className={`rounded-lg border group hover:border-orange-500/30 transition-all overflow-hidden ${
                               item.isAvailable ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-white/[0.02] border-red-500/20 opacity-60'
                             }`}>
+                              {item.imageUrl && (
+                                <div className="h-28 w-full overflow-hidden bg-black/20">
+                                  <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" loading="lazy" />
+                                </div>
+                              )}
+                              <div className="p-3">
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
                                   <p className="text-sm font-medium text-white font-quicksand flex items-center gap-1">
@@ -482,12 +507,13 @@ const CafeMenu: React.FC = () => {
                                     </span>
                                     {item.name}
                                   </p>
-                                  {item.description && <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>}
+                                  {item.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{item.description}</p>}
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button onClick={() => {
                                     setItemEditId(item.id);
-                                    setItemForm({ name: item.name, price: String(item.price), costPrice: item.costPrice ? String(item.costPrice) : '', description: item.description || '', categoryId: item.categoryId, isVeg: item.isVeg, prepTime: item.prepTimeMinutes ? String(item.prepTimeMinutes) : '', initialStock: String(item.stockQuantity ?? 0) });
+                                    setItemForm({ name: item.name, price: String(item.price), costPrice: item.costPrice ? String(item.costPrice) : '', description: item.description || '', categoryId: item.categoryId, isVeg: item.isVeg, prepTime: item.prepTimeMinutes ? String(item.prepTimeMinutes) : '', initialStock: String(item.stockQuantity ?? 0), imageUrl: item.imageUrl || '' });
+                                    setImageFile(null); setImagePreview(item.imageUrl || null);
                                     setItemDialog(true);
                                   }}><Pencil className="h-3 w-3 text-gray-400 hover:text-white" /></button>
                                   {isCafeAdmin && (
@@ -529,6 +555,7 @@ const CafeMenu: React.FC = () => {
                                   </div>
                                 </div>
                               )}
+                            </div>{/* /p-3 */}
                             </div>
                             );
                           })}
@@ -706,10 +733,45 @@ const CafeMenu: React.FC = () => {
                 />
               </div>
             )}
+            {/* Image upload */}
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400 text-xs font-quicksand">Item Photo</Label>
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) { setImageFile(f); setImagePreview(URL.createObjectURL(f)); }
+                  e.target.value = '';
+                }}
+              />
+              {imagePreview ? (
+                <div className="relative rounded-lg overflow-hidden h-32 w-full">
+                  <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                  <button type="button"
+                    onClick={() => { setImageFile(null); setImagePreview(null); setItemForm(f => ({ ...f, imageUrl: '' })); }}
+                    className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors">
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                  <button type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="absolute bottom-1.5 right-1.5 h-6 px-2 rounded-md bg-black/60 text-[10px] text-white flex items-center gap-1 hover:bg-black/80 transition-colors font-quicksand">
+                    <ImagePlus className="h-3 w-3" /> Change
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => imageInputRef.current?.click()}
+                  className="w-full h-24 rounded-lg border border-dashed border-white/[0.1] bg-white/[0.02] flex flex-col items-center justify-center gap-1.5 text-zinc-500 hover:border-orange-500/30 hover:text-zinc-300 transition-all cursor-pointer">
+                  <ImagePlus className="h-5 w-5" />
+                  <span className="text-[11px] font-quicksand">Click to upload (JPEG, PNG, WebP · max 2 MB)</span>
+                </button>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setItemDialog(false)} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
-            <Button onClick={handleSaveItem} disabled={!itemForm.name.trim() || !itemForm.price} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Save</Button>
+            <Button variant="outline" onClick={() => { setItemDialog(false); setImageFile(null); setImagePreview(null); }} className="border-white/[0.08] text-zinc-400 rounded-lg">Cancel</Button>
+            <Button onClick={handleSaveItem} disabled={!itemForm.name.trim() || !itemForm.price || imageUploading}
+              style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">
+              {imageUploading ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Uploading...</> : 'Save'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

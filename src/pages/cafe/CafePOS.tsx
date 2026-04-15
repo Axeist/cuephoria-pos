@@ -508,13 +508,18 @@ const CafePOS: React.FC = () => {
                   const inCart = cart.find(c => c.menuItemId === item.id);
                   return (
                     <Card key={item.id}
-                      className="group cursor-pointer overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/10 hover:-translate-y-0.5 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border-gray-700/40 relative"
+                      className="group cursor-pointer overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/10 hover:-translate-y-0.5 cafe-glass-card !border-white/[0.06] relative"
                       onClick={() => addToCart(item)}>
                       {inCart && (
-                        <div className="absolute top-1.5 right-1.5 z-10 h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold">
+                        <div className="absolute top-1.5 right-1.5 z-10 h-5 min-w-[20px] px-1 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold shadow-lg">
                           {inCart.quantity}
                         </div>
                       )}
+                      {item.imageUrl ? (
+                        <div className="h-24 sm:h-28 w-full overflow-hidden bg-black/20">
+                          <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                        </div>
+                      ) : null}
                       <CardContent className="p-3">
                         <div className="flex items-start justify-between gap-1 mb-1">
                           <p className="text-sm sm:text-base font-medium text-white font-quicksand leading-tight group-hover:text-orange-200 transition-colors">

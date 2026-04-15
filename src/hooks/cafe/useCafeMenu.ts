@@ -288,19 +288,22 @@ export function useCafeMenu(locationId?: string) {
     }
 
     const movementType = mode === 'add' ? 'adjustment_add' : 'adjustment_reduce';
-    const { error: movErr } = await supabase.from('cafe_inventory_movements').insert({
-      location_id: locationId,
-      menu_item_id: itemId,
-      quantity_delta: delta,
-      movement_type: movementType,
-      order_id: opts?.orderId ?? null,
-      note: opts?.note ?? null,
-      created_by: null,
-    });
-    if (movErr) {
-      console.error(movErr);
-      await supabase.from('cafe_menu_items').update({ stock_quantity: current }).eq('id', itemId);
-      return false;
+    try {
+      const { error: movErr } = await supabase.from('cafe_inventory_movements').insert({
+        location_id: locationId,
+        menu_item_id: itemId,
+        quantity_delta: delta,
+        movement_type: movementType,
+        order_id: opts?.orderId ?? null,
+        note: opts?.note ?? null,
+        created_by: null,
+      });
+      if (movErr) {
+        // Table may not exist yet — log but don't roll back the stock update
+        console.warn('Inventory movement log failed (table may not exist yet):', movErr.message);
+      }
+    } catch {
+      // best-effort — movement logging is non-critical
     }
 
     setItems(prev => prev.map(i => (i.id === itemId ? { ...i, stockQuantity: newStock } : i)));
