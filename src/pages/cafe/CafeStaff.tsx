@@ -169,21 +169,26 @@ const CafeStaff: React.FC = () => {
     }
   };
 
-  /* ───────── Delete (soft) ───────── */
+  /* ───────── Delete (permanent row removal) ───────── */
   const handleDelete = async () => {
-    if (!deletingStaff) return;
+    if (!deletingStaff || !locationId) return;
+    if (user?.id === deletingStaff.id) {
+      toast.error('You cannot delete your own account from here.');
+      return;
+    }
     setIsDeleting(true);
     try {
       const { error } = await supabase
         .from('cafe_users')
-        .update({ is_active: false })
-        .eq('id', deletingStaff.id);
+        .delete()
+        .eq('id', deletingStaff.id)
+        .eq('location_id', locationId);
       if (error) throw error;
-      toast.success(`${deletingStaff.display_name} deactivated`);
+      toast.success(`${deletingStaff.display_name} removed`);
       setDeletingStaff(null);
       fetchStaff();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to deactivate staff');
+      toast.error(err?.message || 'Failed to delete staff');
     } finally {
       setIsDeleting(false);
     }
@@ -339,10 +344,11 @@ const CafeStaff: React.FC = () => {
                     onClick={() => toggleActive(s)}>
                     {s.is_active ? <><UserX className="h-3 w-3 mr-1" /> Deactivate</> : <><UserCheck className="h-3 w-3 mr-1" /> Activate</>}
                   </Button>
-                  {s.is_active && (
+                  {user?.id !== s.id && (
                     <Button size="sm" variant="outline"
                       className="h-8 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 border-0 px-2"
-                      onClick={() => setDeletingStaff(s)}>
+                      onClick={() => setDeletingStaff(s)}
+                      title="Permanently delete this staff account">
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   )}
@@ -504,11 +510,11 @@ const CafeStaff: React.FC = () => {
         <DialogContent className="max-w-sm animate-scale-in">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2 text-red-400">
-              <Trash2 className="h-5 w-5" /> Deactivate Staff
+              <Trash2 className="h-5 w-5" /> Delete staff account
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to deactivate <span className="font-semibold text-white">{deletingStaff?.display_name}</span>?
-              They will no longer be able to log in, but their data will be preserved.
+              This permanently removes <span className="font-semibold text-white">{deletingStaff?.display_name}</span> (@{deletingStaff?.username})
+              from this location. They will not be able to log in. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -516,8 +522,8 @@ const CafeStaff: React.FC = () => {
             <Button onClick={handleDelete} disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700 text-white">
               {isDeleting
-                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deactivating...</>
-                : 'Deactivate'}
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting...</>
+                : 'Delete permanently'}
             </Button>
           </DialogFooter>
         </DialogContent>
