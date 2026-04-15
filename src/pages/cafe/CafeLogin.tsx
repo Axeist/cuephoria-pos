@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   Coffee, User, Lock, ShoppingCart, UtensilsCrossed,
   BarChart2, Shield, Loader2, Eye, EyeOff, Users, TrendingUp,
-  CreditCard
+  CreditCard, ChefHat,
 } from 'lucide-react';
 const CafeLogin: React.FC = () => {
   const navigate = useNavigate();

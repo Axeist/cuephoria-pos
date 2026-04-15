@@ -7,6 +7,70 @@ import type {
 import { transformOrderRow, transformOrderItemRow } from '@/types/cafe.types';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+/** Deduct stock once per order when marked completed (idempotent via sale movements). */
+async function applyInventoryDeductionForCompletedOrder(orderId: string, locationId: string) {
+  const { data: dup } = await supabase
+    .from('cafe_inventory_movements')
+    .select('id')
+    .eq('order_id', orderId)
+    .eq('movement_type', 'sale')
+    .limit(1);
+  if (dup && dup.length > 0) return;
+
+  const { data: lines, error: liErr } = await supabase
+    .from('cafe_order_items')
+    .select('menu_item_id, quantity')
+    .eq('order_id', orderId);
+  if (liErr || !lines?.length) return;
+
+  for (const line of lines) {
+    if (!line.menu_item_id) continue;
+    const qty = Number(line.quantity) || 0;
+    if (qty <= 0) continue;
+
+    const { data: mi, error: miErr } = await supabase
+      .from('cafe_menu_items')
+      .select('id, stock_quantity, category_id, location_id')
+      .eq('id', line.menu_item_id)
+      .single();
+    if (miErr || !mi || mi.location_id !== locationId) continue;
+
+    const { data: cat } = await supabase
+      .from('cafe_menu_categories')
+      .select('tracks_inventory')
+      .eq('id', mi.category_id)
+      .single();
+    if (!cat?.tracks_inventory) continue;
+
+    const current = mi.stock_quantity ?? 0;
+    const removed = Math.min(qty, current);
+    const newStock = current - removed;
+
+    const { error: upErr } = await supabase
+      .from('cafe_menu_items')
+      .update({ stock_quantity: newStock })
+      .eq('id', mi.id);
+    if (upErr) {
+      console.error(upErr);
+      continue;
+    }
+
+    const { error: movErr } = await supabase.from('cafe_inventory_movements').insert({
+      location_id: locationId,
+      menu_item_id: mi.id,
+      quantity_delta: -removed,
+      movement_type: 'sale',
+      order_id: orderId,
+      note: null,
+      created_by: null,
+    });
+    if (movErr) {
+      console.error(movErr);
+      await supabase.from('cafe_menu_items').update({ stock_quantity: current }).eq('id', mi.id);
+    }
+  }
+}
+
 interface CreateOrderParams {
   locationId: string;
   partnerId: string;
@@ -225,6 +289,9 @@ export function useCafeOrders(locationId?: string) {
   }, []);
 
   const updateOrderStatus = useCallback(async (orderId: string, status: CafeOrderStatus, paymentMethod?: CafePaymentMethod, cashAmount?: number, upiAmount?: number) => {
+    const prevOrder = orders.find(o => o.id === orderId);
+    const prevStatus = prevOrder?.status;
+
     const updates: Record<string, unknown> = { status };
     if (status === 'completed') updates.completed_at = new Date().toISOString();
     if (paymentMethod) updates.payment_method = paymentMethod;
@@ -236,6 +303,11 @@ export function useCafeOrders(locationId?: string) {
       .update(updates)
       .eq('id', orderId);
     if (error) { console.error(error); return false; }
+
+    if (status === 'completed' && prevStatus !== 'completed' && locationId) {
+      await applyInventoryDeductionForCompletedOrder(orderId, locationId);
+    }
+
     setOrders(prev => prev.map(o => o.id === orderId ? {
       ...o, status,
       ...(status === 'completed' ? { completedAt: new Date() } : {}),
@@ -244,7 +316,7 @@ export function useCafeOrders(locationId?: string) {
       ...(upiAmount !== undefined ? { upiAmount } : {}),
     } : o));
     return true;
-  }, []);
+  }, [orders, locationId]);
 
   const cancelOrder = useCallback(async (orderId: string) => {
     return updateOrderStatus(orderId, 'cancelled');

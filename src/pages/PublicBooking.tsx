@@ -329,11 +329,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   const [paymentMethod, setPaymentMethod] = useState<"venue" | "razorpay">("venue");
   const [loading, setLoading] = useState(false);
 
+  const hasAppliedCoupons = useMemo(
+    () => Object.keys(appliedCoupons).length > 0,
+    [appliedCoupons]
+  );
+
   useEffect(() => {
     if (!onlinePaymentEnabled && paymentMethod === "razorpay") {
       setPaymentMethod("venue");
     }
   }, [onlinePaymentEnabled, paymentMethod]);
+
+  // Discount coupons require online payment (Razorpay)
+  useEffect(() => {
+    if (hasAppliedCoupons && onlinePaymentEnabled) {
+      setPaymentMethod("razorpay");
+    }
+  }, [hasAppliedCoupons, onlinePaymentEnabled]);
 
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
@@ -1243,6 +1255,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       return;
     }
 
+    if (!onlinePaymentEnabled) {
+      toast.error("Online payment is unavailable. Coupons cannot be applied — pay at venue without a coupon or call us.");
+      return;
+    }
+
     const code = (raw || "").toUpperCase().trim();
     if (!allowedCoupons.includes(code)) {
       toast.error("🚫 Invalid coupon code. Please re-check and try again!");
@@ -2104,6 +2121,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   async function handleConfirm() {
     if (!isCustomerInfoComplete) {
       toast.error("Please complete customer information first");
+      return;
+    }
+    if (hasAppliedCoupons && !onlinePaymentEnabled) {
+      toast.error("Coupons require online payment, which is unavailable. Remove the coupon or call us.");
+      return;
+    }
+    if (hasAppliedCoupons && paymentMethod !== "razorpay") {
+      toast.error("Please choose Pay Online — coupons are only valid with online payment.");
       return;
     }
     if (selectedStations.length === 0) {
@@ -3218,10 +3243,23 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </div>
                   )}
 
+                {onlinePaymentEnabled && isNitEventBooking !== true && (
+                  <div className="mt-3 rounded-xl border border-[#3395FF]/20 bg-[#3395FF]/10 px-3 py-2.5 text-xs text-sky-100/95 leading-relaxed">
+                    <span className="font-semibold text-white">Book online on this page</span>
+                    {" "}for instant confirmation, secure Razorpay checkout, and the ability to use coupons.
+                  </div>
+                )}
+
                 <div className="mt-2">
                   <Label className="text-xs font-semibold text-gray-400 uppercase">
                     Payment Method
                   </Label>
+                  {hasAppliedCoupons && onlinePaymentEnabled && (
+                    <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-100/95">
+                      A coupon is applied —{" "}
+                      <span className="font-semibold text-white">Pay Online</span> is required to confirm this discounted booking.
+                    </div>
+                  )}
                   {!onlinePaymentEnabled ? (
                     <div className="mt-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-sm text-amber-100/95">
                       <p className="font-medium">Online payment is temporarily unavailable</p>
@@ -3238,13 +3276,21 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   >
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod("venue")}
+                      onClick={() => {
+                        if (hasAppliedCoupons && onlinePaymentEnabled) {
+                          toast.info("Coupons require online payment. Remove the coupon first if you need to pay at the venue.");
+                          return;
+                        }
+                        setPaymentMethod("venue");
+                      }}
+                      disabled={hasAppliedCoupons && onlinePaymentEnabled}
                       className={cn(
                         "w-full rounded-xl px-3 py-2.5 text-sm border transition-all",
                         "h-12 flex items-center justify-center text-center leading-tight",
                         paymentMethod === "venue"
                           ? "bg-white/10 border-white/20 text-white"
-                          : "bg-black/20 border-white/10 text-gray-300 hover:bg-black/30"
+                          : "bg-black/20 border-white/10 text-gray-300 hover:bg-black/30",
+                        hasAppliedCoupons && onlinePaymentEnabled && "opacity-45 cursor-not-allowed hover:bg-black/20"
                       )}
                     >
                       Pay at Venue
@@ -3351,11 +3397,15 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         <ul className="space-y-1 text-[10px] text-gray-400 ml-4">
                           <li className="flex items-start gap-2">
                             <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
-                            <span>Instant booking confirmation - no waiting at venue</span>
+                            <span>Instant booking confirmation — skip the queue at reception</span>
                           </li>
                           <li className="flex items-start gap-2">
                             <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
-                            <span>Multiple payment options: Cards, UPI, Netbanking, Wallets</span>
+                            <span>Coupons and discounts apply when you pay online here</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
+                            <span>Cards, UPI, net banking, and wallets via Razorpay</span>
                           </li>
                           <li className="flex items-start gap-2">
                             <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
@@ -3459,7 +3509,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                         Online Payment Transaction Fee
                                       </Label>
                                       <span className="text-xs text-gray-400 mt-0.5">
-                                        (2.5% of total) • Includes 15 mins free gameplay
+                                        (2.5%) — Razorpay gateway processing
                                       </span>
                                     </div>
                                     <span className="text-sm text-gray-200 font-medium">
@@ -3468,7 +3518,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                                   </div>
                                   <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg p-2.5">
                                     <p className="text-xs text-blue-300/90 leading-relaxed">
-                                      💡 <strong>Good news!</strong> All online payments include <strong>15 minutes of free gameplay</strong> as a bonus. The small transaction fee helps us provide secure payment processing.
+                                      Paying online confirms your slot immediately and supports cards, UPI, and net banking. The fee covers secure processing through Razorpay.
                                     </p>
                                   </div>
                                   <div className="flex justify-between items-center pt-1 border-t border-white/10">

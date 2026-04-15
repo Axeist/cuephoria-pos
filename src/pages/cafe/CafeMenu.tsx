@@ -8,9 +8,13 @@ import { useCafeMenu } from '@/hooks/cafe/useCafeMenu';
 import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafePartner } from '@/hooks/cafe/useCafePartner';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee, Upload, Download, Loader2, Search, EyeOff, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, UtensilsCrossed, Leaf, X, Check, MapPin, Coffee, Upload, Download, Loader2, Search, EyeOff, Eye, ToggleLeft, ToggleRight, Package, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import type { CafeMenuItem } from '@/types/cafe.types';
+import { CAFE_STOCK_ADMIN_PIN } from '@/constants/cafeInventory';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
@@ -18,7 +22,7 @@ import {
 const CafeMenu: React.FC = () => {
   const { user } = useCafeAuth();
   const isCafeAdmin = user?.role === 'cafe_admin';
-  const { categories, items, addCategory, updateCategory, deleteCategory, addItem, updateItem, deleteItem, refresh } = useCafeMenu(user?.locationId);
+  const { categories, items, addCategory, updateCategory, deleteCategory, addItem, updateItem, deleteItem, refresh, adjustStock } = useCafeMenu(user?.locationId);
   const { tables, zones, tablesByZone, addTable, updateTable, deleteTable } = useCafeTables(user?.locationId);
   const { partner } = useCafePartner(user?.locationId);
   const [activeTab, setActiveTab] = useState<'menu' | 'tables'>('menu');
@@ -40,11 +44,17 @@ const CafeMenu: React.FC = () => {
   const [catDialog, setCatDialog] = useState(false);
   const [catEditId, setCatEditId] = useState<string | null>(null);
   const [catName, setCatName] = useState('');
+  const [catTracksInventory, setCatTracksInventory] = useState(false);
 
   // Item dialog
   const [itemDialog, setItemDialog] = useState(false);
   const [itemEditId, setItemEditId] = useState<string | null>(null);
-  const [itemForm, setItemForm] = useState({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '' });
+  const [itemForm, setItemForm] = useState({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '' });
+
+  const [invDialog, setInvDialog] = useState<'add' | 'reduce' | null>(null);
+  const [invItem, setInvItem] = useState<CafeMenuItem | null>(null);
+  const [invQty, setInvQty] = useState('1');
+  const [invPin, setInvPin] = useState('');
 
   // Table dialog
   const [tableDialog, setTableDialog] = useState(false);
@@ -189,13 +199,13 @@ const CafeMenu: React.FC = () => {
   const handleSaveCategory = async () => {
     if (!catName.trim() || !partner) return;
     if (catEditId) {
-      const ok = await updateCategory(catEditId, { name: catName.trim() });
+      const ok = await updateCategory(catEditId, { name: catName.trim(), tracksInventory: catTracksInventory });
       if (ok) toast.success('Category updated');
     } else {
-      const cat = await addCategory(catName.trim(), partner.id);
+      const cat = await addCategory(catName.trim(), partner.id, { tracksInventory: catTracksInventory });
       if (cat) toast.success('Category added');
     }
-    setCatDialog(false); setCatName(''); setCatEditId(null);
+    setCatDialog(false); setCatName(''); setCatEditId(null); setCatTracksInventory(false);
   };
 
   const handleDeleteCategory = async (id: string) => {
@@ -207,7 +217,8 @@ const CafeMenu: React.FC = () => {
 
   const handleSaveItem = async () => {
     if (!itemForm.name.trim() || !itemForm.price || !itemForm.categoryId) return;
-    const data = {
+    const selectedCat = categories.find(c => c.id === itemForm.categoryId);
+    const base = {
       name: itemForm.name.trim(),
       price: parseFloat(itemForm.price),
       costPrice: itemForm.costPrice ? parseFloat(itemForm.costPrice) : undefined,
@@ -217,14 +228,53 @@ const CafeMenu: React.FC = () => {
       prepTimeMinutes: itemForm.prepTime ? parseInt(itemForm.prepTime) : undefined,
     };
     if (itemEditId) {
-      const ok = await updateItem(itemEditId, data);
+      const upd = { ...base };
+      if (selectedCat?.tracksInventory) {
+        upd.stockQuantity = itemForm.initialStock.trim() === ''
+          ? 0
+          : Math.max(0, parseInt(itemForm.initialStock, 10) || 0);
+      }
+      const ok = await updateItem(itemEditId, upd);
       if (ok) toast.success('Item updated');
     } else {
-      const item = await addItem(data);
+      const extra = selectedCat?.tracksInventory
+        ? {
+            stockQuantity: itemForm.initialStock.trim() === ''
+              ? 0
+              : Math.max(0, parseInt(itemForm.initialStock, 10) || 0),
+          }
+        : {};
+      const item = await addItem({ ...base, ...extra });
       if (item) toast.success('Item added');
     }
     setItemDialog(false); setItemEditId(null);
-    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '' });
+    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: '', isVeg: true, prepTime: '', initialStock: '' });
+  };
+
+  const handleConfirmStockAdjust = async () => {
+    if (!invItem || !invDialog) return;
+    const q = parseInt(invQty, 10);
+    if (Number.isNaN(q) || q <= 0) {
+      toast.error('Enter a valid quantity');
+      return;
+    }
+    if (invDialog === 'reduce') {
+      if (invPin !== CAFE_STOCK_ADMIN_PIN) {
+        toast.error('Invalid admin PIN');
+        return;
+      }
+      const ok = await adjustStock(invItem.id, q, 'reduce');
+      if (ok) toast.success('Stock reduced');
+      else toast.error('Could not update stock');
+    } else {
+      const ok = await adjustStock(invItem.id, q, 'add');
+      if (ok) toast.success('Stock added');
+      else toast.error('Could not update stock');
+    }
+    setInvDialog(null);
+    setInvItem(null);
+    setInvQty('1');
+    setInvPin('');
   };
 
   const handleSaveTable = async () => {
@@ -260,7 +310,7 @@ const CafeMenu: React.FC = () => {
           <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base font-heading text-white">Categories</CardTitle>
-              <Button size="sm" onClick={() => { setCatDialog(true); setCatEditId(null); setCatName(''); }}
+              <Button size="sm" onClick={() => { setCatDialog(true); setCatEditId(null); setCatName(''); setCatTracksInventory(false); }}
                 className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0">
                 <Plus className="h-4 w-4 mr-1" /> Add
               </Button>
@@ -269,9 +319,12 @@ const CafeMenu: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 {categories.map(cat => (
                   <div key={cat.id} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-800/50 border border-gray-700/30 group">
+                    {cat.tracksInventory && (
+                      <Package className="h-3 w-3 text-amber-400/90 shrink-0" aria-hidden />
+                    )}
                     <span className="text-sm text-white font-quicksand">{cat.name}</span>
                     <span className="text-xs text-gray-500">({items.filter(i => i.categoryId === cat.id).length})</span>
-                    <button onClick={() => { setCatEditId(cat.id); setCatName(cat.name); setCatDialog(true); }} className="opacity-0 group-hover:opacity-100 ml-1"><Pencil className="h-3 w-3 text-gray-400" /></button>
+                    <button onClick={() => { setCatEditId(cat.id); setCatName(cat.name); setCatTracksInventory(cat.tracksInventory); setCatDialog(true); }} className="opacity-0 group-hover:opacity-100 ml-1"><Pencil className="h-3 w-3 text-gray-400" /></button>
                     {isCafeAdmin && (
                       <button onClick={() => handleDeleteCategory(cat.id)} className="opacity-0 group-hover:opacity-100"><Trash2 className="h-3 w-3 text-red-400" /></button>
                     )}
@@ -309,7 +362,7 @@ const CafeMenu: React.FC = () => {
                   )}
                   <Button size="sm" onClick={() => {
                     setItemDialog(true); setItemEditId(null);
-                    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: categories[0]?.id || '', isVeg: true, prepTime: '' });
+                    setItemForm({ name: '', price: '', costPrice: '', description: '', categoryId: categories[0]?.id || '', isVeg: true, prepTime: '', initialStock: '' });
                   }} className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border-0" disabled={categories.length === 0}>
                     <Plus className="h-4 w-4 mr-1" /> Add Item
                   </Button>
@@ -339,6 +392,7 @@ const CafeMenu: React.FC = () => {
               <ScrollArea className="h-[calc(100vh-30rem)]">
                 <div className="space-y-2">
                   {categories.map(cat => {
+                    const catTracks = cat.tracksInventory;
                     let catItems = items.filter(i => i.categoryId === cat.id);
                     if (showOnlyAvailable) catItems = catItems.filter(i => i.isAvailable);
                     if (menuSearch) {
@@ -349,7 +403,10 @@ const CafeMenu: React.FC = () => {
                     return (
                       <div key={cat.id}>
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs text-gray-500 uppercase tracking-wider font-quicksand">{cat.name} ({catItems.length})</p>
+                          <p className="text-xs text-gray-500 uppercase tracking-wider font-quicksand flex items-center gap-1.5">
+                            {catTracks && <Package className="h-3 w-3 text-amber-400/80" />}
+                            {cat.name} ({catItems.length})
+                          </p>
                           <button onClick={async () => {
                             const allAvailable = catItems.every(i => i.isAvailable);
                             for (const item of catItems) {
@@ -362,7 +419,9 @@ const CafeMenu: React.FC = () => {
                           </button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
-                          {catItems.map(item => (
+                          {catItems.map(item => {
+                            const tracksItem = catTracks;
+                            return (
                             <div key={item.id} className={`p-3 rounded-lg border group hover:border-orange-500/30 transition-all ${
                               item.isAvailable ? 'bg-gray-800/40 border-gray-700/30' : 'bg-gray-800/20 border-red-500/20 opacity-60'
                             }`}>
@@ -379,7 +438,7 @@ const CafeMenu: React.FC = () => {
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button onClick={() => {
                                     setItemEditId(item.id);
-                                    setItemForm({ name: item.name, price: String(item.price), costPrice: item.costPrice ? String(item.costPrice) : '', description: item.description || '', categoryId: item.categoryId, isVeg: item.isVeg, prepTime: item.prepTimeMinutes ? String(item.prepTimeMinutes) : '' });
+                                    setItemForm({ name: item.name, price: String(item.price), costPrice: item.costPrice ? String(item.costPrice) : '', description: item.description || '', categoryId: item.categoryId, isVeg: item.isVeg, prepTime: item.prepTimeMinutes ? String(item.prepTimeMinutes) : '', initialStock: String(item.stockQuantity ?? 0) });
                                     setItemDialog(true);
                                   }}><Pencil className="h-3 w-3 text-gray-400 hover:text-white" /></button>
                                   {isCafeAdmin && (
@@ -402,8 +461,28 @@ const CafeMenu: React.FC = () => {
                                   </button>
                                 </div>
                               </div>
+                              {tracksItem && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-gray-700/40">
+                                  <span className="text-xs text-gray-400 font-quicksand">
+                                    Stock: <span className="text-white font-semibold tabular-nums">{item.stockQuantity}</span>
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <Button type="button" size="sm" variant="outline"
+                                      className="h-7 text-[10px] px-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                                      onClick={() => { setInvItem(item); setInvDialog('add'); setInvQty('1'); setInvPin(''); }}>
+                                      <Plus className="h-3 w-3 mr-0.5" /> Add stock
+                                    </Button>
+                                    <Button type="button" size="sm" variant="outline"
+                                      className="h-7 text-[10px] px-2 border-orange-500/40 text-orange-400 hover:bg-orange-500/10"
+                                      onClick={() => { setInvItem(item); setInvDialog('reduce'); setInvQty('1'); setInvPin(''); }}>
+                                      <Minus className="h-3 w-3 mr-0.5" /> Reduce stock
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -480,13 +559,64 @@ const CafeMenu: React.FC = () => {
       )}
 
       {/* Category Dialog */}
-      <Dialog open={catDialog} onOpenChange={setCatDialog}>
+      <Dialog open={catDialog} onOpenChange={(open) => {
+        setCatDialog(open);
+        if (!open) { setCatEditId(null); setCatName(''); setCatTracksInventory(false); }
+      }}>
         <DialogContent className="bg-gray-900 border-gray-700">
           <DialogHeader><DialogTitle className="text-white font-heading">{catEditId ? 'Edit Category' : 'Add Category'}</DialogTitle></DialogHeader>
           <Input value={catName} onChange={e => setCatName(e.target.value)} placeholder="Category name" className="bg-gray-800/50 border-gray-700 text-white" autoFocus />
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-700/50 bg-gray-800/30 px-3 py-2.5">
+            <div className="space-y-0.5 min-w-0">
+              <Label htmlFor="cat-tracks-inv" className="text-white text-sm font-quicksand cursor-pointer">Track inventory</Label>
+              <p className="text-xs text-gray-500 font-quicksand">Stock counts and add/reduce controls for items in this category.</p>
+            </div>
+            <Switch id="cat-tracks-inv" checked={catTracksInventory} onCheckedChange={setCatTracksInventory} className="shrink-0 data-[state=checked]:bg-orange-500" />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCatDialog(false)} className="border-gray-700 text-gray-400">Cancel</Button>
             <Button onClick={handleSaveCategory} disabled={!catName.trim()} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={invDialog !== null} onOpenChange={(open) => {
+        if (!open) { setInvDialog(null); setInvItem(null); setInvQty('1'); setInvPin(''); }
+      }}>
+        <DialogContent className="bg-gray-900 border-gray-700 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-white font-heading">{invDialog === 'reduce' ? 'Reduce stock' : 'Add stock'}</DialogTitle>
+          </DialogHeader>
+          {invItem && (
+            <p className="text-sm text-gray-400 font-quicksand truncate" title={invItem.name}>{invItem.name}</p>
+          )}
+          {invDialog === 'reduce' && (
+            <div className="space-y-1.5">
+              <Label className="text-gray-400 text-xs font-quicksand">Admin PIN</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                value={invPin}
+                onChange={e => setInvPin(e.target.value)}
+                placeholder="Enter PIN"
+                className="bg-gray-800/50 border-gray-700 text-white"
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-gray-400 text-xs font-quicksand">Quantity</Label>
+            <Input
+              type="number"
+              min={1}
+              value={invQty}
+              onChange={e => setInvQty(e.target.value)}
+              className="bg-gray-800/50 border-gray-700 text-white"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => { setInvDialog(null); setInvItem(null); setInvPin(''); }} className="border-gray-700 text-gray-400">Cancel</Button>
+            <Button onClick={handleConfirmStockAdjust} style={{ background: 'linear-gradient(135deg, #f97316, #6E59A5)' }} className="text-white border-0">Confirm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -514,6 +644,19 @@ const CafeMenu: React.FC = () => {
               <Input type="number" value={itemForm.prepTime} onChange={e => setItemForm(f => ({ ...f, prepTime: e.target.value }))}
                 placeholder="Prep time (min)" className="bg-gray-800/50 border-gray-700 text-white flex-1" />
             </div>
+            {categories.find(c => c.id === itemForm.categoryId)?.tracksInventory && (
+              <div className="space-y-1.5">
+                <Label className="text-gray-400 text-xs font-quicksand">{itemEditId ? 'Stock on hand' : 'Initial stock'}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={itemForm.initialStock}
+                  onChange={e => setItemForm(f => ({ ...f, initialStock: e.target.value }))}
+                  placeholder="0"
+                  className="bg-gray-800/50 border-gray-700 text-white"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setItemDialog(false)} className="border-gray-700 text-gray-400">Cancel</Button>

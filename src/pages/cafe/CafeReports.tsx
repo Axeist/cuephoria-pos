@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,11 +11,15 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import {
   BarChart2, TrendingUp, DollarSign, ShoppingCart, Calendar, FileText,
   CheckCircle2, Download, Flame, Coffee, CreditCard, Banknote,
-  ArrowUpRight, ArrowDownRight, Percent, UtensilsCrossed, Clock
+  ArrowUpRight, ArrowDownRight, Percent, UtensilsCrossed, Clock, Package, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import type { CafeInventoryMovementRow } from '@/types/cafe.types';
 
 type DateRange = 'today' | '7d' | '30d' | 'custom';
+
+const LOW_STOCK_THRESHOLD = 5;
 
 const CafeReports: React.FC = () => {
   const { user } = useCafeAuth();
@@ -27,6 +31,7 @@ const CafeReports: React.FC = () => {
   const [customStart, setCustomStart] = useState(new Date().toISOString().split('T')[0]);
   const [customEnd, setCustomEnd] = useState(new Date().toISOString().split('T')[0]);
   const [settlementDate, setSettlementDate] = useState(new Date().toISOString().split('T')[0]);
+  const [inventoryMovements, setInventoryMovements] = useState<CafeInventoryMovementRow[]>([]);
 
   const dateFilter = useMemo(() => {
     const now = new Date();
@@ -38,6 +43,36 @@ const CafeReports: React.FC = () => {
       case 'custom': return { start: new Date(customStart + 'T00:00:00'), end: new Date(customEnd + 'T23:59:59') };
     }
   }, [dateRange, customStart, customEnd]);
+
+  useEffect(() => {
+    if (!user?.locationId) return;
+    let cancelled = false;
+    (async () => {
+      const startIso = dateFilter.start.toISOString();
+      const endIso = dateFilter.end.toISOString();
+      const { data, error } = await supabase
+        .from('cafe_inventory_movements')
+        .select('*')
+        .eq('location_id', user.locationId)
+        .gte('created_at', startIso)
+        .lte('created_at', endIso)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (cancelled) return;
+      if (!error && data) setInventoryMovements(data as CafeInventoryMovementRow[]);
+      else setInventoryMovements([]);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.locationId, dateFilter.start, dateFilter.end]);
+
+  const inventorySummary = useMemo(() => {
+    const trackedItems = items.filter(i => categories.find(c => c.id === i.categoryId)?.tracksInventory);
+    const totalUnits = trackedItems.reduce((s, i) => s + i.stockQuantity, 0);
+    const lowStockCount = trackedItems.filter(i => i.stockQuantity <= LOW_STOCK_THRESHOLD).length;
+    const trackedSkus = trackedItems.length;
+    const movementNet = inventoryMovements.reduce((s, m) => s + m.quantity_delta, 0);
+    return { totalUnits, lowStockCount, trackedSkus, movementNet };
+  }, [items, categories, inventoryMovements]);
 
   const filteredOrders = useMemo(() =>
     orders.filter(o => {
@@ -194,6 +229,96 @@ const CafeReports: React.FC = () => {
           </Card>
         ))}
       </div>
+
+      {inventorySummary.trackedSkus > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Stock on hand (units)', value: inventorySummary.totalUnits, icon: Package, color: 'text-cyan-400', type: 'number' as const },
+            { label: 'Tracked SKUs', value: inventorySummary.trackedSkus, icon: UtensilsCrossed, color: 'text-slate-300', type: 'number' as const },
+            { label: `Low stock (≤${LOW_STOCK_THRESHOLD})`, value: inventorySummary.lowStockCount, icon: AlertTriangle, color: 'text-amber-400', type: 'number' as const },
+            { label: 'Net movement (period)', value: inventorySummary.movementNet, icon: BarChart2, color: inventorySummary.movementNet >= 0 ? 'text-emerald-400' : 'text-rose-400', type: 'number' as const },
+          ].map((stat, i) => (
+            <Card key={stat.label} className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/30 animate-slide-up" style={{ animationDelay: `${i * 30}ms` }}>
+              <CardContent className="p-3">
+                <stat.icon className={`h-4 w-4 ${stat.color} mb-1.5`} />
+                <p className={`text-lg font-bold ${stat.color} font-heading tabular-nums`}>{stat.value}</p>
+                <p className="text-xs text-gray-500 font-quicksand">{stat.label}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {inventorySummary.trackedSkus > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
+                <Package className="h-4 w-4 text-cyan-400" /> Current stock (tracked items)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-56">
+                <div className="space-y-1.5 pr-2">
+                  {items
+                    .filter(i => categories.find(c => c.id === i.categoryId)?.tracksInventory)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(i => {
+                      const catName = categories.find(c => c.id === i.categoryId)?.name ?? '—';
+                      const low = i.stockQuantity <= LOW_STOCK_THRESHOLD;
+                      return (
+                        <div key={i.id} className={`flex items-center justify-between p-2 rounded-lg text-sm font-quicksand ${low ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-gray-800/20'}`}>
+                          <div className="min-w-0">
+                            <p className="text-white truncate">{i.name}</p>
+                            <p className="text-[10px] text-gray-500">{catName}</p>
+                          </div>
+                          <span className={`tabular-nums font-semibold shrink-0 ${low ? 'text-amber-400' : 'text-cyan-400'}`}>{i.stockQuantity}</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 animate-slide-up">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-heading text-white flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-orange-400" /> Inventory activity (period)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-56">
+                {inventoryMovements.length === 0 ? (
+                  <p className="text-xs text-gray-500 font-quicksand text-center py-8">No stock movements in this range</p>
+                ) : (
+                  <div className="space-y-1.5 pr-2">
+                    {inventoryMovements.map(m => {
+                      const itemName = items.find(i => i.id === m.menu_item_id)?.name ?? 'Item';
+                      const label =
+                        m.movement_type === 'sale' ? 'Sale' :
+                        m.movement_type === 'adjustment_add' ? 'Add' : 'Reduce';
+                      return (
+                        <div key={m.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-gray-800/20 text-xs font-quicksand">
+                          <div className="min-w-0">
+                            <p className="text-white truncate">{itemName}</p>
+                            <p className="text-[10px] text-gray-500">
+                              {label} · {new Date(m.created_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                            </p>
+                          </div>
+                          <span className={`tabular-nums font-semibold shrink-0 ${m.quantity_delta >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {m.quantity_delta >= 0 ? '+' : ''}{m.quantity_delta}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Revenue Trend */}

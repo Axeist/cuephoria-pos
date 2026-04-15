@@ -2,7 +2,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Gift, Zap, Clock, Gamepad2, Trophy, CreditCard } from 'lucide-react';
+import { Sparkles, Gift, Zap, Gamepad2, Trophy, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OnlinePaymentPromoDialogProps {
@@ -79,7 +79,7 @@ export default function OnlinePaymentPromoDialog({
           </div>
           
           <DialogTitle className="text-lg sm:text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-cuephoria-purple to-cuephoria-lightpurple">
-            🎁 Exclusive Offer! 🎁
+            Book online — best experience
           </DialogTitle>
         </DialogHeader>
 
@@ -118,11 +118,7 @@ export default function OnlinePaymentPromoDialog({
                 <Sparkles className="absolute -bottom-1 -left-1 h-2.5 w-2.5 sm:h-3 sm:w-3 text-yellow-300 animate-pulse z-10 drop-shadow-lg" style={{ animationDelay: '0.5s' }} />
               </div>
               
-              <p className="text-sm sm:text-lg font-semibold text-white mt-3 sm:mt-5 mb-2 sm:mb-3">
-                and get
-              </p>
-              
-              <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-gray-200">
+              <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-gray-200 mt-3 sm:mt-4">
                 <ServiceIcon className={cn("h-4 w-4 sm:h-5 sm:w-5", serviceInfo.textColor)} />
                 <span className={cn("text-sm sm:text-lg font-semibold", serviceInfo.textColor)}>
                   {serviceInfo.name}
@@ -136,8 +132,8 @@ export default function OnlinePaymentPromoDialog({
                 serviceInfo.gradient,
                 serviceInfo.borderColor
               )}>
-                <Clock className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
-                15 Minutes FREE!
+                <Zap className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
+                Instant & secure
               </Badge>
               <div className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2">
                 <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 animate-pulse" />
@@ -145,9 +141,9 @@ export default function OnlinePaymentPromoDialog({
             </div>
 
             <p className="text-sm sm:text-base text-gray-300 font-medium leading-relaxed px-1">
-              That's right! Pay online now and we'll add <span className={cn("font-bold", serviceInfo.textColor)}>15 extra minutes</span> to your {serviceInfo.name} session. 
+              Pay online to <span className={cn("font-bold", serviceInfo.textColor)}>confirm your {serviceInfo.name} slot instantly</span> — no queues at the desk, UPI and cards supported, and your booking is recorded only after payment succeeds.
               <br />
-              <span className="text-yellow-400">More gaming time = More fun! 🎮</span>
+              <span className="text-yellow-400">Prefer online booking for the smoothest visit. 🎮</span>
             </p>
           </div>
 
@@ -162,7 +158,7 @@ export default function OnlinePaymentPromoDialog({
               size="lg"
             >
               <Zap className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-              Hell Yeah! 🚀
+              Pay online
             </Button>
             
             <Button
@@ -171,7 +167,7 @@ export default function OnlinePaymentPromoDialog({
               className="w-full border-gray-500/50 text-gray-300 hover:bg-gray-800/50 hover:text-white hover:border-gray-400 transition-all duration-300 py-2.5 sm:py-3 text-sm sm:text-base"
               size="lg"
             >
-              Nah, I don't need freebies 😎
+              Pay at venue instead
             </Button>
           </div>
         </div>

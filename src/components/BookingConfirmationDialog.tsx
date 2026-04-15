@@ -212,7 +212,7 @@ Please arrive on time and show this confirmation at reception.`;
                     </div>
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded p-2 mt-2">
                       <p className="text-xs text-blue-300/90">
-                        💡 Includes 15 mins free gameplay bonus
+                        Covers secure payment processing via Razorpay
                       </p>
                     </div>
                     {bookingData.totalWithFee && bookingData.totalWithFee !== bookingData.totalAmount && (

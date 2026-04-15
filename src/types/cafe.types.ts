@@ -43,6 +43,8 @@ export interface CafeMenuCategory {
   imageUrl?: string;
   sortOrder: number;
   isActive: boolean;
+  /** When true, items in this category show stock and manual add/reduce controls. */
+  tracksInventory: boolean;
   createdAt: Date;
 }
 
@@ -59,6 +61,8 @@ export interface CafeMenuItem {
   isAvailable: boolean;
   prepTimeMinutes?: number;
   sortOrder: number;
+  /** On-hand units when the item's category has tracksInventory. */
+  stockQuantity: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -238,6 +242,7 @@ export interface CafeMenuCategoryRow {
   image_url: string | null;
   sort_order: number;
   is_active: boolean;
+  tracks_inventory?: boolean;
   created_at: string;
 }
 
@@ -254,8 +259,23 @@ export interface CafeMenuItemRow {
   is_available: boolean;
   prep_time_minutes: number | null;
   sort_order: number;
+  stock_quantity?: number;
   created_at: string;
   updated_at: string;
+}
+
+export type CafeInventoryMovementType = 'adjustment_add' | 'adjustment_reduce' | 'sale';
+
+export interface CafeInventoryMovementRow {
+  id: string;
+  location_id: string;
+  menu_item_id: string;
+  quantity_delta: number;
+  movement_type: CafeInventoryMovementType;
+  order_id: string | null;
+  note: string | null;
+  created_at: string;
+  created_by: string | null;
 }
 
 export interface CafeTableRow {
@@ -377,6 +397,7 @@ export function transformMenuCategoryRow(row: CafeMenuCategoryRow): CafeMenuCate
     imageUrl: row.image_url ?? undefined,
     sortOrder: row.sort_order,
     isActive: row.is_active,
+    tracksInventory: row.tracks_inventory ?? false,
     createdAt: new Date(row.created_at),
   };
 }
@@ -395,6 +416,7 @@ export function transformMenuItemRow(row: CafeMenuItemRow): CafeMenuItem {
     isAvailable: row.is_available,
     prepTimeMinutes: row.prep_time_minutes ?? undefined,
     sortOrder: row.sort_order,
+    stockQuantity: row.stock_quantity ?? 0,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
