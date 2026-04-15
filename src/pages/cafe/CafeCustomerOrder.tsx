@@ -473,6 +473,32 @@ const CafeCustomerOrder: React.FC = () => {
       }));
       await supabase.from('cafe_order_items').insert(orderItems);
 
+      const kotItems = cart.filter(c => {
+        const mi = items.find(i => i.id === c.menuItemId);
+        return mi ? !inventoryCatIds.has(mi.categoryId) : true;
+      });
+
+      if (kotItems.length > 0) {
+        try {
+          const { data: kotNum } = await supabase.rpc('next_cafe_kot_number', { p_location_id: cafeLocation.data.id });
+          await supabase.from('cafe_kot').insert({
+            order_id: orderData.id,
+            location_id: cafeLocation.data.id,
+            kot_number: kotNum as string,
+            status: 'pending',
+            items: kotItems.map(i => ({ item_id: i.menuItemId, name: i.name, qty: i.quantity, notes: i.notes || undefined })),
+            created_by: null,
+          });
+          await supabase.from('cafe_order_items')
+            .update({ kot_status: 'sent_to_kitchen' })
+            .eq('order_id', orderData.id)
+            .in('menu_item_id', kotItems.map(i => i.menuItemId))
+            .eq('kot_status', 'pending');
+        } catch (kotErr) {
+          console.error('KOT generation failed:', kotErr);
+        }
+      }
+
       localStorage.setItem(PHONE_STORAGE_KEY, customerPhone.trim());
       localStorage.setItem(NAME_STORAGE_KEY, customerName.trim());
 
