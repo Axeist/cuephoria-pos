@@ -3,7 +3,8 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee } from 'lucide-react';
+import CafePartnerSettings from '@/components/cafe/CafePartnerSettings';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import BookingSettings from '@/components/settings/BookingSettings';
@@ -324,6 +325,12 @@ const Settings = () => {
               User Management
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="cafe" className="flex items-center gap-2">
+              <Coffee className="h-4 w-4" />
+              Cafe
+            </TabsTrigger>
+          )}
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
@@ -471,6 +478,12 @@ const Settings = () => {
         {isAdmin && (
           <TabsContent value="staff" className="space-y-4">
             <StaffManagement />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="cafe" className="space-y-4">
+            <CafePartnerSettings />
           </TabsContent>
         )}
       </Tabs>

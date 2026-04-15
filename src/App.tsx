@@ -58,6 +58,18 @@ import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 import ShippingAndDelivery from "./pages/ShippingAndDelivery";
 
+// Cafe pages
+import CafeLogin from "./pages/cafe/CafeLogin";
+import CafePOS from "./pages/cafe/CafePOS";
+import CafeKitchen from "./pages/cafe/CafeKitchen";
+import CafeMenu from "./pages/cafe/CafeMenu";
+import CafeOrders from "./pages/cafe/CafeOrders";
+import CafeDashboard from "./pages/cafe/CafeDashboard";
+import CafeReports from "./pages/cafe/CafeReports";
+import CafeCustomerOrder from "./pages/cafe/CafeCustomerOrder";
+import { CafeAuthProvider, useCafeAuth } from "@/context/CafeAuthContext";
+import CafeSidebar from "@/components/cafe/CafeSidebar";
+
 // Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
 
@@ -144,6 +156,43 @@ const ProtectedRoute = ({
   );
 };
 
+// Cafe Protected Route — wraps cafe pages with sidebar + auth
+const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
+  const { user, isLoading } = useCafeAuth();
+  const location = useLocation();
+  const isMobile = useIsMobile();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cuephoria-darker">
+        <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-orange-400 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/cafe/login" state={{ from: location.pathname }} replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    const fallback = user.role === 'kitchen' ? '/cafe/kitchen' : user.role === 'cafe_admin' ? '/cafe/dashboard' : '/cafe/pos';
+    return <Navigate to={fallback} replace />;
+  }
+
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full overflow-x-hidden bg-cuephoria-darker">
+        <CafeSidebar />
+        <div className="flex-1 flex flex-col overflow-x-hidden">
+          <div className={`flex-1 ${isMobile ? 'pb-4' : ''}`}>
+            {children}
+          </div>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+};
+
 const LOGIN_SPLASH_FLAG = "gh_show_login_splash_v1";
 
 const SplashController = () => {
@@ -183,6 +232,7 @@ const App = () => {
     <>
       <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <CafeAuthProvider>
         <TooltipProvider>
           <SplashController />
           <Toaster />
@@ -349,11 +399,22 @@ const App = () => {
                   }
                 />
 
+                {/* Cafe routes */}
+                <Route path="/cafe/login" element={<CafeLogin />} />
+                <Route path="/cafe/order" element={<CafeCustomerOrder />} />
+                <Route path="/cafe/dashboard" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeDashboard /></CafeProtectedRoute>} />
+                <Route path="/cafe/pos" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier']}><CafePOS /></CafeProtectedRoute>} />
+                <Route path="/cafe/kitchen" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'kitchen']}><CafeKitchen /></CafeProtectedRoute>} />
+                <Route path="/cafe/menu" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeMenu /></CafeProtectedRoute>} />
+                <Route path="/cafe/orders" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier']}><CafeOrders /></CafeProtectedRoute>} />
+                <Route path="/cafe/reports" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeReports /></CafeProtectedRoute>} />
+
                 <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
           {/* REMOVED: </AutoRefreshApp> wrapper */}
         </TooltipProvider>
+        </CafeAuthProvider>
       </AuthProvider>
       </QueryClientProvider>
     </>
