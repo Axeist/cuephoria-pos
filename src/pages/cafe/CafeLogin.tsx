@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   Coffee, User, Lock, ShoppingCart, UtensilsCrossed,
   BarChart2, Shield, Loader2, Eye, EyeOff, Users, TrendingUp,
-  CreditCard, ChefHat,
+  CreditCard, CookingPot,
 } from 'lucide-react';
 const CafeLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -96,16 +96,16 @@ const CafeLogin: React.FC = () => {
           <div className="grid grid-cols-2 gap-2.5">
             {[
               { icon: ShoppingCart, label: 'Smart POS System', color: 'text-orange-400' },
-              { icon: ChefHat, label: 'Kitchen Display (KDS)', color: 'text-purple-400' },
+              { icon: CookingPot, label: 'Kitchen Display (KDS)', color: 'text-purple-400' },
               { icon: UtensilsCrossed, label: 'Menu & Inventory', color: 'text-blue-400' },
               { icon: TrendingUp, label: 'Revenue Analytics', color: 'text-green-400' },
               { icon: Users, label: 'Customer Hub', color: 'text-cyan-400' },
               { icon: CreditCard, label: 'Flexible Payments', color: 'text-pink-400' },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-3 px-4 py-3 rounded-xl"
+            ].map(({ icon: FeatureIcon, label, color }) => (
+              <div key={label} className="flex items-center gap-3 px-4 py-3 rounded-xl"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <item.icon className={`h-4 w-4 ${item.color} flex-shrink-0`} />
-                <span className="text-gray-300 text-[13px] font-medium">{item.label}</span>
+                <FeatureIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                <span className="text-gray-300 text-[13px] font-medium">{label}</span>
               </div>
             ))}
           </div>
@@ -163,7 +163,9 @@ const CafeLogin: React.FC = () => {
           {/* Role toggle */}
           <div className="flex p-1 rounded-xl mb-7"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            {roles.map((r) => (
+            {roles.map((r) => {
+              const RoleIcon = r.icon;
+              return (
               <button key={r.value} type="button" onClick={() => setLoginKind(r.value)}
                 className={`flex-1 flex items-center justify-center gap-2 text-[13px] py-2.5 rounded-lg font-semibold transition-all duration-200 ${
                   loginKind === r.value ? 'text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
@@ -172,10 +174,11 @@ const CafeLogin: React.FC = () => {
                   background: 'linear-gradient(135deg, #f97316, #9333ea)',
                   boxShadow: '0 4px 16px rgba(249,115,22,0.3)'
                 } : {}}>
-                <r.icon size={14} />
+                <RoleIcon size={14} />
                 {r.label}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* Form */}

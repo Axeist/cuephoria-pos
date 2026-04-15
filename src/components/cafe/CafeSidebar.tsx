@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, User, Users, UserPlus, LayoutGrid } from 'lucide-react';
+import { Home, ShoppingCart, CookingPot, UtensilsCrossed, ClipboardList, BarChart2, PowerOff, Menu, User, Users, UserPlus, LayoutGrid } from 'lucide-react';
 import { useCafeAuth } from '@/context/CafeAuthContext';
 import { useCafeOrders } from '@/hooks/cafe/useCafeOrders';
 import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
@@ -30,7 +30,7 @@ const CafeSidebar: React.FC = () => {
     { icon: Home, label: 'Dashboard', path: '/cafe/dashboard', roles: ['cafe_admin'], badge: 0 },
     { icon: LayoutGrid, label: 'Staff workspace', path: '/cafe/workspace', roles: ['cafe_admin'], badge: 0 },
     { icon: ShoppingCart, label: 'POS', path: '/cafe/pos', roles: ['cafe_admin'], badge: 0 },
-    { icon: ChefHat, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin'], badge: pendingKotCount },
+    { icon: CookingPot, label: 'Kitchen', path: '/cafe/kitchen', roles: ['cafe_admin'], badge: pendingKotCount },
     { icon: UtensilsCrossed, label: 'Menu & Tables', path: '/cafe/menu', roles: ['cafe_admin'], badge: 0 },
     { icon: Users, label: 'Customers', path: '/cafe/customers', roles: ['cafe_admin'], badge: 0 },
     { icon: ClipboardList, label: 'Orders', path: '/cafe/orders', roles: ['cafe_admin'], badge: activeOrderCount },

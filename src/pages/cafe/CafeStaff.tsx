@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import {
   Users, Plus, Pencil, Trash2, Search, X, Loader2,
-  Shield, ShoppingCart, ChefHat, UserCheck, UserX, RefreshCw,
+  Shield, ShoppingCart, CookingPot, UserCheck, UserX, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,7 +33,7 @@ const ROLE_CONFIG: Record<StaffRole, { label: string; color: string; bg: string;
   cafe_admin: { label: 'Admin', color: 'text-purple-400', bg: 'bg-purple-500/20', icon: Shield },
   staff:      { label: 'Staff', color: 'text-cyan-400', bg: 'bg-cyan-500/20', icon: UserCheck },
   cashier:    { label: 'Cashier', color: 'text-blue-400', bg: 'bg-blue-500/20', icon: ShoppingCart },
-  kitchen:    { label: 'Kitchen', color: 'text-orange-400', bg: 'bg-orange-500/20', icon: ChefHat },
+  kitchen:    { label: 'Kitchen', color: 'text-orange-400', bg: 'bg-orange-500/20', icon: CookingPot },
 };
 
 const CafeStaff: React.FC = () => {
@@ -405,7 +405,7 @@ const CafeStaff: React.FC = () => {
                     <span className="flex items-center gap-2"><ShoppingCart className="h-3.5 w-3.5 text-blue-400" /> Cashier</span>
                   </SelectItem>
                   <SelectItem value="kitchen">
-                    <span className="flex items-center gap-2"><ChefHat className="h-3.5 w-3.5 text-orange-400" /> Kitchen</span>
+                    <span className="flex items-center gap-2"><CookingPot className="h-3.5 w-3.5 text-orange-400" /> Kitchen</span>
                   </SelectItem>
                   <SelectItem value="cafe_admin">
                     <span className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-purple-400" /> Admin</span>
@@ -461,7 +461,7 @@ const CafeStaff: React.FC = () => {
                     <span className="flex items-center gap-2"><ShoppingCart className="h-3.5 w-3.5 text-blue-400" /> Cashier</span>
                   </SelectItem>
                   <SelectItem value="kitchen">
-                    <span className="flex items-center gap-2"><ChefHat className="h-3.5 w-3.5 text-orange-400" /> Kitchen</span>
+                    <span className="flex items-center gap-2"><CookingPot className="h-3.5 w-3.5 text-orange-400" /> Kitchen</span>
                   </SelectItem>
                   <SelectItem value="cafe_admin">
                     <span className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-purple-400" /> Admin</span>

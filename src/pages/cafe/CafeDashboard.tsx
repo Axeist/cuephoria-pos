@@ -7,7 +7,7 @@ import { useCafePartner } from '@/hooks/cafe/useCafePartner';
 import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { useCafeTables } from '@/hooks/cafe/useCafeTables';
 import { useCafeSettlements } from '@/hooks/cafe/useCafeSettlements';
-import { DollarSign, ShoppingCart, TrendingUp, Clock, Users, BarChart2, ChefHat, MapPin, Coffee, ArrowUpRight, ArrowDownRight, Flame, UtensilsCrossed } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, Clock, Users, BarChart2, CookingPot, MapPin, Coffee, ArrowUpRight, ArrowDownRight, Flame, UtensilsCrossed } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 
 const CafeDashboard: React.FC = () => {
@@ -92,7 +92,7 @@ const CafeDashboard: React.FC = () => {
     { label: 'Completed Orders', value: stats.completedOrders, icon: ShoppingCart, color: 'text-blue-400', bg: 'from-blue-500/10 to-blue-500/5', format: 'number' as const },
     { label: 'Active Orders', value: stats.activeOrdersCount, icon: Clock, color: 'text-orange-400', bg: 'from-orange-500/10 to-orange-500/5', format: 'number' as const },
     { label: 'Avg Order Value', value: stats.avgOrderValue, icon: TrendingUp, color: 'text-purple-400', bg: 'from-purple-500/10 to-purple-500/5', format: 'currency' as const },
-    { label: 'Pending KOTs', value: pendingKots.length, icon: ChefHat, color: 'text-yellow-400', bg: 'from-yellow-500/10 to-yellow-500/5', format: 'number' as const },
+    { label: 'Pending KOTs', value: pendingKots.length, icon: CookingPot, color: 'text-yellow-400', bg: 'from-yellow-500/10 to-yellow-500/5', format: 'number' as const },
     { label: 'Tables Occupied', value: `${stats.occupiedTables}/${stats.totalTables}`, icon: MapPin, color: 'text-cyan-400', bg: 'from-cyan-500/10 to-cyan-500/5', format: 'string' as const },
   ];
 

@@ -4,12 +4,12 @@ import { useCafeKOT } from '@/hooks/cafe/useCafeKOT';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { CafeKOT, KOTStatus } from '@/types/cafe.types';
-import { ChefHat, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, Bell, AlertTriangle, UtensilsCrossed, CircleDot } from 'lucide-react';
+import { CookingPot, Clock, CheckCircle2, Wifi, WifiOff, ArrowRight, Printer, Bell, AlertTriangle, UtensilsCrossed, CircleDot } from 'lucide-react';
 import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; border: string; bg: string; accent: string; next?: KOTStatus; nextLabel?: string; nextIcon?: React.ElementType }> = {
   pending: { label: 'NEW', border: 'border-yellow-500', bg: 'bg-yellow-500/10', accent: 'yellow', next: 'acknowledged', nextLabel: 'Start', nextIcon: ArrowRight },
-  acknowledged: { label: 'ACCEPTED', border: 'border-blue-500', bg: 'bg-blue-500/10', accent: 'blue', next: 'preparing', nextLabel: 'Cooking', nextIcon: ChefHat },
+  acknowledged: { label: 'ACCEPTED', border: 'border-blue-500', bg: 'bg-blue-500/10', accent: 'blue', next: 'preparing', nextLabel: 'Cooking', nextIcon: CookingPot },
   preparing: { label: 'COOKING', border: 'border-orange-500', bg: 'bg-orange-500/10', accent: 'orange', next: 'ready', nextLabel: 'Ready', nextIcon: CheckCircle2 },
   ready: { label: 'READY', border: 'border-green-500', bg: 'bg-green-500/10', accent: 'green', next: 'served', nextLabel: 'Served', nextIcon: CheckCircle2 },
   served: { label: 'SERVED', border: 'border-emerald-600/40', bg: 'bg-emerald-900/10', accent: 'emerald' },
@@ -222,7 +222,7 @@ const CafeKitchen: React.FC = () => {
             className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg"
             style={{ background: 'linear-gradient(135deg, #f97316, #9333ea)', boxShadow: '0 4px 15px rgba(249,115,22,0.25)' }}
           >
-            <ChefHat className="h-6 w-6 text-white" />
+            <CookingPot className="h-6 w-6 text-white" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white font-heading tracking-tight">Kitchen Display</h1>
@@ -312,7 +312,7 @@ const CafeKitchen: React.FC = () => {
           <span className="text-xs sm:text-sm font-quicksand text-yellow-400 font-medium">{pendingKots.length} pending</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/10">
-          <ChefHat className="h-3 w-3 text-orange-400" />
+          <CookingPot className="h-3 w-3 text-orange-400" />
           <span className="text-xs sm:text-sm font-quicksand text-orange-400 font-medium">{preparingKots.length} cooking</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/10">
@@ -328,7 +328,7 @@ const CafeKitchen: React.FC = () => {
       <ScrollArea className="flex-1 p-4">
         {displayKots.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <ChefHat className="h-16 w-16 mb-4 opacity-20" />
+            <CookingPot className="h-16 w-16 mb-4 opacity-20" />
             <p className="text-lg font-quicksand">
               {loading
                 ? 'Loading...'

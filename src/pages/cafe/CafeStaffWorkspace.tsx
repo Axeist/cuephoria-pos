@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useCafeAuth } from '@/context/CafeAuthContext';
-import { LayoutGrid, ShoppingCart, ChefHat, UtensilsCrossed, ClipboardList, Users } from 'lucide-react';
+import { LayoutGrid, ShoppingCart, CookingPot, UtensilsCrossed, ClipboardList, Users } from 'lucide-react';
 import CafePOS from '@/pages/cafe/CafePOS';
 import CafeKitchen from '@/pages/cafe/CafeKitchen';
 import CafeMenu from '@/pages/cafe/CafeMenu';
@@ -12,7 +12,7 @@ type TabId = 'pos' | 'kitchen' | 'menu' | 'orders' | 'customers';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'pos', label: 'POS', icon: ShoppingCart },
-  { id: 'kitchen', label: 'Kitchen', icon: ChefHat },
+  { id: 'kitchen', label: 'Kitchen', icon: CookingPot },
   { id: 'menu', label: 'Menu & Tables', icon: UtensilsCrossed },
   { id: 'orders', label: 'Orders', icon: ClipboardList },
   { id: 'customers', label: 'Customers', icon: Users },

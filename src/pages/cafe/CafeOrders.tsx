@@ -9,7 +9,7 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import type { CafeOrderStatus, CafeOrderItem, CafePaymentMethod } from '@/types/cafe.types';
 import {
   ClipboardList, Search, Clock, CheckCircle2, XCircle, Eye, Banknote,
-  CreditCard, SplitSquareHorizontal, Download, Calendar, Printer, ChefHat,
+  CreditCard, SplitSquareHorizontal, Download, Calendar, Printer, CookingPot,
   ShoppingCart, Coffee, UtensilsCrossed, ArrowRight, AlertCircle, Pencil, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,7 +28,7 @@ const statusColors: Record<string, string> = {
 const statusTimeline: { key: CafeOrderStatus; label: string; icon: React.ElementType }[] = [
   { key: 'pending', label: 'Placed', icon: ShoppingCart },
   { key: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
-  { key: 'preparing', label: 'Preparing', icon: ChefHat },
+  { key: 'preparing', label: 'Preparing', icon: CookingPot },
   { key: 'ready', label: 'Ready', icon: Coffee },
   { key: 'served', label: 'Served', icon: UtensilsCrossed },
   { key: 'completed', label: 'Completed', icon: CheckCircle2 },

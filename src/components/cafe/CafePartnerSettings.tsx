@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import type { CafePartner, CafePartnerRow, CafeUser, CafeUserRow, CafeUserRole } from '@/types/cafe.types';
 import { transformPartnerRow, transformCafeUserRow } from '@/types/cafe.types';
-import { Coffee, Percent, Users, Plus, Pencil, Trash2, Shield, ChefHat, ShoppingCart, Save, Loader2 } from 'lucide-react';
+import { Coffee, Percent, Users, Plus, Pencil, Trash2, Shield, CookingPot, ShoppingCart, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
@@ -114,7 +114,7 @@ const CafePartnerSettings: React.FC = () => {
     toast.success('User deleted');
   };
 
-  const roleIcons: Record<string, React.ElementType> = { cafe_admin: Shield, kitchen: ChefHat, cashier: ShoppingCart };
+  const roleIcons: Record<string, React.ElementType> = { cafe_admin: Shield, kitchen: CookingPot, cashier: ShoppingCart };
 
   if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-orange-400" /></div>;
   if (!partner) return <p className="text-sm text-gray-500 font-quicksand">No cafe partner configured. Run the database migration first.</p>;

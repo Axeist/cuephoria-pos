@@ -11,7 +11,7 @@ import type {
 import { transformMenuCategoryRow, transformMenuItemRow, transformTableRow, transformOrderRow } from '@/types/cafe.types';
 import {
   Coffee, Plus, Minus, Trash2, ShoppingCart, User, Phone, MapPin, ArrowLeft,
-  Loader2, Clock, CheckCircle2, ChefHat, Search, X, History, RefreshCw, Sparkles, UtensilsCrossed
+  Loader2, Clock, CheckCircle2, CookingPot, Search, X, History, RefreshCw, Sparkles, UtensilsCrossed
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -335,7 +335,7 @@ const CafeCustomerOrder: React.FC = () => {
   const trackingSteps = [
     { key: 'pending', label: 'Placed', icon: ShoppingCart },
     { key: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
-    { key: 'preparing', label: 'Preparing', icon: ChefHat },
+    { key: 'preparing', label: 'Preparing', icon: CookingPot },
     { key: 'ready', label: 'Ready', icon: Coffee },
     { key: 'served', label: 'Served', icon: UtensilsCrossed },
     { key: 'completed', label: 'Completed', icon: CheckCircle2 },
