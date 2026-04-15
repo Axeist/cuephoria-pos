@@ -14,8 +14,9 @@ function getSupabaseUrl() {
   return getEnv('SUPABASE_URL') || getEnv('VITE_SUPABASE_URL') || needEnv('VITE_SUPABASE_URL');
 }
 
-function getSupabaseServiceRoleKey() {
-  return getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('SUPABASE_SERVICE_KEY');
+function getSupabaseKey() {
+  return getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('SUPABASE_SERVICE_KEY')
+    || getEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || needEnv('VITE_SUPABASE_PUBLISHABLE_KEY');
 }
 
 export default async function handler(req: Request) {
@@ -24,12 +25,7 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const serviceKey = getSupabaseServiceRoleKey();
-    if (!serviceKey) {
-      return j({ ok: false, error: 'Server misconfigured: missing service role key' }, 500);
-    }
-
-    const supabase = createClient(getSupabaseUrl(), serviceKey, {
+    const supabase = createClient(getSupabaseUrl(), getSupabaseKey(), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 

@@ -520,6 +520,10 @@ DROP POLICY IF EXISTS cafe_partners_auth_all ON public.cafe_partners;
 CREATE POLICY cafe_partners_auth_all ON public.cafe_partners
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS cafe_users_anon_read ON public.cafe_users;
+CREATE POLICY cafe_users_anon_read ON public.cafe_users
+  FOR SELECT TO anon USING (true);
+
 DROP POLICY IF EXISTS cafe_users_auth_all ON public.cafe_users;
 CREATE POLICY cafe_users_auth_all ON public.cafe_users
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
