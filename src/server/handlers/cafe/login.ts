@@ -6,7 +6,7 @@ import {
   needEnv,
   cookieSerialize,
   signCafeSession,
-} from '../../src/server/cafeApiUtils';
+} from '../../cafeApiUtils';
 
 export const config = { runtime: 'edge' };
 

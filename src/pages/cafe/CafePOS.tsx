@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CafePageShell } from '@/components/cafe/CafePageShell';
+import { supabase } from '@/integrations/supabase/client';
 
 const CafePOS: React.FC = () => {
   const { user } = useCafeAuth();
@@ -264,8 +265,7 @@ const CafePOS: React.FC = () => {
       );
       if (ok) {
         if (order.customerId && order.total > 0) {
-          const { supabase } = await import('@/integrations/supabase/client');
-          try { await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }); } catch {};
+          try { await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }); } catch {}
         }
         toast.success(`Order ${order.orderNumber} settled!`);
         setSettleOrderId(null);

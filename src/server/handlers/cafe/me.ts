@@ -3,7 +3,7 @@ import {
   j,
   parseCookies,
   verifyCafeSession,
-} from '../../src/server/cafeApiUtils';
+} from '../../cafeApiUtils';
 
 export const config = { runtime: 'edge' };
 

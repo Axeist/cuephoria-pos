@@ -1,4 +1,4 @@
-import { ADMIN_SESSION_COOKIE, cookieSerialize, j } from "../../src/server/adminApiUtils";
+import { ADMIN_SESSION_COOKIE, cookieSerialize, j } from "../../adminApiUtils";
 
 export const config = { runtime: "edge" };
 

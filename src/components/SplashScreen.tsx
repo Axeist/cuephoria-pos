@@ -265,8 +265,12 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   }, []);
 
   const pct = Math.round(progress * 100);
+  // Use arbitrary-property syntax so Tailwind knows we mean transition-duration
+  // (shorthand `duration` on arbitrary values is ambiguous with animation-duration).
   const exitDurationClass =
-    exitSource === "click" ? "duration-[650ms]" : "duration-[750ms]";
+    exitSource === "click"
+      ? "[transition-duration:650ms]"
+      : "[transition-duration:750ms]";
 
   return (
     <div
@@ -305,7 +309,7 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
           "relative z-10 w-full max-w-[740px]",
           "rounded-3xl border border-white/10 bg-black/45 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.65)]",
           "overflow-hidden",
-          "transform-gpu transition-all ease-[cubic-bezier(.2,.8,.2,1)]",
+          "transform-gpu transition-all [transition-timing-function:cubic-bezier(.2,.8,.2,1)]",
           exitDurationClass,
           exiting
             ? "opacity-0 translate-y-2 scale-[0.985] blur-[1px]"

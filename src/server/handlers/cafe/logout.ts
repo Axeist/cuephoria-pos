@@ -1,4 +1,4 @@
-import { CAFE_SESSION_COOKIE, j, cookieSerialize } from '../../src/server/cafeApiUtils';
+import { CAFE_SESSION_COOKIE, j, cookieSerialize } from '../../cafeApiUtils';
 
 export const config = { runtime: 'edge' };
 

@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CafePageShell } from '@/components/cafe/CafePageShell';
+import { supabase } from '@/integrations/supabase/client';
 
 const STATUS_CFG: Record<string, { dot: string; bg: string; text: string; label: string }> = {
   pending:   { dot: 'bg-yellow-400', bg: 'bg-yellow-500/15 border-yellow-500/25', text: 'text-yellow-300', label: 'Pending' },
@@ -154,7 +155,6 @@ const CafeOrders: React.FC = () => {
     if (!order) return;
     await updateOrderStatus(paymentDialog, completeOrder ? 'completed' : order.status, selectedPayment);
     if (order.customerId && order.total > 0 && order.paymentMethod === 'pending') {
-      const { supabase } = await import('@/integrations/supabase/client');
       try { await supabase.rpc('increment_customer_total_spent', { p_customer_id: order.customerId, p_amount: order.total }); } catch {}
     }
     setPaymentDialog(null);

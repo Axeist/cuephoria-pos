@@ -5,7 +5,7 @@ import {
   j,
   parseCookies,
   verifyAdminSession,
-} from "../../src/server/adminApiUtils";
+} from "../../adminApiUtils";
 
 export const config = { runtime: "edge" };
 
