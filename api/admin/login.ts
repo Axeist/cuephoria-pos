@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { ADMIN_SESSION_COOKIE, cookieSerialize, getEnv, j, signAdminSession } from "../../src/server/adminApiUtils";
+import {
+  constantTimeStringEquals,
+  hashPassword,
+  verifyPassword,
+} from "../../src/server/passwordUtils";
+import { verifyTotpCode } from "../../src/server/totp";
 
 export const config = { runtime: "edge" };
 
@@ -14,10 +20,27 @@ function getSupabaseUrl() {
 }
 
 function getSupabaseServiceRoleKey() {
-  // Required: server-side privileged access for admin login/logs
   return getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY");
 }
 
+/**
+ * Admin login with transparent password-hash migration.
+ *
+ * A user row can be in one of three states:
+ *   (a) hash-only  — `password_hash` is set; `password` is NULL.
+ *   (b) legacy     — `password_hash` is NULL; `password` holds plaintext.
+ *   (c) transitional — both populated (rare; tolerated during rollout).
+ *
+ * Verification order:
+ *   1. If password_hash present, verify against it. On success, also clear
+ *      any stale plaintext lingering on the row. Never consult legacy.
+ *   2. Otherwise compare the submitted password to the legacy plaintext
+ *      using a constant-time comparator. On success, hash + write back and
+ *      NULL out the plaintext.
+ *
+ * Either path lands the user with a session cookie; they never know the
+ * migration happened.
+ */
 export default async function handler(req: Request) {
   if (req.method !== "POST") {
     return j({ ok: false, error: "Method not allowed" }, 405);
@@ -32,7 +55,7 @@ export default async function handler(req: Request) {
           error:
             "Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY (required for admin auth).",
         },
-        500
+        500,
       );
     }
 
@@ -46,6 +69,8 @@ export default async function handler(req: Request) {
     const password = String(payload?.password || "");
     const isAdminLogin = !!payload?.isAdminLogin;
     const metadata = payload?.metadata ?? {};
+    const totpCode = typeof payload?.totpCode === "string" ? payload.totpCode.trim() : "";
+    const backupCode = typeof payload?.backupCode === "string" ? payload.backupCode.trim() : "";
 
     if (!username || !password) {
       return j({ ok: false, error: "Missing username/password" }, 400);
@@ -53,12 +78,29 @@ export default async function handler(req: Request) {
 
     const { data: userRow, error: userErr } = await supabase
       .from("admin_users")
-      .select("id, username, is_admin, is_super_admin, password")
+      .select(
+        "id, username, is_admin, is_super_admin, password, password_hash, must_change_password, password_version",
+      )
       .eq("username", username)
       .eq("is_admin", isAdminLogin)
       .maybeSingle();
 
-    const loginSuccess = !!(userRow && !userErr && userRow.password === password);
+    let loginSuccess = false;
+    let usedLegacy = false;
+
+    if (userRow && !userErr) {
+      if (userRow.password_hash) {
+        // Canonical path.
+        loginSuccess = await verifyPassword(password, userRow.password_hash).catch(() => false);
+      } else if (userRow.password) {
+        // Legacy plaintext fallback — constant-time compare, then lazy-migrate.
+        loginSuccess = constantTimeStringEquals(password, userRow.password);
+        usedLegacy = loginSuccess;
+      } else {
+        // Row has no credential at all — cannot authenticate.
+        loginSuccess = false;
+      }
+    }
 
     // Best-effort logging; don't fail login on logging errors.
     try {
@@ -104,9 +146,98 @@ export default async function handler(req: Request) {
       return j({ ok: true, success: false }, 200);
     }
 
+    // ── Second factor check. If this user enrolled in TOTP, demand either
+    //    a valid TOTP code or a single-use backup code before issuing the
+    //    session cookie. A user who hasn't enrolled is unaffected.
+    const { data: totpRow } = await supabase
+      .from("admin_user_totp")
+      .select("id, secret, last_counter, confirmed_at")
+      .eq("admin_user_id", userRow.id)
+      .maybeSingle();
+
+    const totpEnabled = !!totpRow?.confirmed_at;
+    if (totpEnabled) {
+      if (!totpCode && !backupCode) {
+        return j({ ok: true, success: false, requireTotp: true }, 200);
+      }
+
+      let totpOk = false;
+      if (totpCode) {
+        const counter = await verifyTotpCode(totpRow.secret, totpCode, {
+          lastCounter: totpRow.last_counter,
+        });
+        if (counter !== null) {
+          totpOk = true;
+          await supabase
+            .from("admin_user_totp")
+            .update({ last_counter: counter, last_used_at: new Date().toISOString() })
+            .eq("id", totpRow.id);
+        }
+      } else if (backupCode) {
+        const { data: codes } = await supabase
+          .from("admin_user_totp_backup_codes")
+          .select("id, code_hash")
+          .eq("admin_user_id", userRow.id)
+          .is("consumed_at", null);
+        for (const c of codes ?? []) {
+          if (await verifyPassword(backupCode.replace(/\s+/g, "").toUpperCase(), c.code_hash).catch(() => false)) {
+            totpOk = true;
+            await supabase
+              .from("admin_user_totp_backup_codes")
+              .update({ consumed_at: new Date().toISOString() })
+              .eq("id", c.id);
+            break;
+          }
+        }
+      }
+
+      if (!totpOk) {
+        return j(
+          { ok: true, success: false, requireTotp: true, error: "Invalid 2FA code." },
+          200,
+        );
+      }
+    }
+
+    // ── Lazy-migrate: hash + clear plaintext. Best-effort; login still
+    //    succeeds even if the migration write fails (we log and carry on).
+    if (usedLegacy) {
+      try {
+        const hash = await hashPassword(password);
+        const { error: migErr } = await supabase
+          .from("admin_users")
+          .update({
+            password_hash: hash,
+            password: null,
+            password_updated_at: new Date().toISOString(),
+          })
+          .eq("id", userRow.id);
+        if (migErr) console.warn("password lazy-migration failed:", migErr.message);
+      } catch (e) {
+        console.warn("password lazy-migration threw:", e);
+      }
+    }
+    // Opportunistically wipe any stale plaintext on rows that already have a hash.
+    else if (userRow.password_hash && userRow.password) {
+      supabase
+        .from("admin_users")
+        .update({ password: null })
+        .eq("id", userRow.id)
+        .then(({ error }) => {
+          if (error) console.warn("stale plaintext cleanup failed:", error.message);
+        });
+    }
+
     const sessionToken = await signAdminSession(
-      { id: userRow.id, username: userRow.username, isAdmin: !!userRow.is_admin, isSuperAdmin: !!userRow.is_super_admin },
-      8 * 60 * 60
+      {
+        id: userRow.id,
+        username: userRow.username,
+        isAdmin: !!userRow.is_admin,
+        isSuperAdmin: !!userRow.is_super_admin,
+        passwordVersion:
+          typeof userRow.password_version === "number" ? userRow.password_version : 1,
+      },
+      8 * 60 * 60,
     );
 
     const setCookie = cookieSerialize(ADMIN_SESSION_COOKIE, sessionToken, {
@@ -121,14 +252,19 @@ export default async function handler(req: Request) {
       {
         ok: true,
         success: true,
-        user: { id: userRow.id, username: userRow.username, isAdmin: !!userRow.is_admin, isSuperAdmin: !!userRow.is_super_admin },
+        user: {
+          id: userRow.id,
+          username: userRow.username,
+          isAdmin: !!userRow.is_admin,
+          isSuperAdmin: !!userRow.is_super_admin,
+          mustChangePassword: !!userRow.must_change_password,
+        },
       },
       200,
-      { "set-cookie": setCookie }
+      { "set-cookie": setCookie },
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Admin login error:", err);
-    return j({ ok: false, error: String(err?.message || err) }, 500);
+    return j({ ok: false, error: String((err as Error)?.message || err) }, 500);
   }
 }
-

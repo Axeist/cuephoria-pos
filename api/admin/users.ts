@@ -6,6 +6,7 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../src/server/adminApiUtils";
+import { hashPassword } from "../../src/server/passwordUtils";
 
 export const config = { runtime: "edge" };
 
@@ -100,6 +101,7 @@ export default async function handler(req: Request) {
       const locationIds: string[] = Array.isArray(body?.locationIds) ? body.locationIds : [];
 
       if (!username || !password) return j({ ok: false, error: "Missing username/password" }, 400);
+      if (password.length < 8) return j({ ok: false, error: "Password must be at least 8 characters." }, 400);
       if (!isSuperAdmin && locationIds.length === 0)
         return j({ ok: false, error: "Assign at least one branch to this user" }, 400);
 
@@ -111,9 +113,18 @@ export default async function handler(req: Request) {
 
       if (existing?.id) return j({ ok: false, error: "Username already exists" }, 409);
 
+      const passwordHash = await hashPassword(password);
+
       const { data: newUser, error: insertErr } = await supabase
         .from("admin_users")
-        .insert({ username, password, is_admin: isAdmin, is_super_admin: isSuperAdmin })
+        .insert({
+          username,
+          password: null,
+          password_hash: passwordHash,
+          password_updated_at: new Date().toISOString(),
+          is_admin: isAdmin,
+          is_super_admin: isSuperAdmin,
+        })
         .select("id")
         .single();
 
@@ -152,7 +163,13 @@ export default async function handler(req: Request) {
         update.username = body.username.trim();
       }
       if (typeof body?.newPassword === "string" && body.newPassword.trim()) {
-        update.password = body.newPassword.trim();
+        const newPw = body.newPassword.trim();
+        if (newPw.length < 8) {
+          return j({ ok: false, error: "Password must be at least 8 characters." }, 400);
+        }
+        update.password = null;
+        update.password_hash = await hashPassword(newPw);
+        update.password_updated_at = new Date().toISOString();
       }
       // Only super-admins can change super-admin status
       if (sessionUser.isSuperAdmin && typeof body?.isSuperAdmin === "boolean") {

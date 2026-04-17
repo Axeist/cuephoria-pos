@@ -7,6 +7,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { LocationProvider } from "@/context/LocationContext";
+import { OrganizationProvider, useOrganization } from "@/context/OrganizationContext";
+import { BrandingProvider } from "@/branding/BrandingProvider";
+import { PlatformAuthProvider } from "@/context/PlatformAuthContext";
+import { PlatformProtectedRoute } from "@/components/platform/PlatformProtectedRoute";
+import PlatformLogin from "@/pages/platform/PlatformLogin";
+import PlatformDashboard from "@/pages/platform/PlatformDashboard";
+import PlatformAudit from "@/pages/platform/PlatformAudit";
+import PlatformOrgDetail from "@/pages/platform/PlatformOrgDetail";
+import { flags } from "@/config/featureFlags";
 import { LocationSwitcher } from "@/components/LocationSwitcher";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
@@ -30,6 +39,18 @@ import POS from "./pages/POS";
 import Customers from "./pages/Customers";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import OrganizationSettings from "./pages/OrganizationSettings";
+import Billing from "./pages/Billing";
+import AccountSecurity from "./pages/AccountSecurity";
+import Signup from "./pages/Signup";
+import SignupGoogle from "./pages/SignupGoogle";
+import Onboarding from "./pages/Onboarding";
+import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import TenantWorkspace from "./pages/TenantWorkspace";
+import BrandedLogin from "./pages/BrandedLogin";
+import ChangePassword from "./pages/ChangePassword";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import PublicTournaments from "./pages/PublicTournaments";
@@ -127,36 +148,93 @@ const ProtectedRoute = ({
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Force a password rotation before anything else is reachable.
+  if (user.mustChangePassword && location.pathname !== "/account/change-password") {
+    return <Navigate to="/account/change-password" replace />;
+  }
+
   return (
-    <LocationProvider>
-      <POSProvider>
-        <ExpenseProvider>
-          <BookingNotificationProvider>
-            <SidebarProvider>
-              <div className="flex min-h-screen w-full overflow-x-hidden relative">
-                <AppSidebar />
-                <div className="flex-1 flex flex-col overflow-x-hidden">
-                  <div className="hidden md:flex items-center justify-between px-4 py-2 border-b gap-3">
-                    <SidebarTrigger />
-                    <div className="flex items-center gap-3 ml-auto">
-                      <LocationSwitcher />
-                      <GlobalNotificationBell />
+    <OrganizationProvider>
+      <OnboardingGate>
+        <BrandingProvider>
+          <LocationProvider>
+            <POSProvider>
+            <ExpenseProvider>
+              <BookingNotificationProvider>
+                <SidebarProvider>
+                  <div className="flex min-h-screen w-full overflow-x-hidden relative">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col overflow-x-hidden">
+                      <div className="hidden md:flex items-center justify-between px-4 py-2 border-b gap-3">
+                        <SidebarTrigger />
+                        <div className="flex items-center gap-3 ml-auto">
+                          <LocationSwitcher />
+                          <GlobalNotificationBell />
+                        </div>
+                      </div>
+                    <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
+                      {children}
                     </div>
+                    <footer className="fixed sm:relative bottom-0 left-0 right-0 w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-40 sm:z-50">
+                      Designed & Developed by RK.
+                    </footer>
                   </div>
-                <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
-                  {children}
-                </div>
-                <footer className="fixed sm:relative bottom-0 left-0 right-0 w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-40 sm:z-50">
-                  Designed & Developed by RK.
-                </footer>
-              </div>
-              </div>
-            </SidebarProvider>
-          </BookingNotificationProvider>
-        </ExpenseProvider>
-      </POSProvider>
-    </LocationProvider>
+                  </div>
+                </SidebarProvider>
+              </BookingNotificationProvider>
+            </ExpenseProvider>
+            </POSProvider>
+          </LocationProvider>
+        </BrandingProvider>
+      </OnboardingGate>
+    </OrganizationProvider>
   );
+};
+
+/**
+ * Redirects first-time owners to /onboarding until they finish the wizard.
+ * Runs inside OrganizationProvider so we can read live tenant state. Internal
+ * organizations (Cuephoria) are always allowed through unconditionally.
+ */
+const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { organization, status } = useOrganization();
+  const location = useLocation();
+
+  if (status === "loading") return <>{children}</>;
+  if (!organization) return <>{children}</>;
+  if (organization.isInternal) return <>{children}</>;
+  if (organization.onboardingCompletedAt) return <>{children}</>;
+
+  // Owners + admins get redirected to the wizard; lower roles just see the
+  // app (they shouldn't block the business from operating while the owner
+  // finishes first-run setup).
+  const privileged = organization.role === "owner" || organization.role === "admin";
+  if (!privileged) return <>{children}</>;
+  if (location.pathname.startsWith("/onboarding")) return <>{children}</>;
+  if (location.pathname.startsWith("/account/")) return <>{children}</>;
+  return <Navigate to="/onboarding" replace />;
+};
+
+/**
+ * Minimal protected wrapper for the onboarding wizard and signup-adjacent
+ * screens — only provides auth + org context, no sidebar / POS / Location
+ * providers, so the wizard UI isn't wrapped in the app shell.
+ */
+const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#050508]">
+        <div className="animate-spin-slow h-10 w-10 rounded-full border-4 border-fuchsia-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+  return <OrganizationProvider>{children}</OrganizationProvider>;
 };
 
 // Cafe Protected Route — wraps cafe pages with sidebar + auth
@@ -252,6 +330,69 @@ const App = () => {
             <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/signup/google" element={<SignupGoogle />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/account/verify-email" element={<VerifyEmail />} />
+
+                {/* First-run onboarding wizard (post-signup).
+                    Runs in a minimal shell — no sidebar, no POS provider. */}
+                <Route
+                  path="/onboarding"
+                  element={
+                    <OnboardingRoute>
+                      <Onboarding />
+                    </OnboardingRoute>
+                  }
+                />
+
+                {/* Cuetronix platform-admin console (separate auth) */}
+                {flags.platformAdminEnabled && (
+                  <Route
+                    path="/platform/*"
+                    element={
+                      <PlatformAuthProvider>
+                        <Routes>
+                          <Route path="login" element={<PlatformLogin />} />
+                          <Route
+                            path=""
+                            element={
+                              <PlatformProtectedRoute>
+                                <PlatformDashboard />
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="organizations"
+                            element={
+                              <PlatformProtectedRoute>
+                                <PlatformDashboard />
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="organizations/:id"
+                            element={
+                              <PlatformProtectedRoute>
+                                <PlatformOrgDetail />
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="audit"
+                            element={
+                              <PlatformProtectedRoute>
+                                <PlatformAudit />
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route path="*" element={<Navigate to="/platform" replace />} />
+                        </Routes>
+                      </PlatformAuthProvider>
+                    }
+                  />
+                )}
                 <Route
                   path="/login-logs"
                   element={
@@ -408,6 +549,41 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/settings/organization"
+                  element={
+                    <ProtectedRoute>
+                      <OrganizationSettings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings/billing"
+                  element={
+                    <ProtectedRoute>
+                      <Billing />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/account/security"
+                  element={
+                    <ProtectedRoute>
+                      <AccountSecurity />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Tenant workspace landing (deep-link, multi-tenant ready) */}
+                <Route path="/app/t/:slug" element={<TenantWorkspace />} />
+                {/* Brand-aware sign-in for a specific workspace. Falls back to
+                    /login internally if the slug can't be resolved. */}
+                <Route path="/app/t/:slug/login" element={<BrandedLogin />} />
+
+                {/* Self-service password rotation (first-login + voluntary).
+                    Deliberately outside ProtectedRoute so the sidebar / context
+                    providers don't render — the forced-rotation UX stays minimal. */}
+                <Route path="/account/change-password" element={<ChangePassword />} />
 
                 {/* Cafe routes */}
                 <Route path="/cafe/login" element={<CafeLogin />} />

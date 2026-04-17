@@ -1,5 +1,9 @@
 // Using Node.js runtime to use Razorpay SDK and Supabase client
 import { fetchRazorpayOrderWithMerchantFallback } from "../lib/razorpay-fetch-order";
+import {
+  handleSubscriptionWebhookEvent,
+  isSubscriptionWebhookEvent,
+} from "../lib/razorpay-subscription-webhook";
 
 export const config = {
   maxDuration: 30, // 30 seconds
@@ -720,6 +724,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       orderId: payment?.order_id || order?.id,
       status: payment?.status,
     });
+
+    // ------------------------------------------------------------------
+    // Subscription lifecycle events (Slice 8) — handled out-of-band so the
+    // existing booking flow below is untouched. We enforce HMAC signature
+    // verification strictly for this family; signature stub for bookings is
+    // preserved to avoid changing behavior for live traffic mid-flight.
+    // ------------------------------------------------------------------
+    if (isSubscriptionWebhookEvent(event)) {
+      try {
+        const outcome = await handleSubscriptionWebhookEvent({
+          event,
+          rawBody: rawPayload,
+          signature,
+          data,
+        });
+        return j(res, { ok: true, ...outcome });
+      } catch (err: any) {
+        console.error("💥 Subscription webhook error:", err?.message || err);
+        const status = err?.status && typeof err.status === "number" ? err.status : 500;
+        return j(
+          res,
+          { ok: false, error: String(err?.message || err) },
+          status,
+        );
+      }
+    }
 
     // Handle different webhook events
     switch (event) {

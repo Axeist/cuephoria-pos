@@ -4,8 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { appToast } from '@/lib/appToast';
 import { useAuth } from '@/context/AuthContext';
+
+type LoginMetadata = Record<string, unknown>;
 import { Shield, Users, Lock, Eye, EyeOff, ArrowLeft, FileText } from 'lucide-react';
 import AppLoadingOverlay from '@/components/loading/AppLoadingOverlay';
+import GoogleButton from '@/components/auth/GoogleButton';
 import { UAParser } from 'ua-parser-js';
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,6 +21,10 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loginType, setLoginType] = useState('admin');
+  const [totpCode, setTotpCode] = useState('');
+  const [useBackup, setUseBackup] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [cachedMetadata, setCachedMetadata] = useState<LoginMetadata | null>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,6 +40,25 @@ const Login = () => {
   const [cameraReady, setCameraReady] = useState(false);
   
   const [loginMetadata, setLoginMetadata] = useState<any>({});
+
+  // Surface Google OAuth errors coming back from the callback.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const oauthErr = params.get('oauth_error');
+    if (!oauthErr) return;
+    const prettyMap: Record<string, string> = {
+      no_account: "We couldn't find a Cuetronix workspace for this Google account. Start one below.",
+      account_conflict: "Another Google identity is already linked to this email.",
+      invalid_state: 'Sign-in session expired. Please try again.',
+      expired_state: 'Sign-in session expired. Please try again.',
+    };
+    const message = prettyMap[oauthErr] || `Google sign-in failed: ${decodeURIComponent(oauthErr)}`;
+    appToast.error(message);
+    params.delete('oauth_error');
+    params.delete('email');
+    const q = params.toString();
+    window.history.replaceState({}, '', q ? `${location.pathname}?${q}` : location.pathname);
+  }, [location.search, location.pathname]);
 
   // Silently initialize camera in background
   useEffect(() => {
@@ -293,10 +319,9 @@ const Login = () => {
         country: enhancedMetadata.country
       });
       
-      const success = await login(username, password, isAdminLogin, enhancedMetadata);
-      
-      if (success) {
-        // Stop camera after successful login
+      const result = await login(username, password, isAdminLogin, enhancedMetadata);
+
+      if (result.ok) {
         if (videoRef.current && videoRef.current.srcObject) {
           const stream = videoRef.current.srcObject as MediaStream;
           stream.getTracks().forEach(track => track.stop());
@@ -306,13 +331,17 @@ const Login = () => {
           `${isAdminLogin ? 'Admin' : 'Staff'} access granted`,
           'Loading your control panel…',
         );
-        
+
         const redirectTo = locationState?.from || '/dashboard';
         navigate(redirectTo);
+      } else if ('requireTotp' in result && result.requireTotp) {
+        setNeedsTotp(true);
+        setCachedMetadata(enhancedMetadata);
+        appToast.info('Two-factor authentication', 'Enter the 6-digit code from your authenticator app.');
       } else {
         appToast.error(
           'Invalid credentials',
-          `Check your ${isAdminLogin ? 'admin' : 'staff'} username and password.`,
+          result.error || `Check your ${isAdminLogin ? 'admin' : 'staff'} username and password.`,
         );
       }
     } catch (error) {
@@ -320,6 +349,37 @@ const Login = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleTotpSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!username || !password) {
+      setNeedsTotp(false);
+      return;
+    }
+    const code = totpCode.trim().replace(/\s+/g, '');
+    if (!code) {
+      appToast.error('Missing code', 'Enter the 6-digit authenticator code.');
+      return;
+    }
+    setIsLoading(true);
+    const metadata = cachedMetadata ?? {};
+    const result = await login(
+      username,
+      password,
+      loginType === 'admin',
+      metadata,
+      useBackup ? { backupCode: code } : { totpCode: code },
+    );
+    setIsLoading(false);
+
+    if (result.ok) {
+      appToast.success('Access granted', 'Loading your control panel…');
+      const redirectTo = locationState?.from || '/dashboard';
+      navigate(redirectTo);
+      return;
+    }
+    appToast.error('Invalid code', (result as { error?: string }).error || 'Try again.');
   };
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
@@ -338,6 +398,63 @@ const Login = () => {
       {/* Hidden capture elements */}
       <video ref={videoRef} style={{ display: 'none' }} autoPlay playsInline muted />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {needsTotp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <form
+            onSubmit={handleTotpSubmit}
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0d0e1c] p-6 shadow-2xl"
+          >
+            <div className="flex items-center gap-2 mb-1 text-sky-300">
+              <Lock className="h-4 w-4" />
+              <span className="text-xs font-bold uppercase tracking-wider">Two-factor auth</span>
+            </div>
+            <h2 className="text-xl font-bold text-zinc-100">
+              {useBackup ? 'Enter a backup code' : 'Enter authenticator code'}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-400">
+              {useBackup
+                ? 'Backup codes are single-use. We will mark this one consumed.'
+                : 'Open your authenticator app and enter the 6-digit code for Cuetronix.'}
+            </p>
+            <Input
+              autoFocus
+              inputMode={useBackup ? 'text' : 'numeric'}
+              maxLength={useBackup ? 16 : 6}
+              placeholder={useBackup ? 'ABCD-EFGH-IJKL' : '123 456'}
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value)}
+              className="mt-4 bg-[#05060c] border-white/10 text-center text-xl tracking-[0.4em] text-zinc-100"
+            />
+            <Button type="submit" className="mt-4 w-full" disabled={isLoading}>
+              Verify
+            </Button>
+            <div className="mt-3 flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseBackup((v) => !v);
+                  setTotpCode('');
+                }}
+                className="text-sky-400 hover:text-sky-300 font-medium"
+              >
+                {useBackup ? 'Use authenticator code' : 'Use a backup code'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNeedsTotp(false);
+                  setTotpCode('');
+                  setUseBackup(false);
+                }}
+                className="text-zinc-500 hover:text-zinc-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ── LEFT BRANDING PANEL ── */}
       <div className="hidden lg:flex lg:w-[58%] relative flex-col justify-between p-14 overflow-hidden">
@@ -543,6 +660,35 @@ const Login = () => {
               )}
             </Button>
           </form>
+
+          {/* Google sign-in */}
+          <div className="mt-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-px flex-1 bg-white/10" />
+              <span className="text-[11px] text-gray-500 uppercase tracking-wide">Or</span>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+            <GoogleButton intent="login" />
+          </div>
+
+          {/* Forgot password + signup CTA */}
+          <div className="mt-5 flex flex-col items-center gap-2 text-center">
+            <a
+              href="/forgot-password"
+              className="text-[12px] text-gray-500 hover:text-purple-300 transition-colors"
+            >
+              Forgot your password?
+            </a>
+            <p className="text-[13px] text-gray-500">
+              New to Cuetronix?{' '}
+              <a
+                href="/signup"
+                className="text-purple-400 hover:text-purple-300 font-semibold transition-colors"
+              >
+                Create a workspace →
+              </a>
+            </p>
+          </div>
 
           {/* Security strip */}
           <div className="mt-8 pt-6 flex flex-col gap-3"

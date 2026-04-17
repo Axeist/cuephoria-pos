@@ -4,6 +4,7 @@ import { useExpenses } from '@/context/ExpenseContext';
 import { isWithinInterval, format, startOfMonth, startOfYear } from 'date-fns';
 import StatCardSection from '@/components/dashboard/StatCardSection';
 import ActionButtonSection from '@/components/dashboard/ActionButtonSection';
+import WorkspaceHero from '@/components/dashboard/WorkspaceHero';
 import SalesChart from '@/components/dashboard/SalesChart';
 import BusinessSummarySection from '@/components/dashboard/BusinessSummarySection';
 import ActiveSessions from '@/components/dashboard/ActiveSessions';
@@ -283,6 +284,7 @@ const Dashboard = () => {
 
   return (
     <div className="flex-1 space-y-3 sm:space-y-6 p-3 sm:p-6 text-white bg-inherit overflow-x-hidden">
+      <WorkspaceHero />
       {/* Mobile-optimized header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>

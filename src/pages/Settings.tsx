@@ -3,7 +3,8 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import CafePartnerSettings from '@/components/cafe/CafePartnerSettings';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
@@ -277,6 +278,14 @@ const Settings = () => {
             <p className="text-muted-foreground">
               Manage your application settings and preferences.
             </p>
+            <Link
+              to="/settings/organization"
+              className="inline-flex items-center gap-1.5 mt-2 text-xs text-primary hover:text-primary/80"
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              Workspace &amp; subscription
+              <ExternalLink className="h-3 w-3" />
+            </Link>
           </div>
           {/* Branch badge */}
           {activeLocation && (

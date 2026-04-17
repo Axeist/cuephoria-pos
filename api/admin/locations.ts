@@ -37,11 +37,43 @@ export default async function handler(req: Request) {
       global: { headers: { "x-application-name": "cuephoria-admin-api" } },
     });
 
-    // Super admins bypass the per-user location table and see every active location.
+    // Slice 5 — resolve the caller's organization(s). Super admins still
+    // bypass per-user location linking, BUT must be scoped to the orgs they
+    // actually belong to; previously a super-admin of tenant X would see
+    // tenant Y's branches, which broke multi-tenant isolation.
+    const { data: memberships, error: memErr } = await supabase
+      .from("org_memberships")
+      .select("organization_id")
+      .eq("admin_user_id", sessionUser.id);
+    if (memErr) return j({ ok: false, error: memErr.message }, 500);
+    const orgIds = [
+      ...new Set(
+        (memberships || []).map((r) => r.organization_id).filter(Boolean) as string[],
+      ),
+    ];
+
+    // Legacy fallback: a super admin without any org membership row is the
+    // Cuephoria bootstrap account — resolve to the internal org so the live
+    // operation keeps working. Never used to widen visibility beyond a single
+    // org, only to repair a missing membership for the internal account.
+    if (!orgIds.length && sessionUser.isSuperAdmin) {
+      const { data: cue } = await supabase
+        .from("organizations")
+        .select("id")
+        .eq("slug", "cuephoria")
+        .maybeSingle();
+      if (cue?.id) orgIds.push(cue.id);
+    }
+
+    if (!orgIds.length) {
+      return j({ ok: true, locations: [] }, 200);
+    }
+
     if (sessionUser.isSuperAdmin) {
       const { data: allLocs, error: allLocErr } = await supabase
         .from("locations")
         .select("id, name, slug, short_code, sort_order, is_active")
+        .in("organization_id", orgIds)
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
 
@@ -61,10 +93,13 @@ export default async function handler(req: Request) {
       return j({ ok: true, locations: [] }, 200);
     }
 
+    // Still restrict to the caller's org(s) — even if admin_user_locations
+    // somehow contains a stale cross-org link, we never leak it.
     const { data: locs, error: locErr } = await supabase
       .from("locations")
       .select("id, name, slug, short_code, sort_order, is_active")
       .in("id", ids)
+      .in("organization_id", orgIds)
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
 

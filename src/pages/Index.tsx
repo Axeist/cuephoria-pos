@@ -638,7 +638,7 @@ const Index: React.FC = () => {
                 </div>
                 <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                   <p className="text-gray-500 text-xs mb-2">Staff & Admin</p>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     <button onClick={() => navigate('/login')}
                       className="flex items-center gap-1.5 text-gray-600 hover:text-gray-400 text-xs transition-colors">
                       <Shield size={11} /> Admin Login
@@ -646,6 +646,10 @@ const Index: React.FC = () => {
                     <button onClick={() => navigate('/cafe/login')}
                       className="flex items-center gap-1.5 text-gray-600 hover:text-gray-400 text-xs transition-colors">
                       <Coffee size={11} /> Cafe Login
+                    </button>
+                    <button onClick={() => navigate('/signup')}
+                      className="flex items-center gap-1.5 text-purple-500 hover:text-purple-300 text-xs font-semibold transition-colors">
+                      Start your own workspace →
                     </button>
                   </div>
                 </div>

@@ -8,6 +8,7 @@ interface AdminUser {
   username: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  mustChangePassword?: boolean;
 }
 
 interface LoginMetadata {
@@ -79,11 +80,23 @@ export interface LoginLog {
   created_at: string;
 }
 
+export type LoginResult =
+  | { ok: true; error?: undefined; requireTotp?: undefined }
+  | { ok: false; requireTotp: true; error?: string }
+  | { ok: false; error?: string; requireTotp?: undefined };
+
 interface AuthContextType {
   user: AdminUser | null;
-  login: (username: string, password: string, isAdminLogin: boolean, metadata?: LoginMetadata) => Promise<boolean>;
+  login: (
+    username: string,
+    password: string,
+    isAdminLogin: boolean,
+    metadata?: LoginMetadata,
+    second?: { totpCode?: string; backupCode?: string },
+  ) => Promise<LoginResult>;
   logout: () => void;
   isLoading: boolean;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   addStaffMember: (username: string, password: string, isAdmin?: boolean, isSuperAdmin?: boolean, locationIds?: string[]) => Promise<boolean>;
   getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[] })[]>;
   updateStaffMember: (id: string, data: Partial<AdminUser & { locationIds: string[]; newPassword?: string }>) => Promise<boolean>;
@@ -149,7 +162,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const json = await res.json();
         const u = json?.user;
         if (u?.id && u?.username) {
-          setUser({ id: u.id, username: u.username, isAdmin: !!u.isAdmin, isSuperAdmin: !!u.isSuperAdmin });
+          setUser({
+            id: u.id,
+            username: u.username,
+            isAdmin: !!u.isAdmin,
+            isSuperAdmin: !!u.isSuperAdmin,
+            mustChangePassword: !!u.mustChangePassword,
+          });
         } else {
           setUser(null);
         }
@@ -164,14 +183,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (
-    username: string, 
-    password: string, 
+    username: string,
+    password: string,
     isAdminLogin: boolean,
-    metadata: LoginMetadata = {}
-  ): Promise<boolean> => {
-    let loginSuccess = false;
-    let attemptedUsername = username;
-
+    metadata: LoginMetadata = {},
+    second: { totpCode?: string; backupCode?: string } = {},
+  ): Promise<LoginResult> => {
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
@@ -181,37 +198,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           password,
           isAdminLogin,
           metadata,
+          ...(second.totpCode ? { totpCode: second.totpCode } : {}),
+          ...(second.backupCode ? { backupCode: second.backupCode } : {}),
         }),
       });
       const json = await res.json();
 
-      loginSuccess = !!json?.success;
+      if (json?.requireTotp) {
+        return { ok: false, requireTotp: true, error: json?.error };
+      }
+
+      const loginSuccess = !!json?.success;
       if (loginSuccess && json?.user?.id) {
         const adminUser = {
           id: json.user.id,
           username: json.user.username,
           isAdmin: !!json.user.isAdmin,
           isSuperAdmin: !!json.user.isSuperAdmin,
+          mustChangePassword: !!json.user.mustChangePassword,
         };
-        // Trigger login-success splash for management portal
         try {
           sessionStorage.setItem("gh_show_login_splash_v1", "1");
         } catch {
           // ignore (private mode / denied storage)
         }
         setUser(adminUser);
+        return { ok: true };
       }
 
-      return loginSuccess;
+      return { ok: false, error: json?.error };
     } catch (error) {
       console.error('Login error:', error);
-      return false;
+      return { ok: false, error: error instanceof Error ? error.message : 'Login failed' };
     }
   };
 
   const logout = () => {
     fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
     setUser(null);
+  };
+
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) {
+        return { ok: false, error: json?.error || `Request failed (${res.status})` };
+      }
+      setUser((prev) => (prev ? { ...prev, mustChangePassword: false } : prev));
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: (error as Error)?.message || 'Network error' };
+    }
   };
 
   const getLoginLogs = async (): Promise<LoginLog[]> => {
@@ -364,6 +410,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login, 
       logout, 
       isLoading, 
+      changePassword,
       addStaffMember, 
       getStaffMembers,
       updateStaffMember,
