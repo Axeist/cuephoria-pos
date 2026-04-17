@@ -3311,23 +3311,13 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                           : "bg-black/20 border-white/10 text-gray-200 hover:bg-black/30 hover:border-[#3395FF]/35"
                       )}
                     >
-                      <div className="flex flex-col items-center justify-center gap-0.5 relative z-10">
-                        <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:gap-2 max-w-full">
-                          <span className="flex items-center justify-center gap-2">
-                            {paymentMethod === "razorpay" ? (
-                              <Shield className="h-4 w-4 flex-shrink-0" />
-                            ) : (
-                              <CreditCard className="h-4 w-4 flex-shrink-0" />
-                            )}
-                            <span className="font-semibold">Pay Online</span>
-                          </span>
-                          <span className="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/90">
-                            Recommended
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-white/70 leading-tight text-center">
-                          Instant confirmation • Razorpay
-                        </span>
+                      <div className="flex items-center justify-center gap-2 relative z-10">
+                        {paymentMethod === "razorpay" ? (
+                          <Shield className="h-4 w-4 flex-shrink-0" />
+                        ) : (
+                          <CreditCard className="h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span className="font-semibold">Pay Online</span>
                       </div>
                       {paymentMethod === "razorpay" && (
                         <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
@@ -3335,88 +3325,6 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </button>
                     ) : null}
                   </div>
-                  {paymentMethod === "razorpay" && onlinePaymentEnabled && (
-                    <div className="mt-3 space-y-3 animate-fade-in">
-                      {/* Razorpay Branding Card */}
-                      <div className="rounded-xl border border-[#3395FF]/30 bg-gradient-to-br from-[#3395FF]/10 via-[#2563EB]/10 to-[#1E40AF]/10 p-4 backdrop-blur-sm">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0">
-                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#3395FF] to-[#2563EB] flex items-center justify-center shadow-lg shadow-[#3395FF]/30">
-                              <Shield className="h-6 w-6 text-white" />
-                            </div>
-                          </div>
-                          <div className="flex-1 space-y-2">
-                            <div>
-                              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                                <span>Powered by Razorpay</span>
-                                <BadgeCheck className="h-4 w-4 text-[#3395FF]" />
-                              </h4>
-                              <p className="text-xs text-gray-300 mt-1">
-                                India's most trusted payment gateway trusted by 8M+ businesses
-                              </p>
-                            </div>
-                            
-                            {/* Security Features */}
-                            <div className="grid grid-cols-2 gap-2 mt-3">
-                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
-                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-                                <span>PCI-DSS Compliant</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
-                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-                                <span>256-bit SSL Encryption</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
-                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-                                <span>Bank-level Security</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-[#3395FF]/90">
-                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-                                <span>Instant Confirmation</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Trust Indicators */}
-                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-black/20 border border-white/5">
-                        <div className="flex items-center gap-2 text-[10px] text-gray-300">
-                          <Lock className="h-3 w-3 text-green-400" />
-                          <span>Your payment data is encrypted and secure</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-[9px] text-[#3395FF]/70">
-                          <Zap className="h-3 w-3" />
-                          <span>Fast & Secure</span>
-                        </div>
-                      </div>
-
-                      {/* Benefits */}
-                      <div className="space-y-1.5">
-                        <p className="text-[11px] font-medium text-gray-300">
-                          Why pay online?
-                        </p>
-                        <ul className="space-y-1 text-[10px] text-gray-400 ml-4">
-                          <li className="flex items-start gap-2">
-                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
-                            <span>Instant booking confirmation — skip the queue at reception</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
-                            <span>Coupons and discounts apply when you pay online here</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
-                            <span>Cards, UPI, net banking, and wallets via Razorpay</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />
-                            <span>Your booking is created only after successful payment</span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {originalPrice > 0 && (
@@ -3564,7 +3472,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                           ? "Starting Payment..."
                           : "Creating Booking..."
                         : paymentMethod === "razorpay"
-                        ? "Confirm & Pay with Razorpay"
+                        ? "Pay Online"
                         : "Confirm Booking"}
                     </span>
                   </div>
