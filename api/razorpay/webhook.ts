@@ -1,9 +1,9 @@
 // Using Node.js runtime to use Razorpay SDK and Supabase client
-import { fetchRazorpayOrderWithMerchantFallback } from "../../src/server/lib/razorpay-fetch-order";
+import { fetchRazorpayOrderWithMerchantFallback } from "../../src/server/lib/razorpay-fetch-order.js";
 import {
   handleSubscriptionWebhookEvent,
   isSubscriptionWebhookEvent,
-} from "../../src/server/lib/razorpay-subscription-webhook";
+} from "../../src/server/lib/razorpay-subscription-webhook.js";
 
 export const config = {
   maxDuration: 30, // 30 seconds

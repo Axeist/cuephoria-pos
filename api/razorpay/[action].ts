@@ -23,11 +23,11 @@
  * without being intercepted here.
  */
 
-import callback from "../../src/server/handlers/razorpay/callback";
-import createOrder from "../../src/server/handlers/razorpay/create-order";
-import getKeyId from "../../src/server/handlers/razorpay/get-key-id";
-import testCredentials from "../../src/server/handlers/razorpay/test-credentials";
-import verifyPayment from "../../src/server/handlers/razorpay/verify-payment";
+import callback from "../../src/server/handlers/razorpay/callback.js";
+import createOrder from "../../src/server/handlers/razorpay/create-order.js";
+import getKeyId from "../../src/server/handlers/razorpay/get-key-id.js";
+import testCredentials from "../../src/server/handlers/razorpay/test-credentials.js";
+import verifyPayment from "../../src/server/handlers/razorpay/verify-payment.js";
 
 import {
   callEdgeHandler,
@@ -36,7 +36,7 @@ import {
   type NodeHandler,
   type VercelRequest,
   type VercelResponse,
-} from "../../src/server/lib/node-dispatcher";
+} from "../../src/server/lib/node-dispatcher.js";
 
 export const config = {
   maxDuration: 30,

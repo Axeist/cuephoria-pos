@@ -15,16 +15,16 @@
  * just forwards the call after matching the last path segment.
  */
 
-import availableStations from "../../src/server/handlers/webhooks/available-stations";
-import checkAvailability from "../../src/server/handlers/webhooks/check-availability";
-import elevenlabsBooking from "../../src/server/handlers/webhooks/elevenlabs-booking";
-import getCustomer from "../../src/server/handlers/webhooks/get-customer";
+import availableStations from "../../src/server/handlers/webhooks/available-stations.js";
+import checkAvailability from "../../src/server/handlers/webhooks/check-availability.js";
+import elevenlabsBooking from "../../src/server/handlers/webhooks/elevenlabs-booking.js";
+import getCustomer from "../../src/server/handlers/webhooks/get-customer.js";
 import {
   getAction,
   type NodeHandler,
   type VercelRequest,
   type VercelResponse,
-} from "../../src/server/lib/node-dispatcher";
+} from "../../src/server/lib/node-dispatcher.js";
 
 // Razorpay SDK / Supabase client require Node.js runtime. Give the heavier
 // handlers (elevenlabs-booking, check-availability) the same 30s timeout that

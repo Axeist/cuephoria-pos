@@ -14,8 +14,8 @@
  * Node↔Edge adapter in `src/server/lib/node-dispatcher`.
  */
 
-import cleanupBlocks from "../../src/server/handlers/bookings/cleanup-blocks";
-import create from "../../src/server/handlers/bookings/create";
+import cleanupBlocks from "../../src/server/handlers/bookings/cleanup-blocks.js";
+import create from "../../src/server/handlers/bookings/create.js";
 
 import {
   callEdgeHandler,
@@ -24,7 +24,7 @@ import {
   type NodeHandler,
   type VercelRequest,
   type VercelResponse,
-} from "../../src/server/lib/node-dispatcher";
+} from "../../src/server/lib/node-dispatcher.js";
 
 export const config = {
   maxDuration: 30,
