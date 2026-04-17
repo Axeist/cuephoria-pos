@@ -2,12 +2,12 @@
  * Catch-all dispatcher for /api/admin/* routes.
  *
  * Vercel's Hobby tier caps the deployment at 12 Serverless Functions, so the
- * ten admin endpoints are collapsed behind one dynamic route. Each concrete
+ * admin endpoints are collapsed behind one dynamic route. Each concrete
  * handler still lives in its own module under src/server/handlers/admin/;
- * this file only maps URL path → module. Public routes are unchanged:
+ * this file only maps URL path → module.
  *
  *   POST /api/admin/login            → handlers/admin/login
- *   POST /api/admin/logout           → (not implemented; 404)
+ *   POST /api/admin/logout           → handlers/admin/logout
  *   GET  /api/admin/me               → handlers/admin/me
  *   ...
  *
@@ -17,10 +17,13 @@
 
 import { j } from "../../src/server/adminApiUtils";
 
+import bookingSettings from "../../src/server/handlers/admin/booking-settings";
 import changePassword from "../../src/server/handlers/admin/change-password";
 import forgotPassword from "../../src/server/handlers/admin/forgot-password";
 import locations from "../../src/server/handlers/admin/locations";
+import loginLogs from "../../src/server/handlers/admin/login-logs";
 import login from "../../src/server/handlers/admin/login";
+import logout from "../../src/server/handlers/admin/logout";
 import me from "../../src/server/handlers/admin/me";
 import resetPassword from "../../src/server/handlers/admin/reset-password";
 import sendVerification from "../../src/server/handlers/admin/send-verification";
@@ -33,10 +36,13 @@ export const config = { runtime: "edge" };
 type Handler = (req: Request) => Promise<Response> | Response;
 
 const routes: Record<string, Handler> = {
+  "booking-settings": bookingSettings,
   "change-password": changePassword,
   "forgot-password": forgotPassword,
   "locations": locations,
+  "login-logs": loginLogs,
   "login": login,
+  "logout": logout,
   "me": me,
   "reset-password": resetPassword,
   "send-verification": sendVerification,
