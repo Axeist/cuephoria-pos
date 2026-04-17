@@ -35,6 +35,8 @@ const fallbackConfig = {
  * Shows a prominent colored badge for the active branch with a dropdown to switch.
  */
 export function LocationSwitcher() {
+  // `locations` here is the franchise-only list — LocationContext strips
+  // Cafe (it has its own login + entity) before exposing them.
   const { locations, activeLocationId, activeLocation, setActiveLocationId, loading, isSwitching } =
     useLocation();
   const [open, setOpen] = useState(false);

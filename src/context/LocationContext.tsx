@@ -16,6 +16,15 @@ export type ReportScope = "location" | "all";
 
 const STORAGE_KEY = "cuephoria_active_location_id";
 
+/**
+ * Cafe is a distinct product with its own login flow (/cafe) and its own
+ * user/data management. The admin dashboard models "locations" as gaming
+ * franchise branches only, so any cafe row returned by the API must be
+ * filtered out before reaching any consumer of `useLocation()`.
+ */
+const isFranchiseLocation = (l: VenueLocation) =>
+  l.slug !== "cafe" && l.short_code?.toLowerCase() !== "cafe";
+
 type LocationContextValue = {
   locations: VenueLocation[];
   activeLocationId: string | null;
@@ -60,7 +69,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const json = await res.json();
         if (!json?.ok) throw new Error(json?.error || "Failed to load locations");
         if (!cancelled) {
-          setLocations(Array.isArray(json.locations) ? json.locations : []);
+          const raw: VenueLocation[] = Array.isArray(json.locations)
+            ? json.locations
+            : [];
+          setLocations(raw.filter(isFranchiseLocation));
         }
       } catch (e) {
         console.error(e);

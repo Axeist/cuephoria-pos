@@ -35,6 +35,11 @@ const SLUG_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
 };
 const DEFAULT_COLOR = { bg: 'bg-gray-500/15 border-gray-400/30', text: 'text-gray-300', dot: 'bg-gray-400' };
 
+// Cafe is a distinct product with its own login (/cafe) and its own user
+// management. It must not appear as an assignable branch in this dashboard.
+const isFranchiseLocation = (loc: LocationInfo) =>
+  loc.slug !== 'cafe' && loc.short_code?.toLowerCase() !== 'cafe';
+
 const BranchBadge = ({ loc }: { loc: LocationInfo }) => {
   const c = SLUG_COLORS[loc.slug] ?? DEFAULT_COLOR;
   return (
@@ -73,8 +78,15 @@ const StaffManagement: React.FC = () => {
       const res = await fetch('/api/admin/users');
       const json = await res.json();
       if (json?.ok) {
-        setStaffMembers(json.users ?? []);
-        setAllLocations(json.allLocations ?? []);
+        const users: StaffUser[] = json.users ?? [];
+        const locs: LocationInfo[] = json.allLocations ?? [];
+        setStaffMembers(
+          users.map((u) => ({
+            ...u,
+            locations: (u.locations ?? []).filter(isFranchiseLocation),
+          })),
+        );
+        setAllLocations(locs.filter(isFranchiseLocation));
       }
     } catch (e) {
       toast({ title: 'Error', description: 'Failed to load users', variant: 'destructive' });
