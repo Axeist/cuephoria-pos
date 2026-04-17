@@ -43,7 +43,7 @@ export default async function handler(req: Request) {
     let query = supabase
       .from("audit_log")
       .select(
-        "id, actor_type, actor_id, actor_label, organization_id, action, target_type, target_id, meta, ip, user_agent, created_at",
+        "id, actor_type, actor_id, actor_label, organization_id, action, target_type, target_id, meta, ip_address, user_agent, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -73,6 +73,8 @@ export default async function handler(req: Request) {
 
     const entries = (data ?? []).map((d) => ({
       ...d,
+      // Expose the DB column under the shorter `ip` key the frontend already uses.
+      ip: (d as { ip_address?: string | null }).ip_address ?? null,
       organizationSlug: d.organization_id ? orgMap.get(d.organization_id)?.slug ?? null : null,
       organizationName: d.organization_id ? orgMap.get(d.organization_id)?.name ?? null : null,
     }));

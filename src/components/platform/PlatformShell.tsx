@@ -6,7 +6,7 @@
 
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LogOut, LayoutDashboard, Building2, Activity } from "lucide-react";
+import { LogOut, LayoutDashboard, Building2, Activity, Sparkles } from "lucide-react";
 import { PRODUCT_BRAND } from "@/branding/brand";
 import { usePlatformAuth } from "@/context/PlatformAuthContext";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/platform", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/platform/organizations", label: "Organizations", icon: Building2, end: false },
+  { to: "/platform/plans", label: "Plans", icon: Sparkles, end: false },
   { to: "/platform/audit", label: "Audit log", icon: Activity, end: false },
 ];
 

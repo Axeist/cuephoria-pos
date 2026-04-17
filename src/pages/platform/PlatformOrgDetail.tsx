@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Building2,
+  CalendarPlus,
   Check,
   CheckCircle2,
   Clock,
@@ -31,6 +32,7 @@ import {
   Pencil,
   Play,
   ShieldCheck,
+  Skull,
   Sparkles,
   UserRound,
   X,
@@ -426,6 +428,7 @@ const ActionBar: React.FC<{
 }> = ({ org, subscription, onDone }) => {
   const { toast } = useToast();
   const [confirmSuspend, setConfirmSuspend] = React.useState(false);
+  const [extendOpen, setExtendOpen] = React.useState(false);
 
   const run = async (action: string, body?: Record<string, unknown>) => {
     try {
@@ -474,17 +477,36 @@ const ActionBar: React.FC<{
           </Button>
         )}
         {isTrialing && !isSuspended && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10"
-            onClick={() => run("end-trial")}
-          >
-            <Play className="h-3.5 w-3.5 mr-1.5" />
-            End trial
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-amber-300 hover:text-amber-200 hover:bg-amber-500/10"
+              onClick={() => setExtendOpen(true)}
+            >
+              <CalendarPlus className="h-3.5 w-3.5 mr-1.5" />
+              Extend trial
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10"
+              onClick={() => run("end-trial")}
+            >
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              End trial
+            </Button>
+          </>
         )}
       </div>
+
+      <ExtendTrialDialog
+        open={extendOpen}
+        onOpenChange={setExtendOpen}
+        org={org}
+        subscription={subscription}
+        onExtended={onDone}
+      />
 
       <AlertDialog open={confirmSuspend} onOpenChange={setConfirmSuspend}>
         <AlertDialogContent className="bg-[#0b0b14] border-white/10 text-zinc-100">
@@ -570,6 +592,7 @@ const OverviewTab: React.FC<{
   };
 
   return (
+    <div className="space-y-4">
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 rounded-xl border border-white/10 bg-white/[0.02]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
@@ -680,6 +703,10 @@ const OverviewTab: React.FC<{
           </div>
         </div>
       </div>
+    </div>
+
+    {/* Danger zone lives inside the Overview tab, below the primary cards. */}
+    <DangerZone org={org} onDeleted={onSaved} />
     </div>
   );
 };
@@ -1430,5 +1457,299 @@ const ActivityTab: React.FC<{ orgId: string; seed: AuditEntry[] }> = ({ orgId, s
         </ol>
       )}
     </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Extend-trial dialog
+// ---------------------------------------------------------------------------
+const EXTEND_PRESETS = [7, 14, 30];
+
+const ExtendTrialDialog: React.FC<{
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  org: DetailResponse["organization"];
+  subscription: DetailResponse["subscription"];
+  onExtended: () => void;
+}> = ({ open, onOpenChange, org, subscription, onExtended }) => {
+  const { toast } = useToast();
+  const [days, setDays] = React.useState<number>(14);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (open) setDays(14);
+  }, [open]);
+
+  const currentEndsAt = subscription?.trial_ends_at || org.trial_ends_at;
+  const baseTime = currentEndsAt
+    ? Math.max(new Date(currentEndsAt).getTime(), Date.now())
+    : Date.now();
+  const projected = new Date(baseTime + days * 24 * 60 * 60 * 1000);
+
+  const submit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await fetcher(`/api/platform/organization-action?id=${org.id}&action=extend-trial`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ days }),
+      });
+      toast({
+        title: "Trial extended",
+        description: `New end date: ${projected.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })}.`,
+      });
+      onOpenChange(false);
+      onExtended();
+    } catch (err) {
+      toast({
+        title: "Couldn't extend trial",
+        description: (err as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={(v) => !submitting && onOpenChange(v)}>
+      <AlertDialogContent className="bg-[#0b0b14] border-white/10 text-zinc-100">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Extend trial for {org.name}</AlertDialogTitle>
+          <AlertDialogDescription className="text-zinc-400">
+            Adds days to the later of today or the current trial end date, so extensions
+            never accidentally land in the past.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-4 pt-1">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Current end</div>
+            <div className="text-sm text-zinc-200">{currentEndsAt ? fmtDate(currentEndsAt) : "—"}</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Add</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {EXTEND_PRESETS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setDays(n)}
+                  className={cn(
+                    "rounded-md border px-3 py-1.5 text-xs transition-colors",
+                    days === n
+                      ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                      : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10",
+                  )}
+                >
+                  +{n} days
+                </button>
+              ))}
+              <div className="relative">
+                <Input
+                  type="number"
+                  value={days}
+                  onChange={(e) => setDays(Math.max(1, Math.min(365, Number(e.target.value || 0))))}
+                  className="w-24 bg-black/30 border-white/10 h-8 text-sm"
+                  min={1}
+                  max={365}
+                />
+              </div>
+              <span className="text-xs text-zinc-500">days</span>
+            </div>
+          </div>
+          <div className="rounded-md border border-white/5 bg-black/30 px-3 py-2.5">
+            <div className="text-[11px] uppercase tracking-wider text-zinc-500">Projected end</div>
+            <div className="text-sm text-emerald-300 font-medium">{fmtDate(projected.toISOString())}</div>
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="bg-transparent border-white/10 text-zinc-300" disabled={submitting}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-amber-500 hover:bg-amber-600 text-amber-950"
+            onClick={(e) => {
+              e.preventDefault();
+              void submit();
+            }}
+            disabled={submitting || days < 1 || days > 365}
+          >
+            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `Extend by ${days} day${days === 1 ? "" : "s"}`}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Danger zone — hard-delete a tenant. Requires typing the slug to confirm.
+// ---------------------------------------------------------------------------
+const DangerZone: React.FC<{
+  org: DetailResponse["organization"];
+  onDeleted: () => void;
+}> = ({ org, onDeleted }) => {
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = React.useState(false);
+  const [typed, setTyped] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [serverError, setServerError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!open) {
+      setTyped("");
+      setServerError(null);
+    }
+  }, [open]);
+
+  const disabled = org.is_internal;
+  const slugMatches = typed.trim() === org.slug;
+
+  const submit = async () => {
+    if (submitting || !slugMatches) return;
+    setServerError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/platform/organization-delete?id=${org.id}`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmSlug: typed.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || `Request failed (${res.status})`);
+      }
+      const counts = (json.counts || {}) as Record<string, number>;
+      const total =
+        (counts.bills ?? 0) +
+        (counts.bill_items ?? 0) +
+        (counts.bookings ?? 0) +
+        (counts.sessions ?? 0) +
+        (counts.customers ?? 0);
+      toast({
+        title: `${org.name} deleted`,
+        description: `Cleared ${counts.locations ?? 0} branch(es), ${counts.stations ?? 0} station(s), ${total} operational record(s).`,
+      });
+      setOpen(false);
+      // Blow the platform cache and bounce back to the org list.
+      queryClient.invalidateQueries({ queryKey: ["platform"] });
+      onDeleted();
+      navigate("/platform/organizations", { replace: true });
+    } catch (err) {
+      setServerError((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="rounded-xl border border-rose-500/30 bg-rose-500/[0.04] p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-lg bg-rose-500/10 border border-rose-500/30 grid place-items-center shrink-0">
+              <Skull className="h-4 w-4 text-rose-300" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-rose-200">Danger zone</div>
+              <div className="mt-1 text-xs text-rose-200/70 max-w-prose">
+                Permanently deletes this tenant and all of its operational data — branches,
+                stations, products, customers, bills, bookings, sessions, memberships,
+                subscription, and invoices. Audit rows are kept (organization pointer cleared).
+                This cannot be undone.
+              </div>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="bg-rose-500/15 text-rose-200 border border-rose-500/30 hover:bg-rose-500/25"
+            disabled={disabled}
+            title={disabled ? "Internal organizations can't be deleted." : undefined}
+            onClick={() => setOpen(true)}
+          >
+            <Skull className="h-3.5 w-3.5 mr-1.5" />
+            Delete organization
+          </Button>
+        </div>
+      </div>
+
+      <AlertDialog open={open} onOpenChange={(v) => !submitting && setOpen(v)}>
+        <AlertDialogContent className="bg-[#0b0b14] border-rose-500/30 text-zinc-100 max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-rose-200">
+              <AlertTriangle className="h-4 w-4" />
+              Delete {org.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              Type the org slug{" "}
+              <span className="font-mono text-rose-200">{org.slug}</span>{" "}
+              below to confirm. Everything tied to this tenant will be wiped.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-3 pt-1">
+            <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+              <li>All branches, stations, products, categories</li>
+              <li>All customers, bills, bookings, sessions</li>
+              <li>Subscription, invoices, memberships</li>
+              <li>Admin user rows are <em>not</em> deleted — they stay reusable</li>
+            </ul>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-zinc-500">
+                Type <span className="font-mono text-rose-300">{org.slug}</span> to confirm
+              </Label>
+              <Input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                className="mt-1 bg-black/40 border-rose-500/30 font-mono"
+                placeholder={org.slug}
+                autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={submitting}
+              />
+            </div>
+            {serverError && (
+              <div className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-200">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{serverError}</span>
+              </div>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent border-white/10 text-zinc-300" disabled={submitting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-500 hover:bg-rose-600 text-white"
+              disabled={!slugMatches || submitting}
+              onClick={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              {submitting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <>
+                  <Skull className="h-3.5 w-3.5 mr-1.5" />
+                  Delete forever
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };

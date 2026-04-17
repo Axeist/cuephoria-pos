@@ -2,9 +2,9 @@
  * Catch-all dispatcher for /api/platform/* routes.
  *
  * Vercel's Hobby tier caps the deployment at 12 Serverless Functions, so the
- * fifteen platform endpoints are collapsed behind one dynamic route. Each
- * concrete handler still lives in its own module under
- * src/server/handlers/platform/; this file only maps URL path → module.
+ * platform endpoints are collapsed behind one dynamic route. Each concrete
+ * handler still lives in its own module under src/server/handlers/platform/;
+ * this file only maps URL path → module.
  */
 
 import { j } from "../../src/server/adminApiUtils";
@@ -16,12 +16,14 @@ import logout from "../../src/server/handlers/platform/logout";
 import me from "../../src/server/handlers/platform/me";
 import organizationAction from "../../src/server/handlers/platform/organization-action";
 import organizationBranding from "../../src/server/handlers/platform/organization-branding";
+import organizationDelete from "../../src/server/handlers/platform/organization-delete";
 import organizationInviteOwner from "../../src/server/handlers/platform/organization-invite-owner";
 import organizationMember from "../../src/server/handlers/platform/organization-member";
 import organization from "../../src/server/handlers/platform/organization";
 import organizations from "../../src/server/handlers/platform/organizations";
 import passwordMigrationStatus from "../../src/server/handlers/platform/password-migration-status";
 import planRazorpayMap from "../../src/server/handlers/platform/plan-razorpay-map";
+import planUpdate from "../../src/server/handlers/platform/plan-update";
 import plans from "../../src/server/handlers/platform/plans";
 import stats from "../../src/server/handlers/platform/stats";
 
@@ -37,12 +39,14 @@ const routes: Record<string, Handler> = {
   "me": me,
   "organization-action": organizationAction,
   "organization-branding": organizationBranding,
+  "organization-delete": organizationDelete,
   "organization-invite-owner": organizationInviteOwner,
   "organization-member": organizationMember,
   "organization": organization,
   "organizations": organizations,
   "password-migration-status": passwordMigrationStatus,
   "plan-razorpay-map": planRazorpayMap,
+  "plan-update": planUpdate,
   "plans": plans,
   "stats": stats,
 };

@@ -8,6 +8,8 @@
  *                  Returns 409 with { warnings } when the new plan's limits
  *                  would be below current usage; pass `confirm: true` to force.
  *   end-trial    — fast-forward a trialing subscription to active.
+ *   extend-trial — push trial_ends_at further into the future. Body: { days }
+ *                  (1..365). Works on trialing subscriptions only.
  */
 
 import { j } from "../../adminApiUtils";
@@ -18,7 +20,13 @@ export const config = { runtime: "edge" };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const SUPPORTED_ACTIONS = new Set(["suspend", "reactivate", "change-plan", "end-trial"]);
+const SUPPORTED_ACTIONS = new Set([
+  "suspend",
+  "reactivate",
+  "change-plan",
+  "end-trial",
+  "extend-trial",
+]);
 
 export default async function handler(req: Request) {
   if (req.method !== "POST") return j({ ok: false, error: "Method not allowed" }, 405);
@@ -34,7 +42,7 @@ export default async function handler(req: Request) {
   if (sessionOrResp instanceof Response) return sessionOrResp;
   const session = sessionOrResp;
 
-  let body: { planCode?: string; confirm?: boolean } = {};
+  let body: { planCode?: string; confirm?: boolean; days?: number } = {};
   try {
     if (req.headers.get("content-type")?.includes("application/json")) {
       body = await req.json();
@@ -88,6 +96,56 @@ export default async function handler(req: Request) {
         nextStatus: status,
       });
       return j({ ok: true, organization: updated }, 200);
+    }
+
+    if (action === "extend-trial") {
+      const days = Number(body.days);
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        return j({ ok: false, error: "days must be an integer between 1 and 365." }, 400);
+      }
+
+      const { data: sub, error: subErr } = await supabase
+        .from("subscriptions")
+        .select("id, status, trial_ends_at")
+        .eq("organization_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (subErr) return j({ ok: false, error: subErr.message }, 500);
+      if (!sub) return j({ ok: false, error: "No subscription exists for this organization." }, 404);
+      if (sub.status !== "trialing") {
+        return j(
+          { ok: false, error: `Cannot extend trial on a subscription in status "${sub.status}".` },
+          409,
+        );
+      }
+
+      // Anchor extensions to the later of (now, current trial_ends_at) so
+      // extending a trial that already passed actually gives the tenant fresh
+      // runway instead of landing in the past.
+      const base = sub.trial_ends_at ? new Date(sub.trial_ends_at).getTime() : 0;
+      const anchor = Math.max(base, Date.now());
+      const newEnd = new Date(anchor + days * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: subUpd, error: subUpdErr } = await supabase
+        .from("subscriptions")
+        .update({ trial_ends_at: newEnd })
+        .eq("id", sub.id)
+        .select("*")
+        .single();
+      if (subUpdErr) return j({ ok: false, error: subUpdErr.message }, 500);
+
+      await supabase
+        .from("organizations")
+        .update({ trial_ends_at: newEnd, status: "trialing" })
+        .eq("id", id);
+
+      await audit(supabase, session, id, "subscription.trial_extended", {
+        days,
+        previousTrialEndsAt: sub.trial_ends_at,
+        newTrialEndsAt: newEnd,
+      });
+      return j({ ok: true, subscription: subUpd }, 200);
     }
 
     if (action === "end-trial") {

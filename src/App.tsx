@@ -15,6 +15,7 @@ import PlatformLogin from "@/pages/platform/PlatformLogin";
 import PlatformDashboard from "@/pages/platform/PlatformDashboard";
 import PlatformAudit from "@/pages/platform/PlatformAudit";
 import PlatformOrgDetail from "@/pages/platform/PlatformOrgDetail";
+import PlatformPlans from "@/pages/platform/PlatformPlans";
 import { flags } from "@/config/featureFlags";
 import { LocationSwitcher } from "@/components/LocationSwitcher";
 import { POSProvider } from "@/context/POSContext";
@@ -376,6 +377,14 @@ const App = () => {
                             element={
                               <PlatformProtectedRoute>
                                 <PlatformOrgDetail />
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="plans"
+                            element={
+                              <PlatformProtectedRoute>
+                                <PlatformPlans />
                               </PlatformProtectedRoute>
                             }
                           />
