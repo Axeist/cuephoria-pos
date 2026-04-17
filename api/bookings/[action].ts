@@ -14,9 +14,6 @@
  * Node↔Edge adapter in `src/server/lib/node-dispatcher`.
  */
 
-import cleanupBlocks from "../../src/server/handlers/bookings/cleanup-blocks.js";
-import create from "../../src/server/handlers/bookings/create.js";
-
 import {
   callEdgeHandler,
   getAction,
@@ -34,15 +31,27 @@ type DispatchEntry =
   | { kind: "node"; handler: NodeHandler }
   | { kind: "edge"; handler: EdgeHandler };
 
-const routes: Record<string, DispatchEntry> = {
-  "create": { kind: "node", handler: create as unknown as NodeHandler },
-  "cleanup-blocks": { kind: "edge", handler: cleanupBlocks as unknown as EdgeHandler },
-};
+async function loadEntry(action: string): Promise<DispatchEntry | null> {
+  switch (action) {
+    case "create": {
+      const mod = await import("../../src/server/handlers/bookings/create.js")
+        .catch(() => import("../../src/server/handlers/bookings/create"));
+      return { kind: "node", handler: mod.default as unknown as NodeHandler };
+    }
+    case "cleanup-blocks": {
+      const mod = await import("../../src/server/handlers/bookings/cleanup-blocks.js")
+        .catch(() => import("../../src/server/handlers/bookings/cleanup-blocks"));
+      return { kind: "edge", handler: mod.default as unknown as EdgeHandler };
+    }
+    default:
+      return null;
+  }
+}
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
   try {
     const action = getAction(req);
-    const entry = routes[action];
+    const entry = await loadEntry(action);
     if (!entry) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader("Access-Control-Allow-Origin", "*");

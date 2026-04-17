@@ -15,10 +15,6 @@
  * just forwards the call after matching the last path segment.
  */
 
-import availableStations from "../../src/server/handlers/webhooks/available-stations.js";
-import checkAvailability from "../../src/server/handlers/webhooks/check-availability.js";
-import elevenlabsBooking from "../../src/server/handlers/webhooks/elevenlabs-booking.js";
-import getCustomer from "../../src/server/handlers/webhooks/get-customer.js";
 import {
   getAction,
   type NodeHandler,
@@ -33,17 +29,37 @@ export const config = {
   maxDuration: 30,
 };
 
-const routes: Record<string, NodeHandler> = {
-  "available-stations": availableStations as unknown as NodeHandler,
-  "check-availability": checkAvailability as unknown as NodeHandler,
-  "elevenlabs-booking": elevenlabsBooking as unknown as NodeHandler,
-  "get-customer": getCustomer as unknown as NodeHandler,
-};
+async function loadHandler(action: string): Promise<NodeHandler | null> {
+  switch (action) {
+    case "available-stations": {
+      const mod = await import("../../src/server/handlers/webhooks/available-stations.js")
+        .catch(() => import("../../src/server/handlers/webhooks/available-stations"));
+      return mod.default as unknown as NodeHandler;
+    }
+    case "check-availability": {
+      const mod = await import("../../src/server/handlers/webhooks/check-availability.js")
+        .catch(() => import("../../src/server/handlers/webhooks/check-availability"));
+      return mod.default as unknown as NodeHandler;
+    }
+    case "elevenlabs-booking": {
+      const mod = await import("../../src/server/handlers/webhooks/elevenlabs-booking.js")
+        .catch(() => import("../../src/server/handlers/webhooks/elevenlabs-booking"));
+      return mod.default as unknown as NodeHandler;
+    }
+    case "get-customer": {
+      const mod = await import("../../src/server/handlers/webhooks/get-customer.js")
+        .catch(() => import("../../src/server/handlers/webhooks/get-customer"));
+      return mod.default as unknown as NodeHandler;
+    }
+    default:
+      return null;
+  }
+}
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
   try {
     const action = getAction(req);
-    const handler = routes[action];
+    const handler = await loadHandler(action);
     if (!handler) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader("Access-Control-Allow-Origin", "*");

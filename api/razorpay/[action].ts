@@ -23,12 +23,6 @@
  * without being intercepted here.
  */
 
-import callback from "../../src/server/handlers/razorpay/callback.js";
-import createOrder from "../../src/server/handlers/razorpay/create-order.js";
-import getKeyId from "../../src/server/handlers/razorpay/get-key-id.js";
-import testCredentials from "../../src/server/handlers/razorpay/test-credentials.js";
-import verifyPayment from "../../src/server/handlers/razorpay/verify-payment.js";
-
 import {
   callEdgeHandler,
   getAction,
@@ -46,18 +40,42 @@ type DispatchEntry =
   | { kind: "node"; handler: NodeHandler }
   | { kind: "edge"; handler: EdgeHandler };
 
-const routes: Record<string, DispatchEntry> = {
-  "callback": { kind: "edge", handler: callback as unknown as EdgeHandler },
-  "create-order": { kind: "node", handler: createOrder as unknown as NodeHandler },
-  "get-key-id": { kind: "edge", handler: getKeyId as unknown as EdgeHandler },
-  "test-credentials": { kind: "edge", handler: testCredentials as unknown as EdgeHandler },
-  "verify-payment": { kind: "node", handler: verifyPayment as unknown as NodeHandler },
-};
+async function loadEntry(action: string): Promise<DispatchEntry | null> {
+  switch (action) {
+    case "callback": {
+      const mod = await import("../../src/server/handlers/razorpay/callback.js")
+        .catch(() => import("../../src/server/handlers/razorpay/callback"));
+      return { kind: "edge", handler: mod.default as unknown as EdgeHandler };
+    }
+    case "create-order": {
+      const mod = await import("../../src/server/handlers/razorpay/create-order.js")
+        .catch(() => import("../../src/server/handlers/razorpay/create-order"));
+      return { kind: "node", handler: mod.default as unknown as NodeHandler };
+    }
+    case "get-key-id": {
+      const mod = await import("../../src/server/handlers/razorpay/get-key-id.js")
+        .catch(() => import("../../src/server/handlers/razorpay/get-key-id"));
+      return { kind: "edge", handler: mod.default as unknown as EdgeHandler };
+    }
+    case "test-credentials": {
+      const mod = await import("../../src/server/handlers/razorpay/test-credentials.js")
+        .catch(() => import("../../src/server/handlers/razorpay/test-credentials"));
+      return { kind: "edge", handler: mod.default as unknown as EdgeHandler };
+    }
+    case "verify-payment": {
+      const mod = await import("../../src/server/handlers/razorpay/verify-payment.js")
+        .catch(() => import("../../src/server/handlers/razorpay/verify-payment"));
+      return { kind: "node", handler: mod.default as unknown as NodeHandler };
+    }
+    default:
+      return null;
+  }
+}
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
   try {
     const action = getAction(req);
-    const entry = routes[action];
+    const entry = await loadEntry(action);
     if (!entry) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader("Access-Control-Allow-Origin", "*");
