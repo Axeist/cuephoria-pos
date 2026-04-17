@@ -55,16 +55,30 @@ const routes: Record<string, DispatchEntry> = {
 };
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
-  const action = getAction(req);
-  const entry = routes[action];
-  if (!entry) {
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    return res.status(404).json({ ok: false, error: `Unknown razorpay action: ${action}` });
-  }
+  try {
+    const action = getAction(req);
+    const entry = routes[action];
+    if (!entry) {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.status(404).json({ ok: false, error: `Unknown razorpay action: ${action}` });
+    }
 
-  if (entry.kind === "node") {
-    return entry.handler(req, res);
+    if (entry.kind === "node") {
+      return await entry.handler(req, res);
+    }
+    return await callEdgeHandler(entry.handler, req, res);
+  } catch (err) {
+    console.error("[razorpay dispatcher] unhandled error:", err);
+    try {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.status(500).json({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } catch {
+      // response already committed
+    }
   }
-  return callEdgeHandler(entry.handler, req, res);
 }

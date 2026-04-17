@@ -63,12 +63,28 @@ function getAction(req: VercelRequest): string {
 }
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
-  const action = getAction(req);
-  const handler = routes[action];
-  if (!handler) {
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    return res.status(404).json({ ok: false, error: `Unknown webhook action: ${action}` });
+  try {
+    const action = getAction(req);
+    const handler = routes[action];
+    if (!handler) {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.status(404).json({ ok: false, error: `Unknown webhook action: ${action}` });
+    }
+    return await handler(req, res);
+  } catch (err) {
+    // Last-resort JSON error — prevents Vercel's HTML "FUNCTION_INVOCATION_FAILED"
+    // from reaching the client, which would make res.json() explode.
+    console.error("[webhooks dispatcher] unhandled error:", err);
+    try {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.status(500).json({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } catch {
+      // response already committed — nothing else we can do
+    }
   }
-  return handler(req, res);
 }
