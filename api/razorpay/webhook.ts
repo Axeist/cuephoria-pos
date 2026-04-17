@@ -525,17 +525,25 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
     };
 
     // Check for conflicting bookings
+    const orderTag = `Razorpay Order: ${orderId}`;
     for (const slot of slots) {
       const requestedStart = timeToMinutes(slot.start_time);
       const requestedEnd = timeToMinutes(slot.end_time);
       const requestedEndMinutes = requestedEnd === 0 ? 24 * 60 : requestedEnd;
 
-      const { data: existingBookings } = await supabase
+      let bookingsQuery = supabase
         .from("bookings")
-        .select("id, station_id, start_time, end_time")
+        .select("id, station_id, start_time, end_time, payment_txn_id, notes")
         .in("station_id", selectedStations)
         .eq("booking_date", selectedDateISO)
         .in("status", ["confirmed", "in-progress"]);
+
+      // Keep conflict scope branch-aware when location is available.
+      if (mainLocationId) {
+        bookingsQuery = bookingsQuery.eq("location_id", mainLocationId);
+      }
+
+      const { data: existingBookings } = await bookingsQuery;
 
       if (existingBookings) {
         const conflicts = existingBookings.filter(booking => {
@@ -551,9 +559,19 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
           );
         });
 
-        if (conflicts.length > 0) {
-          console.error("❌ Slot conflicts detected in webhook:", conflicts);
+        const blockingConflicts = conflicts.filter((booking: any) => {
+          const isSamePayment = booking.payment_txn_id === paymentId;
+          const isSameOrder = booking.notes === orderTag;
+          return !isSamePayment && !isSameOrder;
+        });
+
+        if (blockingConflicts.length > 0) {
+          console.error("❌ Slot conflicts detected in webhook:", blockingConflicts);
           throw new Error("Selected slot is no longer available. Please select another time slot.");
+        }
+
+        if (conflicts.length > 0) {
+          console.log("ℹ️ Ignoring idempotent webhook conflicts (same order/payment):", conflicts.map((b: any) => b.id));
         }
       }
 

@@ -14,7 +14,7 @@ interface BookingDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   booking: Booking | null;
-  onBookingDeleted: () => void;
+  onBookingDeleted: (bookingId: string) => void;
 }
 
 export function BookingDeleteDialog({ open, onOpenChange, booking, onBookingDeleted }: BookingDeleteDialogProps) {
@@ -36,16 +36,22 @@ export function BookingDeleteDialog({ open, onOpenChange, booking, onBookingDele
         // Continue with booking deletion even if views deletion fails
       }
 
-      // Then delete the booking
-      const { error } = await supabase
+      // Then delete the booking and verify a row was actually removed.
+      // RLS-denied deletes can otherwise look like "success" with zero rows affected.
+      const { data: deletedBooking, error } = await supabase
         .from('bookings')
         .delete()
-        .eq('id', booking.id);
+        .eq('id', booking.id)
+        .select('id')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!deletedBooking?.id) {
+        throw new Error('Booking could not be deleted (no rows affected).');
+      }
 
       toast.success('Booking deleted successfully');
-      onBookingDeleted();
+      onBookingDeleted(booking.id);
       onOpenChange(false);
     } catch (error) {
       console.error('Error deleting booking:', error);

@@ -4072,12 +4072,19 @@ export default function BookingManagement() {
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
             booking={selectedBooking}
-            onBookingDeleted={() => {
+            onBookingDeleted={(deletedBookingId) => {
+              // Optimistically remove deleted booking for immediate UI feedback.
+              setBookings(prev => prev.filter(b => b.id !== deletedBookingId));
+              setAllBookings(prev => prev.filter(b => b.id !== deletedBookingId));
+
               // ✅ Invalidate cache and refetch
               const analyticsFromDate = filters.datePreset === 'alltime' 
                 ? '2020-01-01' 
                 : format(subDays(new Date(), 60), 'yyyy-MM-dd');
-              const cacheKey = `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}`;
+              const cacheKey = cacheKeyWithLocation(
+                `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}_${branchView}`,
+                activeLocation?.id
+              );
               invalidateCache(cacheKey);
               fetchBookings();
             }}
