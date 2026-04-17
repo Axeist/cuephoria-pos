@@ -5,7 +5,7 @@
  * cold-start and that's what's breaking every Node dispatcher.
  */
 
-import { j } from "../src/server/adminApiUtils";
+import { j } from "../src/server/adminApiUtils.ts";
 
 export const config = { maxDuration: 10 };
 
