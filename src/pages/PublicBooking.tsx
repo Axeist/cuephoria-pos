@@ -3303,7 +3303,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                       onClick={() => setPaymentMethod("razorpay")}
                       className={cn(
                         "w-full rounded-xl px-3 py-3 text-sm border transition-all relative",
-                        "min-h-[56px] sm:h-12 flex items-center justify-center text-center leading-tight",
+                        "h-12 flex items-center justify-center text-center leading-tight overflow-hidden",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3395FF]/60",
                         "gh-pay-online-cta",
                         paymentMethod === "razorpay"
@@ -3330,7 +3330,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                         </span>
                       </div>
                       {paymentMethod === "razorpay" && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
+                        <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-r from-white/10 to-transparent opacity-50"></div>
                       )}
                     </button>
                     ) : null}
@@ -3569,7 +3569,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                     </span>
                   </div>
                   {paymentMethod === "razorpay" && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-white/5 to-transparent opacity-60"></div>
+                    <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-r from-white/10 via-white/5 to-transparent opacity-60"></div>
                   )}
                 </Button>
 

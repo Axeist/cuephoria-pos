@@ -1,4 +1,4 @@
-import { getRazorpayKeyId as resolveKeyId, parseRazorpayProfile } from "./credentials";
+import { getRazorpayKeyId as resolveKeyId, parseRazorpayProfile } from "./credentials.js";
 
 export const config = { runtime: "edge" };
 

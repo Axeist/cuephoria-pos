@@ -2,7 +2,7 @@ import {
   getRazorpayCredentials,
   parseRazorpayProfile,
   type RazorpayProfile,
-} from "./credentials";
+} from "./credentials.js";
 
 type VercelRequest = {
   method?: string;

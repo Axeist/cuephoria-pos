@@ -2,7 +2,7 @@ import {
   getRazorpayCredentials,
   parseRazorpayProfile,
   type RazorpayProfile,
-} from "./credentials";
+} from "./credentials.js";
 
 export const config = {
   maxDuration: 30,
