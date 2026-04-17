@@ -11,7 +11,7 @@
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
-import { getRazorpayCredentials } from "./razorpay-credentials";
+import { getRazorpayCredentials } from "./razorpay-credentials.js";
 
 /** Authoritative mapping from Razorpay subscription.status → our internal status. */
 export const RZP_STATUS_TO_INTERNAL: Record<string, string> = {

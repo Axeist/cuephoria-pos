@@ -1,7 +1,7 @@
 /**
  * Node-only: uses the Razorpay SDK. Do not import from Edge handlers.
  */
-import { getRazorpayCredentials, type RazorpayProfile } from "./razorpay-credentials";
+import { getRazorpayCredentials, type RazorpayProfile } from "./razorpay-credentials.js";
 
 function getEnv(name: string): string | undefined {
   if (typeof process !== "undefined" && process.env) {
