@@ -103,8 +103,9 @@ export default async function handler(req: Request) {
       // Allow the caller to send a wrapped `patch` or flat fields.
       const rawPatch = body.patch !== undefined ? body.patch : body;
       const validation = validateBrandingPatch(rawPatch);
-      if (!validation.ok) {
-        return j({ ok: false, error: "Invalid branding.", fields: validation.errors }, 400);
+      if (validation.ok !== true) {
+        const errs = (validation as { ok: false; errors: unknown[] }).errors;
+        return j({ ok: false, error: "Invalid branding.", fields: errs }, 400);
       }
       const clearFields = extractClearFields(rawPatch);
       next = mergeBranding(current, validation.patch, clearFields);
@@ -126,7 +127,7 @@ export default async function handler(req: Request) {
     await supabase.from("audit_log").insert({
       actor_type: "platform_admin",
       actor_id: session.id,
-      actor_label: session.username,
+      actor_label: session.displayName ?? session.email,
       organization_id: id,
       action: body?.reset === true ? "organization.branding.reset" : "organization.branding.updated",
       target_type: "organization",

@@ -308,9 +308,10 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
     //    billing page will still show the charge.
     if (orgId && event === "invoice.paid") {
       try {
+        const paise = Number(invoicePayload.amount_paid ?? invoicePayload.amount ?? 0);
         await sendPaymentSuccessEmail(supabase, orgId, {
           invoiceId: invId,
-          amountInr: Number.isFinite(amountPaise) ? amountPaise / 100 : 0,
+          amountInr: Number.isFinite(paise) ? paise / 100 : 0,
           periodEndUnix: invoicePayload.period_end ?? null,
           shortUrl: invoicePayload.short_url || null,
         });

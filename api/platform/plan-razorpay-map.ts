@@ -46,9 +46,13 @@ export default async function handler(req: Request) {
   };
 
   const monthly = normalise(body.monthlyPlanId);
-  if (!monthly.ok) return j({ ok: false, error: monthly.error }, 400);
+  if (monthly.ok !== true) {
+    return j({ ok: false, error: (monthly as { ok: false; error: string }).error }, 400);
+  }
   const yearly = normalise(body.yearlyPlanId);
-  if (!yearly.ok) return j({ ok: false, error: yearly.error }, 400);
+  if (yearly.ok !== true) {
+    return j({ ok: false, error: (yearly as { ok: false; error: string }).error }, 400);
+  }
 
   try {
     const supabase = supabaseServiceClient("cuetronix-platform-plan-map");

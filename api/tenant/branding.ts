@@ -69,8 +69,9 @@ async function patchBranding(req: Request, ctx: OrgContext): Promise<Response> {
   }
 
   const validation = validateBrandingPatch(body);
-  if (!validation.ok) {
-    return j({ ok: false, error: "Invalid branding.", fields: validation.errors }, 400);
+  if (validation.ok !== true) {
+    const errs = (validation as { ok: false; errors: unknown[] }).errors;
+    return j({ ok: false, error: "Invalid branding.", fields: errs }, 400);
   }
   const patch = validation.patch;
   const clearFields = extractClearFields(body);

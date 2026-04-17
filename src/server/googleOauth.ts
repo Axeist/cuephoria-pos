@@ -193,14 +193,15 @@ export async function verifyIdToken(idToken: string): Promise<GoogleIdentity> {
   if (!ok) throw new Error("id_token signature invalid.");
 
   if (!payload.email) throw new Error("Google profile has no email.");
-  if (payload.email_verified === false) {
+  const emailVerified = Boolean(payload.email_verified);
+  if (!emailVerified && payload.email_verified !== undefined) {
     throw new Error("Google email is not verified — try a different account.");
   }
 
   return {
     sub: payload.sub,
     email: payload.email.toLowerCase(),
-    emailVerified: payload.email_verified !== false,
+    emailVerified: Boolean(payload.email_verified),
     name: payload.name,
     givenName: payload.given_name,
     familyName: payload.family_name,
