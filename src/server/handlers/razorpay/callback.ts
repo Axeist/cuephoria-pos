@@ -20,6 +20,7 @@ export default async function handler(req: Request) {
     const razorpayOrderId = url.searchParams.get("razorpay_order_id");
     const razorpaySignature = url.searchParams.get("razorpay_signature");
     const paymentStatus = url.searchParams.get("payment_status") || url.searchParams.get("status");
+    const profile = url.searchParams.get("profile") || "";
     
     // Also check POST body if it's a POST request
     let postData: any = {};
@@ -66,9 +67,10 @@ export default async function handler(req: Request) {
                        finalStatus === "cancelled" ? "Payment was cancelled" : 
                        finalStatus === "error" ? "Payment error occurred" : "");
 
+    const profileParam = profile ? `&profile=${encodeURIComponent(profile)}` : "";
     const redirectUrl = isSuccess
-      ? `${base}/public/payment/success?payment_id=${encodeURIComponent(finalPaymentId || '')}&order_id=${encodeURIComponent(finalOrderId || '')}&signature=${encodeURIComponent(finalSignature || '')}`
-      : `${base}/public/payment/failed?order_id=${encodeURIComponent(finalOrderId || 'unknown')}${errorParam ? `&error=${encodeURIComponent(errorParam)}` : ''}`;
+      ? `${base}/public/payment/success?payment_id=${encodeURIComponent(finalPaymentId || '')}&order_id=${encodeURIComponent(finalOrderId || '')}&signature=${encodeURIComponent(finalSignature || '')}${profileParam}`
+      : `${base}/public/payment/failed?order_id=${encodeURIComponent(finalOrderId || 'unknown')}${errorParam ? `&error=${encodeURIComponent(errorParam)}` : ''}${profileParam}`;
 
     console.log("🚀 Redirecting to:", redirectUrl, { isSuccess, paymentId: finalPaymentId });
 
@@ -117,7 +119,10 @@ export default async function handler(req: Request) {
   } catch (error) {
     console.error("❌ Razorpay callback error:", error);
     
-    const fallbackUrl = "https://admin.cuephoria.in/public/payment/failed";
+    const fallbackProfileParam = new URL(req.url).searchParams.get("profile");
+    const fallbackUrl = fallbackProfileParam
+      ? `https://admin.cuephoria.in/public/payment/failed?profile=${encodeURIComponent(fallbackProfileParam)}`
+      : "https://admin.cuephoria.in/public/payment/failed";
     const fallbackHtml = `
 <!DOCTYPE html>
 <html>

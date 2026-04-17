@@ -6,6 +6,8 @@ export default function PublicPaymentFailed() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
   const error = searchParams.get("error");
+  const profile = searchParams.get("profile");
+  const retryPath = profile === "lite" ? "/lite/public/booking" : "/public/booking";
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] flex items-center justify-center p-6">
@@ -75,7 +77,7 @@ export default function PublicPaymentFailed() {
           {/* Action Button */}
           <div className="flex justify-center mt-8">
             <Link 
-              to="/public/booking" 
+              to={retryPath}
               className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:from-cuephoria-purple/90 hover:to-cuephoria-lightpurple/90 px-6 py-3 text-white text-sm font-semibold transition-all duration-300 shadow-lg shadow-cuephoria-purple/30 hover:shadow-cuephoria-purple/50 hover:scale-105"
             >
               <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />

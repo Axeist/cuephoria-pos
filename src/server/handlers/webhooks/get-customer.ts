@@ -42,6 +42,34 @@ type VercelResponse = {
   end: () => void;
 };
 
+function parseJsonBody(body: unknown): Record<string, unknown> {
+  if (!body) return {};
+  if (typeof body === "object" && !Array.isArray(body)) {
+    if (body instanceof Uint8Array) {
+      try {
+        const parsed = JSON.parse(Buffer.from(body).toString("utf8"));
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        return {};
+      }
+    }
+    return body as Record<string, unknown>;
+  }
+  if (typeof body === "string") {
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 function setCorsHeaders(res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -65,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const payload = req.body || {};
+    const payload = parseJsonBody(req.body);
     const { customer_phone, location_id: locationIdRaw } = payload;
     const location_id =
       typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null;

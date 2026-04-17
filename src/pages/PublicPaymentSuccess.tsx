@@ -104,10 +104,11 @@ export default function PublicPaymentSuccess() {
       // Resolve location_id early — needed for both customer and booking inserts
       let locationId: string | null = pb.locationId || null;
       if (!locationId) {
+        const fallbackSlug = razorpayProfile === "lite" ? "lite" : "main";
         const { data: loc } = await supabase
           .from("locations")
           .select("id")
-          .eq("slug", "main")
+          .eq("slug", fallbackSlug)
           .limit(1)
           .maybeSingle();
         locationId = loc?.id ?? null;
@@ -136,6 +137,7 @@ export default function PublicPaymentSuccess() {
           .from("customers")
           .select("id, name, custom_id")
           .eq("phone", normalizedPhone)
+          .eq("location_id", locationId)
           .maybeSingle();
 
         if (searchError && searchError.code !== "PGRST116") {
@@ -176,6 +178,7 @@ export default function PublicPaymentSuccess() {
                 .from("customers")
                 .select("id")
                 .eq("phone", normalizedPhone)
+                .eq("location_id", locationId)
                 .maybeSingle();
               
               if (retryCustomer) {

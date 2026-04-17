@@ -2042,7 +2042,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       }
 
       const origin = window.location.origin;
-      const callbackUrl = `${origin}/api/razorpay/callback`;
+      const callbackProfileQs = branchSlug === "lite" ? "?profile=lite" : "";
+      const callbackUrl = `${origin}/api/razorpay/callback${callbackProfileQs}`;
 
       // Razorpay checkout options
       const options = {
@@ -2088,7 +2089,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         toast.error(`Payment failed: ${error}`);
         setLoading(false);
         // Redirect to failure page
-        window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}`;
+        const liteQs = branchSlug === "lite" ? "&profile=lite" : "";
+        window.location.href = `/public/payment/failed?order_id=${encodeURIComponent(orderData.orderId)}&error=${encodeURIComponent(error)}${liteQs}`;
       });
 
       rzp.open();
