@@ -1,8 +1,12 @@
 /**
- * Minimal probe to verify Vercel's Node.js runtime is actually working.
- * If /api/_node-probe returns FUNCTION_INVOCATION_FAILED, the problem is
- * at the Vercel-runtime level, not in our handler code.
+ * Node-runtime probe. Isolates whether the Vercel Node bundler can link
+ * against src/server/* modules — if this returns 200 JSON the imports
+ * work; if it returns FUNCTION_INVOCATION_FAILED, the link fails at
+ * cold-start and that's what's breaking every Node dispatcher.
  */
+
+import { j } from "../src/server/adminApiUtils";
+import { getRazorpayCredentials } from "../src/server/lib/razorpay-credentials";
 
 export const config = { maxDuration: 10 };
 
@@ -14,6 +18,10 @@ type Res = {
 };
 
 export default function handler(req: Req, res: Res) {
+  // touch the imports so the bundler can't tree-shake them away
+  const jExists = typeof j === "function";
+  const credsExists = typeof getRazorpayCredentials === "function";
+
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.status(200).json({
     ok: true,
@@ -21,5 +29,6 @@ export default function handler(req: Req, res: Res) {
     nodeVersion: typeof process !== "undefined" ? process.version : "unknown",
     method: req.method,
     url: req.url,
+    imports: { jExists, credsExists },
   });
 }
