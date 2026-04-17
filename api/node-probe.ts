@@ -6,7 +6,6 @@
  */
 
 import { j } from "../src/server/adminApiUtils";
-import { getRazorpayCredentials } from "../src/server/lib/razorpay-credentials";
 
 export const config = { maxDuration: 10 };
 
@@ -20,7 +19,6 @@ type Res = {
 export default function handler(req: Req, res: Res) {
   // touch the imports so the bundler can't tree-shake them away
   const jExists = typeof j === "function";
-  const credsExists = typeof getRazorpayCredentials === "function";
 
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.status(200).json({
@@ -29,6 +27,6 @@ export default function handler(req: Req, res: Res) {
     nodeVersion: typeof process !== "undefined" ? process.version : "unknown",
     method: req.method,
     url: req.url,
-    imports: { jExists, credsExists },
+    imports: { jExists },
   });
 }
