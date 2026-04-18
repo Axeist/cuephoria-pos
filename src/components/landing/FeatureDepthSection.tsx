@@ -35,7 +35,7 @@ const fadeUp = {
 
 const FeatureDepthSection: React.FC = () => {
   return (
-    <section id="modules" className="relative z-10 py-32 px-5 sm:px-8 border-y border-white/[0.05] bg-[#07030f]">
+    <section id="modules" className="relative z-10 scroll-mt-32 py-32 px-5 sm:px-8 border-y border-white/[0.05] bg-[#07030f]">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-24">
           <motion.p

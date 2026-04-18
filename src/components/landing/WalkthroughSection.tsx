@@ -34,7 +34,7 @@ const STEPS = [
 
 const WalkthroughSection: React.FC = () => {
   return (
-    <section className="relative z-10 py-32 px-5 sm:px-8">
+    <section id="workflow" className="relative z-10 scroll-mt-32 py-32 px-5 sm:px-8">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-20">
           <motion.p

@@ -10,6 +10,28 @@ const HERO_METRICS = [
   { value: "14 days", label: "Free trial" },
 ];
 
+const HERO_CAPABILITIES = [
+  "Bookings, walk-ins and waitlists",
+  "Station timer plus cafe POS in one bill",
+  "PS5, PC, VR, pool and snooker ready",
+  "Owner analytics, loyalty and memberships",
+];
+
+const HERO_PROOF = [
+  {
+    title: "Operator-built",
+    detail: "Shaped on live Cuephoria venue ops, not generic retail templates.",
+  },
+  {
+    title: "Secure by design",
+    detail: "Tenant isolation, PBKDF2 auth, TOTP 2FA and auditable admin flows.",
+  },
+  {
+    title: "White-glove launch",
+    detail: "Trial, migrate menu and stations, then book a guided setup call.",
+  },
+];
+
 const HeroSection: React.FC = () => {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
@@ -66,11 +88,27 @@ const HeroSection: React.FC = () => {
               initial={reduceMotion ? false : { opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2 }}
-              className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-10 max-w-2xl"
+              className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-8 max-w-2xl"
             >
               The premium operating system for modern gaming lounges, esports cafes, and billiards halls. 
               Online bookings, POS, loyalty, and multi-branch reports — all in one handcrafted platform.
             </motion.p>
+
+            <motion.div
+              initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.24 }}
+              className="mb-10 flex flex-wrap gap-3"
+            >
+              {HERO_CAPABILITIES.map((capability) => (
+                <span
+                  key={capability}
+                  className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-gray-200 backdrop-blur-md"
+                >
+                  {capability}
+                </span>
+              ))}
+            </motion.div>
 
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
@@ -97,14 +135,22 @@ const HeroSection: React.FC = () => {
               </Button>
             </motion.div>
 
-            <motion.p
+            <motion.div
               initial={reduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="text-xs text-gray-500 font-medium"
+              className="grid gap-3 sm:grid-cols-3"
             >
-              No credit card required · Cancel anytime
-            </motion.p>
+              {HERO_PROOF.map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md"
+                >
+                  <div className="mb-1 text-sm font-semibold text-white">{item.title}</div>
+                  <div className="text-sm leading-relaxed text-gray-400">{item.detail}</div>
+                </div>
+              ))}
+            </motion.div>
           </div>
 
           {/* Right Column: Visual Anchor (5 cols) */}

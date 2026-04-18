@@ -114,7 +114,7 @@ const PricingSection: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
-    <section id="pricing" className="relative z-10 py-32 px-5 sm:px-8 bg-[#07030f]">
+    <section id="pricing" className="relative z-10 scroll-mt-32 py-32 px-5 sm:px-8 bg-[#07030f]">
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial="hidden"
@@ -257,7 +257,7 @@ const PricingSection: React.FC = () => {
         </div>
 
         {/* FAQ Section */}
-        <div id="faq" className="max-w-3xl mx-auto">
+        <div id="faq" className="max-w-3xl scroll-mt-32 mx-auto">
           <motion.div
             initial="hidden"
             whileInView="visible"

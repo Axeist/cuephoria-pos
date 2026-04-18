@@ -23,7 +23,7 @@ const stagger = {
 
 const TrustSection: React.FC = () => {
   return (
-    <section className="relative z-10 py-32 px-5 sm:px-8 border-y border-white/[0.05] bg-white/[0.01]">
+    <section id="trust" className="relative z-10 scroll-mt-32 py-32 px-5 sm:px-8 border-y border-white/[0.05] bg-white/[0.01]">
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-12 gap-x-4 md:gap-x-12">
           
