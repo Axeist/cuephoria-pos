@@ -11,11 +11,14 @@ import { generateId } from '@/utils/pos.utils';
 import { Separator } from '@/components/ui/separator';
 import TournamentFormatSelector from './TournamentFormatSelector';
 import { Trophy, Calendar, Users, Settings, DollarSign, Sparkles, Ticket, X, Plus, Medal } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface TournamentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tournament?: Tournament;
+  /** Active branch — required on create; preserved on edit when saving from this dialog */
+  locationId?: string | null;
   onSave: (tournament: Tournament) => void;
 }
 
@@ -23,6 +26,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
   open,
   onOpenChange,
   tournament,
+  locationId = null,
   onSave
 }) => {
   const [name, setName] = useState('');
@@ -136,6 +140,11 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       return;
     }
 
+    const resolvedLocationId = tournament?.location_id ?? locationId ?? undefined;
+    if (!resolvedLocationId) {
+      toast.error('No branch selected. Pick a location in the header, then try again.');
+      return;
+    }
     const tournamentData: Tournament = {
       id: tournament?.id || generateId(),
       name,
@@ -160,6 +169,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
       winner: tournament?.winner,
       runnerUp: tournament?.runnerUp,
       thirdPlace: tournament?.thirdPlace,
+      location_id: resolvedLocationId,
     };
 
     onSave(tournamentData);

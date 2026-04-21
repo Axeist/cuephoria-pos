@@ -8,6 +8,11 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
     return;
   }
 
+  if (!tournament.location_id) {
+    console.warn('saveTournamentHistory: skipping — missing location_id for tournament', tournament.id);
+    return;
+  }
+
   try {
     console.log('Attempting to save tournament history for:', tournament.name, 'Winner:', tournament.winner.name);
 
@@ -128,14 +133,18 @@ export const saveTournamentHistory = async (tournament: Tournament): Promise<voi
 };
 
 // NEW: Function to retroactively save all completed tournaments
-export const saveAllCompletedTournaments = async (): Promise<void> => {
+export const saveAllCompletedTournaments = async (locationId?: string | null): Promise<void> => {
   try {
     console.log('Fetching all completed tournaments to save history...');
     
-    const { data: tournaments, error } = await supabase
+    let q = supabase
       .from('tournaments')
       .select('*')
       .eq('status', 'completed');
+    if (locationId) {
+      q = q.eq('location_id', locationId);
+    }
+    const { data: tournaments, error } = await q;
 
     if (error) {
       console.error('Error fetching completed tournaments:', error);
@@ -169,7 +178,8 @@ export const saveAllCompletedTournaments = async (): Promise<void> => {
           winnerPrize: tournamentData.winner_prize,
           runnerUpPrize: tournamentData.runner_up_prize,
           maxPlayers: tournamentData.max_players,
-          tournamentFormat: (tournamentData.tournament_format as TournamentFormat) || 'knockout' // Properly cast to TournamentFormat
+          tournamentFormat: (tournamentData.tournament_format as TournamentFormat) || 'knockout', // Properly cast to TournamentFormat
+          location_id: tournamentData.location_id || undefined,
         };
 
         if (tournament.winner) {
@@ -284,7 +294,8 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
         winnerPrize: tournament.winner_prize,
         runnerUpPrize: tournament.runner_up_prize,
         maxPlayers: tournament.max_players,
-        tournamentFormat: (tournament.tournament_format as TournamentFormat) || 'knockout' // Properly cast to TournamentFormat
+        tournamentFormat: (tournament.tournament_format as TournamentFormat) || 'knockout', // Properly cast to TournamentFormat
+        location_id: tournament.location_id || undefined,
       };
       
       // Try to save history, but don't block the display if it fails
@@ -299,19 +310,23 @@ export const fetchTournamentHistoryFromData = async (tournamentId: string): Prom
 };
 
 // Fetch leaderboard data
-export const fetchTournamentLeaderboard = async (): Promise<{ 
+export const fetchTournamentLeaderboard = async (locationId?: string | null): Promise<{ 
   player: string; 
   wins: number; 
   tournaments: string[];
 }[]> => {
   try {
     // First, try to ensure all completed tournaments are saved
-    await saveAllCompletedTournaments();
+    await saveAllCompletedTournaments(locationId);
 
-    const { data, error } = await supabase
+    let winnersQuery = supabase
       .from('tournament_winners')
       .select('winner_name, tournament_name')
       .order('created_at', { ascending: false });
+    if (locationId) {
+      winnersQuery = winnersQuery.eq('location_id', locationId);
+    }
+    const { data, error } = await winnersQuery;
 
     if (error) {
       console.error('Error fetching leaderboard:', error);

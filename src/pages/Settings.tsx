@@ -401,7 +401,8 @@ const Settings = () => {
                         players: [],
                         matches: [],
                         status: "upcoming",
-                        tournamentFormat: "knockout"
+                        tournamentFormat: "knockout",
+                        ...(activeLocationId ? { location_id: activeLocationId } : {}),
                       };
                       setEditingTournament(defaultTournament);
                       setDialogOpen(true);
@@ -434,6 +435,7 @@ const Settings = () => {
             onOpenChange={setDialogOpen}
             onSave={handleSaveTournament}
             tournament={editingTournament}
+            locationId={activeLocationId}
           />
 
           <TournamentHistoryDialog 

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Medal, Award, Users, Loader2, RefreshCw } from 'lucide-react';
 import { fetchTournamentLeaderboard, saveAllCompletedTournaments } from '@/services/tournamentHistoryService';
+import { useLocation } from '@/context/LocationContext';
 
 interface LeaderboardEntry {
   player: string;
@@ -12,19 +13,20 @@ interface LeaderboardEntry {
 }
 
 const TournamentLeaderboard: React.FC = () => {
+  const { activeLocationId } = useLocation();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     loadLeaderboard();
-  }, []);
+  }, [activeLocationId]);
 
   const loadLeaderboard = async () => {
     setLoading(true);
     try {
       console.log('Loading tournament leaderboard...');
-      const data = await fetchTournamentLeaderboard();
+      const data = await fetchTournamentLeaderboard(activeLocationId);
       console.log('Leaderboard data loaded:', data);
       setLeaderboard(data);
     } catch (error) {
@@ -38,7 +40,7 @@ const TournamentLeaderboard: React.FC = () => {
     setSyncing(true);
     try {
       console.log('Manually syncing tournament data...');
-      await saveAllCompletedTournaments();
+      await saveAllCompletedTournaments(activeLocationId);
       await loadLeaderboard();
       console.log('Tournament data sync completed');
     } catch (error) {

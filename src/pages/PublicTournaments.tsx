@@ -1378,7 +1378,7 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
     if (tabValue === 'leaderboard') {
       return (
         <div className="max-w-full sm:max-w-4xl mx-auto px-4">
-          <PublicLeaderboard />
+          <PublicLeaderboard locationId={publicLocationId} />
         </div>
       );
     }

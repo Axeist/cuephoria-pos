@@ -11,19 +11,19 @@ interface LeaderboardEntry {
   tournaments: string[];
 }
 
-const PublicLeaderboard: React.FC = () => {
+const PublicLeaderboard: React.FC<{ locationId?: string | null }> = ({ locationId = null }) => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     loadLeaderboard();
-  }, []);
+  }, [locationId]);
 
   const loadLeaderboard = async () => {
     try {
       console.log('Loading tournament leaderboard...');
-      const data = await fetchTournamentLeaderboard();
+      const data = await fetchTournamentLeaderboard(locationId);
       console.log('Leaderboard data loaded:', data);
       setLeaderboard(data);
     } catch (error) {
@@ -37,7 +37,7 @@ const PublicLeaderboard: React.FC = () => {
     setSyncing(true);
     try {
       console.log('Manually syncing tournament data...');
-      await saveAllCompletedTournaments();
+      await saveAllCompletedTournaments(locationId);
       await loadLeaderboard();
       console.log('Tournament data sync completed');
     } catch (error) {

@@ -3,6 +3,7 @@ import { Tournament, convertFromSupabaseTournament, convertToSupabaseTournament,
 import { useToast } from '@/hooks/use-toast';
 import { PostgrestError } from "@supabase/supabase-js";
 import { useAuth } from "@/context/AuthContext";
+import { useLocation } from "@/context/LocationContext";
 import { generateId } from "@/utils/pos.utils";
 import { determineRunnerUp, saveTournamentHistory } from "@/services/tournamentHistoryService";
 import { generateTournamentMatches } from "@/utils/tournamentMatchGeneration";
@@ -328,6 +329,7 @@ export const deleteTournament = async (id: string): Promise<{ success: boolean; 
 export const useTournamentOperations = () => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { activeLocationId } = useLocation();
   
   return {
     fetchTournaments: async (locationId?: string | null) => {
@@ -347,18 +349,29 @@ export const useTournamentOperations = () => {
         });
         return null;
       }
+
+      const locationId = tournament.location_id ?? activeLocationId ?? undefined;
+      if (!locationId) {
+        toast({
+          title: "Branch required",
+          description: "Could not determine which branch this tournament belongs to. Select a branch in the header or reload the page.",
+          variant: "destructive"
+        });
+        return null;
+      }
+      const tournamentWithLocation: Tournament = { ...tournament, location_id: locationId };
       
-      const { data, error } = await saveTournament(tournament);
+      const { data, error } = await saveTournament(tournamentWithLocation);
       if (data) {
         toast({
           title: "Success",
-          description: `Tournament "${tournament.name}" ${tournament.id === data.id ? "updated" : "created"} successfully`,
+          description: `Tournament "${tournamentWithLocation.name}" ${tournament.id === data.id ? "updated" : "created"} successfully`,
         });
         return data;
       } else {
         toast({
           title: "Failed to save tournament",
-          description: error || `Could not save tournament "${tournament.name}"`,
+          description: error || `Could not save tournament "${tournamentWithLocation.name}"`,
           variant: "destructive"
         });
         return null;
