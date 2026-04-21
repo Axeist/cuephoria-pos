@@ -26,6 +26,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# Claude agent worktrees (never track — each has its own moving git head)
+.claude/worktrees/
+
 # Capacitor & Android
 android/app/build/
 android/app/release/
