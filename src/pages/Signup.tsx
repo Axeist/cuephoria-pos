@@ -2,17 +2,18 @@
  * /signup — self-service tenant provisioning.
  *
  * Owner fills in a single-page form: workspace name (slug auto-suggests),
- * owner username + password, email (optional), timezone. On success we get
- * a session cookie back from /api/tenant/signup and redirect straight into
- * the onboarding wizard.
+ * owner username + password, email, timezone. On success we get a session
+ * cookie back from /api/tenant/signup and redirect into onboarding.
  *
- * Visual language matches the public landing / Login page — deep purple
- * radial glows, glass card, gradient accents.
+ * Visual language matches the landing / login page: 3D ambient scene,
+ * framer-motion entrance animations, glass card.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Eye,
@@ -32,6 +33,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { appToast } from "@/lib/appToast";
 import GoogleButton from "@/components/auth/GoogleButton";
+import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
+import SplashScreen from "@/components/SplashScreen";
 
 type PasswordRule = { id: string; label: string; test: (pw: string) => boolean };
 
@@ -53,6 +56,13 @@ const TIMEZONES = [
   "America/Los_Angeles",
   "Australia/Sydney",
   "UTC",
+];
+
+const PERKS = [
+  "Your own branded login page in 2 minutes",
+  "Unlimited stations & customers during trial",
+  "Razorpay billing integrated, no hidden fees",
+  "Export everything, lock-in free",
 ];
 
 function slugify(input: string): string {
@@ -77,21 +87,22 @@ export default function Signup() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null);
+  // When the server has created the tenant, we flip this to `true` to render
+  // the futuristic "Access Granted" splash before dropping the owner into
+  // onboarding — so the transition feels premium instead of abrupt.
+  const [showSuccessSplash, setShowSuccessSplash] = useState(false);
 
   useEffect(() => {
-    // Detect user's timezone on mount, silently default to it if supported.
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (tz && TIMEZONES.includes(tz)) setTimezone(tz);
     } catch {
-      // ignore
+      /* ignore */
     }
   }, []);
 
   useEffect(() => {
-    if (!slugTouched) {
-      setSlug(slugify(organizationName));
-    }
+    if (!slugTouched) setSlug(slugify(organizationName));
   }, [organizationName, slugTouched]);
 
   const strength = useMemo(() => {
@@ -139,9 +150,15 @@ export default function Signup() {
         return;
       }
       appToast.success("Workspace created", "Let's make it yours — just a few steps.");
-      // The signup endpoint issues the session cookie. Navigate straight to
-      // the onboarding wizard; ProtectedRoute will gate the user there too.
-      navigate("/onboarding", { replace: true });
+      // Suppress the SplashController's login_success splash on /onboarding,
+      // since we're rendering our own splash inline here before navigating.
+      try {
+        sessionStorage.removeItem("gh_show_login_splash_v1");
+      } catch {
+        /* ignore storage errors */
+      }
+      setShowSuccessSplash(true);
+      return;
     } catch (err) {
       appToast.error("Something went wrong", (err as Error)?.message || "Please try again.");
       setSubmitting(false);
@@ -149,330 +166,461 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-zinc-100 relative overflow-hidden">
-      {/* Background layers */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "linear-gradient(135deg, #0f0520 0%, #080b1a 50%, #050508 100%)" }}
-      />
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse at 15% 25%, rgba(139,92,246,0.22) 0%, transparent 60%)",
-        }}
-      />
-      <div
-        className="absolute top-1/4 right-0 w-[480px] h-[480px] rounded-full blur-[100px] pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(99,102,241,0.12), transparent)" }}
-      />
-      <div
-        className="absolute inset-0 opacity-[0.035] pointer-events-none"
-        style={{
-          backgroundImage: "radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-        }}
-      />
+    <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-zinc-100">
+      {showSuccessSplash && (
+        <SplashScreen
+          variant="login_success"
+          onDone={() => {
+            setShowSuccessSplash(false);
+            navigate("/onboarding", { replace: true });
+          }}
+        />
+      )}
+      <AuthSceneBackground />
 
-      <div className="relative z-10 flex min-h-screen">
-        {/* ── LEFT: hero copy ──────────────────────────────────────────── */}
-        <div className="hidden lg:flex lg:w-[50%] flex-col justify-between p-12 xl:p-16">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div
-                className="absolute inset-0 rounded-full blur-lg"
-                style={{ background: "rgba(139,92,246,0.4)" }}
-              />
-              <div className="relative h-11 w-11 rounded-2xl flex items-center justify-center bg-gradient-to-br from-fuchsia-500 to-indigo-500">
-                <Gamepad2 className="h-6 w-6 text-white" />
-              </div>
+      {/* Top bar */}
+      <div className="relative z-20 flex items-center justify-between px-5 py-5 sm:px-8">
+        <button
+          onClick={() => navigate("/")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-gray-300 backdrop-blur-md transition-colors hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft size={12} /> Back to site
+        </button>
+
+        <button
+          onClick={() => navigate("/login")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium text-gray-200 backdrop-blur-md transition-colors hover:bg-white/[0.08] hover:text-white"
+        >
+          Already have a workspace? <span className="text-fuchsia-300">Sign in</span>
+        </button>
+      </div>
+
+      {/* Grid */}
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl gap-10 px-5 pb-12 sm:px-8 lg:grid-cols-[1fr_1.05fr] lg:gap-16 lg:pb-20">
+        {/* ── LEFT: pitch ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="hidden flex-col justify-center lg:flex"
+        >
+          <Link to="/" className="group mb-10 inline-flex w-fit items-center gap-2.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow-lg shadow-violet-600/40">
+              <Gamepad2 size={18} className="text-white" />
             </div>
             <div>
-              <span className="text-white font-extrabold text-xl tracking-tight block leading-none">
-                Cuetronix
-              </span>
-              <span className="text-purple-300 text-[10px] tracking-[0.18em] uppercase font-medium">
+              <div className="text-lg font-bold tracking-tight leading-none">
+                Cue
+                <span className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
+                  tronix
+                </span>
+              </div>
+              <div className="mt-1 text-[10px] uppercase tracking-[0.22em] text-white/45">
                 Run it like the best
-              </span>
+              </div>
             </div>
           </Link>
 
-          <div className="max-w-[460px]">
-            <div
-              className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-wide"
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.5 }}
+            className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-fuchsia-300/25 bg-fuchsia-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-fuchsia-200 backdrop-blur-md"
+          >
+            <Sparkles size={11} />
+            14-day free trial · no credit card
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25, duration: 0.55 }}
+            className="text-5xl font-extrabold leading-[1.05] tracking-tight xl:text-[56px]"
+          >
+            Launch your{" "}
+            <span
+              className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent"
               style={{
-                background: "rgba(139,92,246,0.12)",
-                border: "1px solid rgba(139,92,246,0.2)",
-                color: "#a78bfa",
+                backgroundSize: "200%",
+                animation: "hueShift 8s ease-in-out infinite",
               }}
             >
-              <Sparkles className="w-3 h-3" />
-              14-day free trial · no credit card
-            </div>
+              gaming empire
+            </span>{" "}
+            in minutes.
+          </motion.h1>
 
-            <h1 className="text-5xl font-extrabold leading-[1.08] tracking-[-0.02em] mb-6">
-              Launch your<br />
-              <span className="bg-gradient-to-r from-fuchsia-400 via-pink-400 to-sky-400 bg-clip-text text-transparent">
-                gaming empire
-              </span><br />
-              in minutes.
-            </h1>
-
-            <p className="text-zinc-400 text-[15px] leading-relaxed mb-8">
-              Bookings, POS, staff, loyalty, tournaments — everything your gaming
-              lounge, club, or cafe needs. One workspace, your brand, your rules.
-            </p>
-
-            <div className="space-y-3">
-              {[
-                "Your own branded login page in 2 minutes",
-                "Unlimited stations + customers during trial",
-                "Razorpay billing integrated, no hidden fees",
-                "Export everything, lock-in free",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-3 text-sm text-zinc-300">
-                  <div className="flex-shrink-0 h-5 w-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                  </div>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="text-xs text-zinc-500 flex items-center gap-4">
-            <Link to="/privacy" className="hover:text-zinc-300">Privacy</Link>
-            <Link to="/terms" className="hover:text-zinc-300">Terms</Link>
-            <Link to="/contact" className="hover:text-zinc-300">Contact</Link>
-          </div>
-        </div>
-
-        {/* ── RIGHT: form card ────────────────────────────────────────── */}
-        <div className="w-full lg:w-[50%] flex items-center justify-center p-5 sm:p-10">
-          <form
-            onSubmit={handleSubmit}
-            className="w-full max-w-[460px] space-y-5 rounded-2xl border border-white/10 bg-[#0b0c16]/80 backdrop-blur-xl p-6 sm:p-8 shadow-2xl"
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.5 }}
+            className="mt-5 max-w-md text-[15px] leading-relaxed text-gray-400"
           >
-            <div className="space-y-1.5">
-              <h2 className="text-2xl font-bold">Create your workspace</h2>
-              <p className="text-sm text-zinc-400">
-                Already on Cuetronix?{" "}
-                <Link to="/login" className="text-fuchsia-400 hover:text-fuchsia-300 font-semibold">
-                  Sign in
-                </Link>
-              </p>
-            </div>
+            Bookings, POS, staff, loyalty, tournaments — everything your gaming lounge,
+            club, or cafe needs. One workspace, your brand, your rules.
+          </motion.p>
 
-            {/* Workspace */}
-            <div className="space-y-2">
-              <Label htmlFor="organizationName" className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Workspace name
-              </Label>
-              <Input
-                id="organizationName"
-                required
-                autoFocus
-                placeholder="e.g. Pixel Arena Bangalore"
-                value={organizationName}
-                onChange={(e) => setOrganizationName(e.target.value)}
-                className="bg-[#05060c] border-white/10 text-zinc-100 h-11"
-              />
-            </div>
-
-            {/* Slug */}
-            <div className="space-y-2">
-              <Label htmlFor="slug" className="text-xs font-semibold uppercase tracking-wide text-zinc-400 flex items-center justify-between">
-                <span>Workspace URL</span>
-                <span className="text-[10px] text-zinc-500 normal-case tracking-normal">Your branded login address</span>
-              </Label>
-              <div className="flex items-center rounded-md border border-white/10 bg-[#05060c] overflow-hidden h-11">
-                <div className="px-3 text-xs text-zinc-500 border-r border-white/10 select-none">cuetronix.app/app/t/</div>
-                <input
-                  id="slug"
-                  required
-                  value={slug}
-                  onChange={(e) => {
-                    setSlug(slugify(e.target.value));
-                    setSlugTouched(true);
-                  }}
-                  placeholder="pixel-arena"
-                  className="flex-1 bg-transparent text-sm text-zinc-100 outline-none px-2 h-full"
-                />
-              </div>
-              {fieldError?.field === "slug" && (
-                <p className="text-xs text-rose-400">{fieldError.message}</p>
-              )}
-            </div>
-
-            {/* Username */}
-            <div className="space-y-2">
-              <Label htmlFor="username" className="text-xs font-semibold uppercase tracking-wide text-zinc-400 flex items-center gap-1.5">
-                <User className="h-3 w-3" />
-                Owner username
-              </Label>
-              <Input
-                id="username"
-                required
-                placeholder="anish_owner"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="bg-[#05060c] border-white/10 text-zinc-100 h-11 font-mono"
-              />
-              {fieldError?.field === "username" && (
-                <p className="text-xs text-rose-400">{fieldError.message}</p>
-              )}
-            </div>
-
-            {/* Email (required for receipts + password recovery) */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-zinc-400 flex items-center gap-1.5">
-                <Mail className="h-3 w-3" />
-                Contact email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                required
-                placeholder="owner@yourbusiness.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-[#05060c] border-white/10 text-zinc-100 h-11"
-              />
-              <p className="text-[10px] text-zinc-500">We'll send a verification link, billing receipts, and security alerts here.</p>
-            </div>
-
-            {/* Password */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-zinc-400 flex items-center gap-1.5">
-                <Lock className="h-3 w-3" />
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  required
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Use a strong, unique password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="bg-[#05060c] border-white/10 text-zinc-100 h-11 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-
-              {/* strength bar */}
-              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 ${
-                    strength < 50
-                      ? "bg-rose-500"
-                      : strength < 100
-                        ? "bg-amber-500"
-                        : "bg-emerald-500"
-                  }`}
-                  style={{ width: `${strength}%` }}
-                />
-              </div>
-              <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1">
-                {PASSWORD_RULES.map((rule) => {
-                  const ok = rule.test(password);
-                  return (
-                    <li
-                      key={rule.id}
-                      className={`flex items-center gap-1.5 ${ok ? "text-emerald-400" : "text-zinc-500"}`}
-                    >
-                      <CheckCircle2 className={`h-3 w-3 ${ok ? "opacity-100" : "opacity-40"}`} />
-                      {rule.label}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-
-            {/* Timezone */}
-            <div className="space-y-2">
-              <Label htmlFor="timezone" className="text-xs font-semibold uppercase tracking-wide text-zinc-400 flex items-center gap-1.5">
-                <Globe className="h-3 w-3" />
-                Timezone
-              </Label>
-              <select
-                id="timezone"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="w-full h-11 px-3 rounded-md bg-[#05060c] border border-white/10 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40"
+          <div className="mt-8 space-y-2.5">
+            {PERKS.map((perk, i) => (
+              <motion.div
+                key={perk}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.45 + i * 0.06, duration: 0.4 }}
+                className="flex items-center gap-3 text-sm text-zinc-300"
               >
-                {TIMEZONES.map((tz) => (
-                  <option key={tz} value={tz}>{tz}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Terms */}
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="terms"
-                checked={acceptedTerms}
-                onCheckedChange={(v) => setAcceptedTerms(Boolean(v))}
-                className="mt-1"
-              />
-              <Label htmlFor="terms" className="text-xs text-zinc-400 leading-relaxed font-normal cursor-pointer">
-                I agree to Cuetronix's{" "}
-                <Link to="/terms" className="text-fuchsia-400 hover:text-fuchsia-300">Terms of Service</Link>{" "}
-                and{" "}
-                <Link to="/privacy" className="text-fuchsia-400 hover:text-fuchsia-300">Privacy Policy</Link>.
-              </Label>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={!canSubmit}
-              className="w-full h-11 bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-400 hover:to-indigo-400 text-white font-semibold text-sm shadow-lg shadow-fuchsia-500/20"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Provisioning your workspace…
-                </>
-              ) : (
-                <>
-                  Create workspace
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </>
-              )}
-            </Button>
-
-            <p className="text-[11px] text-zinc-500 text-center flex items-center justify-center gap-1.5">
-              <ShieldCheck className="h-3 w-3" />
-              Encrypted at rest · PBKDF2 passwords · 2FA ready
-            </p>
-          </form>
-
-          {/* Google sign-up alternative */}
-          <div className="mt-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-px flex-1 bg-white/10" />
-              <span className="text-[11px] text-zinc-500 uppercase tracking-wide">Or</span>
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
-            <GoogleButton intent="signup" />
-            <p className="mt-3 text-[11px] text-zinc-500 text-center">
-              Already have a workspace?{" "}
-              <Link to="/login" className="text-fuchsia-400 hover:text-fuchsia-300">
-                Sign in
-              </Link>
-            </p>
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/15">
+                  <CheckCircle2 size={13} className="text-emerald-400" />
+                </div>
+                {perk}
+              </motion.div>
+            ))}
           </div>
-        </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.85, duration: 0.5 }}
+            className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500"
+          >
+            <Link to="/privacy" className="transition-colors hover:text-zinc-300">
+              Privacy
+            </Link>
+            <Link to="/terms" className="transition-colors hover:text-zinc-300">
+              Terms
+            </Link>
+            <Link to="/contact" className="transition-colors hover:text-zinc-300">
+              Contact
+            </Link>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]" />
+              All systems operational
+            </span>
+          </motion.div>
+        </motion.div>
+
+        {/* ── RIGHT: form ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
+          className="flex items-start justify-center lg:items-center"
+        >
+          <div className="relative w-full max-w-[480px]">
+            <div
+              className="absolute -inset-px rounded-[26px] opacity-60 blur-2xl"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(124,58,237,0.4), rgba(236,72,153,0.35), rgba(59,130,246,0.25))",
+              }}
+            />
+
+            <form
+              onSubmit={handleSubmit}
+              className="relative overflow-hidden rounded-[24px] border border-white/10 p-7 sm:p-8"
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(15,9,26,0.88) 0%, rgba(10,6,22,0.92) 100%)",
+                backdropFilter: "blur(32px) saturate(150%)",
+                WebkitBackdropFilter: "blur(32px) saturate(150%)",
+                boxShadow:
+                  "0 30px 80px -30px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.06)",
+              }}
+            >
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, rgba(167,139,250,0.6) 50%, transparent 100%)",
+                }}
+              />
+
+              {/* Mobile logo */}
+              <div className="mb-5 flex items-center gap-2.5 lg:hidden">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow-md shadow-violet-600/40">
+                  <Gamepad2 size={17} className="text-white" />
+                </div>
+                <span className="text-lg font-bold tracking-tight">
+                  Cue
+                  <span className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
+                    tronix
+                  </span>
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">
+                  Create your workspace
+                </h2>
+                <p className="text-sm text-zinc-400">
+                  Already on Cuetronix?{" "}
+                  <Link
+                    to="/login"
+                    className="font-semibold text-violet-300 transition-colors hover:text-fuchsia-300"
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              </div>
+
+              <div className="mt-6 space-y-5">
+                {/* Workspace name */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="organizationName"
+                    className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                  >
+                    Workspace name
+                  </Label>
+                  <Input
+                    id="organizationName"
+                    required
+                    autoFocus
+                    placeholder="e.g. Pixel Arena Bangalore"
+                    value={organizationName}
+                    onChange={(e) => setOrganizationName(e.target.value)}
+                    className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
+                  />
+                </div>
+
+                {/* Slug */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="slug"
+                    className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                  >
+                    <span>Workspace URL</span>
+                    <span className="text-[10px] normal-case tracking-normal text-zinc-500">
+                      Your branded login address
+                    </span>
+                  </Label>
+                  <div className="flex h-11 items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] focus-within:border-fuchsia-300/40">
+                    <div className="select-none border-r border-white/10 px-3 text-xs text-zinc-500">
+                      cuetronix.app/app/t/
+                    </div>
+                    <input
+                      id="slug"
+                      required
+                      value={slug}
+                      onChange={(e) => {
+                        setSlug(slugify(e.target.value));
+                        setSlugTouched(true);
+                      }}
+                      placeholder="pixel-arena"
+                      className="h-full flex-1 bg-transparent px-3 text-sm text-zinc-100 outline-none"
+                    />
+                  </div>
+                  {fieldError?.field === "slug" && (
+                    <p className="text-xs text-rose-400">{fieldError.message}</p>
+                  )}
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  {/* Username */}
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="username"
+                      className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                    >
+                      <User className="h-3 w-3" />
+                      Owner username
+                    </Label>
+                    <Input
+                      id="username"
+                      required
+                      placeholder="anish_owner"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] font-mono text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
+                    />
+                    {fieldError?.field === "username" && (
+                      <p className="text-xs text-rose-400">{fieldError.message}</p>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="email"
+                      className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                    >
+                      <Mail className="h-3 w-3" />
+                      Contact email
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      required
+                      placeholder="owner@yourbusiness.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="password"
+                    className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                  >
+                    <Lock className="h-3 w-3" />
+                    Password
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      required
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Use a strong, unique password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] pr-11 text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-zinc-200"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+
+                  {/* Strength bar */}
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                    <motion.div
+                      layout
+                      className={`h-full transition-all duration-300 ${
+                        strength < 50
+                          ? "bg-rose-500"
+                          : strength < 100
+                          ? "bg-amber-500"
+                          : "bg-gradient-to-r from-emerald-500 to-teal-400"
+                      }`}
+                      style={{ width: `${strength}%` }}
+                    />
+                  </div>
+                  <ul className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 text-[11px]">
+                    {PASSWORD_RULES.map((rule) => {
+                      const ok = rule.test(password);
+                      return (
+                        <li
+                          key={rule.id}
+                          className={`flex items-center gap-1.5 transition-colors ${
+                            ok ? "text-emerald-400" : "text-zinc-500"
+                          }`}
+                        >
+                          <CheckCircle2
+                            className={`h-3 w-3 transition-opacity ${
+                              ok ? "opacity-100" : "opacity-40"
+                            }`}
+                          />
+                          {rule.label}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                {/* Timezone */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="timezone"
+                    className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                  >
+                    <Globe className="h-3 w-3" />
+                    Timezone
+                  </Label>
+                  <select
+                    id="timezone"
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-zinc-100 focus:border-fuchsia-300/40 focus:outline-none focus:ring-2 focus:ring-fuchsia-500/25"
+                  >
+                    {TIMEZONES.map((tz) => (
+                      <option key={tz} value={tz} className="bg-[#0a0414]">
+                        {tz}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Terms */}
+                <div className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                  <Checkbox
+                    id="terms"
+                    checked={acceptedTerms}
+                    onCheckedChange={(v) => setAcceptedTerms(Boolean(v))}
+                    className="mt-0.5"
+                  />
+                  <Label
+                    htmlFor="terms"
+                    className="cursor-pointer text-xs font-normal leading-relaxed text-zinc-400"
+                  >
+                    I agree to Cuetronix's{" "}
+                    <Link to="/terms" className="text-fuchsia-400 hover:text-fuchsia-300">
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link to="/privacy" className="text-fuchsia-400 hover:text-fuchsia-300">
+                      Privacy Policy
+                    </Link>
+                    .
+                  </Label>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="group h-11 w-full rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 text-sm font-semibold text-white shadow-lg shadow-fuchsia-600/30 transition-all hover:scale-[1.01] hover:opacity-95 disabled:opacity-60"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Provisioning your workspace…
+                    </>
+                  ) : (
+                    <>
+                      Create workspace
+                      <ArrowRight
+                        size={14}
+                        className="ml-2 transition-transform group-hover:translate-x-0.5"
+                      />
+                    </>
+                  )}
+                </Button>
+
+                <p className="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
+                  <ShieldCheck className="h-3 w-3" />
+                  Encrypted at rest · PBKDF2 passwords · 2FA ready
+                </p>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-white/10" />
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                    Or
+                  </span>
+                  <div className="h-px flex-1 bg-white/10" />
+                </div>
+
+                <GoogleButton intent="signup" />
+              </div>
+            </form>
+          </div>
+        </motion.div>
       </div>
+
+      <style>{`
+        @keyframes hueShift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+      `}</style>
     </div>
   );
 }

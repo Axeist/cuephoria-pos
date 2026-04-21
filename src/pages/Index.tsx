@@ -9,8 +9,10 @@ import WalkthroughSection from "@/components/landing/WalkthroughSection";
 import FeatureDepthSection from "@/components/landing/FeatureDepthSection";
 import TrustSection from "@/components/landing/TrustSection";
 import PricingSection from "@/components/landing/PricingSection";
+import SolutionsSection from "@/components/landing/SolutionsSection";
 import FinalCtaSection from "@/components/landing/FinalCtaSection";
 import Footer from "@/components/landing/Footer";
+import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 
 const Index: React.FC = () => {
   const navigate = useNavigate();
@@ -21,35 +23,51 @@ const Index: React.FC = () => {
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen bg-[#07030f] text-white overflow-x-hidden antialiased selection:bg-violet-500/40 selection:text-white">
-      {/* BACKGROUND LAYERS */}
-      <div
-        className="pointer-events-none fixed inset-0 z-0 opacity-[0.025]"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-          backgroundSize: "220px",
-        }}
-      />
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute -top-40 left-1/4 w-[720px] h-[620px] bg-violet-700/20 rounded-full blur-[180px]" />
-        <div className="absolute top-[40%] -right-20 w-[560px] h-[480px] bg-fuchsia-600/10 rounded-full blur-[160px]" />
-        <div className="absolute bottom-0 left-0 w-[420px] h-[420px] bg-indigo-600/12 rounded-full blur-[140px]" />
+    <div className="relative min-h-screen bg-[#07030f] text-white antialiased selection:bg-violet-500/40 selection:text-white">
+      <SiteAmbientBackground parallax />
+
+      <div className="relative z-10">
+        <Header />
+
+        <main>
+          <HeroSection />
+
+          {/*
+           * Narrative order:
+           *   Hero      → hook
+           *   Problem   → pain we solve
+           *   Solutions → audience / venue types ("is this for me?")
+           *   Walkthrough → how the platform flows
+           *   FeatureDepth → role-based deep value
+           *   Trust     → social proof + security
+           *   Pricing   → cost
+           *   FinalCTA  → book a call / trial
+           */}
+          <div className="relative">
+            <ProblemSolutionSection />
+          </div>
+          <div className="relative">
+            <SolutionsSection />
+          </div>
+          <div className="relative">
+            <WalkthroughSection />
+          </div>
+          <div className="relative">
+            <FeatureDepthSection />
+          </div>
+          <div className="relative">
+            <TrustSection />
+          </div>
+          <div className="relative">
+            <PricingSection />
+          </div>
+          <div className="relative">
+            <FinalCtaSection />
+          </div>
+        </main>
+
+        <Footer />
       </div>
-
-      <Header />
-
-      <main>
-        <HeroSection />
-        <ProblemSolutionSection />
-        <WalkthroughSection />
-        <FeatureDepthSection />
-        <TrustSection />
-        <PricingSection />
-        <FinalCtaSection />
-      </main>
-
-      <Footer />
     </div>
   );
 };

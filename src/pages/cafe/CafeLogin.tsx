@@ -1,24 +1,59 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCafeAuth } from '@/context/CafeAuthContext';
-import AppLoadingOverlay from '@/components/loading/AppLoadingOverlay';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
-  User, Lock, ShoppingCart, UtensilsCrossed,
-  BarChart2, Shield, Loader2, Eye, EyeOff, Users, TrendingUp,
-  CreditCard, ClipboardList, ExternalLink,
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+  ArrowLeft,
+  ArrowRight,
+  BarChart2,
+  ClipboardList,
+  CreditCard,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Shield,
+  ShoppingCart,
+  Sparkles,
+  TrendingUp,
+  User,
+  Users,
+  UtensilsCrossed,
+} from "lucide-react";
+
+import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
+import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useCafeAuth } from "@/context/CafeAuthContext";
+
+const FEATURE_PILLS = [
+  { icon: ShoppingCart, label: "Smart POS" },
+  { icon: ClipboardList, label: "Orders & KDS" },
+  { icon: UtensilsCrossed, label: "Menu & stock" },
+  { icon: TrendingUp, label: "Revenue analytics" },
+  { icon: Users, label: "Customer hub" },
+  { icon: CreditCard, label: "Flexible payments" },
+];
+
 const CafeLogin: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading: authLoading } = useCafeAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  /** Visual hint only — real role comes from the server after login. */
-  const [loginKind, setLoginKind] = useState<'staff' | 'admin'>('staff');
+  const [loginKind, setLoginKind] = useState<"staff" | "admin">("staff");
+
+  const roles: {
+    value: "staff" | "admin";
+    label: string;
+    icon: React.ElementType;
+  }[] = [
+    { value: "staff", label: "Staff", icon: ShoppingCart },
+    { value: "admin", label: "Admin", icon: Shield },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,247 +62,406 @@ const CafeLogin: React.FC = () => {
     try {
       const loggedInUser = await login(username.trim(), password);
       if (loggedInUser) {
-        if (loggedInUser.role === 'cafe_admin') {
-          navigate('/cafe/dashboard');
-        } else {
-          navigate('/cafe/pos');
-        }
+        if (loggedInUser.role === "cafe_admin") navigate("/cafe/dashboard");
+        else navigate("/cafe/pos");
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const roles: { value: 'staff' | 'admin'; label: string; icon: React.ElementType; desc: string }[] = [
-    { value: 'staff', label: 'Staff', icon: ShoppingCart, desc: 'POS, menu & orders' },
-    { value: 'admin', label: 'Admin', icon: Shield, desc: 'Dashboard & reports' },
-  ];
-
   return (
-    <div className="min-h-screen flex bg-[#050508] overflow-hidden relative">
+    <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-white">
       <AppLoadingOverlay
         visible={isSubmitting}
         variant="cafe"
         title="Signing you in"
         subtitle="Validating credentials and opening your workspace…"
       />
-      {/* ── LEFT BRANDING PANEL ── */}
-      <div className="hidden lg:flex lg:w-[58%] relative flex-col justify-between p-14 overflow-hidden">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #0a0515 0%, #0f0520 50%, #050508 100%)' }} />
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 15% 55%, rgba(249,115,22,0.18) 0%, transparent 60%)' }} />
-        <div className="absolute bottom-0 right-0 w-[480px] h-[480px] rounded-full blur-[100px]" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.10), transparent)' }} />
-        <div className="absolute inset-0 opacity-[0.035]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
 
-        {/* Logos */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-4">
+      <AuthSceneBackground />
+
+      {/* Cafe-tinted wash — amber/orange warmth over the violet ambient */}
+      <div
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            "radial-gradient(900px 650px at 12% 55%, rgba(249,115,22,0.18), transparent 60%)," +
+            "radial-gradient(700px 500px at 88% 30%, rgba(236,72,153,0.10), transparent 65%)",
+        }}
+      />
+
+      {/* ── Top bar ── */}
+      <div className="relative z-20 flex items-center justify-between px-5 py-5 sm:px-8">
+        <button
+          onClick={() => navigate("/")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-gray-300 backdrop-blur-md transition-colors hover:bg-white/[0.08] hover:text-white"
+        >
+          <ArrowLeft size={12} /> Back to site
+        </button>
+
+        <div className="flex items-center gap-2">
+          <Link
+            to="/cafe/order"
+            className="hidden items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-gray-300 backdrop-blur-md transition-colors hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+          >
+            <UtensilsCrossed size={12} /> Self-order menu
+            <ExternalLink size={10} />
+          </Link>
+          <button
+            onClick={() => navigate("/login")}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 via-amber-500 to-pink-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-orange-600/30 transition-all hover:scale-[1.02]"
+          >
+            Venue operator <ArrowRight size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Main grid ── */}
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl gap-10 px-5 pb-10 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pb-16">
+        {/* ── LEFT: cafe pitch ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="hidden flex-col justify-center lg:flex"
+        >
+          {/* Collab logos */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05, duration: 0.5 }}
+            className="mb-6 flex items-center gap-4"
+          >
             <div className="relative">
-              <div className="absolute inset-0 rounded-full blur-lg" style={{ background: 'rgba(249,115,22,0.3)' }} />
-              <div className="relative h-14 w-14 rounded-2xl bg-[#f5f0e0] flex items-center justify-center p-1.5 ring-2 ring-orange-500/20">
-                <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-xl" />
+              <div
+                className="absolute inset-0 rounded-2xl blur-lg"
+                style={{ background: "rgba(249,115,22,0.35)" }}
+              />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5f0e0] p-1.5 ring-2 ring-orange-500/30">
+                <img
+                  src="/choco-loca-logo.png"
+                  alt="Choco Loca"
+                  className="h-full w-full rounded-xl object-contain"
+                />
               </div>
             </div>
-            <span className="text-gray-600 text-lg font-heading">&times;</span>
+            <span className="text-lg font-heading text-gray-500">&times;</span>
             <div className="relative">
-              <div className="absolute inset-0 rounded-full blur-lg" style={{ background: 'rgba(139,92,246,0.3)' }} />
-              <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-1 ring-2 ring-purple-500/20">
-                <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-full w-full object-contain rounded-xl" />
+              <div
+                className="absolute inset-0 rounded-2xl blur-lg"
+                style={{ background: "rgba(139,92,246,0.35)" }}
+              />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 p-1 ring-2 ring-violet-500/30">
+                <img
+                  src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
+                  alt="Cuephoria"
+                  className="h-full w-full rounded-xl object-contain"
+                />
               </div>
             </div>
             <div className="ml-1">
-              <span className="text-white font-extrabold text-xl tracking-tight block leading-none">Choco Loca</span>
-              <span className="text-orange-400 text-[10px] tracking-[0.18em] uppercase font-medium">Cakes & Cafe</span>
+              <span className="block text-lg font-extrabold leading-none tracking-tight text-white">
+                Choco Loca
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-orange-300">
+                Cakes &amp; Cafe · on Cuetronix
+              </span>
             </div>
-          </div>
-        </div>
+          </motion.div>
 
-        {/* Main copy */}
-        <div className="relative z-10 max-w-[460px]">
-          <div className="inline-flex items-center gap-2 mb-8 px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-wide"
-            style={{ background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.2)', color: '#fb923c' }}>
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            Live · POS · orders & menu
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-orange-300/25 bg-orange-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-orange-200 backdrop-blur-md"
+          >
+            <Sparkles size={11} />
+            Cafe operator console
+          </motion.div>
 
-          <h1 className="text-5xl font-extrabold text-white leading-[1.08] tracking-[-0.02em] mb-6">
-            Your cafe,<br />
-            fully managed,<br />
-            <span className="bg-gradient-to-r from-orange-400 via-amber-400 to-purple-400 bg-clip-text text-transparent">
+          <motion.h1
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.55 }}
+            className="text-5xl font-extrabold leading-[1.05] tracking-tight xl:text-6xl"
+          >
+            Your cafe,
+            <br />
+            fully managed,{" "}
+            <span
+              className="bg-gradient-to-r from-orange-300 via-amber-300 to-fuchsia-300 bg-clip-text text-transparent"
+              style={{
+                backgroundSize: "200%",
+                animation: "hueShift 8s ease-in-out infinite",
+              }}
+            >
               real-time.
             </span>
-          </h1>
+          </motion.h1>
 
-          <p className="text-gray-400 text-[15px] leading-relaxed mb-10">
-            Complete cafe POS with order tracking, menu management, revenue split tracking, and customer analytics — powered by Cuephoria.
-          </p>
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="mt-5 max-w-md text-[15px] leading-relaxed text-gray-400"
+          >
+            A cafe POS with order tracking, menu management, revenue split tracking and
+            customer analytics — engineered by{" "}
+            <span className="font-semibold text-white">Cuephoria Tech</span> for the
+            Choco Loca × Cuephoria collaboration.
+          </motion.p>
 
-          <div className="grid grid-cols-2 gap-2.5">
-            {[
-              { icon: ShoppingCart, label: 'Smart POS System', color: 'text-orange-400' },
-              { icon: ClipboardList, label: 'Orders & fulfilment', color: 'text-purple-400' },
-              { icon: UtensilsCrossed, label: 'Menu & Inventory', color: 'text-blue-400' },
-              { icon: TrendingUp, label: 'Revenue Analytics', color: 'text-green-400' },
-              { icon: Users, label: 'Customer Hub', color: 'text-cyan-400' },
-              { icon: CreditCard, label: 'Flexible Payments', color: 'text-pink-400' },
-            ].map(({ icon: FeatureIcon, label, color }) => (
-              <div key={label} className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <FeatureIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                <span className="text-gray-300 text-[13px] font-medium">{label}</span>
-              </div>
+          <div className="mt-8 grid max-w-md grid-cols-2 gap-2.5">
+            {FEATURE_PILLS.map(({ icon: Icon, label }, i) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + i * 0.06, duration: 0.4 }}
+                className="group flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 backdrop-blur-md transition-colors hover:border-orange-300/30 hover:bg-white/[0.05]"
+              >
+                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500/20 to-fuchsia-500/20 text-orange-200">
+                  <Icon size={13} />
+                </div>
+                <span className="text-[13px] font-medium text-gray-300">{label}</span>
+              </motion.div>
             ))}
           </div>
-        </div>
 
-        {/* Footer trust row */}
-        <div className="relative z-10 flex flex-wrap items-center gap-5">
-          {[
-            { icon: Shield, text: 'Session encrypted' },
-            { icon: Lock, text: 'Auto-logout on idle' },
-            { icon: BarChart2, text: '70/30 revenue split' },
-          ].map(({ icon: Icon, text }) => (
-            <div key={text} className="flex items-center gap-1.5">
-              <Icon size={12} className="text-orange-500/50" />
-              <span className="text-gray-600 text-xs">{text}</span>
-            </div>
-          ))}
-          <div className="ml-auto flex items-center gap-2">
-            <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-4 w-4 rounded object-contain opacity-50" />
-            <span className="text-gray-700 text-xs">Cuephoria Technologies</span>
-          </div>
-        </div>
-      </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+            className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Shield size={12} className="text-orange-300" />
+              Session encrypted
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Lock size={12} className="text-amber-300" />
+              Auto-logout on idle
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <BarChart2 size={12} className="text-fuchsia-300" />
+              70 / 30 revenue split
+            </span>
+          </motion.div>
+        </motion.div>
 
-      {/* ── RIGHT FORM PANEL ── */}
-      <div className="flex-1 relative flex flex-col justify-center px-6 sm:px-10 lg:px-12 xl:px-16 py-12 overflow-auto"
-        style={{ background: 'rgba(8,8,14,0.85)', backdropFilter: 'blur(24px)' }}>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(249,115,22,0.06), transparent)' }} />
+        {/* ── RIGHT: login card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
+          className="flex items-center justify-center"
+        >
+          <div className="relative w-full max-w-md">
+            {/* Glow halo behind card */}
+            <div
+              className="absolute -inset-px rounded-[26px] opacity-60 blur-2xl"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(249,115,22,0.45), rgba(236,72,153,0.35), rgba(139,92,246,0.30))",
+              }}
+            />
 
-        <div className="w-full max-w-[380px] mx-auto relative z-10">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex flex-col items-center mb-10">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-16 w-16 rounded-2xl bg-[#f5f0e0] flex items-center justify-center p-1.5">
-                <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-full w-full object-contain rounded-xl" />
-              </div>
-              <span className="text-gray-600 font-heading">&times;</span>
-              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-1 ring-1 ring-purple-500/20">
-                <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-full w-full object-contain rounded-xl" />
-              </div>
-            </div>
-            <h1 className="text-2xl font-extrabold text-white font-heading">Choco Loca</h1>
-            <p className="text-orange-400 text-[10px] tracking-[0.2em] uppercase font-medium">Cakes & Cafe · Cuephoria</p>
-          </div>
-
-          {/* Heading */}
-          <div className="mb-8">
-            <h2 className="text-[28px] font-extrabold text-white leading-tight tracking-tight mb-1.5">
-              Welcome back
-            </h2>
-            <p className="text-gray-500 text-sm">Sign in to access the cafe management system</p>
-          </div>
-
-          {/* Role toggle */}
-          <div className="flex p-1 rounded-xl mb-7"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            {roles.map((r) => {
-              const RoleIcon = r.icon;
-              return (
-              <button key={r.value} type="button" onClick={() => setLoginKind(r.value)}
-                className={`flex-1 flex items-center justify-center gap-2 text-[13px] py-2.5 rounded-lg font-semibold transition-all duration-200 ${
-                  loginKind === r.value ? 'text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
-                }`}
-                style={loginKind === r.value ? {
-                  background: 'linear-gradient(135deg, #f97316, #9333ea)',
-                  boxShadow: '0 4px 16px rgba(249,115,22,0.3)'
-                } : {}}>
-                <RoleIcon size={14} />
-                {r.label}
-              </button>
-              );
-            })}
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-[13px] font-semibold text-gray-400 mb-1.5">Username</label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
-                <Input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your username"
-                  className="pl-10 h-12 text-sm rounded-xl placeholder:text-gray-700"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'white' }}
-                  autoComplete="username" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[13px] font-semibold text-gray-400 mb-1.5">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
-                <Input type={showPassword ? 'text' : 'password'} value={password}
-                  onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••"
-                  className="pl-10 pr-11 h-12 text-sm rounded-xl placeholder:text-gray-700"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'white' }}
-                  autoComplete="current-password" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition-colors" tabIndex={-1}>
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            <Button type="submit" disabled={isSubmitting || authLoading || !username.trim() || !password}
-              className="w-full h-12 font-bold text-sm rounded-xl text-white transition-all duration-200 hover:opacity-90 hover:scale-[1.01] mt-2"
-              style={{ background: 'linear-gradient(135deg, #f97316, #9333ea)', boxShadow: '0 4px 20px rgba(249,115,22,0.3)' }}>
-              {isSubmitting ? (
-                <span className="flex items-center gap-2.5">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Verifying credentials…
-                </span>
-              ) : (
-                <span className="flex items-center gap-2.5">
-                  {loginKind === 'admin' ? <Shield size={15} /> : <ShoppingCart size={15} />}
-                  Sign in as {roles.find(r => r.value === loginKind)?.label}
-                </span>
-              )}
-            </Button>
-          </form>
-
-          {/* Security strip */}
-          <div className="mt-8 pt-6 flex flex-col gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="flex items-center gap-2 justify-center text-[11px] text-gray-700">
-              <Shield size={11} className="text-orange-700" />
-              <span>Authorised personnel only</span>
-              <span className="text-gray-800">&middot;</span>
-              <Lock size={11} className="text-orange-700" />
-              <span>Activity is logged</span>
-            </div>
-            <div className="flex items-center justify-center gap-4">
-              {['Cafe POS', 'Orders', '70/30 Split'].map((badge) => (
-                <span key={badge} className="text-[10px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.12)', color: '#c2410c' }}>
-                  {badge}
-                </span>
-              ))}
-            </div>
-            <Link
-              to="/cafe/order"
-              className="inline-flex items-center gap-1.5 text-[11px] text-orange-400/80 hover:text-orange-300 transition-colors font-quicksand"
+            <div
+              className="relative overflow-hidden rounded-[24px] border border-white/10 p-7 sm:p-9"
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(22,14,10,0.85) 0%, rgba(14,8,18,0.92) 100%)",
+                backdropFilter: "blur(32px) saturate(150%)",
+                WebkitBackdropFilter: "blur(32px) saturate(150%)",
+                boxShadow:
+                  "0 30px 80px -30px rgba(249,115,22,0.40), inset 0 1px 0 rgba(255,255,255,0.06)",
+              }}
             >
-              <UtensilsCrossed size={11} /> Customer Self-Order Menu <ExternalLink size={9} />
-            </Link>
-            <div className="flex items-center justify-center gap-3 mt-1 opacity-50">
-              <img src="/choco-loca-logo.png" alt="Choco Loca" className="h-5 w-5 rounded object-contain bg-[#f5f0e0] p-0.5" />
-              <span className="text-[10px] text-gray-600">&times;</span>
-              <img src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png" alt="Cuephoria" className="h-5 w-5 rounded object-contain" />
-              <span className="text-[10px] text-gray-600">A Collaboration</span>
+              {/* Top accent line */}
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, rgba(251,146,60,0.65) 50%, transparent 100%)",
+                }}
+              />
+
+              {/* Mobile brand + title */}
+              <div className="mb-7">
+                <div className="mb-5 flex items-center gap-2.5 lg:hidden">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#f5f0e0] p-1 ring-1 ring-orange-500/30">
+                    <img
+                      src="/choco-loca-logo.png"
+                      alt="Choco Loca"
+                      className="h-full w-full rounded-md object-contain"
+                    />
+                  </div>
+                  <span className="text-sm font-heading text-gray-500">&times;</span>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-gray-900 to-gray-800 p-1 ring-1 ring-violet-500/30">
+                    <img
+                      src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
+                      alt="Cuephoria"
+                      className="h-full w-full rounded-md object-contain"
+                    />
+                  </div>
+                </div>
+
+                <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">
+                  Welcome back
+                </h2>
+                <p className="mt-1.5 text-sm text-gray-400">
+                  Sign in to open the cafe management workspace.
+                </p>
+              </div>
+
+              {/* Role toggle — sliding pill */}
+              <div className="mb-5 flex gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 backdrop-blur-md">
+                {roles.map((r) => {
+                  const RoleIcon = r.icon;
+                  return (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setLoginKind(r.value)}
+                      className={`relative flex-1 rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+                        loginKind === r.value
+                          ? "text-white"
+                          : "text-gray-400 hover:text-gray-200"
+                      }`}
+                    >
+                      {loginKind === r.value && (
+                        <motion.span
+                          layoutId="cafe-role-pill"
+                          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                          className="absolute inset-0 rounded-lg bg-gradient-to-r from-orange-500 via-amber-500 to-fuchsia-500 shadow-md shadow-orange-600/40"
+                        />
+                      )}
+                      <span className="relative z-10 inline-flex items-center justify-center gap-1.5">
+                        <RoleIcon size={13} />
+                        {r.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <User
+                      size={15}
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"
+                    />
+                    <Input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Your cafe username"
+                      autoComplete="username"
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] pl-10 text-sm text-white placeholder:text-gray-600 focus-visible:border-orange-300/40 focus-visible:ring-orange-500/25"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+                      Password
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <Lock
+                      size={14}
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"
+                    />
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      autoComplete="current-password"
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] pl-10 pr-11 text-sm text-white placeholder:text-gray-600 focus-visible:border-orange-300/40 focus-visible:ring-orange-500/25"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-200"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || authLoading || !username.trim() || !password}
+                  className="group mt-2 h-11 w-full rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-fuchsia-500 text-sm font-semibold text-white shadow-lg shadow-orange-600/30 transition-all hover:scale-[1.01] hover:opacity-95 disabled:opacity-60"
+                >
+                  {isSubmitting ? (
+                    <span className="inline-flex items-center gap-2.5">
+                      <Loader2 size={15} className="animate-spin" />
+                      Verifying credentials…
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      {loginKind === "admin" ? <Shield size={15} /> : <ShoppingCart size={15} />}
+                      Sign in as {loginKind === "admin" ? "Admin" : "Staff"}
+                      <ArrowRight
+                        size={14}
+                        className="transition-transform group-hover:translate-x-0.5"
+                      />
+                    </span>
+                  )}
+                </Button>
+              </form>
+
+              {/* Footer strip */}
+              <div className="mt-6 border-t border-white/[0.06] pt-5">
+                <div className="flex items-center justify-center gap-2 text-[11px] text-gray-500">
+                  <Shield size={11} className="text-orange-300/80" />
+                  <span>Authorised personnel only</span>
+                  <span className="text-gray-700">·</span>
+                  <Lock size={11} className="text-amber-300/80" />
+                  <span>Activity is logged</span>
+                </div>
+
+                <div className="mt-3 flex items-center justify-center gap-2.5">
+                  {["Cafe POS", "Orders", "70 / 30 split"].map((badge) => (
+                    <span
+                      key={badge}
+                      className="rounded-full border border-orange-300/15 bg-orange-500/[0.08] px-2.5 py-0.5 text-[10px] font-medium text-orange-200"
+                    >
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+
+                <Link
+                  to="/cafe/order"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] py-2 text-[11px] font-medium text-orange-200/80 transition-colors hover:border-orange-300/30 hover:bg-white/[0.06] hover:text-orange-200"
+                >
+                  <UtensilsCrossed size={11} /> Customer self-order menu
+                  <ExternalLink size={10} />
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
+
+      <style>{`
+        @keyframes hueShift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+      `}</style>
     </div>
   );
 };

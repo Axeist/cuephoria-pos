@@ -1,75 +1,169 @@
+import { lazy, Suspense, useRef, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, Sparkles, Gamepad2, Circle } from "lucide-react";
+import { ArrowRight, Play, Sparkles, Gamepad2, Circle, ShieldCheck } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
+const HeroScene3D = lazy(() => import("./HeroScene3D"));
+
+// ─── Static data ──────────────────────────────────────────────────────────────
 const HERO_METRICS = [
   { value: "99.98%", label: "Uptime" },
   { value: "<100ms", label: "P95 API latency" },
-  { value: "50k+", label: "Bookings processed" },
+  { value: "50k+",   label: "Bookings processed" },
   { value: "14 days", label: "Free trial" },
 ];
 
-const HERO_CAPABILITIES = [
-  "Bookings, walk-ins and waitlists",
-  "Station timer plus cafe POS in one bill",
-  "PS5, PC, VR, pool and snooker ready",
-  "Owner analytics, loyalty and memberships",
-];
+// ─── 3-D tilt card ────────────────────────────────────────────────────────────
+function TiltCard({ reduceMotion, children, className = "" }: {
+  reduceMotion: boolean | null;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const target = useRef({ x: 0, y: 0 });
+  const current = useRef({ x: 0, y: 0 });
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
-const HERO_PROOF = [
-  {
-    title: "Operator-built",
-    detail: "Shaped on live Cuephoria venue ops, not generic retail templates.",
-  },
-  {
-    title: "Secure by design",
-    detail: "Tenant isolation, PBKDF2 auth, TOTP 2FA and auditable admin flows.",
-  },
-  {
-    title: "White-glove launch",
-    detail: "Trial, migrate menu and stations, then book a guided setup call.",
-  },
-];
+  useEffect(() => {
+    if (reduceMotion) return;
 
-const HeroSection: React.FC = () => {
-  const navigate = useNavigate();
-  const reduceMotion = useReducedMotion();
+    const el = containerRef.current;
+    if (!el) return;
 
-  const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+    const onMove = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      target.current.x = (e.clientX - r.left) / r.width  - 0.5;
+      target.current.y = (e.clientY - r.top)  / r.height - 0.5;
+    };
+    const onLeave = () => { target.current.x = 0; target.current.y = 0; };
+
+    const loop = () => {
+      current.current.x += (target.current.x - current.current.x) * 0.08;
+      current.current.y += (target.current.y - current.current.y) * 0.08;
+      setTilt({ x: current.current.x, y: current.current.y });
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    el.addEventListener("mousemove", onMove);
+    el.addEventListener("mouseleave", onLeave);
+    rafRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      el.removeEventListener("mousemove", onMove);
+      el.removeEventListener("mouseleave", onLeave);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [reduceMotion]);
+
+  const transform = reduceMotion
+    ? undefined
+    : `perspective(1100px) rotateY(${tilt.x * 14}deg) rotateX(${-tilt.y * 12}deg) translateZ(10px)`;
 
   return (
-    <section className="relative overflow-hidden min-h-[100svh] flex items-center pt-20 pb-16">
+    <div ref={containerRef} className={className} style={{ transform, transformStyle: "preserve-3d", transition: "transform 0.05s linear", willChange: "transform" }}>
+      {children}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+const HeroSection: React.FC = () => {
+  const navigate     = useNavigate();
+  const reduceMotion = useReducedMotion();
+  const isMobile     = useIsMobile();
+
+  const scrollTo = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  return (
+    <section
+      id="hero"
+      aria-labelledby="hero-heading"
+      className="relative overflow-hidden min-h-[100svh] flex items-center pt-28 sm:pt-32 md:pt-36 pb-16"
+    >
+
+      {/* ── 3-D Background ── */}
+      <div className="absolute inset-0 z-0">
+        <Suspense fallback={<div className="absolute inset-0 bg-[#07030f]" />}>
+          <HeroScene3D mobile={isMobile} />
+        </Suspense>
+      </div>
+
+      {/* ── Readability scrim: darken the left column where the copy sits ── */}
+      <div
+        className="absolute inset-0 z-[1] pointer-events-none"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(7,3,15,0.88) 0%, rgba(7,3,15,0.55) 38%, rgba(7,3,15,0.15) 62%, transparent 85%)",
+        }}
+      />
+      {/* Soft radial vignette for edges */}
+      <div
+        className="absolute inset-0 z-[1] pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse 90% 100% at 50% 50%, transparent 45%, rgba(7,3,15,0.55) 100%)",
+        }}
+      />
+
+      {/* ── Content ── */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-5 sm:px-8">
         <div className="grid grid-cols-12 gap-x-4 md:gap-x-6 items-center">
-          
-          {/* Left Column: Typography (7 cols) */}
+
+          {/* Left — copy */}
           <div className="col-span-12 lg:col-span-7 z-20">
+
+            {/* Badge row — "built by Cuephoria Tech" + social proof */}
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.05 }}
-              className="inline-flex items-center gap-2 mb-6 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide"
-              style={{
-                background: "rgba(167,139,250,0.10)",
-                border: "1px solid rgba(167,139,250,0.28)",
-                color: "#ddd6fe",
-                backdropFilter: "blur(8px)",
-              }}
+              className="flex flex-wrap items-center gap-2 mb-6"
             >
-              <Sparkles size={12} className="text-fuchsia-300" />
-              Now in public preview · Powered by Cuephoria
+              <a
+                href="https://cuephoriatech.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-colors hover:text-white"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(167,139,250,0.18) 0%, rgba(236,72,153,0.14) 100%)",
+                  border: "1px solid rgba(167,139,250,0.35)",
+                  color: "#ede9fe",
+                  backdropFilter: "blur(8px)",
+                }}
+                aria-label="A Cuephoria Tech product"
+              >
+                <Sparkles size={12} className="text-fuchsia-300" />
+                A <span className="text-white">Cuephoria&nbsp;Tech</span> product
+              </a>
+
+              <span
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium tracking-wide text-emerald-100/90"
+                style={{
+                  background: "rgba(16,185,129,0.10)",
+                  border: "1px solid rgba(16,185,129,0.28)",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                <ShieldCheck size={11} className="text-emerald-300" />
+                Battle-tested at Cuephoria Gaming Lounge
+              </span>
             </motion.div>
 
             <motion.h1
+              id="hero-heading"
               initial={reduceMotion ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.12 }}
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-[80px] font-extrabold leading-[1.02] tracking-[-0.03em] mb-6"
+              className="text-5xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold leading-[1.02] tracking-[-0.03em] mb-6 text-white"
             >
-              Run your lounge like a{" "}
+              Snooker. 8-Ball. Esports.
+              <br className="hidden sm:block" />
               <span
                 className="bg-clip-text text-transparent"
                 style={{
@@ -79,42 +173,61 @@ const HeroSection: React.FC = () => {
                   animation: reduceMotion ? undefined : "hueShift 6s ease-in-out infinite",
                 }}
               >
-                tech company
+                One billing OS to run them all.
               </span>
-              .
             </motion.h1>
 
             <motion.p
               initial={reduceMotion ? false : { opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2 }}
-              className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-8 max-w-2xl"
+              className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-6 max-w-xl"
             >
-              The premium operating system for modern gaming lounges, esports cafes, and billiards halls. 
-              Online bookings, POS, loyalty, and multi-branch reports — all in one handcrafted platform.
+              Cuetronix is the <span className="text-white font-semibold">snooker, 8-ball &amp; gaming centre billing software</span> built for modern venues — tables, consoles, VR, cafe,
+              bookings, loyalty and multi-branch reports in one operating system.
+              Engineered by <a
+                href="https://cuephoriatech.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-violet-200 underline-offset-4 hover:underline"
+              >Cuephoria Tech</a> and proven live at{" "}
+              <a
+                href="https://cuephoria.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-fuchsia-200 underline-offset-4 hover:underline"
+              >Cuephoria Gaming Lounge</a>.
             </motion.p>
 
-            <motion.div
+            {/* Keyword pills — search-intent optimised */}
+            <motion.ul
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.24 }}
-              className="mb-10 flex flex-wrap gap-3"
+              className="flex flex-wrap gap-2 mb-9"
+              aria-label="Software categories"
             >
-              {HERO_CAPABILITIES.map((capability) => (
-                <span
-                  key={capability}
-                  className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-gray-200 backdrop-blur-md"
+              {[
+                "Snooker billing software",
+                "8-ball pool POS",
+                "Gaming centre software",
+                "PS5 / Xbox rental",
+                "VR arcade management",
+              ].map((k) => (
+                <li
+                  key={k}
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-gray-300 backdrop-blur-md"
                 >
-                  {capability}
-                </span>
+                  {k}
+                </li>
               ))}
-            </motion.div>
+            </motion.ul>
 
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.28 }}
-              className="flex flex-col sm:flex-row gap-3 mb-8"
+              className="flex flex-col sm:flex-row gap-3"
             >
               <Button
                 size="lg"
@@ -128,129 +241,168 @@ const HeroSection: React.FC = () => {
                 size="lg"
                 variant="outline"
                 onClick={() => scrollTo("modules")}
-                className="border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08] text-base px-8 h-14 rounded-xl backdrop-blur-md"
+                className="border-white/15 bg-white/[0.05] text-white hover:bg-white/[0.1] text-base px-8 h-14 rounded-xl backdrop-blur-md"
               >
                 <Play size={16} className="mr-2" />
                 See it in action
               </Button>
             </motion.div>
-
-            <motion.div
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              className="grid gap-3 sm:grid-cols-3"
-            >
-              {HERO_PROOF.map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md"
-                >
-                  <div className="mb-1 text-sm font-semibold text-white">{item.title}</div>
-                  <div className="text-sm leading-relaxed text-gray-400">{item.detail}</div>
-                </div>
-              ))}
-            </motion.div>
           </div>
 
-          {/* Right Column: Visual Anchor (5 cols) */}
-          <div className="col-span-12 lg:col-span-5 mt-16 lg:mt-0 relative hidden md:block perspective-[2000px]">
+          {/* Right — 3-D tilt dashboard */}
+          <div className="col-span-12 lg:col-span-5 mt-16 lg:mt-0 relative hidden md:flex items-center justify-center">
             <motion.div
-              initial={reduceMotion ? false : { opacity: 0, rotateY: 15, rotateX: 5, scale: 0.9 }}
-              animate={{ opacity: 1, rotateY: -5, rotateX: 5, scale: 1 }}
-              transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
-              className="relative w-full aspect-[4/5] max-w-lg mx-auto transform-style-3d"
+              initial={reduceMotion ? false : { opacity: 0, y: 30, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 1.2, ease: "easeOut", delay: 0.25 }}
+              className="w-full max-w-md"
             >
-              {/* Glow Behind */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-violet-600/30 to-fuchsia-600/30 rounded-3xl blur-[80px] mix-blend-screen" />
-              
-              {/* Main Dashboard Card */}
-              <div className="absolute inset-0 rounded-3xl border border-white/10 bg-[#0a0514]/80 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col">
-                {/* Header */}
-                <div className="h-12 border-b border-white/10 flex items-center px-4 gap-4 bg-white/[0.02]">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500/40" />
-                    <div className="w-3 h-3 rounded-full bg-amber-500/40" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/40" />
-                  </div>
-                  <div className="h-4 w-32 bg-white/5 rounded-md mx-auto" />
-                </div>
-                
-                {/* Content */}
-                <div className="flex-1 p-5 flex flex-col gap-4">
-                  {/* Top Stats */}
-                  <div className="flex gap-3">
-                    <div className="flex-1 bg-white/5 border border-white/5 rounded-xl p-3">
-                      <div className="h-2 w-12 bg-white/10 rounded mb-2" />
-                      <div className="h-5 w-20 bg-gradient-to-r from-violet-400 to-fuchsia-400 rounded" />
+              <TiltCard reduceMotion={reduceMotion} className="relative w-full aspect-[4/5]">
+
+                {/* Ambient glow behind the card */}
+                <div className="absolute inset-[-20%] bg-gradient-to-tr from-violet-600/25 to-fuchsia-600/25 rounded-[50%] blur-[70px]" />
+
+                {/* Main dashboard card */}
+                <div className="absolute inset-0 rounded-3xl border border-white/[0.12] bg-[#0a0514]/80 backdrop-blur-2xl shadow-[0_30px_80px_rgba(0,0,0,0.7)] overflow-hidden flex flex-col"
+                  style={{ transform: "translateZ(0px)", transformStyle: "preserve-3d" }}
+                >
+                  {/* Browser chrome */}
+                  <div className="h-11 border-b border-white/[0.07] flex items-center px-4 gap-3 bg-white/[0.02] flex-shrink-0">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-red-500/50" />
+                      <div className="w-3 h-3 rounded-full bg-amber-500/50" />
+                      <div className="w-3 h-3 rounded-full bg-emerald-500/50" />
                     </div>
-                    <div className="flex-1 bg-white/5 border border-white/5 rounded-xl p-3">
-                      <div className="h-2 w-12 bg-white/10 rounded mb-2" />
-                      <div className="h-5 w-16 bg-white/20 rounded" />
+                    <div className="h-5 flex-1 bg-white/[0.04] rounded-md flex items-center px-2 gap-1.5 mx-auto max-w-[160px]">
+                      <div className="w-2 h-2 rounded-full bg-white/20 flex-shrink-0" />
+                      <div className="h-1.5 w-16 bg-white/10 rounded" />
                     </div>
                   </div>
 
-                  {/* Main Chart */}
-                  <div className="flex-1 bg-white/5 border border-white/5 rounded-xl p-4 flex flex-col justify-end gap-2 relative overflow-hidden">
-                    <div className="absolute top-4 left-4 h-3 w-24 bg-white/10 rounded" />
-                    <div className="flex items-end justify-between h-32 gap-2">
-                      {[40, 60, 45, 80, 55, 90, 70].map((h, i) => (
-                        <motion.div 
-                          key={i}
-                          initial={{ height: 0 }}
-                          animate={{ height: `${h}%` }}
-                          transition={{ duration: 1.5, delay: 0.5 + i * 0.1, ease: "easeOut" }}
-                          className="w-full bg-gradient-to-t from-violet-500/80 to-fuchsia-500/80 rounded-t-sm"
-                        />
+                  {/* Dashboard body */}
+                  <div className="flex-1 p-4 flex flex-col gap-3 overflow-hidden">
+                    {/* Top stat cards */}
+                    <div className="flex gap-3 flex-shrink-0">
+                      {[
+                        { label: "Revenue today", color: "from-violet-400 to-fuchsia-400", width: "w-20" },
+                        { label: "Active now", color: "from-emerald-400 to-cyan-400", width: "w-12" },
+                      ].map(({ label, color, width }) => (
+                        <div key={label} className="flex-1 bg-white/[0.05] border border-white/[0.06] rounded-xl p-3">
+                          <div className="h-2 w-14 bg-white/10 rounded mb-2.5" />
+                          <div className={`h-5 ${width} bg-gradient-to-r ${color} rounded opacity-90`} />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Chart area */}
+                    <div className="flex-1 bg-white/[0.04] border border-white/[0.06] rounded-xl p-4 flex flex-col justify-end gap-2 relative overflow-hidden min-h-0">
+                      <div className="absolute top-3 left-4 flex items-center gap-2">
+                        <div className="h-2.5 w-20 bg-white/10 rounded" />
+                        <div className="h-2 w-10 bg-violet-400/30 rounded" />
+                      </div>
+                      <div className="flex items-end justify-between gap-1.5 h-28">
+                        {[38, 58, 43, 76, 52, 88, 67, 94, 71].map((h, i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ scaleY: 0, originY: 1 }}
+                            animate={{ scaleY: 1 }}
+                            transition={{ duration: 1.4, delay: 0.6 + i * 0.08, ease: "easeOut" }}
+                            className="flex-1 rounded-t-sm"
+                            style={{
+                              height: `${h}%`,
+                              background: i === 7
+                                ? "linear-gradient(to top, #7c3aed, #e879f9)"
+                                : "linear-gradient(to top, rgba(124,58,237,0.5), rgba(232,121,249,0.5))",
+                              boxShadow: i === 7 ? "0 0 12px rgba(232,121,249,0.5)" : "none",
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Station row */}
+                    <div className="flex-shrink-0 bg-white/[0.04] border border-white/[0.06] rounded-xl p-3 flex gap-2">
+                      {[
+                        { active: false, icon: <Gamepad2 size={16} className="text-white/20" /> },
+                        { active: true,  icon: <Gamepad2 size={16} className="text-fuchsia-300" /> },
+                        { active: false, icon: <Gamepad2 size={16} className="text-white/20" /> },
+                        { active: true,  icon: <Gamepad2 size={16} className="text-emerald-400" /> },
+                      ].map(({ active, icon }, i) => (
+                        <div key={i} className={`flex-1 rounded-lg border flex flex-col items-center justify-center gap-1.5 py-2 ${active ? "border-white/10 bg-white/[0.05]" : "border-white/[0.04] bg-transparent"}`}>
+                          {icon}
+                          {active && <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 shadow-[0_0_6px_rgba(240,171,252,0.8)]" />}
+                        </div>
                       ))}
                     </div>
                   </div>
+                </div>
 
-                  {/* Active Stations */}
-                  <div className="h-24 bg-white/5 border border-white/5 rounded-xl p-3 flex gap-3">
-                    {[1, 2, 3].map((_, i) => (
-                      <div key={i} className="flex-1 bg-white/5 rounded-lg flex flex-col items-center justify-center gap-2">
-                        <Gamepad2 size={20} className={i === 1 ? "text-fuchsia-400" : "text-white/20"} />
-                        <div className="h-1.5 w-8 bg-white/10 rounded" />
-                      </div>
-                    ))}
+                {/* ─ Floating badge: active station ─ */}
+                <motion.div
+                  animate={reduceMotion ? {} : { y: [0, -14, 0] }}
+                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute top-20 -left-14 px-4 py-3 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl flex items-center gap-3 select-none"
+                  style={{
+                    background: "rgba(10,5,20,0.88)",
+                    transform: "translateZ(60px)",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(167,139,250,0.15)",
+                  }}
+                >
+                  <div className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
                   </div>
-                </div>
-              </div>
-              
-              {/* Floating UI Elements */}
-              <motion.div 
-                animate={{ y: [0, -15, 0], rotateZ: [0, 2, 0] }}
-                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-24 -left-12 px-5 py-3 rounded-2xl bg-[#120822]/90 border border-white/10 backdrop-blur-xl shadow-2xl flex items-center gap-4 translate-z-50"
-              >
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-white/90">Station 4 Active</div>
-                  <div className="text-xs text-emerald-400">01:24:05 elapsed</div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                animate={{ y: [0, 15, 0], rotateZ: [0, -2, 0] }}
-                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                className="absolute bottom-32 -right-12 px-5 py-3 rounded-2xl bg-[#120822]/90 border border-white/10 backdrop-blur-xl shadow-2xl flex items-center gap-4 translate-z-50"
-              >
-                <div className="w-10 h-10 rounded-full bg-fuchsia-500/20 flex items-center justify-center">
-                  <Circle size={20} className="text-fuchsia-400" />
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-pink-300">₹450.00</div>
-                  <div className="text-xs text-gray-400">Paid via UPI</div>
-                </div>
-              </motion.div>
+                  <div>
+                    <div className="text-sm font-bold text-white">Station 4 Active</div>
+                    <div className="text-xs text-emerald-400 font-mono">01:24:05 elapsed</div>
+                  </div>
+                </motion.div>
+
+                {/* ─ Floating badge: payment ─ */}
+                <motion.div
+                  animate={reduceMotion ? {} : { y: [0, 12, 0] }}
+                  transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+                  className="absolute bottom-28 -right-12 px-4 py-3 rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl flex items-center gap-3 select-none"
+                  style={{
+                    background: "rgba(10,5,20,0.88)",
+                    transform: "translateZ(40px)",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(240,171,252,0.12)",
+                  }}
+                >
+                  <div className="w-9 h-9 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/20 flex items-center justify-center flex-shrink-0">
+                    <Circle size={16} className="text-fuchsia-300" />
+                  </div>
+                  <div>
+                    <div className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 to-pink-300">₹450.00</div>
+                    <div className="text-xs text-gray-400">Paid via UPI</div>
+                  </div>
+                </motion.div>
+
+                {/* ─ Floating badge: booking notification ─ */}
+                <motion.div
+                  animate={reduceMotion ? {} : { y: [0, -10, 0], x: [0, 4, 0] }}
+                  transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut", delay: 2.5 }}
+                  className="absolute bottom-12 -left-10 px-3.5 py-2.5 rounded-xl border border-white/10 backdrop-blur-xl shadow-xl flex items-center gap-2.5 select-none"
+                  style={{
+                    background: "rgba(10,5,20,0.88)",
+                    transform: "translateZ(30px)",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(147,197,253,0.12)",
+                  }}
+                >
+                  <div className="w-7 h-7 rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-2 h-2 rounded-full bg-blue-300" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white">New booking</div>
+                    <div className="text-[10px] text-gray-400">PS5 · 3 hrs · just now</div>
+                  </div>
+                </motion.div>
+
+              </TiltCard>
             </motion.div>
           </div>
         </div>
 
-        {/* Metrics Strip */}
+        {/* ── Metrics strip ── */}
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -269,12 +421,11 @@ const HeroSection: React.FC = () => {
           ))}
         </motion.div>
       </div>
-      
-      {/* keyframes for the hero headline hue shift */}
+
       <style>{`
         @keyframes hueShift {
           0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
+          50%       { background-position: 100% 50%; }
         }
       `}</style>
     </section>

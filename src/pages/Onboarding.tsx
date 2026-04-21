@@ -12,12 +12,15 @@
  *   5. Launch   — call /api/tenant/onboarding with complete=true,
  *                 refresh org context, navigate to /dashboard.
  *
- * Everything is saved step-by-step, so if the owner drops off midway and
- * comes back later they resume with the state they left behind.
+ * Visual language matches the landing / login / signup pages: shared ambient
+ * galaxy background + advanced glass card. The only tenant-specific colour is
+ * the primary/accent gradient on the preview surface and the main CTA, so the
+ * owner sees their brand come to life as they pick it.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -42,15 +45,41 @@ import { Label } from "@/components/ui/label";
 import { appToast } from "@/lib/appToast";
 import { useAuth } from "@/context/AuthContext";
 import { useOrganizationOptional } from "@/context/OrganizationContext";
+import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 
 type StepId = "profile" | "brand" | "business" | "preview" | "launch";
 
-const STEPS: { id: StepId; label: string; short: string }[] = [
-  { id: "profile", label: "Your workspace", short: "Profile" },
-  { id: "brand", label: "Brand it yours", short: "Brand" },
-  { id: "business", label: "Your business", short: "Business" },
-  { id: "preview", label: "Looking great", short: "Preview" },
-  { id: "launch", label: "Ready to launch", short: "Launch" },
+const STEPS: { id: StepId; label: string; short: string; subtitle: string }[] = [
+  {
+    id: "profile",
+    label: "Name your workspace",
+    short: "Profile",
+    subtitle: "A quick hello — this is what your customers and staff will see.",
+  },
+  {
+    id: "brand",
+    label: "Make it yours",
+    short: "Brand",
+    subtitle: "Drop in a logo, pick the colours that represent your venue.",
+  },
+  {
+    id: "business",
+    label: "What do you run?",
+    short: "Business",
+    subtitle: "We'll pre-configure the dashboard for your type of floor.",
+  },
+  {
+    id: "preview",
+    label: "Looking great",
+    short: "Preview",
+    subtitle: "A quick glance at your brand before we hand over the keys.",
+  },
+  {
+    id: "launch",
+    label: "Ready to launch",
+    short: "Launch",
+    subtitle: "You're seconds away from a live, tenant-isolated workspace.",
+  },
 ];
 
 type BusinessType =
@@ -179,7 +208,6 @@ export default function Onboarding() {
       iconUrl: branding.icon_url || prev.iconUrl,
       businessType: (organization.businessType as BusinessType) || prev.businessType,
     }));
-    // If they already completed onboarding, skip straight to the dashboard.
     if (organization.onboardingCompletedAt) {
       navigate("/dashboard", { replace: true });
     }
@@ -336,7 +364,7 @@ export default function Onboarding() {
         return (
           <div className="space-y-5">
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
                 Display name
               </Label>
               <Input
@@ -344,24 +372,24 @@ export default function Onboarding() {
                 placeholder="Pixel Arena Bangalore"
                 value={state.displayName}
                 onChange={(e) => setState((s) => ({ ...s, displayName: e.target.value }))}
-                className="h-11 bg-[#05060c] border-white/10"
+                className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
               />
               <p className="text-[11px] text-zinc-500">
                 Shown on your login page, receipts, and public booking page.
               </p>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Tagline <span className="text-zinc-600 font-normal normal-case">(optional)</span>
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                Tagline <span className="font-normal normal-case text-zinc-600">(optional)</span>
               </Label>
               <Input
                 placeholder="Where legends play."
                 maxLength={160}
                 value={state.tagline}
                 onChange={(e) => setState((s) => ({ ...s, tagline: e.target.value }))}
-                className="h-11 bg-[#05060c] border-white/10"
+                className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
               />
-              <p className="text-[11px] text-zinc-500 text-right">{state.tagline.length}/160</p>
+              <p className="text-right text-[11px] text-zinc-500">{state.tagline.length}/160</p>
             </div>
           </div>
         );
@@ -369,7 +397,6 @@ export default function Onboarding() {
       case "brand":
         return (
           <div className="space-y-6">
-            {/* logo / icon */}
             <div className="grid grid-cols-2 gap-4">
               <BrandUploader
                 label="Logo"
@@ -397,7 +424,7 @@ export default function Onboarding() {
 
             {/* presets */}
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
                 Theme presets
               </Label>
               <div className="grid grid-cols-3 gap-2">
@@ -412,17 +439,17 @@ export default function Onboarding() {
                       onClick={() =>
                         setState((s) => ({ ...s, primaryColor: p.primary, accentColor: p.accent }))
                       }
-                      className={`group rounded-lg border p-2.5 text-left transition-all ${
+                      className={`group rounded-xl border bg-white/[0.03] p-2.5 text-left backdrop-blur-sm transition-all ${
                         active
-                          ? "border-white/40 ring-2 ring-white/20"
-                          : "border-white/10 hover:border-white/30"
+                          ? "border-fuchsia-300/40 ring-2 ring-fuchsia-400/30"
+                          : "border-white/10 hover:border-white/30 hover:bg-white/[0.06]"
                       }`}
                     >
                       <div
-                        className="h-6 w-full rounded"
+                        className="h-6 w-full rounded-md"
                         style={{ background: `linear-gradient(135deg, ${p.primary}, ${p.accent})` }}
                       />
-                      <div className="mt-1.5 text-[11px] text-zinc-400 group-hover:text-zinc-200 font-medium">
+                      <div className="mt-1.5 text-[11px] font-medium text-zinc-400 group-hover:text-zinc-200">
                         {p.name}
                       </div>
                     </button>
@@ -449,7 +476,7 @@ export default function Onboarding() {
 
       case "business":
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {BUSINESS_TYPES.map((bt) => {
               const Icon = bt.icon;
               const active = state.businessType === bt.id;
@@ -458,27 +485,27 @@ export default function Onboarding() {
                   key={bt.id}
                   type="button"
                   onClick={() => setState((s) => ({ ...s, businessType: bt.id }))}
-                  className={`relative overflow-hidden text-left rounded-xl border p-4 transition-all ${
+                  className={`relative overflow-hidden rounded-xl border p-4 text-left backdrop-blur-sm transition-all ${
                     active
-                      ? "border-white/30 bg-white/5 ring-2 ring-fuchsia-500/40"
-                      : "border-white/10 hover:border-white/25 hover:bg-white/5"
+                      ? "border-fuchsia-300/40 bg-white/[0.06] ring-2 ring-fuchsia-400/30"
+                      : "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.05]"
                   }`}
                 >
                   <div
-                    className={`absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl opacity-40 bg-gradient-to-br ${bt.accent}`}
+                    className={`absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br blur-2xl opacity-40 ${bt.accent}`}
                   />
                   <div className="relative flex items-start gap-3">
                     <div
-                      className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br ${bt.accent}`}
+                      className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${bt.accent}`}
                     >
                       <Icon className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold text-sm text-zinc-100 flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-zinc-100">
                         {bt.label}
                         {active && <CheckCircle2 className="h-4 w-4 text-fuchsia-400" />}
                       </div>
-                      <div className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
+                      <div className="mt-0.5 text-xs leading-relaxed text-zinc-400">
                         {bt.description}
                       </div>
                     </div>
@@ -495,29 +522,32 @@ export default function Onboarding() {
             <p className="text-sm text-zinc-400">
               Here's how your branded dashboard will look the moment you launch.
             </p>
-            <div className="rounded-xl border border-white/10 overflow-hidden">
+            <div
+              className="overflow-hidden rounded-2xl border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]"
+              style={{ background: "rgba(5,2,12,0.55)" }}
+            >
               {/* Fake dashboard header */}
               <div
-                className="p-5 flex items-center gap-4"
+                className="flex items-center gap-4 p-5"
                 style={{ background: previewGradient }}
               >
                 {state.iconUrl ? (
                   <img
                     src={state.iconUrl}
                     alt=""
-                    className="h-10 w-10 rounded-lg object-cover bg-white/20"
+                    className="h-10 w-10 rounded-lg bg-white/20 object-cover"
                   />
                 ) : (
-                  <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-white/20">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20">
                     <Sparkles className="h-5 w-5 text-white" />
                   </div>
                 )}
                 <div className="min-w-0">
-                  <div className="text-white font-bold text-lg leading-tight truncate">
+                  <div className="truncate text-lg font-bold leading-tight text-white">
                     {state.displayName || "Your workspace"}
                   </div>
                   {state.tagline && (
-                    <div className="text-white/80 text-xs truncate">{state.tagline}</div>
+                    <div className="truncate text-xs text-white/80">{state.tagline}</div>
                   )}
                 </div>
                 <div className="ml-auto flex gap-2">
@@ -525,7 +555,10 @@ export default function Onboarding() {
                 </div>
               </div>
               {/* Fake widget row */}
-              <div className="grid grid-cols-3 gap-3 p-4 bg-[#0b0c16]">
+              <div
+                className="grid grid-cols-3 gap-3 p-4"
+                style={{ background: "rgba(10,4,20,0.6)" }}
+              >
                 {[
                   { label: "Today", value: "₹12,480" },
                   { label: "Active", value: "8 / 10" },
@@ -533,13 +566,13 @@ export default function Onboarding() {
                 ].map((w) => (
                   <div
                     key={w.label}
-                    className="rounded-lg border border-white/10 p-3 bg-[#05060c]"
+                    className="rounded-lg border border-white/10 bg-black/30 p-3 backdrop-blur-sm"
                   >
                     <div className="text-[10px] uppercase tracking-wide text-zinc-500">
                       {w.label}
                     </div>
                     <div
-                      className="text-xl font-bold mt-1"
+                      className="mt-1 text-xl font-bold"
                       style={{ color: state.primaryColor }}
                     >
                       {w.value}
@@ -549,7 +582,10 @@ export default function Onboarding() {
               </div>
               {/* Fake logo panel */}
               {state.logoUrl && (
-                <div className="p-5 bg-[#05060c] border-t border-white/5 flex items-center justify-center">
+                <div
+                  className="flex items-center justify-center border-t border-white/5 p-5"
+                  style={{ background: "rgba(10,4,20,0.5)" }}
+                >
                   <img src={state.logoUrl} alt="" className="max-h-12 opacity-90" />
                 </div>
               )}
@@ -562,19 +598,32 @@ export default function Onboarding() {
 
       case "launch":
         return (
-          <div className="text-center py-8">
-            <div
-              className="h-20 w-20 mx-auto rounded-full flex items-center justify-center"
-              style={{ background: previewGradient }}
+          <div className="py-6 text-center">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 220, damping: 18 }}
+              className="relative mx-auto h-24 w-24"
             >
-              <Rocket className="h-10 w-10 text-white" />
-            </div>
-            <h3 className="mt-6 text-2xl font-bold">You're all set, {user?.username || "owner"}.</h3>
-            <p className="mt-2 text-sm text-zinc-400 max-w-sm mx-auto">
-              We'll now hand you the keys to your workspace. You can invite your team,
-              add stations, and start taking bookings in the next couple of minutes.
+              <div
+                className="absolute inset-0 rounded-full blur-2xl opacity-70"
+                style={{ background: previewGradient }}
+              />
+              <div
+                className="relative flex h-24 w-24 items-center justify-center rounded-full border border-white/20 shadow-2xl"
+                style={{ background: previewGradient }}
+              >
+                <Rocket className="h-10 w-10 text-white" />
+              </div>
+            </motion.div>
+            <h3 className="mt-6 text-2xl font-bold text-white">
+              You're all set, {user?.username || "operator"}.
+            </h3>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-zinc-400">
+              We'll now hand you the keys to your workspace. Invite your team, add
+              stations, and start taking bookings in minutes.
             </p>
-            <div className="mt-6 inline-flex items-center gap-2 text-xs text-zinc-500 px-3 py-1.5 rounded-full border border-white/10">
+            <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-200">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
               14-day free trial active · no card needed
             </div>
@@ -584,119 +633,186 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050508] text-zinc-100 relative overflow-hidden">
-      {/* background */}
+    <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-zinc-100">
+      {/* Shared animated galaxy / gradient background (same as landing, login, signup) */}
+      <SiteAmbientBackground />
+
+      {/* Soft brand-tinted wash so the wizard feels personalised without
+          clashing with the shared ambient background */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "linear-gradient(135deg, #0f0520 0%, #080b1a 50%, #050508 100%)" }}
-      />
-      <div
-        className="absolute inset-0 pointer-events-none"
+        className="pointer-events-none absolute inset-0 z-[1]"
         style={{
-          background: `radial-gradient(ellipse at 15% 25%, ${state.primaryColor}22 0%, transparent 60%)`,
-        }}
-      />
-      <div
-        className="absolute top-1/2 right-0 w-[480px] h-[480px] rounded-full blur-[100px] pointer-events-none"
-        style={{ background: `radial-gradient(circle, ${state.accentColor}33, transparent)` }}
-      />
-      <div
-        className="absolute inset-0 opacity-[0.035] pointer-events-none"
-        style={{
-          backgroundImage: "radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
+          background: `radial-gradient(ellipse 60% 60% at 85% 15%, ${state.accentColor}22 0%, transparent 60%)`,
         }}
       />
 
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* ── Header with step indicator ───────────────────────────────── */}
-        <div className="flex items-center justify-between px-5 sm:px-10 py-5 border-b border-white/5">
+      <div className="relative z-10 flex min-h-screen flex-col">
+        {/* ── Top bar ── */}
+        <div className="flex items-center justify-between border-b border-white/5 px-5 py-5 sm:px-10">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div
-                className="absolute inset-0 rounded-full blur-lg"
+                className="absolute inset-0 rounded-xl blur-lg"
                 style={{ background: `${state.primaryColor}66` }}
               />
               <div
-                className="relative h-10 w-10 rounded-xl flex items-center justify-center"
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 shadow-md"
                 style={{ background: previewGradient }}
               >
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
             </div>
             <div className="hidden sm:block">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Cuetronix</div>
-              <div className="font-bold text-sm leading-tight">First-run setup</div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-white/50">
+                Cuetronix
+              </div>
+              <div className="text-sm font-bold leading-tight">First-run setup</div>
             </div>
           </div>
 
+          {/* Stepper */}
           <ol className="flex items-center gap-1 sm:gap-2">
-            {STEPS.map((s, i) => (
-              <li key={s.id} className="flex items-center">
-                <div
-                  className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold border transition-all ${
-                    i < stepIdx
-                      ? "bg-emerald-500 border-emerald-500 text-white"
-                      : i === stepIdx
-                        ? "bg-white text-[#0b0c16] border-white"
-                        : "bg-transparent border-white/15 text-zinc-500"
-                  }`}
-                >
-                  {i < stepIdx ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
-                </div>
-                {i < STEPS.length - 1 && (
+            {STEPS.map((s, i) => {
+              const done = i < stepIdx;
+              const active = i === stepIdx;
+              return (
+                <li key={s.id} className="flex items-center">
                   <div
-                    className={`h-[2px] w-4 sm:w-8 transition-all ${
-                      i < stepIdx ? "bg-emerald-500" : "bg-white/10"
+                    className={`flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-bold transition-all ${
+                      done
+                        ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-200"
+                        : active
+                          ? "border-fuchsia-300/60 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 text-white shadow-md shadow-fuchsia-600/50"
+                          : "border-white/15 bg-transparent text-zinc-500"
                     }`}
-                  />
-                )}
-              </li>
-            ))}
+                  >
+                    {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div
+                      className={`h-[2px] w-4 transition-all sm:w-8 ${
+                        done
+                          ? "bg-emerald-400/50"
+                          : active
+                            ? "bg-gradient-to-r from-fuchsia-400/60 to-white/10"
+                            : "bg-white/10"
+                      }`}
+                    />
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </div>
 
-        {/* ── Step content ─────────────────────────────────────────────── */}
-        <div className="flex-1 flex items-center justify-center p-5 sm:p-10">
+        {/* ── Step content ── */}
+        <div className="flex flex-1 items-center justify-center p-5 sm:p-10">
           <div className="w-full max-w-2xl">
+            {/* Heading */}
             <div className="mb-6 text-center">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 mb-2">
+              <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-fuchsia-300/25 bg-fuchsia-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-fuchsia-200">
+                <Sparkles size={10} />
                 Step {stepIdx + 1} of {STEPS.length}
               </div>
-              <h2 className="text-3xl font-bold">{step.label}</h2>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={step.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                    {step.label}
+                  </h2>
+                  <p className="mx-auto mt-2 max-w-lg text-sm text-zinc-400">
+                    {step.subtitle}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-[#0b0c16]/80 backdrop-blur-xl p-6 sm:p-8 shadow-2xl">
-              {renderStep()}
+            {/* Glass card */}
+            <div className="relative">
+              {/* Gradient halo behind card */}
+              <div
+                className="absolute -inset-px rounded-[26px] opacity-60 blur-2xl"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(124,58,237,0.4), rgba(236,72,153,0.35), rgba(59,130,246,0.25))",
+                }}
+              />
+              <div
+                className="relative overflow-hidden rounded-[24px] border border-white/10 p-6 sm:p-8"
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(15,9,26,0.85) 0%, rgba(10,6,22,0.9) 100%)",
+                  backdropFilter: "blur(32px) saturate(150%)",
+                  WebkitBackdropFilter: "blur(32px) saturate(150%)",
+                  boxShadow:
+                    "0 30px 80px -30px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.06)",
+                }}
+              >
+                {/* Top shine */}
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent 0%, rgba(167,139,250,0.55) 50%, transparent 100%)",
+                  }}
+                />
+
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={step.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
+                  >
+                    {renderStep()}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
 
+            {/* Nav */}
             <div className="mt-6 flex items-center justify-between gap-3">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={goBack}
                 disabled={stepIdx === 0 || saving}
-                className="text-zinc-400 hover:text-zinc-100"
+                className="rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 backdrop-blur-md hover:bg-white/[0.08] hover:text-white disabled:opacity-40"
               >
-                <ArrowLeft className="h-4 w-4 mr-1.5" />
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
                 Back
               </Button>
+
               <Button
                 type="button"
                 onClick={goNext}
                 disabled={saving}
-                className="h-11 px-6 font-semibold text-white shadow-lg"
+                className="group h-11 rounded-xl px-6 text-sm font-semibold text-white shadow-lg transition-all hover:scale-[1.01] hover:opacity-95 disabled:opacity-60"
                 style={{
                   background: previewGradient,
-                  boxShadow: `0 8px 24px -8px ${state.primaryColor}88`,
+                  boxShadow: `0 10px 30px -10px ${state.primaryColor}99`,
                 }}
               >
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLast ? "Enter my workspace" : "Continue"}
-                {!saving && !isLast && <ArrowRight className="h-4 w-4 ml-1.5" />}
-                {!saving && isLast && <Rocket className="h-4 w-4 ml-1.5" />}
+                {!saving && !isLast && (
+                  <ArrowRight className="ml-1.5 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                )}
+                {!saving && isLast && <Rocket className="ml-1.5 h-4 w-4" />}
               </Button>
             </div>
+
+            {/* Footer note */}
+            <p className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              Everything is saved as you go — pop back in anytime.
+            </p>
           </div>
         </div>
       </div>
@@ -733,15 +849,15 @@ const BrandUploader: React.FC<BrandUploaderProps> = ({
 }) => {
   return (
     <div>
-      <Label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
         {label}
       </Label>
-      <div className="mt-2 relative group">
+      <div className="group relative mt-2">
         <button
           type="button"
           onClick={onPick}
           disabled={uploading}
-          className={`relative w-full rounded-lg border-2 border-dashed border-white/10 bg-[#05060c] hover:border-white/30 transition-all overflow-hidden ${
+          className={`relative w-full overflow-hidden rounded-xl border-2 border-dashed border-white/10 bg-white/[0.03] backdrop-blur-md transition-all hover:border-fuchsia-300/40 hover:bg-white/[0.05] ${
             square ? "aspect-square" : "aspect-[16/9]"
           }`}
         >
@@ -749,12 +865,12 @@ const BrandUploader: React.FC<BrandUploaderProps> = ({
             <img
               src={currentUrl}
               alt=""
-              className="absolute inset-0 w-full h-full object-contain bg-white/5"
+              className="absolute inset-0 h-full w-full bg-white/5 object-contain"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-1.5">
+            <div className="flex h-full flex-col items-center justify-center gap-1.5 text-zinc-500">
               {uploading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin text-fuchsia-300" />
               ) : (
                 <Upload className="h-5 w-5" />
               )}
@@ -768,7 +884,7 @@ const BrandUploader: React.FC<BrandUploaderProps> = ({
           <button
             type="button"
             onClick={onClear}
-            className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center"
+            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
             aria-label="Remove"
           >
             <X className="h-3.5 w-3.5" />
@@ -782,7 +898,7 @@ const BrandUploader: React.FC<BrandUploaderProps> = ({
           className="hidden"
         />
       </div>
-      <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
+      <p className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500">
         <ImageIcon className="h-3 w-3" />
         {hint}
       </p>
@@ -799,16 +915,16 @@ interface ColorFieldProps {
 const ColorField: React.FC<ColorFieldProps> = ({ label, value, onChange }) => {
   return (
     <div>
-      <Label className="text-xs font-semibold uppercase tracking-wide text-zinc-400 flex items-center gap-1.5">
+      <Label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
         <PaintBucket className="h-3 w-3" />
         {label}
       </Label>
-      <div className="mt-2 flex items-center gap-2 rounded-md border border-white/10 bg-[#05060c] p-1.5 pl-2">
+      <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-1.5 pl-2 backdrop-blur-md focus-within:border-fuchsia-300/40">
         <input
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 w-8 rounded cursor-pointer border-0 bg-transparent"
+          className="h-8 w-8 cursor-pointer rounded border-0 bg-transparent"
         />
         <input
           type="text"
@@ -817,7 +933,7 @@ const ColorField: React.FC<ColorFieldProps> = ({ label, value, onChange }) => {
             const raw = e.target.value.trim();
             if (/^#[0-9a-fA-F]{0,6}$/.test(raw)) onChange(raw);
           }}
-          className="flex-1 bg-transparent text-sm text-zinc-100 outline-none font-mono uppercase"
+          className="flex-1 bg-transparent font-mono text-sm uppercase text-zinc-100 outline-none"
           maxLength={7}
         />
       </div>

@@ -1,108 +1,117 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, Phone, Lock, ArrowLeft, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { appToast } from '@/lib/appToast';
-import AppLoadingOverlay from '@/components/loading/AppLoadingOverlay';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarCheck,
+  Eye,
+  EyeOff,
+  Gamepad2,
+  Gift,
+  Info,
+  Loader2,
+  Lock,
+  Phone,
+  Sparkles,
+  Trophy,
+  Wallet,
+} from "lucide-react";
+
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { appToast } from "@/lib/appToast";
+import { supabase } from "@/integrations/supabase/client";
+import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
+import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
 import {
   getCustomerSession,
   setCustomerSession,
   normalizePhoneNumber,
   validatePhoneNumber,
   generateDefaultPassword,
-  type CustomerSession
-} from '@/utils/customerAuth';
+  type CustomerSession,
+} from "@/utils/customerAuth";
+
+const FEATURE_PILLS = [
+  { icon: CalendarCheck, label: "Book your slot" },
+  { icon: Wallet, label: "Loyalty points" },
+  { icon: Trophy, label: "Tournament entries" },
+  { icon: Gift, label: "Member rewards" },
+];
 
 export default function CustomerLogin() {
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
-  // Check if already logged in
   useEffect(() => {
     const session = getCustomerSession();
-    if (session) {
-      navigate('/customer/dashboard');
-    }
+    if (session) navigate("/customer/dashboard");
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!phone || !password) {
-      appToast.error('Missing details', 'Enter your phone number and password.');
+      appToast.error("Missing details", "Enter your phone number and password.");
       return;
     }
 
-    // Validate phone number
     const normalizedPhone = normalizePhoneNumber(phone);
     const validation = validatePhoneNumber(normalizedPhone);
     if (!validation.valid) {
-      appToast.error('Invalid phone', validation.error);
+      appToast.error("Invalid phone", validation.error);
       return;
     }
 
     setLoading(true);
 
     try {
-      // Find customer by phone
       const { data: customer, error } = await supabase
-        .from('customers')
-        .select('id, name, phone, email, password_hash, is_first_login, loyalty_points, is_member')
-        .eq('phone', normalizedPhone)
+        .from("customers")
+        .select(
+          "id, name, phone, email, password_hash, is_first_login, loyalty_points, is_member"
+        )
+        .eq("phone", normalizedPhone)
         .single();
 
       if (error || !customer) {
-        appToast.error('Customer not found', 'Check your phone number or register at the venue.');
+        appToast.error(
+          "Customer not found",
+          "Check your phone number or register at the venue."
+        );
         return;
       }
 
-      // Check if password is set
       if (!customer.password_hash) {
-        appToast.error('Password not set', 'Visit the venue to activate your account.');
+        appToast.error("Password not set", "Visit the venue to activate your account.");
         return;
       }
 
-      // Verify password (using Supabase RPC function for security)
-      // For now, we'll do a simple comparison - in production, use proper server-side verification
       const defaultPassword = generateDefaultPassword(normalizedPhone);
-      const { data: verifyResult, error: verifyError } = await supabase.rpc('verify_customer_password', {
-        customer_phone: normalizedPhone,
-        input_password: password
-      });
+      const { data: verifyResult, error: verifyError } = await supabase.rpc(
+        "verify_customer_password",
+        { customer_phone: normalizedPhone, input_password: password }
+      );
 
-      // Fallback to simple check if RPC doesn't exist yet
       if (verifyError) {
-        // Simple client-side check (insecure - only for demo/initial setup)
-        const encoder = new TextEncoder();
-        const data = encoder.encode(password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const clientHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        
-        // For MVP, just check if password matches the default format
         if (password !== defaultPassword) {
-          appToast.error('Incorrect password', 'Default is CUE + your phone number.');
+          appToast.error("Incorrect password", "Default is CUE + your phone number.");
           return;
         }
       } else if (!verifyResult) {
-        appToast.error('Incorrect password', 'Default is CUE + your phone number.');
+        appToast.error("Incorrect password", "Default is CUE + your phone number.");
         return;
       }
 
-      // Update last login time
       await supabase
-        .from('customers')
+        .from("customers")
         .update({ last_login_at: new Date().toISOString() })
-        .eq('id', customer.id);
+        .eq("id", customer.id);
 
-      // Create session
       const customerSession: CustomerSession = {
         id: customer.id,
         name: customer.name,
@@ -110,167 +119,341 @@ export default function CustomerLogin() {
         email: customer.email,
         isFirstLogin: customer.is_first_login || false,
         loyaltyPoints: customer.loyalty_points || 0,
-        isMember: customer.is_member || false
+        isMember: customer.is_member || false,
       };
-
       setCustomerSession(customerSession);
 
-      appToast.success(`Welcome back, ${customer.name}!`, 'Taking you to your dashboard…');
-
-      // Always redirect to dashboard
-      navigate('/customer/dashboard');
+      appToast.success(`Welcome back, ${customer.name}!`, "Taking you to your dashboard…");
+      navigate("/customer/dashboard");
     } catch (err) {
-      console.error('Login error:', err);
-      appToast.error('Login failed', 'Check your phone and password, then try again.');
+      console.error("Login error:", err);
+      appToast.error("Login failed", "Check your phone and password, then try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900/30 to-gray-900 p-4 relative overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-white">
       <AppLoadingOverlay
         visible={loading}
         variant="default"
         title="Signing you in"
         subtitle="Verifying your customer account…"
       />
-      {/* Enhanced Background effects */}
-      <div className="absolute inset-0 z-0 overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full bg-purple-500/30 blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-pink-500/30 blur-3xl animate-pulse opacity-70" style={{ animationDelay: '1.5s' }}></div>
-        <div className="absolute top-1/2 left-0 w-72 h-72 rounded-full bg-blue-500/20 blur-3xl animate-pulse" style={{ animationDelay: '3s' }}></div>
-      </div>
 
-      {/* Grid pattern overlay */}
-      <div className="absolute inset-0 z-0 opacity-10" style={{
-        backgroundImage: 'linear-gradient(rgba(147, 51, 234, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(147, 51, 234, 0.1) 1px, transparent 1px)',
-        backgroundSize: '50px 50px'
-      }}></div>
+      <AuthSceneBackground />
 
-      {/* Back button */}
-      <div className="absolute top-6 left-6 z-20">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-gray-300 hover:text-white hover:bg-purple-600/30 transition-all backdrop-blur-sm border border-purple-500/20"
-          onClick={() => navigate('/')}
+      {/* ── Top bar ── */}
+      <div className="relative z-20 flex items-center justify-between px-5 py-5 sm:px-8">
+        <button
+          onClick={() => navigate("/")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-gray-300 backdrop-blur-md transition-colors hover:bg-white/[0.08] hover:text-white"
         >
-          <ArrowLeft size={18} className="mr-2" />
-          Back to Home
-        </Button>
+          <ArrowLeft size={12} /> Back to site
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/login")}
+            className="hidden items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-gray-300 backdrop-blur-md transition-colors hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+          >
+            Venue operator <ArrowRight size={12} />
+          </button>
+          <a
+            href="tel:+918637625155"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-600/30 transition-all hover:scale-[1.02]"
+          >
+            <Phone size={12} /> Need help?
+          </a>
+        </div>
       </div>
 
-      <Card className="w-full max-w-md bg-gray-900/98 border-purple-500/40 shadow-2xl shadow-purple-500/30 relative z-10 backdrop-blur-2xl">
-        <CardHeader className="text-center pb-6 pt-8 bg-gradient-to-br from-purple-600/20 via-pink-600/10 to-transparent border-b border-purple-500/30 relative overflow-hidden">
-          {/* Header glow effect */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gradient-to-b from-purple-500/20 to-transparent blur-2xl"></div>
-          
-          <div className="mb-6 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/40 to-pink-500/30 blur-3xl rounded-full"></div>
-            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-purple-400/30 to-pink-400/20 blur-2xl rounded-full"></div>
-            <img
-              src="/lovable-uploads/61f60a38-12c2-4710-b1c8-0000eb74593c.png"
-              alt="Cuephoria"
-              className="h-28 mx-auto relative drop-shadow-[0_0_25px_rgba(168,85,247,0.6)] animate-float"
-            />
+      {/* ── Main grid ── */}
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl gap-10 px-5 pb-10 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pb-16">
+        {/* ── LEFT brand narrative ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="hidden flex-col justify-center lg:flex"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 backdrop-blur-md"
+          >
+            <Sparkles size={11} />
+            Player portal
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.55 }}
+            className="text-5xl font-extrabold leading-[1.05] tracking-tight xl:text-6xl"
+          >
+            Your game nights,
+            <br />
+            <span
+              className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-emerald-300 bg-clip-text text-transparent"
+              style={{
+                backgroundSize: "200%",
+                animation: "hueShift 8s ease-in-out infinite",
+              }}
+            >
+              one tap away.
+            </span>
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="mt-5 max-w-md text-[15px] leading-relaxed text-gray-400"
+          >
+            Sign in to book PS5s, VR pods, pool tables and esports rigs — track your
+            loyalty points, redeem rewards, and catch the next tournament at your
+            favourite Cuetronix-powered lounge.
+          </motion.p>
+
+          <div className="mt-8 grid max-w-md grid-cols-2 gap-2.5">
+            {FEATURE_PILLS.map(({ icon: Icon, label }, i) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + i * 0.06, duration: 0.4 }}
+                className="group flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 backdrop-blur-md transition-colors hover:border-emerald-300/30 hover:bg-white/[0.05]"
+              >
+                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-emerald-500/20 text-emerald-200">
+                  <Icon size={13} />
+                </div>
+                <span className="text-[13px] font-medium text-gray-300">{label}</span>
+              </motion.div>
+            ))}
           </div>
-          <CardTitle className="text-3xl sm:text-4xl bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent font-black mb-2 tracking-tight">
-            Customer Login
-          </CardTitle>
-          <p className="text-gray-300 text-sm">
-            Welcome back! Sign in to book your gaming session
-          </p>
-        </CardHeader>
 
-        <CardContent className="pt-6 pb-8 px-6 sm:px-8">
-          <form onSubmit={handleLogin} className="space-y-6">
-            {/* Phone Number */}
-            <div className="space-y-2.5">
-              <Label htmlFor="phone" className="text-white flex items-center gap-2 text-sm font-semibold">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                  <Phone size={16} className="text-purple-400" />
-                </div>
-                Phone Number
-              </Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="Enter your number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                maxLength={10}
-                className="bg-gray-800/70 border-purple-500/40 h-14 text-base focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-purple-400 transition-all hover:border-purple-400/60"
-                disabled={loading}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+            className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]" />
+              Secure member portal
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Trophy size={12} className="text-violet-300" />
+              Tournament-ready
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Wallet size={12} className="text-fuchsia-300" />
+              Loyalty wallet
+            </span>
+          </motion.div>
+        </motion.div>
+
+        {/* ── RIGHT form card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
+          className="flex items-center justify-center"
+        >
+          <div className="relative w-full max-w-md">
+            {/* Glow halo behind card */}
+            <div
+              className="absolute -inset-px rounded-[26px] opacity-60 blur-2xl"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(124,58,237,0.4), rgba(16,185,129,0.3), rgba(236,72,153,0.3))",
+              }}
+            />
+
+            <div
+              className="relative overflow-hidden rounded-[24px] border border-white/10 p-7 sm:p-9"
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(15,9,26,0.85) 0%, rgba(10,6,22,0.9) 100%)",
+                backdropFilter: "blur(32px) saturate(150%)",
+                WebkitBackdropFilter: "blur(32px) saturate(150%)",
+                boxShadow:
+                  "0 30px 80px -30px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.06)",
+              }}
+            >
+              {/* Top accent line */}
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, rgba(52,211,153,0.55) 50%, transparent 100%)",
+                }}
               />
-            </div>
 
-            {/* Password */}
-            <div className="space-y-2.5">
-              <Label htmlFor="password" className="text-white flex items-center gap-2 text-sm font-semibold">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                  <Lock size={16} className="text-purple-400" />
+              {/* Logo + title */}
+              <div className="mb-7">
+                <div className="mb-5 flex items-center gap-2.5 lg:hidden">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-emerald-500 shadow-md shadow-violet-600/40">
+                    <Gamepad2 size={17} className="text-white" />
+                  </div>
+                  <span className="text-lg font-bold tracking-tight">
+                    Cue
+                    <span className="bg-gradient-to-r from-violet-300 to-emerald-300 bg-clip-text text-transparent">
+                      tronix
+                    </span>
+                    <span className="ml-1 text-xs font-medium text-emerald-300/70">
+                      · Players
+                    </span>
+                  </span>
                 </div>
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="bg-gray-800/70 border-purple-500/40 h-14 pr-12 text-base focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-purple-400 transition-all hover:border-purple-400/60"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-400 transition-colors p-1 rounded-md hover:bg-purple-500/10"
-                  disabled={loading}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              <div className="flex items-start gap-2 mt-2 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
-                <span className="text-purple-400 text-lg mt-0.5">💡</span>
-                <p className="text-xs text-gray-300 leading-relaxed">
-                  Default password: <span className="font-mono text-red-400 font-semibold">CUE</span> followed by your phone number
+
+                <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">
+                  Welcome back, player
+                </h2>
+                <p className="mt-1.5 text-sm text-gray-400">
+                  Sign in with the phone number you registered at the venue.
                 </p>
               </div>
-            </div>
 
-            {/* Login Button */}
-            <Button
-              type="submit"
-              className="w-full bg-gradient-to-r from-purple-600 via-purple-500 to-pink-600 hover:from-purple-700 hover:via-purple-600 hover:to-pink-700 hover:shadow-2xl hover:shadow-purple-500/40 h-14 text-base font-bold mt-8 transition-all duration-300 transform hover:scale-[1.02]"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                'Login to Dashboard'
-              )}
-            </Button>
+              {/* Form */}
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+                    Phone number
+                  </label>
+                  <div className="relative">
+                    <Phone
+                      size={15}
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"
+                    />
+                    <Input
+                      type="tel"
+                      placeholder="10-digit mobile number"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      maxLength={10}
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] pl-10 text-sm text-white placeholder:text-gray-600 focus-visible:border-emerald-300/40 focus-visible:ring-emerald-500/25"
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
 
-            {/* Help Text */}
-            <div className="text-center space-y-3 pt-6 border-t border-purple-500/30">
-              <p className="text-xs text-gray-400">
-                Don't have an account? Visit us at the venue to register!
-              </p>
-              <p className="text-xs text-gray-300 font-medium">
-                Need help? Contact us at{' '}
-                <a href="tel:+918637625155" className="text-purple-400 hover:text-pink-400 font-semibold transition-colors underline decoration-purple-400/30 hover:decoration-pink-400">
-                  +91 86376 25155
-                </a>
-              </p>
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        appToast.info(
+                          "Password help",
+                          "Your default password is CUE followed by your phone number. Visit the venue to reset."
+                        )
+                      }
+                      className="text-[11px] font-medium text-violet-300 transition-colors hover:text-emerald-300"
+                    >
+                      Forgot?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock
+                      size={14}
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"
+                    />
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] pl-10 pr-11 text-sm text-white placeholder:text-gray-600 focus-visible:border-emerald-300/40 focus-visible:ring-emerald-500/25"
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-200"
+                      disabled={loading}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  <div
+                    className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(124,58,237,0.10) 0%, rgba(16,185,129,0.08) 100%)",
+                      border: "1px solid rgba(167,139,250,0.22)",
+                    }}
+                  >
+                    <Info size={13} className="mt-[2px] flex-shrink-0 text-violet-300" />
+                    <p className="text-[11.5px] leading-relaxed text-gray-300">
+                      First time?  Default password is{" "}
+                      <span className="font-mono font-semibold text-emerald-300">CUE</span>
+                      <span className="font-mono font-semibold text-emerald-300">
+                        &lt;yourphone&gt;
+                      </span>
+                      .
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="group mt-2 h-11 w-full rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-emerald-500 text-sm font-semibold text-white shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.01] hover:opacity-95 disabled:opacity-60"
+                >
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2.5">
+                      <Loader2 size={15} className="animate-spin" />
+                      Signing you in…
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Gamepad2 size={15} />
+                      Enter my player dashboard
+                      <ArrowRight
+                        size={14}
+                        className="transition-transform group-hover:translate-x-0.5"
+                      />
+                    </span>
+                  )}
+                </Button>
+              </form>
+
+              {/* Help strip */}
+              <div className="mt-6 border-t border-white/[0.06] pt-5">
+                <p className="text-center text-[12px] text-gray-500">
+                  Not registered yet? Visit your nearest Cuetronix-powered lounge to
+                  activate your account.
+                </p>
+                <div className="mt-3 flex items-center justify-center gap-2.5">
+                  {["Bookings", "Loyalty", "Tournaments"].map((badge) => (
+                    <span
+                      key={badge}
+                      className="rounded-full border border-emerald-300/15 bg-emerald-500/[0.08] px-2.5 py-0.5 text-[10px] font-medium text-emerald-200"
+                    >
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+        </motion.div>
+      </div>
+
+      <style>{`
+        @keyframes hueShift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+      `}</style>
     </div>
   );
 }

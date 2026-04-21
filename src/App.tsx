@@ -80,6 +80,9 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 import ShippingAndDelivery from "./pages/ShippingAndDelivery";
+import RefundPolicy from "./pages/RefundPolicy";
+import AcceptableUse from "./pages/AcceptableUse";
+import CookiePolicy from "./pages/CookiePolicy";
 
 // Cafe pages
 import CafeLogin from "./pages/cafe/CafeLogin";
@@ -435,6 +438,14 @@ const App = () => {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/shipping-delivery" element={<ShippingAndDelivery />} />
                 <Route path="/shipping-and-delivery" element={<ShippingAndDelivery />} />
+                <Route path="/service-delivery" element={<ShippingAndDelivery />} />
+                <Route path="/refund-policy" element={<RefundPolicy />} />
+                <Route path="/refunds" element={<RefundPolicy />} />
+                <Route path="/cancellation-policy" element={<RefundPolicy />} />
+                <Route path="/acceptable-use" element={<AcceptableUse />} />
+                <Route path="/acceptable-use-policy" element={<AcceptableUse />} />
+                <Route path="/cookies" element={<CookiePolicy />} />
+                <Route path="/cookie-policy" element={<CookiePolicy />} />
 
                 {/* Payment routes */}
                 <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />

@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { appToast } from "@/lib/appToast";
+import SplashScreen from "@/components/SplashScreen";
 
 const TIMEZONES = [
   "Asia/Kolkata",
@@ -62,6 +63,7 @@ const SignupGoogle: React.FC = () => {
   );
   const [accept, setAccept] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccessSplash, setShowSuccessSplash] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -118,7 +120,13 @@ const SignupGoogle: React.FC = () => {
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && json.ok) {
         appToast.success("Workspace created — welcome aboard!");
-        navigate("/onboarding", { replace: true });
+        try {
+          sessionStorage.removeItem("gh_show_login_splash_v1");
+        } catch {
+          /* ignore storage errors */
+        }
+        setShowSuccessSplash(true);
+        return;
       } else {
         appToast.error(json.error || "Signup failed.");
       }
@@ -158,6 +166,15 @@ const SignupGoogle: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#050508] text-zinc-100">
+      {showSuccessSplash && (
+        <SplashScreen
+          variant="login_success"
+          onDone={() => {
+            setShowSuccessSplash(false);
+            navigate("/onboarding", { replace: true });
+          }}
+        />
+      )}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-fuchsia-600/15 blur-[120px]" />
         <div className="absolute top-1/3 -left-40 h-[500px] w-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />

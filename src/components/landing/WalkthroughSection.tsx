@@ -1,185 +1,312 @@
 import { motion } from "framer-motion";
-import { Monitor, Calendar, ShoppingCart, LayoutDashboard } from "lucide-react";
+import { Calendar, Monitor, ShoppingCart, LayoutDashboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+// ─── Static data ──────────────────────────────────────────────────────────────
 
 const STEPS = [
   {
-    id: "booking",
-    title: "1. The Booking",
-    desc: "Customers pick a slot on your branded portal, pay via UPI, and walk in with a confirmed QR code. No more WhatsApp ping-pong.",
+    number: "01",
+    title: "The Booking",
+    description:
+      "Customer books on your branded portal, pays via UPI, gets a QR code. No WhatsApp. No back-and-forth. The slot is confirmed before they leave their couch.",
     icon: Calendar,
-    color: "from-indigo-500 to-violet-500",
+    color: "indigo" as const,
   },
   {
-    id: "station",
-    title: "2. The Session",
-    desc: "Staff scan the QR code. The station timer starts. Need to move from PS5 to a pool table? Transfer the session in one click without losing track of time.",
+    number: "02",
+    title: "The Session",
+    description:
+      "Staff scans the QR and the timer starts instantly. Need to transfer between PS5 and a pool table? One click — time and cart carry over. Zero friction.",
     icon: Monitor,
-    color: "from-violet-500 to-fuchsia-500",
+    color: "violet" as const,
   },
   {
-    id: "pos",
-    title: "3. The POS",
-    desc: "Customer wants a cappuccino? Add it directly to their active station cart. When they leave, they pay one combined bill for gaming and F&B.",
+    number: "03",
+    title: "The POS",
+    description:
+      "Add a cappuccino directly to the active station mid-session. When they're done, one combined bill — gaming, cafe, everything. Checkout in under 30 seconds.",
     icon: ShoppingCart,
-    color: "from-fuchsia-500 to-pink-500",
+    color: "fuchsia" as const,
   },
   {
-    id: "reports",
-    title: "4. The Reports",
-    desc: "At 2 AM, check your phone. See exact revenue splits between stations and cafe, station utilization heatmaps, and staff shift reconciliations.",
+    number: "04",
+    title: "The Reports",
+    description:
+      "Revenue by station. Utilization heatmaps. Staff reconciliation. Check it at 2 AM from your phone. Know exactly where every rupee came from.",
     icon: LayoutDashboard,
-    color: "from-emerald-500 to-teal-500",
+    color: "emerald" as const,
   },
 ];
 
+const COLOR_MAP = {
+  indigo: {
+    iconBg: "from-indigo-500 to-violet-600",
+    iconRing: "rgba(99,102,241,0.35)",
+    glow: "rgba(99,102,241,0.10)",
+    numColor: "text-indigo-300",
+    pillBg: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
+    dot: "bg-indigo-400",
+    connectorFrom: "rgba(99,102,241,0.5)",
+    connectorTo: "rgba(139,92,246,0.5)",
+  },
+  violet: {
+    iconBg: "from-violet-500 to-fuchsia-600",
+    iconRing: "rgba(139,92,246,0.35)",
+    glow: "rgba(139,92,246,0.10)",
+    numColor: "text-violet-300",
+    pillBg: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+    dot: "bg-violet-400",
+    connectorFrom: "rgba(139,92,246,0.5)",
+    connectorTo: "rgba(217,70,239,0.5)",
+  },
+  fuchsia: {
+    iconBg: "from-fuchsia-500 to-pink-600",
+    iconRing: "rgba(217,70,239,0.35)",
+    glow: "rgba(217,70,239,0.10)",
+    numColor: "text-fuchsia-300",
+    pillBg: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30",
+    dot: "bg-fuchsia-400",
+    connectorFrom: "rgba(217,70,239,0.5)",
+    connectorTo: "rgba(16,185,129,0.5)",
+  },
+  emerald: {
+    iconBg: "from-emerald-500 to-teal-600",
+    iconRing: "rgba(16,185,129,0.35)",
+    glow: "rgba(16,185,129,0.10)",
+    numColor: "text-emerald-300",
+    pillBg: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    dot: "bg-emerald-400",
+    connectorFrom: "rgba(16,185,129,0.5)",
+    connectorTo: "transparent",
+  },
+};
+
+const METRIC_PILLS = [
+  { label: "Booking", color: "indigo" as const },
+  { label: "Session", color: "violet" as const },
+  { label: "POS", color: "fuchsia" as const },
+  { label: "Reports", color: "emerald" as const },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 const WalkthroughSection: React.FC = () => {
+  const scrollToBookCall = () => {
+    document.getElementById("book-call")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
-    <section id="workflow" className="relative z-10 scroll-mt-32 py-32 px-5 sm:px-8">
-      <div className="max-w-7xl mx-auto">
+    <section
+      id="workflow"
+      className="relative overflow-hidden scroll-mt-24 py-28 md:py-36"
+    >
+      {/* ── Dot-grid overlay ── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, rgba(167,139,250,0.028) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+
+      {/* ── Ambient glows ── */}
+      <div
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[900px] h-[400px] pointer-events-none rounded-full"
+        style={{
+          background:
+            "radial-gradient(ellipse, rgba(139,92,246,0.07) 0%, transparent 70%)",
+        }}
+      />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8">
+
+        {/* ── Section header ── */}
         <div className="text-center mb-20">
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
+          <motion.span
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-xs uppercase tracking-[0.22em] text-fuchsia-400 font-semibold mb-3"
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            className="text-xs font-bold tracking-[0.18em] uppercase text-fuchsia-400 mb-4 block"
           >
             The Workflow
-          </motion.p>
+          </motion.span>
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-            className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4"
+            transition={{ duration: 0.65, ease: "easeOut", delay: 0.08 }}
+            className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white leading-[1.08] tracking-tight mb-5"
           >
-            How a session flows.
+            From booking to checkout —{" "}
+            <span
+              className="bg-clip-text text-transparent"
+              style={{
+                backgroundImage:
+                  "linear-gradient(90deg, #a78bfa 0%, #f0abfc 50%, #93c5fd 100%)",
+              }}
+            >
+              seamlessly.
+            </span>
           </motion.h2>
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-            className="text-gray-400 max-w-2xl mx-auto text-lg"
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.15 }}
+            className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed"
           >
-            Watch how Cuetronix handles a customer from their couch to checkout, seamlessly connecting online bookings with offline operations.
+            Four steps. One platform. Every customer interaction handled without duct-tape or
+            second-guessing.
           </motion.p>
         </div>
 
-        <div className="grid grid-cols-12 gap-x-4 md:gap-x-8">
-          {/* Left Column: Timeline Steps (5 cols) */}
-          <div className="col-span-12 lg:col-span-5 relative">
-            <div className="absolute left-6 top-8 bottom-8 w-px bg-white/10 hidden lg:block" />
-            
-            <div className="space-y-16 lg:space-y-24">
-              {STEPS.map((step, idx) => {
-                const Icon = step.icon;
-                return (
-                  <motion.div
-                    key={step.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true, margin: "-100px" }}
-                    transition={{ duration: 0.5, delay: idx * 0.1 }}
-                    className="relative pl-0 lg:pl-16"
+        {/* ── Steps 2-column grid ── */}
+        <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+
+          {/* Desktop connecting line (vertical, left col) */}
+          <div
+            className="absolute hidden xl:block pointer-events-none"
+            style={{
+              left: "calc(50% - 1px)",
+              top: "10%",
+              bottom: "10%",
+              width: "1px",
+              background:
+                "linear-gradient(to bottom, transparent, rgba(167,139,250,0.2) 15%, rgba(167,139,250,0.2) 85%, transparent)",
+            }}
+          />
+
+          {STEPS.map((step, i) => {
+            const c = COLOR_MAP[step.color];
+            const Icon = step.icon;
+
+            return (
+              <motion.div
+                key={step.number}
+                initial={{ opacity: 0, y: 32 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, ease: "easeOut", delay: i * 0.15 }}
+                whileHover={{ y: -6, transition: { duration: 0.22 } }}
+                className="group relative rounded-3xl border overflow-hidden cursor-default select-none"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  borderColor: "rgba(255,255,255,0.10)",
+                  transition: "border-color 0.3s, box-shadow 0.3s",
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget as HTMLDivElement;
+                  el.style.borderColor = `rgba(255,255,255,0.18)`;
+                  el.style.boxShadow = `0 0 40px ${c.glow}, 0 20px 60px rgba(0,0,0,0.35)`;
+                }}
+                onMouseLeave={(e) => {
+                  const el = e.currentTarget as HTMLDivElement;
+                  el.style.borderColor = "rgba(255,255,255,0.10)";
+                  el.style.boxShadow = "none";
+                }}
+              >
+                {/* Background step number watermark */}
+                <div
+                  className={`absolute top-4 right-5 text-8xl font-black opacity-[0.07] leading-none select-none pointer-events-none ${c.numColor}`}
+                  aria-hidden
+                >
+                  {step.number}
+                </div>
+
+                {/* Hover glow blob */}
+                <div
+                  className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                  style={{
+                    background: `radial-gradient(circle, ${c.glow} 0%, transparent 70%)`,
+                  }}
+                />
+
+                <div className="relative p-7 md:p-8 flex flex-col gap-5 h-full">
+
+                  {/* Icon circle */}
+                  <div
+                    className={`flex-shrink-0 w-12 h-12 rounded-2xl bg-gradient-to-br ${c.iconBg} flex items-center justify-center shadow-lg`}
+                    style={{ boxShadow: `0 0 20px ${c.iconRing}` }}
                   >
-                    <div className="hidden lg:flex absolute left-0 top-1 w-12 h-12 rounded-full bg-[#07030f] border border-white/20 items-center justify-center z-10 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                      <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${step.color} flex items-center justify-center`}>
-                        <Icon size={14} className="text-white" />
-                      </div>
-                    </div>
-                    
-                    <div className="lg:hidden mb-4 inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-white/5 to-white/10 border border-white/10">
-                      <Icon size={20} className="text-fuchsia-300" />
-                    </div>
+                    <Icon size={22} className="text-white" />
+                  </div>
 
-                    <h3 className="text-2xl font-bold tracking-tight mb-3 text-white">
-                      {step.title}
-                    </h3>
-                    <p className="text-gray-400 text-base leading-relaxed">
-                      {step.desc}
-                    </p>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
+                  {/* Step label */}
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`text-xs font-bold tracking-widest uppercase px-2.5 py-1 rounded-full border ${c.pillBg}`}
+                    >
+                      Step {step.number}
+                    </span>
+                  </div>
 
-          {/* Right Column: Abstract UI Visuals (7 cols) */}
-          <div className="col-span-12 lg:col-span-7 mt-16 lg:mt-0">
-            <div className="sticky top-32 w-full aspect-[4/3] rounded-3xl border border-white/10 bg-white/[0.02] backdrop-blur-sm overflow-hidden flex items-center justify-center p-8 shadow-2xl">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5" />
-              
-              {/* Abstract Representation of the Dashboard */}
-              <div className="relative w-full h-full border border-white/10 rounded-2xl bg-[#0a0514] shadow-2xl overflow-hidden flex flex-col">
-                {/* Mock Header */}
-                <div className="h-12 border-b border-white/10 flex items-center px-4 gap-4 bg-white/[0.02]">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50" />
-                    <div className="w-3 h-3 rounded-full bg-amber-500/20 border border-amber-500/50" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50" />
-                  </div>
-                  <div className="h-6 w-48 bg-white/5 rounded-md mx-auto" />
+                  {/* Title */}
+                  <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                    {step.title}
+                  </h3>
+
+                  {/* Description */}
+                  <p className="text-gray-400 text-base leading-relaxed flex-1">
+                    {step.description}
+                  </p>
                 </div>
-                
-                {/* Mock Content Area */}
-                <div className="flex-1 p-6 grid grid-cols-3 gap-4">
-                  {/* Sidebar */}
-                  <div className="col-span-1 space-y-3">
-                    <div className="h-8 w-full bg-white/10 rounded-lg" />
-                    <div className="h-8 w-3/4 bg-white/5 rounded-lg" />
-                    <div className="h-8 w-5/6 bg-white/5 rounded-lg" />
-                    <div className="h-8 w-full bg-white/5 rounded-lg" />
-                  </div>
-                  
-                  {/* Main Area */}
-                  <div className="col-span-2 flex flex-col gap-4">
-                    {/* Top Stats Row */}
-                    <div className="flex gap-4">
-                      <div className="h-24 flex-1 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-xl border border-white/10 p-4 flex flex-col justify-between relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 rounded-bl-full" />
-                        <div className="h-3 w-16 bg-white/20 rounded" />
-                        <div className="h-6 w-24 bg-white/90 rounded" />
-                      </div>
-                      <div className="h-24 flex-1 bg-white/5 rounded-xl border border-white/10 p-4 flex flex-col justify-between">
-                        <div className="h-3 w-20 bg-white/10 rounded" />
-                        <div className="h-6 w-16 bg-white/40 rounded" />
-                      </div>
-                    </div>
-                    
-                    {/* Station Grid Mockup */}
-                    <div className="flex-1 w-full bg-white/5 rounded-xl border border-white/10 p-4 flex flex-col gap-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="h-4 w-1/3 bg-white/20 rounded-md" />
-                        <div className="h-4 w-16 bg-white/10 rounded-md" />
-                      </div>
-                      <div className="grid grid-cols-3 gap-3 flex-1">
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                          <div key={i} className={`rounded-lg border ${i === 2 ? 'border-fuchsia-500/50 bg-fuchsia-500/10' : 'border-white/5 bg-white/5'} p-2 flex flex-col justify-between relative overflow-hidden`}>
-                            {i === 2 && (
-                              <motion.div 
-                                animate={{ opacity: [0.3, 0.6, 0.3] }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                                className="absolute inset-0 bg-gradient-to-br from-fuchsia-500/20 to-transparent"
-                              />
-                            )}
-                            <div className="flex justify-between items-start z-10">
-                              <div className="h-2 w-8 bg-white/20 rounded" />
-                              <div className={`h-2 w-2 rounded-full ${i === 2 ? 'bg-fuchsia-400' : i === 4 ? 'bg-emerald-400' : 'bg-white/20'}`} />
-                            </div>
-                            <div className="space-y-1.5 z-10">
-                              <div className={`h-1.5 w-full rounded ${i === 2 ? 'bg-fuchsia-400/50' : 'bg-white/10'}`} />
-                              <div className={`h-1.5 w-2/3 rounded ${i === 2 ? 'bg-fuchsia-400/30' : 'bg-white/5'}`} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+              </motion.div>
+            );
+          })}
         </div>
+
+        {/* ── Metric pill bar ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.65, ease: "easeOut", delay: 0.2 }}
+          className="mt-16 flex items-center justify-center gap-0 flex-wrap sm:flex-nowrap"
+        >
+          {METRIC_PILLS.map((pill, i) => {
+            const c = COLOR_MAP[pill.color];
+            const isLast = i === METRIC_PILLS.length - 1;
+            return (
+              <div key={pill.label} className="flex items-center">
+                <div
+                  className={`px-5 py-2.5 rounded-full border text-sm font-bold tracking-wide ${c.pillBg}`}
+                >
+                  <span className={`w-2 h-2 rounded-full inline-block mr-2 align-middle ${c.dot}`} />
+                  {pill.label}
+                </div>
+                {!isLast && (
+                  <div
+                    className="w-8 h-px mx-1 flex-shrink-0"
+                    style={{
+                      background: `linear-gradient(to right, ${c.connectorFrom}, ${COLOR_MAP[METRIC_PILLS[i + 1].color].connectorFrom})`,
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </motion.div>
+
+        {/* ── Bottom CTA ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
+          className="mt-14 text-center"
+        >
+          <Button
+            size="lg"
+            onClick={scrollToBookCall}
+            className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 hover:opacity-90 text-white font-bold px-10 h-13 text-base rounded-xl shadow-2xl shadow-fuchsia-600/30 transition-all hover:scale-[1.02]"
+          >
+            See it in action — book a 30-min demo
+          </Button>
+        </motion.div>
+
       </div>
     </section>
   );

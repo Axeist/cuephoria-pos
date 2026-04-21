@@ -1,13 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowUpRight,
-  CalendarDays,
+  Code2,
   Gamepad2,
-  Headphones,
-  LogIn,
-  PlugZap,
-  Shield,
-  ShieldCheck,
+  Instagram,
+  Linkedin,
+  Mail,
+  Sparkles,
+  Twitter,
+  Youtube,
 } from "lucide-react";
 
 const Footer: React.FC = () => {
@@ -17,240 +17,313 @@ const Footer: React.FC = () => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const columns: {
+    title: string;
+    links: { label: string; onClick?: () => void; href?: string }[];
+  }[] = [
+    {
+      title: "Product",
+      links: [
+        { label: "Modules", onClick: () => scrollTo("modules") },
+        { label: "Workflow", onClick: () => scrollTo("workflow") },
+        { label: "Pricing", onClick: () => scrollTo("pricing") },
+        { label: "Security", onClick: () => scrollTo("trust") },
+        { label: "FAQ", onClick: () => scrollTo("faq") },
+      ],
+    },
+    {
+      title: "Portals",
+      links: [
+        { label: "Workspace admin", onClick: () => navigate("/login") },
+        { label: "Customer", onClick: () => navigate("/customer/login") },
+        { label: "Cafe", onClick: () => navigate("/cafe/login") },
+        { label: "Platform admin", onClick: () => navigate("/platform/login") },
+      ],
+    },
+    {
+      title: "Company",
+      links: [
+        { label: "Contact", onClick: () => navigate("/contact") },
+        { label: "Cuephoria Venues", href: "https://cuephoria.in" },
+        { label: "Cuephoria Tech", href: "https://cuephoriatech.in" },
+        { label: "Book a call", onClick: () => scrollTo("book-call") },
+      ],
+    },
+    {
+      title: "Legal",
+      links: [
+        { label: "Terms of Service", onClick: () => navigate("/terms") },
+        { label: "Privacy Policy", onClick: () => navigate("/privacy") },
+        { label: "Refund & Cancellation", onClick: () => navigate("/refund-policy") },
+        { label: "Acceptable Use", onClick: () => navigate("/acceptable-use") },
+        { label: "Cookie Policy", onClick: () => navigate("/cookies") },
+        { label: "Service Delivery", onClick: () => navigate("/shipping-and-delivery") },
+      ],
+    },
+  ];
+
+  const socials = [
+    { icon: Instagram, label: "Instagram", href: "https://instagram.com/cuephoria" },
+    { icon: Twitter, label: "X (Twitter)", href: "https://twitter.com/cuetronix" },
+    { icon: Linkedin, label: "LinkedIn", href: "https://www.linkedin.com/company/cuephoria" },
+    { icon: Youtube, label: "YouTube", href: "https://youtube.com/@cuephoria" },
+    { icon: Mail, label: "Email us", href: "mailto:hello@cuetronix.com" },
+  ];
+
   return (
-    <footer className="relative z-10 px-5 pb-8 pt-20 sm:px-8">
-      <div className="max-w-7xl mx-auto">
+    <footer className="relative z-10 mt-24 pb-6 sm:pb-8">
+      {/* Ambient glow beneath the footer — bleeds into the page */}
+      <div className="pointer-events-none absolute inset-x-0 -top-28 h-56 overflow-hidden">
         <div
-          className="relative overflow-hidden rounded-[36px] border border-white/10"
+          className="absolute left-1/2 top-1/2 h-72 w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80"
           style={{
             background:
-              "linear-gradient(180deg, rgba(13,8,22,0.95) 0%, rgba(9,5,17,0.92) 100%)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
+              "radial-gradient(closest-side, rgba(124,58,237,0.18), rgba(236,72,153,0.10) 45%, transparent 75%)",
+            filter: "blur(40px)",
+          }}
+        />
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-3 sm:px-5">
+        {/* Advanced glass container */}
+        <div
+          className="relative overflow-hidden rounded-[28px]"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(20,12,38,0.55) 0%, rgba(12,7,24,0.7) 100%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(32px) saturate(180%)",
+            WebkitBackdropFilter: "blur(32px) saturate(180%)",
             boxShadow:
-              "0 28px 90px -36px rgba(120, 65, 245, 0.48), inset 0 1px 0 rgba(255,255,255,0.05)",
+              "0 30px 80px -30px rgba(124,58,237,0.4), 0 10px 30px -10px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08)",
           }}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(216,180,254,0.16),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(96,165,250,0.12),_transparent_22%)]" />
+          {/* Top shine */}
+          <div
+            className="pointer-events-none absolute inset-x-8 top-0 h-px"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)",
+            }}
+          />
 
-          <div className="relative border-b border-white/8 px-6 py-8 sm:px-8 lg:px-10">
-            <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-              <div>
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-fuchsia-300">
-                  Premium venue software
-                </div>
-                <h2 className="max-w-2xl text-3xl font-extrabold tracking-tight sm:text-4xl">
-                  A more polished front door for your lounge, from discovery to login.
-                </h2>
-                <p className="mt-4 max-w-2xl text-base leading-relaxed text-gray-400">
-                  Cuetronix gives operators one system for bookings, live station control, cafe
-                  billing, loyalty, reporting and customer self-serve. Start a trial, log in to the
-                  right portal, or book a setup call directly from here.
-                </p>
-              </div>
+          {/* Inner radial tints */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(800px 300px at 15% 0%, rgba(167,139,250,0.14), transparent 60%)," +
+                "radial-gradient(700px 280px at 85% 100%, rgba(236,72,153,0.10), transparent 65%)",
+            }}
+          />
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  { value: "99.98%", label: "Uptime" },
-                  { value: "50k+", label: "Bookings processed" },
-                  { value: "<100ms", label: "P95 latency" },
-                  { value: "4 portals", label: "Login paths ready" },
-                ].map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md"
-                  >
-                    <div className="text-2xl font-extrabold text-white">{stat.value}</div>
-                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-white/45">
-                      {stat.label}
-                    </div>
+          <div className="relative px-6 sm:px-10">
+            {/* Brand + link columns */}
+            <div className="grid gap-10 py-12 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-[1.5fr_0.6fr_0.6fr_0.6fr_0.6fr] lg:py-14">
+              {/* Brand */}
+              <div className="max-w-sm sm:col-span-2 md:col-span-4 lg:col-span-1">
+                <div className="mb-4 flex items-center gap-2.5">
+                  <div className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow-md shadow-violet-600/40">
+                    <Gamepad2 size={17} className="text-white" />
+                    <div className="pointer-events-none absolute inset-0 rounded-lg bg-gradient-to-br from-white/25 to-transparent" />
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="relative grid gap-12 px-6 py-10 sm:px-8 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr] lg:px-10">
-            <div>
-              <div className="mb-6 flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-600/40">
-                  <Gamepad2 size={22} className="text-white" />
+                  <span className="text-xl font-bold tracking-tight">
+                    Cue
+                    <span className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
+                      tronix
+                    </span>
+                  </span>
                 </div>
-                <span className="text-2xl font-bold tracking-tight">
-                  Cue<span className="bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">tronix</span>
-                </span>
-              </div>
-              <p className="mb-6 max-w-md text-base leading-relaxed text-gray-400">
-                The operating system for modern gaming lounges. Premium bookings, counter speed,
-                cafe workflows, loyalty, tournaments and analytics, built by operators who run
-                real venues.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => navigate("/signup")}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-600/25 transition-opacity hover:opacity-95"
+
+                {/* Built-by strip — glass card with two "credits" */}
+                <div
+                  className="mb-5 overflow-hidden rounded-2xl"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(124,58,237,0.14) 0%, rgba(236,72,153,0.10) 55%, rgba(59,130,246,0.10) 100%)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    backdropFilter: "blur(18px) saturate(160%)",
+                    WebkitBackdropFilter: "blur(18px) saturate(160%)",
+                    boxShadow:
+                      "0 10px 30px -14px rgba(124,58,237,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+                  }}
                 >
-                  Start free trial <ArrowUpRight size={15} />
-                </button>
-                <button
-                  onClick={() => scrollTo("book-call")}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/[0.08]"
-                >
-                  <CalendarDays size={15} className="text-fuchsia-300" />
-                  Book a call
-                </button>
-              </div>
-
-              <div className="mt-6 flex items-center gap-2 text-sm font-medium text-gray-500">
-                <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
-                All systems operational
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-6 text-base font-bold tracking-tight text-white">Explore</p>
-              <ul className="space-y-4">
-                {[
-                  { label: "Modules", action: () => scrollTo("modules") },
-                  { label: "Workflow", action: () => scrollTo("workflow") },
-                  { label: "Pricing", action: () => scrollTo("pricing") },
-                  { label: "Security", action: () => scrollTo("trust") },
-                  { label: "FAQ", action: () => scrollTo("faq") },
-                  { label: "Book a call", action: () => scrollTo("book-call") },
-                ].map((l) => (
-                  <li key={l.label}>
-                    <button
-                      onClick={l.action}
-                      className="text-base font-medium text-gray-400 transition-colors hover:text-white"
-                    >
-                      {l.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <p className="mb-6 text-base font-bold tracking-tight text-white">Login portals</p>
-              <ul className="space-y-4">
-                {[
-                  { label: "Workspace admin login", action: () => navigate("/login") },
-                  { label: "Customer login", action: () => navigate("/customer/login") },
-                  { label: "Cafe login", action: () => navigate("/cafe/login") },
-                  { label: "Platform admin login", action: () => navigate("/platform/login") },
-                ].map((link) => (
-                  <li key={link.label}>
-                    <button
-                      onClick={link.action}
-                      className="inline-flex items-center gap-2 text-base font-medium text-gray-400 transition-colors hover:text-white"
-                    >
-                      <LogIn size={15} className="text-violet-300" />
-                      {link.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <p className="mb-6 text-base font-bold tracking-tight text-white">Company</p>
-              <ul className="space-y-4">
-                <li>
-                  <button
-                    onClick={() => navigate("/contact")}
-                    className="text-base font-medium text-gray-400 transition-colors hover:text-white"
-                  >
-                    Contact
-                  </button>
-                </li>
-                <li>
-                  <a
-                    href="mailto:hello@cuetronix.com"
-                    className="text-base font-medium text-gray-400 transition-colors hover:text-white"
-                  >
-                    hello@cuetronix.com
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="https://cuephoria.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-base font-medium text-gray-400 transition-colors hover:text-white"
-                  >
-                    Cuephoria Venues
-                  </a>
-                </li>
-                <li>
+                  {/* Engineered by */}
                   <a
                     href="https://cuephoriatech.in"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-base font-medium text-gray-400 transition-colors hover:text-white"
+                    aria-label="Engineered by Cuephoria Tech"
+                    className="group flex items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-white/[0.03]"
+                  >
+                    <span
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg shadow-md shadow-violet-900/40"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)",
+                      }}
+                    >
+                      <Code2 size={14} className="text-white" />
+                    </span>
+                    <span className="min-w-0 flex-1 leading-tight">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                        Engineered by
+                      </span>
+                      <span className="block text-sm font-bold tracking-tight bg-gradient-to-r from-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                        Cuephoria&nbsp;Tech
+                      </span>
+                    </span>
+                    <Sparkles
+                      size={12}
+                      className="text-fuchsia-300/70 transition-transform group-hover:scale-110"
+                    />
+                  </a>
+
+                  {/* Divider */}
+                  <div
+                    className="mx-3.5 h-px"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%)",
+                    }}
+                  />
+
+                  {/* Proven at */}
+                  <a
+                    href="https://cuephoria.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Proven at Cuephoria Gaming Lounge"
+                    className="group flex items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-white/[0.03]"
+                  >
+                    <span
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg shadow-md shadow-fuchsia-900/40"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #ec4899 0%, #f472b6 60%, #fb7185 100%)",
+                      }}
+                    >
+                      <Gamepad2 size={14} className="text-white" />
+                    </span>
+                    <span className="min-w-0 flex-1 leading-tight">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                        Proven live at
+                      </span>
+                      <span className="block text-sm font-bold tracking-tight text-white/90">
+                        Cuephoria Gaming Lounge
+                      </span>
+                    </span>
+                    <span className="relative flex h-2 w-2 flex-shrink-0 items-center justify-center">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
+                    </span>
+                  </a>
+                </div>
+
+                <p className="text-sm leading-relaxed text-gray-400">
+                  The billing software for snooker halls, 8-ball rooms and gaming centres.
+                  Bookings, POS, loyalty, tournaments and multi-branch reports — engineered by{" "}
+                  <a
+                    href="https://cuephoriatech.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-300 hover:text-white"
                   >
                     Cuephoria Tech
-                  </a>
-                </li>
-                <li>
-                  <button
-                    onClick={() => navigate("/terms")}
-                    className="text-base font-medium text-gray-400 transition-colors hover:text-white"
+                  </a>{" "}
+                  and battle-tested at{" "}
+                  <a
+                    href="https://cuephoria.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-300 hover:text-white"
                   >
-                    Terms
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => navigate("/privacy")}
-                    className="text-base font-medium text-gray-400 transition-colors hover:text-white"
-                  >
-                    Privacy
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => navigate("/shipping-and-delivery")}
-                    className="text-base font-medium text-gray-400 transition-colors hover:text-white"
-                  >
-                    Shipping and delivery
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
+                    Cuephoria Gaming Lounge
+                  </a>.
+                </p>
 
-          <div className="relative border-t border-white/8 px-6 py-6 sm:px-8 lg:px-10">
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-gray-300">
-                <ShieldCheck size={16} className="text-violet-300" />
-                Security posture: RLS, PBKDF2, TOTP and audit logs
+                <div className="mt-5 flex items-center gap-2">
+                  {socials.map(({ icon: Icon, label, href }) => (
+                    <a
+                      key={label}
+                      href={href}
+                      target={href.startsWith("mailto:") ? undefined : "_blank"}
+                      rel={href.startsWith("mailto:") ? undefined : "noopener noreferrer"}
+                      aria-label={label}
+                      className="group flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-gray-400 backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-violet-300/35 hover:bg-white/[0.07] hover:text-white"
+                    >
+                      <Icon size={14} />
+                    </a>
+                  ))}
+                </div>
               </div>
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-gray-300">
-                <PlugZap size={16} className="text-sky-300" />
-                Integrations: Razorpay, Supabase, Resend, WhatsApp
-              </div>
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-gray-300">
-                <Headphones size={16} className="text-fuchsia-300" />
-                Support: launch help, migration planning and live demos
-              </div>
-            </div>
-          </div>
 
-          <div className="relative flex flex-col items-center justify-between gap-4 border-t border-white/8 px-6 py-6 text-center sm:px-8 md:flex-row md:text-left lg:px-10">
-            <p className="text-sm font-medium text-gray-600">
-              © {new Date().getFullYear()} Cuetronix. A Cuephoria Tech product. All rights reserved.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm font-medium">
-              <span className="inline-flex items-center gap-2 text-gray-500">
-                <Shield size={16} className="text-gray-600" /> SOC-ready mindset
-              </span>
-              <a
-                href="mailto:hello@cuetronix.com"
-                className="inline-flex items-center gap-2 text-gray-500 transition-colors hover:text-white"
-              >
-                <ArrowUpRight size={15} className="text-gray-600" />
-                Contact sales
-              </a>
+              {/* Link columns */}
+              {columns.map((col) => (
+                <div key={col.title}>
+                  <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                    {col.title}
+                  </p>
+                  <ul className="space-y-2.5">
+                    {col.links.map((link) => (
+                      <li key={link.label}>
+                        {link.href ? (
+                          <a
+                            href={link.href}
+                            target={link.href.startsWith("http") ? "_blank" : undefined}
+                            rel={
+                              link.href.startsWith("http") ? "noopener noreferrer" : undefined
+                            }
+                            className="text-sm text-gray-400 transition-colors hover:text-white"
+                          >
+                            {link.label}
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={link.onClick}
+                            className="text-left text-sm text-gray-400 transition-colors hover:text-white"
+                          >
+                            {link.label}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div
+              className="h-px w-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)",
+              }}
+            />
+
+            {/* Legal strip */}
+            <div className="flex flex-col items-start justify-between gap-3 py-5 text-sm md:flex-row md:items-center md:py-6">
+              <p className="text-gray-500">
+                © {new Date().getFullYear()} Cuetronix · A{" "}
+                <a
+                  href="https://cuephoriatech.in"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 transition-colors hover:text-white"
+                >
+                  Cuephoria Tech
+                </a>{" "}
+                product · Made in India
+              </p>
+              <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+                <span className="relative flex h-1.5 w-1.5 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
+                </span>
+                All systems operational
+              </div>
             </div>
           </div>
         </div>

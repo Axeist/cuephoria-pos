@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Gamepad2, ShieldCheck, Sparkles } from "lucide-react";
 
 export type SplashVariant = "boot" | "login_success";
 
@@ -33,44 +34,43 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
+// ─── Log lines ────────────────────────────────────────────────────────────────
 const BOOT_LINES: string[] = [
-  "GH/BIOS v2.8.14 — initializing secure runtime",
-  "Checking device bus... OK",
-  "Verifying shaders... OK",
-  "Mounting encrypted volumes... OK",
-  "Loading cuephoria-pos modules...",
-  "Networking stack: online",
-  "Auth subsystem: ready",
-  "UI compositor: ready",
-  "Warming caches...",
-  "Boot sequence complete.",
+  "› initializing cuetronix runtime",
+  "› mounting secure session vault",
+  "› establishing tenant channel",
+  "› synchronising branding manifest",
+  "› compositor ready",
+  "› realtime sockets online",
+  "› hello, operator",
 ];
 
 const LOGIN_SUCCESS_LINES: string[] = [
-  "AUTH: token accepted",
-  "ACL: role binding applied",
-  "Session: hardened",
-  "Sync: fetching dashboards",
-  "Realtime: subscribing channels",
-  "Welcome back, operator.",
+  "› credentials verified",
+  "› session hardened · 2FA ok",
+  "› loading workspace manifest",
+  "› restoring last view",
+  "› welcome back",
 ];
 
-type MatrixRainCanvasProps = {
+// ─── Lightweight starfield canvas ─────────────────────────────────────────────
+// Self-contained (no three.js), fits the 3-second splash budget without
+// bringing in the heavy galaxy scene from the landing page.
+type StarfieldCanvasProps = {
   enabled: boolean;
   className?: string;
 };
 
-function MatrixRainCanvas({ enabled, className }: MatrixRainCanvasProps) {
+function StarfieldCanvas({ enabled, className }: StarfieldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
-  const resizeObsRef = useRef<ResizeObserver | null>(null);
-
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
-  const columnsRef = useRef<number>(0);
-  const dropsRef = useRef<Float32Array | null>(null);
-  const speedsRef = useRef<Float32Array | null>(null);
+  const starsRef = useRef<
+    Array<{ x: number; y: number; z: number; r: number; hue: number; tw: number }>
+  >([]);
 
+  // Resize + star regeneration
   useEffect(() => {
     const el = wrapperRef.current;
     const canvas = canvasRef.current;
@@ -94,32 +94,28 @@ function MatrixRainCanvas({ enabled, className }: MatrixRainCanvasProps) {
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const fontSize = 14;
-      const cols = Math.max(1, Math.floor(w / fontSize));
-      columnsRef.current = cols;
-
-      const drops = new Float32Array(cols);
-      const speeds = new Float32Array(cols);
-      for (let i = 0; i < cols; i++) {
-        drops[i] = -Math.random() * 60;
-        speeds[i] = 0.75 + Math.random() * 2.25;
+      const count = Math.max(90, Math.min(260, Math.floor((w * h) / 9000)));
+      const stars = [];
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          z: Math.random() * 0.85 + 0.15,
+          r: Math.random() * 1.4 + 0.2,
+          hue: Math.random(),
+          tw: Math.random() * Math.PI * 2,
+        });
       }
-      dropsRef.current = drops;
-      speedsRef.current = speeds;
+      starsRef.current = stars;
     });
 
     ro.observe(el);
-    resizeObsRef.current = ro;
-    return () => {
-      ro.disconnect();
-      resizeObsRef.current = null;
-    };
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -129,48 +125,44 @@ function MatrixRainCanvas({ enabled, className }: MatrixRainCanvasProps) {
       return;
     }
 
-    const glyphs = "アァカサタナハマヤャラワン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%*+";
-    const fontSize = 14;
-    ctx.font =
-      `${fontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, ` +
-      `"Liberation Mono", "Courier New", monospace`;
-    ctx.textBaseline = "top";
+    let last = performance.now();
 
-    const draw = () => {
+    const draw = (now: number) => {
       const { w, h } = sizeRef.current;
-      const cols = columnsRef.current;
-      const drops = dropsRef.current;
-      const speeds = speedsRef.current;
-      if (!w || !h || !cols || !drops || !speeds) {
-        rafRef.current = requestAnimationFrame(draw);
-        return;
-      }
+      const dt = Math.min(64, now - last);
+      last = now;
 
-      // Trail fade
-      ctx.fillStyle = "rgba(0,0,0,0.065)";
-      ctx.fillRect(0, 0, w, h);
+      // Clear to fully transparent so layer underneath (gradient) shows through
+      ctx.clearRect(0, 0, w, h);
 
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = "rgba(120, 255, 170, 0.25)";
+      const stars = starsRef.current;
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
 
-      for (let i = 0; i < cols; i++) {
-        const x = i * fontSize;
-        const y = drops[i] * fontSize;
-        const ch = glyphs[Math.floor(Math.random() * glyphs.length)] || "0";
+        // Gentle rightward / downward drift in parallax to the star's depth
+        s.x += (0.015 + s.z * 0.035) * dt;
+        s.y += (0.008 + s.z * 0.02) * dt;
+        s.tw += 0.002 * dt;
 
-        // body (slightly dimmer)
-        ctx.fillStyle = "rgba(0, 255, 140, 0.22)";
-        ctx.fillText(ch, x, y - fontSize);
+        if (s.x > w + 8) s.x = -8;
+        if (s.y > h + 8) s.y = -8;
 
-        // head (bright)
-        ctx.fillStyle = "rgba(170, 255, 210, 0.92)";
-        ctx.fillText(ch, x, y);
+        // Twinkle + colour wheel across violet / fuchsia / blue
+        const twinkle = 0.55 + Math.sin(s.tw) * 0.45;
+        const alpha = clamp01(0.25 + s.z * 0.7) * twinkle;
 
-        drops[i] += speeds[i];
-        if (y > h && Math.random() > 0.975) {
-          drops[i] = -Math.random() * 50;
-          speeds[i] = 0.75 + Math.random() * 2.25;
-        }
+        // Pick a warm violet / fuchsia / cool indigo hue based on `hue` slot
+        let color: string;
+        if (s.hue < 0.45) color = `rgba(167,139,250,${alpha.toFixed(3)})`; // violet
+        else if (s.hue < 0.8) color = `rgba(240,171,252,${alpha.toFixed(3)})`; // fuchsia
+        else color = `rgba(147,197,253,${alpha.toFixed(3)})`; // blue
+
+        ctx.beginPath();
+        ctx.fillStyle = color;
+        ctx.shadowBlur = 6 * s.z;
+        ctx.shadowColor = color;
+        ctx.arc(s.x, s.y, s.r * (0.8 + s.z * 1.1), 0, Math.PI * 2);
+        ctx.fill();
       }
 
       rafRef.current = requestAnimationFrame(draw);
@@ -185,11 +177,12 @@ function MatrixRainCanvas({ enabled, className }: MatrixRainCanvasProps) {
 
   return (
     <div ref={wrapperRef} className={className}>
-      <canvas ref={canvasRef} className="w-full h-full" />
+      <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );
 }
 
+// ─── Main component ──────────────────────────────────────────────────────────
 export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -202,22 +195,26 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
   const exitingRef = useRef(false);
   exitingRef.current = exiting;
 
-  const allLines = useMemo(() => {
-    return variant === "boot" ? BOOT_LINES : LOGIN_SUCCESS_LINES;
-  }, [variant]);
+  const allLines = useMemo(
+    () => (variant === "boot" ? BOOT_LINES : LOGIN_SUCCESS_LINES),
+    [variant],
+  );
+
+  const isSuccess = variant === "login_success";
 
   const beginExit = (source: "auto" | "click") => {
     if (exitingRef.current) return;
     setExitSource(source);
     setExiting(true);
 
-    const delayMs = source === "click" ? 650 : 750;
+    const delayMs = source === "click" ? 500 : 650;
     if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
     exitTimerRef.current = window.setTimeout(() => {
       onDone();
     }, delayMs);
   };
 
+  // Progress timer
   useEffect(() => {
     setProgress(0);
     setLines([]);
@@ -227,7 +224,9 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
     if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
     exitTimerRef.current = null;
 
-    const durationMs = 3500;
+    // Success variant finishes faster — user has already authenticated and is
+    // just waiting. Boot takes a beat longer because we want the brand moment.
+    const durationMs = isSuccess ? 2400 : 3200;
     const start = performance.now();
     let raf = 0;
 
@@ -248,15 +247,17 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
 
+  // Stream log lines in, one at a time
   useEffect(() => {
     let idx = 0;
+    const cadence = isSuccess ? 220 : 300;
     const timer = window.setInterval(() => {
       idx += 1;
       setLines(allLines.slice(0, idx));
       if (idx >= allLines.length) window.clearInterval(timer);
-    }, 260);
+    }, cadence);
     return () => window.clearInterval(timer);
-  }, [allLines]);
+  }, [allLines, isSuccess]);
 
   useEffect(() => {
     return () => {
@@ -264,156 +265,375 @@ export default function SplashScreen({ variant, onDone }: SplashScreenProps) {
     };
   }, []);
 
+  // Listen for Enter to skip
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        beginExit("click");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const pct = Math.round(progress * 100);
-  // Use arbitrary-property syntax so Tailwind knows we mean transition-duration
-  // (shorthand `duration` on arbitrary values is ambiguous with animation-duration).
   const exitDurationClass =
     exitSource === "click"
-      ? "[transition-duration:650ms]"
-      : "[transition-duration:750ms]";
+      ? "[transition-duration:500ms]"
+      : "[transition-duration:650ms]";
 
   return (
     <div
       className={[
-        "fixed inset-0 z-[99999] pointer-events-auto select-none",
+        "fixed inset-0 z-[99999] select-none overflow-hidden",
         "flex items-center justify-center p-4 sm:p-6",
         "transition-opacity ease-out",
         exitDurationClass,
         exiting ? "opacity-0" : "opacity-100",
       ].join(" ")}
       aria-live="polite"
-      aria-label={variant === "boot" ? "Boot splash screen" : "Login success splash screen"}
+      aria-label={isSuccess ? "Access granted splash screen" : "Boot splash screen"}
     >
-      {/* base gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#060611] via-[#070a14] to-[#0b0720]" />
-
-      {/* matrix (behind card) */}
-      <MatrixRainCanvas
-        enabled={!prefersReducedMotion}
-        className="absolute inset-0 opacity-[0.42] blur-[0.2px]"
+      {/* ── Deep gradient base ── */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(1200px 800px at 15% 0%, rgba(124,58,237,0.35), transparent 60%)," +
+            "radial-gradient(900px 700px at 85% 15%, rgba(236,72,153,0.22), transparent 60%)," +
+            "radial-gradient(1200px 900px at 50% 100%, rgba(59,130,246,0.18), transparent 60%)," +
+            "linear-gradient(180deg, #07030f 0%, #0a0414 55%, #07030f 100%)",
+        }}
       />
 
-      {/* micro textures */}
-      <div className="absolute inset-0 bg-grid-pattern opacity-[0.07]" />
-      <div className="absolute inset-0 bg-noise-soft opacity-[0.10] mix-blend-overlay" />
-      <div className="absolute inset-0 bg-scanlines opacity-[0.18] mix-blend-overlay" />
-      <div className="absolute inset-0 gh-scanline opacity-[0.30] pointer-events-none" />
+      {/* ── Starfield (violet/fuchsia) ── */}
+      <StarfieldCanvas
+        enabled={!prefersReducedMotion}
+        className="absolute inset-0 opacity-90"
+      />
 
-      {/* glow blobs */}
-      <div className="absolute -top-28 -left-28 h-[380px] w-[380px] rounded-full bg-emerald-400/12 blur-3xl gh-splash-float" />
-      <div className="absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-fuchsia-400/10 blur-3xl gh-splash-float2" />
+      {/* ── Film-grain noise ── */}
+      <div
+        className="absolute inset-0 opacity-[0.05] mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          backgroundSize: "220px",
+        }}
+      />
 
-      {/* card */}
+      {/* ── Vignette ── */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 30%, rgba(7,3,15,0.65) 100%)",
+        }}
+      />
+
+      {/* ── Floating ambient glows ── */}
+      <div className="gh-splash-float pointer-events-none absolute -top-32 -left-32 h-[420px] w-[420px] rounded-full bg-violet-500/20 blur-[100px]" />
+      <div className="gh-splash-float2 pointer-events-none absolute -bottom-32 -right-24 h-[460px] w-[460px] rounded-full bg-fuchsia-500/18 blur-[110px]" />
+
+      {/* ── Glass card ── */}
       <div
         className={[
-          "relative z-10 w-full max-w-[740px]",
-          "rounded-3xl border border-white/10 bg-black/45 backdrop-blur-xl shadow-[0_30px_90px_rgba(0,0,0,0.65)]",
-          "overflow-hidden",
+          "relative z-10 w-full max-w-[720px]",
           "transform-gpu transition-all [transition-timing-function:cubic-bezier(.2,.8,.2,1)]",
           exitDurationClass,
           exiting
-            ? "opacity-0 translate-y-2 scale-[0.985] blur-[1px]"
-            : "opacity-100 translate-y-0 scale-100 blur-0",
-          "gh-splash-shimmer",
+            ? "translate-y-2 scale-[0.985] opacity-0 blur-[1px]"
+            : "translate-y-0 scale-100 opacity-100 blur-0",
         ].join(" ")}
       >
-        {/* inner wash */}
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-fuchsia-500/10" />
+        {/* Blurred gradient halo behind card */}
+        <div
+          className="absolute -inset-px rounded-[30px] opacity-70 blur-2xl"
+          style={{
+            background: isSuccess
+              ? "linear-gradient(135deg, rgba(124,58,237,0.45), rgba(236,72,153,0.35), rgba(52,211,153,0.28))"
+              : "linear-gradient(135deg, rgba(124,58,237,0.5), rgba(236,72,153,0.35), rgba(59,130,246,0.28))",
+          }}
+        />
 
-        <div className="relative p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="absolute inset-0 rounded-2xl bg-emerald-400/20 blur-xl" />
-                <div className="relative rounded-2xl border border-white/10 bg-black/40 p-2">
-                  <img
-                    src="/lovable-uploads/edbcb263-8fde-45a9-b66b-02f664772425.png"
-                    alt="Cuephoria"
-                    className="h-12 w-12 sm:h-14 sm:w-14 object-contain drop-shadow-[0_0_18px_rgba(16,185,129,0.25)] gh-splash-pop"
-                    draggable={false}
+        <div
+          className="relative overflow-hidden rounded-[28px] border border-white/10"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(20,12,38,0.8) 0%, rgba(12,7,24,0.82) 100%)",
+            backdropFilter: "blur(32px) saturate(170%)",
+            WebkitBackdropFilter: "blur(32px) saturate(170%)",
+            boxShadow:
+              "0 30px 80px -30px rgba(124,58,237,0.5), 0 10px 30px -10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)",
+          }}
+        >
+          {/* Top accent shine line */}
+          <div
+            className="pointer-events-none absolute inset-x-8 top-0 h-px"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%)",
+            }}
+          />
+
+          {/* Inner radial tints */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(800px 300px at 15% 0%, rgba(167,139,250,0.18), transparent 60%)," +
+                (isSuccess
+                  ? "radial-gradient(700px 280px at 85% 100%, rgba(52,211,153,0.12), transparent 65%)"
+                  : "radial-gradient(700px 280px at 85% 100%, rgba(236,72,153,0.12), transparent 65%)"),
+            }}
+          />
+
+          <div className="relative p-6 sm:p-9">
+            {/* ── Header row ── */}
+            <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                {/* Logo chip */}
+                <div className="relative">
+                  <div
+                    className={`absolute inset-0 rounded-2xl blur-xl ${
+                      isSuccess ? "bg-emerald-400/25" : "bg-violet-500/30"
+                    }`}
+                  />
+                  {isSuccess ? (
+                    <div
+                      className={[
+                        "gh-splash-pop relative flex h-14 w-14 items-center justify-center rounded-2xl",
+                        "border border-white/15 shadow-lg shadow-emerald-500/30",
+                      ].join(" ")}
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #10b981 0%, #8b5cf6 55%, #ec4899 100%)",
+                      }}
+                    >
+                      {/* Checkmark */}
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-7 w-7 text-white drop-shadow-[0_0_10px_rgba(16,185,129,0.6)]"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12.5l4.5 4.5L19 7.5" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div
+                      className={[
+                        "gh-splash-pop relative flex h-14 w-14 items-center justify-center rounded-2xl",
+                        "border border-white/15 shadow-lg shadow-violet-600/40",
+                      ].join(" ")}
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #8b5cf6 0%, #ec4899 55%, #f43f5e 100%)",
+                      }}
+                    >
+                      <Gamepad2
+                        size={24}
+                        className="text-white drop-shadow-[0_0_8px_rgba(236,72,153,0.45)]"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xl font-extrabold tracking-tight text-white sm:text-2xl"
+                      style={{ letterSpacing: "-0.01em" }}
+                    >
+                      Cue
+                      <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
+                        tronix
+                      </span>
+                    </span>
+                    <span
+                      className={[
+                        "ml-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em]",
+                        isSuccess
+                          ? "border border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                          : "border border-violet-400/30 bg-violet-400/10 text-violet-200",
+                      ].join(" ")}
+                    >
+                      {isSuccess ? "Access Granted" : "OS v2.0"}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-white/55 sm:text-xs">
+                    {isSuccess ? "Session ready" : "Premium lounge OS"}
+                  </div>
+                  <div className="mt-2 max-w-[360px] text-xs text-white/60 sm:text-sm">
+                    {isSuccess
+                      ? "Session verified and hardened. Spinning up your workspace…"
+                      : "Booting secure runtime — compositing dashboards and station data…"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress + Enter */}
+              <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-[0.22em] text-white/50 sm:text-xs">
+                    Progress
+                  </div>
+                  <div
+                    className={[
+                      "font-mono text-sm tabular-nums sm:text-base",
+                      isSuccess ? "text-emerald-200/90" : "text-fuchsia-200/90",
+                    ].join(" ")}
+                  >
+                    {pct.toString().padStart(3, "0")}%
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => beginExit("click")}
+                  className={[
+                    "group relative inline-flex items-center gap-1.5 overflow-hidden rounded-xl",
+                    "border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white",
+                    "transition hover:bg-white/[0.08] active:scale-[0.98]",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/70",
+                  ].join(" ")}
+                >
+                  <Sparkles
+                    size={12}
+                    className={isSuccess ? "text-emerald-300" : "text-fuchsia-300"}
+                  />
+                  Enter
+                </button>
+              </div>
+            </div>
+
+            {/* ── Terminal block ── */}
+            <div
+              className="relative mt-6 overflow-hidden rounded-2xl border border-white/10"
+              style={{
+                background: "rgba(5,2,12,0.72)",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              <div className="flex items-center justify-between border-b border-white/5 px-4 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-rose-400/60" />
+                    <span className="h-2 w-2 rounded-full bg-amber-300/60" />
+                    <span className="h-2 w-2 rounded-full bg-emerald-400/60" />
+                  </div>
+                  <span className="ml-2 text-[10px] uppercase tracking-[0.22em] text-white/40">
+                    {isSuccess ? "Session log" : "Boot log"}
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] text-white/35">
+                  cuetronix://os/{variant}
+                </span>
+              </div>
+
+              <div className="px-4 py-4 font-mono text-xs leading-relaxed text-white/80 sm:text-[13px]">
+                {lines.map((l, i) => (
+                  <div
+                    key={`${i}-${l}`}
+                    className={[
+                      "flex gap-2 transition-opacity",
+                      isSuccess ? "text-emerald-100/90" : "text-violet-100/90",
+                    ].join(" ")}
+                  >
+                    <span className="break-words">{l}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2">
+                  <span
+                    className={[
+                      "inline-block h-[14px] w-[8px] align-[-2px]",
+                      isSuccess ? "bg-emerald-200/80" : "bg-fuchsia-200/80",
+                      "gh-blink-cursor",
+                    ].join(" ")}
                   />
                 </div>
               </div>
-
-              <div className="min-w-0">
-                <div
-                  className="gh-glitch text-xl sm:text-2xl font-semibold tracking-wide text-white"
-                  data-text="CUEPHORIA OS"
-                >
-                  CUEPHORIA OS
-                </div>
-                <div className="mt-1 text-xs sm:text-sm text-white/70">
-                  Powered by <span className="font-semibold text-white">Cuephoria Tech</span>
-                </div>
-                <div className="mt-1 text-[11px] sm:text-sm text-white/55">
-                  {variant === "boot" ? "Booting secure runtime…" : "Login verified — initializing session…"}
-                </div>
-              </div>
             </div>
 
-            <div className="flex items-center gap-3 justify-between sm:justify-end">
-              <div className="text-right">
-                <div className="text-[10px] sm:text-xs uppercase tracking-[0.22em] text-white/50">
-                  progress
-                </div>
-                <div className="text-sm sm:text-base font-mono text-emerald-200/90 tabular-nums">
-                  {pct.toString().padStart(3, "0")}%
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => beginExit("click")}
-                className={[
-                  "rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white",
-                  "hover:bg-white/10 active:scale-[0.98] transition transform-gpu",
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70",
-                ].join(" ")}
-              >
-                Enter
-              </button>
-            </div>
-          </div>
-
-          {/* terminal */}
-          <div className="mt-6 rounded-2xl border border-white/10 bg-black/55 p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-white/50">
-                {variant === "boot" ? "BOOT LOG" : "SESSION LOG"}
-              </div>
-              <div className="text-[10px] font-mono text-white/40">
-                cuephoria://os/splash/{variant}
-              </div>
-            </div>
-
-            <div className="mt-3 space-y-1.5 font-mono text-xs sm:text-sm text-emerald-100/85">
-              {lines.map((l, i) => (
-                <div key={`${i}-${l}`} className="flex gap-2">
-                  <span className="text-emerald-300/80">›</span>
-                  <span className="min-w-0 break-words">{l}</span>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                <span className="text-emerald-300/80">›</span>
-                <span className="text-emerald-100/80">
-                  <span className="opacity-80">_</span>
-                  <span className="inline-block w-[8px] h-[14px] bg-emerald-200/80 align-[-2px] ml-1 gh-blink-cursor" />
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* progress bar */}
-          <div className="mt-5">
-            <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden border border-white/10">
+            {/* ── Progress bar ── */}
+            <div className="mt-6">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-200 to-fuchsia-300 transition-[width] duration-150 ease-out"
-                style={{ width: `${Math.round(progress * 100)}%` }}
-              />
+                className="h-2 w-full overflow-hidden rounded-full border border-white/10"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+              >
+                <div
+                  className="relative h-full rounded-full transition-[width] duration-150 ease-out"
+                  style={{
+                    width: `${pct}%`,
+                    background: isSuccess
+                      ? "linear-gradient(90deg, #34d399 0%, #a78bfa 50%, #f0abfc 100%)"
+                      : "linear-gradient(90deg, #a78bfa 0%, #f0abfc 50%, #60a5fa 100%)",
+                    boxShadow: isSuccess
+                      ? "0 0 16px rgba(52,211,153,0.45)"
+                      : "0 0 16px rgba(167,139,250,0.55)",
+                  }}
+                >
+                  <span className="pointer-events-none absolute inset-0 gh-splash-shimmer" />
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-[11px] text-white/55">
+                <span className="inline-flex items-center gap-1.5">
+                  <ShieldCheck
+                    size={11}
+                    className={isSuccess ? "text-emerald-300" : "text-violet-300"}
+                  />
+                  {isSuccess
+                    ? "Multi-tenant isolation · audited"
+                    : "PBKDF2 · RLS · TOTP ready"}
+                </span>
+                <span className="hidden sm:inline">Press Enter to skip</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Local keyframes */}
+      <style>{`
+        @keyframes ghSplashFloatA {
+          0%, 100% { transform: translate(0px, 0px) scale(1); }
+          50%      { transform: translate(20px, -12px) scale(1.05); }
+        }
+        @keyframes ghSplashFloatB {
+          0%, 100% { transform: translate(0px, 0px) scale(1); }
+          50%      { transform: translate(-16px, 10px) scale(1.04); }
+        }
+        .gh-splash-float  { animation: ghSplashFloatA 7s ease-in-out infinite; }
+        .gh-splash-float2 { animation: ghSplashFloatB 9s ease-in-out infinite; }
+
+        @keyframes ghSplashPop {
+          0%   { transform: scale(0.88); opacity: 0; }
+          60%  { transform: scale(1.06); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .gh-splash-pop { animation: ghSplashPop 0.75s cubic-bezier(.2,.8,.2,1) both; }
+
+        @keyframes ghBlinkCursor {
+          0%, 48%   { opacity: 1; }
+          50%, 100% { opacity: 0; }
+        }
+        .gh-blink-cursor { animation: ghBlinkCursor 1.1s steps(2, end) infinite; }
+
+        @keyframes ghSplashShimmer {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .gh-splash-shimmer {
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+          animation: ghSplashShimmer 1.8s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }

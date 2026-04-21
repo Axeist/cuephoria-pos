@@ -7,7 +7,7 @@ import { DateRange } from 'react-day-picker';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign } from 'lucide-react';
+import { CalendarIcon, Download, Search, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Gift, Wallet, CreditCard, X, Save, CircleDollarSign, MapPin, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,8 +29,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import type { Bill } from '@/types/pos.types';
 import { useLocation } from '@/context/LocationContext';
-import { Badge } from '@/components/ui/badge';
-import { MapPin, Globe } from 'lucide-react';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
