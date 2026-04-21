@@ -200,7 +200,17 @@ const Header: React.FC = () => {
                 transition={{ duration: 0.24, ease: "easeInOut" }}
                 className="overflow-hidden lg:hidden"
               >
-                <div className="mx-3 my-3 rounded-xl border border-white/10 bg-[#0b0617]/80 p-2 backdrop-blur-md">
+                <div
+                  className="mx-3 my-3 rounded-xl border border-white/10 p-2"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, rgba(14,8,26,0.96) 0%, rgba(8,4,18,0.98) 100%)",
+                    backdropFilter: "blur(32px) saturate(180%)",
+                    WebkitBackdropFilter: "blur(32px) saturate(180%)",
+                    boxShadow:
+                      "0 20px 40px -18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  }}
+                >
                   {NAV.map((item) => (
                     <button
                       key={item.id}
