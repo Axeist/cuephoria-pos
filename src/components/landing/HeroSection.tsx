@@ -93,12 +93,19 @@ const HeroSection: React.FC = () => {
         </Suspense>
       </div>
 
-      {/* ── Readability scrim: darken the left column where the copy sits ── */}
+      {/* ── Readability scrim: uniform on mobile, left-biased on desktop ── */}
       <div
-        className="absolute inset-0 z-[1] pointer-events-none"
+        className="absolute inset-0 z-[1] pointer-events-none hidden md:block"
         style={{
           background:
             "linear-gradient(90deg, rgba(7,3,15,0.88) 0%, rgba(7,3,15,0.55) 38%, rgba(7,3,15,0.15) 62%, transparent 85%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 z-[1] pointer-events-none md:hidden"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(7,3,15,0.72) 0%, rgba(7,3,15,0.55) 40%, rgba(7,3,15,0.72) 100%)",
         }}
       />
       {/* Soft radial vignette for edges */}
@@ -115,14 +122,14 @@ const HeroSection: React.FC = () => {
         <div className="grid grid-cols-12 gap-x-4 md:gap-x-6 items-center">
 
           {/* Left — copy */}
-          <div className="col-span-12 lg:col-span-7 z-20">
+          <div className="col-span-12 lg:col-span-7 z-20 text-center lg:text-left">
 
             {/* Badge row — "built by Cuephoria Tech" + social proof */}
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.05 }}
-              className="flex flex-wrap items-center gap-2 mb-6"
+              className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-6"
             >
               <a
                 href="https://cuephoriatech.in"
@@ -163,7 +170,7 @@ const HeroSection: React.FC = () => {
               className="text-5xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold leading-[1.02] tracking-[-0.03em] mb-6 text-white"
             >
               Snooker. 8-Ball. Esports.
-              <br className="hidden sm:block" />
+              <br />
               <span
                 className="bg-clip-text text-transparent"
                 style={{
@@ -181,7 +188,7 @@ const HeroSection: React.FC = () => {
               initial={reduceMotion ? false : { opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2 }}
-              className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-6 max-w-xl"
+              className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-6 max-w-xl mx-auto lg:mx-0"
             >
               Cuetronix is the <span className="text-white font-semibold">snooker, 8-ball &amp; gaming centre billing software</span> built for modern venues — tables, consoles, VR, cafe,
               bookings, loyalty and multi-branch reports in one operating system.
@@ -204,7 +211,7 @@ const HeroSection: React.FC = () => {
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.24 }}
-              className="flex flex-wrap gap-2 mb-9"
+              className="flex flex-wrap justify-center lg:justify-start gap-2 mb-9"
               aria-label="Software categories"
             >
               {[
@@ -227,7 +234,7 @@ const HeroSection: React.FC = () => {
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.28 }}
-              className="flex flex-col sm:flex-row gap-3"
+              className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start items-stretch sm:items-center"
             >
               <Button
                 size="lg"
@@ -410,7 +417,7 @@ const HeroSection: React.FC = () => {
           className="mt-24 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 border-t border-white/10 pt-12"
         >
           {HERO_METRICS.map((m) => (
-            <div key={m.label} className="text-left md:text-center">
+            <div key={m.label} className="text-center">
               <div className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent tracking-tight">
                 {m.value}
               </div>

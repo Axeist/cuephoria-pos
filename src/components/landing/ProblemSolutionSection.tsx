@@ -118,7 +118,7 @@ const ProblemSolutionSection: React.FC = () => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
-              className="text-sm font-semibold text-gray-500 uppercase tracking-widest mb-5"
+              className="text-sm font-semibold text-gray-500 uppercase tracking-widest mb-5 text-center lg:text-left"
             >
               What operators tell us
             </motion.p>
@@ -239,7 +239,7 @@ const ProblemSolutionSection: React.FC = () => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
-              className="text-sm font-semibold text-gray-500 uppercase tracking-widest mb-5"
+              className="text-sm font-semibold text-gray-500 uppercase tracking-widest mb-5 text-center lg:text-left"
             >
               The Cuetronix way
             </motion.p>
