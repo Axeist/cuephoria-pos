@@ -55,23 +55,28 @@ const Header: React.FC = () => {
           style={{
             borderRadius: "inherit",
             background: scrolled
-              ? "linear-gradient(180deg, rgba(20,12,38,0.72) 0%, rgba(12,7,24,0.72) 100%)"
-              : "linear-gradient(180deg, rgba(20,12,38,0) 0%, rgba(12,7,24,0) 100%)",
+              ? "linear-gradient(180deg, rgba(16,9,30,0.92) 0%, rgba(9,5,20,0.92) 100%)"
+              : mobileOpen
+                ? "linear-gradient(180deg, rgba(14,8,26,0.88) 0%, rgba(8,4,18,0.92) 100%)"
+                : "linear-gradient(180deg, rgba(20,12,38,0) 0%, rgba(12,7,24,0) 100%)",
             border: `1px solid ${
-              scrolled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0)"
+              scrolled || mobileOpen ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0)"
             }`,
-            backdropFilter: scrolled ? "blur(28px) saturate(180%)" : "blur(0px)",
-            WebkitBackdropFilter: scrolled ? "blur(28px) saturate(180%)" : "blur(0px)",
-            boxShadow: scrolled
-              ? "0 20px 50px -20px rgba(124,58,237,0.35), 0 8px 28px -12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08)"
-              : "none",
+            backdropFilter:
+              scrolled || mobileOpen ? "blur(32px) saturate(180%)" : "blur(0px)",
+            WebkitBackdropFilter:
+              scrolled || mobileOpen ? "blur(32px) saturate(180%)" : "blur(0px)",
+            boxShadow:
+              scrolled || mobileOpen
+                ? "0 20px 50px -20px rgba(124,58,237,0.40), 0 8px 28px -12px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08)"
+                : "none",
           }}
         >
-          {/* Inner radial tint — only when floating */}
+          {/* Inner radial tint — only when floating or drawer open */}
           <div
             className="pointer-events-none absolute inset-0 transition-opacity duration-300"
             style={{
-              opacity: scrolled ? 1 : 0,
+              opacity: scrolled || mobileOpen ? 1 : 0,
               background:
                 "radial-gradient(600px 140px at 20% 0%, rgba(167,139,250,0.18), transparent 55%)," +
                 "radial-gradient(500px 140px at 80% 100%, rgba(236,72,153,0.12), transparent 60%)",
@@ -82,7 +87,7 @@ const Header: React.FC = () => {
           <div
             className="pointer-events-none absolute inset-x-6 top-0 h-px transition-opacity duration-300"
             style={{
-              opacity: scrolled ? 1 : 0,
+              opacity: scrolled || mobileOpen ? 1 : 0,
               background:
                 "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)",
             }}
@@ -92,7 +97,7 @@ const Header: React.FC = () => {
           <div
             className="pointer-events-none absolute inset-x-0 bottom-0 h-px transition-opacity duration-300"
             style={{
-              opacity: scrolled ? 1 : 0,
+              opacity: scrolled || mobileOpen ? 1 : 0,
               background:
                 "linear-gradient(90deg, transparent 0%, rgba(167,139,250,0.45) 50%, transparent 100%)",
             }}
