@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,7 +12,8 @@ import {
   CreditCard, SplitSquareHorizontal, Download, Printer, CookingPot,
   ShoppingCart, Coffee, UtensilsCrossed, AlertCircle, Pencil, Trash2,
   TrendingUp, Hash, Package, IndianRupee, Wallet, CalendarDays, Filter,
-  Users, ReceiptText, ArrowUpDown, Gift
+  Users, ReceiptText, ArrowUpDown, Gift, ChevronLeft, ChevronRight,
+  ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -57,6 +58,10 @@ const CafeOrders: React.FC = () => {
   const [sourceFilter, setSourceFilter] = useState<'all' | 'pos' | 'customer'>('all');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'highest' | 'lowest'>('newest');
+
+  // Pagination
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Dialogs
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
@@ -120,6 +125,32 @@ const CafeOrders: React.FC = () => {
       dineIn, takeaway, selfOrder, partnerShare, cuephoriaShare,
     };
   }, [filteredOrders]);
+
+  // Reset to page 1 whenever filters/search/sort/pageSize change
+  useEffect(() => { setCurrentPage(1); }, [datePreset, customStart, customEnd, statusFilter, paymentFilter, orderTypeFilter, sourceFilter, search, sortBy, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, filteredOrders.length);
+  const paginatedOrders = useMemo(() => filteredOrders.slice(startIdx, endIdx), [filteredOrders, startIdx, endIdx]);
+
+  // Build compact page number list with ellipses for large page counts
+  const pageNumbers = useMemo<(number | 'ellipsis')[]>(() => {
+    const pages: (number | 'ellipsis')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    const start = Math.max(2, safePage - 1);
+    const end = Math.min(totalPages - 1, safePage + 1);
+    if (start > 2) pages.push('ellipsis');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages - 1) pages.push('ellipsis');
+    pages.push(totalPages);
+    return pages;
+  }, [totalPages, safePage]);
 
   const handleViewDetails = async (orderId: string) => { setDetailOrderId(orderId); setDetailItems(await fetchOrderItems(orderId)); };
 
@@ -323,14 +354,14 @@ const CafeOrders: React.FC = () => {
           <span>Order</span><span>Customer</span><span>Amount</span><span>Payment</span><span>Status</span><span className="text-right">Actions</span>
         </div>
 
-        <ScrollArea className="min-h-[28rem] max-h-[calc(100dvh-20rem)]">
+        <ScrollArea className="min-h-[28rem] max-h-[calc(100dvh-22rem)] cafe-orders-scroll">
           {filteredOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-zinc-500">
               <ClipboardList className="h-10 w-10 mb-3 opacity-20" /><p className="font-quicksand text-sm">No orders found</p><p className="text-xs text-zinc-600 mt-1">Adjust filters or date range</p>
             </div>
           ) : (
             <div className="divide-y divide-white/[0.04]">
-              {filteredOrders.map(order => {
+              {paginatedOrders.map(order => {
                 const sc = STATUS_CFG[order.status] ?? STATUS_CFG.pending;
                 const isTerminal = ['completed', 'cancelled'].includes(order.status);
                 return (
@@ -393,8 +424,78 @@ const CafeOrders: React.FC = () => {
         </ScrollArea>
 
         {filteredOrders.length > 0 && (
-          <div className="border-t border-white/[0.06] px-4 py-2 flex items-center justify-between text-[11px] text-zinc-500 font-quicksand">
-            <span>{filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}</span>
+          <div className="border-t border-white/[0.06] px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500 font-quicksand">
+            {/* Left: summary + page size */}
+            <div className="flex items-center gap-3">
+              <span>
+                <span className="text-zinc-300">{startIdx + 1}</span>
+                <span className="text-zinc-600">–</span>
+                <span className="text-zinc-300">{endIdx}</span>
+                <span className="text-zinc-600"> of </span>
+                <span className="text-zinc-300">{filteredOrders.length}</span>
+                <span className="text-zinc-600"> order{filteredOrders.length !== 1 ? 's' : ''}</span>
+              </span>
+              <span className="h-4 w-px bg-white/[0.06] hidden sm:block" />
+              <div className="hidden sm:flex items-center gap-1.5">
+                <span className="text-zinc-600">Rows</span>
+                <Select value={String(pageSize)} onValueChange={v => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-7 w-[64px] bg-white/[0.03] border-white/[0.06] text-white text-[11px] rounded-md [&>span]:truncate px-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className={selectContentCls}>
+                    {[10, 25, 50, 100, 250].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Center: pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1 order-last sm:order-none mx-auto sm:mx-0">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safePage === 1}
+                  aria-label="First page"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.05] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                ><ChevronsLeft className="h-3.5 w-3.5" /></button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  aria-label="Previous page"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.05] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                ><ChevronLeft className="h-3.5 w-3.5" /></button>
+
+                {pageNumbers.map((p, i) => p === 'ellipsis' ? (
+                  <span key={`e-${i}`} className="px-1 text-zinc-600">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    aria-current={p === safePage ? 'page' : undefined}
+                    className={`h-7 min-w-7 px-2 flex items-center justify-center rounded-md text-[11px] font-quicksand transition-colors border ${
+                      p === safePage
+                        ? 'bg-orange-500/15 border-orange-500/30 text-orange-300 ring-1 ring-orange-500/20'
+                        : 'border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.05]'
+                    }`}
+                  >{p}</button>
+                ))}
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  aria-label="Next page"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.05] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                ><ChevronRight className="h-3.5 w-3.5" /></button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safePage === totalPages}
+                  aria-label="Last page"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.05] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                ><ChevronsRight className="h-3.5 w-3.5" /></button>
+              </div>
+            )}
+
+            {/* Right: revenue */}
             <span>Revenue: <span className="text-white font-semibold"><CurrencyDisplay amount={stats.revenue} /></span></span>
           </div>
         )}
