@@ -18,6 +18,11 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CafePageShell } from '@/components/cafe/CafePageShell';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  CafeDatePreset,
+  CAFE_DATE_LABELS,
+  getCafeDateRange,
+} from '@/lib/cafeDateFilter';
 
 const STATUS_CFG: Record<string, { dot: string; bg: string; text: string; label: string }> = {
   pending:   { dot: 'bg-yellow-400', bg: 'bg-yellow-500/15 border-yellow-500/25', text: 'text-yellow-300', label: 'Pending' },
@@ -38,37 +43,12 @@ const statusTimeline: { key: CafeOrderStatus; label: string; icon: React.Element
   { key: 'completed', label: 'Completed', icon: CheckCircle2 },
 ];
 
-type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'last_year' | 'all_time' | 'custom';
-
-const DATE_LABELS: Record<DatePreset, string> = {
-  today: 'Today', yesterday: 'Yesterday', this_week: 'This week', this_month: 'This month',
-  last_month: 'Last month', last_3_months: 'Last 3 months', this_year: 'This year',
-  last_year: 'Last year', all_time: 'All time', custom: 'Custom range',
-};
-
-function getDateRange(preset: DatePreset, customStart: string, customEnd: string) {
-  const now = new Date();
-  const sod = new Date(now); sod.setHours(0, 0, 0, 0);
-  switch (preset) {
-    case 'today': return { start: sod, end: now };
-    case 'yesterday': { const y = new Date(sod); y.setDate(y.getDate() - 1); const ye = new Date(sod); ye.setMilliseconds(-1); return { start: y, end: ye }; }
-    case 'this_week': { const d = new Date(sod); d.setDate(d.getDate() - d.getDay()); return { start: d, end: now }; }
-    case 'this_month': { const d = new Date(sod); d.setDate(1); return { start: d, end: now }; }
-    case 'last_month': { const s = new Date(sod); s.setMonth(s.getMonth() - 1); s.setDate(1); const e = new Date(sod); e.setDate(0); e.setHours(23, 59, 59, 999); return { start: s, end: e }; }
-    case 'last_3_months': { const d = new Date(sod); d.setMonth(d.getMonth() - 3); return { start: d, end: now }; }
-    case 'this_year': { const d = new Date(sod.getFullYear(), 0, 1); return { start: d, end: now }; }
-    case 'last_year': { const s = new Date(sod.getFullYear() - 1, 0, 1); const e = new Date(sod.getFullYear() - 1, 11, 31, 23, 59, 59, 999); return { start: s, end: e }; }
-    case 'all_time': return { start: new Date(0), end: now };
-    case 'custom': return { start: new Date(customStart + 'T00:00:00'), end: new Date(customEnd + 'T23:59:59') };
-  }
-}
-
 const CafeOrders: React.FC = () => {
   const { user } = useCafeAuth();
   const { orders, fetchOrderItems, updateOrderStatus, cancelOrder, deleteOrder, updateOrderDetails } = useCafeOrders(user?.locationId);
 
   // Filters
-  const [datePreset, setDatePreset] = useState<DatePreset>('this_month');
+  const [datePreset, setDatePreset] = useState<CafeDatePreset>('this_month');
   const [customStart, setCustomStart] = useState(new Date().toISOString().split('T')[0]);
   const [customEnd, setCustomEnd] = useState(new Date().toISOString().split('T')[0]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | CafeOrderStatus>('all');
@@ -88,7 +68,7 @@ const CafeOrders: React.FC = () => {
   const [editNotes, setEditNotes] = useState('');
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
 
-  const dateRange = useMemo(() => getDateRange(datePreset, customStart, customEnd), [datePreset, customStart, customEnd]);
+  const dateRange = useMemo(() => getCafeDateRange(datePreset, customStart, customEnd), [datePreset, customStart, customEnd]);
 
   const filteredOrders = useMemo(() => {
     let result = orders
@@ -205,7 +185,7 @@ const CafeOrders: React.FC = () => {
   const selectContentCls = "bg-zinc-900/98 border-white/[0.08] backdrop-blur-xl";
 
   return (
-    <CafePageShell eyebrow="Operations" title="Orders" description={`${stats.total} orders · ${DATE_LABELS[datePreset]}`}
+    <CafePageShell eyebrow="Operations" title="Orders" description={`${stats.total} orders · ${CAFE_DATE_LABELS[datePreset]}`}
       action={<Button size="sm" onClick={handleExport} className="h-8 text-xs cafe-glass-card !rounded-lg !py-0 !px-3 text-orange-300 hover:text-white border-orange-500/20 hover:border-orange-500/40"><Download className="h-3.5 w-3.5 mr-1.5" /> Export</Button>}
     >
       {/* KPI Widgets — 2 rows */}
@@ -249,10 +229,10 @@ const CafeOrders: React.FC = () => {
       {/* Filter bar */}
       <div className="cafe-glass-card !rounded-xl p-3 flex flex-wrap items-center gap-2">
         {/* Date preset */}
-        <Select value={datePreset} onValueChange={v => setDatePreset(v as DatePreset)}>
+        <Select value={datePreset} onValueChange={v => setDatePreset(v as CafeDatePreset)}>
           <SelectTrigger className={`w-[150px] ${selectCls}`}><CalendarDays className="h-3.5 w-3.5 mr-1.5 text-zinc-500 shrink-0" /><SelectValue /></SelectTrigger>
           <SelectContent className={selectContentCls}>
-            {(Object.keys(DATE_LABELS) as DatePreset[]).map(k => <SelectItem key={k} value={k}>{DATE_LABELS[k]}</SelectItem>)}
+            {(Object.keys(CAFE_DATE_LABELS) as CafeDatePreset[]).map(k => <SelectItem key={k} value={k}>{CAFE_DATE_LABELS[k]}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -343,7 +323,7 @@ const CafeOrders: React.FC = () => {
           <span>Order</span><span>Customer</span><span>Amount</span><span>Payment</span><span>Status</span><span className="text-right">Actions</span>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0" style={{ maxHeight: 'calc(100vh - 26rem)' }}>
+        <ScrollArea className="min-h-[28rem] max-h-[calc(100dvh-20rem)]">
           {filteredOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-zinc-500">
               <ClipboardList className="h-10 w-10 mb-3 opacity-20" /><p className="font-quicksand text-sm">No orders found</p><p className="text-xs text-zinc-600 mt-1">Adjust filters or date range</p>
