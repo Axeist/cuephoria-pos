@@ -32,7 +32,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
   return (
     <div className="space-y-6">
       {/* Active Shifts Today */}
-      <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+      <Card className="glass-card border-white/10">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -46,7 +46,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
               onClick={onRefresh}
               variant="outline"
               size="sm"
-              className="border-cuephoria-purple/20"
+              className="border-white/15 bg-white/[0.04] hover:bg-white/[0.08]"
             >
               Refresh
             </Button>
@@ -62,7 +62,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
               {activeShifts.map((shift) => (
                 <div
                   key={shift.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                  className="flex items-center justify-between p-4 theme-inset"
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">
@@ -96,7 +96,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
       </Card>
 
       {/* Pending Leave Requests */}
-      <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+      <Card className="glass-card border-white/10">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <Calendar className="h-5 w-5 text-yellow-500" />
@@ -114,7 +114,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
               {pendingLeaves.map((leave) => (
                 <div
                   key={leave.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                  className="flex items-center justify-between p-4 theme-inset"
                 >
                   <div>
                     <p className="font-medium text-white">{leave.staff_name}</p>
@@ -139,7 +139,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
       </Card>
 
       {/* Staff Performance Summary */}
-      <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+      <Card className="glass-card border-white/10">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-cuephoria-blue" />
@@ -155,7 +155,7 @@ const StaffOverview: React.FC<StaffOverviewProps> = ({
               .map((staff) => (
                 <div
                   key={staff.user_id}
-                  className="p-4 rounded-lg bg-cuephoria-darker border border-cuephoria-purple/10"
+                  className="p-4 theme-inset"
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="h-10 w-10 rounded-full bg-cuephoria-purple/20 flex items-center justify-center">

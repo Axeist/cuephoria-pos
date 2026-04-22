@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -17,6 +17,8 @@ import { useLocation as useLocationCtx } from '@/context/LocationContext';
 
 type SortField = 'joinDate' | 'totalSpent' | 'loyaltyPoints' | 'playTime';
 type SortDirection = 'asc' | 'desc';
+
+const CUSTOMERS_PAGE_SIZE = 48;
 
 interface FilterState {
   membershipStatus: 'all' | 'member' | 'non-member' | 'active' | 'expired';
@@ -40,7 +42,6 @@ const generateCustomerID = (phone: string): string => {
 const Customers = () => {
   const [error, setError] = useState<string | null>(null);
   const [customersData, setCustomersData] = useState<Customer[]>([]);
-  const [isContextLoaded, setIsContextLoaded] = useState(false);
   const { activeLocationId } = useLocationCtx();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -66,6 +67,7 @@ const Customers = () => {
 
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicates, setDuplicates] = useState<Array<{ phone: string; customers: Customer[] }>>([]);
+  const [visibleCount, setVisibleCount] = useState(CUSTOMERS_PAGE_SIZE);
 
   const [formState, setFormState] = useState({
     name: '',
@@ -97,18 +99,47 @@ const Customers = () => {
     exportCustomers = () => {}
   } = posContext || {};
 
+  const findDuplicates = useCallback(() => {
+    const phoneMap = new Map<string, Customer[]>();
+
+    customersData.forEach((customer) => {
+      const normalizedPhone = normalizePhoneNumber(customer.phone);
+      if (!phoneMap.has(normalizedPhone)) {
+        phoneMap.set(normalizedPhone, []);
+      }
+      phoneMap.get(normalizedPhone)!.push(customer);
+    });
+
+    const duplicateGroups = Array.from(phoneMap.entries())
+      .filter(([_, group]) => group.length > 1)
+      .map(([phone, group]) => ({
+        phone,
+        customers: group.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ),
+      }));
+
+    setDuplicates(duplicateGroups);
+
+    if (duplicateGroups.length > 0) {
+      console.log(`Found ${duplicateGroups.length} duplicate phone number groups`);
+    }
+  }, [customersData]);
+
   useEffect(() => {
     if (posContext && customers) {
       setCustomersData(customers);
-      setIsContextLoaded(true);
     }
   }, [posContext, customers]);
 
   useEffect(() => {
-    if (customersData.length > 0) {
-      findDuplicates();
+    if (customersData.length === 0) {
+      setDuplicates([]);
+      return;
     }
-  }, [customersData]);
+    const t = setTimeout(() => findDuplicates(), 450);
+    return () => clearTimeout(t);
+  }, [customersData, findDuplicates]);
 
   // Real-time search with debouncing
   useEffect(() => {
@@ -499,31 +530,6 @@ const Customers = () => {
     }));
   };
 
-  const findDuplicates = () => {
-    const phoneMap = new Map<string, Customer[]>();
-    
-    customersData.forEach(customer => {
-      const normalizedPhone = normalizePhoneNumber(customer.phone);
-      if (!phoneMap.has(normalizedPhone)) {
-        phoneMap.set(normalizedPhone, []);
-      }
-      phoneMap.get(normalizedPhone)!.push(customer);
-    });
-
-    const duplicateGroups = Array.from(phoneMap.entries())
-      .filter(([_, customers]) => customers.length > 1)
-      .map(([phone, customers]) => ({
-        phone,
-        customers: customers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      }));
-
-    setDuplicates(duplicateGroups);
-    
-    if (duplicateGroups.length > 0) {
-      console.log(`Found ${duplicateGroups.length} duplicate phone number groups`);
-    }
-  };
-
   const resolveDuplicate = (phoneGroup: { phone: string; customers: Customer[] }, keepCustomerId: string) => {
     const toDelete = phoneGroup.customers.filter(c => c.id !== keepCustomerId);
     
@@ -539,40 +545,49 @@ const Customers = () => {
     findDuplicates();
   };
 
-  const applyFilters = (customer: Customer): boolean => {
-    if (filters.membershipStatus !== 'all') {
-      const isActive = customer.isMember && customer.membershipExpiryDate && new Date(customer.membershipExpiryDate) > new Date();
-      
-      switch (filters.membershipStatus) {
-        case 'member':
-          if (!customer.isMember) return false;
-          break;
-        case 'non-member':
-          if (customer.isMember) return false;
-          break;
-        case 'active':
-          if (!isActive) return false;
-          break;
-        case 'expired':
-          if (!customer.isMember || isActive) return false;
-          break;
+  const applyFilters = useCallback(
+    (customer: Customer): boolean => {
+      if (filters.membershipStatus !== 'all') {
+        const isActive =
+          customer.isMember &&
+          customer.membershipExpiryDate &&
+          new Date(customer.membershipExpiryDate) > new Date();
+
+        switch (filters.membershipStatus) {
+          case 'member':
+            if (!customer.isMember) return false;
+            break;
+          case 'non-member':
+            if (customer.isMember) return false;
+            break;
+          case 'active':
+            if (!isActive) return false;
+            break;
+          case 'expired':
+            if (!customer.isMember || isActive) return false;
+            break;
+        }
       }
-    }
 
-    if (customer.loyaltyPoints < filters.loyaltyPointsMin || customer.loyaltyPoints > filters.loyaltyPointsMax) {
-      return false;
-    }
+      if (
+        customer.loyaltyPoints < filters.loyaltyPointsMin ||
+        customer.loyaltyPoints > filters.loyaltyPointsMax
+      ) {
+        return false;
+      }
 
-    const joinDate = new Date(customer.createdAt);
-    if (filters.joinDateFrom && new Date(filters.joinDateFrom) > joinDate) {
-      return false;
-    }
-    if (filters.joinDateTo && new Date(filters.joinDateTo) < joinDate) {
-      return false;
-    }
+      const joinDate = new Date(customer.createdAt);
+      if (filters.joinDateFrom && new Date(filters.joinDateFrom) > joinDate) {
+        return false;
+      }
+      if (filters.joinDateTo && new Date(filters.joinDateTo) < joinDate) {
+        return false;
+      }
 
-    return true;
-  };
+      return true;
+    },
+    [filters]
+  );
 
   const resetFilters = () => {
     setFilters({
@@ -592,31 +607,6 @@ const Customers = () => {
     if (filters.joinDateFrom) count++;
     if (filters.joinDateTo) count++;
     return count;
-  };
-
-  const sortCustomers = (customers: Customer[]) => {
-    return [...customers].sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortField) {
-        case 'joinDate':
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-        case 'totalSpent':
-          comparison = a.totalSpent - b.totalSpent;
-          break;
-        case 'loyaltyPoints':
-          comparison = a.loyaltyPoints - b.loyaltyPoints;
-          break;
-        case 'playTime':
-          comparison = a.totalPlayTime - b.totalPlayTime;
-          break;
-        default:
-          return 0;
-      }
-      
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
   };
 
   const handleSort = (field: SortField) => {
@@ -646,11 +636,44 @@ const Customers = () => {
     return `${fieldLabels[sortField]} ${directionLabel}`;
   };
 
-  // Use search results if there's a search query, otherwise use all customers
-  const customersToFilter = searchQuery.trim() ? searchResults : customersData;
+  const customersToFilter = useMemo(
+    () => (searchQuery.trim() ? searchResults : customersData),
+    [searchQuery, searchResults, customersData]
+  );
 
-  const filteredAndSortedCustomers = sortCustomers(
-    customersToFilter.filter(customer => applyFilters(customer))
+  const filteredAndSortedCustomers = useMemo(() => {
+    const filtered = customersToFilter.filter((customer) => applyFilters(customer));
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'joinDate':
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+        case 'totalSpent':
+          comparison = a.totalSpent - b.totalSpent;
+          break;
+        case 'loyaltyPoints':
+          comparison = a.loyaltyPoints - b.loyaltyPoints;
+          break;
+        case 'playTime':
+          comparison = a.totalPlayTime - b.totalPlayTime;
+          break;
+        default:
+          return 0;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [customersToFilter, applyFilters, sortField, sortDirection]);
+
+  useEffect(() => {
+    setVisibleCount(CUSTOMERS_PAGE_SIZE);
+  }, [searchQuery, sortField, sortDirection, filters, customers.length]);
+
+  const visibleCustomers = useMemo(
+    () => filteredAndSortedCustomers.slice(0, visibleCount),
+    [filteredAndSortedCustomers, visibleCount]
   );
 
   if (error) {
@@ -1060,23 +1083,48 @@ const Customers = () => {
         )}
       </div>
       
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Showing {filteredAndSortedCustomers.length} of {customersData.length} customers
+          Showing {visibleCustomers.length} of {filteredAndSortedCustomers.length}
+          {filteredAndSortedCustomers.length !== customersData.length
+            ? ` (filtered from ${customersData.length})`
+            : ''}{' '}
+          customers
+          {visibleCustomers.length < filteredAndSortedCustomers.length
+            ? ' — load more below'
+            : ''}
         </p>
       </div>
 
       {filteredAndSortedCustomers.length > 0 ? (
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredAndSortedCustomers.map((customer) => (
-            <CustomerCard 
-              key={customer.id} 
-              customer={customer} 
-              onEdit={handleEditCustomer} 
-              onDelete={handleDeleteCustomer} 
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {visibleCustomers.map((customer) => (
+              <CustomerCard
+                key={customer.id}
+                customer={customer}
+                onEdit={handleEditCustomer}
+                onDelete={handleDeleteCustomer}
+              />
+            ))}
+          </div>
+          {visibleCustomers.length < filteredAndSortedCustomers.length && (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-w-[200px]"
+                onClick={() =>
+                  setVisibleCount((c) =>
+                    Math.min(c + CUSTOMERS_PAGE_SIZE, filteredAndSortedCustomers.length)
+                  )
+                }
+              >
+                Load more ({filteredAndSortedCustomers.length - visibleCustomers.length} remaining)
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center h-64">
           <User className="h-12 w-12 text-muted-foreground mb-4" />

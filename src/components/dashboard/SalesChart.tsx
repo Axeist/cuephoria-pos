@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -7,7 +7,7 @@ import { CurrencyDisplay } from '@/components/ui/currency';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
 import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, format, addDays, addWeeks } from 'date-fns';
-import { Calendar } from 'lucide-react';
+import { Calendar, Loader2 } from 'lucide-react';
 
 interface SalesChartProps {
   data: {
@@ -249,24 +249,35 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     }
   };
 
-  // Handle smooth transitions when activeTab or selectedYear changes
+  const generateChartDataRef = useRef(generateChartData);
+  generateChartDataRef.current = generateChartData;
+
+  // Defer heavy aggregation so the UI can show a loading state first (main thread stays responsive).
   useEffect(() => {
     setIsTransitioning(true);
-    
-    // Short delay to trigger fade-out effect
-    const timer = setTimeout(() => {
-      const newData = generateChartData();
-      setChartData(newData);
+    let cancelled = false;
+    const apply = () => {
+      if (cancelled) return;
+      setChartData(generateChartDataRef.current());
       setIsTransitioning(false);
-    }, 150);
-
-    return () => clearTimeout(timer);
+    };
+    let idleId: number | undefined;
+    let fallbackId: ReturnType<typeof setTimeout> | undefined;
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      idleId = window.requestIdleCallback(apply, { timeout: 500 });
+    } else if (typeof window !== 'undefined') {
+      fallbackId = window.setTimeout(apply, 0);
+    } else {
+      apply();
+    }
+    return () => {
+      cancelled = true;
+      if (idleId != null && typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
+      if (fallbackId != null) clearTimeout(fallbackId);
+    };
   }, [activeTab, filteredBills, expenses, selectedYear]);
-
-  // Initialize chart data on first render
-  useEffect(() => {
-    setChartData(generateChartData());
-  }, []);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -348,8 +359,18 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="h-[250px] sm:h-[350px] pt-2 sm:pt-4">
-        <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}>
+      <CardContent className="h-[250px] sm:h-[350px] pt-2 sm:pt-4 relative">
+        {isTransitioning && (
+          <div
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/55 backdrop-blur-[2px]"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <Loader2 className="h-8 w-8 animate-spin text-cuephoria-lightpurple" />
+            <span className="text-xs text-muted-foreground">Updating chart…</span>
+          </div>
+        )}
+        <div className={`transition-all duration-300 ease-in-out h-full ${isTransitioning ? 'opacity-40' : 'opacity-100'}`}>
           <ChartContainer
             config={{
               sales: {

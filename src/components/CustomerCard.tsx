@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { usePOS, Customer } from '@/context/POSContext';
+import { Customer } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { User, Edit, Trash, Clock, CreditCard, Star, Award, CalendarCheck, Calendar, Phone, Mail, MessageSquare, Hash, Copy } from 'lucide-react';
 import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.utils';
@@ -19,7 +19,7 @@ interface CustomerCardProps {
   isSelectable?: boolean;
 }
 
-const CustomerCard: React.FC<CustomerCardProps> = ({ 
+const CustomerCardInner: React.FC<CustomerCardProps> = ({ 
   customer: initialCustomer, 
   onEdit, 
   onDelete,
@@ -28,42 +28,12 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
 }) => {
   const [customer, setCustomer] = useState<Customer>(initialCustomer);
   const [isWhatsAppDialogOpen, setIsWhatsAppDialogOpen] = useState(false);
-  const { customers } = usePOS();
   const { toast } = useToast();
-  
+
+  // Sync from parent only — avoids every card subscribing to the full customers list (O(n²) work).
   useEffect(() => {
-    const updatedCustomer = customers.find(c => c.id === customer.id);
-    if (updatedCustomer) {
-      console.log('CustomerCard: Customer data updated for', updatedCustomer.name, {
-        oldTotalSpent: customer.totalSpent,
-        newTotalSpent: updatedCustomer.totalSpent,
-        oldLoyaltyPoints: customer.loyaltyPoints,
-        newLoyaltyPoints: updatedCustomer.loyaltyPoints
-      });
-      
-      setCustomer(updatedCustomer);
-    }
-  }, [customers, customer.id]);
-  
-  useEffect(() => {
-    if (initialCustomer && initialCustomer.id !== customer.id) {
-      console.log('CustomerCard: Initial customer prop changed to', initialCustomer.name);
-      setCustomer(initialCustomer);
-    }
-    
-    else if (initialCustomer && (
-      initialCustomer.totalSpent !== customer.totalSpent || 
-      initialCustomer.loyaltyPoints !== customer.loyaltyPoints
-    )) {
-      console.log('CustomerCard: Initial customer data updated', {
-        oldTotalSpent: customer.totalSpent,
-        newTotalSpent: initialCustomer.totalSpent,
-        oldLoyaltyPoints: customer.loyaltyPoints,
-        newLoyaltyPoints: initialCustomer.loyaltyPoints
-      });
-      setCustomer(initialCustomer);
-    }
-  }, [initialCustomer, customer.id, customer.totalSpent, customer.loyaltyPoints]);
+    setCustomer(initialCustomer);
+  }, [initialCustomer]);
 
   const formatDate = (date: Date | undefined) => {
     if (!date) return 'N/A';
@@ -307,4 +277,5 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   );
 };
 
+const CustomerCard = memo(CustomerCardInner);
 export default CustomerCard;

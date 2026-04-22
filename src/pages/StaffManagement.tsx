@@ -56,9 +56,10 @@ const StaffManagement = () => {
       if (profilesError) throw profilesError;
       setStaffProfiles(profiles || []);
 
-      // Filter shifts and leaves by the staff IDs that belong to this branch,
-      // rather than relying on location_id columns that may not exist in those views.
-      const profileIds = (profiles || []).map((p: any) => p.id);
+      // Views key staff_id to staff_profiles.user_id (PK), not a separate profile row id.
+      const profileIds = (profiles || [])
+        .map((p: { user_id?: string; id?: string }) => p.user_id ?? p.id)
+        .filter((id): id is string => Boolean(id));
 
       let shifts: any[] = [];
       if (profileIds.length > 0) {
@@ -66,8 +67,11 @@ const StaffManagement = () => {
           .from('today_active_shifts')
           .select('*')
           .in('staff_id', profileIds);
-        if (shiftsError) throw shiftsError;
-        shifts = shiftsData || [];
+        if (shiftsError) {
+          console.warn('StaffManagement: today_active_shifts', shiftsError);
+        } else {
+          shifts = shiftsData || [];
+        }
       }
       setActiveShifts(shifts);
 
@@ -77,8 +81,11 @@ const StaffManagement = () => {
           .from('pending_leaves_view')
           .select('*')
           .in('staff_id', profileIds);
-        if (leavesError) throw leavesError;
-        leaves = leavesData || [];
+        if (leavesError) {
+          console.warn('StaffManagement: pending_leaves_view', leavesError);
+        } else {
+          leaves = leavesData || [];
+        }
       }
       setPendingLeaves(leaves);
 
@@ -93,8 +100,11 @@ const StaffManagement = () => {
           .eq('month', currentMonth)
           .eq('year', currentYear)
           .in('staff_id', profileIds);
-        if (payrollError) throw payrollError;
-        payrollTotal = (payroll || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
+        if (payrollError) {
+          console.warn('StaffManagement: staff_payslip_view', payrollError);
+        } else {
+          payrollTotal = (payroll || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
+        }
       }
       setMonthlyPayroll(payrollTotal);
 
@@ -151,13 +161,13 @@ const StaffManagement = () => {
           <Button
             onClick={() => setShowAdminRegularizationDialog(true)}
             variant="outline"
-            className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-white"
+            className="border-amber-400/50 text-amber-200 hover:bg-amber-500/15 hover:text-white"
           >
             Regularize Attendance
           </Button>
           <Button
             onClick={() => setShowCreateDialog(true)}
-            className="bg-cuephoria-purple hover:bg-cuephoria-lightpurple"
+            className="btn-gradient border-0"
           >
             <UserPlus className="mr-2 h-4 w-4" />
             Add Staff Member
@@ -166,7 +176,7 @@ const StaffManagement = () => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white">Total Staff</CardTitle>
             <Users className="h-4 w-4 text-cuephoria-lightpurple" />
@@ -179,7 +189,7 @@ const StaffManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white">Active Now</CardTitle>
             <Activity className="h-4 w-4 text-green-500" />
@@ -192,7 +202,7 @@ const StaffManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white">Pending Leaves</CardTitle>
             <Calendar className="h-4 w-4 text-yellow-500" />
@@ -205,7 +215,7 @@ const StaffManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-cuephoria-dark border-cuephoria-purple/20">
+        <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white">Monthly Payroll</CardTitle>
             <DollarSign className="h-4 w-4 text-cuephoria-blue" />
@@ -222,14 +232,14 @@ const StaffManagement = () => {
       </div>
 
       <div className="w-full">
-        <div className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1 p-1 bg-cuephoria-dark border border-cuephoria-purple/20 rounded-xl mb-6">
+        <div className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1 p-1 bg-white/[0.06] border border-white/10 rounded-xl mb-6">
           <button
             type="button"
             onClick={() => setActiveStaffTab('overview')}
             className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
               activeStaffTab === 'overview'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
+                : 'text-white/55 hover:text-white hover:bg-white/10'
             }`}
           >
             <Users className="h-4 w-4 flex-shrink-0" />
@@ -240,8 +250,8 @@ const StaffManagement = () => {
             onClick={() => setActiveStaffTab('directory')}
             className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
               activeStaffTab === 'directory'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
+                : 'text-white/55 hover:text-white hover:bg-white/10'
             }`}
           >
             <User className="h-4 w-4 flex-shrink-0" />
@@ -252,8 +262,8 @@ const StaffManagement = () => {
             onClick={() => setActiveStaffTab('attendance')}
             className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
               activeStaffTab === 'attendance'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
+                : 'text-white/55 hover:text-white hover:bg-white/10'
             }`}
           >
             <Activity className="h-4 w-4 flex-shrink-0" />
@@ -264,8 +274,8 @@ const StaffManagement = () => {
             onClick={() => setActiveStaffTab('calendar')}
             className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
               activeStaffTab === 'calendar'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
+                : 'text-white/55 hover:text-white hover:bg-white/10'
             }`}
           >
             <Calendar className="h-4 w-4 flex-shrink-0" />
@@ -276,8 +286,8 @@ const StaffManagement = () => {
             onClick={() => setActiveStaffTab('requests')}
             className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
               activeStaffTab === 'requests'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
+                : 'text-white/55 hover:text-white hover:bg-white/10'
             }`}
           >
             <FileText className="h-4 w-4 flex-shrink-0" />
@@ -288,8 +298,8 @@ const StaffManagement = () => {
             onClick={() => setActiveStaffTab('payroll')}
             className={`flex items-center justify-center gap-2 py-3 px-2 sm:px-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-xs sm:text-sm ${
               activeStaffTab === 'payroll'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'bg-white/15 text-white shadow-lg ring-1 ring-white/10'
+                : 'text-white/55 hover:text-white hover:bg-white/10'
             }`}
           >
             <DollarSign className="h-4 w-4 flex-shrink-0" />
