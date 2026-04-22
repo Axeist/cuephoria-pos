@@ -18,13 +18,12 @@ const PlatformAudit = lazy(() => import("@/pages/platform/PlatformAudit"));
 const PlatformOrgDetail = lazy(() => import("@/pages/platform/PlatformOrgDetail"));
 const PlatformPlans = lazy(() => import("@/pages/platform/PlatformPlans"));
 import { flags } from "@/config/featureFlags";
-import { LocationSwitcher } from "@/components/LocationSwitcher";
+import { AppHeader } from "@/components/AppHeader";
 import { POSProvider } from "@/context/POSContext";
 import { ExpenseProvider } from "@/context/ExpenseContext";
 import { BookingNotificationProvider } from "@/context/BookingNotificationContext";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
-import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
@@ -188,21 +187,7 @@ const ProtectedRoute = ({
                   <div className="app-ambient flex min-h-screen w-full overflow-x-hidden relative">
                     <AppSidebar />
                     <div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
-                      <div
-                        className="hidden md:flex items-center justify-end px-5 py-2.5 gap-3 sticky top-0 z-20"
-                        style={{
-                          background:
-                            'linear-gradient(180deg, rgba(10,6,22,0.78) 0%, rgba(10,6,22,0.3) 100%)',
-                          backdropFilter: 'blur(14px) saturate(140%)',
-                          WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-                          borderBottom: '1px solid rgba(255,255,255,0.06)',
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <LocationSwitcher />
-                          <GlobalNotificationBell />
-                        </div>
-                      </div>
+                      <AppHeader />
                       <main
                         id="app-main"
                         tabIndex={-1}
