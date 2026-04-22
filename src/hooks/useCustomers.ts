@@ -3,6 +3,7 @@ import { Customer } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from '@/context/LocationContext';
+import { usePOSHydration } from '@/context/POSHydrationContext';
 
 // ✅ HELPER FUNCTIONS FOR PHONE NORMALIZATION AND ID GENERATION
 const normalizePhoneNumber = (phone: string): string => {
@@ -34,6 +35,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
+  const { loadCustomers: hydrateCustomers } = usePOSHydration();
   
   // Stable ref so the realtime handler can always call the latest fetchCustomersFromDB
   // without creating a circular dependency on useCallback deps.
@@ -43,6 +45,11 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     // Clear customers immediately when branch changes so stale data is never shown
     setCustomers([]);
     setSelectedCustomer(null);
+
+    if (!hydrateCustomers) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchCustomers = async () => {
       try {
@@ -296,7 +303,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     fetchFromDBRef.current = fetchCustomersFromDB;
 
     fetchCustomers();
-  }, [activeLocationId]);
+  }, [activeLocationId, hydrateCustomers]);
   
   // ✅ Shared cache save function (per-location)
   const saveToCache = (customersList: Customer[]) => {
@@ -314,7 +321,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
   // When any INSERT / UPDATE / DELETE lands in the DB for this location_id, bust
   // the local caches and silently re-fetch so every device stays in sync.
   useEffect(() => {
-    if (!activeLocationId) return;
+    if (!activeLocationId || !hydrateCustomers) return;
 
     const locKey = activeLocationId;
 
@@ -341,7 +348,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeLocationId]);
+  }, [activeLocationId, hydrateCustomers]);
 
   // Membership expiry check
   useEffect(() => {

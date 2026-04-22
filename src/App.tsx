@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { LocationProvider } from "@/context/LocationContext";
+import { POSHydrationObserver } from "@/context/POSHydrationContext";
 import { OrganizationProvider, useOrganization } from "@/context/OrganizationContext";
 import { BrandingProvider } from "@/branding/BrandingProvider";
 import { PlatformAuthProvider } from "@/context/PlatformAuthContext";
@@ -170,6 +171,7 @@ const ProtectedRoute = ({
       <OnboardingGate>
         <BrandingProvider>
           <LocationProvider>
+            <POSHydrationObserver>
             <POSProvider>
             <ExpenseProvider>
               <BookingNotificationProvider>
@@ -212,6 +214,7 @@ const ProtectedRoute = ({
               </BookingNotificationProvider>
             </ExpenseProvider>
             </POSProvider>
+            </POSHydrationObserver>
           </LocationProvider>
         </BrandingProvider>
       </OnboardingGate>

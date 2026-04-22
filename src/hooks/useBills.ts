@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
 import { useLocation } from '@/context/LocationContext';
+import { usePOSHydration } from '@/context/POSHydrationContext';
 
 export const useBills = (
   updateCustomer: (customer: Customer) => void,
@@ -12,6 +13,7 @@ export const useBills = (
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
   const { activeLocationId } = useLocation();
+  const { loadBills: hydrateBills, billsDeepSync } = usePOSHydration();
   const billsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.BILLS, activeLocationId),
     [activeLocationId]
@@ -176,9 +178,16 @@ export const useBills = (
   }, [activeLocationId]);
 
   useEffect(() => {
+    if (!hydrateBills) {
+      return;
+    }
+
     let isMounted = true;
     let dbLoadInFlight = false;
-    const BACKGROUND_MAX_PAGES = 5; // keep dashboard fast; Reports loads full range separately
+    /** Extra pages after cache hit — keep small off Reports to reduce jank. */
+    const BACKGROUND_MAX_PAGES = billsDeepSync ? 5 : 2;
+    /** First-load cap (non-silent) when not on Reports — avoids downloading full history on login. */
+    const INITIAL_BILL_PAGES_CAP = 16;
 
     const loadBills = async () => {
       try {
@@ -207,7 +216,8 @@ export const useBills = (
     
     const loadBillsFromDB = async (opts?: { silent?: boolean; maxPages?: number }) => {
       const silent = opts?.silent ?? false;
-      const maxPages = opts?.maxPages ?? (silent ? 1 : Number.POSITIVE_INFINITY);
+      const defaultNonSilentMax = billsDeepSync ? Number.POSITIVE_INFINITY : INITIAL_BILL_PAGES_CAP;
+      const maxPages = opts?.maxPages ?? (silent ? 1 : defaultNonSilentMax);
 
       // prevent overlapping background loads
       if (dbLoadInFlight) return;
@@ -292,7 +302,7 @@ export const useBills = (
     return () => {
       isMounted = false;
     };
-  }, [activeLocationId, billsCacheKey]);
+  }, [activeLocationId, billsCacheKey, hydrateBills, billsDeepSync]);
 
   // ✅ UPDATED: Added customTimestamp parameter
   const completeSale = async (
