@@ -1,5 +1,5 @@
 // src/components/AppSidebar.tsx
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -28,6 +28,7 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarSeparator,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/context/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -41,10 +42,12 @@ import { cn } from '@/lib/utils';
 const AppSidebar: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { setOpen, state } = useSidebar();
   const hideOnPaths = ['/receipt'];
   const shouldHide = hideOnPaths.some((path) => location.pathname.includes(path));
   const isMobile = useIsMobile();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const branding = useTenantBrandingOptional();
   const override = branding?.override ?? {};
@@ -58,6 +61,32 @@ const AppSidebar: React.FC = () => {
 
   const { activeLocation } = useLocationCtx();
   const isLite = activeLocation?.slug === 'lite';
+
+  const desktopCollapsed = !isMobile && state === 'collapsed';
+
+  const handleSidebarPointerEnter = useCallback(() => {
+    if (isMobile) return;
+    if (hoverLeaveTimer.current) {
+      clearTimeout(hoverLeaveTimer.current);
+      hoverLeaveTimer.current = null;
+    }
+    setOpen(true);
+  }, [isMobile, setOpen]);
+
+  const handleSidebarPointerLeave = useCallback(() => {
+    if (isMobile) return;
+    if (hoverLeaveTimer.current) clearTimeout(hoverLeaveTimer.current);
+    hoverLeaveTimer.current = setTimeout(() => {
+      setOpen(false);
+      hoverLeaveTimer.current = null;
+    }, 220);
+  }, [isMobile, setOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverLeaveTimer.current) clearTimeout(hoverLeaveTimer.current);
+    };
+  }, []);
 
   if (!user || shouldHide) return null;
 
@@ -80,27 +109,31 @@ const AppSidebar: React.FC = () => {
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
   ];
 
+  const BrandLogo = (
+    <div
+      className="relative h-11 w-11 rounded-xl grid place-items-center overflow-hidden shadow-[0_10px_30px_-8px_var(--brand-primary-hex)] flex-shrink-0"
+      style={{
+        background:
+          'linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))',
+      }}
+    >
+      {brandLogo ? (
+        <img
+          src={brandLogo}
+          alt={brandName}
+          className="h-full w-full object-contain p-1.5"
+          onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+        />
+      ) : (
+        <Sparkles className="h-5 w-5 text-white" />
+      )}
+      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/15" />
+    </div>
+  );
+
   const Brand = (
     <div className="flex items-center gap-3 min-w-0">
-      <div
-        className="relative h-11 w-11 rounded-xl grid place-items-center overflow-hidden shadow-[0_10px_30px_-8px_var(--brand-primary-hex)] flex-shrink-0"
-        style={{
-          background:
-            'linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))',
-        }}
-      >
-        {brandLogo ? (
-          <img
-            src={brandLogo}
-            alt={brandName}
-            className="h-full w-full object-contain p-1.5"
-            onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
-          />
-        ) : (
-          <Sparkles className="h-5 w-5 text-white" />
-        )}
-        <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/15" />
-      </div>
+      {BrandLogo}
       <div className="min-w-0">
         <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
           Workspace
@@ -117,17 +150,24 @@ const AppSidebar: React.FC = () => {
     </div>
   );
 
-  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
+  const NavLinks = ({
+    collapsed,
+    onNavigate,
+  }: {
+    collapsed: boolean;
+    onNavigate?: () => void;
+  }) => (
     <nav className="space-y-1">
       {menuItems.map((item) => {
         const active = location.pathname === item.path;
-        return (
+        const link = (
           <Link
-            key={item.path}
             to={item.path}
             onClick={onNavigate}
+            title={collapsed ? item.label : undefined}
             className={cn(
-              'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+              'group relative flex items-center rounded-xl py-2.5 text-sm font-medium transition-all duration-200',
+              collapsed ? 'justify-center px-0' : 'gap-3 px-3',
               active
                 ? 'text-white'
                 : 'text-white/65 hover:text-white hover:bg-white/[0.04]',
@@ -149,7 +189,10 @@ const AppSidebar: React.FC = () => {
                 />
                 <span
                   aria-hidden
-                  className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-full"
+                  className={cn(
+                    'absolute top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-full',
+                    collapsed ? 'left-1' : 'left-0',
+                  )}
                   style={{ background: 'var(--brand-primary-hex)' }}
                 />
               </>
@@ -161,14 +204,57 @@ const AppSidebar: React.FC = () => {
               )}
               style={{ width: 18, height: 18 }}
             />
-            <span className="relative z-10 truncate">{item.label}</span>
+            <span
+              className={cn(
+                'relative z-10 truncate transition-[opacity,width] duration-200',
+                collapsed ? 'sr-only' : 'flex-1 min-w-0',
+              )}
+            >
+              {item.label}
+            </span>
           </Link>
+        );
+
+        return (
+          <React.Fragment key={item.path}>
+            {link}
+          </React.Fragment>
         );
       })}
     </nav>
   );
 
-  const UserCard = (
+  const UserCardDesktop = desktopCollapsed ? (
+    <div className="flex flex-col items-center gap-2 py-1">
+      <div
+        className="h-9 w-9 rounded-lg grid place-items-center flex-shrink-0 cursor-default"
+        style={{
+          background:
+            'linear-gradient(135deg, color-mix(in oklab, var(--brand-primary-hex) 35%, transparent), color-mix(in oklab, var(--brand-accent-hex) 25%, transparent))',
+          border:
+            '1px solid color-mix(in oklab, var(--brand-primary-hex) 40%, transparent)',
+        }}
+        title={`${user.username} · ${roleLabel}`}
+      >
+        {isAdmin ? (
+          <Shield className="h-4 w-4 text-white" />
+        ) : (
+          <User className="h-4 w-4 text-white" />
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          setSheetOpen(false);
+          logout();
+        }}
+        className="h-8 w-8 grid place-items-center rounded-lg text-white/50 hover:text-white hover:bg-red-500/25 transition-colors"
+        title="Sign out"
+      >
+        <PowerOff className="h-4 w-4" />
+      </button>
+    </div>
+  ) : (
     <div className="glass-card p-3 flex items-center gap-3">
       <div
         className="h-9 w-9 rounded-lg grid place-items-center flex-shrink-0"
@@ -190,6 +276,7 @@ const AppSidebar: React.FC = () => {
         <div className="text-[11px] text-white/55 truncate">{roleLabel}</div>
       </div>
       <button
+        type="button"
         onClick={() => {
           setSheetOpen(false);
           logout();
@@ -243,9 +330,44 @@ const AppSidebar: React.FC = () => {
                   </div>
                   <div className="hero-divider mx-4" />
                   <div className="flex-1 overflow-auto p-3">
-                    <NavLinks onNavigate={() => setSheetOpen(false)} />
+                    <NavLinks collapsed={false} onNavigate={() => setSheetOpen(false)} />
                   </div>
-                  <div className="p-3">{UserCard}</div>
+                  <div className="p-3">
+                    <div className="glass-card p-3 flex items-center gap-3">
+                      <div
+                        className="h-9 w-9 rounded-lg grid place-items-center flex-shrink-0"
+                        style={{
+                          background:
+                            'linear-gradient(135deg, color-mix(in oklab, var(--brand-primary-hex) 35%, transparent), color-mix(in oklab, var(--brand-accent-hex) 25%, transparent))',
+                          border:
+                            '1px solid color-mix(in oklab, var(--brand-primary-hex) 40%, transparent)',
+                        }}
+                      >
+                        {isAdmin ? (
+                          <Shield className="h-4 w-4 text-white" />
+                        ) : (
+                          <User className="h-4 w-4 text-white" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-white truncate">
+                          {user.username}
+                        </div>
+                        <div className="text-[11px] text-white/55 truncate">{roleLabel}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSheetOpen(false);
+                          logout();
+                        }}
+                        className="h-8 w-8 grid place-items-center rounded-lg text-white/50 hover:text-white hover:bg-red-500/25 transition-colors"
+                        title="Sign out"
+                      >
+                        <PowerOff className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </SheetContent>
             </Sheet>
@@ -274,13 +396,16 @@ const AppSidebar: React.FC = () => {
   // ─── Desktop ───────────────────────────────────────────────────────────────
   return (
     <Sidebar
-      className="border-r-0 text-white"
+      collapsible="icon"
+      className="border-r-0 text-white overflow-visible"
       style={{
         background:
           'linear-gradient(180deg, rgba(10,6,22,0.92) 0%, rgba(7,3,15,0.96) 100%)',
         backdropFilter: 'blur(20px) saturate(150%)',
         WebkitBackdropFilter: 'blur(20px) saturate(150%)',
       }}
+      onPointerEnter={handleSidebarPointerEnter}
+      onPointerLeave={handleSidebarPointerLeave}
     >
       {/* Right-edge vertical glow */}
       <div
@@ -291,17 +416,28 @@ const AppSidebar: React.FC = () => {
             'linear-gradient(180deg, transparent 0%, color-mix(in oklab, var(--brand-primary-hex) 60%, transparent) 50%, transparent 100%)',
         }}
       />
-      <SidebarHeader className="p-4">{Brand}</SidebarHeader>
-      <div className="hero-divider mx-4" />
-      <SidebarContent className="mt-3 px-2">
-        <SidebarGroup>
+      <SidebarHeader
+        className={cn(
+          'p-4 transition-[padding] duration-200',
+          desktopCollapsed && 'px-2 py-3 flex items-center justify-center',
+        )}
+      >
+        {desktopCollapsed ? BrandLogo : Brand}
+      </SidebarHeader>
+      <div className={cn('hero-divider mx-4 transition-[margin] duration-200', desktopCollapsed && 'mx-2')} />
+      <SidebarContent className={cn('mt-3 px-2 transition-[padding] duration-200', desktopCollapsed && 'px-1.5')}>
+        <SidebarGroup className={cn(desktopCollapsed && 'p-1.5')}>
           <SidebarGroupContent>
-            <NavLinks />
+            <NavLinks collapsed={desktopCollapsed} />
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarSeparator className="mx-4 bg-white/10" />
-      <SidebarFooter className="p-3">{UserCard}</SidebarFooter>
+      <SidebarSeparator
+        className={cn('mx-4 bg-white/10 transition-[margin] duration-200', desktopCollapsed && 'mx-2')}
+      />
+      <SidebarFooter className={cn('p-3 transition-[padding] duration-200', desktopCollapsed && 'p-2')}>
+        {UserCardDesktop}
+      </SidebarFooter>
     </Sidebar>
   );
 };
