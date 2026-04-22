@@ -376,7 +376,10 @@ const Login = () => {
       </div>
 
       {/* Main grid */}
-      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl gap-10 px-5 pb-10 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pb-16">
+      <main
+        id="main-content"
+        className="relative z-10 mx-auto grid min-h-[calc(100vh-80px)] max-w-7xl gap-10 px-5 pb-10 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pb-16"
+      >
         {/* ── LEFT: brand narrative ─── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -664,7 +667,7 @@ const Login = () => {
             </div>
           </div>
         </motion.div>
-      </div>
+      </main>
 
       {/* ── TOTP modal ── */}
       <AnimatePresence>

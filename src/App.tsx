@@ -12,10 +12,10 @@ import { BrandingProvider } from "@/branding/BrandingProvider";
 import { PlatformAuthProvider } from "@/context/PlatformAuthContext";
 import { PlatformProtectedRoute } from "@/components/platform/PlatformProtectedRoute";
 import PlatformLogin from "@/pages/platform/PlatformLogin";
-import PlatformDashboard from "@/pages/platform/PlatformDashboard";
-import PlatformAudit from "@/pages/platform/PlatformAudit";
-import PlatformOrgDetail from "@/pages/platform/PlatformOrgDetail";
-import PlatformPlans from "@/pages/platform/PlatformPlans";
+const PlatformDashboard = lazy(() => import("@/pages/platform/PlatformDashboard"));
+const PlatformAudit = lazy(() => import("@/pages/platform/PlatformAudit"));
+const PlatformOrgDetail = lazy(() => import("@/pages/platform/PlatformOrgDetail"));
+const PlatformPlans = lazy(() => import("@/pages/platform/PlatformPlans"));
 import { flags } from "@/config/featureFlags";
 import { LocationSwitcher } from "@/components/LocationSwitcher";
 import { POSProvider } from "@/context/POSContext";
@@ -30,83 +30,91 @@ import SplashScreen from "@/components/SplashScreen";
 import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
-// Pages
+// Auth & first paint (keep eager — small or entry routes)
 import Login from "./pages/Login";
-import LoginLogs from "./pages/LoginLogs";
-import Dashboard from "./pages/Dashboard";
-import Stations from "./pages/Stations";
-import Products from "./pages/Products";
-import POS from "./pages/POS";
-import Customers from "./pages/Customers";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import OrganizationSettings from "./pages/OrganizationSettings";
-import Billing from "./pages/Billing";
-import AccountSecurity from "./pages/AccountSecurity";
 import Signup from "./pages/Signup";
 import SignupGoogle from "./pages/SignupGoogle";
-import Onboarding from "./pages/Onboarding";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import TenantWorkspace from "./pages/TenantWorkspace";
-import BrandedLogin from "./pages/BrandedLogin";
-import ChangePassword from "./pages/ChangePassword";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
-import PublicTournaments from "./pages/PublicTournaments";
-import PublicStations from "./pages/PublicStations";
-import PublicBooking from "./pages/PublicBooking";
-import BookingPage from "./pages/BookingPage";
-import BookingManagement from "./pages/BookingManagement";
-import StaffManagement from "./pages/StaffManagement";
-import StaffPortal from "./pages/StaffPortal";
-import ChatAI from "./pages/ChatAI";
-
-// Customer pages
 import CustomerLogin from "./pages/CustomerLogin";
-import CustomerDashboard from "./pages/CustomerDashboardEnhanced";
-import CustomerBookings from "./pages/CustomerBookings";
-import CustomerOffers from "./pages/CustomerOffers";
-import CustomerProfile from "./pages/CustomerProfile";
-
-// Payment routes
-import PublicPaymentSuccess from "./pages/PublicPaymentSuccess";
-import PublicPaymentFailed from "./pages/PublicPaymentFailed";
-import PublicTournamentPaymentSuccess from "./pages/PublicTournamentPaymentSuccess";
-
-// Policy pages
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
-import Contact from "./pages/Contact";
-import ShippingAndDelivery from "./pages/ShippingAndDelivery";
-import RefundPolicy from "./pages/RefundPolicy";
-import AcceptableUse from "./pages/AcceptableUse";
-import CookiePolicy from "./pages/CookiePolicy";
-
-// Cafe pages
 import CafeLogin from "./pages/cafe/CafeLogin";
-import CafePOS from "./pages/cafe/CafePOS";
-import CafeMenu from "./pages/cafe/CafeMenu";
-import CafeOrders from "./pages/cafe/CafeOrders";
-import CafeKitchen from "./pages/cafe/CafeKitchen";
-import CafeDashboard from "./pages/cafe/CafeDashboard";
-import CafeReports from "./pages/cafe/CafeReports";
-import CafeCustomerOrder from "./pages/cafe/CafeCustomerOrder";
-const CafeStaff = React.lazy(() => import("./pages/cafe/CafeStaff"));
-import CafeCustomers from "./pages/cafe/CafeCustomers";
+
+const LoginLogs = lazy(() => import("./pages/LoginLogs"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Stations = lazy(() => import("./pages/Stations"));
+const Products = lazy(() => import("./pages/Products"));
+const POS = lazy(() => import("./pages/POS"));
+const Customers = lazy(() => import("./pages/Customers"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Settings = lazy(() => import("./pages/Settings"));
+const OrganizationSettings = lazy(() => import("./pages/OrganizationSettings"));
+const Billing = lazy(() => import("./pages/Billing"));
+const AccountSecurity = lazy(() => import("./pages/AccountSecurity"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const TenantWorkspace = lazy(() => import("./pages/TenantWorkspace"));
+const BrandedLogin = lazy(() => import("./pages/BrandedLogin"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const PublicTournaments = lazy(() => import("./pages/PublicTournaments"));
+const PublicStations = lazy(() => import("./pages/PublicStations"));
+const PublicBooking = lazy(() => import("./pages/PublicBooking"));
+const BookingManagement = lazy(() => import("./pages/BookingManagement"));
+const StaffManagement = lazy(() => import("./pages/StaffManagement"));
+const StaffPortal = lazy(() => import("./pages/StaffPortal"));
+const ChatAI = lazy(() => import("./pages/ChatAI"));
+const CustomerDashboard = lazy(() => import("./pages/CustomerDashboardEnhanced"));
+const CustomerBookings = lazy(() => import("./pages/CustomerBookings"));
+const CustomerOffers = lazy(() => import("./pages/CustomerOffers"));
+const CustomerProfile = lazy(() => import("./pages/CustomerProfile"));
+const PublicPaymentSuccess = lazy(() => import("./pages/PublicPaymentSuccess"));
+const PublicPaymentFailed = lazy(() => import("./pages/PublicPaymentFailed"));
+const PublicTournamentPaymentSuccess = lazy(() => import("./pages/PublicTournamentPaymentSuccess"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Contact = lazy(() => import("./pages/Contact"));
+const ShippingAndDelivery = lazy(() => import("./pages/ShippingAndDelivery"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
+const AcceptableUse = lazy(() => import("./pages/AcceptableUse"));
+const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
+const CafePOS = lazy(() => import("./pages/cafe/CafePOS"));
+const CafeMenu = lazy(() => import("./pages/cafe/CafeMenu"));
+const CafeOrders = lazy(() => import("./pages/cafe/CafeOrders"));
+const CafeKitchen = lazy(() => import("./pages/cafe/CafeKitchen"));
+const CafeDashboard = lazy(() => import("./pages/cafe/CafeDashboard"));
+const CafeReports = lazy(() => import("./pages/cafe/CafeReports"));
+const CafeCustomerOrder = lazy(() => import("./pages/cafe/CafeCustomerOrder"));
+const CafeCustomers = lazy(() => import("./pages/cafe/CafeCustomers"));
+const CafeStaff = lazy(() => import("./pages/cafe/CafeStaff"));
 import { CafeAuthProvider, useCafeAuth } from "@/context/CafeAuthContext";
 import CafeSidebar from "@/components/cafe/CafeSidebar";
 
-// Lazy load HowToUse for code splitting
 const HowToUsePage = lazy(() => import("./pages/HowToUse"));
+
+/** Lightweight chunk loader — keeps the main bundle smaller for faster first interaction. */
+const RouteChunkFallback = () => (
+  <div
+    className="flex min-h-[40vh] w-full flex-1 items-center justify-center py-12"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <div className="h-9 w-9 animate-spin rounded-full border-4 border-cuephoria-lightpurple border-t-transparent" />
+    <span className="sr-only">Loading page</span>
+  </div>
+);
+
+const LazyPage: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Suspense fallback={<RouteChunkFallback />}>{children}</Suspense>
+);
 
 // ✅ OPTIMIZED: Aggressive caching to reduce egress by 60-80%
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 15 * 60 * 1000, // 15 minutes - data stays fresh longer
-      cacheTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer
+      gcTime: 30 * 60 * 1000, // 30 minutes - keep unused data in cache
       refetchOnWindowFocus: false, // Don't refetch when switching tabs
       refetchOnMount: false, // Don't refetch when component remounts
       retry: 1,
@@ -191,9 +199,13 @@ const ProtectedRoute = ({
                           <GlobalNotificationBell />
                         </div>
                       </div>
-                      <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
+                      <main
+                        id="app-main"
+                        tabIndex={-1}
+                        className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? 'pt-[64px]' : ''}`}
+                      >
                         {children}
-                      </div>
+                      </main>
                     </div>
                   </div>
                 </SidebarProvider>
@@ -288,9 +300,9 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
       <div className="cafe-shell cafe-ambient flex min-h-screen w-full overflow-x-hidden">
         <CafeSidebar />
         <div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
-          <div className={`flex-1 ${isMobile ? 'pb-4' : ''}`}>
+          <main className={`flex-1 outline-none ${isMobile ? 'pb-4' : ''}`} id="cafe-main">
             {children}
-          </div>
+          </main>
         </div>
       </div>
     </SidebarProvider>
@@ -358,7 +370,9 @@ const App = () => {
                   path="/onboarding"
                   element={
                     <OnboardingRoute>
-                      <Onboarding />
+                      <LazyPage>
+                        <Onboarding />
+                      </LazyPage>
                     </OnboardingRoute>
                   }
                 />
@@ -375,7 +389,9 @@ const App = () => {
                             path=""
                             element={
                               <PlatformProtectedRoute>
-                                <PlatformDashboard />
+                                <LazyPage>
+                                  <PlatformDashboard />
+                                </LazyPage>
                               </PlatformProtectedRoute>
                             }
                           />
@@ -383,7 +399,9 @@ const App = () => {
                             path="organizations"
                             element={
                               <PlatformProtectedRoute>
-                                <PlatformDashboard />
+                                <LazyPage>
+                                  <PlatformDashboard />
+                                </LazyPage>
                               </PlatformProtectedRoute>
                             }
                           />
@@ -391,7 +409,9 @@ const App = () => {
                             path="organizations/:id"
                             element={
                               <PlatformProtectedRoute>
-                                <PlatformOrgDetail />
+                                <LazyPage>
+                                  <PlatformOrgDetail />
+                                </LazyPage>
                               </PlatformProtectedRoute>
                             }
                           />
@@ -399,7 +419,9 @@ const App = () => {
                             path="plans"
                             element={
                               <PlatformProtectedRoute>
-                                <PlatformPlans />
+                                <LazyPage>
+                                  <PlatformPlans />
+                                </LazyPage>
                               </PlatformProtectedRoute>
                             }
                           />
@@ -407,7 +429,9 @@ const App = () => {
                             path="audit"
                             element={
                               <PlatformProtectedRoute>
-                                <PlatformAudit />
+                                <LazyPage>
+                                  <PlatformAudit />
+                                </LazyPage>
                               </PlatformProtectedRoute>
                             }
                           />
@@ -421,48 +445,253 @@ const App = () => {
                   path="/login-logs"
                   element={
                     <ProtectedRoute requireAdmin={true}>
-                      <LoginLogs />
+                      <LazyPage>
+                        <LoginLogs />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
 
                 {/* Public routes */}
-                <Route path="/public/tournaments" element={<PublicTournaments />} />
-                <Route path="/public/stations" element={<PublicStations />} />
-                <Route path="/public/booking" element={<PublicBooking />} />
-                <Route path="/lite/public/booking" element={<PublicBooking branchSlug="lite" />} />
-                <Route path="/lite/public/stations" element={<PublicStations branchSlug="lite" />} />
-                <Route path="/lite/public/tournaments" element={<PublicTournaments branchSlug="lite" />} />
+                <Route
+                  path="/public/tournaments"
+                  element={
+                    <LazyPage>
+                      <PublicTournaments />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/public/stations"
+                  element={
+                    <LazyPage>
+                      <PublicStations />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/public/booking"
+                  element={
+                    <LazyPage>
+                      <PublicBooking />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/lite/public/booking"
+                  element={
+                    <LazyPage>
+                      <PublicBooking branchSlug="lite" />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/lite/public/stations"
+                  element={
+                    <LazyPage>
+                      <PublicStations branchSlug="lite" />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/lite/public/tournaments"
+                  element={
+                    <LazyPage>
+                      <PublicTournaments branchSlug="lite" />
+                    </LazyPage>
+                  }
+                />
 
                 {/* Customer routes */}
                 <Route path="/customer/login" element={<CustomerLogin />} />
-                <Route path="/customer/dashboard" element={<CustomerDashboard />} />
-                <Route path="/customer/bookings" element={<CustomerBookings />} />
-                <Route path="/customer/offers" element={<CustomerOffers />} />
-                <Route path="/customer/profile" element={<CustomerProfile />} />
+                <Route
+                  path="/customer/dashboard"
+                  element={
+                    <LazyPage>
+                      <CustomerDashboard />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/customer/bookings"
+                  element={
+                    <LazyPage>
+                      <CustomerBookings />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/customer/offers"
+                  element={
+                    <LazyPage>
+                      <CustomerOffers />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/customer/profile"
+                  element={
+                    <LazyPage>
+                      <CustomerProfile />
+                    </LazyPage>
+                  }
+                />
 
                 {/* Policy pages - Public routes for Razorpay compliance */}
-                <Route path="/privacy-policy" element={<Privacy />} />
-                <Route path="/privacy" element={<Privacy />} />
-                <Route path="/terms-and-conditions" element={<Terms />} />
-                <Route path="/terms" element={<Terms />} />
-                <Route path="/contact-us" element={<Contact />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/shipping-delivery" element={<ShippingAndDelivery />} />
-                <Route path="/shipping-and-delivery" element={<ShippingAndDelivery />} />
-                <Route path="/service-delivery" element={<ShippingAndDelivery />} />
-                <Route path="/refund-policy" element={<RefundPolicy />} />
-                <Route path="/refunds" element={<RefundPolicy />} />
-                <Route path="/cancellation-policy" element={<RefundPolicy />} />
-                <Route path="/acceptable-use" element={<AcceptableUse />} />
-                <Route path="/acceptable-use-policy" element={<AcceptableUse />} />
-                <Route path="/cookies" element={<CookiePolicy />} />
-                <Route path="/cookie-policy" element={<CookiePolicy />} />
+                <Route
+                  path="/privacy-policy"
+                  element={
+                    <LazyPage>
+                      <Privacy />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/privacy"
+                  element={
+                    <LazyPage>
+                      <Privacy />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/terms-and-conditions"
+                  element={
+                    <LazyPage>
+                      <Terms />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/terms"
+                  element={
+                    <LazyPage>
+                      <Terms />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/contact-us"
+                  element={
+                    <LazyPage>
+                      <Contact />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/contact"
+                  element={
+                    <LazyPage>
+                      <Contact />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/shipping-delivery"
+                  element={
+                    <LazyPage>
+                      <ShippingAndDelivery />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/shipping-and-delivery"
+                  element={
+                    <LazyPage>
+                      <ShippingAndDelivery />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/service-delivery"
+                  element={
+                    <LazyPage>
+                      <ShippingAndDelivery />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/refund-policy"
+                  element={
+                    <LazyPage>
+                      <RefundPolicy />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/refunds"
+                  element={
+                    <LazyPage>
+                      <RefundPolicy />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/cancellation-policy"
+                  element={
+                    <LazyPage>
+                      <RefundPolicy />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/acceptable-use"
+                  element={
+                    <LazyPage>
+                      <AcceptableUse />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/acceptable-use-policy"
+                  element={
+                    <LazyPage>
+                      <AcceptableUse />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/cookies"
+                  element={
+                    <LazyPage>
+                      <CookiePolicy />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/cookie-policy"
+                  element={
+                    <LazyPage>
+                      <CookiePolicy />
+                    </LazyPage>
+                  }
+                />
 
                 {/* Payment routes */}
-                <Route path="/public/payment/success" element={<PublicPaymentSuccess />} />
-                <Route path="/public/payment/failed" element={<PublicPaymentFailed />} />
-                <Route path="/public/payment/tournament-success" element={<PublicTournamentPaymentSuccess />} />
+                <Route
+                  path="/public/payment/success"
+                  element={
+                    <LazyPage>
+                      <PublicPaymentSuccess />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/public/payment/failed"
+                  element={
+                    <LazyPage>
+                      <PublicPaymentFailed />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/public/payment/tournament-success"
+                  element={
+                    <LazyPage>
+                      <PublicTournamentPaymentSuccess />
+                    </LazyPage>
+                  }
+                />
 
                 {/* Debug routes */}
 
@@ -471,7 +700,9 @@ const App = () => {
                   path="/dashboard"
                   element={
                     <ProtectedRoute>
-                      <Dashboard />
+                      <LazyPage>
+                        <Dashboard />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -479,7 +710,9 @@ const App = () => {
                   path="/pos"
                   element={
                     <ProtectedRoute>
-                      <POS />
+                      <LazyPage>
+                        <POS />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -487,7 +720,9 @@ const App = () => {
                   path="/stations"
                   element={
                     <ProtectedRoute>
-                      <Stations />
+                      <LazyPage>
+                        <Stations />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -495,7 +730,9 @@ const App = () => {
                   path="/products"
                   element={
                     <ProtectedRoute>
-                      <Products />
+                      <LazyPage>
+                        <Products />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -503,7 +740,9 @@ const App = () => {
                   path="/customers"
                   element={
                     <ProtectedRoute>
-                      <Customers />
+                      <LazyPage>
+                        <Customers />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -511,7 +750,9 @@ const App = () => {
                   path="/reports"
                   element={
                     <ProtectedRoute>
-                      <Reports />
+                      <LazyPage>
+                        <Reports />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -519,7 +760,9 @@ const App = () => {
                   path="/booking-management"
                   element={
                     <ProtectedRoute>
-                      <BookingManagement />
+                      <LazyPage>
+                        <BookingManagement />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -529,15 +772,9 @@ const App = () => {
                   path="/how-to-use"
                   element={
                     <ProtectedRoute>
-                      <Suspense
-                        fallback={
-                          <div className="min-h-screen flex items-center justify-center">
-                            Loading...
-                          </div>
-                        }
-                      >
+                      <LazyPage>
                         <HowToUsePage />
-                      </Suspense>
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -547,7 +784,9 @@ const App = () => {
                   path="/staff"
                   element={
                     <ProtectedRoute requireAdmin={true}>
-                      <StaffManagement />
+                      <LazyPage>
+                        <StaffManagement />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -557,7 +796,9 @@ const App = () => {
                   path="/staff-portal"
                   element={
                     <ProtectedRoute requireStaffOnly={true}>
-                      <StaffPortal />
+                      <LazyPage>
+                        <StaffPortal />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -567,7 +808,9 @@ const App = () => {
                   path="/chat-ai"
                   element={
                     <ProtectedRoute>
-                      <ChatAI />
+                      <LazyPage>
+                        <ChatAI />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -577,7 +820,9 @@ const App = () => {
                   path="/settings"
                   element={
                     <ProtectedRoute>
-                      <Settings />
+                      <LazyPage>
+                        <Settings />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -585,7 +830,9 @@ const App = () => {
                   path="/settings/organization"
                   element={
                     <ProtectedRoute>
-                      <OrganizationSettings />
+                      <LazyPage>
+                        <OrganizationSettings />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -593,7 +840,9 @@ const App = () => {
                   path="/settings/billing"
                   element={
                     <ProtectedRoute>
-                      <Billing />
+                      <LazyPage>
+                        <Billing />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
@@ -601,34 +850,143 @@ const App = () => {
                   path="/account/security"
                   element={
                     <ProtectedRoute>
-                      <AccountSecurity />
+                      <LazyPage>
+                        <AccountSecurity />
+                      </LazyPage>
                     </ProtectedRoute>
                   }
                 />
 
                 {/* Tenant workspace landing (deep-link, multi-tenant ready) */}
-                <Route path="/app/t/:slug" element={<TenantWorkspace />} />
+                <Route
+                  path="/app/t/:slug"
+                  element={
+                    <LazyPage>
+                      <TenantWorkspace />
+                    </LazyPage>
+                  }
+                />
                 {/* Brand-aware sign-in for a specific workspace. Falls back to
                     /login internally if the slug can't be resolved. */}
-                <Route path="/app/t/:slug/login" element={<BrandedLogin />} />
+                <Route
+                  path="/app/t/:slug/login"
+                  element={
+                    <LazyPage>
+                      <BrandedLogin />
+                    </LazyPage>
+                  }
+                />
 
                 {/* Self-service password rotation (first-login + voluntary).
                     Deliberately outside ProtectedRoute so the sidebar / context
                     providers don't render — the forced-rotation UX stays minimal. */}
-                <Route path="/account/change-password" element={<ChangePassword />} />
+                <Route
+                  path="/account/change-password"
+                  element={
+                    <LazyPage>
+                      <ChangePassword />
+                    </LazyPage>
+                  }
+                />
 
                 {/* Cafe routes */}
                 <Route path="/cafe/login" element={<CafeLogin />} />
-                <Route path="/cafe/order" element={<CafeCustomerOrder />} />
-                <Route path="/cafe/dashboard" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeDashboard /></CafeProtectedRoute>} />
-                <Route path="/cafe/workspace" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><Navigate to="/cafe/pos" replace /></CafeProtectedRoute>} />
-                <Route path="/cafe/pos" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafePOS /></CafeProtectedRoute>} />
-                <Route path="/cafe/kitchen" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeKitchen /></CafeProtectedRoute>} />
-                <Route path="/cafe/menu" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeMenu /></CafeProtectedRoute>} />
-                <Route path="/cafe/orders" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeOrders /></CafeProtectedRoute>} />
-                <Route path="/cafe/reports" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><CafeReports /></CafeProtectedRoute>} />
-                <Route path="/cafe/customers" element={<CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}><CafeCustomers /></CafeProtectedRoute>} />
-                <Route path="/cafe/staff" element={<CafeProtectedRoute allowedRoles={['cafe_admin']}><React.Suspense fallback={<div />}><CafeStaff /></React.Suspense></CafeProtectedRoute>} />
+                <Route
+                  path="/cafe/order"
+                  element={
+                    <LazyPage>
+                      <CafeCustomerOrder />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/cafe/dashboard"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin']}>
+                      <LazyPage>
+                        <CafeDashboard />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/workspace"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}>
+                      <Navigate to="/cafe/pos" replace />
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/pos"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}>
+                      <LazyPage>
+                        <CafePOS />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/kitchen"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}>
+                      <LazyPage>
+                        <CafeKitchen />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/menu"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}>
+                      <LazyPage>
+                        <CafeMenu />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/orders"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}>
+                      <LazyPage>
+                        <CafeOrders />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/reports"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin']}>
+                      <LazyPage>
+                        <CafeReports />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/customers"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin', 'cashier', 'kitchen', 'staff']}>
+                      <LazyPage>
+                        <CafeCustomers />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cafe/staff"
+                  element={
+                    <CafeProtectedRoute allowedRoles={['cafe_admin']}>
+                      <LazyPage>
+                        <CafeStaff />
+                      </LazyPage>
+                    </CafeProtectedRoute>
+                  }
+                />
 
                 <Route path="*" element={<NotFound />} />
             </Routes>
