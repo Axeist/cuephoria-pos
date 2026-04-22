@@ -110,9 +110,19 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
             </div>
             <p className="text-[11px] text-white/40 leading-relaxed">
               {hasUserKey ? (
-                <>Using your personal key. Clear the field to fall back to the project default.</>
+                <>
+                  <span className="text-emerald-300">Personal-key mode:</span>{" "}
+                  requests go directly from your browser to OpenRouter using
+                  this key. Clear the field to route through the secure
+                  server proxy instead.
+                </>
               ) : (
-                <>No personal key set — falls back to the project's <code className="text-white/60">VITE_OPENROUTER_API_KEY</code>.</>
+                <>
+                  <span className="text-cuephoria-lightpurple">Proxy mode:</span>{" "}
+                  requests are sent to Cuephoria's server, which forwards them
+                  to OpenRouter using a key that never reaches the browser.
+                  Optionally paste your own key below to bypass the proxy.
+                </>
               )}
             </p>
             <a

@@ -17,6 +17,7 @@
 
 import { j } from "../../src/server/adminApiUtils";
 
+import aiChat from "../../src/server/handlers/admin/ai-chat";
 import bookingSettings from "../../src/server/handlers/admin/booking-settings";
 import changePassword from "../../src/server/handlers/admin/change-password";
 import forgotPassword from "../../src/server/handlers/admin/forgot-password";
@@ -36,6 +37,7 @@ export const config = { runtime: "edge" };
 type Handler = (req: Request) => Promise<Response> | Response;
 
 const routes: Record<string, Handler> = {
+  "ai-chat": aiChat,
   "booking-settings": bookingSettings,
   "change-password": changePassword,
   "forgot-password": forgotPassword,

@@ -133,11 +133,29 @@ export function getModelById(id: string): AIModelOption {
   return AI_MODELS.find((m) => m.id === id) ?? AI_MODELS[0];
 }
 
-/** Resolve the OpenRouter key in priority order: user-supplied > env. */
-function resolveApiKey(override?: string | null): string | null {
+/**
+ * Resolve the *client-side* OpenRouter key. Returns a value only when the
+ * user has pasted their own key in the settings dialog, or (as a dev
+ * convenience) when `VITE_OPENROUTER_API_KEY` is set locally. When neither
+ * is available we route through the server proxy instead so no key is
+ * required in the browser at all.
+ */
+function resolveDirectApiKey(override?: string | null): string | null {
   if (override && override.trim().length > 0) return override.trim();
   const envKey = (import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined) ?? "";
   return envKey.trim().length > 0 ? envKey.trim() : null;
+}
+
+/**
+ * Where the browser should send chat requests when the user hasn't
+ * supplied their own key. Can be overridden via `VITE_AI_PROXY_URL` (e.g.
+ * to point at a staging proxy). Defaults to the app's own admin dispatcher
+ * which requires an authenticated session cookie.
+ */
+function getProxyUrl(): string {
+  const override = (import.meta.env.VITE_AI_PROXY_URL as string | undefined) ?? "";
+  if (override.trim().length > 0) return override.trim();
+  return "/api/admin/ai-chat";
 }
 
 export interface StreamChatOptions {
@@ -170,60 +188,84 @@ export interface StreamChatResult {
 }
 
 /**
- * Stream a chat completion from OpenRouter. Returns the final assembled
- * content; while in flight, `onDelta` fires for every token fragment.
+ * Stream a chat completion. Returns the final assembled content; while in
+ * flight, `onDelta` fires for every token fragment.
  *
- * Throws an Error with a user-facing message on any failure so callers can
- * display it directly.
+ * Routing:
+ * - If the user has configured their own OpenRouter key (settings dialog)
+ *   or `VITE_OPENROUTER_API_KEY` is set locally, we go direct to
+ *   `openrouter.ai` from the browser.
+ * - Otherwise we call our own `/api/admin/ai-chat` proxy, which holds the
+ *   server-side `OPENROUTER_API_KEY` and requires an admin session cookie.
+ *   This keeps the shared key out of the JS bundle.
+ *
+ * Throws an Error with a user-facing message on any failure.
  */
 export async function streamChatCompletion(
   opts: StreamChatOptions,
 ): Promise<StreamChatResult> {
-  const apiKey = resolveApiKey(opts.apiKeyOverride);
-  if (!apiKey) {
-    throw new Error(
-      "No OpenRouter API key configured. Open settings and paste your key, or set VITE_OPENROUTER_API_KEY.",
-    );
-  }
-
+  const directKey = resolveDirectApiKey(opts.apiKeyOverride);
   const model = opts.model ?? DEFAULT_MODEL_ID;
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const useDirect = directKey != null;
+
+  const endpoint = useDirect
+    ? "https://openrouter.ai/api/v1/chat/completions"
+    : getProxyUrl();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (useDirect) {
+    headers.Authorization = `Bearer ${directKey}`;
+    headers["HTTP-Referer"] =
+      typeof window !== "undefined" ? window.location.origin : "https://cuephoria.app";
+    headers["X-Title"] = "Cuephoria AI";
+  }
+
+  // The proxy expects a slightly flatter shape (camelCase `maxTokens`) so it
+  // can clamp + validate. When hitting OpenRouter directly we keep the
+  // OpenAI-compatible snake_case `max_tokens`.
+  const body = useDirect
+    ? {
+        model,
+        messages: opts.messages,
+        stream: true,
+        temperature: opts.temperature ?? 0.3,
+        max_tokens: opts.maxTokens ?? 800,
+      }
+    : {
+        model,
+        messages: opts.messages,
+        temperature: opts.temperature ?? 0.3,
+        maxTokens: opts.maxTokens ?? 800,
+      };
+
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      // OpenRouter uses these for attribution + rate limiting tiers.
-      "HTTP-Referer":
-        typeof window !== "undefined" ? window.location.origin : "https://cuephoria.app",
-      "X-Title": "Cuephoria AI",
-    },
-    body: JSON.stringify({
-      model,
-      messages: opts.messages,
-      stream: true,
-      temperature: opts.temperature ?? 0.3,
-      max_tokens: opts.maxTokens ?? 800,
-    }),
+    headers,
+    body: JSON.stringify(body),
     signal: opts.signal,
+    // Important for the proxy call — lets Vercel see our admin session cookie.
+    credentials: useDirect ? "omit" : "include",
   });
 
   if (!res.ok || !res.body) {
-    // Try to decode a structured error from OpenRouter for a better message.
     let detail = "";
     try {
       const txt = await res.text();
       try {
         const parsed = JSON.parse(txt);
-        detail = parsed?.error?.message || parsed?.message || txt;
+        detail = parsed?.error || parsed?.error?.message || parsed?.message || txt;
       } catch {
         detail = txt;
       }
     } catch {
       /* ignore */
     }
+    const prefix = useDirect ? "OpenRouter" : "AI proxy";
     throw new Error(
-      `OpenRouter error ${res.status}: ${detail || res.statusText || "unknown"}`,
+      `${prefix} error ${res.status}: ${detail || res.statusText || "unknown"}`,
     );
   }
 
