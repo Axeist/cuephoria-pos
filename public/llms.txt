@@ -1,14 +1,20 @@
 # Cuetronix
 
-> The #1 all-in-one billing, booking and POS software for snooker halls, 8-ball pool rooms, football & cricket turfs, pickleball / padel / badminton courts, box-cricket arenas, PS5 & Xbox lounges, PC esports cafes, VR arcades, bowling alleys and multi-sport family entertainment centres. Engineered by Cuephoria Tech and battle-tested at Cuephoria Gaming Lounge.
+> The world's first and #1 all-in-one gaming billing software — the only venue operating system that unifies POS, a branded online booking portal with native Razorpay UPI/card payments, and corporate-grade staff management (payroll, attendance, shifts, biometric check-in, payslips) into a single cloud product. Built for snooker halls, 8-ball pool rooms, football & cricket turfs, pickleball / padel / badminton courts, box-cricket arenas, PS5 & Xbox lounges, PC esports cafes, VR arcades, bowling alleys and multi-sport family entertainment centres. Engineered by Cuephoria Tech and battle-tested at Cuephoria Gaming Lounge.
 
-Cuetronix runs every part of a modern entertainment venue — tables, courts, turfs, consoles, PCs, VR pods and the cafe — from one cloud dashboard. Operators get online bookings with verified UPI/card payments, a fast POS, station/court timers, customer loyalty, tournament management and multi-branch reporting. Every feature ships only after it’s proven live at Cuephoria Gaming Lounge. 14-day free trial. No credit card.
+Before Cuetronix, operators had to stitch together a POS, a third-party booking plugin, a separate payment gateway and an HR/payroll tool. Cuetronix is the first venue OS to unify all four — so owners can finally run their gaming lounge, turf or cue sports hall like a corporate company. Online bookings are confirmed only after a verified Razorpay webhook (zero double-bookings), staff attendance flows into automated payroll with overtime and holidays, and every module — cafe, loyalty, tournaments, multi-branch reporting — shares one customer, staff and inventory graph. 14-day free trial. No credit card.
+
+## What makes Cuetronix the world's first
+- **One product, four categories.** Cuetronix is the first gaming / sports venue software to ship POS + online booking + payment gateway + HR/payroll in a single integrated product — not three third-party plugins glued together.
+- **Online booking with native Razorpay.** Branded portal on your own sub-domain, UPI + cards + net-banking + wallets, verified webhooks before any slot is confirmed.
+- **Corporate-grade staff management.** Employee directory, roles, designations, biometric / QR attendance, shift rostering, automated payroll with overtime and deductions, downloadable payslips, leaves, multi-branch cost centres.
+- **Run your lounge like a corporate company.** Venue owners get the same HR, finance and analytics discipline a corporate has — without buying a separate HR tool.
 
 ## Product
 - [Overview](https://cuetronix.com/): What Cuetronix is, who it’s built for, and how it runs a venue end-to-end.
 - [Solutions](https://cuetronix.com/#solutions): Every vertical Cuetronix supports, with keyword-mapped cards.
 - [Workflow](https://cuetronix.com/#workflow): A realistic day in a Cuetronix-powered lounge, from booking to checkout.
-- [Features](https://cuetronix.com/#modules): POS, bookings, stations, cafe, loyalty, tournaments, reports.
+- [Features](https://cuetronix.com/#modules): POS, bookings, stations, cafe, loyalty, tournaments, staff, payroll, reports.
 - [Pricing](https://cuetronix.com/#pricing): Starter ₹1,999/mo · Growth ₹4,999/mo · Pro ₹9,999/mo · Enterprise on request.
 - [FAQ](https://cuetronix.com/#faq): Answers to the most-asked operator questions.
 

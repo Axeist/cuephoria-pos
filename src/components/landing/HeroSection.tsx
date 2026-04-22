@@ -190,8 +190,8 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.7, delay: 0.2 }}
               className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-6 max-w-xl mx-auto lg:mx-0"
             >
-              Cuetronix is the <span className="text-white font-semibold">billing &amp; booking software for snooker halls, 8-ball pool rooms, football &amp; cricket turfs, pickleball &amp; box-cricket courts, PS5 / Xbox lounges, VR arcades and gaming centres</span> — tables, courts, consoles, cafe,
-              bookings, loyalty and multi-branch reports in one operating system.
+              Cuetronix is the <span className="text-white font-semibold">world&rsquo;s first &amp; #1 all-in-one gaming billing OS</span> — POS, a branded <span className="text-white font-semibold">online booking portal with native Razorpay payments</span>, and <span className="text-white font-semibold">corporate-grade staff payroll &amp; attendance</span> in one product.
+              Run snooker halls, 8-ball rooms, turfs, pickleball courts, PS5 / Xbox lounges, VR arcades and gaming centres like a corporate company.
               Engineered by <a
                 href="https://cuephoriatech.in"
                 target="_blank"
@@ -215,12 +215,13 @@ const HeroSection: React.FC = () => {
               aria-label="Software categories"
             >
               {[
+                "World's first all-in-one venue OS",
+                "Razorpay online booking",
+                "Staff payroll & attendance",
                 "Snooker billing software",
                 "8-ball pool POS",
                 "Turf booking software",
                 "Pickleball court booking",
-                "Box-cricket booking",
-                "Gaming centre software",
                 "PS5 / Xbox rental",
                 "VR arcade management",
                 "Bowling alley POS",
