@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState, useEffect, useCallback } from "react";
+import { lazy, Suspense, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -16,16 +16,21 @@ const HERO_METRICS = [
 ];
 
 // ─── 3-D tilt card ────────────────────────────────────────────────────────────
+// IMPORTANT: We intentionally do NOT use React state here. Earlier
+// versions called setTilt() inside a requestAnimationFrame loop, which
+// forced the entire dashboard mockup (chart bars, station row,
+// floating badges) to re-render ~60 times per second. That was the
+// dominant cause of 200-300ms INP blocks on the landing page because
+// every click/keystroke had to queue behind those React commits.
+//
+// Now we mutate the DOM `transform` directly via a ref inside the rAF
+// loop. No React renders, no re-layout, no reconciliation — pure GPU.
 function TiltCard({ reduceMotion, children, className = "" }: {
   reduceMotion: boolean | null;
   children: React.ReactNode;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
-  const target = useRef({ x: 0, y: 0 });
-  const current = useRef({ x: 0, y: 0 });
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -33,37 +38,68 @@ function TiltCard({ reduceMotion, children, className = "" }: {
     const el = containerRef.current;
     if (!el) return;
 
+    // Start with a neutral transform so the card doesn't flash.
+    el.style.transform =
+      "perspective(1100px) rotateY(0deg) rotateX(0deg) translateZ(10px)";
+
+    let rafId = 0;
+    let hovering = false;
+    const target = { x: 0, y: 0 };
+    const current = { x: 0, y: 0 };
+
     const onMove = (e: MouseEvent) => {
+      hovering = true;
       const r = el.getBoundingClientRect();
-      target.current.x = (e.clientX - r.left) / r.width  - 0.5;
-      target.current.y = (e.clientY - r.top)  / r.height - 0.5;
+      target.x = (e.clientX - r.left) / r.width - 0.5;
+      target.y = (e.clientY - r.top) / r.height - 0.5;
     };
-    const onLeave = () => { target.current.x = 0; target.current.y = 0; };
+    const onLeave = () => {
+      hovering = false;
+      target.x = 0;
+      target.y = 0;
+    };
 
+    const EPS = 0.0005;
     const loop = () => {
-      current.current.x += (target.current.x - current.current.x) * 0.08;
-      current.current.y += (target.current.y - current.current.y) * 0.08;
-      setTilt({ x: current.current.x, y: current.current.y });
-      rafRef.current = requestAnimationFrame(loop);
+      current.x += (target.x - current.x) * 0.08;
+      current.y += (target.y - current.y) * 0.08;
+
+      // Skip DOM writes when the card has settled at rest and the
+      // cursor isn't over it — saves countless style recalcs.
+      const atRest =
+        !hovering &&
+        Math.abs(current.x) < EPS &&
+        Math.abs(current.y) < EPS;
+
+      if (!atRest) {
+        el.style.transform = `perspective(1100px) rotateY(${
+          current.x * 14
+        }deg) rotateX(${-current.y * 12}deg) translateZ(10px)`;
+      }
+
+      rafId = requestAnimationFrame(loop);
     };
 
-    el.addEventListener("mousemove", onMove);
-    el.addEventListener("mouseleave", onLeave);
-    rafRef.current = requestAnimationFrame(loop);
+    el.addEventListener("mousemove", onMove, { passive: true });
+    el.addEventListener("mouseleave", onLeave, { passive: true });
+    rafId = requestAnimationFrame(loop);
 
     return () => {
       el.removeEventListener("mousemove", onMove);
       el.removeEventListener("mouseleave", onLeave);
-      cancelAnimationFrame(rafRef.current);
+      cancelAnimationFrame(rafId);
     };
   }, [reduceMotion]);
 
-  const transform = reduceMotion
-    ? undefined
-    : `perspective(1100px) rotateY(${tilt.x * 14}deg) rotateX(${-tilt.y * 12}deg) translateZ(10px)`;
-
   return (
-    <div ref={containerRef} className={className} style={{ transform, transformStyle: "preserve-3d", transition: "transform 0.05s linear", willChange: "transform" }}>
+    <div
+      ref={containerRef}
+      className={className}
+      style={{
+        transformStyle: "preserve-3d",
+        willChange: reduceMotion ? undefined : "transform",
+      }}
+    >
       {children}
     </div>
   );
