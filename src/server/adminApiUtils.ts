@@ -165,6 +165,7 @@ export async function verifyAdminSession(token: string): Promise<AdminSessionUse
  *     rollout gap to lock everyone out.
  *   - If the DB query fails or the column is missing (migration not yet
  *     applied), we log and return false.
+ *   - If the user row no longer exists, we return true and force re-login.
  *
  * The `supabase` arg is intentionally typed as `unknown` at the signature
  * boundary (and narrowed inside) so this helper stays decoupled from the
@@ -196,9 +197,13 @@ export async function isSessionRevoked(
       .select("password_version")
       .eq("id", session.id)
       .maybeSingle();
-    if (error || !data) {
-      // Fail open — never lock a live user out because of infra hiccups.
+    if (error) {
+      // Fail open on transient infra issues.
       return false;
+    }
+    if (!data) {
+      // Account no longer exists: revoke immediately.
+      return true;
     }
     const current = typeof data.password_version === "number" ? data.password_version : 1;
     return current !== session.passwordVersion;

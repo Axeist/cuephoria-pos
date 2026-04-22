@@ -60,7 +60,11 @@ export default async function handler(req: Request) {
 
     try {
       const ctx = await resolveOrgContext(req);
-      if (!("code" in ctx)) {
+      if ("code" in ctx) {
+        if (ctx.code === "unauthorized" || ctx.code === "no_org") {
+          return j({ ok: true, user: null, organization: null }, 200);
+        }
+      } else {
         // Slice 13: hydrate the rest of the tenant-facing fields the UI needs
         // for the onboarding wizard + branding provider. Best-effort — if the
         // lookup fails, we still surface the core id/slug/role.

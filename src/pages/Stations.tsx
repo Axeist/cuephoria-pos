@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { usePOS } from '@/context/POSContext';
 import StationCard from '@/components/StationCard';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +11,52 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from '@/context/LocationContext';
 import { Badge } from '@/components/ui/badge';
+import { type Station } from '@/types/pos.types';
+
+const typeLabel = (type: string) =>
+  type.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+const iconForType = (type: string) => {
+  const normalized = type.toLowerCase();
+  if (normalized === '8ball') return Table2;
+  if (normalized === 'vr') return Headset;
+  return Gamepad2;
+};
+
+const typeSortWeight = (type: string) => {
+  const normalized = type.toLowerCase();
+  if (normalized === 'ps5') return 0;
+  if (normalized === '8ball') return 1;
+  if (normalized === 'vr') return 2;
+  return 10;
+};
+
+const byNameNumber = (a: Station, b: Station) => {
+  const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+  const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+  if (numA !== numB) return numA - numB;
+  return a.name.localeCompare(b.name);
+};
+
+const groupByType = (list: Station[]): Array<{ type: string; stations: Station[]; activeCount: number }> => {
+  const map = new Map<string, Station[]>();
+  for (const station of list) {
+    const key = (station.type || 'unknown').toLowerCase();
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)?.push(station);
+  }
+  return [...map.entries()]
+    .map(([type, grouped]) => ({
+      type,
+      stations: grouped.sort(byNameNumber),
+      activeCount: grouped.filter((s) => s.isOccupied).length,
+    }))
+    .sort((a, b) => {
+      const weight = typeSortWeight(a.type) - typeSortWeight(b.type);
+      if (weight !== 0) return weight;
+      return a.type.localeCompare(b.type);
+    });
+};
 
 const Stations = () => {
   const { stations, setStations } = usePOS();
@@ -19,40 +65,15 @@ const Stations = () => {
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openPinDialog, setOpenPinDialog] = useState(false);
   const isMobile = useIsMobile();
-  
-  // Separate stations by category and type
-  const regularStations = stations.filter(station => !station.category || station.category !== 'nit_event');
-  const eventStations = stations.filter(station => station.category === 'nit_event');
-  
-  // Regular stations by type
-  const ps5Stations = regularStations.filter(station => station.type === 'ps5');
-  const ballStations = regularStations.filter(station => station.type === '8ball');
-  const vrStations = regularStations.filter(station => station.type === 'vr');
 
-  // Event stations by type
-  const eventPs5Stations = eventStations.filter(station => station.type === 'ps5');
-  const eventBallStations = eventStations.filter(station => station.type === '8ball');
-  const eventVrStations = eventStations.filter(station => station.type === 'vr');
+  const regularStations = stations.filter((station) => !station.category || station.category !== 'nit_event');
+  const eventStations = stations.filter((station) => station.category === 'nit_event');
+  const regularTypeGroups = useMemo(() => groupByType(regularStations), [regularStations]);
+  const eventTypeGroups = useMemo(() => groupByType(eventStations), [eventStations]);
+  const enabledEventStations = eventStations.filter((s) => s.eventEnabled).length;
 
-  // Count active stations
-  const activePs5 = ps5Stations.filter(s => s.isOccupied).length;
-  const activeBall = ballStations.filter(s => s.isOccupied).length;
-  const activeVr = vrStations.filter(s => s.isOccupied).length;
-  
-  const activeEventPs5 = eventPs5Stations.filter(s => s.isOccupied).length;
-  const activeEventBall = eventBallStations.filter(s => s.isOccupied).length;
-  const activeEventVr = eventVrStations.filter(s => s.isOccupied).length;
-  
-  // Count enabled event stations
-  const enabledEventStations = eventStations.filter(s => s.eventEnabled).length;
-
-  const handleAddStationClick = () => {
-    setOpenPinDialog(true);
-  };
-
-  const handlePinSuccess = () => {
-    setOpenAddDialog(true);
-  };
+  const handleAddStationClick = () => setOpenPinDialog(true);
+  const handlePinSuccess = () => setOpenAddDialog(true);
 
   const handleToggleAllEventStations = async (enable: boolean) => {
     if (!activeLocationId) {
@@ -70,26 +91,21 @@ const Stations = () => {
         .update({ event_enabled: enable })
         .eq('category', 'nit_event')
         .eq('location_id', activeLocationId);
-      
+
       if (error) throw error;
-      
-      // Update local state (POS list is already scoped to this branch)
-      setStations(stations.map(s => 
-        s.category === 'nit_event'
-          ? { ...s, eventEnabled: enable }
-          : s
-      ));
-      
+
+      setStations(stations.map((s) => (s.category === 'nit_event' ? { ...s, eventEnabled: enable } : s)));
+
       toast({
-        title: enable ? "All Event Stations Enabled" : "All Event Stations Disabled",
-        description: `All IIM EVENT stations ${enable ? 'will now appear' : 'will no longer appear'} on public booking page.`,
+        title: enable ? 'All Event Stations Enabled' : 'All Event Stations Disabled',
+        description: `All event stations ${enable ? 'will now appear' : 'will no longer appear'} on public booking page.`,
       });
     } catch (error) {
       console.error('Error toggling all event stations:', error);
       toast({
-        title: "Error",
-        description: "Failed to update event status",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update event status',
+        variant: 'destructive',
       });
     }
   };
@@ -101,56 +117,54 @@ const Stations = () => {
       : 'border-l-4 border-l-cuephoria-lightpurple bg-gradient-to-r from-cuephoria-purple/15 to-transparent border border-cuephoria-purple/25';
 
   return (
-    <div className="flex-1 space-y-3 sm:space-y-4 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6">
-      {/* Mobile-optimized header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 animate-slide-down">
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Gaming Stations</h2>
-        <div className="flex space-x-2 w-full sm:w-auto">
-          <Button 
-            size={isMobile ? "sm" : "default"}
-            className="bg-cuephoria-purple hover:bg-cuephoria-purple/80 text-xs sm:text-sm h-10 sm:h-11 rounded-lg flex-1 sm:flex-none"
+    <div className="flex-1 space-y-3 p-3 pt-3 sm:space-y-4 sm:p-6 sm:pt-6 md:p-8">
+      <div className="animate-slide-down flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <h2 className="gradient-text font-heading text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">
+          Gaming Stations
+        </h2>
+        <div className="flex w-full space-x-2 sm:w-auto">
+          <Button
+            size={isMobile ? 'sm' : 'default'}
+            className="h-10 flex-1 rounded-lg bg-cuephoria-purple text-xs hover:bg-cuephoria-purple/80 sm:h-11 sm:flex-none sm:text-sm"
             onClick={handleAddStationClick}
           >
-            <Plus className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> Add Station
+            <Plus className="mr-1.5 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" /> Add Station
           </Button>
         </div>
       </div>
 
-      {/* Branch scope: Main vs Lite — all grids below are for this venue only */}
       {activeLocation && (
         <div
-          className={`rounded-xl px-4 py-3 sm:px-5 sm:py-4 animate-slide-down delay-75 ${branchBannerClass}`}
+          className={`animate-slide-down delay-75 rounded-xl px-4 py-3 sm:px-5 sm:py-4 ${branchBannerClass}`}
           role="region"
           aria-label={`Stations for ${activeLocation.name}`}
         >
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div
                 className={`mt-0.5 rounded-lg p-2 ${
-                  branchSlug === 'lite' ? 'bg-amber-500/15 text-amber-200' : 'bg-cuephoria-purple/25 text-cuephoria-lightpurple'
+                  branchSlug === 'lite'
+                    ? 'bg-amber-500/15 text-amber-200'
+                    : 'bg-cuephoria-purple/25 text-cuephoria-lightpurple'
                 }`}
               >
-                <MapPin className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                <MapPin className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
               </div>
               <div>
-                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:text-xs">
                   Stations for this branch
                 </p>
-                <p className="text-base sm:text-lg font-semibold font-heading text-foreground mt-0.5">
+                <p className="mt-0.5 font-heading text-base font-semibold text-foreground sm:text-lg">
                   {activeLocation.name}
-                </p>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl">
-                  PlayStation, pool, VR, and event stations shown here apply only to this location. Switch branch in the header
-                  to manage the other venue.
                 </p>
               </div>
             </div>
             <Badge
               variant="outline"
-              className={`shrink-0 w-fit text-[10px] sm:text-xs uppercase tracking-wide ${
+              className={`w-fit shrink-0 text-[10px] uppercase tracking-wide sm:text-xs ${
                 branchSlug === 'lite'
-                  ? 'border-amber-400/50 text-amber-100 bg-amber-950/40'
-                  : 'border-cuephoria-lightpurple/40 text-cuephoria-lightpurple bg-cuephoria-purple/10'
+                  ? 'border-amber-400/50 bg-amber-950/40 text-amber-100'
+                  : 'border-cuephoria-lightpurple/40 bg-cuephoria-purple/10 text-cuephoria-lightpurple'
               }`}
             >
               {branchSlug === 'lite' ? 'Cuephoria Lite' : branchSlug === 'main' ? 'Main' : activeLocation.short_code}
@@ -159,152 +173,70 @@ const Stations = () => {
         </div>
       )}
 
-      {/* PIN Verification Dialog */}
-      <PinVerificationDialog 
-        open={openPinDialog} 
+      <PinVerificationDialog
+        open={openPinDialog}
         onOpenChange={setOpenPinDialog}
         onSuccess={handlePinSuccess}
         title="Admin Access Required"
         description="Enter the admin PIN to add a new game station"
       />
 
-      {/* Add Station Dialog */}
-      <AddStationDialog 
-        open={openAddDialog} 
-        onOpenChange={setOpenAddDialog} 
-      />
+      <AddStationDialog open={openAddDialog} onOpenChange={setOpenAddDialog} />
 
-      {/* Mobile-optimized stats cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4 animate-slide-up">
-        <Card className="bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 border-cuephoria-purple/30 border animate-fade-in hover:shadow-lg hover:shadow-cuephoria-purple/20 transition-all rounded-xl">
-          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs sm:text-sm text-muted-foreground">PlayStation 5</p>
-              <p className="text-xl sm:text-2xl font-bold">{activePs5} / {ps5Stations.length} Active</p>
-            </div>
-            <div className="rounded-full bg-cuephoria-purple/20 p-2 sm:p-3">
-              <Gamepad2 className="h-5 w-5 sm:h-6 sm:w-6 text-cuephoria-lightpurple" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-r from-green-900/20 to-green-700/10 border-green-500/30 border animate-fade-in delay-100 hover:shadow-lg hover:shadow-green-500/20 transition-all rounded-xl">
-          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs sm:text-sm text-muted-foreground">8-Ball Tables</p>
-              <p className="text-xl sm:text-2xl font-bold">{activeBall} / {ballStations.length} Active</p>
-            </div>
-            <div className="rounded-full bg-green-900/30 p-2 sm:p-3">
-              <Table2 className="h-5 w-5 sm:h-6 sm:w-6 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-r from-blue-900/20 to-blue-700/10 border-blue-500/30 border animate-fade-in delay-200 hover:shadow-lg hover:shadow-blue-500/20 transition-all rounded-xl">
-          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs sm:text-sm text-muted-foreground">VR Gaming</p>
-              <p className="text-xl sm:text-2xl font-bold">{activeVr} / {vrStations.length} Active</p>
-            </div>
-            <div className="rounded-full bg-blue-900/30 p-2 sm:p-3">
-              <Headset className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="animate-slide-up grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 md:gap-4 lg:grid-cols-3">
+        {regularTypeGroups.map((group) => {
+          const Icon = iconForType(group.type);
+          return (
+            <Card
+              key={`stat-${group.type}`}
+              className="animate-fade-in rounded-xl border border-cuephoria-purple/30 bg-gradient-to-r from-cuephoria-purple/20 to-cuephoria-lightpurple/20 transition-all hover:shadow-lg hover:shadow-cuephoria-purple/20"
+            >
+              <CardContent className="flex items-center justify-between p-3 sm:p-4">
+                <div>
+                  <p className="text-xs text-muted-foreground sm:text-sm">{typeLabel(group.type)}</p>
+                  <p className="text-xl font-bold sm:text-2xl">
+                    {group.activeCount} / {group.stations.length} Active
+                  </p>
+                </div>
+                <div className="rounded-full bg-cuephoria-purple/20 p-2 sm:p-3">
+                  <Icon className="h-5 w-5 text-cuephoria-lightpurple sm:h-6 sm:w-6" />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Mobile-optimized station sections */}
       <div className="space-y-5 sm:space-y-6">
-        <div className="animate-slide-up delay-200">
-          <div className="flex items-center mb-3 sm:mb-4">
-            <Gamepad2 className="h-4 w-4 sm:h-5 sm:w-5 text-cuephoria-lightpurple mr-2" />
-            <h3 className="text-base sm:text-xl font-semibold font-heading">PlayStation 5 Consoles</h3>
-            <span className="ml-2 bg-cuephoria-purple/20 text-cuephoria-lightpurple text-[10px] sm:text-xs px-2 py-1 rounded-full">
-              {activePs5} active
-            </span>
-          </div>
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {ps5Stations
-              .sort((a, b) => {
-                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
-                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
-                return numA - numB;
-              })
-              .map((station, index) => (
-                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
-                  <div className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
+        {regularTypeGroups.map((group, groupIndex) => {
+          const Icon = iconForType(group.type);
+          return (
+            <div key={`regular-${group.type}`} className="animate-slide-up" style={{ animationDelay: `${groupIndex * 120}ms` }}>
+              <div className="mb-3 flex items-center sm:mb-4">
+                <Icon className="mr-2 h-4 w-4 text-cuephoria-lightpurple sm:h-5 sm:w-5" />
+                <h3 className="font-heading text-base font-semibold sm:text-xl">{typeLabel(group.type)}</h3>
+                <span className="ml-2 rounded-full bg-cuephoria-purple/20 px-2 py-1 text-[10px] text-cuephoria-lightpurple sm:text-xs">
+                  {group.activeCount} active
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                {group.stations.map((station, index) => (
+                  <div key={station.id} className="animate-scale-in" style={{ animationDelay: `${index * 90}ms` }}>
                     <StationCard station={station} />
                   </div>
-                </div>
-              ))
-            }
-          </div>
-        </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
-        <div className="animate-slide-up delay-300">
-          <div className="flex items-center mb-3 sm:mb-4">
-            <Table2 className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 mr-2" />
-            <h3 className="text-base sm:text-xl font-semibold font-heading">8-Ball Tables</h3>
-            <span className="ml-2 bg-green-800/30 text-green-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
-              {activeBall} active
-            </span>
-          </div>
-          
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-            {ballStations
-              .sort((a, b) => {
-                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
-                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
-                return numA - numB;
-              })
-              .map((station, index) => (
-                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
-                  <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
-                    <StationCard station={station} />
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-        </div>
-
-        <div className="animate-slide-up delay-400">
-          <div className="flex items-center mb-3 sm:mb-4">
-            <Headset className="h-4 w-4 sm:h-5 sm:w-5 text-blue-400 mr-2" />
-            <h3 className="text-base sm:text-xl font-semibold font-heading">VR Gaming Stations</h3>
-            <span className="ml-2 bg-blue-800/30 text-blue-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
-              {activeVr} active
-            </span>
-          </div>
-          
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {vrStations
-              .sort((a, b) => {
-                const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
-                const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
-                return numA - numB;
-              })
-              .map((station, index) => (
-                <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
-                  <div className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
-                    <StationCard station={station} />
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-        </div>
-
-        {/* IIM EVENT Stations Section */}
         {eventStations.length > 0 && (
-          <div className="animate-slide-up delay-500 border-t border-yellow-500/30 pt-6 mt-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="animate-slide-up mt-6 border-t border-yellow-500/30 pt-6">
+            <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center">
-                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-400 mr-2" />
-                <h3 className="text-base sm:text-xl font-semibold font-heading text-yellow-400">
-                  IIM EVENT Stations
-                </h3>
-                <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
+                <Calendar className="mr-2 h-5 w-5 text-yellow-400 sm:h-6 sm:w-6" />
+                <h3 className="font-heading text-base font-semibold text-yellow-400 sm:text-xl">Event Stations</h3>
+                <span className="ml-2 rounded-full bg-yellow-800/30 px-2 py-1 text-[10px] text-yellow-400 sm:text-xs">
                   {enabledEventStations} enabled
                 </span>
               </div>
@@ -313,103 +245,46 @@ const Stations = () => {
                   size="sm"
                   variant="outline"
                   onClick={() => handleToggleAllEventStations(true)}
-                  className="text-xs h-8 bg-yellow-500/20 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/30"
+                  className="h-8 border-yellow-500/30 bg-yellow-500/20 text-xs text-yellow-400 hover:bg-yellow-500/30"
                 >
-                  <ToggleRight className="h-3.5 w-3.5 mr-1" />
+                  <ToggleRight className="mr-1 h-3.5 w-3.5" />
                   Enable All
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => handleToggleAllEventStations(false)}
-                  className="text-xs h-8 bg-gray-500/20 border-gray-500/30 text-gray-400 hover:bg-gray-500/30"
+                  className="h-8 border-gray-500/30 bg-gray-500/20 text-xs text-gray-400 hover:bg-gray-500/30"
                 >
-                  <ToggleLeft className="h-3.5 w-3.5 mr-1" />
+                  <ToggleLeft className="mr-1 h-3.5 w-3.5" />
                   Disable All
                 </Button>
               </div>
             </div>
-            
-            {/* Event PS5 Stations */}
-            {eventPs5Stations.length > 0 && (
-              <div className="mb-6">
-                <div className="flex items-center mb-3">
-                  <Gamepad2 className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 mr-2" />
-                  <h4 className="text-sm sm:text-lg font-semibold">Event PS5</h4>
-                  <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
-                    {activeEventPs5} active
-                  </span>
-                </div>
-                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {eventPs5Stations
-                    .sort((a, b) => {
-                      const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
-                      const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
-                      return numA - numB;
-                    })
-                    .map((station, index) => (
-                      <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100}ms`}}>
+
+            <div className="space-y-6">
+              {eventTypeGroups.map((group) => {
+                const Icon = iconForType(group.type);
+                return (
+                  <div key={`event-${group.type}`}>
+                    <div className="mb-3 flex items-center">
+                      <Icon className="mr-2 h-4 w-4 text-yellow-400 sm:h-5 sm:w-5" />
+                      <h4 className="text-sm font-semibold sm:text-lg">{typeLabel(group.type)}</h4>
+                      <span className="ml-2 rounded-full bg-yellow-800/30 px-2 py-1 text-[10px] text-yellow-400 sm:text-xs">
+                        {group.activeCount} active
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                      {group.stations.map((station, index) => (
+                        <div key={station.id} className="animate-scale-in" style={{ animationDelay: `${index * 90}ms` }}>
                           <StationCard station={station} />
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            )}
-            
-            {/* Event 8-Ball Stations */}
-            {eventBallStations.length > 0 && (
-              <div className="mb-6">
-                <div className="flex items-center mb-3">
-                  <Table2 className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 mr-2" />
-                  <h4 className="text-sm sm:text-lg font-semibold">Event 8-Ball</h4>
-                  <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
-                    {activeEventBall} active
-                  </span>
-                </div>
-                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-                  {eventBallStations
-                    .sort((a, b) => {
-                      const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
-                      const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
-                      return numA - numB;
-                    })
-                    .map((station, index) => (
-                      <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 300}ms`}}>
-                          <StationCard station={station} />
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            )}
-            
-            {/* Event VR Stations */}
-            {eventVrStations.length > 0 && (
-              <div className="mb-6">
-                <div className="flex items-center mb-3">
-                  <Headset className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-400 mr-2" />
-                  <h4 className="text-sm sm:text-lg font-semibold">Event VR</h4>
-                  <span className="ml-2 bg-yellow-800/30 text-yellow-400 text-[10px] sm:text-xs px-2 py-1 rounded-full">
-                    {activeEventVr} active
-                  </span>
-                </div>
-                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                  {eventVrStations
-                    .sort((a, b) => {
-                      const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
-                      const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
-                      return numA - numB;
-                    })
-                    .map((station, index) => (
-                      <div key={station.id} className="animate-scale-in" style={{animationDelay: `${index * 100 + 600}ms`}}>
-                          <StationCard station={station} />
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

@@ -41,7 +41,7 @@ const POSContext = createContext<POSContextType>({
   isSplitPayment: false,
   cashAmount: 0,
   upiAmount: 0,
-  categories: ['food', 'drinks', 'tobacco', 'challenges', 'membership'],
+  categories: ['uncategorized'],
   setIsStudentDiscount: () => {},
   setBills: () => {},
   setCustomers: () => {},
@@ -88,9 +88,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [isStudentDiscount, setIsStudentDiscount] = useState<boolean>(false);
   
-  const [categories, setCategories] = useState<string[]>([
-    'food', 'drinks', 'tobacco', 'challenges', 'membership'
-  ]);
+  const [categories, setCategories] = useState<string[]>(['uncategorized']);
   
   const { 
     products, 
@@ -265,7 +263,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('cuephoriaCategories', JSON.stringify(dbCategories));
           console.log('Categories loaded from database:', dbCategories);
         } else {
-          const defaultCategories = ['food', 'drinks', 'tobacco', 'challenges', 'membership', 'uncategorized'];
+          const defaultCategories = ['uncategorized'];
           
           const { error: seedError } = await supabase
             .from('categories')
@@ -659,7 +657,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const product = products.find(p => p.id === item.id);
             
             if (product) {
-              let membershipHours = product.membershipHours || 4;
+              const membershipHours = product.membershipHours || 4;
               let membershipDuration: 'weekly' | 'monthly' = 'weekly';
               
               if (product.duration) {

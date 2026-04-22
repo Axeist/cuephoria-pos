@@ -177,6 +177,20 @@ export default async function handler(req: Request) {
   }
 
   // 4) Existing user → issue session cookie.
+  const { data: memberships, error: membershipsErr } = await supabase
+    .from("org_memberships")
+    .select("organization_id")
+    .eq("admin_user_id", user.id)
+    .limit(1);
+  if (membershipsErr) {
+    console.warn("[oauth] membership check failed:", membershipsErr.message);
+    return redirect(`${base}/login?oauth_error=workspace_check_failed`, [clearStateCookie()]);
+  }
+  if (!memberships || memberships.length === 0) {
+    return redirect(`${base}/login?oauth_error=no_workspace`, [clearStateCookie()]);
+  }
+
+  // 5) Existing user with active workspace → issue session cookie.
   const maxAge = 60 * 60 * 8; // 8h, same as normal login
   const token = await signAdminSession(
     {

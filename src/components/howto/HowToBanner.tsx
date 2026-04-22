@@ -1,73 +1,25 @@
 
 import React from "react";
-import { BookOpenText } from "lucide-react";
+import { BookOpenText, Sparkles } from "lucide-react";
 
 const HowToBanner: React.FC = () => (
-  <div
-    className="
-      w-full flex items-center gap-6
-      bg-gradient-to-br from-cuephoria-darker via-cuephoria-dark to-cuephoria-dark
-      rounded-xl shadow-xl relative px-5 pt-5 pb-4 mb-7 border border-cuephoria-lightpurple/20
-      "
-    style={{
-      boxShadow:
-        "0 2px 20px 0 rgba(155,135,245,0.08), 0 1.5px 14px 0 rgba(14,165,233,0.10)",
-    }}
-  >
-    {/* Logo image - smaller, less glow */}
-    <div className="flex-shrink-0">
-      <img
-        src="/lovable-uploads/253e523b-050e-4861-9f9d-11be72cda8fd.png"
-        alt="Cuephoria Logo"
-        className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover shadow border-2 border-cuephoria-lightpurple/20 bg-cuephoria-darker"
-        loading="lazy"
-      />
-    </div>
-    {/* Content - simpler, subtler */}
-    <div className="flex-1 flex flex-col">
-      <div className="flex items-center gap-2 mb-0.5">
-        <BookOpenText className="h-6 w-6 text-cuephoria-lightpurple" />
-        <h1 className="text-2xl font-heading font-bold text-white tracking-tight">
-          Welcome to{" "}
-          <span
-            className="gradient-text font-heading font-bold"
-            style={{
-              background:
-                "linear-gradient(90deg, #9b87f5 0%, #0EA5E9 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              display: "inline-block",
-            }}
-          >
-            Cuephoria
-          </span>
-          !
-        </h1>
+  <div className="mb-6 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#1b0d2f] via-[#120922] to-[#0b0616] p-6 shadow-[0_30px_80px_-35px_rgba(167,139,250,0.5)]">
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 p-2.5">
+        <BookOpenText className="h-5 w-5 text-white" />
       </div>
-      <p className="text-base md:text-lg font-quicksand text-white/85 mt-0.5 leading-normal">
-        Manage your club, staff, customers, and games{" "}
-        <span
-          className="gradient-text font-heading font-bold"
-          style={{
-            background:
-              "linear-gradient(90deg, #9b87f5 0%, #0EA5E9 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            display: "inline-block",
-          }}
-        >
-          efficiently
-        </span>
-        .<br />
-        <span className="text-white/75">
-          This interactive guide unlocks every feature for your workflow.
-        </span>
-        <br />
-        <span className="text-cuephoria-lightpurple font-semibold">Tip:</span>
-        <span className="ml-1 text-white/75">
-          Click any section below for pro tips!
-        </span>
-      </p>
+      <div>
+        <p className="text-[11px] uppercase tracking-[0.18em] text-fuchsia-200/80">Training Hub</p>
+        <h1 className="mt-1 text-2xl font-extrabold text-white md:text-3xl">How to run Cuetronix daily</h1>
+        <p className="mt-2 max-w-3xl text-sm text-zinc-300">
+          Use this guide as your operator playbook: onboarding, billing flow, stations, inventory, reports, and
+          staff actions. Share this page with new team members on day one.
+        </p>
+      </div>
+    </div>
+    <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
+      <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
+      Pro tip: keep this page pinned for staff training and daily SOP checks.
     </div>
   </div>
 );

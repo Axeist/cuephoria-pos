@@ -165,6 +165,8 @@ const AppSidebar: React.FC = () => {
             to={item.path}
             onClick={onNavigate}
             title={collapsed ? item.label : undefined}
+            data-tour-path={item.path}
+            data-tour-label={item.label}
             className={cn(
               'group relative flex items-center rounded-xl py-2.5 text-sm font-medium transition-all duration-200',
               collapsed ? 'justify-center px-0' : 'gap-3 px-3',

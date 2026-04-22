@@ -25,6 +25,7 @@ import { ExpenseProvider } from "@/context/ExpenseContext";
 import { BookingNotificationProvider } from "@/context/BookingNotificationContext";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
+import SidebarTourOverlay from "@/components/onboarding/SidebarTourOverlay";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
@@ -206,6 +207,7 @@ const ProtectedRoute = ({
                   >
                     <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
                       <AppSidebar />
+                      <SidebarTourOverlay />
                       <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
                         <AppHeader />
                         <main

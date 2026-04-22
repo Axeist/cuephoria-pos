@@ -231,6 +231,28 @@ export default async function handler(req: Request) {
       );
     }
 
+    // Hard block tenant sign-in when the account has no active workspace
+    // membership (e.g. user removed or org deleted).
+    const { data: memberships, error: membershipsErr } = await supabase
+      .from("org_memberships")
+      .select("organization_id")
+      .eq("admin_user_id", userRow.id)
+      .limit(1);
+    if (membershipsErr) {
+      console.error("Failed to validate org membership during login:", membershipsErr);
+      return j({ ok: false, error: "Could not validate workspace access." }, 500);
+    }
+    if (!memberships || memberships.length === 0) {
+      return j(
+        {
+          ok: true,
+          success: false,
+          error: "No active workspace access. Contact your workspace owner.",
+        },
+        200,
+      );
+    }
+
     // ── Second factor check. If this user enrolled in TOTP, demand either
     //    a valid TOTP code or a single-use backup code before issuing the
     //    session cookie. A user who hasn't enrolled is unaffected.

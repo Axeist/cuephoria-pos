@@ -72,6 +72,10 @@ const Login = () => {
       no_account:
         "No Cuetronix account exists for this Google sign-in. Create a workspace, or sign in with the email and password for your existing account.",
       account_conflict: "Another Google identity is already linked to this email.",
+      no_workspace:
+        "This account no longer has access to any workspace. Ask the owner to re-invite you.",
+      workspace_check_failed:
+        "Couldn't verify your workspace access right now. Please try again in a moment.",
       invalid_state: 'Sign-in session expired. Please try again.',
       expired_state: 'Sign-in session expired. Please try again.',
     };

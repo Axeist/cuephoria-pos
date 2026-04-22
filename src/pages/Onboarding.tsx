@@ -8,8 +8,9 @@
  *   2. Brand    — logo / icon upload + primary + accent color pickers.
  *   3. Business — what kind of operation (gaming lounge, cafe, …). Drives
  *                 default feature surfaces in the dashboard.
- *   4. Preview  — live preview of dashboard header with chosen brand.
- *   5. Launch   — call /api/tenant/onboarding with complete=true,
+ *   4. Setup    — choose starter categories/stations/products/customer.
+ *   5. Preview  — live preview of dashboard header with chosen brand.
+ *   6. Launch   — call /api/tenant/onboarding with complete=true,
  *                 refresh org context, navigate to /dashboard.
  *
  * Visual language matches the landing / login / signup pages: shared ambient
@@ -32,10 +33,12 @@ import {
   Joystick,
   Loader2,
   PaintBucket,
+  Plus,
   Rocket,
   Sparkles,
   Target,
   Trophy,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -47,7 +50,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useOrganizationOptional } from "@/context/OrganizationContext";
 import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 
-type StepId = "profile" | "brand" | "business" | "preview" | "launch";
+type StepId = "profile" | "brand" | "business" | "setup" | "preview" | "launch";
 
 const STEPS: { id: StepId; label: string; short: string; subtitle: string }[] = [
   {
@@ -67,6 +70,12 @@ const STEPS: { id: StepId; label: string; short: string; subtitle: string }[] = 
     label: "What do you run?",
     short: "Business",
     subtitle: "We'll pre-configure the dashboard for your type of floor.",
+  },
+  {
+    id: "setup",
+    label: "Seed your workspace",
+    short: "Setup",
+    subtitle: "Pick starter categories, stations, products, and your first customer.",
   },
   {
     id: "preview",
@@ -169,7 +178,82 @@ interface OnboardingState {
   logoUrl: string;
   iconUrl: string;
   businessType: BusinessType | "";
+  categories: string[];
+  stations: Array<{
+    name: string;
+    type: string;
+    category: "regular" | "nit_event";
+    hourlyRate: number;
+  }>;
+  products: Array<{ name: string; category: string; price: number; stock: number }>;
+  firstCustomerName: string;
 }
+
+const ONBOARDING_PRESETS: Record<
+  BusinessType,
+  {
+    categories: string[];
+    stations: Array<{ name: string; type: string; category: "regular" | "nit_event"; hourlyRate: number }>;
+    products: Array<{ name: string; category: string; price: number; stock: number }>;
+  }
+> = {
+  gaming_lounge: {
+    categories: ["snacks", "beverages", "hourly_pass", "addons"],
+    stations: [
+      { name: "PS5 Arena 1", type: "ps5", category: "regular", hourlyRate: 180 },
+      { name: "VR Bay 1", type: "vr", category: "regular", hourlyRate: 250 },
+    ],
+    products: [
+      { name: "Hourly Pass 1H", category: "hourly_pass", price: 180, stock: 999 },
+      { name: "Energy Drink", category: "beverages", price: 90, stock: 30 },
+    ],
+  },
+  cafe: {
+    categories: ["coffee", "snacks", "combos", "desserts"],
+    stations: [{ name: "Cafe Console 1", type: "ps5", category: "regular", hourlyRate: 150 }],
+    products: [
+      { name: "Cappuccino", category: "coffee", price: 120, stock: 80 },
+      { name: "Nachos Combo", category: "combos", price: 220, stock: 40 },
+    ],
+  },
+  arcade: {
+    categories: ["tokens", "merch", "snacks"],
+    stations: [{ name: "Arcade Zone A", type: "ps5", category: "regular", hourlyRate: 120 }],
+    products: [
+      { name: "Arcade Tokens (20)", category: "tokens", price: 100, stock: 200 },
+      { name: "Soda Can", category: "snacks", price: 50, stock: 100 },
+    ],
+  },
+  club: {
+    categories: ["membership", "beverages", "events"],
+    stations: [{ name: "VIP Lounge Table", type: "8ball", category: "regular", hourlyRate: 220 }],
+    products: [
+      { name: "Monthly Membership", category: "membership", price: 2999, stock: 999 },
+      { name: "Mocktail", category: "beverages", price: 180, stock: 60 },
+    ],
+  },
+  billiards: {
+    categories: ["table_time", "beverages", "snacks"],
+    stations: [{ name: "Snooker Table 1", type: "8ball", category: "regular", hourlyRate: 200 }],
+    products: [
+      { name: "Table Time 30 Min", category: "table_time", price: 100, stock: 999 },
+      { name: "Lemon Soda", category: "beverages", price: 70, stock: 50 },
+    ],
+  },
+  bowling: {
+    categories: ["lane_time", "shoe_rental", "snacks"],
+    stations: [{ name: "Bowling Lane 1", type: "ps5", category: "regular", hourlyRate: 300 }],
+    products: [
+      { name: "Lane Slot 1 Hour", category: "lane_time", price: 600, stock: 999 },
+      { name: "Shoe Rental", category: "shoe_rental", price: 120, stock: 100 },
+    ],
+  },
+  other: {
+    categories: ["snacks", "beverages"],
+    stations: [{ name: "Main Station", type: "ps5", category: "regular", hourlyRate: 150 }],
+    products: [{ name: "Welcome Product", category: "snacks", price: 99, stock: 20 }],
+  },
+};
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -181,6 +265,8 @@ export default function Onboarding() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingIcon, setUploadingIcon] = useState(false);
+  const [categoryInput, setCategoryInput] = useState("");
+  const [customerSkipped, setCustomerSkipped] = useState(false);
   const fileLogoRef = useRef<HTMLInputElement>(null);
   const fileIconRef = useRef<HTMLInputElement>(null);
 
@@ -192,7 +278,23 @@ export default function Onboarding() {
     logoUrl: "",
     iconUrl: "",
     businessType: "",
+    categories: [],
+    stations: [],
+    products: [],
+    firstCustomerName: "",
   });
+
+  const activePreset = useMemo(
+    () => ONBOARDING_PRESETS[(state.businessType || "other") as BusinessType] ?? ONBOARDING_PRESETS.other,
+    [state.businessType],
+  );
+  const stationTypeSuggestions = useMemo(
+    () =>
+      [...new Set(["ps5", "8ball", "vr", ...activePreset.stations.map((station) => station.type)])].filter(
+        Boolean,
+      ),
+    [activePreset.stations],
+  );
 
   // Hydrate state from any previously-saved branding when the org context lands.
   useEffect(() => {
@@ -212,6 +314,21 @@ export default function Onboarding() {
       navigate("/dashboard", { replace: true });
     }
   }, [organization, navigate]);
+
+  useEffect(() => {
+    if (!state.businessType) return;
+    setState((prev) => {
+      if (prev.categories.length || prev.stations.length || prev.products.length) return prev;
+      const preset = ONBOARDING_PRESETS[state.businessType];
+      if (!preset) return prev;
+      return {
+        ...prev,
+        categories: [...preset.categories],
+        stations: [...preset.stations],
+        products: [...preset.products],
+      };
+    });
+  }, [state.businessType]);
 
   const step = STEPS[stepIdx];
   const isLast = stepIdx === STEPS.length - 1;
@@ -243,6 +360,26 @@ export default function Onboarding() {
     },
     [],
   );
+
+  const submitBootstrap = useCallback(async () => {
+    const payload = {
+      categories: state.categories,
+      stations: state.stations,
+      products: state.products,
+      firstCustomerName: customerSkipped ? "" : state.firstCustomerName,
+    };
+    const res = await fetch("/api/tenant/onboarding-bootstrap", {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json?.ok === false) {
+      throw new Error(json?.error || `Bootstrap failed (${res.status})`);
+    }
+    return json;
+  }, [customerSkipped, state.categories, state.firstCustomerName, state.products, state.stations]);
 
   async function handleFileUpload(file: File, kind: "logo" | "icon") {
     if (file.size > 512 * 1024) {
@@ -330,9 +467,24 @@ export default function Onboarding() {
           return;
         }
         await saveStep({ step: "business", businessType: state.businessType });
+      } else if (step.id === "setup") {
+        if (!state.categories.length) {
+          appToast.error("Add one category", "Create at least one category for your menu.");
+          setSaving(false);
+          return;
+        }
+        const incompleteStation = state.stations.find(
+          (station) => station.name.trim() && !station.type.trim(),
+        );
+        if (incompleteStation) {
+          appToast.error("Missing station type", "Give each station a type or remove the empty row.");
+          setSaving(false);
+          return;
+        }
       } else if (step.id === "preview") {
         // pure client step — nothing to persist.
       } else if (step.id === "launch") {
+        await submitBootstrap();
         await saveStep({ complete: true });
         await orgCtx?.refresh();
         appToast.success("You're in!", "Welcome to Cuetronix.");
@@ -513,6 +665,353 @@ export default function Onboarding() {
                 </button>
               );
             })}
+          </div>
+        );
+
+      case "setup":
+        return (
+          <div className="space-y-6">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-zinc-100">Categories</h4>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
+                  onClick={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      categories: [...new Set([...prev.categories, ...activePreset.categories])],
+                    }))
+                  }
+                >
+                  Use suggestions
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {activePreset.categories.map((cat) => {
+                  const active = state.categories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          categories: active
+                            ? prev.categories.filter((c) => c !== cat)
+                            : [...prev.categories, cat],
+                        }))
+                      }
+                      className={`rounded-full border px-2.5 py-1 text-xs ${
+                        active
+                          ? "border-fuchsia-300/40 bg-fuchsia-500/20 text-fuchsia-100"
+                          : "border-white/15 bg-white/[0.03] text-zinc-400"
+                      }`}
+                    >
+                      {cat.replace(/_/g, " ")}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={categoryInput}
+                  onChange={(e) => setCategoryInput(e.target.value)}
+                  placeholder="Add custom category"
+                  className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100"
+                />
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const normalized = categoryInput
+                      .trim()
+                      .toLowerCase()
+                      .replace(/\s+/g, "_")
+                      .replace(/[^a-z0-9_-]/g, "");
+                    if (!normalized) return;
+                    if (state.categories.includes(normalized)) return;
+                    setState((prev) => ({ ...prev, categories: [...prev.categories, normalized] }));
+                    setCategoryInput("");
+                  }}
+                  className="h-10 rounded-xl"
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add
+                </Button>
+              </div>
+              {state.categories.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {state.categories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-300"
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          categories: prev.categories.filter((c) => c !== cat),
+                        }))
+                      }
+                    >
+                      {cat.replace(/_/g, " ")}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-zinc-100">Game Stations & Types</h4>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
+                  onClick={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      stations: [...prev.stations, ...activePreset.stations].slice(0, 10),
+                    }))
+                  }
+                >
+                  Suggest stations
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 rounded-lg border border-white/10 bg-white/[0.03] text-xs text-zinc-300"
+                onClick={() =>
+                  setState((prev) => ({
+                    ...prev,
+                    stations: [
+                      ...prev.stations,
+                      {
+                        name: "",
+                        type: stationTypeSuggestions[0] || "custom_type",
+                        category: "regular",
+                        hourlyRate: 120,
+                      },
+                    ],
+                  }))
+                }
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add station manually
+              </Button>
+              <div className="flex flex-wrap gap-2">
+                {stationTypeSuggestions.map((type) => (
+                  <span
+                    key={type}
+                    className="rounded-full border border-white/15 bg-white/[0.03] px-2.5 py-1 text-[11px] text-zinc-400"
+                  >
+                    {type}
+                  </span>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {state.stations.map((station, idx) => (
+                  <div key={`${station.name}-${idx}`} className="grid grid-cols-12 gap-2">
+                    <Input
+                      value={station.name}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          stations: prev.stations.map((s, i) =>
+                            i === idx ? { ...s, name: e.target.value } : s,
+                          ),
+                        }))
+                      }
+                      className="col-span-5 h-9 rounded-lg border-white/10 bg-white/[0.03]"
+                      placeholder="Station name"
+                    />
+                    <Input
+                      list="onboarding-station-type-suggestions"
+                      value={station.type}
+                      placeholder="Station type"
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          stations: prev.stations.map((s, i) =>
+                            i === idx ? { ...s, type: e.target.value } : s,
+                          ),
+                        }))
+                      }
+                      className="col-span-3 h-9 rounded-lg border-white/10 bg-white/[0.03]"
+                    />
+                    <Input
+                      type="number"
+                      min={10}
+                      value={station.hourlyRate}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          stations: prev.stations.map((s, i) =>
+                            i === idx ? { ...s, hourlyRate: Number(e.target.value || 0) } : s,
+                          ),
+                        }))
+                      }
+                      className="col-span-3 h-9 rounded-lg border-white/10 bg-white/[0.03]"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="col-span-1 h-9 rounded-lg border border-white/10 p-0"
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          stations: prev.stations.filter((_, i) => i !== idx),
+                        }))
+                      }
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <datalist id="onboarding-station-type-suggestions">
+                {stationTypeSuggestions.map((type) => (
+                  <option key={type} value={type} />
+                ))}
+              </datalist>
+              <p className="text-[11px] text-zinc-500">
+                Type is fully customizable (for example: xbox, snooker, simulator, bowling_lane).
+              </p>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-zinc-100">Starter products</h4>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
+                  onClick={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      products: [...prev.products, ...activePreset.products].slice(0, 12),
+                    }))
+                  }
+                >
+                  Add suggested products
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {state.products.map((product, idx) => (
+                  <div key={`${product.name}-${idx}`} className="grid grid-cols-12 gap-2">
+                    <Input
+                      value={product.name}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          products: prev.products.map((p, i) =>
+                            i === idx ? { ...p, name: e.target.value } : p,
+                          ),
+                        }))
+                      }
+                      className="col-span-5 h-9 rounded-lg border-white/10 bg-white/[0.03]"
+                      placeholder="Product name"
+                    />
+                    <Input
+                      value={product.category}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          products: prev.products.map((p, i) =>
+                            i === idx ? { ...p, category: e.target.value } : p,
+                          ),
+                        }))
+                      }
+                      className="col-span-3 h-9 rounded-lg border-white/10 bg-white/[0.03]"
+                      placeholder="Category"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={product.price}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          products: prev.products.map((p, i) =>
+                            i === idx ? { ...p, price: Number(e.target.value || 0) } : p,
+                          ),
+                        }))
+                      }
+                      className="col-span-2 h-9 rounded-lg border-white/10 bg-white/[0.03]"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      value={product.stock}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          products: prev.products.map((p, i) =>
+                            i === idx ? { ...p, stock: Number(e.target.value || 0) } : p,
+                          ),
+                        }))
+                      }
+                      className="col-span-1 h-9 rounded-lg border-white/10 bg-white/[0.03]"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="col-span-1 h-9 rounded-lg border border-white/10 p-0"
+                      onClick={() =>
+                        setState((prev) => ({
+                          ...prev,
+                          products: prev.products.filter((_, i) => i !== idx),
+                        }))
+                      }
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-9 rounded-lg border border-white/10 bg-white/[0.03] text-xs text-zinc-300"
+                  onClick={() =>
+                    setState((prev) => ({
+                      ...prev,
+                      products: [
+                        ...prev.products,
+                        { name: "", category: prev.categories[0] || "uncategorized", price: 0, stock: 0 },
+                      ],
+                    }))
+                  }
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add product manually
+                </Button>
+              </div>
+            </section>
+
+            <section className="space-y-2">
+              <h4 className="text-sm font-semibold text-zinc-100">First customer (optional)</h4>
+              <div className="flex gap-2">
+                <Input
+                  value={state.firstCustomerName}
+                  disabled={customerSkipped}
+                  onChange={(e) =>
+                    setState((prev) => ({ ...prev, firstCustomerName: e.target.value }))
+                  }
+                  placeholder="e.g. Test Customer"
+                  className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-10 rounded-xl border border-white/10 bg-white/[0.03] text-xs"
+                  onClick={() => setCustomerSkipped((v) => !v)}
+                >
+                  {customerSkipped ? "Undo skip" : "Skip"}
+                </Button>
+              </div>
+            </section>
           </div>
         );
 
@@ -811,7 +1310,7 @@ export default function Onboarding() {
             {/* Footer note */}
             <p className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
               <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-              Everything is saved as you go — pop back in anytime.
+              Branding/business settings save as you go. Setup data is applied on launch.
             </p>
           </div>
         </div>
