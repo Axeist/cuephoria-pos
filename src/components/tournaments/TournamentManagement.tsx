@@ -234,10 +234,10 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
   const formatInfo = getFormatInfo();
 
   return (
-    <Card className="bg-gradient-to-br from-gray-950/90 to-gray-900/90 border-gray-800/60 shadow-2xl backdrop-blur-sm">
+    <Card className="glass-card border-white/10 text-white shadow-2xl">
       <CardContent className="p-6">
         {/* Tournament Format Badge */}
-        <div className="mb-6 flex items-center gap-4 p-4 bg-gradient-to-r from-gray-800/50 to-gray-700/50 rounded-xl border border-gray-700/60">
+        <div className="mb-6 flex items-center gap-4 p-4 theme-inset rounded-xl">
           <div className="p-3 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-xl border border-purple-500/30">
             <formatInfo.icon className="h-6 w-6 text-purple-400" />
           </div>
@@ -257,7 +257,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8 h-12 bg-gray-800/60 border border-gray-700/60 rounded-xl">
+          <TabsList className="grid w-full grid-cols-2 mb-8 h-12 theme-inset rounded-xl p-1">
             <TabsTrigger 
               value="players" 
               className="flex items-center gap-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600/30 data-[state=active]:to-blue-600/30 data-[state=active]:text-white font-semibold h-10 rounded-lg transition-all duration-200"

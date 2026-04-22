@@ -382,7 +382,7 @@ export default function CustomerOffers() {
                             Redeemed
                           </Badge>
                         </div>
-                        <Badge className="bg-gray-700 text-gray-300">
+                        <Badge className="theme-inset border-white/10 text-white/85">
                           {getOfferBadge(offer)}
                         </Badge>
                       </div>

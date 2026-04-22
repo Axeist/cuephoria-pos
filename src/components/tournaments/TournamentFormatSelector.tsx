@@ -52,7 +52,7 @@ const TournamentFormatSelector: React.FC<TournamentFormatSelectorProps> = ({
             className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
               selectedFormat === option.format 
                 ? 'border-blue-500 bg-blue-950/20 shadow-lg' 
-                : 'border-gray-700 hover:border-gray-600'
+                : 'border-white/10 hover:border-white/20'
             }`}
             onClick={() => onFormatChange(option.format)}
           >

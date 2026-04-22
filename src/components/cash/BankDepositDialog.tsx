@@ -132,7 +132,7 @@ const BankDepositDialog: React.FC<BankDepositDialogProps> = ({
           Bank Deposit
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] bg-gray-800 border-gray-700 text-white">
+      <DialogContent className="sm:max-w-[500px] glass-card border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="text-white">Make Bank Deposit</DialogTitle>
         </DialogHeader>
@@ -157,7 +157,7 @@ const BankDepositDialog: React.FC<BankDepositDialogProps> = ({
                       type="number"
                       step="0.01"
                       placeholder="Enter amount"
-                      className="bg-gray-700 border-gray-600 text-white"
+                      className="theme-inset border-white/10 text-white placeholder:text-white/40"
                       {...field}
                       onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                     />
@@ -177,7 +177,7 @@ const BankDepositDialog: React.FC<BankDepositDialogProps> = ({
                   <FormControl>
                     <Input
                       placeholder="Enter transaction number"
-                      className="bg-gray-700 border-gray-600 text-white"
+                      className="theme-inset border-white/10 text-white placeholder:text-white/40"
                       {...field}
                     />
                   </FormControl>
@@ -196,7 +196,7 @@ const BankDepositDialog: React.FC<BankDepositDialogProps> = ({
                   <FormControl>
                     <Input
                       placeholder="Enter person name"
-                      className="bg-gray-700 border-gray-600 text-white"
+                      className="theme-inset border-white/10 text-white placeholder:text-white/40"
                       {...field}
                     />
                   </FormControl>
@@ -214,7 +214,7 @@ const BankDepositDialog: React.FC<BankDepositDialogProps> = ({
                   <FormControl>
                     <Textarea
                       placeholder="Enter notes"
-                      className="bg-gray-700 border-gray-600 text-white"
+                      className="theme-inset border-white/10 text-white placeholder:text-white/40"
                       {...field}
                     />
                   </FormControl>
@@ -232,7 +232,7 @@ const BankDepositDialog: React.FC<BankDepositDialogProps> = ({
                   <FormControl>
                     <Textarea
                       placeholder="Enter remarks"
-                      className="bg-gray-700 border-gray-600 text-white"
+                      className="theme-inset border-white/10 text-white placeholder:text-white/40"
                       {...field}
                     />
                   </FormControl>
@@ -246,7 +246,7 @@ const BankDepositDialog: React.FC<BankDepositDialogProps> = ({
                 type="button"
                 variant="outline"
                 onClick={() => setOpen(false)}
-                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                className="border-white/10 text-white/80 hover:bg-white/10"
               >
                 Cancel
               </Button>

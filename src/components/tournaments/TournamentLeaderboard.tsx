@@ -78,7 +78,7 @@ const TournamentLeaderboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Card className="bg-gray-950/50 border-gray-800">
+      <Card className="glass-card border-white/10 text-white">
         <CardContent className="p-6">
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -90,7 +90,7 @@ const TournamentLeaderboard: React.FC = () => {
   }
 
   return (
-    <Card className="bg-gray-950/50 border-gray-800">
+    <Card className="glass-card border-white/10 text-white">
       <CardHeader>
         <CardTitle className="text-gray-100 flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2">
@@ -126,10 +126,10 @@ const TournamentLeaderboard: React.FC = () => {
             {leaderboard.map((entry, index) => (
               <div 
                 key={entry.player}
-                className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
+                className={`flex items-center justify-between p-4 rounded-xl border border-white/10 transition-colors ${
                   index < 3 
-                    ? 'bg-gray-800/70 border-gray-700 hover:bg-gray-800' 
-                    : 'bg-gray-800/30 border-gray-800 hover:bg-gray-800/50'
+                    ? 'theme-inset hover:bg-white/[0.07]' 
+                    : 'bg-white/[0.03] hover:bg-white/[0.06]'
                 }`}
               >
                 <div className="flex items-center space-x-4">

@@ -171,7 +171,7 @@ const CashManagement: React.FC = () => {
       {/* Vault Balance and Actions */}
       <div className="grid gap-6 md:grid-cols-3">
         {noVaultRecord ? (
-          <div className="bg-gray-800 border-gray-700 rounded-lg p-6 col-span-3">
+          <div className="glass-card border-white/10 rounded-2xl p-6 col-span-3">
             <h3 className="text-lg font-medium text-white mb-4">Cash Vault Not Initialized</h3>
             <p className="text-gray-400 mb-4">
               It appears that there's no cash vault record in the database. 

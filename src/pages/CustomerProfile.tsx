@@ -228,7 +228,7 @@ export default function CustomerProfile() {
       </div>
       <div className="relative z-10">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-cuephoria-darker border-b border-gray-800 backdrop-blur-xl">
+      <div className="sticky top-0 z-10 bg-black/35 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
             <Button
@@ -280,7 +280,7 @@ export default function CustomerProfile() {
             </div>
 
             {/* Exclusive Perks */}
-            <div className="bg-gray-800/60 rounded-lg p-4 mb-4 border border-purple-500/30">
+            <div className="surface-panel border-purple-500/30 p-4 mb-4">
               <h3 className="text-white font-semibold mb-2 text-sm flex items-center gap-1">
                 <Star className="text-yellow-400" size={14} />
                 Your Exclusive Perks
@@ -295,7 +295,7 @@ export default function CustomerProfile() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-700">
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10">
               <div className="text-center">
                 <Star className="mx-auto mb-1 text-yellow-400" size={20} />
                 <p className="text-2xl font-bold text-white">{customerData.loyalty_points}</p>
@@ -316,7 +316,7 @@ export default function CustomerProfile() {
         </Card>
 
         {/* Personal Information */}
-        <Card className="bg-cuephoria-darker border-gray-800">
+        <Card className="glass-card border-white/10 text-white">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -372,7 +372,7 @@ export default function CustomerProfile() {
                   <Input
                     value={editForm.name}
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="bg-background/50 border-cuephoria-lightpurple/30"
+                    className="theme-inset border-cuephoria-lightpurple/30 text-white"
                   />
                 ) : (
                   <p className="text-white font-medium">{customerData.name}</p>
@@ -399,7 +399,7 @@ export default function CustomerProfile() {
                     value={editForm.email}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                     placeholder="your@email.com"
-                    className="bg-background/50 border-cuephoria-lightpurple/30"
+                    className="theme-inset border-cuephoria-lightpurple/30 text-white placeholder:text-white/40"
                   />
                 ) : (
                   <p className="text-white font-medium">{customerData.email || 'Not set'}</p>
@@ -410,7 +410,7 @@ export default function CustomerProfile() {
         </Card>
 
         {/* Account Settings */}
-        <Card className="bg-cuephoria-darker border-gray-800">
+        <Card className="glass-card border-white/10 text-white">
           <CardContent className="p-6">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <Shield size={20} className="text-cuephoria-orange" />
@@ -420,7 +420,7 @@ export default function CustomerProfile() {
             <div className="space-y-3">
               <Button
                 variant="outline"
-                className="w-full justify-start border-gray-700 hover:bg-gray-800"
+                className="w-full justify-start border-white/10 hover:bg-white/10"
                 onClick={() => setIsChangingPassword(true)}
               >
                 <Shield size={18} className="mr-2" />
@@ -440,7 +440,7 @@ export default function CustomerProfile() {
         </Card>
 
         {/* App Info */}
-        <Card className="bg-cuephoria-darker/50 border-gray-800">
+        <Card className="glass-card border-white/10 text-white/90">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-gray-500">
               Customer ID: {customerData.custom_id || customerData.phone}
@@ -452,7 +452,7 @@ export default function CustomerProfile() {
 
       {/* Password Change Dialog */}
       <Dialog open={isChangingPassword} onOpenChange={setIsChangingPassword}>
-        <DialogContent className="bg-cuephoria-darker border-cuephoria-lightpurple/30">
+        <DialogContent className="glass-card border-cuephoria-lightpurple/30 text-white">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Shield className="text-cuephoria-orange" />
@@ -471,7 +471,7 @@ export default function CustomerProfile() {
                 value={passwordForm.currentPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                 placeholder="Enter current password"
-                className="bg-background/50 border-gray-700 text-white mt-2"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 mt-2"
               />
             </div>
 
@@ -482,7 +482,7 @@ export default function CustomerProfile() {
                 value={passwordForm.newPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                 placeholder="Enter new password"
-                className="bg-background/50 border-gray-700 text-white mt-2"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 mt-2"
               />
             </div>
 
@@ -493,7 +493,7 @@ export default function CustomerProfile() {
                 value={passwordForm.confirmPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                 placeholder="Confirm new password"
-                className="bg-background/50 border-gray-700 text-white mt-2"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 mt-2"
               />
             </div>
 

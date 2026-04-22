@@ -13,7 +13,7 @@ const CashVaultCard: React.FC<CashVaultCardProps> = ({
   isLoading = false 
 }) => {
   return (
-    <Card className="bg-gray-800 border-gray-700">
+    <Card className="glass-card border-white/10">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-gray-300">
           Cash Vault Balance
@@ -23,7 +23,7 @@ const CashVaultCard: React.FC<CashVaultCardProps> = ({
       <CardContent>
         <div className="text-2xl font-bold text-white">
           {isLoading ? (
-            <div className="h-8 w-24 bg-gray-700 animate-pulse rounded" />
+            <div className="h-8 w-24 bg-white/10 animate-pulse rounded" />
           ) : (
             `₹${currentAmount.toFixed(2)}`
           )}

@@ -258,7 +258,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
             {matchesByRound[round].map((match, matchIndex) => (
               <Card 
                 key={match.id} 
-                className="group bg-gradient-to-br from-gray-950/85 to-gray-900/85 border-gray-800/60 hover:border-gray-700/80 transition-all duration-300 shadow-lg hover:shadow-xl backdrop-blur-sm animate-fade-in"
+                className="group glass-card glass-card-interactive border-white/10 text-white transition-all duration-300 shadow-lg hover:shadow-xl animate-fade-in"
                 style={{ animationDelay: `${matchIndex * 0.1}s` }}
               >
                 {editingMatchId === match.id ? (
@@ -273,7 +273,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-2">
-                          <div className="p-2 bg-gradient-to-br from-gray-800/60 to-gray-700/60 rounded-lg border border-gray-700/50">
+                          <div className="p-2 theme-inset rounded-lg">
                             <Trophy className="h-4 w-4 text-gray-300" />
                           </div>
                           <CardTitle className="text-base font-bold text-white">
@@ -285,7 +285,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                             size="sm"
                             variant="ghost"
                             onClick={() => setEditingMatchId(match.id)}
-                            className="h-7 w-7 p-0 hover:bg-gray-800 text-gray-400 hover:text-white transition-all duration-300 rounded-lg"
+                            className="h-7 w-7 p-0 hover:bg-white/10 text-gray-400 hover:text-white transition-all duration-300 rounded-lg"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -305,7 +305,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                         <div className={`p-3 rounded-lg border transition-all duration-300 ${
                           match.winnerId === match.player1Id 
                             ? 'bg-gradient-to-r from-emerald-900/50 to-green-900/50 border-emerald-500/60 shadow-md' 
-                            : 'bg-gradient-to-r from-gray-800/50 to-gray-700/50 border-gray-700/60 hover:bg-gray-800/70 hover:border-gray-600/70'
+                            : 'theme-inset border-white/10 hover:bg-white/[0.06]'
                         }`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -322,7 +322,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                         </div>
                         
                         <div className="text-center py-1">
-                          <span className="text-gray-300 font-medium text-xs px-3 py-1 bg-gradient-to-r from-gray-800/60 to-gray-700/60 rounded-full border border-gray-600/50">
+                          <span className="text-gray-300 font-medium text-xs px-3 py-1 theme-inset rounded-full">
                             VS
                           </span>
                         </div>
@@ -330,7 +330,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                         <div className={`p-3 rounded-lg border transition-all duration-300 ${
                           match.winnerId === match.player2Id 
                             ? 'bg-gradient-to-r from-emerald-900/50 to-green-900/50 border-emerald-500/60 shadow-md' 
-                            : 'bg-gradient-to-r from-gray-800/50 to-gray-700/50 border-gray-700/60 hover:bg-gray-800/70 hover:border-gray-600/70'
+                            : 'theme-inset border-white/10 hover:bg-white/[0.06]'
                         }`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -348,7 +348,7 @@ const TournamentMatchSection: React.FC<TournamentMatchSectionProps> = ({
                       </div>
 
                       {/* Schedule Info */}
-                      <div className="grid grid-cols-2 gap-3 p-3 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-lg border border-gray-700/50">
+                      <div className="grid grid-cols-2 gap-3 p-3 theme-inset rounded-lg">
                         <div className="flex items-center gap-2 text-gray-300">
                           <div className="p-1 bg-blue-500/20 rounded">
                             <Calendar className="h-3 w-3 text-blue-400" />

@@ -141,14 +141,14 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
 
   if (isLoading) {
     return (
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="glass-card border-white/10">
         <CardHeader>
           <CardTitle className="text-white">Transaction History</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-700 animate-pulse rounded" />
+              <div key={i} className="h-16 bg-white/10 animate-pulse rounded" />
             ))}
           </div>
         </CardContent>
@@ -157,7 +157,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
   }
 
   return (
-    <Card className="bg-gray-800 border-gray-700">
+    <Card className="glass-card border-white/10">
       <CardHeader>
         <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <CardTitle className="text-white">Transaction History</CardTitle>
@@ -167,7 +167,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
               placeholder="Search transactions..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-700 border-gray-600 text-white"
+              className="pl-10 theme-inset border-white/10 text-white placeholder:text-white/40"
             />
           </div>
         </div>
@@ -182,7 +182,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
             {filteredTransactions.map((transaction) => (
               <div
                 key={transaction.id}
-                className="flex items-center justify-between p-4 bg-gray-700 rounded-lg"
+                className="flex items-center justify-between p-4 theme-inset rounded-xl"
               >
                 <div className="flex items-center space-x-4">
                   {getTransactionIcon(transaction.transaction_type)}
@@ -237,7 +237,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-gray-800 border-gray-700">
+                    <AlertDialogContent className="glass-card border-white/10 text-white">
                       <AlertDialogHeader>
                         <AlertDialogTitle className="text-white">Delete Transaction</AlertDialogTitle>
                         <AlertDialogDescription className="text-gray-300">
@@ -260,7 +260,7 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel className="bg-gray-700 text-white border-gray-600 hover:bg-gray-600">
+                        <AlertDialogCancel className="theme-inset text-white border-white/10 hover:bg-white/10">
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction

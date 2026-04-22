@@ -53,7 +53,7 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
   );
 
   return (
-    <div className="space-y-6 p-6 bg-gradient-to-br from-gray-950/95 to-gray-900/95 rounded-2xl border border-gray-700/60 backdrop-blur-sm shadow-2xl">
+    <div className="space-y-6 p-6 glass-card text-white shadow-2xl">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-gradient-to-br from-purple-500/30 to-blue-500/30 rounded-xl border border-purple-500/40">
@@ -77,7 +77,7 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
             size="sm"
             variant="outline"
             onClick={onCancel}
-            className="border-gray-600/60 bg-gray-800/40 text-gray-300 hover:bg-gray-700/60 hover:border-gray-500/80 px-6 py-2.5 rounded-xl transition-all duration-200"
+            className="border-white/10 bg-white/[0.04] text-white/85 hover:bg-white/10 px-6 py-2.5 rounded-xl transition-all duration-200"
           >
             <X className="h-4 w-4 mr-2" />
             Cancel
@@ -133,7 +133,7 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
             type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
-            className="border-gray-600/60 bg-gray-800/60 text-white placeholder-gray-400 focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-4 h-auto text-base font-medium transition-all duration-200"
+            className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-4 h-auto text-base font-medium transition-all duration-200"
           />
         </div>
 
@@ -203,7 +203,7 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
       </div>
 
       {/* Match Preview */}
-      <div className="p-5 bg-gradient-to-r from-gray-800/50 to-gray-700/50 rounded-xl border border-gray-700/60 backdrop-blur-sm">
+      <div className="p-5 theme-inset">
         <h4 className="text-lg font-semibold text-gray-200 mb-4 flex items-center gap-3">
           <div className="p-1.5 bg-purple-500/20 rounded-lg">
             <Sparkles className="h-4 w-4 text-purple-400" />
@@ -221,7 +221,7 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
             {players.find(p => p.id === player2Id)?.name || 'Player 2'}
           </div>
         </div>
-        <div className="text-center mt-4 p-3 bg-gray-800/40 rounded-lg border border-gray-700/40">
+        <div className="text-center mt-4 p-3 theme-inset rounded-lg">
           <div className="text-gray-300 font-medium">
             {date ? format(date, "MMM dd, yyyy") : "No date"} at {time || "No time"}
           </div>

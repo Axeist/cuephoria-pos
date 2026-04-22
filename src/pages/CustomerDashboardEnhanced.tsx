@@ -634,7 +634,7 @@ export default function CustomerDashboardEnhanced() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 relative z-10">
         {/* Personalized Greeting */}
-        <Card className="bg-gray-900/95 border-2 border-purple-500/30 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+        <Card className="glass-card border-2 border-purple-500/30 shadow-2xl text-white relative overflow-hidden">
           {/* Animated background effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 via-pink-900/20 to-blue-900/20"></div>
           
@@ -692,7 +692,7 @@ export default function CustomerDashboardEnhanced() {
             )}
 
             {/* Exclusive Perks */}
-            <div className="bg-gray-800/80 backdrop-blur-xl rounded-lg p-4 mb-4 border border-purple-500/30">
+            <div className="surface-panel border-purple-500/30 p-4 mb-4">
               <h3 className="text-white font-bold mb-3 flex items-center gap-2">
                 <Sparkles className="text-yellow-400" size={18} />
                 Your Exclusive Perks:
@@ -708,7 +708,7 @@ export default function CustomerDashboardEnhanced() {
             </div>
 
             {/* Stats Bar */}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300 border-t border-gray-700 pt-4">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300 border-t border-white/10 pt-4">
               <span className="flex items-center gap-1.5">
                 <Calendar size={14} className="text-blue-400" />
                 Member since {formatDate(new Date(Date.now() - stats.membershipDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
@@ -739,7 +739,7 @@ export default function CustomerDashboardEnhanced() {
                   <span className="font-semibold">Progress to Next Tier</span>
                   <span className="font-bold text-white">{((stats.totalSpent / (stats.totalSpent + tier.next)) * 100).toFixed(0)}%</span>
                 </div>
-                <div className="h-3 bg-gray-700 rounded-full overflow-hidden border border-gray-600">
+                <div className="h-3 bg-white/10 rounded-full overflow-hidden border border-white/10">
                   <div 
                     className={`h-full bg-gradient-to-r ${tier.color} rounded-full transition-all duration-1000 shadow-lg`}
                     style={{ width: `${(stats.totalSpent / (stats.totalSpent + tier.next)) * 100}%` }}
@@ -752,7 +752,7 @@ export default function CustomerDashboardEnhanced() {
 
         {/* Active & Upcoming Sessions */}
         {(activeSession || nextBooking) && (
-          <Card className="bg-gray-900/95 border border-orange-500/40 backdrop-blur-xl">
+          <Card className="glass-card border-orange-500/40 text-white">
             <CardContent className="p-6 space-y-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Zap className="text-yellow-400" />
@@ -767,7 +767,7 @@ export default function CustomerDashboardEnhanced() {
                     <span>Ends: {formatTime(activeSession.end_time)}</span>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="border-gray-600 text-white hover:bg-gray-700">
+                    <Button size="sm" variant="outline" className="border-white/10 text-white hover:bg-white/10">
                       <Pause size={16} className="mr-1" /> Pause
                     </Button>
                     <Button size="sm" className="bg-green-600 hover:bg-green-500">
@@ -793,7 +793,7 @@ export default function CustomerDashboardEnhanced() {
                     <Button size="sm" className="bg-cuephoria-purple hover:bg-purple-700" onClick={() => navigate('/customer/bookings')}>
                       View Details
                     </Button>
-                    <Button size="sm" variant="outline" className="border-gray-600 text-white hover:bg-gray-700">
+                    <Button size="sm" variant="outline" className="border-white/10 text-white hover:bg-white/10">
                       <MapPin size={16} className="mr-1" /> Directions
                     </Button>
                   </div>
@@ -805,12 +805,12 @@ export default function CustomerDashboardEnhanced() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="bg-gray-900/95 border-purple-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-purple-500/20 transition-all">
+          <Card className="glass-card border-purple-500/40 text-white hover:shadow-xl hover:shadow-purple-500/20 transition-all">
             <CardContent className="p-4 text-center">
               <Star className="mx-auto mb-2 text-yellow-400" size={28} />
               <p className="text-3xl font-bold text-white">{stats.loyaltyPoints}</p>
               <p className="text-xs text-gray-300">Loyalty Points</p>
-              <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+              <div className="mt-2 w-full bg-white/10 rounded-full h-2">
                 <div 
                   className="bg-gradient-to-r from-yellow-400 to-orange-400 h-2 rounded-full transition-all duration-1000" 
                   style={{ width: `${Math.min((stats.loyaltyPoints / 1000) * 100, 100)}%` }}
@@ -819,7 +819,7 @@ export default function CustomerDashboardEnhanced() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-900/95 border-green-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-green-500/20 transition-all">
+          <Card className="glass-card border-green-500/40 text-white hover:shadow-xl hover:shadow-green-500/20 transition-all">
             <CardContent className="p-4 text-center">
               <Gamepad2 className="mx-auto mb-2 text-green-400" size={28} />
               <p className="text-3xl font-bold text-white">{stats.totalSessions}</p>
@@ -828,7 +828,7 @@ export default function CustomerDashboardEnhanced() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-900/95 border-orange-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-orange-500/20 transition-all">
+          <Card className="glass-card border-orange-500/40 text-white hover:shadow-xl hover:shadow-orange-500/20 transition-all">
             <CardContent className="p-4 text-center">
               <Clock className="mx-auto mb-2 text-orange-400" size={28} />
               <p className="text-3xl font-bold text-white">{stats.totalHours}</p>
@@ -837,7 +837,7 @@ export default function CustomerDashboardEnhanced() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-900/95 border-pink-500/40 backdrop-blur-xl hover:shadow-xl hover:shadow-pink-500/20 transition-all">
+          <Card className="glass-card border-pink-500/40 text-white hover:shadow-xl hover:shadow-pink-500/20 transition-all">
             <CardContent className="p-4 text-center">
               <Trophy className="mx-auto mb-2 text-pink-400" size={28} />
               <p className="text-3xl font-bold text-white">#{stats.rank}</p>
@@ -853,7 +853,7 @@ export default function CustomerDashboardEnhanced() {
             {/* Favorite Game & Time Insights */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Favorite Game Type */}
-              <Card className="bg-gray-900/95 border-green-500/30 backdrop-blur-xl">
+              <Card className="glass-card border-green-500/30 text-white">
                 <CardContent className="p-6">
                   <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                     <Gamepad2 className="text-green-400" />
@@ -885,7 +885,7 @@ export default function CustomerDashboardEnhanced() {
                                 </span>
                                 <span className="text-gray-400 text-sm">{count} sessions ({percentage.toFixed(0)}%)</span>
                               </div>
-                              <div className="h-3 bg-gray-800/60 rounded-full overflow-hidden">
+                              <div className="h-3 bg-white/10 rounded-full overflow-hidden">
                                 <div 
                                   className={`h-full bg-gradient-to-r ${gameInfo.color} rounded-full transition-all duration-1000`}
                                   style={{ width: `${percentage}%` }}
@@ -900,7 +900,7 @@ export default function CustomerDashboardEnhanced() {
               </Card>
 
               {/* Favorite Time Slot */}
-              <Card className="bg-gray-900/95 border-orange-500/30 backdrop-blur-xl">
+              <Card className="glass-card border-orange-500/30 text-white">
                 <CardContent className="p-6">
                   <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                     <Clock className="text-orange-400" />
@@ -931,7 +931,7 @@ export default function CustomerDashboardEnhanced() {
                                 </span>
                                 <span className="text-gray-400 text-sm">{data.count} sessions ({percentage.toFixed(0)}%)</span>
                               </div>
-                              <div className="h-3 bg-gray-800/60 rounded-full overflow-hidden">
+                              <div className="h-3 bg-white/10 rounded-full overflow-hidden">
                                 <div 
                                   className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full transition-all duration-1000"
                                   style={{ width: `${percentage}%` }}
@@ -947,7 +947,7 @@ export default function CustomerDashboardEnhanced() {
             </div>
 
             {/* Weekly Activity Pattern */}
-            <Card className="bg-gray-900/95 border-purple-500/30 backdrop-blur-xl">
+            <Card className="glass-card border-purple-500/30 text-white">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                   <BarChart3 className="text-purple-400" />
@@ -961,7 +961,7 @@ export default function CustomerDashboardEnhanced() {
                     return (
                       <div key={day} className="text-center">
                         <p className="text-xs text-gray-400 mb-1 font-medium">{day}</p>
-                        <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700 relative h-24 flex items-end justify-center">
+                        <div className="theme-inset p-3 relative h-24 flex items-end justify-center">
                           <div 
                             className="w-full bg-gradient-to-t from-purple-500 to-pink-500 rounded transition-all duration-1000"
                             style={{ height: `${Math.max(heightPercentage, 15)}%` }}
@@ -981,7 +981,7 @@ export default function CustomerDashboardEnhanced() {
 
         {/* Recommendations */}
         {recommendations.length > 0 && (
-          <Card className="mb-20 bg-gray-900/95 border-gray-700 backdrop-blur-xl shadow-xl">
+          <Card className="mb-20 glass-card border-white/10 text-white shadow-xl">
             <CardContent className="p-6">
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <Sparkles className="text-yellow-400" />
@@ -989,7 +989,7 @@ export default function CustomerDashboardEnhanced() {
               </h3>
               <div className="space-y-3">
                 {recommendations.map((rec, index) => (
-                  <div key={index} className="flex items-start gap-3 bg-gray-800/60 p-4 rounded-lg border border-gray-700 hover:bg-gray-800 transition-all">
+                  <div key={index} className="flex items-start gap-3 theme-inset p-4 hover:bg-white/[0.06] transition-all">
                     <Target className="text-green-400 flex-shrink-0 mt-1" size={18} />
                     <p className="text-gray-200 text-sm">{rec}</p>
                   </div>

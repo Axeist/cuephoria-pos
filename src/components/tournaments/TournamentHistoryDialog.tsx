@@ -101,7 +101,7 @@ const TournamentHistoryDialog: React.FC<TournamentHistoryDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] bg-gray-900 border-gray-800 max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] glass-card border-white/10 text-white max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-gray-100 flex items-center gap-2">
             <Trophy className="h-5 w-5 text-yellow-500" />
@@ -140,7 +140,7 @@ const TournamentHistoryDialog: React.FC<TournamentHistoryDialogProps> = ({
                     {matches.map((match, index) => (
                       <Card 
                         key={match.id} 
-                        className="bg-gray-800/50 border-gray-700 hover:bg-gray-800/70 transition-colors"
+                        className="theme-inset border-white/10 hover:bg-white/[0.06] transition-colors"
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between">

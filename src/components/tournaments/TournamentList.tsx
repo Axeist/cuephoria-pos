@@ -48,7 +48,7 @@ const TournamentList: React.FC<TournamentListProps> = ({
 
   if (tournaments.length === 0) {
     return (
-      <Card className="bg-gradient-to-br from-gray-950/90 to-gray-900/90 border-gray-800/50 shadow-2xl backdrop-blur-sm">
+      <Card className="glass-card border-white/10 text-white shadow-2xl">
         <CardContent className="p-12 text-center">
           <div className="flex flex-col items-center space-y-6">
             <div className="p-8 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-3xl border border-purple-500/30">
@@ -98,14 +98,14 @@ const TournamentList: React.FC<TournamentListProps> = ({
           
           <CardContent className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/40">
+              <div className="flex items-center gap-3 p-3 theme-inset rounded-xl">
                 <Calendar className="h-5 w-5 text-blue-400" />
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400 font-medium">Date</span>
                   <span className="text-sm font-semibold text-white">{format(new Date(tournament.date), 'MMM dd, yyyy')}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/40">
+              <div className="flex items-center gap-3 p-3 theme-inset rounded-xl">
                 <Users className="h-5 w-5 text-green-400" />
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400 font-medium">Players</span>

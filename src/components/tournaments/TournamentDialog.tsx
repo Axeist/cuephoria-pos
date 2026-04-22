@@ -178,7 +178,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[95vh] overflow-y-auto bg-gradient-to-br from-gray-950/95 to-gray-900/95 border-gray-700/60 backdrop-blur-sm shadow-2xl animate-scale-in">
+      <DialogContent className="sm:max-w-[700px] max-h-[95vh] overflow-y-auto glass-card text-white shadow-2xl animate-scale-in">
         <DialogHeader className="pb-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-xl border border-purple-500/30">
@@ -197,7 +197,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
         
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Information Section */}
-          <div className="space-y-6 p-6 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/50">
+          <div className="space-y-6 p-6 theme-inset">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-blue-500/20 rounded-lg">
                 <Settings className="h-5 w-5 text-blue-400" />
@@ -217,7 +217,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Enter tournament name"
                   required
-                  className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-purple-500/80 focus:ring-purple-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
+                  className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-purple-500/80 focus:ring-purple-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
                 />
               </div>
               
@@ -232,7 +232,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   required
-                  className="bg-gray-800/60 border-gray-600/60 text-white focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
+                  className="theme-inset border-white/10 text-white focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
                 />
               </div>
             </div>
@@ -250,15 +250,15 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                 value={maxPlayers}
                 onChange={(e) => setMaxPlayers(parseInt(e.target.value) || 16)}
                 placeholder="16"
-                className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-blue-500/80 focus:ring-blue-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-blue-500/80 focus:ring-blue-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
               />
             </div>
           </div>
 
-          <Separator className="bg-gray-700/50" />
+          <Separator className="bg-white/10" />
 
           {/* Tournament Format Section */}
-          <div className="space-y-6 p-6 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/50">
+          <div className="space-y-6 p-6 theme-inset">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-purple-500/20 rounded-lg">
                 <Sparkles className="h-5 w-5 text-purple-400" />
@@ -272,10 +272,10 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
             />
           </div>
 
-          <Separator className="bg-gray-700/50" />
+          <Separator className="bg-white/10" />
 
           {/* Game Configuration Section */}
-          <div className="space-y-6 p-6 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/50">
+          <div className="space-y-6 p-6 theme-inset">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-green-500/20 rounded-lg">
                 <Trophy className="h-5 w-5 text-green-400" />
@@ -320,17 +320,17 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     value={gameTitle}
                     onChange={(e) => setGameTitle(e.target.value)}
                     placeholder="e.g., FIFA, COD, etc."
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200"
                   />
                 </div>
               )}
             </div>
           </div>
 
-          <Separator className="bg-gray-700/50" />
+          <Separator className="bg-white/10" />
 
           {/* Budget and Prizes Section */}
-          <div className="space-y-6 p-6 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/50">
+          <div className="space-y-6 p-6 theme-inset">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-yellow-500/20 rounded-lg">
                 <DollarSign className="h-5 w-5 text-yellow-400" />
@@ -349,7 +349,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
                 placeholder="0.00"
-                className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
               />
             </div>
 
@@ -370,7 +370,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     value={winnerPrize}
                     onChange={(e) => setWinnerPrize(e.target.value)}
                     placeholder="5000"
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-lg px-3 py-2 h-auto"
                   />
                 </div>
                 <div className="space-y-2">
@@ -381,7 +381,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     value={winnerPrizeText}
                     onChange={(e) => setWinnerPrizeText(e.target.value)}
                     placeholder="e.g., Free gold membership, Trophy"
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-yellow-500/80 focus:ring-yellow-500/20 rounded-lg px-3 py-2 h-auto"
                   />
                 </div>
               </div>
@@ -404,7 +404,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     value={runnerUpPrize}
                     onChange={(e) => setRunnerUpPrize(e.target.value)}
                     placeholder="2000"
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-gray-500/80 focus:ring-gray-500/20 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-gray-500/80 focus:ring-gray-500/20 rounded-lg px-3 py-2 h-auto"
                   />
                 </div>
                 <div className="space-y-2">
@@ -415,7 +415,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     value={runnerUpPrizeText}
                     onChange={(e) => setRunnerUpPrizeText(e.target.value)}
                     placeholder="e.g., 500 store credits, Medal"
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-gray-500/80 focus:ring-gray-500/20 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-gray-500/80 focus:ring-gray-500/20 rounded-lg px-3 py-2 h-auto"
                   />
                 </div>
               </div>
@@ -438,7 +438,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     value={thirdPrize}
                     onChange={(e) => setThirdPrize(e.target.value)}
                     placeholder="1000"
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-orange-500/80 focus:ring-orange-500/20 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-orange-500/80 focus:ring-orange-500/20 rounded-lg px-3 py-2 h-auto"
                   />
                 </div>
                 <div className="space-y-2">
@@ -449,7 +449,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     value={thirdPrizeText}
                     onChange={(e) => setThirdPrizeText(e.target.value)}
                     placeholder="e.g., 250 store credits, Badge"
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-orange-500/80 focus:ring-orange-500/20 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-orange-500/80 focus:ring-orange-500/20 rounded-lg px-3 py-2 h-auto"
                   />
                 </div>
               </div>
@@ -460,10 +460,10 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
             </p>
           </div>
 
-          <Separator className="bg-gray-700/50" />
+          <Separator className="bg-white/10" />
 
           {/* Entry Fee & Discount Coupons Section */}
-          <div className="space-y-6 p-6 bg-gradient-to-r from-gray-800/40 to-gray-700/40 rounded-xl border border-gray-700/50">
+          <div className="space-y-6 p-6 theme-inset">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-green-500/20 rounded-lg">
                 <Ticket className="h-5 w-5 text-green-400" />
@@ -485,7 +485,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                 value={entryFee}
                 onChange={(e) => setEntryFee(e.target.value)}
                 placeholder="250"
-                className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
+                className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-green-500/80 focus:ring-green-500/20 rounded-xl px-4 py-3 h-auto transition-all duration-200 max-w-xs"
               />
               <p className="text-xs text-gray-400">Base entry fee before any discounts</p>
             </div>
@@ -503,7 +503,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                   {discountCoupons.map((coupon, index) => (
                     <div 
                       key={index}
-                      className="flex items-center justify-between p-3 bg-gray-800/60 border border-gray-600/40 rounded-lg"
+                      className="flex items-center justify-between p-3 theme-inset rounded-lg"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -533,14 +533,14 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
               )}
 
               {/* Add New Coupon Form */}
-              <div className="space-y-3 p-4 bg-gray-800/40 rounded-lg border border-gray-600/30">
+              <div className="space-y-3 p-4 theme-inset">
                 <Label className="text-gray-300 text-sm font-semibold">Add New Coupon</Label>
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
                   <Input
                     placeholder="Coupon Code (e.g., SAVE20)"
                     value={newCouponCode}
                     onChange={(e) => setNewCouponCode(e.target.value.toUpperCase())}
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
                   />
                   <Select value={newCouponType} onValueChange={(value: 'percentage' | 'fixed') => setNewCouponType(value)}>
                     <SelectTrigger className="theme-menu-trigger rounded-lg px-3 py-2 h-auto focus:ring-green-500/40">
@@ -558,13 +558,13 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     placeholder={newCouponType === 'percentage' ? 'Discount %' : 'Amount ₹'}
                     value={newCouponDiscount}
                     onChange={(e) => setNewCouponDiscount(e.target.value)}
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
                   />
                   <Input
                     placeholder="Description (optional)"
                     value={newCouponDescription}
                     onChange={(e) => setNewCouponDescription(e.target.value)}
-                    className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
+                    className="theme-inset border-white/10 text-white placeholder:text-white/40 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
                   />
                 </div>
                 <Button
@@ -586,7 +586,7 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
             type="button" 
             variant="outline" 
             onClick={() => onOpenChange(false)}
-            className="border-gray-600/60 bg-gray-800/40 text-gray-300 hover:bg-gray-700/60 hover:border-gray-500/80 px-8 py-3 rounded-xl transition-all duration-200 font-medium"
+            className="border-white/10 bg-white/[0.04] text-white/85 hover:bg-white/10 px-8 py-3 rounded-xl transition-all duration-200 font-medium"
           >
             Cancel
           </Button>
