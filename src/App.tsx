@@ -184,9 +184,9 @@ const ProtectedRoute = ({
                     } as React.CSSProperties
                   }
                 >
-                  <div className="app-ambient flex min-h-screen w-full overflow-x-hidden relative">
+                  <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
                     <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
+                    <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
                       <AppHeader />
                       <main
                         id="app-main"
