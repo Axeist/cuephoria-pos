@@ -9,19 +9,97 @@ import { useOrganization } from "@/context/OrganizationContext";
 import { useAuth } from "@/context/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-type TourItem = { path: string; label: string; description: string; adminOnly?: boolean };
+type TourItem = {
+  path: string;
+  label: string;
+  description: string;
+  details?: string;
+  quickTips?: string[];
+  adminOnly?: boolean;
+};
 
 const TOUR_ITEMS: TourItem[] = [
-  { path: "/dashboard", label: "Dashboard", description: "Live KPIs, trends, and alerts." },
-  { path: "/pos", label: "POS", description: "Create bills, apply discounts, and close sales quickly." },
-  { path: "/stations", label: "Gaming Stations", description: "Manage stations and active sessions." },
-  { path: "/products", label: "Products", description: "Organize categories, prices, and inventory." },
-  { path: "/customers", label: "Customers", description: "Track profiles, loyalty, and spend history." },
-  { path: "/reports", label: "Reports", description: "Detailed analytics, exportable statements, and drilldowns." },
-  { path: "/booking-management", label: "Bookings", description: "Handle public bookings and slot management." },
-  { path: "/staff", label: "Staff Management", description: "Invite staff and control permissions.", adminOnly: true },
-  { path: "/settings", label: "Settings", description: "Configure branding, billing, and workspace preferences." },
-  { path: "/how-to-use", label: "How to Use", description: "Open the full in-app training guide anytime." },
+  {
+    path: "/dashboard",
+    label: "Dashboard",
+    description: "Your command center for live business health.",
+    details:
+      "Start your day here to check revenue, active sessions, pending bookings, and any operational alerts in one glance.",
+    quickTips: ["Review today's KPIs before opening shifts", "Use trend cards to spot peak demand hours"],
+  },
+  {
+    path: "/pos",
+    label: "POS",
+    description: "Create bills fast and complete checkout without delays.",
+    details:
+      "Use POS for walk-ins, add snacks/products, apply discounts, split payments, and close bills accurately at the counter.",
+    quickTips: ["Search customers to apply loyalty quickly", "Use split payment for cash + UPI checkout"],
+  },
+  {
+    path: "/stations",
+    label: "Gaming Stations",
+    description: "Control live sessions for tables, consoles, and stations.",
+    details:
+      "Start, pause, extend, or stop sessions while tracking occupancy and usage time so billing always stays accurate.",
+    quickTips: ["Keep an eye on idle stations to improve utilization", "Extend running sessions without opening a new bill"],
+  },
+  {
+    path: "/products",
+    label: "Products",
+    description: "Manage your menu, pricing, and inventory structure.",
+    details:
+      "Organize categories, set item prices, mark stock, and prepare products for fast POS billing during peak hours.",
+    quickTips: ["Group products by quick-sell categories", "Update low-stock items before evening rush"],
+  },
+  {
+    path: "/customers",
+    label: "Customers",
+    description: "Build repeat business with better customer tracking.",
+    details:
+      "View customer history, sessions, spend, and loyalty so your team can personalize offers and improve retention.",
+    quickTips: ["Capture phone numbers for faster repeat billing", "Use spend history to run targeted offers"],
+  },
+  {
+    path: "/reports",
+    label: "Reports",
+    description: "Analyze performance and make data-backed decisions.",
+    details:
+      "Track revenue, utilization, item sales, and trends by day/week/month to optimize pricing and staffing.",
+    quickTips: ["Check hourly utilization to tune pricing slabs", "Export statements for accountant or partner review"],
+  },
+  {
+    path: "/booking-management",
+    label: "Bookings",
+    description: "Handle online/public bookings with full control.",
+    details:
+      "Review incoming bookings, manage slots, confirm changes, and prevent overbooking by keeping the calendar updated.",
+    quickTips: ["Confirm pending slots early to avoid no-shows", "Use slot view to identify overbooked windows"],
+  },
+  {
+    path: "/staff",
+    label: "Staff Management",
+    description: "Set up team members and permission boundaries.",
+    details:
+      "Invite staff, assign roles, and control access so operations stay secure while each employee sees only what they need.",
+    quickTips: ["Use least-privilege roles for safety", "Review permissions whenever responsibilities change"],
+    adminOnly: true,
+  },
+  {
+    path: "/settings",
+    label: "Settings",
+    description: "Customize workspace rules, identity, and preferences.",
+    details:
+      "Configure branding, billing defaults, booking behavior, and workspace options that shape your daily operational flow.",
+    quickTips: ["Set branding before sharing booking links", "Verify billing defaults to reduce manual edits"],
+  },
+  {
+    path: "/how-to-use",
+    label: "How to Use",
+    description: "Open guided docs and walkthroughs anytime.",
+    details:
+      "Use this section for team onboarding, feature explainers, and SOP-style instructions when training new staff.",
+    quickTips: ["Share with new hires on day one", "Revisit when enabling a new module"],
+  },
 ];
 
 function keyForOrg(orgId: string): string {
@@ -49,6 +127,7 @@ const SidebarTourOverlay: React.FC = () => {
     width: number;
     height: number;
   } | null>(null);
+  const [sidebarClearRight, setSidebarClearRight] = React.useState(300);
 
   const items = React.useMemo(
     () => TOUR_ITEMS.filter((item) => !item.adminOnly || user?.isAdmin),
@@ -100,7 +179,7 @@ const SidebarTourOverlay: React.FC = () => {
   React.useEffect(() => {
     if (!open) return;
     const CARD_WIDTH = 380;
-    const CARD_HEIGHT = 390;
+    const CARD_HEIGHT = 470;
     const GAP = 14;
     const PAD = 16;
 
@@ -121,6 +200,19 @@ const SidebarTourOverlay: React.FC = () => {
         width: rect.width,
         height: rect.height,
       });
+
+      // Keep the entire sidebar visibly clear (no backdrop blur) while
+      // dimming/blurring only the rest of the app.
+      const sidebarItemRects = items
+        .map((it) => document.querySelector(`[data-tour-path="${it.path}"]`) as HTMLElement | null)
+        .filter((node): node is HTMLElement => !!node)
+        .map((node) => node.getBoundingClientRect());
+      if (sidebarItemRects.length) {
+        const maxRight = Math.max(...sidebarItemRects.map((r) => r.right));
+        const clearRight = Math.min(window.innerWidth - 120, Math.max(220, maxRight + 20));
+        setSidebarClearRight(clearRight);
+      }
+
       let side: "left" | "right" = "left";
       let left = rect.right + GAP;
       if (left + CARD_WIDTH > window.innerWidth - PAD) {
@@ -160,8 +252,17 @@ const SidebarTourOverlay: React.FC = () => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="pointer-events-none fixed inset-0 z-[10050] bg-[radial-gradient(circle_at_25%_20%,rgba(99,102,241,0.2),transparent_45%),radial-gradient(circle_at_85%_70%,rgba(217,70,239,0.22),transparent_45%),rgba(8,4,20,0.62)] backdrop-blur-[14px] backdrop-saturate-150"
+        className="pointer-events-none fixed inset-0 z-[10050]"
       >
+        <div
+          className="absolute inset-y-0 right-0 bg-[radial-gradient(circle_at_25%_20%,rgba(99,102,241,0.2),transparent_45%),radial-gradient(circle_at_85%_70%,rgba(217,70,239,0.22),transparent_45%),rgba(8,4,20,0.62)] backdrop-blur-[14px] backdrop-saturate-150"
+          style={{ left: sidebarClearRight }}
+        />
+        <div
+          className="absolute inset-y-0 w-px bg-white/10"
+          style={{ left: sidebarClearRight }}
+          aria-hidden
+        />
         {targetRect && (
           <motion.div
             layout
@@ -226,6 +327,20 @@ const SidebarTourOverlay: React.FC = () => {
             {item.label}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-zinc-300">{item.description}</p>
+          {item.details ? <p className="mt-2 text-xs leading-relaxed text-zinc-400">{item.details}</p> : null}
+          {item.quickTips?.length ? (
+            <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-2.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-400">Quick tips</p>
+              <ul className="mt-1.5 space-y-1.5">
+                {item.quickTips.map((tip) => (
+                  <li key={tip} className="flex items-start gap-2 text-xs text-zinc-300">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-fuchsia-300/80" />
+                    <span>{tip}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div className="mt-4 flex items-center gap-1.5">
             {items.map((_, i) => (
               <span
