@@ -1587,6 +1587,61 @@ const ExtendTrialDialog: React.FC<{
   );
 };
 
+function removeOrgFromPlatformCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  org: Pick<DetailResponse["organization"], "id" | "status" | "is_internal">,
+) {
+  type OrgListCache = {
+    ok: true;
+    organizations: Array<{
+      id: string;
+      status: string;
+      is_internal: boolean;
+    }>;
+  };
+  type StatsCache = {
+    ok: true;
+    stats: {
+      totalOrgs: number;
+      active: number;
+      trialing: number;
+      pastDue: number;
+      canceled: number;
+      suspended: number;
+      internal: number;
+    };
+  };
+
+  queryClient.setQueriesData<OrgListCache>({ queryKey: ["platform", "organizations"] }, (old) => {
+    if (!old?.organizations) return old;
+    return {
+      ...old,
+      organizations: old.organizations.filter((item) => item.id !== org.id),
+    };
+  });
+
+  queryClient.setQueryData<StatsCache>(["platform", "stats"], (old) => {
+    if (!old?.stats) return old;
+    const nextStats = {
+      ...old.stats,
+      totalOrgs: Math.max(0, old.stats.totalOrgs - 1),
+      internal: Math.max(0, old.stats.internal - (org.is_internal ? 1 : 0)),
+    };
+    if (org.status === "active") {
+      nextStats.active = Math.max(0, nextStats.active - 1);
+    } else if (org.status === "trialing") {
+      nextStats.trialing = Math.max(0, nextStats.trialing - 1);
+    } else if (org.status === "past_due") {
+      nextStats.pastDue = Math.max(0, nextStats.pastDue - 1);
+    } else if (org.status === "canceled") {
+      nextStats.canceled = Math.max(0, nextStats.canceled - 1);
+    } else if (org.status === "suspended") {
+      nextStats.suspended = Math.max(0, nextStats.suspended - 1);
+    }
+    return { ...old, stats: nextStats };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Danger zone — hard-delete a tenant. Requires typing the slug to confirm.
 // ---------------------------------------------------------------------------
@@ -1639,7 +1694,8 @@ const DangerZone: React.FC<{
         description: `Cleared ${counts.locations ?? 0} branch(es), ${counts.stations ?? 0} station(s), ${total} operational record(s).`,
       });
       setOpen(false);
-      // Blow the platform cache and bounce back to the org list.
+      removeOrgFromPlatformCaches(queryClient, org);
+      queryClient.removeQueries({ queryKey: ["platform", "organization", org.id] });
       queryClient.invalidateQueries({ queryKey: ["platform"] });
       onDeleted();
       navigate("/platform/organizations", { replace: true });

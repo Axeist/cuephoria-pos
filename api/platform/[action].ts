@@ -22,6 +22,7 @@ import organizationMember from "../../src/server/handlers/platform/organization-
 import organization from "../../src/server/handlers/platform/organization";
 import organizations from "../../src/server/handlers/platform/organizations";
 import passwordMigrationStatus from "../../src/server/handlers/platform/password-migration-status";
+import platformAdmins from "../../src/server/handlers/platform/platform-admins";
 import planRazorpayMap from "../../src/server/handlers/platform/plan-razorpay-map";
 import planUpdate from "../../src/server/handlers/platform/plan-update";
 import plans from "../../src/server/handlers/platform/plans";
@@ -45,6 +46,7 @@ const routes: Record<string, Handler> = {
   "organization": organization,
   "organizations": organizations,
   "password-migration-status": passwordMigrationStatus,
+  "platform-admins": platformAdmins,
   "plan-razorpay-map": planRazorpayMap,
   "plan-update": planUpdate,
   "plans": plans,

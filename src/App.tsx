@@ -15,6 +15,7 @@ import { PlatformProtectedRoute } from "@/components/platform/PlatformProtectedR
 import PlatformLogin from "@/pages/platform/PlatformLogin";
 const PlatformDashboard = lazy(() => import("@/pages/platform/PlatformDashboard"));
 const PlatformAudit = lazy(() => import("@/pages/platform/PlatformAudit"));
+const PlatformAdmins = lazy(() => import("@/pages/platform/PlatformAdmins"));
 const PlatformOrgDetail = lazy(() => import("@/pages/platform/PlatformOrgDetail"));
 const PlatformPlans = lazy(() => import("@/pages/platform/PlatformPlans"));
 import { flags } from "@/config/featureFlags";
@@ -442,6 +443,16 @@ const App = () => {
                               <PlatformProtectedRoute>
                                 <LazyPage>
                                   <PlatformPlans />
+                                </LazyPage>
+                              </PlatformProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="admins"
+                            element={
+                              <PlatformProtectedRoute>
+                                <LazyPage>
+                                  <PlatformAdmins />
                                 </LazyPage>
                               </PlatformProtectedRoute>
                             }
