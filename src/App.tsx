@@ -130,17 +130,29 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
   requireStaffOnly?: boolean;
+  /**
+   * Render children with all data providers (Auth/POS/Location/etc.) but
+   * WITHOUT the sidebar + top header chrome. Used by the AI pop-out window
+   * (opened via `?focus=1`) so the chat fills the whole viewport.
+   */
+  bare?: boolean;
 }
 
 // Enhanced Protected route component that checks for authentication
 const ProtectedRoute = ({ 
   children, 
   requireAdmin = false,
-  requireStaffOnly = false 
+  requireStaffOnly = false,
+  bare = false,
 }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
   const isMobile = useIsMobile();
+  // Allow any route to opt in to bare/pop-out mode via a `?focus=1` query
+  // param — this way `window.open('/chat-ai?focus=1')` works without
+  // duplicating route definitions.
+  const bareFromQuery = new URLSearchParams(location.search).get("focus") === "1";
+  const isBare = bare || bareFromQuery;
 
   if (isLoading) {
     return (
@@ -176,28 +188,36 @@ const ProtectedRoute = ({
             <POSProvider>
             <ExpenseProvider>
               <BookingNotificationProvider>
-                <SidebarProvider
-                  defaultOpen={false}
-                  style={
-                    {
-                      "--sidebar-width-icon": "3.75rem",
-                    } as React.CSSProperties
-                  }
-                >
-                  <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
-                    <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
-                      <AppHeader />
-                      <main
-                        id="app-main"
-                        tabIndex={-1}
-                        className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? 'pt-[64px]' : ''}`}
-                      >
-                        {children}
-                      </main>
-                    </div>
+                {isBare ? (
+                  /* Bare / pop-out mode: chrome-less viewport. Providers
+                     above still wrap the page so data hooks keep working. */
+                  <div className="app-ambient min-h-screen w-full overflow-x-clip">
+                    {children}
                   </div>
-                </SidebarProvider>
+                ) : (
+                  <SidebarProvider
+                    defaultOpen={false}
+                    style={
+                      {
+                        "--sidebar-width-icon": "3.75rem",
+                      } as React.CSSProperties
+                    }
+                  >
+                    <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
+                      <AppSidebar />
+                      <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
+                        <AppHeader />
+                        <main
+                          id="app-main"
+                          tabIndex={-1}
+                          className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? 'pt-[64px]' : ''}`}
+                        >
+                          {children}
+                        </main>
+                      </div>
+                    </div>
+                  </SidebarProvider>
+                )}
               </BookingNotificationProvider>
             </ExpenseProvider>
             </POSProvider>
