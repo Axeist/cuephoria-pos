@@ -109,7 +109,7 @@ function keyForOrg(orgId: string): string {
 }
 
 const SidebarTourOverlay: React.FC = () => {
-  const { setOpen } = useSidebar();
+  const { open: sidebarOpen, setOpen } = useSidebar();
   const { organization } = useOrganization();
   const { user } = useAuth();
   const location = useLocation();
@@ -145,17 +145,12 @@ const SidebarTourOverlay: React.FC = () => {
     }
   }, [isMobile, organization?.id, organization?.onboardingCompletedAt, setOpen]);
 
+  // Keep desktop sidebar expanded while the tour is active so labels and
+  // icon targets remain stable.
   React.useEffect(() => {
-    if (!open) return;
-    const target = items[index];
-    if (!target) return;
-    const el = document.querySelector(`[data-tour-path="${target.path}"]`) as HTMLElement | null;
-    if (!el) return;
-    el.classList.add("ring-2", "ring-fuchsia-400/70");
-    return () => {
-      el.classList.remove("ring-2", "ring-fuchsia-400/70");
-    };
-  }, [index, items, open]);
+    if (!open || isMobile) return;
+    if (!sidebarOpen) setOpen(true);
+  }, [isMobile, open, setOpen, sidebarOpen]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -193,7 +188,9 @@ const SidebarTourOverlay: React.FC = () => {
         return;
       }
 
-      const rect = el.getBoundingClientRect();
+      const linkRect = el.getBoundingClientRect();
+      const iconEl = el.querySelector("svg") as HTMLElement | null;
+      const rect = iconEl?.getBoundingClientRect() ?? linkRect;
       setTargetRect({
         top: rect.top,
         left: rect.left,
@@ -203,20 +200,20 @@ const SidebarTourOverlay: React.FC = () => {
 
       // Keep the entire sidebar visibly clear (no backdrop blur) while
       // dimming/blurring only the rest of the app.
-      const sidebarItemRects = items
-        .map((it) => document.querySelector(`[data-tour-path="${it.path}"]`) as HTMLElement | null)
-        .filter((node): node is HTMLElement => !!node)
-        .map((node) => node.getBoundingClientRect());
-      if (sidebarItemRects.length) {
-        const maxRight = Math.max(...sidebarItemRects.map((r) => r.right));
-        const clearRight = Math.min(window.innerWidth - 120, Math.max(220, maxRight + 20));
+      const sidebarEl =
+        (document.querySelector('[data-sidebar="sidebar"]') as HTMLElement | null) ??
+        (document.querySelector(`[data-tour-path="${target.path}"]`) as HTMLElement | null);
+      if (sidebarEl) {
+        const sidebarRect = sidebarEl.getBoundingClientRect();
+        const clearRight = Math.min(window.innerWidth - 140, Math.max(220, sidebarRect.right + 10));
         setSidebarClearRight(clearRight);
       }
 
       let side: "left" | "right" = "left";
-      let left = rect.right + GAP;
+      let left = Math.max(sidebarClearRight + 16, rect.right + GAP);
       if (left + CARD_WIDTH > window.innerWidth - PAD) {
-        left = Math.max(PAD, rect.left - CARD_WIDTH - GAP);
+        // Never place the card over the sidebar; clamp to clear zone.
+        left = Math.max(sidebarClearRight + 16, window.innerWidth - CARD_WIDTH - PAD);
         side = "right";
       }
       let top = rect.top + rect.height / 2 - CARD_HEIGHT / 2;
@@ -232,7 +229,7 @@ const SidebarTourOverlay: React.FC = () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [index, items, open]);
+  }, [index, items, open, sidebarClearRight]);
 
   if (!open || !organization || !items.length) return null;
 
@@ -267,12 +264,12 @@ const SidebarTourOverlay: React.FC = () => {
           <motion.div
             layout
             transition={{ type: "spring", stiffness: 360, damping: 32, mass: 0.65 }}
-            className="absolute rounded-xl border border-fuchsia-300/70 shadow-[0_0_0_2px_rgba(232,121,249,0.2),0_0_36px_rgba(217,70,239,0.48)]"
+            className="absolute rounded-lg border border-fuchsia-300/75 shadow-[0_0_0_2px_rgba(232,121,249,0.2),0_0_36px_rgba(217,70,239,0.48)]"
             style={{
-              top: targetRect.top - 4,
-              left: targetRect.left - 4,
-              width: targetRect.width + 8,
-              height: targetRect.height + 8,
+              top: targetRect.top - 3,
+              left: targetRect.left - 3,
+              width: targetRect.width + 6,
+              height: targetRect.height + 6,
             }}
           />
         )}
