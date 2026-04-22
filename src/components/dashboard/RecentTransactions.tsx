@@ -692,7 +692,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   };
   
   return (
-    <Card className={`bg-[#1A1F2C] border-gray-700 shadow-xl h-full flex flex-col ${className}`}>
+    <Card className={`glass-card h-full flex flex-col ${className}`}>
       <CardHeader className="space-y-4">
         <div>
           <CardTitle className="text-xl font-bold text-white font-heading">Recent Transactions</CardTitle>

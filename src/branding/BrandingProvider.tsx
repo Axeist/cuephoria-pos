@@ -80,11 +80,19 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 
   React.useEffect(() => {
-    const key = JSON.stringify({ tokens: brand.tokens, assets: brand.assets });
+    const gradientHexes = {
+      primary: override.primary_color,
+      accent: override.accent_color,
+    };
+    const key = JSON.stringify({
+      tokens: brand.tokens,
+      assets: brand.assets,
+      gradient: gradientHexes,
+    });
     if (key === lastAppliedKey.current) return;
     lastAppliedKey.current = key;
     try {
-      applyTenantTheme(brand);
+      applyTenantTheme(brand, undefined, gradientHexes);
     } catch (err) {
       console.warn("BrandingProvider: applyTenantTheme failed", err);
     }
@@ -100,7 +108,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         document.head.appendChild(link);
       }
     }
-  }, [brand]);
+  }, [brand, override.primary_color, override.accent_color]);
 
   const value = React.useMemo<BrandingContextValue>(
     () => ({ brand, override, loading, error, refresh }),

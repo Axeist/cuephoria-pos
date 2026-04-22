@@ -283,23 +283,23 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex-1 space-y-3 sm:space-y-6 p-3 sm:p-6 text-white bg-inherit overflow-x-hidden">
+    <div className="flex-1 space-y-3 sm:space-y-6 p-3 sm:p-6 text-white overflow-x-hidden">
       <WorkspaceHero />
       {/* Mobile-optimized header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Dashboard</h2>
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight gradient-text-hero font-heading">Dashboard</h2>
       </div>
 
       {/* Mobile-optimized toggle buttons with better spacing */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6 overflow-x-hidden">
-        <div className={`${isMobile ? 'w-full grid grid-cols-4 gap-0.5 h-10' : 'w-full sm:w-auto gap-1.5 flex'} p-0.5 sm:p-1 rounded-xl bg-background/50 border border-cuephoria-lightpurple/30`}>
+        <div className={`${isMobile ? 'w-full grid grid-cols-4 gap-0.5 h-10' : 'w-full sm:w-auto gap-1.5 flex'} p-1 rounded-xl glass-card`}>
           <button
             type="button"
             onClick={() => setCurrentDashboardTab('overview')}
             className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'overview'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'btn-gradient text-white'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >
             Overview
@@ -309,8 +309,8 @@ const Dashboard = () => {
             onClick={() => setCurrentDashboardTab('analytics')}
             className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'analytics'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'btn-gradient text-white'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >
             Analytics
@@ -320,8 +320,8 @@ const Dashboard = () => {
             onClick={() => setCurrentDashboardTab('expenses')}
             className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'expenses'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'btn-gradient text-white'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >
             Expenses
@@ -331,8 +331,8 @@ const Dashboard = () => {
             onClick={() => setCurrentDashboardTab('cash')}
             className={`whitespace-nowrap flex-shrink-0 text-[10px] sm:text-sm px-1.5 sm:px-4 rounded-lg font-medium transition-all duration-200 ${
               currentDashboardTab === 'cash'
-                ? 'bg-cuephoria-purple text-white shadow-lg shadow-cuephoria-purple/30'
-                : 'text-muted-foreground hover:text-white hover:bg-cuephoria-purple/20'
+                ? 'btn-gradient text-white'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
           >
             Vault

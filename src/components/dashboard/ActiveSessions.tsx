@@ -26,7 +26,7 @@ const ActiveSessions = () => {
   };
   
   return (
-    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl h-full flex flex-col">
+    <Card className="glass-card h-full flex flex-col">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

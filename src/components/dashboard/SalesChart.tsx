@@ -273,7 +273,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   };
 
   return (
-    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl overflow-hidden">
+    <Card className="glass-card overflow-hidden">
       <CardHeader className="pb-2 sm:pb-6">
         <div className="flex flex-col gap-3 sm:gap-4">
           {/* Title and Year Filter */}

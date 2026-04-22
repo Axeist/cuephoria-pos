@@ -1,53 +1,66 @@
 // src/components/AppSidebar.tsx
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingCart, User, BarChart2, Settings, Package, Clock, Users, Menu, Shield, PowerOff, BookOpen, Calendar, Users2, UserCircle, Bot } from 'lucide-react';
-import { 
-  Sidebar, 
-  SidebarContent, 
-  SidebarFooter, 
-  SidebarGroup, 
-  SidebarGroupContent, 
-  SidebarHeader, 
-  SidebarMenu, 
-  SidebarMenuButton, 
-  SidebarMenuItem,
+import {
+  Home,
+  ShoppingCart,
+  User,
+  BarChart2,
+  Settings,
+  Package,
+  Clock,
+  Users,
+  Menu,
+  Shield,
+  PowerOff,
+  BookOpen,
+  Calendar,
+  Users2,
+  UserCircle,
+  Bot,
+  Sparkles,
+} from 'lucide-react';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
   SidebarSeparator,
-  SidebarTrigger,
-  useSidebar
 } from '@/components/ui/sidebar';
-import Logo from './Logo';
 import { useAuth } from '@/context/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { GlobalNotificationBell } from '@/components/GlobalNotificationBell';
 import { useLocation as useLocationCtx } from '@/context/LocationContext';
+import { useTenantBrandingOptional } from '@/branding/BrandingProvider';
+import { cn } from '@/lib/utils';
 
 const AppSidebar: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const hideOnPaths = ['/receipt'];
-  const shouldHide = hideOnPaths.some(path => location.pathname.includes(path));
+  const shouldHide = hideOnPaths.some((path) => location.pathname.includes(path));
   const isMobile = useIsMobile();
-  const { toggleSidebar } = useSidebar();
   const [sheetOpen, setSheetOpen] = useState(false);
-  
+
+  const branding = useTenantBrandingOptional();
+  const override = branding?.override ?? {};
+  const brandName =
+    override.display_name || branding?.brand?.name || 'Cuephoria';
+  const brandLogo = override.logo_url;
+
   const isAdmin = user?.isAdmin || false;
   const isSuperAdmin = user?.isSuperAdmin || false;
-
   const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff';
 
   const { activeLocation } = useLocationCtx();
   const isLite = activeLocation?.slug === 'lite';
-  const logoSrc = isLite
-    ? '/lovable-uploads/cuephoria-lite-logo.png'
-    : '/lovable-uploads/56498ee3-f6fc-4420-b803-bae0e8dc6168.png';
-  const brandName = isLite ? 'Cuephoria Lite' : 'Cuephoria';
 
   if (!user || shouldHide) return null;
 
-  // Base menu items that both admin and staff can see
   const baseMenuItems = [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
     { icon: ShoppingCart, label: 'POS', path: '/pos' },
@@ -58,160 +71,237 @@ const AppSidebar: React.FC = () => {
     { icon: Calendar, label: 'Bookings', path: '/booking-management' },
   ];
 
-  // Build menu based on user role
   const menuItems = [
     ...baseMenuItems,
-    // Admin sees "Staff" menu
     ...(isAdmin ? [{ icon: Users2, label: 'Staff Management', path: '/staff' }] : []),
-    // Staff sees "My Portal" menu (admin does NOT see this)
     ...(!isAdmin ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
     { icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' },
     { icon: Settings, label: 'Settings', path: '/settings' },
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
   ];
 
-  // Mobile version with sheet
+  const Brand = (
+    <div className="flex items-center gap-3 min-w-0">
+      <div
+        className="relative h-11 w-11 rounded-xl grid place-items-center overflow-hidden shadow-[0_10px_30px_-8px_var(--brand-primary-hex)] flex-shrink-0"
+        style={{
+          background:
+            'linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))',
+        }}
+      >
+        {brandLogo ? (
+          <img
+            src={brandLogo}
+            alt={brandName}
+            className="h-full w-full object-contain p-1.5"
+            onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+          />
+        ) : (
+          <Sparkles className="h-5 w-5 text-white" />
+        )}
+        <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/15" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+          Workspace
+        </div>
+        <div className="text-base font-extrabold tracking-tight text-white truncate">
+          {brandName}
+          {isLite && (
+            <span className="ml-1.5 text-[10px] font-semibold uppercase text-cyan-200/80">
+              · Lite
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <nav className="space-y-1">
+      {menuItems.map((item) => {
+        const active = location.pathname === item.path;
+        return (
+          <Link
+            key={item.path}
+            to={item.path}
+            onClick={onNavigate}
+            className={cn(
+              'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+              active
+                ? 'text-white'
+                : 'text-white/65 hover:text-white hover:bg-white/[0.04]',
+            )}
+          >
+            {active && (
+              <>
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-xl opacity-90"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, color-mix(in oklab, var(--brand-primary-hex) 28%, transparent), color-mix(in oklab, var(--brand-accent-hex) 18%, transparent))',
+                    border:
+                      '1px solid color-mix(in oklab, var(--brand-primary-hex) 45%, transparent)',
+                    boxShadow:
+                      '0 8px 24px -10px color-mix(in oklab, var(--brand-primary-hex) 50%, transparent), inset 0 1px 0 rgba(255,255,255,0.06)',
+                  }}
+                />
+                <span
+                  aria-hidden
+                  className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-full"
+                  style={{ background: 'var(--brand-primary-hex)' }}
+                />
+              </>
+            )}
+            <item.icon
+              className={cn(
+                'relative z-10 h-4.5 w-4.5 flex-shrink-0 transition-colors',
+                active ? 'text-white' : 'text-white/55 group-hover:text-white/90',
+              )}
+              style={{ width: 18, height: 18 }}
+            />
+            <span className="relative z-10 truncate">{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
+  const UserCard = (
+    <div className="glass-card p-3 flex items-center gap-3">
+      <div
+        className="h-9 w-9 rounded-lg grid place-items-center flex-shrink-0"
+        style={{
+          background:
+            'linear-gradient(135deg, color-mix(in oklab, var(--brand-primary-hex) 35%, transparent), color-mix(in oklab, var(--brand-accent-hex) 25%, transparent))',
+          border:
+            '1px solid color-mix(in oklab, var(--brand-primary-hex) 40%, transparent)',
+        }}
+      >
+        {isAdmin ? (
+          <Shield className="h-4 w-4 text-white" />
+        ) : (
+          <User className="h-4 w-4 text-white" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-white truncate">{user.username}</div>
+        <div className="text-[11px] text-white/55 truncate">{roleLabel}</div>
+      </div>
+      <button
+        onClick={() => {
+          setSheetOpen(false);
+          logout();
+        }}
+        className="h-8 w-8 grid place-items-center rounded-lg text-white/50 hover:text-white hover:bg-red-500/25 transition-colors"
+        title="Sign out"
+      >
+        <PowerOff className="h-4 w-4" />
+      </button>
+    </div>
+  );
+
+  // ─── Mobile (sheet) ────────────────────────────────────────────────────────
   if (isMobile) {
     return (
       <>
-        <div className="fixed top-0 left-0 w-full z-30 bg-[#1A1F2C] p-3 sm:p-4 flex justify-between items-center shadow-md">
+        <div
+          className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-3 py-2.5 border-b border-white/10"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(10,6,22,0.95) 0%, rgba(10,6,22,0.85) 100%)',
+            backdropFilter: 'blur(18px) saturate(140%)',
+            WebkitBackdropFilter: 'blur(18px) saturate(140%)',
+          }}
+        >
           <div className="flex items-center gap-2">
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white h-10 w-10">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white h-10 w-10 hover:bg-white/10"
+                >
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[85%] sm:w-[80%] max-w-[280px] bg-[#1A1F2C] border-r-0">
+              <SheetContent
+                side="left"
+                className="p-0 w-[86%] max-w-[300px] border-white/10 text-white"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(10,6,22,0.98) 0%, rgba(7,3,15,0.98) 100%)',
+                  backdropFilter: 'blur(24px) saturate(150%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+                }}
+              >
                 <div className="h-full flex flex-col">
-                  <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-                    <img
-                      src={logoSrc}
-                      alt={`${brandName} Logo`}
-                      className="h-10 w-10 sm:h-12 sm:w-12 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
-                    />
-                    <span className="text-lg sm:text-xl font-bold gradient-text font-heading">{brandName}</span>
-                  </div>
+                  <div className="p-4">{Brand}</div>
                   <div className="px-3 pb-2">
                     <GlobalNotificationBell />
                   </div>
-                  <div className="mx-4 h-px bg-cuephoria-purple/30" />
-                  <div className="flex-1 overflow-auto py-2">
-                    <div className="px-2">
-                      {menuItems.map((item, index) => (
-                        <Link 
-                          key={item.path}
-                          to={item.path}
-                          onClick={() => setSheetOpen(false)}
-                          className={`flex items-center py-3 px-3 rounded-md my-1 ${location.pathname === item.path ? 'bg-cuephoria-dark text-cuephoria-lightpurple' : 'text-white hover:bg-cuephoria-dark/50'}`}
-                        >
-                          <item.icon className={`mr-3 h-5 w-5 ${location.pathname === item.path ? 'text-cuephoria-lightpurple animate-pulse-soft' : ''}`} />
-                          <span className="font-quicksand text-base">{item.label}</span>
-                        </Link>
-                      ))}
-                    </div>
+                  <div className="hero-divider mx-4" />
+                  <div className="flex-1 overflow-auto p-3">
+                    <NavLinks onNavigate={() => setSheetOpen(false)} />
                   </div>
-                  <div className="p-4">
-                    <div className="group bg-cuephoria-dark rounded-lg p-4 shadow-lg border border-cuephoria-purple/20 hover:border-cuephoria-purple/60 hover:shadow-[0_0_20px_rgba(155,135,245,0.3)] transition-all duration-300 ease-in-out">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {isAdmin ? (
-                            <Shield className="h-6 w-6 text-cuephoria-lightpurple" />
-                          ) : (
-                            <User className="h-6 w-6 text-cuephoria-blue" />
-                          )}
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium font-quicksand text-white">
-                              {user.username}
-                            </span>
-                            <span className="text-xs text-cuephoria-lightpurple font-quicksand">
-                                {roleLabel}
-                            </span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            setSheetOpen(false);
-                            logout();
-                          }}
-                          className="p-2 rounded-md bg-cuephoria-darker hover:bg-red-500 transition-all duration-300 group-hover:shadow-lg"
-                          title="Logout"
-                        >
-                          <PowerOff className="h-4 w-4 text-white" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="p-3">{UserCard}</div>
                 </div>
               </SheetContent>
             </Sheet>
-            <span className="text-lg sm:text-xl font-bold gradient-text font-heading">{brandName}</span>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-8 w-8 rounded-lg grid place-items-center shadow-[0_6px_18px_-6px_var(--brand-primary-hex)]"
+                style={{
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))',
+                }}
+              >
+                <Sparkles className="h-4 w-4 text-white" />
+              </div>
+              <span className="text-base font-extrabold text-white tracking-tight truncate max-w-[140px]">
+                {brandName}
+              </span>
+            </div>
           </div>
           <GlobalNotificationBell />
         </div>
-        <div className="pt-[64px] sm:pt-16"></div>
+        <div className="pt-[60px]" />
       </>
     );
   }
 
-  // Desktop version with Sidebar
+  // ─── Desktop ───────────────────────────────────────────────────────────────
   return (
-    <Sidebar className="border-r-0 bg-[#1A1F2C] text-white w-[250px]">
-      <SidebarHeader className="p-4 flex items-center gap-3">
-        <img
-          src={logoSrc}
-          alt={`${brandName} Logo`}
-          className="h-14 w-14 object-contain animate-bounce filter drop-shadow-[0_0_15px_rgba(155,135,245,0.8)] animate-neon-pulse"
-        />
-        <span className="text-2xl font-bold gradient-text font-heading">{brandName}</span>
-      </SidebarHeader>
-      <SidebarSeparator className="mx-4 bg-cuephoria-purple/30" />
-      <SidebarContent className="mt-2">
+    <Sidebar
+      className="border-r-0 text-white"
+      style={{
+        background:
+          'linear-gradient(180deg, rgba(10,6,22,0.92) 0%, rgba(7,3,15,0.96) 100%)',
+        backdropFilter: 'blur(20px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+      }}
+    >
+      {/* Right-edge vertical glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-0 w-px"
+        style={{
+          background:
+            'linear-gradient(180deg, transparent 0%, color-mix(in oklab, var(--brand-primary-hex) 60%, transparent) 50%, transparent 100%)',
+        }}
+      />
+      <SidebarHeader className="p-4">{Brand}</SidebarHeader>
+      <div className="hero-divider mx-4" />
+      <SidebarContent className="mt-3 px-2">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {menuItems.map((item, index) => (
-                <SidebarMenuItem key={item.path} className={`animate-fade-in delay-${index * 100} text-base`}>
-                  <SidebarMenuButton asChild isActive={location.pathname === item.path}>
-                    <Link to={item.path} className="flex items-center menu-item py-2.5">
-                      <item.icon className={`mr-3 h-6 w-6 ${location.pathname === item.path ? 'text-cuephoria-lightpurple animate-pulse-soft' : ''}`} />
-                      <span className="font-quicksand">{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            <NavLinks />
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
-        <div className="group bg-cuephoria-dark rounded-lg p-4 shadow-lg border border-cuephoria-purple/20 hover:border-cuephoria-purple/60 hover:shadow-[0_0_20px_rgba(155,135,245,0.3)] transition-all duration-300 ease-in-out">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {isAdmin ? (
-                <Shield className="h-6 w-6 text-cuephoria-lightpurple" />
-              ) : (
-                <User className="h-6 w-6 text-cuephoria-blue" />
-              )}
-              <div className="flex flex-col">
-                <span className="text-sm font-medium font-quicksand text-white">
-                  {user.username}
-                </span>
-                <span className="text-xs text-cuephoria-lightpurple font-quicksand">
-                  {roleLabel}
-                </span>
-              </div>
-            </div>
-            <button 
-              onClick={logout}
-              className="p-2 rounded-md bg-cuephoria-darker hover:bg-red-500 transition-all duration-300 group-hover:shadow-lg"
-              title="Logout"
-            >
-              <PowerOff className="h-4 w-4 text-white" />
-            </button>
-          </div>
-        </div>
-      </SidebarFooter>
+      <SidebarSeparator className="mx-4 bg-white/10" />
+      <SidebarFooter className="p-3">{UserCard}</SidebarFooter>
     </Sidebar>
   );
 };

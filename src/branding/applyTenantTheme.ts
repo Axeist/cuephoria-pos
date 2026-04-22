@@ -14,6 +14,15 @@
 
 import type { TenantBrand } from "./brand";
 
+/**
+ * Default landing-gradient hexes. Kept in sync with `:root` in index.css so
+ * that applying the default brand is a visual no-op when a tenant has no
+ * custom palette.
+ */
+const DEFAULT_BRAND_PRIMARY_HEX = "#7c3aed";
+const DEFAULT_BRAND_ACCENT_HEX = "#ec4899";
+const DEFAULT_BRAND_TERTIARY_HEX = "#3b82f6";
+
 type TokenKey = keyof TenantBrand["tokens"];
 
 const TOKEN_TO_CSS_VAR: Record<TokenKey, string> = {
@@ -38,7 +47,22 @@ const TOKEN_TO_CSS_VAR: Record<TokenKey, string> = {
   ring: "--ring",
 };
 
-export function applyTenantTheme(brand: TenantBrand, target?: HTMLElement) {
+export type BrandGradientHexes = {
+  primary?: string;
+  accent?: string;
+  tertiary?: string;
+};
+
+/**
+ * Apply CSS tokens for a tenant. Also sets the `--brand-primary-hex` /
+ * `--brand-accent-hex` / `--brand-tertiary-hex` variables that power the
+ * ambient background, glass hover borders, and the `.btn-gradient` CTA.
+ */
+export function applyTenantTheme(
+  brand: TenantBrand,
+  target?: HTMLElement,
+  gradientHexes?: BrandGradientHexes,
+) {
   if (typeof document === "undefined") return;
   const root = target ?? document.documentElement;
 
@@ -55,6 +79,19 @@ export function applyTenantTheme(brand: TenantBrand, target?: HTMLElement) {
     root.style.setProperty("--font-body", brand.typography.bodyFamily);
   }
 
+  root.style.setProperty(
+    "--brand-primary-hex",
+    gradientHexes?.primary || DEFAULT_BRAND_PRIMARY_HEX,
+  );
+  root.style.setProperty(
+    "--brand-accent-hex",
+    gradientHexes?.accent || DEFAULT_BRAND_ACCENT_HEX,
+  );
+  root.style.setProperty(
+    "--brand-tertiary-hex",
+    gradientHexes?.tertiary || DEFAULT_BRAND_TERTIARY_HEX,
+  );
+
   root.setAttribute("data-tenant", brand.slug);
   root.setAttribute("data-tenant-ready", "true");
 }
@@ -67,6 +104,9 @@ export function resetTenantTheme(target?: HTMLElement) {
   }
   root.style.removeProperty("--font-heading");
   root.style.removeProperty("--font-body");
+  root.style.removeProperty("--brand-primary-hex");
+  root.style.removeProperty("--brand-accent-hex");
+  root.style.removeProperty("--brand-tertiary-hex");
   root.removeAttribute("data-tenant");
   root.removeAttribute("data-tenant-ready");
 }

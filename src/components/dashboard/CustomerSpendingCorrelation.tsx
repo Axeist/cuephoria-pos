@@ -46,7 +46,7 @@ const CustomerSpendingCorrelation: React.FC = () => {
   // No data case
   if (correlationData.length === 0) {
     return (
-      <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
+      <Card className="glass-card">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -66,7 +66,7 @@ const CustomerSpendingCorrelation: React.FC = () => {
   }
   
   return (
-    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
+    <Card className="glass-card">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

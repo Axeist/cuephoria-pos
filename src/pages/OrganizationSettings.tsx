@@ -33,6 +33,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { BRAND_PRESETS, matchPreset, type BrandPreset } from "@/branding/presets";
+import { cn } from "@/lib/utils";
 
 type Role = "owner" | "admin" | "manager" | "staff" | "read_only";
 
@@ -180,34 +182,48 @@ const OrganizationSettings: React.FC = () => {
   const { organization: org, subscription, plan, role, canEdit } = data;
 
   return (
-    <div className="container p-4 mx-auto max-w-4xl space-y-6">
-      <div>
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to settings
-        </Link>
-        <div className="mt-2 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Building2 className="h-6 w-6 text-primary" />
-              Workspace
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              This is your organization's identity across the app, receipts, and bookings.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className={statusStyles[org.status]}>
-              {org.status.replace("_", " ")}
-            </Badge>
-            {org.is_internal && (
-              <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-500">
-                internal
+    <div className="container p-4 mx-auto max-w-5xl space-y-6">
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 p-5 sm:p-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-80"
+          style={{
+            background:
+              "radial-gradient(600px circle at 10% 0%, color-mix(in oklab, var(--brand-primary-hex) 30%, transparent), transparent 55%), radial-gradient(500px circle at 90% 100%, color-mix(in oklab, var(--brand-accent-hex) 22%, transparent), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.025), rgba(0,0,0,0.25))",
+          }}
+        />
+        <div className="relative z-10">
+          <Link
+            to="/settings"
+            className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to settings
+          </Link>
+          <div className="mt-3 flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full brand-soft text-[11px] font-semibold uppercase tracking-[0.18em]">
+                <Sparkles className="h-3 w-3" />
+                Workspace settings
+              </div>
+              <h1 className="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+                Your <span className="gradient-text-hero">workspace</span>, beautifully tuned
+              </h1>
+              <p className="text-sm text-white/65 mt-2 max-w-xl">
+                Identity, branding and subscription — the way your lounge shows up on
+                receipts, the login page, and public bookings.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={statusStyles[org.status]}>
+                {org.status.replace("_", " ")}
               </Badge>
-            )}
+              {org.is_internal && (
+                <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-300">
+                  internal
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -310,31 +326,78 @@ const OrganizationSettings: React.FC = () => {
       <BrandingCard canEdit={canEdit} />
 
       {/* Plan card */}
-      <Card>
-        <CardHeader>
+      <Card className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background:
+              "radial-gradient(480px circle at 92% 8%, color-mix(in oklab, var(--brand-accent-hex) 14%, transparent), transparent 60%)",
+          }}
+        />
+        <CardHeader className="relative z-10">
           <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" />
+            <ShieldCheck className="h-4 w-4 text-[color:var(--brand-primary-hex)]" />
             Subscription
           </CardTitle>
-          <CardDescription>Your current plan and billing cycle. Manage plans and invoices in Billing.</CardDescription>
+          <CardDescription>
+            Your current plan and billing cycle. Manage plans and invoices in Billing.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative z-10">
+          <div className="flex flex-wrap items-center gap-3 mb-5">
+            <div className="rounded-2xl px-4 py-3 brand-soft flex items-center gap-3">
+              <div
+                className="h-10 w-10 rounded-xl grid place-items-center shadow-[0_6px_18px_-6px_var(--brand-primary-hex)]"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))",
+                }}
+              >
+                <ShieldCheck className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                  Current plan
+                </div>
+                <div className="text-base font-bold text-white tracking-tight">
+                  {plan?.name ?? "—"}
+                </div>
+              </div>
+            </div>
+            {subscription?.status && (
+              <Badge
+                variant="outline"
+                className={cn("capitalize", statusStyles[subscription.status] || "border-white/20 bg-white/5 text-white/80")}
+              >
+                {subscription.status.replace("_", " ")}
+              </Badge>
+            )}
+            {subscription?.interval && (
+              <Badge variant="outline" className="border-white/20 bg-white/5 text-white/80 capitalize">
+                {subscription.interval}
+              </Badge>
+            )}
+          </div>
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <Stat k="Plan" v={plan?.name ?? "—"} />
-            <Stat k="Status" v={subscription?.status ?? "—"} />
-            <Stat k="Cycle" v={subscription?.interval ?? "—"} />
             <Stat k="Provider" v={subscription?.provider ?? "—"} />
             {subscription?.current_period_end && (
               <Stat k="Next cycle" v={fmtDate(subscription.current_period_end)} />
             )}
-            {org.trial_ends_at && (
-              <Stat k="Trial ends" v={fmtDate(org.trial_ends_at)} />
-            )}
+            {org.trial_ends_at && <Stat k="Trial ends" v={fmtDate(org.trial_ends_at)} />}
             <Stat k="Created" v={fmtDate(org.created_at)} />
-            <Stat k="Updated" v={<span className="inline-flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{fmtDate(org.updated_at)}</span>} />
+            <Stat
+              k="Updated"
+              v={
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  {fmtDate(org.updated_at)}
+                </span>
+              }
+            />
           </dl>
-          <div className="mt-4">
-            <Button asChild variant="outline" size="sm">
+          <div className="mt-5">
+            <Button asChild size="sm">
               <Link to="/settings/billing">Manage plans &amp; invoices</Link>
             </Button>
           </div>
@@ -561,6 +624,17 @@ const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
         {editing ? (
           <>
+            <BrandPresetPicker
+              primary={form.primary_color}
+              accent={form.accent_color}
+              onApply={(preset) =>
+                setForm((f) => ({
+                  ...f,
+                  primary_color: preset.primary,
+                  accent_color: preset.accent,
+                }))
+              }
+            />
             <BrandingFieldRow
               label="Display name"
               hint="Shown on public pages; falls back to workspace name"
@@ -707,7 +781,7 @@ const BrandingColorInput: React.FC<{
           type="color"
           value={safe}
           onChange={(e) => onChange(e.target.value.toLowerCase())}
-          className="h-9 w-12 rounded border bg-background cursor-pointer"
+          className="h-10 w-12 rounded-lg border border-white/10 bg-white/5 cursor-pointer"
           aria-label={`${label} color picker`}
         />
         <Input
@@ -775,20 +849,25 @@ const BrandingReadRow: React.FC<{ k: string; v: React.ReactNode }> = ({ k, v }) 
 );
 
 const BrandingPreview: React.FC<{ form: BrandingFormState }> = ({ form }) => {
-  const primary = HEX_RE.test(form.primary_color) ? form.primary_color : "#6366f1";
-  const accent = HEX_RE.test(form.accent_color) ? form.accent_color : primary;
+  const primary = HEX_RE.test(form.primary_color) ? form.primary_color : "#7c3aed";
+  const accent = HEX_RE.test(form.accent_color) ? form.accent_color : "#ec4899";
   const gradient = `linear-gradient(135deg, ${primary}, ${accent})`;
   const name = form.display_name.trim() || "Your workspace";
   return (
-    <div
-      className="rounded-xl border border-border overflow-hidden"
-      style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02), transparent)" }}
-    >
+    <div className="rounded-2xl border border-white/10 overflow-hidden shadow-[0_20px_50px_-20px_rgba(0,0,0,0.6)]">
       <div
-        className="p-5 flex items-center gap-4"
+        className="relative p-6 flex items-center gap-4 overflow-hidden"
         style={{ background: gradient, color: "#fff" }}
       >
-        <div className="h-12 w-12 rounded-xl bg-white/15 grid place-items-center overflow-hidden backdrop-blur">
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-40"
+          style={{
+            background:
+              "radial-gradient(400px circle at 10% 20%, rgba(255,255,255,0.25), transparent 55%), radial-gradient(300px circle at 90% 80%, rgba(255,255,255,0.1), transparent 55%)",
+          }}
+        />
+        <div className="relative z-10 h-14 w-14 rounded-xl bg-white/20 grid place-items-center overflow-hidden backdrop-blur shadow-lg border border-white/30">
           {form.logo_url && HTTPS_RE.test(form.logo_url) ? (
             <img
               src={form.logo_url}
@@ -802,17 +881,32 @@ const BrandingPreview: React.FC<{ form: BrandingFormState }> = ({ form }) => {
             <Sparkles className="h-6 w-6" />
           )}
         </div>
-        <div className="min-w-0">
-          <div className="font-semibold truncate">{name}</div>
-          {form.tagline && <div className="text-xs text-white/80 truncate">{form.tagline}</div>}
+        <div className="relative z-10 min-w-0">
+          <div className="text-lg font-bold truncate tracking-tight">{name}</div>
+          {form.tagline ? (
+            <div className="text-sm text-white/85 truncate">{form.tagline}</div>
+          ) : (
+            <div className="text-sm text-white/70 truncate">
+              Your gaming lounge, beautifully branded.
+            </div>
+          )}
+        </div>
+        <div className="relative z-10 ml-auto hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/15 border border-white/30 backdrop-blur text-[10px] font-semibold uppercase tracking-wider">
+          <Sparkles className="h-3 w-3" />
+          Live preview
         </div>
       </div>
-      <div className="px-5 py-3 text-[11px] text-muted-foreground flex items-center justify-between">
+      <div className="px-5 py-3 text-[11px] text-muted-foreground flex items-center justify-between bg-white/[0.02]">
         <span className="inline-flex items-center gap-1.5">
           <Globe className="h-3 w-3" />
           Preview · this is roughly how it'll appear
         </span>
-        <span className="font-mono">{primary}</span>
+        <span className="inline-flex items-center gap-2 font-mono">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: primary }} />
+          {primary}
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: accent }} />
+          {accent}
+        </span>
       </div>
     </div>
   );
@@ -937,6 +1031,78 @@ const BrandingDropzone: React.FC<{
         }}
         disabled={disabled}
       />
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Brand preset picker — one-click palettes curated in src/branding/presets.ts.
+// Selecting a preset immediately updates the primary + accent form fields;
+// saving still requires clicking the card's Save button.
+// ---------------------------------------------------------------------------
+const BrandPresetPicker: React.FC<{
+  primary: string;
+  accent: string;
+  onApply: (preset: BrandPreset) => void;
+}> = ({ primary, accent, onApply }) => {
+  const matched = matchPreset(primary, accent);
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Palette className="h-4 w-4 text-[color:var(--brand-primary-hex)]" />
+            Quick palettes
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Pick a preset, or dial in custom hexes below.
+          </div>
+        </div>
+        {matched && (
+          <Badge
+            variant="outline"
+            className="border-white/20 bg-white/5 text-xs font-medium"
+          >
+            {matched.label}
+          </Badge>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {BRAND_PRESETS.map((preset) => {
+          const isActive = matched?.id === preset.id;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => onApply(preset)}
+              className={cn(
+                "group relative rounded-xl border p-2.5 text-left transition-all overflow-hidden",
+                isActive
+                  ? "border-[color:var(--brand-primary-hex)] bg-white/[0.05] shadow-[0_0_0_1px_color-mix(in_oklab,var(--brand-primary-hex)_40%,transparent)]"
+                  : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/25",
+              )}
+            >
+              <div
+                className="h-10 w-full rounded-lg mb-2 shadow-inner"
+                style={{
+                  background: `linear-gradient(135deg, ${preset.primary}, ${preset.accent})`,
+                }}
+              />
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs font-semibold text-foreground truncate">
+                  {preset.label}
+                </span>
+                {isActive && (
+                  <Check className="h-3.5 w-3.5 text-[color:var(--brand-primary-hex)] shrink-0" />
+                )}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {preset.description}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 };

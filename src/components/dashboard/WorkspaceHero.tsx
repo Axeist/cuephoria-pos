@@ -113,8 +113,8 @@ const WorkspaceHero: React.FC = () => {
   const { organization, subscription, plan, canEdit } = orgQuery.data;
   const brand = branding?.brand;
   const override = branding?.override ?? {};
-  const primary = override.primary_color ?? "#8b5cf6";
-  const accent = override.accent_color ?? "#6366f1";
+  const primary = override.primary_color ?? "#7c3aed";
+  const accent = override.accent_color ?? "#ec4899";
   const displayName = override.display_name || brand?.name || organization.name;
   const tagline = override.tagline;
 
@@ -145,7 +145,7 @@ const WorkspaceHero: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
         transition={{ duration: 0.3 }}
-        className="relative mb-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0d0b18] via-[#111224] to-[#0b0a14]"
+        className="relative mb-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0d0b18] via-[#111224] to-[#0b0a14] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]"
       >
         {/* brand-tinted aurora */}
         <div

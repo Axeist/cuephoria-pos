@@ -27,7 +27,7 @@ const ProductInventoryChart: React.FC = () => {
   // Handle case where there are no physical products
   if (stockData.length === 0) {
     return (
-      <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
+      <Card className="glass-card">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -47,7 +47,7 @@ const ProductInventoryChart: React.FC = () => {
   }
   
   return (
-    <Card className="bg-[#1A1F2C] border-gray-700 shadow-xl">
+    <Card className="glass-card">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

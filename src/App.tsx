@@ -166,23 +166,32 @@ const ProtectedRoute = ({
             <ExpenseProvider>
               <BookingNotificationProvider>
                 <SidebarProvider>
-                  <div className="flex min-h-screen w-full overflow-x-hidden relative">
+                  <div className="app-ambient flex min-h-screen w-full overflow-x-hidden relative">
                     <AppSidebar />
-                    <div className="flex-1 flex flex-col overflow-x-hidden">
-                      <div className="hidden md:flex items-center justify-between px-4 py-2 border-b gap-3">
-                        <SidebarTrigger />
+                    <div className="flex-1 flex flex-col overflow-x-hidden min-w-0">
+                      <div
+                        className="hidden md:flex items-center justify-between px-5 py-2.5 gap-3 sticky top-0 z-20"
+                        style={{
+                          background:
+                            'linear-gradient(180deg, rgba(10,6,22,0.78) 0%, rgba(10,6,22,0.3) 100%)',
+                          backdropFilter: 'blur(14px) saturate(140%)',
+                          WebkitBackdropFilter: 'blur(14px) saturate(140%)',
+                          borderBottom: '1px solid rgba(255,255,255,0.06)',
+                        }}
+                      >
+                        <SidebarTrigger className="text-white/70 hover:text-white hover:bg-white/10" />
                         <div className="flex items-center gap-3 ml-auto">
                           <LocationSwitcher />
                           <GlobalNotificationBell />
                         </div>
                       </div>
-                    <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
-                      {children}
+                      <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
+                        {children}
+                      </div>
+                      <footer className="w-full py-3 text-center text-xs text-white/40 font-medium tracking-wide border-t border-white/5">
+                        Designed & Developed by RK.
+                      </footer>
                     </div>
-                    <footer className="fixed sm:relative bottom-0 left-0 right-0 w-full py-2 text-center text-xs text-muted-foreground bg-cuephoria-darker border-t border-cuephoria-lightpurple/20 font-semibold tracking-wide z-40 sm:z-50">
-                      Designed & Developed by RK.
-                    </footer>
-                  </div>
                   </div>
                 </SidebarProvider>
               </BookingNotificationProvider>
