@@ -88,7 +88,7 @@ export type LoginResult =
 interface AuthContextType {
   user: AdminUser | null;
   login: (
-    username: string,
+    email: string,
     password: string,
     isAdminLogin: boolean,
     metadata?: LoginMetadata,
@@ -183,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (
-    username: string,
+    email: string,
     password: string,
     isAdminLogin: boolean,
     metadata: LoginMetadata = {},
@@ -194,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          username,
+          email: email.trim(),
           password,
           isAdminLogin,
           metadata,

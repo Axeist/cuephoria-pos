@@ -2,7 +2,7 @@
  * /signup — self-service tenant provisioning.
  *
  * Owner fills in a single-page form: workspace name (slug auto-suggests),
- * owner username + password, email, timezone. On success we get a session
+ * your name, email + password, timezone. On success we get a session
  * cookie back from /api/tenant/signup and redirect into onboarding.
  *
  * Visual language matches the landing / login page: 3D ambient scene,
@@ -79,7 +79,7 @@ export default function Signup() {
   const [organizationName, setOrganizationName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
-  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -110,10 +110,11 @@ export default function Signup() {
     return (passed / PASSWORD_RULES.length) * 100;
   }, [password]);
 
+  const nameOk = displayName.trim().length === 0 || (displayName.trim().length >= 2 && displayName.trim().length <= 120);
   const canSubmit =
     organizationName.trim().length >= 2 &&
     /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/.test(slug) &&
-    /^[a-z0-9][a-z0-9._-]{2,31}$/i.test(username) &&
+    nameOk &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
     PASSWORD_RULES.every((r) => r.test(password)) &&
     acceptedTerms &&
@@ -132,9 +133,9 @@ export default function Signup() {
         body: JSON.stringify({
           organizationName: organizationName.trim(),
           slug,
-          username: username.trim(),
           password,
-          email: email.trim() || undefined,
+          email: email.trim().toLowerCase(),
+          displayName: displayName.trim() || undefined,
           timezone,
           acceptedTerms,
         }),
@@ -416,36 +417,34 @@ export default function Signup() {
                 </div>
 
                 <div className="grid gap-5 sm:grid-cols-2">
-                  {/* Username */}
                   <div className="space-y-2">
                     <Label
-                      htmlFor="username"
+                      htmlFor="displayName"
                       className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
                     >
                       <User className="h-3 w-3" />
-                      Owner username
+                      Your name
                     </Label>
                     <Input
-                      id="username"
-                      required
-                      placeholder="anish_owner"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] font-mono text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
+                      id="displayName"
+                      placeholder="e.g. Anish Kumar"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
                     />
-                    {fieldError?.field === "username" && (
+                    {fieldError?.field === "displayName" && (
                       <p className="text-xs text-rose-400">{fieldError.message}</p>
                     )}
+                    <p className="text-[11px] text-zinc-500">Optional; used in emails and your profile.</p>
                   </div>
 
-                  {/* Email */}
                   <div className="space-y-2">
                     <Label
                       htmlFor="email"
                       className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
                     >
                       <Mail className="h-3 w-3" />
-                      Contact email
+                      Email
                     </Label>
                     <Input
                       id="email"
@@ -458,6 +457,10 @@ export default function Signup() {
                       onChange={(e) => setEmail(e.target.value)}
                       className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
                     />
+                    {fieldError?.field === "email" && (
+                      <p className="text-xs text-rose-400">{fieldError.message}</p>
+                    )}
+                    <p className="text-[11px] text-zinc-500">You’ll use this email to sign in.</p>
                   </div>
                 </div>
 

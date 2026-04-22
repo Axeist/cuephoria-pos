@@ -28,6 +28,7 @@ import {
   signAdminSession,
 } from "../../adminApiUtils";
 import { hashPassword } from "../../passwordUtils";
+import { usernameFromEmail } from "../../lib/tenantUsername";
 import { appBaseUrl, sendEmail } from "../../email";
 import { issueEmailToken } from "../../emailTokens";
 
@@ -40,8 +41,11 @@ function need(name: string): string {
 }
 
 const SLUG_RE = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
-const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/i;
 const TRIAL_DAYS = 14;
+
+function isValidEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
 
 function slugifyCandidate(input: string): string {
   return input
@@ -74,9 +78,9 @@ export default async function handler(req: Request) {
 
   const organizationName = String(payload.organizationName ?? "").trim();
   const requestedSlugRaw = String(payload.slug ?? payload.organizationSlug ?? "").trim();
-  const ownerUsername = String(payload.username ?? "").trim();
   const ownerPassword = String(payload.password ?? "");
-  const ownerEmail = String(payload.email ?? "").trim();
+  const ownerEmail = String(payload.email ?? "").trim().toLowerCase();
+  const ownerDisplayName = String(payload.displayName ?? payload.ownerName ?? "").trim();
   const timezone = String(payload.timezone ?? "Asia/Kolkata").trim() || "Asia/Kolkata";
   const acceptedTerms = Boolean(payload.acceptedTerms);
 
@@ -84,13 +88,12 @@ export default async function handler(req: Request) {
   if (organizationName.length < 2 || organizationName.length > 120) {
     return j({ ok: false, error: "Workspace name must be 2–120 characters." }, 400);
   }
-  if (!USERNAME_RE.test(ownerUsername)) {
+  if (!isValidEmail(ownerEmail)) {
+    return j({ ok: false, error: "Enter a valid email address.", field: "email" }, 400);
+  }
+  if (ownerDisplayName.length > 0 && (ownerDisplayName.length < 2 || ownerDisplayName.length > 120)) {
     return j(
-      {
-        ok: false,
-        error:
-          "Username must be 3–32 characters, letters/digits/._- (must start with a letter or digit).",
-      },
+      { ok: false, error: "Your name must be 2–120 characters, or leave it blank.", field: "displayName" },
       400,
     );
   }
@@ -127,21 +130,42 @@ export default async function handler(req: Request) {
       },
     );
 
-    // ── Uniqueness pre-check: slug + username ─────────────────────────────
-    const [{ data: slugTaken }, { data: usernameTaken }] = await Promise.all([
-      supabase.from("organizations").select("id").eq("slug", slug).maybeSingle(),
-      supabase.from("admin_users").select("id").eq("username", ownerUsername).maybeSingle(),
-    ]);
+    let ownerUsername = usernameFromEmail(ownerEmail);
+    const { data: emailTaken } = await supabase
+      .from("admin_users")
+      .select("id")
+      .eq("email", ownerEmail)
+      .maybeSingle();
+    if (emailTaken) {
+      return j(
+        {
+          ok: false,
+          error: "An account with this email already exists. Sign in instead.",
+          field: "email",
+        },
+        409,
+      );
+    }
+
+    // ── Uniqueness pre-check: slug + derived username handle ─────────────
+    const { data: usernameTaken } = await supabase
+      .from("admin_users")
+      .select("id")
+      .eq("username", ownerUsername)
+      .maybeSingle();
+    if (usernameTaken) {
+      ownerUsername = `${ownerUsername}-${Math.random().toString(36).slice(2, 6)}`;
+      const again = await supabase.from("admin_users").select("id").eq("username", ownerUsername).maybeSingle();
+      if (again.data) {
+        ownerUsername = `${usernameFromEmail(ownerEmail)}-${Math.random().toString(36).slice(2, 8)}`;
+      }
+    }
+
+    const { data: slugTaken } = await supabase.from("organizations").select("id").eq("slug", slug).maybeSingle();
 
     if (slugTaken) {
       return j(
         { ok: false, error: `The URL "${slug}" is already taken. Try a different one.`, field: "slug" },
-        409,
-      );
-    }
-    if (usernameTaken) {
-      return j(
-        { ok: false, error: "That username is already taken. Try a different one.", field: "username" },
         409,
       );
     }
@@ -215,7 +239,8 @@ export default async function handler(req: Request) {
         password_hash: hash,
         password_updated_at: new Date().toISOString(),
         must_change_password: false,
-        email: ownerEmail ? ownerEmail.toLowerCase() : null,
+        email: ownerEmail,
+        display_name: ownerDisplayName || null,
       })
       .select("id, username, is_admin, is_super_admin, email")
       .single();
@@ -294,7 +319,7 @@ export default async function handler(req: Request) {
           to: newUser.email,
           vars: {
             appBaseUrl: base,
-            displayName: ownerUsername,
+            displayName: ownerDisplayName || ownerEmail.split("@")[0] || ownerUsername,
             organizationName,
             verifyUrl,
             dashboardUrl,

@@ -21,7 +21,6 @@
 import {
   ADMIN_SESSION_COOKIE,
   cookieSerialize,
-  getEnv,
   parseCookies,
   signAdminSession,
 } from "../../../adminApiUtils";
@@ -39,10 +38,20 @@ export const config = { runtime: "edge" };
 const STATE_COOKIE = "cuetronix_oauth_state";
 const SIGNUP_TICKET_TTL = 10 * 60; // seconds
 
+/**
+ * OAuth redirects must return the user to the same host they started from.
+ * (A global APP_BASE_URL like https://cuetronix.com would otherwise strand
+ * users who signed in on cuetronix.app or a preview URL.)
+ */
 function baseUrl(req: Request): string {
-  const envUrl = getEnv("APP_BASE_URL");
-  if (envUrl) return envUrl.replace(/\/+$/, "");
   const u = new URL(req.url);
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  if (forwardedHost) {
+    const host = forwardedHost.split(",")[0].trim();
+    const proto = (forwardedProto || u.protocol.replace(":", "")).split(",")[0].trim();
+    return `${proto}://${host}`;
+  }
   return `${u.protocol}//${u.host}`;
 }
 
@@ -129,7 +138,6 @@ export default async function handler(req: Request) {
           google_sub: identity.sub,
           email_verified_at: byEmail.email_verified_at ?? new Date().toISOString(),
           display_name: byEmail["display_name" as keyof typeof byEmail] ?? identity.name ?? null,
-          avatar_url: identity.picture ?? null,
         })
         .eq("id", byEmail.id);
       user = byEmail;

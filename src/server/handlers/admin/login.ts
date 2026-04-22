@@ -65,25 +65,55 @@ export default async function handler(req: Request) {
     });
 
     const payload = await req.json().catch(() => ({}));
-    const username = String(payload?.username || "").trim();
+    const rawIdentifier = String(payload?.email ?? payload?.username ?? "").trim();
     const password = String(payload?.password || "");
     const isAdminLogin = !!payload?.isAdminLogin;
     const metadata = payload?.metadata ?? {};
     const totpCode = typeof payload?.totpCode === "string" ? payload.totpCode.trim() : "";
     const backupCode = typeof payload?.backupCode === "string" ? payload.backupCode.trim() : "";
 
-    if (!username || !password) {
-      return j({ ok: false, error: "Missing username/password" }, 400);
+    if (!rawIdentifier || !password) {
+      return j({ ok: false, error: "Missing email/password" }, 400);
     }
 
-    const { data: userRow, error: userErr } = await supabase
-      .from("admin_users")
-      .select(
-        "id, username, is_admin, is_super_admin, password, password_hash, must_change_password, password_version",
-      )
-      .eq("username", username)
-      .eq("is_admin", isAdminLogin)
-      .maybeSingle();
+    const loginByEmail = rawIdentifier.includes("@");
+    const emailNorm = loginByEmail ? rawIdentifier.toLowerCase() : "";
+
+    let userRow: {
+      id: string;
+      username: string;
+      is_admin: boolean | null;
+      is_super_admin: boolean | null;
+      password: string | null;
+      password_hash: string | null;
+      must_change_password: boolean | null;
+      password_version: number | null;
+    } | null = null;
+    let userErr: { message: string } | null = null;
+
+    if (loginByEmail) {
+      const r = await supabase
+        .from("admin_users")
+        .select(
+          "id, username, is_admin, is_super_admin, password, password_hash, must_change_password, password_version",
+        )
+        .eq("email", emailNorm)
+        .eq("is_admin", isAdminLogin)
+        .maybeSingle();
+      userRow = r.data;
+      userErr = r.error;
+    } else {
+      const r = await supabase
+        .from("admin_users")
+        .select(
+          "id, username, is_admin, is_super_admin, password, password_hash, must_change_password, password_version",
+        )
+        .eq("username", rawIdentifier)
+        .eq("is_admin", isAdminLogin)
+        .maybeSingle();
+      userRow = r.data;
+      userErr = r.error;
+    }
 
     let loginSuccess = false;
     let usedLegacy = false;
@@ -105,7 +135,7 @@ export default async function handler(req: Request) {
     // Best-effort logging; don't fail login on logging errors.
     try {
       await supabase.from("login_logs").insert({
-        username,
+        username: loginByEmail ? emailNorm : rawIdentifier,
         is_admin: isAdminLogin,
         login_success: loginSuccess,
         ip_address: metadata.ip || null,

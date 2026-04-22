@@ -63,7 +63,7 @@ const BrandedLogin: React.FC = () => {
   const { toast } = useToast();
   const { user, login } = useAuth();
 
-  const [username, setUsername] = React.useState("");
+  const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -114,13 +114,13 @@ const BrandedLogin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    if (!username.trim() || !password) {
-      toast({ title: "Enter your credentials", description: "Username and password are both required." });
+    if (!email.trim() || !password) {
+      toast({ title: "Enter your credentials", description: "Email and password are both required." });
       return;
     }
     setSubmitting(true);
     try {
-      const result = await login(username.trim(), password, loginType === "admin");
+      const result = await login(email.trim(), password, loginType === "admin");
       if (result.ok) {
         navigate("/dashboard", { replace: true });
       } else if ("requireTotp" in result && result.requireTotp) {
@@ -132,7 +132,7 @@ const BrandedLogin: React.FC = () => {
       } else {
         toast({
           title: "Invalid credentials",
-          description: result.error || `Check your ${loginType} username and password.`,
+          description: result.error || `Check your ${loginType} email and password.`,
           variant: "destructive",
         });
       }
@@ -156,7 +156,7 @@ const BrandedLogin: React.FC = () => {
     }
     setSubmitting(true);
     const result = await login(
-      username.trim(),
+      email.trim(),
       password,
       loginType === "admin",
       undefined,
@@ -397,18 +397,20 @@ const BrandedLogin: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="block text-[13px] font-semibold text-zinc-400 mb-1.5">Username</label>
+              <label className="block text-[13px] font-semibold text-zinc-400 mb-1.5">Email</label>
               <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                type="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="owner@yourbusiness.com"
                 className="h-11 text-sm rounded-xl"
                 style={{
                   background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.09)",
                   color: "white",
                 }}
-                autoComplete="username"
+                autoComplete="email"
                 disabled={submitting}
               />
             </div>

@@ -26,6 +26,7 @@ import {
   signAdminSession,
 } from "../../adminApiUtils";
 import { verifyOauthState } from "../../googleOauth";
+import { usernameFromEmail } from "../../lib/tenantUsername";
 import { appBaseUrl, sendEmail } from "../../email";
 
 export const config = { runtime: "edge" };
@@ -48,11 +49,6 @@ function slugifyCandidate(input: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-}
-
-function usernameFromEmail(email: string): string {
-  const local = (email.split("@")[0] || "user").toLowerCase();
-  return local.replace(/[^a-z0-9._-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "owner";
 }
 
 export default async function handler(req: Request) {
@@ -82,11 +78,18 @@ export default async function handler(req: Request) {
   const organizationName = String(body.organizationName ?? "").trim();
   const requestedSlug = String(body.slug ?? body.organizationSlug ?? "").trim();
   const requestedUsername = String(body.username ?? "").trim();
+  const displayNameOverride = String(body.displayName ?? "").trim();
   const timezone = String(body.timezone ?? "Asia/Kolkata").trim() || "Asia/Kolkata";
   const acceptedTerms = Boolean(body.acceptedTerms);
 
   if (organizationName.length < 2 || organizationName.length > 120) {
     return j({ ok: false, error: "Workspace name must be 2–120 characters." }, 400);
+  }
+  if (displayNameOverride.length > 0 && (displayNameOverride.length < 2 || displayNameOverride.length > 120)) {
+    return j(
+      { ok: false, error: "Your name must be 2–120 characters, or leave it blank." },
+      400,
+    );
   }
   if (!acceptedTerms) {
     return j({ ok: false, error: "You must accept the Terms to continue." }, 400);
@@ -191,6 +194,9 @@ export default async function handler(req: Request) {
       .select("id")
       .maybeSingle();
 
+    const resolvedDisplayName =
+      displayNameOverride || identity.name || null;
+
     const { data: newUser, error: userErr } = await supabase
       .from("admin_users")
       .insert({
@@ -203,8 +209,7 @@ export default async function handler(req: Request) {
         email: identity.email.toLowerCase(),
         email_verified_at: new Date().toISOString(),
         google_sub: identity.sub,
-        display_name: identity.name || null,
-        avatar_url: identity.picture || null,
+        display_name: resolvedDisplayName,
       })
       .select("id, username, email")
       .single();
@@ -255,7 +260,7 @@ export default async function handler(req: Request) {
         to: identity.email,
         vars: {
           appBaseUrl: base,
-          displayName: identity.name || username,
+          displayName: resolvedDisplayName || identity.email.split("@")[0] || username,
           organizationName,
           verifyUrl: `${base}/dashboard`,
           dashboardUrl: `${base}/onboarding`,

@@ -56,6 +56,7 @@ const SignupGoogle: React.FC = () => {
   const [state, setState] = useState<IdentityState>({ kind: "loading" });
 
   const [orgName, setOrgName] = useState("");
+  const [ownerDisplayName, setOwnerDisplayName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [timezone, setTimezone] = useState(
@@ -79,6 +80,7 @@ const SignupGoogle: React.FC = () => {
           setState({ kind: "ready", ...json.identity });
           if (json.identity.name) {
             setOrgName(`${json.identity.name}'s workspace`);
+            setOwnerDisplayName(json.identity.name);
           }
         } else {
           setState({ kind: "expired" });
@@ -115,6 +117,7 @@ const SignupGoogle: React.FC = () => {
           slug,
           timezone,
           acceptedTerms: true,
+          displayName: ownerDisplayName.trim() || undefined,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -205,6 +208,21 @@ const SignupGoogle: React.FC = () => {
           </p>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ownerDisplayName" className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Your name
+              </Label>
+              <Input
+                id="ownerDisplayName"
+                value={ownerDisplayName}
+                onChange={(e) => setOwnerDisplayName(e.target.value)}
+                maxLength={120}
+                placeholder="How we’ll address you"
+                className="bg-[#05060c] border-white/10 text-zinc-100 h-11"
+              />
+              <p className="text-[11px] text-zinc-500">Same as email sign-up; optional to adjust.</p>
+            </div>
+
             <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wide text-zinc-400 flex items-center gap-1.5">
                 <Gamepad2 className="h-3 w-3" />

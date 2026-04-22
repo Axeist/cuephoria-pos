@@ -41,7 +41,7 @@ const FEATURE_PILLS = [
 ];
 
 const Login = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loginType, setLoginType] = useState<'admin' | 'staff'>('admin');
@@ -69,7 +69,8 @@ const Login = () => {
     const oauthErr = params.get('oauth_error');
     if (!oauthErr) return;
     const prettyMap: Record<string, string> = {
-      no_account: "We couldn't find a Cuetronix workspace for this Google account. Start one below.",
+      no_account:
+        "No Cuetronix account exists for this Google sign-in. Create a workspace, or sign in with the email and password for your existing account.",
       account_conflict: "Another Google identity is already linked to this email.",
       invalid_state: 'Sign-in session expired. Please try again.',
       expired_state: 'Sign-in session expired. Please try again.',
@@ -260,8 +261,8 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) {
-      appToast.error('Missing credentials', 'Enter both username and password.');
+    if (!email.trim() || !password) {
+      appToast.error('Missing credentials', 'Enter both email and password.');
       return;
     }
     setIsLoading(true);
@@ -275,7 +276,7 @@ const Login = () => {
       if (capturedImage) selfieUrl = await uploadSelfie(capturedImage);
 
       const enhancedMetadata = { ...loginMetadata, selfieUrl };
-      const result = await login(username, password, isAdminLogin, enhancedMetadata);
+      const result = await login(email, password, isAdminLogin, enhancedMetadata);
 
       if (result.ok) {
         if (videoRef.current && videoRef.current.srcObject) {
@@ -296,7 +297,7 @@ const Login = () => {
       } else {
         appToast.error(
           'Invalid credentials',
-          result.error || `Check your ${isAdminLogin ? 'admin' : 'staff'} username and password.`,
+          result.error || `Check your ${isAdminLogin ? 'admin' : 'staff'} email and password.`,
         );
       }
     } catch {
@@ -308,7 +309,7 @@ const Login = () => {
 
   const handleTotpSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!username || !password) {
+    if (!email.trim() || !password) {
       setNeedsTotp(false);
       return;
     }
@@ -320,7 +321,7 @@ const Login = () => {
     setIsLoading(true);
     const metadata = cachedMetadata ?? {};
     const result = await login(
-      username,
+      email,
       password,
       loginType === 'admin',
       metadata,
@@ -555,13 +556,15 @@ const Login = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-[0.12em] text-gray-400">
-                    Username
+                    Email
                   </label>
                   <Input
-                    type="text"
-                    placeholder="anish_owner"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="owner@yourbusiness.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="h-11 rounded-xl border-white/10 bg-white/[0.04] text-sm text-white placeholder:text-gray-600 focus-visible:border-fuchsia-300/40 focus-visible:ring-fuchsia-500/25"
                   />
                 </div>
