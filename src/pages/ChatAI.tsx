@@ -284,7 +284,6 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
   }, [threads.length]);
 
   // ---- Streaming state ------------------------------------------------------
-  const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -293,16 +292,11 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Scroll on new messages only (not every delta) — streaming scroll is
+  // handled inside the batched rAF flush below.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages]);
-
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(200, ta.scrollHeight)}px`;
-  }, [input]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, [messages.length]);
 
   const activeModel = useMemo(() => getModelById(settings.modelId), [settings.modelId]);
 
@@ -330,8 +324,8 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
   }, []);
 
   const sendMessage = useCallback(
-    async (prompt?: string) => {
-      const text = (prompt ?? input).trim();
+    async (prompt: string) => {
+      const text = prompt.trim();
       if (!text || isStreaming) return;
       if (!snapshot) {
         setSnapshotError("Business data not loaded yet — please wait a moment and retry.");
@@ -371,7 +365,6 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
 
       const nextHistory = [...messages, userMsg, assistantPlaceholder];
       setMessages(nextHistory);
-      setInput("");
       setIsStreaming(true);
 
       const system = buildSystemPrompt(
@@ -388,6 +381,32 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
       const controller = new AbortController();
       abortRef.current = controller;
 
+      // ---- Streaming batcher ------------------------------------------------
+      // Instead of calling setMessages on every SSE token (which re-renders
+      // every bubble and re-parses markdown for each one), we accumulate
+      // text in a ref and flush once per animation frame. That's ~10x fewer
+      // React renders during typical responses and is the single biggest
+      // INP win on this page.
+      let pendingDelta = "";
+      let rafId = 0;
+      const flush = () => {
+        rafId = 0;
+        if (!pendingDelta) return;
+        const chunk = pendingDelta;
+        pendingDelta = "";
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, content: m.content + chunk } : m,
+          ),
+        );
+        // Use scrollTo with 'auto' for cheap, jank-free follow.
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      };
+      const scheduleFlush = () => {
+        if (rafId) return;
+        rafId = window.requestAnimationFrame(flush);
+      };
+
       try {
         const result = await streamChatCompletion({
           messages: turns,
@@ -397,15 +416,24 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
           temperature: settings.temperature,
           signal: controller.signal,
           onDelta: (delta) => {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m)),
-            );
+            pendingDelta += delta;
+            scheduleFlush();
           },
         });
 
+        // Drain any tail that hasn't flushed yet before we mark complete.
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
+        const tail = pendingDelta;
+        pendingDelta = "";
+
         setMessages((prev) => {
           const finalMsgs = prev.map((m) =>
-            m.id === assistantId ? { ...m, streaming: false } : m,
+            m.id === assistantId
+              ? { ...m, content: m.content + tail, streaming: false }
+              : m,
           );
           if (threadId) persist(threadId, finalMsgs);
           return finalMsgs;
@@ -420,6 +448,12 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
           });
         }
       } catch (err: unknown) {
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
+        const tail = pendingDelta;
+        pendingDelta = "";
         const aborted = err instanceof DOMException && err.name === "AbortError";
         setMessages((prev) => {
           const finalMsgs = prev.map((m) =>
@@ -429,7 +463,7 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
                   streaming: false,
                   error: !aborted,
                   content: aborted
-                    ? m.content || "_(stopped)_"
+                    ? (m.content + tail) || "_(stopped)_"
                     : `⚠ ${err instanceof Error ? err.message : "Unknown error"}`,
                 }
               : m,
@@ -447,7 +481,6 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
       activeThreadId,
       buildHistoryTurns,
       createThread,
-      input,
       isStreaming,
       messages,
       persist,
@@ -463,52 +496,52 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
     ],
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+  const handleStop = useCallback(() => abortRef.current?.abort(), []);
 
-  const handleStop = () => abortRef.current?.abort();
-
-  const handleNewThread = () => {
+  const handleNewThread = useCallback(() => {
     if (isStreaming) abortRef.current?.abort();
     setActiveThreadId(null);
     setMessages([]);
-    textareaRef.current?.focus();
-  };
+  }, [isStreaming]);
 
-  const handleSelectThread = (id: string) => {
-    if (isStreaming) abortRef.current?.abort();
-    const t = threads.find((x) => x.id === id);
-    if (!t) return;
-    setActiveThreadId(t.id);
-    setMessages(
-      t.messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        timestamp: new Date(m.timestamp),
-        error: m.error,
-      })),
-    );
-  };
+  const handleSelectThread = useCallback(
+    (id: string) => {
+      if (isStreaming) abortRef.current?.abort();
+      const t = threads.find((x) => x.id === id);
+      if (!t) return;
+      setActiveThreadId(t.id);
+      setMessages(
+        t.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.timestamp),
+          error: m.error,
+        })),
+      );
+    },
+    [isStreaming, threads],
+  );
 
-  const handleDeleteThread = (id: string) => {
-    removeThread(id);
-    if (activeThreadId === id) {
-      setActiveThreadId(null);
-      setMessages([]);
-    }
-  };
+  const handleDeleteThread = useCallback(
+    (id: string) => {
+      removeThread(id);
+      if (activeThreadId === id) {
+        setActiveThreadId(null);
+        setMessages([]);
+      }
+    },
+    [activeThreadId, removeThread],
+  );
 
-  const handleClearCurrent = () => {
+  const handleClearCurrent = useCallback(() => {
     if (!activeThreadId) return;
     handleDeleteThread(activeThreadId);
-  };
+  }, [activeThreadId, handleDeleteThread]);
 
-  const handleCopy = async (id: string, text: string) => {
+  // Stable reference so ChatBubble's React.memo holds across renders and
+  // only the currently-streaming bubble gets re-rendered.
+  const handleCopy = useCallback(async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(id);
@@ -516,7 +549,7 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
     } catch {
       /* noop */
     }
-  };
+  }, []);
 
   const handlePopout = () => {
     const w = 1080;
@@ -682,11 +715,8 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
 
         {/* Composer */}
         <Composer
-          value={input}
-          onChange={setInput}
-          onSubmit={() => sendMessage()}
+          onSubmit={sendMessage}
           onStop={handleStop}
-          onKeyDown={handleKeyDown}
           textareaRef={textareaRef}
           isStreaming={isStreaming}
           snapshotLoading={snapshotLoading}
@@ -706,12 +736,15 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
 // Brand avatar — glowing, breathing "C" tile
 // ============================================================================
 
-const BrandAvatar: React.FC = () => {
+const BrandAvatar: React.FC = React.memo(() => {
   const branding = useTenantBrandingOptional();
   const logo = branding?.brand?.assets?.logoLightUrl ?? null;
 
+  // Breathing glow moved from animated box-shadow (forces a paint on the
+  // whole header every frame) to a static CSS opacity pulse on a blurred
+  // pseudo layer — GPU-only, no paint cost.
   return (
-    <motion.div
+    <div
       className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl text-white"
       style={{
         background:
@@ -719,19 +752,20 @@ const BrandAvatar: React.FC = () => {
         boxShadow:
           "0 10px 24px -8px hsl(var(--primary) / 0.55), inset 0 1px 0 rgba(255,255,255,0.2)",
       }}
-      animate={{
-        boxShadow: [
-          "0 10px 24px -8px hsl(var(--primary) / 0.45), inset 0 1px 0 rgba(255,255,255,0.2)",
-          "0 14px 32px -6px hsl(var(--primary) / 0.75), inset 0 1px 0 rgba(255,255,255,0.3)",
-          "0 10px 24px -8px hsl(var(--primary) / 0.45), inset 0 1px 0 rgba(255,255,255,0.2)",
-        ],
-      }}
-      transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
     >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -inset-2 rounded-2xl animate-pulse"
+        style={{
+          background:
+            "radial-gradient(circle, hsl(var(--primary) / 0.35) 0%, transparent 65%)",
+          willChange: "opacity",
+        }}
+      />
       {logo ? (
-        <img src={logo} alt="" className="h-6 w-6 object-contain" />
+        <img src={logo} alt="" className="relative h-6 w-6 object-contain" />
       ) : (
-        <Sparkles className="h-5 w-5" />
+        <Sparkles className="relative h-5 w-5" />
       )}
       <div
         aria-hidden
@@ -741,9 +775,10 @@ const BrandAvatar: React.FC = () => {
             "radial-gradient(120% 60% at 50% 0%, rgba(255,255,255,0.35) 0%, transparent 60%)",
         }}
       />
-    </motion.div>
+    </div>
   );
-};
+});
+BrandAvatar.displayName = "BrandAvatar";
 
 // ============================================================================
 // Icon button
@@ -889,11 +924,8 @@ const Welcome: React.FC<WelcomeProps> = ({ userName, disabled, onPick }) => {
 // ============================================================================
 
 interface ComposerProps {
-  value: string;
-  onChange: (v: string) => void;
-  onSubmit: () => void;
+  onSubmit: (text: string) => void;
   onStop: () => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   isStreaming: boolean;
   snapshotLoading: boolean;
@@ -903,12 +935,16 @@ interface ComposerProps {
   snapshotGeneratedAt: string | undefined;
 }
 
-const Composer: React.FC<ComposerProps> = ({
-  value,
-  onChange,
+/**
+ * Self-contained composer. It owns its own input state so keystrokes do
+ * NOT re-render the messages list, sidebar, or header — a big INP win
+ * at the expense of a tiny amount of plumbing. We also wrap in
+ * React.memo so the composer only re-renders when streaming state,
+ * snapshot metadata, or model settings actually change.
+ */
+const ComposerInner: React.FC<ComposerProps> = ({
   onSubmit,
   onStop,
-  onKeyDown,
   textareaRef,
   isStreaming,
   snapshotLoading,
@@ -917,6 +953,38 @@ const Composer: React.FC<ComposerProps> = ({
   maxTokens,
   snapshotGeneratedAt,
 }) => {
+  const [value, setValue] = useState("");
+  const canSend = value.trim().length > 0 && !snapshotLoading;
+
+  const handleSubmit = useCallback(() => {
+    const text = value.trim();
+    if (!text) return;
+    onSubmit(text);
+    setValue("");
+  }, [value, onSubmit]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit],
+  );
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setValue(e.target.value);
+      const ta = textareaRef.current;
+      if (ta) {
+        ta.style.height = "auto";
+        ta.style.height = `${Math.min(200, ta.scrollHeight)}px`;
+      }
+    },
+    [textareaRef],
+  );
+
   return (
     <div
       className="relative border-t border-white/5 backdrop-blur-xl"
@@ -926,24 +994,18 @@ const Composer: React.FC<ComposerProps> = ({
       }}
     >
       <div className="mx-auto max-w-3xl px-3 py-3 sm:px-5">
-        <motion.div
-          animate={{
-            boxShadow: isStreaming
-              ? "0 0 0 3px hsl(var(--primary) / 0.18), 0 18px 40px -20px hsl(var(--primary) / 0.6)"
-              : "0 0 0 0px hsl(var(--primary) / 0), 0 10px 30px -22px rgba(0,0,0,0.8)",
-          }}
-          transition={{ duration: 0.25 }}
+        <div
           className={`group relative rounded-2xl border transition-colors ${
             isStreaming
-              ? "border-[hsl(var(--primary)/0.45)] bg-white/[0.05]"
-              : "border-white/10 bg-white/[0.04] focus-within:border-[hsl(var(--primary)/0.55)]"
+              ? "border-[hsl(var(--primary)/0.45)] bg-white/[0.05] shadow-[0_0_0_3px_hsl(var(--primary)/0.18),0_18px_40px_-20px_hsl(var(--primary)/0.6)]"
+              : "border-white/10 bg-white/[0.04] focus-within:border-[hsl(var(--primary)/0.55)] shadow-[0_10px_30px_-22px_rgba(0,0,0,0.8)]"
           }`}
         >
           <Textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
             placeholder={
               snapshotLoading
                 ? "Loading business data…"
@@ -954,51 +1016,33 @@ const Composer: React.FC<ComposerProps> = ({
             className="min-h-[46px] resize-none border-0 bg-transparent px-4 py-3 pr-14 text-[14px] text-white placeholder:text-white/35 focus-visible:ring-0"
           />
           <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
-            <AnimatePresence initial={false} mode="wait">
-              {isStreaming ? (
-                <motion.div
-                  key="stop"
-                  initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.7 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <Button
-                    onClick={onStop}
-                    size="icon"
-                    className="h-9 w-9 rounded-xl bg-white/10 text-white hover:bg-white/15"
-                    title="Stop"
-                  >
-                    <Square className="h-4 w-4" fill="currentColor" />
-                  </Button>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="send"
-                  initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.7 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <Button
-                    onClick={onSubmit}
-                    disabled={!value.trim() || snapshotLoading}
-                    size="icon"
-                    className="h-9 w-9 rounded-xl text-white disabled:opacity-40"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
-                      boxShadow: "0 10px 22px -6px hsl(var(--primary) / 0.55)",
-                    }}
-                    title="Send"
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {isStreaming ? (
+              <Button
+                onClick={onStop}
+                size="icon"
+                className="h-9 w-9 rounded-xl bg-white/10 text-white hover:bg-white/15"
+                title="Stop"
+              >
+                <Square className="h-4 w-4" fill="currentColor" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSubmit}
+                disabled={!canSend}
+                size="icon"
+                className="h-9 w-9 rounded-xl text-white disabled:opacity-40"
+                style={{
+                  background:
+                    "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
+                  boxShadow: "0 10px 22px -6px hsl(var(--primary) / 0.55)",
+                }}
+                title="Send"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-        </motion.div>
+        </div>
 
         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] text-white/35">
           <span>
@@ -1019,5 +1063,7 @@ const Composer: React.FC<ComposerProps> = ({
     </div>
   );
 };
+
+const Composer = React.memo(ComposerInner);
 
 export default ChatAI;

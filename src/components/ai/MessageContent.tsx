@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { memo, useMemo } from "react";
 
 /**
  * Tiny, dependency-free renderer for the subset of Markdown that Cuephoria
@@ -183,12 +183,31 @@ function parseBlocks(src: string): Block[] {
   return blocks;
 }
 
-export function MessageContent({ content, streaming }: MessageContentProps) {
-  const blocks = useMemo(() => parseBlocks(content), [content]);
+function MessageContentInner({ content, streaming }: MessageContentProps) {
+  // Only parse markdown once streaming has finished. Re-parsing every
+  // single streamed token was the dominant contributor to INP jank
+  // (200-300ms blocks) — the user gets the final formatted version the
+  // instant streaming ends.
+  const blocks = useMemo(
+    () => (streaming ? null : parseBlocks(content)),
+    [content, streaming],
+  );
+
+  if (streaming) {
+    return (
+      <div className="text-[14px] leading-relaxed text-white/90">
+        <p className="whitespace-pre-wrap">{content}</p>
+        <span
+          aria-hidden
+          className="ml-0.5 inline-block h-4 w-1.5 translate-y-[2px] rounded-[1px] bg-cuephoria-lightpurple align-middle animate-pulse"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2.5 text-[14px] leading-relaxed text-white/90">
-      {blocks.map((b, idx) => {
+      {(blocks ?? []).map((b, idx) => {
         switch (b.type) {
           case "h1":
             return (
@@ -249,14 +268,18 @@ export function MessageContent({ content, streaming }: MessageContentProps) {
             );
         }
       })}
-      {streaming && (
-        <span
-          aria-hidden
-          className="inline-block h-4 w-1.5 translate-y-[2px] rounded-[1px] bg-cuephoria-lightpurple align-middle animate-pulse"
-        />
-      )}
     </div>
   );
 }
+
+/**
+ * Re-rendering the whole markdown tree on every streaming token is the
+ * single biggest source of INP jank on this page. Memoise strictly on
+ * (content, streaming) so bubbles whose content didn't change in this
+ * frame skip rendering entirely.
+ */
+export const MessageContent = memo(MessageContentInner, (a, b) => {
+  return a.content === b.content && a.streaming === b.streaming;
+});
 
 export default MessageContent;

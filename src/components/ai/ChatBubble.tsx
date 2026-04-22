@@ -10,7 +10,7 @@
  * Everything uses the active tenant's CSS tokens (`--primary`,
  * `--brand-primary-hex`, …) so re-branding propagates instantly.
  */
-import React from "react";
+import React, { memo } from "react";
 import { motion } from "framer-motion";
 import { Check, Copy } from "lucide-react";
 import { MessageContent } from "./MessageContent";
@@ -45,7 +45,7 @@ const bubbleSpring = {
   mass: 0.9,
 };
 
-export const ChatBubble: React.FC<ChatBubbleProps> = ({
+const ChatBubbleInner: React.FC<ChatBubbleProps> = ({
   message,
   userInitial,
   onCopy,
@@ -58,7 +58,6 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   if (isUser) {
     return (
       <motion.div
-        layout
         initial={bubbleMotion.initial}
         animate={bubbleMotion.animate}
         exit={bubbleMotion.exit}
@@ -108,15 +107,16 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
 
   return (
     <motion.div
-      layout
       initial={bubbleMotion.initial}
       animate={bubbleMotion.animate}
       exit={bubbleMotion.exit}
       transition={bubbleSpring}
       className="flex justify-start gap-2.5"
     >
-      {/* Assistant avatar — subtle breathing glow while streaming */}
-      <motion.div
+      {/* Assistant avatar — breathing glow uses opacity on a pseudo
+          layer instead of animating box-shadow every frame (shadow
+          animation forces paint on the entire card). */}
+      <div
         className="mt-0.5 relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white shadow-md"
         style={{
           background:
@@ -124,19 +124,19 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           boxShadow:
             "0 6px 20px -6px hsl(var(--primary) / 0.55), inset 0 1px 0 rgba(255,255,255,0.2)",
         }}
-        animate={
-          message.streaming
-            ? { boxShadow: [
-                "0 6px 20px -6px hsl(var(--primary) / 0.35), inset 0 1px 0 rgba(255,255,255,0.2)",
-                "0 8px 28px -4px hsl(var(--primary) / 0.7), inset 0 1px 0 rgba(255,255,255,0.3)",
-                "0 6px 20px -6px hsl(var(--primary) / 0.35), inset 0 1px 0 rgba(255,255,255,0.2)",
-              ] }
-            : undefined
-        }
-        transition={{ duration: 1.6, repeat: message.streaming ? Infinity : 0 }}
       >
-        {/* Cuephoria 'C' glyph */}
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+        {message.streaming && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-[-3px] rounded-full animate-pulse"
+            style={{
+              background:
+                "radial-gradient(circle, hsl(var(--primary) / 0.45) 0%, transparent 70%)",
+              willChange: "opacity",
+            }}
+          />
+        )}
+        <svg viewBox="0 0 24 24" className="relative h-4 w-4" fill="none" aria-hidden="true">
           <path
             d="M16 7a5 5 0 1 0 0 10"
             stroke="currentColor"
@@ -144,7 +144,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
             strokeLinecap="round"
           />
         </svg>
-      </motion.div>
+      </div>
 
       <div className="relative max-w-[90%] sm:max-w-[82%]">
         <div
@@ -212,5 +212,24 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
     </motion.div>
   );
 };
+
+/**
+ * Memoised bubble. Without this, a single streaming delta re-renders
+ * every previously-completed bubble in the thread, which was the
+ * headline cause of the 200-300ms INP blocks.
+ */
+export const ChatBubble = memo(ChatBubbleInner, (prev, next) => {
+  const m1 = prev.message;
+  const m2 = next.message;
+  return (
+    m1.id === m2.id &&
+    m1.content === m2.content &&
+    m1.streaming === m2.streaming &&
+    m1.error === m2.error &&
+    prev.userInitial === next.userInitial &&
+    prev.copied === next.copied &&
+    prev.onCopy === next.onCopy
+  );
+});
 
 export default ChatBubble;

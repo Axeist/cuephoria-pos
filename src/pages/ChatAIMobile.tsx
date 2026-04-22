@@ -218,8 +218,8 @@ const ChatAIMobile: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, [messages.length]);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -310,6 +310,27 @@ const ChatAIMobile: React.FC = () => {
       const controller = new AbortController();
       abortRef.current = controller;
 
+      // Batch streaming deltas via requestAnimationFrame — without this,
+      // mobile devices (already weaker) can see 300ms+ INP blocks as
+      // every token triggers a full list re-render + markdown re-parse.
+      let pendingDelta = "";
+      let rafId = 0;
+      const flush = () => {
+        rafId = 0;
+        if (!pendingDelta) return;
+        const chunk = pendingDelta;
+        pendingDelta = "";
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, content: m.content + chunk } : m,
+          ),
+        );
+      };
+      const scheduleFlush = () => {
+        if (rafId) return;
+        rafId = window.requestAnimationFrame(flush);
+      };
+
       try {
         const result = await streamChatCompletion({
           messages: turns,
@@ -319,15 +340,23 @@ const ChatAIMobile: React.FC = () => {
           temperature: settings.temperature,
           signal: controller.signal,
           onDelta: (delta) => {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m)),
-            );
+            pendingDelta += delta;
+            scheduleFlush();
           },
         });
 
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
+        const tail = pendingDelta;
+        pendingDelta = "";
+
         setMessages((prev) => {
           const finalMsgs = prev.map((m) =>
-            m.id === assistantId ? { ...m, streaming: false } : m,
+            m.id === assistantId
+              ? { ...m, content: m.content + tail, streaming: false }
+              : m,
           );
           if (threadId) persist(threadId, finalMsgs);
           return finalMsgs;
@@ -342,6 +371,12 @@ const ChatAIMobile: React.FC = () => {
           });
         }
       } catch (err: unknown) {
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
+        const tail = pendingDelta;
+        pendingDelta = "";
         const aborted = err instanceof DOMException && err.name === "AbortError";
         setMessages((prev) => {
           const finalMsgs = prev.map((m) =>
@@ -351,7 +386,7 @@ const ChatAIMobile: React.FC = () => {
                   streaming: false,
                   error: !aborted,
                   content: aborted
-                    ? m.content || "_(stopped)_"
+                    ? (m.content + tail) || "_(stopped)_"
                     : `⚠ ${err instanceof Error ? err.message : "Unknown error"}`,
                 }
               : m,
