@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Gamepad2, LogIn, Menu, Sparkles, X } from "lucide-react";
+import { ArrowRight, Gamepad2, LogIn, Menu, Scale, Sparkles, X } from "lucide-react";
 
-const NAV = [
+type NavItem =
+  | { label: string; id: string; href?: never }
+  | { label: string; href: string; id?: never };
+
+const NAV: NavItem[] = [
   { label: "Product", id: "modules" },
   { label: "Workflow", id: "workflow" },
   { label: "Security", id: "trust" },
   { label: "Pricing", id: "pricing" },
   { label: "Solutions", id: "solutions" },
+  { label: "Compare", href: "/compare" },
 ];
 
 /**
@@ -27,6 +32,15 @@ const Header: React.FC = () => {
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     setMobileOpen(false);
+  };
+
+  const handleNav = (item: NavItem) => {
+    if (item.href) {
+      navigate(item.href);
+      setMobileOpen(false);
+      return;
+    }
+    if (item.id) scrollTo(item.id);
   };
 
   useEffect(() => {
@@ -130,16 +144,26 @@ const Header: React.FC = () => {
 
               {/* Center nav */}
               <nav className="hidden items-center gap-0.5 lg:flex">
-                {NAV.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => scrollTo(item.id)}
-                    className="relative rounded-lg px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:text-white"
-                  >
-                    <span className="relative z-10">{item.label}</span>
-                    <span className="absolute inset-0 rounded-lg bg-white/0 transition-colors hover:bg-white/[0.06]" />
-                  </button>
-                ))}
+                {NAV.map((item) => {
+                  const isRoute = Boolean(item.href);
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => handleNav(item)}
+                      className={`relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                        isRoute
+                          ? "text-fuchsia-200 hover:text-white"
+                          : "text-gray-300 hover:text-white"
+                      }`}
+                    >
+                      <span className="relative z-10 inline-flex items-center gap-1.5">
+                        {isRoute && <Scale size={11} className="text-fuchsia-300" />}
+                        {item.label}
+                      </span>
+                      <span className="absolute inset-0 rounded-lg bg-white/0 transition-colors hover:bg-white/[0.06]" />
+                    </button>
+                  );
+                })}
                 <div className="mx-1 h-4 w-px bg-white/10" />
                 <button
                   onClick={() => scrollTo("book-call")}
@@ -211,15 +235,23 @@ const Header: React.FC = () => {
                       "0 20px 40px -18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
                   }}
                 >
-                  {NAV.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => scrollTo(item.id)}
-                      className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-300 transition-colors hover:bg-white/[0.05] hover:text-white"
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  {NAV.map((item) => {
+                    const isRoute = Boolean(item.href);
+                    return (
+                      <button
+                        key={item.label}
+                        onClick={() => handleNav(item)}
+                        className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-white/[0.05] ${
+                          isRoute ? "text-fuchsia-200 hover:text-white" : "text-gray-300 hover:text-white"
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          {isRoute && <Scale size={12} className="text-fuchsia-300" />}
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                   <button
                     onClick={() => scrollTo("book-call")}
                     className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-fuchsia-200 transition-colors hover:bg-white/[0.05] hover:text-white"

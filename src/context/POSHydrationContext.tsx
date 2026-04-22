@@ -24,11 +24,11 @@ const POSHydrationContext = createContext<POSHydrationFlags | null>(null);
 function flagsForPath(pathname: string): POSHydrationFlags {
   const p = pathname.split('?')[0] || '';
 
-  const loadCustomers =
-    p.startsWith('/dashboard') ||
-    p.startsWith('/pos') ||
-    p.startsWith('/customers') ||
-    p.startsWith('/reports');
+  // Customers must be available everywhere the operator can start a session,
+  // look up a member, or process cart actions (stations, cafe, bookings, POS,
+  // dashboard, reports, etc.). Keeping this always-on avoids "No Customers
+  // Available" on Stations and similar screens.
+  const loadCustomers = true;
 
   const loadBills =
     p.startsWith('/dashboard') ||

@@ -104,15 +104,6 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     return (dayOfWeek >= 1 && dayOfWeek <= 5) && (currentHour >= 11 && currentHour < 16);
   };
 
-  /** After 12:00 (noon), walk-in session starts cannot use most booking coupons — customers should book online. HH99 remains available during Happy Hours only. */
-  const isWalkInCouponRestrictedAfterNoon = () => new Date().getHours() >= 12;
-
-  const walkInCouponMode = (): "full" | "hh99_only" | "none" => {
-    if (!isWalkInCouponRestrictedAfterNoon()) return "full";
-    if (isHappyHour()) return "hh99_only";
-    return "none";
-  };
-
   // Calculate final rate based on coupon
   useEffect(() => {
     if (!selectedCoupon || selectedCoupon === 'none') {
@@ -167,34 +158,6 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setFinalRate(Math.round(newRate));
   }, [selectedCoupon, baseRate]);
 
-  useEffect(() => {
-    if (!open) return;
-    const mode = walkInCouponMode();
-    if (mode === "full") return;
-    setSelectedCoupon((prev) => {
-      if (mode === "hh99_only") {
-        if (prev === "HH99" || prev === "none") return prev;
-        queueMicrotask(() =>
-          toast({
-            title: "Coupon not available at counter now",
-            description:
-              "After 12 PM, only HH99 applies during Happy Hours. Other coupons require booking online.",
-          })
-        );
-        return "none";
-      }
-      if (prev === "none") return prev;
-      queueMicrotask(() =>
-        toast({
-          title: "Coupon not available at counter now",
-          description:
-            "After 12 PM outside Happy Hours, booking coupons are only honored via online booking.",
-        })
-      );
-      return "none";
-    });
-  }, [open]);
-
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
   };
@@ -229,8 +192,6 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
     setCustomerSearchQuery('');
     onOpenChange(false);
   };
-
-  const couponWalkInMode = walkInCouponMode();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -360,84 +321,38 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
                 </div>
               )}
 
-              {couponWalkInMode !== "full" && !lateNightLocked && (
-                <div className="bg-sky-50 dark:bg-sky-950/25 border border-sky-200 dark:border-sky-800 rounded-md p-3 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-sky-600 dark:text-sky-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-sky-900 dark:text-sky-100">
-                    {couponWalkInMode === "none" ? (
-                      <>
-                        <strong>After 12 PM:</strong> booking coupons (CUEPHORIA, NIT35, etc.) are not applied at the counter — ask the customer to{" "}
-                        <strong>book and pay online</strong> to use them. Walk-in pays regular rates unless Happy Hour applies below.
-                      </>
-                    ) : (
-                      <>
-                        <strong>After 12 PM:</strong> only <strong>HH99</strong> may apply at the counter during Happy Hours. Other coupons require an{" "}
-                        <strong>online booking</strong>.
-                      </>
-                    )}
-                  </p>
-                </div>
-              )}
               
               <Select
                 value={selectedCoupon}
-                onValueChange={(v) => {
-                  if (couponWalkInMode === "full") {
-                    setSelectedCoupon(v);
-                    return;
-                  }
-                  if (couponWalkInMode === "none" && v !== "none") {
-                    toast({
-                      title: "Use online booking for this coupon",
-                      description: "After 12 PM outside Happy Hours, walk-in sessions cannot use booking coupons. Direct customers to cuephoria.in to book online.",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  if (couponWalkInMode === "hh99_only" && v !== "none" && v !== "HH99") {
-                    toast({
-                      title: "Coupon only via online booking",
-                      description: "After 12 PM, only HH99 is available at the counter during Happy Hours. Other codes require booking online.",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  setSelectedCoupon(v);
-                }}
-                disabled={couponWalkInMode === "none" || lateNightLocked}
+                onValueChange={setSelectedCoupon}
+                disabled={lateNightLocked}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="No coupon (regular price)" />
                 </SelectTrigger>
                 <SelectContent className="z-[10000]">
                   <SelectItem value="none">No coupon - Regular Price</SelectItem>
-                  {(couponWalkInMode === "full" || couponWalkInMode === "hh99_only") && (
-                    <SelectItem value="HH99">
-                      🎮 HH99 - ₹99/hour (Mon-Fri 11AM-4PM)
-                    </SelectItem>
-                  )}
-                  {couponWalkInMode === "full" && (
-                    <>
-                      <SelectItem value="CUEPHORIA20">
-                        🎉 CUEPHORIA20 - 20% OFF
-                      </SelectItem>
-                      <SelectItem value="CUEPHORIA35">
-                        🎓 CUEPHORIA35 - 35% OFF (Student ID Required)
-                      </SelectItem>
-                      <SelectItem value="NIT35">
-                        🏫 NIT35 - 35% OFF (NIT Students)
-                      </SelectItem>
-                      <SelectItem value="AAVEG50">
-                        🎓 AAVEG50 - 50% OFF (NIT College Freshers)
-                      </SelectItem>
-                      <SelectItem value="GAMEINSIDER50">
-                        🎮 GAMEINSIDER50 - 50% OFF (GameInsider Enrollment Required)
-                      </SelectItem>
-                      <SelectItem value="AXEIST">
-                        👑 AXEIST - 100% OFF (VIP)
-                      </SelectItem>
-                    </>
-                  )}
+                  <SelectItem value="HH99">
+                    🎮 HH99 - ₹99/hour (Mon-Fri 11AM-4PM)
+                  </SelectItem>
+                  <SelectItem value="CUEPHORIA20">
+                    🎉 CUEPHORIA20 - 20% OFF
+                  </SelectItem>
+                  <SelectItem value="CUEPHORIA35">
+                    🎓 CUEPHORIA35 - 35% OFF (Student ID Required)
+                  </SelectItem>
+                  <SelectItem value="NIT35">
+                    🏫 NIT35 - 35% OFF (NIT Students)
+                  </SelectItem>
+                  <SelectItem value="AAVEG50">
+                    🎓 AAVEG50 - 50% OFF (NIT College Freshers)
+                  </SelectItem>
+                  <SelectItem value="GAMEINSIDER50">
+                    🎮 GAMEINSIDER50 - 50% OFF (GameInsider Enrollment Required)
+                  </SelectItem>
+                  <SelectItem value="AXEIST">
+                    👑 AXEIST - 100% OFF (VIP)
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
