@@ -13,19 +13,16 @@
  *      trial_ends_at=now()+14d).
  *   6. audit_log entry.
  *
- * Returns a session cookie on success, so the signup page can redirect
- * straight to /onboarding without a second login round-trip.
+ * Returns success without issuing a session cookie. New owners must verify
+ * their email before first login.
  *
  * Runs on Vercel Edge.
  */
 
 import { createClient } from "@supabase/supabase-js";
 import {
-  ADMIN_SESSION_COOKIE,
-  cookieSerialize,
   getEnv,
   j,
-  signAdminSession,
 } from "../../adminApiUtils";
 import { hashPassword } from "../../passwordUtils";
 import { usernameFromEmail } from "../../lib/tenantUsername";
@@ -108,7 +105,7 @@ export default async function handler(req: Request) {
 
   // Derive a slug. Accept whatever the client submitted if valid; otherwise
   // fall back to slugify(organizationName).
-  let slug = requestedSlugRaw ? slugifyCandidate(requestedSlugRaw) : slugifyCandidate(organizationName);
+  const slug = requestedSlugRaw ? slugifyCandidate(requestedSlugRaw) : slugifyCandidate(organizationName);
   if (!SLUG_RE.test(slug)) {
     return j(
       {
@@ -295,6 +292,7 @@ export default async function handler(req: Request) {
     }
 
     // ── Welcome + verification email (best-effort, never blocks signup)
+    let verificationEmailDispatched = false;
     if (newUser.email) {
       try {
         const base = appBaseUrl();
@@ -329,11 +327,11 @@ export default async function handler(req: Request) {
           adminUserId: newUser.id,
           supabase,
         });
+        verificationEmailDispatched = true;
       } catch (mailErr) {
         console.warn("signup: welcome email failed", (mailErr as Error).message);
       }
     }
-
     // ── Audit log ────────────────────────────────────────────────────────
     await supabase.from("audit_log").insert({
       actor_type: "admin_user",
@@ -351,37 +349,12 @@ export default async function handler(req: Request) {
       },
     });
 
-    // ── Issue the session cookie so the client redirects into /onboarding
-    //    immediately without a second auth round-trip.
-    const sessionToken = await signAdminSession(
-      {
-        id: newUser.id,
-        username: newUser.username,
-        isAdmin: true,
-        isSuperAdmin: false,
-        passwordVersion: 1,
-      },
-      8 * 60 * 60,
-    );
-
-    const setCookie = cookieSerialize(ADMIN_SESSION_COOKIE, sessionToken, {
-      maxAgeSeconds: 8 * 60 * 60,
-      httpOnly: true,
-      secure: true,
-      sameSite: "Lax",
-      path: "/",
-    });
-
     return j(
       {
         ok: true,
-        user: {
-          id: newUser.id,
-          username: newUser.username,
-          isAdmin: true,
-          isSuperAdmin: false,
-          mustChangePassword: false,
-        },
+        verificationRequired: true,
+        email: newUser.email,
+        verificationEmailDispatched,
         organization: {
           id: newOrg.id,
           slug: newOrg.slug,
@@ -393,7 +366,6 @@ export default async function handler(req: Request) {
         },
       },
       201,
-      { "set-cookie": setCookie },
     );
   } catch (err) {
     console.error("tenant signup error:", err);

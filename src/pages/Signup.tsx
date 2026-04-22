@@ -2,8 +2,8 @@
  * /signup — self-service tenant provisioning.
  *
  * Owner fills in a single-page form: workspace name (slug auto-suggests),
- * your name, email + password, timezone. On success we get a session
- * cookie back from /api/tenant/signup and redirect into onboarding.
+ * your name, email + password, timezone. On success we require email
+ * verification before first login.
  *
  * Visual language matches the landing / login page: 3D ambient scene,
  * framer-motion entrance animations, glass card.
@@ -34,7 +34,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { appToast } from "@/lib/appToast";
 import GoogleButton from "@/components/auth/GoogleButton";
 import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
-import SplashScreen from "@/components/SplashScreen";
 
 type PasswordRule = { id: string; label: string; test: (pw: string) => boolean };
 
@@ -87,10 +86,10 @@ export default function Signup() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null);
-  // When the server has created the tenant, we flip this to `true` to render
-  // the futuristic "Access Granted" splash before dropping the owner into
-  // onboarding — so the transition feels premium instead of abrupt.
-  const [showSuccessSplash, setShowSuccessSplash] = useState(false);
+  const [createdEmail, setCreatedEmail] = useState<string | null>(null);
+  const [verificationEmailDispatched, setVerificationEmailDispatched] = useState(true);
+  const [resendSubmitting, setResendSubmitting] = useState(false);
+  const [resendCooldownSec, setResendCooldownSec] = useState(0);
 
   useEffect(() => {
     try {
@@ -150,15 +149,15 @@ export default function Signup() {
         setSubmitting(false);
         return;
       }
-      appToast.success("Workspace created", "Let's make it yours — just a few steps.");
-      // Suppress the SplashController's login_success splash on /onboarding,
-      // since we're rendering our own splash inline here before navigating.
-      try {
-        sessionStorage.removeItem("gh_show_login_splash_v1");
-      } catch {
-        /* ignore storage errors */
-      }
-      setShowSuccessSplash(true);
+      const delivered = json?.verificationEmailDispatched !== false;
+      setVerificationEmailDispatched(delivered);
+      appToast.success(
+        "Workspace created",
+        delivered
+          ? "Check your inbox to verify your email before first login."
+          : "Workspace created, but verification email delivery is delayed. Try signing in once to trigger resend.",
+      );
+      setCreatedEmail(typeof json?.email === "string" ? json.email : email.trim().toLowerCase());
       return;
     } catch (err) {
       appToast.error("Something went wrong", (err as Error)?.message || "Please try again.");
@@ -166,17 +165,91 @@ export default function Signup() {
     }
   }
 
+  useEffect(() => {
+    if (resendCooldownSec <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldownSec((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldownSec]);
+
+  async function handleResendVerification() {
+    if (!createdEmail || resendSubmitting || resendCooldownSec > 0) return;
+    setResendSubmitting(true);
+    try {
+      const res = await fetch("/api/public/resend-verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: createdEmail }),
+      });
+      const json = await res.json().catch(() => ({}));
+      appToast.info(
+        "Verification email status",
+        typeof json?.message === "string"
+          ? json.message
+          : "If your account is still unverified, we sent a fresh verification link.",
+      );
+      setResendCooldownSec(30);
+    } catch (err) {
+      appToast.error("Couldn't resend right now", (err as Error)?.message || "Please try again.");
+    } finally {
+      setResendSubmitting(false);
+    }
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-zinc-100">
-      {showSuccessSplash && (
-        <SplashScreen
-          variant="login_success"
-          onDone={() => {
-            setShowSuccessSplash(false);
-            navigate("/onboarding", { replace: true });
-          }}
-        />
-      )}
+      {createdEmail ? (
+        <div className="relative z-20 min-h-screen flex items-center justify-center px-5 sm:px-8">
+          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-gradient-to-b from-[#121327]/95 to-[#0b0c18]/95 p-8 sm:p-10 text-center shadow-2xl">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 shadow-lg shadow-fuchsia-600/40">
+              <Mail className="h-7 w-7 text-white" />
+            </div>
+            <h1 className="mt-5 text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-50">
+              Verify your email to unlock your workspace
+            </h1>
+            <p className="mt-3 text-sm sm:text-base text-zinc-400">
+              {verificationEmailDispatched ? (
+                <>
+                  We sent a verification link to <span className="text-zinc-200 font-medium">{createdEmail}</span>.
+                  Click it first, then sign in to access your new Cuetronix workspace.
+                </>
+              ) : (
+                <>
+                  Your workspace is ready, but we couldn&apos;t confirm email delivery right now for{" "}
+                  <span className="text-zinc-200 font-medium">{createdEmail}</span>. Try signing in once to trigger a new verification email.
+                </>
+              )}
+            </p>
+            <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-zinc-500">
+              Tip: Check Promotions/Spam if it doesn&apos;t appear in 1–2 minutes.
+            </div>
+            <div className="mt-7 flex flex-col sm:flex-row gap-2.5 justify-center">
+              <Button
+                className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 text-white"
+                onClick={() => navigate("/login")}
+              >
+                Go to sign in
+              </Button>
+              <Button
+                variant="outline"
+                className="border-white/15 bg-white/5 text-zinc-200 hover:bg-white/10"
+                disabled={resendSubmitting || resendCooldownSec > 0}
+                onClick={handleResendVerification}
+              >
+                {resendSubmitting
+                  ? "Resending..."
+                  : resendCooldownSec > 0
+                  ? `Resend in ${resendCooldownSec}s`
+                  : "Resend verification email"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!createdEmail && (
+        <>
       <AuthSceneBackground />
 
       {/* Top bar */}
@@ -624,6 +697,8 @@ export default function Signup() {
           50% { background-position: 100% 50%; }
         }
       `}</style>
+      </>
+      )}
     </div>
   );
 }

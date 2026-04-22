@@ -1,10 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { ADMIN_SESSION_COOKIE, cookieSerialize, getEnv, j, signAdminSession } from "../../adminApiUtils";
+import { appBaseUrl, sendEmail } from "../../email";
 import {
   constantTimeStringEquals,
   hashPassword,
   verifyPassword,
 } from "../../passwordUtils";
+import { issueEmailToken } from "../../emailTokens";
 import { verifyTotpCode } from "../../totp";
 
 export const config = { runtime: "edge" };
@@ -84,6 +86,9 @@ export default async function handler(req: Request) {
       username: string;
       is_admin: boolean | null;
       is_super_admin: boolean | null;
+      email: string | null;
+      display_name: string | null;
+      email_verified_at: string | null;
       password: string | null;
       password_hash: string | null;
       must_change_password: boolean | null;
@@ -95,7 +100,7 @@ export default async function handler(req: Request) {
       const r = await supabase
         .from("admin_users")
         .select(
-          "id, username, is_admin, is_super_admin, password, password_hash, must_change_password, password_version",
+          "id, username, is_admin, is_super_admin, email, display_name, email_verified_at, password, password_hash, must_change_password, password_version",
         )
         .eq("email", emailNorm)
         .eq("is_admin", isAdminLogin)
@@ -106,7 +111,7 @@ export default async function handler(req: Request) {
       const r = await supabase
         .from("admin_users")
         .select(
-          "id, username, is_admin, is_super_admin, password, password_hash, must_change_password, password_version",
+          "id, username, is_admin, is_super_admin, email, display_name, email_verified_at, password, password_hash, must_change_password, password_version",
         )
         .eq("username", rawIdentifier)
         .eq("is_admin", isAdminLogin)
@@ -174,6 +179,56 @@ export default async function handler(req: Request) {
 
     if (!loginSuccess || !userRow) {
       return j({ ok: true, success: false }, 200);
+    }
+
+    if (userRow.email && !userRow.email_verified_at) {
+      let emailSent = false;
+      let emailSkipped = false;
+      let dispatchError: string | null = null;
+      try {
+        const token = await issueEmailToken({
+          supabase,
+          adminUserId: userRow.id,
+          email: userRow.email,
+          purpose: "verify_email",
+          ttlMinutes: 60 * 24,
+          requestedIp: metadata.ip || req.headers.get("x-forwarded-for") || null,
+          requestedUa: metadata.userAgent || req.headers.get("user-agent") || null,
+        });
+        const base = appBaseUrl();
+        const verifyUrl = `${base}/account/verify-email?token=${encodeURIComponent(token.token)}`;
+        const sent = await sendEmail({
+          kind: "verify_email",
+          to: userRow.email,
+          vars: {
+            appBaseUrl: base,
+            displayName: userRow.display_name || userRow.username,
+            verifyUrl,
+            expiresInMinutes: 60 * 24,
+          },
+          adminUserId: userRow.id,
+          supabase,
+        });
+        emailSent = !!sent.ok;
+        emailSkipped = !!sent.skipped;
+        if (!sent.ok && !sent.skipped) dispatchError = sent.error || "Could not send verification email.";
+      } catch (err) {
+        dispatchError = (err as Error)?.message || "Could not send verification email.";
+      }
+
+      return j(
+        {
+          ok: true,
+          success: false,
+          emailVerificationRequired: true,
+          emailSent,
+          emailSkipped,
+          error: dispatchError
+            ? `Email not verified and we couldn't send a new verification email: ${dispatchError}`
+            : "Email not verified. We've sent a fresh verification link to your inbox.",
+        },
+        200,
+      );
     }
 
     // ── Second factor check. If this user enrolled in TOTP, demand either

@@ -313,33 +313,44 @@ function renderTemplate<K extends EmailKind>(
       const v = vars as SignupWelcomeVars;
       const greet = v.displayName || v.organizationName || "there";
       return {
-        subject: `Welcome to Cuetronix${v.organizationName ? `, ${v.organizationName}` : ""}`,
+        subject: `Welcome to Cuetronix — verify and launch ${v.organizationName ? v.organizationName : "your workspace"}`,
         text: [
           `Hey ${greet},`,
           ``,
-          `Welcome to Cuetronix — your workspace is live.`,
+          `Your Cuetronix workspace is ready.`,
           ``,
-          `Confirm your email so we can keep billing receipts and security alerts flowing:`,
+          `Before your first login, verify your email:`,
           v.verifyUrl,
           ``,
-          `Head to your dashboard: ${v.dashboardUrl}`,
+          `After verification, sign in and continue onboarding: ${v.dashboardUrl}`,
           ``,
           v.trialEndsAt
-            ? `Your 14-day free trial runs until ${v.trialEndsAt}. No card needed until then.`
+            ? `Your 14-day free trial runs until ${v.trialEndsAt}.`
             : "",
           `— The Cuetronix team`,
         ]
           .filter(Boolean)
           .join("\n"),
         html: wrapShell({
-          preheader: "Your Cuetronix workspace is ready. Verify your email to unlock billing + security alerts.",
-          heading: `Welcome aboard${v.displayName ? `, ${htmlEscape(v.displayName)}` : ""} 🎮`,
+          preheader: "Your workspace is live. Verify email to unlock first login.",
+          heading: `Welcome, ${v.displayName ? htmlEscape(v.displayName) : "operator"} — let's go live ✨`,
           bodyHtml: `
-            <p style="margin:12px 0 0 0">Your <strong style="color:#ffffff">${htmlEscape(v.organizationName || "workspace")}</strong> is live. Before your first real shift, take one minute to confirm your email — that's how we send billing receipts and security alerts.</p>
-            ${v.trialEndsAt ? `<p style="margin:16px 0 0 0;padding:12px 14px;background:rgba(217,70,239,0.08);border:1px solid rgba(217,70,239,0.18);border-radius:10px;font-size:13px;color:#e4e4e7">✨ Your 14-day free trial runs until <strong>${htmlEscape(v.trialEndsAt)}</strong>. No card needed.</p>` : ""}
+            <p style="margin:12px 0 0 0">Your workspace <strong style="color:#ffffff">${htmlEscape(v.organizationName || "Cuetronix")}</strong> has been provisioned and is waiting for you.</p>
+            <p style="margin:14px 0 0 0">To protect your account and enable sign-in, confirm your email first. It takes one click.</p>
+            <table cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;width:100%;border-collapse:collapse;border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden">
+              <tr>
+                <td style="padding:11px 14px;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em">Workspace</td>
+                <td style="padding:11px 14px;color:#ffffff;font-weight:600">${htmlEscape(v.organizationName || "—")}</td>
+              </tr>
+              <tr>
+                <td style="padding:11px 14px;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;border-top:1px solid rgba(255,255,255,0.06)">Next step</td>
+                <td style="padding:11px 14px;color:#ffffff;font-weight:600;border-top:1px solid rgba(255,255,255,0.06)">Verify email to unlock first login</td>
+              </tr>
+              ${v.trialEndsAt ? `<tr><td style="padding:11px 14px;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;border-top:1px solid rgba(255,255,255,0.06)">Trial until</td><td style="padding:11px 14px;color:#ffffff;font-weight:600;border-top:1px solid rgba(255,255,255,0.06)">${htmlEscape(v.trialEndsAt)}</td></tr>` : ""}
+            </table>
           `,
-          cta: { label: "Verify email address", url: v.verifyUrl },
-          footerNote: `After that, jump into your dashboard at ${v.dashboardUrl}. Questions? Just reply to this email.`,
+          cta: { label: "Verify Email & Continue", url: v.verifyUrl },
+          footerNote: `Once verified, sign in and continue setup: ${v.dashboardUrl}`,
           appBaseUrl: v.appBaseUrl,
         }),
       };
