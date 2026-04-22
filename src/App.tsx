@@ -188,9 +188,6 @@ const ProtectedRoute = ({
                       <div className={`flex-1 pb-16 sm:pb-0 ${isMobile ? 'pt-[64px]' : ''}`}>
                         {children}
                       </div>
-                      <footer className="w-full py-3 text-center text-xs text-white/40 font-medium tracking-wide border-t border-white/5">
-                        Designed & Developed by RK.
-                      </footer>
                     </div>
                   </div>
                 </SidebarProvider>
