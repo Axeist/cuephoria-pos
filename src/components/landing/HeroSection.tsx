@@ -169,7 +169,7 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.8, delay: 0.12 }}
               className="text-5xl sm:text-6xl md:text-7xl lg:text-[76px] font-extrabold leading-[1.02] tracking-[-0.03em] mb-6 text-white"
             >
-              Snooker. 8-Ball. Esports.
+              Snooker. 8-Ball. Turf. Esports.
               <br />
               <span
                 className="bg-clip-text text-transparent"
@@ -190,7 +190,7 @@ const HeroSection: React.FC = () => {
               transition={{ duration: 0.7, delay: 0.2 }}
               className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-6 max-w-xl mx-auto lg:mx-0"
             >
-              Cuetronix is the <span className="text-white font-semibold">snooker, 8-ball &amp; gaming centre billing software</span> built for modern venues — tables, consoles, VR, cafe,
+              Cuetronix is the <span className="text-white font-semibold">billing &amp; booking software for snooker halls, 8-ball pool rooms, football &amp; cricket turfs, pickleball &amp; box-cricket courts, PS5 / Xbox lounges, VR arcades and gaming centres</span> — tables, courts, consoles, cafe,
               bookings, loyalty and multi-branch reports in one operating system.
               Engineered by <a
                 href="https://cuephoriatech.in"
@@ -217,9 +217,13 @@ const HeroSection: React.FC = () => {
               {[
                 "Snooker billing software",
                 "8-ball pool POS",
+                "Turf booking software",
+                "Pickleball court booking",
+                "Box-cricket booking",
                 "Gaming centre software",
                 "PS5 / Xbox rental",
                 "VR arcade management",
+                "Bowling alley POS",
               ].map((k) => (
                 <li
                   key={k}

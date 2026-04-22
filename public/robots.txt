@@ -88,25 +88,136 @@ Disallow: /
 User-agent: PetalBot
 Disallow: /
 
-# AI / scraper bots — opt out of training, allow indexing surfaces only if needed
+# ─── AI / LLM crawlers ───────────────────────────────────────────────────────
+# We WANT Cuetronix to appear in ChatGPT, Claude, Google AI Overviews, Perplexity
+# and Apple Intelligence answers for "snooker billing software",
+# "8-ball pool POS", "turf booking software", "pickleball court booking", etc.
+# So we allow the marketing site and only hide tenant-scoped surfaces.
+
+# OpenAI ChatGPT crawlers
 User-agent: GPTBot
-Disallow: /
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
 
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+User-agent: ChatGPT-User
+Allow: /
+
+# Common Crawl (feeds many LLMs)
 User-agent: CCBot
-Disallow: /
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
 
+# Anthropic Claude crawlers
 User-agent: anthropic-ai
-Disallow: /
+Allow: /
 
 User-agent: ClaudeBot
-Disallow: /
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
 
+User-agent: Claude-Web
+Allow: /
+
+# Google AI Overviews / Gemini (Google-Extended gates AI surfaces)
 User-agent: Google-Extended
-Disallow: /
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
 
+# Apple Intelligence / Apple AI surfaces
 User-agent: Applebot-Extended
-Disallow: /
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
 
+User-agent: Applebot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# You.com
+User-agent: YouBot
+Allow: /
+
+# Meta AI
+User-agent: FacebookBot
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+# Mistral / Cohere / Amazon
+User-agent: MistralAI-User
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /dashboard
+Disallow: /pos
+Disallow: /settings
+Disallow: /app/
+Disallow: /platform/
+Disallow: /customer/
+Disallow: /cafe/
+
+# Block TikTok's Bytespider — high volume, no citation value
 User-agent: Bytespider
 Disallow: /
 
@@ -158,6 +269,9 @@ Allow: /
 
 # Sitemap
 Sitemap: https://cuetronix.com/sitemap.xml
+
+# LLM discoverability (llmstxt.org standard — Anthropic/OpenAI-friendly)
+# See /llms.txt and /llms-full.txt for a structured site overview.
 
 # Host (non-standard but honored by Yandex / some crawlers)
 Host: https://cuetronix.com

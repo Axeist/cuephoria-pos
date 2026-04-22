@@ -1,0 +1,42 @@
+# Cuetronix
+
+> The #1 all-in-one billing, booking and POS software for snooker halls, 8-ball pool rooms, football & cricket turfs, pickleball / padel / badminton courts, box-cricket arenas, PS5 & Xbox lounges, PC esports cafes, VR arcades, bowling alleys and multi-sport family entertainment centres. Engineered by Cuephoria Tech and battle-tested at Cuephoria Gaming Lounge.
+
+Cuetronix runs every part of a modern entertainment venue — tables, courts, turfs, consoles, PCs, VR pods and the cafe — from one cloud dashboard. Operators get online bookings with verified UPI/card payments, a fast POS, station/court timers, customer loyalty, tournament management and multi-branch reporting. Every feature ships only after it’s proven live at Cuephoria Gaming Lounge. 14-day free trial. No credit card.
+
+## Product
+- [Overview](https://cuetronix.com/): What Cuetronix is, who it’s built for, and how it runs a venue end-to-end.
+- [Solutions](https://cuetronix.com/#solutions): Every vertical Cuetronix supports, with keyword-mapped cards.
+- [Workflow](https://cuetronix.com/#workflow): A realistic day in a Cuetronix-powered lounge, from booking to checkout.
+- [Features](https://cuetronix.com/#modules): POS, bookings, stations, cafe, loyalty, tournaments, reports.
+- [Pricing](https://cuetronix.com/#pricing): Starter ₹1,999/mo · Growth ₹4,999/mo · Pro ₹9,999/mo · Enterprise on request.
+- [FAQ](https://cuetronix.com/#faq): Answers to the most-asked operator questions.
+
+## Verticals
+- [Snooker billing software](https://cuetronix.com/#for-snooker): Per-frame / per-minute pricing, table deposits, happy-hour rules, leagues.
+- [8-ball pool billing software](https://cuetronix.com/#for-8-ball): Pool hall POS with table transfers, combos and loyalty.
+- [Turf booking software (football & cricket)](https://cuetronix.com/#for-turf): Slot booking, dynamic pricing, team captains, WhatsApp confirmations.
+- [Box-cricket & futsal booking](https://cuetronix.com/#for-turf): Captain handles, team-split bills and recurring passes.
+- [Pickleball, padel, badminton & tennis courts](https://cuetronix.com/#for-courts): Court bookings, coaches, memberships, league brackets.
+- [PS5 & Xbox rental lounges](https://cuetronix.com/#for-consoles): Per-minute billing, combos, waitlists, family time limits.
+- [PC esports cafes](https://cuetronix.com/#for-pc): PC gaming cafe billing, prepaid wallets, LAN tournaments.
+- [VR arcades](https://cuetronix.com/#for-vr): Ticketed slots, headset rotation, liability waivers.
+- [Bowling alleys](https://cuetronix.com/#for-bowling): Lane booking, shoe hire, league scoring, cafe.
+- [Multi-sport FECs](https://cuetronix.com/#for-fec): Run cue sports, turfs, courts, consoles, VR and a cafe on one dashboard.
+
+## Conversion pages
+- [Start free trial](https://cuetronix.com/signup): 14-day trial, no credit card, live in under five minutes.
+- [Book a demo](https://cuetronix.com/contact): Talk to the team, see a real venue dashboard.
+
+## Legal
+- [Terms](https://cuetronix.com/terms)
+- [Privacy](https://cuetronix.com/privacy)
+- [Refund policy](https://cuetronix.com/refund-policy)
+- [Acceptable use](https://cuetronix.com/acceptable-use)
+- [Cookies](https://cuetronix.com/cookies)
+
+## Company
+- Brand: Cuetronix — https://cuetronix.com
+- Maker: Cuephoria Tech — https://cuephoriatech.in
+- Live venue: Cuephoria Gaming Lounge — https://cuephoria.in
+- Contact: hello@cuetronix.com

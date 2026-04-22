@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   CheckCircle2,
   Circle,
+  Flag,
   Gamepad2,
   Globe2,
   Headphones,
@@ -12,47 +13,86 @@ import {
   Send,
   Sparkles,
   Star,
+  Target,
   Trophy,
   Users,
   Zap,
 } from "lucide-react";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
+// NOTE: each venue now exposes a deep-link anchor id so sitemap.xml, JSON-LD
+// ItemList and internal nav can all point crawlers at a specific vertical.
 const VENUE_TYPES = [
   {
-    icon: Gamepad2,
-    name: "PS5 & Xbox lounges",
-    blurb: "Console-based gaming bays with hourly billing and combo packs.",
-    color: "from-violet-500 to-fuchsia-500",
-  },
-  {
-    icon: Monitor,
-    name: "Esports & PC cafes",
-    blurb: "High-spec gaming rigs, timed sessions and per-PC recharge.",
-    color: "from-blue-500 to-cyan-500",
-  },
-  {
-    icon: Sparkles,
-    name: "VR arcades",
-    blurb: "Immersive VR pods with ticketed slots and group bookings.",
-    color: "from-pink-500 to-rose-500",
-  },
-  {
+    id: "for-snooker",
     icon: Circle,
-    name: "Pool & snooker halls",
-    blurb: "Frame-based or hourly pricing, tournaments and table transfers.",
+    name: "Snooker & 8-ball halls",
+    blurb: "Per-frame or per-minute billing, table transfers, happy-hour rules and league management.",
+    kw: "Snooker billing software · 8-ball pool POS · Billiards billing",
     color: "from-emerald-500 to-teal-500",
   },
   {
-    icon: Trophy,
-    name: "Esports tournaments",
-    blurb: "Brackets, registrations, prize pools and live leaderboards.",
+    id: "for-turf",
+    icon: Flag,
+    name: "Football & cricket turfs",
+    blurb: "Online turf booking with peak / off-peak pricing, deposits, team captains and WhatsApp confirmations.",
+    kw: "Turf booking software · Football turf billing · Cricket turf booking · Box-cricket software",
+    color: "from-lime-500 to-emerald-500",
+  },
+  {
+    id: "for-courts",
+    icon: Target,
+    name: "Pickleball, padel & badminton",
+    blurb: "Court booking with coach allocation, equipment hire, memberships and league brackets.",
+    kw: "Pickleball booking software · Padel court booking · Badminton court software",
+    color: "from-cyan-500 to-blue-500",
+  },
+  {
+    id: "for-consoles",
+    icon: Gamepad2,
+    name: "PS5 & Xbox lounges",
+    blurb: "Console-based gaming bays with per-minute billing, combos and family time limits.",
+    kw: "PS5 rental software · Xbox lounge billing · Console rental POS",
+    color: "from-violet-500 to-fuchsia-500",
+  },
+  {
+    id: "for-pc",
+    icon: Monitor,
+    name: "PC esports cafes",
+    blurb: "High-spec gaming rigs, timed sessions, prepaid wallets and LAN tournaments.",
+    kw: "PC gaming cafe billing · Esports cafe software · Gaming lounge POS",
+    color: "from-blue-500 to-cyan-500",
+  },
+  {
+    id: "for-vr",
+    icon: Sparkles,
+    name: "VR arcades",
+    blurb: "Immersive VR pods with ticketed slots, headset rotation and group bookings.",
+    kw: "VR arcade billing software · VR arcade management",
+    color: "from-pink-500 to-rose-500",
+  },
+  {
+    id: "for-bowling",
+    icon: Circle,
+    name: "Bowling alleys",
+    blurb: "Lane booking, shoe hire, league scoring and cafe — all on one ticket.",
+    kw: "Bowling alley POS · Bowling lane booking software",
     color: "from-amber-500 to-orange-500",
   },
   {
+    id: "for-tournaments",
+    icon: Trophy,
+    name: "Tournaments & leagues",
+    blurb: "Brackets, registrations, prize pools and live leaderboards for any sport.",
+    kw: "Tournament software · League management · Bracket manager",
+    color: "from-yellow-500 to-amber-500",
+  },
+  {
+    id: "for-fec",
     icon: Users,
-    name: "Board & party cafes",
-    blurb: "Mixed venues with gaming, cafe orders and event slot booking.",
+    name: "FECs & multi-sport venues",
+    blurb: "Run cue sports, turfs, courts, consoles, VR and a cafe from one dashboard.",
+    kw: "Family entertainment centre software · Multi-sport venue POS",
     color: "from-indigo-500 to-violet-500",
   },
 ];
@@ -67,6 +107,7 @@ const SEO_GROUPS: { title: string; keywords: string[] }[] = [
       "Esports cafe software",
       "PC gaming center billing",
       "VR arcade management",
+      "Bowling alley POS",
       "Tournament bracket manager",
       "Console rental POS",
     ],
@@ -85,12 +126,26 @@ const SEO_GROUPS: { title: string; keywords: string[] }[] = [
     ],
   },
   {
+    title: "Turf, Courts & Sports",
+    keywords: [
+      "Turf booking software",
+      "Football turf management",
+      "Cricket turf booking",
+      "Box-cricket booking software",
+      "Futsal booking system",
+      "Pickleball court booking",
+      "Padel court booking",
+      "Badminton court software",
+      "Tennis court booking",
+    ],
+  },
+  {
     title: "Operator workflows",
     keywords: [
       "Online bookings with UPI",
       "Combined cafe + gaming bills",
-      "Station timer & transfers",
-      "Loyalty & memberships",
+      "Station & court timers",
+      "Loyalty, passes & memberships",
       "Multi-branch reports",
       "WhatsApp receipts & reminders",
       "Staff payroll & shifts",
@@ -170,13 +225,14 @@ const SolutionsSection: React.FC = () => {
         {/* ─── Venue types grid ─── */}
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {VENUE_TYPES.map((v, i) => (
-            <motion.div
+            <motion.article
               key={v.name}
+              id={v.id}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.5, delay: i * 0.06 }}
-              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md transition-colors hover:border-violet-400/30 hover:bg-white/[0.05]"
+              className="group relative scroll-mt-32 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md transition-colors hover:border-violet-400/30 hover:bg-white/[0.05]"
             >
               <div
                 className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${v.color} shadow-lg shadow-violet-900/30`}
@@ -185,8 +241,12 @@ const SolutionsSection: React.FC = () => {
               </div>
               <h3 className="text-lg font-bold text-white">{v.name}</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-gray-400">{v.blurb}</p>
+              {/* Crawlable keyword line — helps long-tail SEO + LLM grounding */}
+              <p className="mt-3 text-[11px] uppercase tracking-[0.14em] text-violet-200/60">
+                {v.kw}
+              </p>
               <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/[0.03] blur-2xl transition-opacity duration-300 group-hover:bg-violet-500/20" />
-            </motion.div>
+            </motion.article>
           ))}
         </div>
 
