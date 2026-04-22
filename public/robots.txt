@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  Cuetronix — Snooker, 8-Ball & Gaming Centre Billing Software
-#  A Cuephoria Tech product  ·  https://cuetronix.com/
+#  A Cuephoria Tech product  ·  https://www.cuetronix.com/
 #  robots.txt last updated: 2026-04-22
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,8 @@ Allow: /signup
 Allow: /login
 Allow: /contact
 Allow: /contact-us
+Allow: /compare
+Allow: /vs/
 Allow: /terms
 Allow: /terms-and-conditions
 Allow: /privacy
@@ -268,10 +270,10 @@ User-agent: WhatsApp
 Allow: /
 
 # Sitemap
-Sitemap: https://cuetronix.com/sitemap.xml
+Sitemap: https://www.cuetronix.com/sitemap.xml
 
 # LLM discoverability (llmstxt.org standard — Anthropic/OpenAI-friendly)
 # See /llms.txt and /llms-full.txt for a structured site overview.
 
 # Host (non-standard but honored by Yandex / some crawlers)
-Host: https://cuetronix.com
+Host: https://www.cuetronix.com

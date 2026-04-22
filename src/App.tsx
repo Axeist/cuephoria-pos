@@ -79,6 +79,8 @@ const ShippingAndDelivery = lazy(() => import("./pages/ShippingAndDelivery"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const AcceptableUse = lazy(() => import("./pages/AcceptableUse"));
 const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
+const CompareHub = lazy(() => import("./pages/CompareHub"));
+const VsCompetitor = lazy(() => import("./pages/VsCompetitor"));
 const CafePOS = lazy(() => import("./pages/cafe/CafePOS"));
 const CafeMenu = lazy(() => import("./pages/cafe/CafeMenu"));
 const CafeOrders = lazy(() => import("./pages/cafe/CafeOrders"));
@@ -366,6 +368,24 @@ const App = () => {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/account/verify-email" element={<VerifyEmail />} />
+
+                {/* SEO comparison pages (public marketing) */}
+                <Route
+                  path="/compare"
+                  element={
+                    <LazyPage>
+                      <CompareHub />
+                    </LazyPage>
+                  }
+                />
+                <Route
+                  path="/vs/:slug"
+                  element={
+                    <LazyPage>
+                      <VsCompetitor />
+                    </LazyPage>
+                  }
+                />
 
                 {/* First-run onboarding wizard (post-signup).
                     Runs in a minimal shell — no sidebar, no POS provider. */}

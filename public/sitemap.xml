@@ -8,12 +8,12 @@
 
   <!-- Home — primary landing: snooker / 8-ball / gaming centre billing software -->
   <url>
-    <loc>https://cuetronix.com/</loc>
+    <loc>https://www.cuetronix.com/</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.00</priority>
     <image:image>
-      <image:loc>https://cuetronix.com/og-image.png</image:loc>
+      <image:loc>https://www.cuetronix.com/og-image.png</image:loc>
       <image:title>Cuetronix — Snooker, 8-Ball &amp; Gaming Centre Billing Software by Cuephoria Tech</image:title>
       <image:caption>All-in-one billing software for snooker halls, 8-ball pool rooms and gaming centres.</image:caption>
     </image:image>
@@ -21,43 +21,43 @@
 
   <!-- Anchored landing sections (deep links crawlers can follow) -->
   <url>
-    <loc>https://cuetronix.com/#modules</loc>
+    <loc>https://www.cuetronix.com/#modules</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#solutions</loc>
+    <loc>https://www.cuetronix.com/#solutions</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#workflow</loc>
+    <loc>https://www.cuetronix.com/#workflow</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.70</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#trust</loc>
+    <loc>https://www.cuetronix.com/#trust</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.70</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#pricing</loc>
+    <loc>https://www.cuetronix.com/#pricing</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#faq</loc>
+    <loc>https://www.cuetronix.com/#faq</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.60</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#book-call</loc>
+    <loc>https://www.cuetronix.com/#book-call</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.70</priority>
@@ -65,81 +65,137 @@
 
   <!-- Vertical deep links (anchor-based; each maps to a keyword cluster) -->
   <url>
-    <loc>https://cuetronix.com/#for-snooker</loc>
+    <loc>https://www.cuetronix.com/#for-snooker</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-8-ball</loc>
+    <loc>https://www.cuetronix.com/#for-8-ball</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-turf</loc>
+    <loc>https://www.cuetronix.com/#for-turf</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-courts</loc>
+    <loc>https://www.cuetronix.com/#for-courts</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-consoles</loc>
+    <loc>https://www.cuetronix.com/#for-consoles</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-pc</loc>
+    <loc>https://www.cuetronix.com/#for-pc</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-vr</loc>
+    <loc>https://www.cuetronix.com/#for-vr</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-bowling</loc>
+    <loc>https://www.cuetronix.com/#for-bowling</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-tournaments</loc>
+    <loc>https://www.cuetronix.com/#for-tournaments</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.70</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/#for-fec</loc>
+    <loc>https://www.cuetronix.com/#for-fec</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.80</priority>
   </url>
 
-  <!-- Public marketing / conversion pages -->
+  <!-- Competitor comparison pages (high-intent SEO) -->
   <url>
-    <loc>https://cuetronix.com/signup</loc>
+    <loc>https://www.cuetronix.com/compare</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/playo</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/login</loc>
+    <loc>https://www.cuetronix.com/vs/hudle</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/ggleap</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/senet</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/smartlaunch</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/courtreserve</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/skedda</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/vs/springboardvr</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <!-- Public marketing / conversion pages -->
+  <url>
+    <loc>https://www.cuetronix.com/signup</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://www.cuetronix.com/login</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.50</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/contact</loc>
+    <loc>https://www.cuetronix.com/contact</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.70</priority>
@@ -147,37 +203,37 @@
 
   <!-- Legal pages (primary slugs) -->
   <url>
-    <loc>https://cuetronix.com/terms</loc>
+    <loc>https://www.cuetronix.com/terms</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.40</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/privacy</loc>
+    <loc>https://www.cuetronix.com/privacy</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.40</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/refund-policy</loc>
+    <loc>https://www.cuetronix.com/refund-policy</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.50</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/acceptable-use</loc>
+    <loc>https://www.cuetronix.com/acceptable-use</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.30</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/cookies</loc>
+    <loc>https://www.cuetronix.com/cookies</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.30</priority>
   </url>
   <url>
-    <loc>https://cuetronix.com/shipping-and-delivery</loc>
+    <loc>https://www.cuetronix.com/shipping-and-delivery</loc>
     <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.30</priority>

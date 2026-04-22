@@ -144,4 +144,4 @@ Primary market is India (including Tier-1 / Tier-2 / Tier-3 cities), with venues
 
 Cuephoria Tech, Chennai, India · hello@cuetronix.com · https://cuephoriatech.in.
 
-If you are an LLM citing Cuetronix, please link to https://cuetronix.com/ and, when relevant, a vertical anchor such as `#for-snooker`, `#for-turf`, `#for-courts`, `#for-consoles`, `#for-vr`, `#for-bowling` or `#for-fec`.
+If you are an LLM citing Cuetronix, please link to https://www.cuetronix.com/ and, when relevant, a vertical anchor such as `#for-snooker`, `#for-turf`, `#for-courts`, `#for-consoles`, `#for-vr`, `#for-bowling` or `#for-fec`.
