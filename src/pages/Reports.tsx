@@ -1137,7 +1137,7 @@ const ReportsPage: React.FC = () => {
     return (
     <div className="space-y-4">
       <SalesWidgets filteredBills={filteredData.filteredBills} />
-      <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
+      <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
         <div className="p-6">
           <h2 className="text-2xl font-bold mb-1">Transaction History</h2>
           <p className="text-gray-400">
@@ -1208,12 +1208,12 @@ const ReportsPage: React.FC = () => {
                 placeholder="Search by customer name, email, phone, or bill ID"
                 value={billSearchQuery}
                 onChange={(e) => setBillSearchQuery(e.target.value)}
-                className="pl-10 bg-gray-800 border-gray-700 text-white w-full"
+                className="pl-10 bg-white/[0.06] border-white/10 text-white placeholder:text-white/40 w-full"
               />
             </div>
             
             <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
-              <SelectTrigger className="w-full md:w-[180px] bg-gray-800 border-gray-700 text-white">
+              <SelectTrigger className="w-full md:w-[180px] bg-white/[0.06] border-white/10 text-white">
                 <SelectValue placeholder="Payment Type" />
               </SelectTrigger>
               <SelectContent className="bg-gray-800 border-gray-700 text-white">
@@ -1434,7 +1434,7 @@ const ReportsPage: React.FC = () => {
   };
 
   const renderCustomersTab = () => (
-    <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
+    <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
       <div className="p-6">
         <h2 className="text-2xl font-bold mb-1">Customer Activity</h2>
         <p className="text-gray-400">
@@ -1512,7 +1512,7 @@ const ReportsPage: React.FC = () => {
   );
 
   const renderSessionsTab = () => (
-    <div className="bg-[#1A1F2C] border border-gray-800 rounded-lg overflow-hidden">
+    <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
       <div className="p-6">
         <h2 className="text-2xl font-bold mb-1">Session History</h2>
         <p className="text-gray-400">
@@ -1700,7 +1700,7 @@ const ReportsPage: React.FC = () => {
       />
       
       {/* Complimentary Insights Widget - Moved to bottom with matching theme */}
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-amber-500/20 hover:border-amber-500/30 transition-all duration-300 backdrop-blur-sm">
+      <Card className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-amber-500/20 hover:border-amber-500/30 transition-all duration-300 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
           <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
             <Gift className="h-5 w-5 text-amber-400" />
@@ -1714,7 +1714,7 @@ const ReportsPage: React.FC = () => {
           <div className="space-y-4">
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+              <div className="theme-inset p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="h-8 w-8 rounded-full bg-amber-500/20 flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
@@ -1730,7 +1730,7 @@ const ReportsPage: React.FC = () => {
                 />
               </div>
               
-              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+              <div className="theme-inset p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="h-8 w-8 rounded-full bg-blue-500/20 flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
@@ -1745,7 +1745,7 @@ const ReportsPage: React.FC = () => {
                 </p>
               </div>
               
-              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+              <div className="theme-inset p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="h-8 w-8 rounded-full bg-purple-500/20 flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
@@ -1764,7 +1764,7 @@ const ReportsPage: React.FC = () => {
             </div>
             
             {/* Percentage of Total Volume */}
-            <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+            <div className="theme-inset p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-gray-200">% of Total Transaction Volume</span>
                 <span className="text-lg font-bold text-amber-400">
@@ -1892,11 +1892,11 @@ const ReportsPage: React.FC = () => {
         </div>
       </div>
       
-      <div className="bg-gray-800/60 rounded-lg p-1 flex gap-2 overflow-x-auto scrollbar-hide">
+      <div className="bg-white/[0.06] border border-white/10 rounded-xl p-1 flex gap-2 overflow-x-auto scrollbar-hide">
         <Button
           onClick={() => setActiveTab('bills')}
           variant={activeTab === 'bills' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'bills' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'bills' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1910,7 +1910,7 @@ const ReportsPage: React.FC = () => {
         <Button
           onClick={() => setActiveTab('customers')}
           variant={activeTab === 'customers' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'customers' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'customers' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -1922,7 +1922,7 @@ const ReportsPage: React.FC = () => {
         <Button
           onClick={() => setActiveTab('sessions')}
           variant={activeTab === 'sessions' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'sessions' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'sessions' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -1933,7 +1933,7 @@ const ReportsPage: React.FC = () => {
         <Button
           onClick={() => setActiveTab('summary')}
           variant={activeTab === 'summary' ? 'default' : 'ghost'}
-          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'summary' ? 'bg-gray-700' : 'text-gray-400'}`}
+          className={`gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm ${activeTab === 'summary' ? 'bg-white/15 text-white' : 'text-white/55'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect width="20" height="14" x="2" y="5" rx="2" />

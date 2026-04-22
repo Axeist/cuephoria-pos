@@ -1071,14 +1071,14 @@
 .glass-card {
   @apply rounded-2xl border border-white/10 backdrop-blur-xl;
   background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.035) 0%,
-    rgba(255, 255, 255, 0.015) 60%,
-    rgba(0, 0, 0, 0.25) 100%
+    165deg,
+    color-mix(in oklab, var(--brand-primary-hex) 16%, rgba(255, 255, 255, 0.045)) 0%,
+    color-mix(in oklab, var(--brand-primary-hex) 7%, rgba(255, 255, 255, 0.02)) 45%,
+    rgba(6, 4, 14, 0.82) 100%
   );
   box-shadow:
-    0 24px 60px -28px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 24px 60px -28px color-mix(in oklab, var(--brand-primary-hex) 28%, rgba(0, 0, 0, 0.75)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .glass-card-interactive {
@@ -1090,22 +1090,36 @@
 }
 
 .glass-card-interactive:hover {
-  border-color: color-mix(in oklab, var(--brand-primary-hex) 40%, rgba(255, 255, 255, 0.1));
+  border-color: color-mix(in oklab, var(--brand-primary-hex) 45%, rgba(255, 255, 255, 0.12));
   background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.02) 60%,
-    rgba(0, 0, 0, 0.25) 100%
+    165deg,
+    color-mix(in oklab, var(--brand-primary-hex) 22%, rgba(255, 255, 255, 0.06)) 0%,
+    color-mix(in oklab, var(--brand-primary-hex) 10%, rgba(255, 255, 255, 0.03)) 50%,
+    rgba(6, 4, 14, 0.78) 100%
   );
   box-shadow:
-    0 28px 70px -26px color-mix(in oklab, var(--brand-primary-hex) 40%, rgba(0, 0, 0, 0.6)),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 28px 70px -26px color-mix(in oklab, var(--brand-primary-hex) 42%, rgba(0, 0, 0, 0.65)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 /* Subtle "panel" — cheaper than full glass for inner sections. */
 .surface-panel {
   @apply rounded-xl border border-white/10;
-  background: rgba(255, 255, 255, 0.025);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--brand-primary-hex) 10%, rgba(255, 255, 255, 0.035)) 0%,
+    rgba(4, 3, 12, 0.45) 100%
+  );
+}
+
+/* Nested rows / list cells inside glass cards — matches ambient violet tone. */
+.theme-inset {
+  @apply rounded-xl border border-white/[0.08];
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--brand-primary-hex) 9%, rgba(255, 255, 255, 0.04)) 0%,
+    rgba(4, 3, 10, 0.5) 100%
+  );
 }
 
 /* Landing-class gradient CTA. Use for primary actions. */

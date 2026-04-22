@@ -115,7 +115,7 @@ const ProductPerformance: React.FC = () => {
                     const item = payload[0].payload;
                     
                     return (
-                      <div className="rounded-lg border bg-gray-800 border-gray-700 p-2 shadow-md">
+                      <div className="rounded-lg border theme-inset p-2 shadow-md">
                         <p className="font-bold text-white">{item.name}</p>
                         <div className="grid grid-cols-1 gap-2 mt-1">
                           <div className="flex justify-between items-center gap-4">

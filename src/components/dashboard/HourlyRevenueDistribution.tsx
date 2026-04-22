@@ -93,7 +93,7 @@ const HourlyRevenueDistribution: React.FC = () => {
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div className="rounded-lg border bg-gray-800 border-gray-700 p-2 shadow-md">
+                      <div className="rounded-lg border theme-inset p-2 shadow-md">
                         <p className="font-bold text-white">{label}</p>
                         <div className="grid grid-cols-1 gap-2 mt-1">
                           {payload.map((entry, index) => (

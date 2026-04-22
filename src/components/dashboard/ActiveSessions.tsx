@@ -31,7 +31,7 @@ const ActiveSessions = () => {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-xl font-bold text-white font-heading">Active Sessions</CardTitle>
-            <CardDescription className="text-gray-400">{activeStations.length} active session{activeStations.length !== 1 ? 's' : ''}</CardDescription>
+            <CardDescription className="text-white/55">{activeStations.length} active session{activeStations.length !== 1 ? 's' : ''}</CardDescription>
           </div>
           <div className="h-10 w-10 rounded-full bg-[#0EA5E9]/20 flex items-center justify-center">
             <Clock className="h-5 w-5 text-[#0EA5E9]" />
@@ -51,14 +51,14 @@ const ActiveSessions = () => {
             const durationText = `${hours > 0 ? `${hours}h ` : ''}${minutes}m`;
             
             return (
-              <div key={station.id} className="flex items-center justify-between p-4 rounded-lg bg-gray-800 border border-gray-700">
+              <div key={station.id} className="flex items-center justify-between p-4 theme-inset">
                 <div className="flex items-center space-x-4">
                   <div className="h-10 w-10 rounded-full bg-[#0EA5E9]/30 flex items-center justify-center">
                     <Clock className="h-5 w-5 text-blue-400" />
                   </div>
                   <div>
                     <p className="font-medium">{station.name}</p>
-                    <p className="text-xs text-gray-400">{customer?.name || 'Unknown Customer'}</p>
+                    <p className="text-xs text-white/55">{customer?.name || 'Unknown Customer'}</p>
                   </div>
                 </div>
                 <div className="text-white font-semibold">
@@ -68,7 +68,7 @@ const ActiveSessions = () => {
             );
           })
         ) : (
-          <div className="flex items-center justify-center p-6 text-gray-400">
+          <div className="flex items-center justify-center p-6 text-white/55">
             <p>No active sessions</p>
           </div>
         )}

@@ -696,16 +696,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       <CardHeader className="space-y-4">
         <div>
           <CardTitle className="text-xl font-bold text-white font-heading">Recent Transactions</CardTitle>
-          <CardDescription className="text-gray-400">Latest sales and billing information</CardDescription>
+          <CardDescription className="text-white/55">Latest sales and billing information</CardDescription>
         </div>
         <div className="relative flex w-full items-center">
           <Input
             placeholder="Search by ID, name, phone or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pr-8 bg-gray-800 border-gray-700 text-white"
+            className="pr-8 bg-white/[0.06] border-white/10 text-white placeholder:text-white/40"
           />
-          <Search className="absolute right-2 h-4 w-4 text-gray-400" />
+          <Search className="absolute right-2 h-4 w-4 text-white/45" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4 flex-1 flex flex-col min-h-0">
@@ -722,12 +722,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 return (
                   <div 
                     key={bill.id} 
-                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                    className={`flex items-center justify-between p-4 rounded-xl border ${
                       isComplimentary 
-                        ? 'bg-orange-950/20 border-orange-800/50' 
+                        ? 'bg-orange-500/[0.08] border-orange-500/25' 
                         : isRazorpay
-                        ? 'bg-indigo-950/20 border-indigo-800/50'
-                        : 'bg-gray-800 border-gray-700'
+                        ? 'bg-indigo-500/[0.08] border-indigo-500/25'
+                        : 'theme-inset'
                     }`}
                   >
                     <div className="flex items-center space-x-4">
@@ -761,10 +761,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                           )}
                         </div>
                         <div className="flex space-x-2">
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-white/55">
                             {date.toLocaleDateString()} {date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </p>
-                          <p className="text-xs text-gray-400">ID: {bill.id.substring(0, 8)}</p>
+                          <p className="text-xs text-white/55">ID: {bill.id.substring(0, 8)}</p>
                         </div>
                         {isComplimentary && bill.compNote && (
                           <p className="text-xs text-orange-400 mt-1 italic">Note: {bill.compNote}</p>
@@ -781,7 +781,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="text-gray-400 hover:text-blue-500 transition-colors"
+                          className="text-white/45 hover:text-blue-400 transition-colors"
                           onClick={() => handleEditClick(bill)}
                           type="button"
                         >
@@ -790,7 +790,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="text-gray-400 hover:text-red-500 transition-colors"
+                          className="text-white/45 hover:text-red-400 transition-colors"
                           onClick={() => handleDeleteClick(bill)}
                           type="button"
                         >
@@ -804,8 +804,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               </div>
             </ScrollArea>
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-4 border-t border-gray-700">
-                <div className="text-sm text-gray-400">
+              <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                <div className="text-sm text-white/55">
                   Showing {startIndex + 1}-{Math.min(endIndex, sortedBills.length)} of {sortedBills.length} transactions
                 </div>
                 <div className="flex items-center gap-2">
@@ -814,12 +814,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                    className="bg-white/[0.06] border-white/10 text-white hover:bg-white/10"
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
                   </Button>
-                  <div className="text-sm text-gray-400 px-2">
+                  <div className="text-sm text-white/55 px-2">
                     Page {currentPage} of {totalPages}
                   </div>
                   <Button
@@ -827,7 +827,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage >= totalPages}
-                    className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                    className="bg-white/[0.06] border-white/10 text-white hover:bg-white/10"
                   >
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />
@@ -837,7 +837,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
             )}
           </>
         ) : (
-          <div className="flex items-center justify-center p-6 text-gray-400">
+          <div className="flex items-center justify-center p-6 text-white/55">
             <p>No transactions found</p>
           </div>
         )}

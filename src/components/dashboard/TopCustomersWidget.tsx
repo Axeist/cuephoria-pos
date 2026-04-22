@@ -63,7 +63,7 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
   };
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300 backdrop-blur-sm h-full">
+    <Card className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300 backdrop-blur-sm h-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
         <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
           <Trophy className="h-5 w-5 text-blue-400" />
@@ -83,7 +83,7 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
               return (
                 <div 
                   key={customer.id} 
-                  className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-4 hover:bg-gray-700/30 hover:border-gray-600/50 transition-all duration-200 group"
+                  className="theme-inset p-4 hover:border-white/15 transition-all duration-200 group"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -113,7 +113,7 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
             })}
           </div>
         ) : (
-          <div className="bg-gray-800/30 border border-gray-700/30 rounded-lg p-8 text-center">
+          <div className="theme-inset p-8 text-center">
             <Trophy className="h-8 w-8 text-gray-500 mx-auto mb-3" />
             <p className="text-sm text-gray-400">
               No customer data available for the selected period

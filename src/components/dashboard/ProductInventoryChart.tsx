@@ -86,7 +86,7 @@ const ProductInventoryChart: React.FC = () => {
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div className="rounded-lg border bg-gray-800 border-gray-700 p-2 shadow-md">
+                      <div className="rounded-lg border theme-inset p-2 shadow-md">
                         <div className="grid grid-cols-2 gap-2">
                           <div className="flex flex-col">
                             <span className="text-[0.70rem] uppercase text-gray-400">

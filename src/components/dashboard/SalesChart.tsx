@@ -299,7 +299,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
           
           {/* Time Period Toggle Buttons - Full Width on Mobile */}
           <div className="w-full overflow-x-auto scrollbar-hide -mx-1 px-1">
-            <div className="flex gap-1 p-1 rounded-xl bg-gray-800 text-gray-400 min-w-min w-full sm:w-auto">
+            <div className="flex gap-1 p-1 rounded-xl bg-white/[0.06] border border-white/10 text-white/55 min-w-min w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => handleTabChange('hourly')}

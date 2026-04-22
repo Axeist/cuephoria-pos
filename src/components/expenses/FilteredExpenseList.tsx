@@ -80,12 +80,12 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
               role="button"
               onClick={() => onCategorySelect?.(isActive ? null : category)}
               className={clsx(
-                "bg-gray-800 border-gray-700 transition-colors cursor-pointer",
+                "glass-card glass-card-interactive border-white/10 transition-colors cursor-pointer",
                 isActive && "border-2 border-emerald-500"
               )}
             >
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-200">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-white/85">
                   <div className={`w-3 h-3 rounded-full ${getCategoryColor(category)}`} />
                   {category.charAt(0).toUpperCase() + category.slice(1)}
                 </CardTitle>
@@ -107,8 +107,8 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
           role="button"
           onClick={() => onCategorySelect?.(null)}
           className={clsx(
-            "bg-gray-800 border-2 border-purple-600 transition-colors cursor-pointer",
-            selectedCategory === null && "ring-2 ring-purple-400"
+            "glass-card glass-card-interactive border-2 border-purple-500/50 transition-colors cursor-pointer",
+            selectedCategory === null && "ring-2 ring-purple-400/80"
           )}
         >
           <CardHeader className="pb-2">

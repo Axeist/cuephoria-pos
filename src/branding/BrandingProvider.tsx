@@ -21,6 +21,8 @@ import { applyTenantTheme } from "./applyTenantTheme";
 import { DEFAULT_TENANT_BRAND, type TenantBrand } from "./brand";
 import { resolveBrand, type TenantBrandingOverride } from "./resolveBranding";
 
+export type BrandingRefreshOptions = { silent?: boolean };
+
 type ApiResponse =
   | { ok: true; branding: TenantBrandingOverride; canEdit?: boolean; role?: string }
   | { ok: false; error: string };
@@ -32,7 +34,9 @@ type BrandingContextValue = {
   override: TenantBrandingOverride;
   loading: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
+  refresh: (opts?: BrandingRefreshOptions) => Promise<void>;
+  /** Apply branding from a trusted API payload (e.g. PATCH response) without a full page reload. */
+  applyBrandingFromServer: (branding: TenantBrandingOverride) => void;
 };
 
 const BrandingContext = React.createContext<BrandingContextValue | null>(null);
@@ -44,9 +48,14 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [error, setError] = React.useState<string | null>(null);
   const lastAppliedKey = React.useRef<string>("");
 
-  const refresh = React.useCallback(async () => {
+  const applyBrandingFromServer = React.useCallback((branding: TenantBrandingOverride) => {
+    setOverride({ ...(branding || {}) });
+  }, []);
+
+  const refresh = React.useCallback(async (opts?: BrandingRefreshOptions) => {
     if (!user) return;
-    setLoading(true);
+    const silent = opts?.silent === true;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/tenant/branding", { credentials: "same-origin" });
@@ -62,7 +71,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.warn("BrandingProvider: non-fatal load error", e);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [user]);
 
@@ -111,8 +120,8 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [brand, override.primary_color, override.accent_color]);
 
   const value = React.useMemo<BrandingContextValue>(
-    () => ({ brand, override, loading, error, refresh }),
-    [brand, override, loading, error, refresh],
+    () => ({ brand, override, loading, error, refresh, applyBrandingFromServer }),
+    [brand, override, loading, error, refresh, applyBrandingFromServer],
   );
 
   return <BrandingContext.Provider value={value}>{children}</BrandingContext.Provider>;

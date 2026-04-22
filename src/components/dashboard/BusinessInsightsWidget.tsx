@@ -1865,7 +1865,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
 
   if (isCalculating || !cachedInsights) {
     return (
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl">
+      <Card className="glass-card glass-card-interactive border-white/10 shadow-xl">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
           <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
             <Brain className="h-5 w-5 text-cyan-400" />
@@ -1891,7 +1891,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
   const insights = cachedInsights;
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-cyan-500/20 hover:border-cyan-500/30 transition-all duration-300 backdrop-blur-sm">
+    <Card className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-cyan-500/20 hover:border-cyan-500/30 transition-all duration-300 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
         <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
           <Brain className="h-5 w-5 text-cyan-400" />
@@ -1904,7 +1904,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
       <CardContent className="pb-4 p-6">
         <div className="space-y-4">
           {/* Daily Performance */}
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-cyan-400" />
               Daily Performance
@@ -1938,7 +1938,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
           </div>
 
           {/* Financial Overview */}
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
               <Target className="h-4 w-4 text-blue-400" />
               Financial Overview
@@ -2138,7 +2138,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
           </div>
 
           {/* Key Metrics */}
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-orange-400" />
               Key Metrics
@@ -2181,7 +2181,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
           </div>
 
           {/* Monthly Progress */}
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <h4 className="text-sm font-medium text-gray-200 mb-3">Monthly Progress</h4>
             <div className="space-y-3">
               <div className="flex justify-between items-center">

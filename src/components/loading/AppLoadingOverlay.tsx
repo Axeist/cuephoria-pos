@@ -6,6 +6,10 @@ export type AppLoadingOverlayProps = {
   visible: boolean;
   title?: string;
   subtitle?: string;
+  /** Bottom hint under the progress bar. Pass null to hide. */
+  footerNote?: string | null;
+  /** Match branch-switch / full-app blocking overlays. */
+  stack?: "default" | "critical";
   variant?: "cafe" | "default";
 };
 
@@ -13,6 +17,8 @@ const AppLoadingOverlay: React.FC<AppLoadingOverlayProps> = ({
   visible,
   title = "Signing you in",
   subtitle = "Securing your session…",
+  footerNote = "Encrypted session · please wait",
+  stack = "default",
   variant = "default",
 }) => {
   const reduceMotion = useReducedMotion();
@@ -47,7 +53,9 @@ const AppLoadingOverlay: React.FC<AppLoadingOverlayProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.1 : 0.28 }}
-          className="fixed inset-0 z-[200] flex flex-col items-center justify-center px-5"
+          className={`fixed inset-0 flex flex-col items-center justify-center px-5 ${
+            stack === "critical" ? "z-[9999]" : "z-[200]"
+          }`}
           style={{
             background:
               "linear-gradient(165deg, rgba(4,6,14,0.97) 0%, rgba(10,8,22,0.95) 42%, rgba(6,8,18,0.98) 100%)",
@@ -164,14 +172,16 @@ const AppLoadingOverlay: React.FC<AppLoadingOverlayProps> = ({
                 />
               </div>
 
-              <div className="relative mt-6 flex items-center justify-center gap-2 text-[11px] text-zinc-500">
-                <Loader2
-                  className={`h-3.5 w-3.5 ${reduceMotion ? "" : "animate-spin"} ${
-                    variant === "cafe" ? "text-orange-400/90" : "text-violet-400/90"
-                  }`}
-                />
-                <span className="font-quicksand">Encrypted session · please wait</span>
-              </div>
+              {footerNote != null && footerNote !== "" && (
+                <div className="relative mt-6 flex items-center justify-center gap-2 text-[11px] text-zinc-500">
+                  <Loader2
+                    className={`h-3.5 w-3.5 ${reduceMotion ? "" : "animate-spin"} ${
+                      variant === "cafe" ? "text-orange-400/90" : "text-violet-400/90"
+                    }`}
+                  />
+                  <span className="font-quicksand">{footerNote}</span>
+                </div>
+              )}
             </div>
           </div>
 

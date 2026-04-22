@@ -122,7 +122,7 @@ const CafePartnerSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Partner Config */}
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50">
+      <Card className="glass-card glass-card-interactive border-white/10">
         <CardHeader>
           <CardTitle className="text-base font-heading text-white flex items-center gap-2">
             <Coffee className="h-5 w-5 text-orange-400" /> Partner Configuration
@@ -179,7 +179,7 @@ const CafePartnerSettings: React.FC = () => {
       </Card>
 
       {/* Cafe Users */}
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50">
+      <Card className="glass-card glass-card-interactive border-white/10">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base font-heading text-white flex items-center gap-2">

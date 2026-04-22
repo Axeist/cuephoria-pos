@@ -34,6 +34,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { BRAND_PRESETS, matchPreset, type BrandPreset } from "@/branding/presets";
+import { useTenantBranding } from "@/branding/BrandingProvider";
+import type { TenantBrandingOverride } from "@/branding/resolveBranding";
+import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
 import { cn } from "@/lib/utils";
 
 type Role = "owner" | "admin" | "manager" | "staff" | "read_only";
@@ -488,6 +491,8 @@ const HTTPS_RE = /^https:\/\//i;
 const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { applyBrandingFromServer, refresh: refreshBranding } = useTenantBranding();
+  const [themeApplyVisible, setThemeApplyVisible] = React.useState(false);
 
   const brandingQuery = useQuery({
     queryKey: ["tenant", "branding"],
@@ -540,7 +545,7 @@ const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         const v = form[k].trim();
         payload[k] = v.length === 0 ? null : v;
       });
-      return fetcher<{ ok: true; branding: Partial<BrandingFormState> }>(
+      return fetcher<{ ok: true; branding: TenantBrandingOverride }>(
         "/api/tenant/branding",
         {
           method: "PATCH",
@@ -549,15 +554,28 @@ const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         },
       );
     },
-    onSuccess: () => {
+    onMutate: () => {
+      setThemeApplyVisible(true);
+    },
+    onSuccess: async (result) => {
+      applyBrandingFromServer(result.branding ?? {});
       setEditing(false);
       setFieldErrors({});
       setSubmitError(null);
       toast({ title: "Branding saved", description: "Live for your members and public pages." });
       queryClient.invalidateQueries({ queryKey: ["tenant", "branding"] });
       queryClient.invalidateQueries({ queryKey: ["public", "workspace"] });
+      try {
+        await refreshBranding({ silent: true });
+      } catch {
+        /* refreshBranding logs non-fatal errors */
+      }
+      window.setTimeout(() => setThemeApplyVisible(false), 480);
     },
-    onError: (err: Error) => setSubmitError(err.message),
+    onError: (err: Error) => {
+      setSubmitError(err.message);
+      setThemeApplyVisible(false);
+    },
   });
 
   const saved = brandingQuery.data?.branding || {};
@@ -571,6 +589,7 @@ const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div>
@@ -738,6 +757,14 @@ const BrandingCard: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         )}
       </CardContent>
     </Card>
+    <AppLoadingOverlay
+      visible={themeApplyVisible}
+      stack="critical"
+      title="Applying new theme"
+      subtitle="Updating colors and surfaces across your workspace…"
+      footerNote="Refreshing your session — hang tight"
+    />
+    </>
   );
 };
 

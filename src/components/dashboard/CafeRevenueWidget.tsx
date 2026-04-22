@@ -61,7 +61,7 @@ const CafeRevenueWidget: React.FC<CafeRevenueWidgetProps> = ({ startDate, endDat
   if (loading || !stats || stats.totalOrders === 0) return null;
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl overflow-hidden">
+    <Card className="glass-card glass-card-interactive border-white/10 shadow-xl overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-heading text-white flex items-center gap-2">
           <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-orange-500 to-cuephoria-purple flex items-center justify-center">
@@ -72,21 +72,21 @@ const CafeRevenueWidget: React.FC<CafeRevenueWidgetProps> = ({ startDate, endDat
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="p-3 bg-gray-800/40 rounded-lg">
+          <div className="p-3 theme-inset">
             <div className="flex items-center gap-1 mb-1">
               <TrendingUp className="h-3 w-3 text-green-400" />
               <p className="text-[10px] text-gray-400 font-quicksand">Revenue</p>
             </div>
             <p className="text-lg font-bold text-green-400"><CurrencyDisplay amount={stats.grossRevenue} /></p>
           </div>
-          <div className="p-3 bg-gray-800/40 rounded-lg">
+          <div className="p-3 theme-inset">
             <div className="flex items-center gap-1 mb-1">
               <ShoppingCart className="h-3 w-3 text-blue-400" />
               <p className="text-[10px] text-gray-400 font-quicksand">Orders</p>
             </div>
             <p className="text-lg font-bold text-blue-400">{stats.totalOrders}</p>
           </div>
-          <div className="p-3 bg-gray-800/40 rounded-lg">
+          <div className="p-3 theme-inset">
             <div className="flex items-center gap-1 mb-1">
               <BarChart2 className="h-3 w-3 text-orange-400" />
               <p className="text-[10px] text-gray-400 font-quicksand">Avg Order</p>

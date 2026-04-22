@@ -134,9 +134,12 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
   // Calculate total PAID sales (EXCLUDING complimentary)
   const totalSales = paidBills.reduce((sum, bill) => sum + bill.total, 0);
 
+  const cardBase =
+    'glass-card glass-card-interactive border-white/10 shadow-xl transition-all duration-300';
+
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 mb-8">
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-red-500/30 hover:border-red-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-red-500/25 hover:border-red-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">Cash Sales</CardTitle>
           <div className="h-10 w-10 rounded-full bg-red-500/20 flex items-center justify-center">
@@ -150,7 +153,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-blue-500/30 hover:border-blue-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-blue-500/25 hover:border-blue-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">UPI Sales</CardTitle>
           <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
@@ -164,7 +167,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-orange-500/30 hover:border-orange-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-orange-500/25 hover:border-orange-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">Credit Sales</CardTitle>
           <div className="h-10 w-10 rounded-full bg-orange-500/20 flex items-center justify-center">
@@ -178,7 +181,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-indigo-500/30 hover:border-indigo-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-indigo-500/25 hover:border-indigo-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">Razorpay Sales</CardTitle>
           <div className="h-10 w-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
@@ -192,7 +195,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-purple-500/30 hover:border-purple-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-purple-500/25 hover:border-purple-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">Split Payments</CardTitle>
           <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center">
@@ -203,16 +206,18 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
           <div className="text-2xl font-bold text-white mb-2">
             <CurrencyDisplay amount={totalSplitSales} />
           </div>
-          <div className="text-xs text-gray-400 space-y-0.5">
+          <div className="text-xs text-white/50 space-y-0.5">
             <div>Cash: <CurrencyDisplay amount={splitCashAmount} /></div>
             <div>UPI: <CurrencyDisplay amount={splitUpiAmount} /></div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-amber-950/40 to-orange-950/30 border-amber-700/50 shadow-xl hover:shadow-amber-500/30 hover:border-amber-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card
+        className={`${cardBase} border-amber-500/20 hover:border-amber-400/40 hover:shadow-amber-500/20`}
+      >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="text-sm font-medium text-amber-100">Complimentary</CardTitle>
+          <CardTitle className="text-sm font-medium text-amber-100/95">Complimentary</CardTitle>
           <div className="h-10 w-10 rounded-full bg-amber-500/30 flex items-center justify-center">
             <Gift className="h-5 w-5 text-amber-400" />
           </div>
@@ -228,7 +233,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-cyan-500/30 hover:border-cyan-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-cyan-500/25 hover:border-cyan-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">PS5 Sessions</CardTitle>
           <div className="h-10 w-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
@@ -242,7 +247,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-yellow-500/30 hover:border-yellow-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-yellow-500/25 hover:border-yellow-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">8-Ball Sessions</CardTitle>
           <div className="h-10 w-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
@@ -256,7 +261,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-pink-500/30 hover:border-pink-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-pink-500/25 hover:border-pink-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">Product Sales</CardTitle>
           <div className="h-10 w-10 rounded-full bg-pink-500/20 flex items-center justify-center">
@@ -270,7 +275,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-emerald-500/30 hover:border-emerald-400/40 transition-all duration-300 backdrop-blur-sm">
+      <Card className={`${cardBase} hover:shadow-emerald-500/25 hover:border-emerald-400/35`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-white/90">Total Sales</CardTitle>
           <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
@@ -281,7 +286,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
           <div className="text-2xl font-bold text-white mb-2">
             <CurrencyDisplay amount={totalSales} />
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-white/50">
             Paid transactions only
           </p>
         </CardContent>

@@ -146,7 +146,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
   }, [bills, products, startDate, endDate]);
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-orange-500/20 hover:border-orange-500/30 transition-all duration-300 backdrop-blur-sm">
+    <Card className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-orange-500/20 hover:border-orange-500/30 transition-all duration-300 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
         <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
           <ShoppingCart className="h-5 w-5 text-orange-400" />
@@ -160,7 +160,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
         <div className="space-y-6">
           {/* Enhanced Summary Stats */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-orange-500/30 transition-colors">
+            <div className="theme-inset p-4 hover:border-orange-500/30 transition-colors">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign className="h-4 w-4 text-gray-400" />
                 <p className="text-xs text-gray-400 font-medium">Total Sales</p>
@@ -169,7 +169,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
                 <CurrencyDisplay amount={canteenData.totalSales} />
               </p>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-green-500/30 transition-colors">
+            <div className="theme-inset p-4 hover:border-green-500/30 transition-colors">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="h-4 w-4 text-green-400" />
                 <p className="text-xs text-gray-400 font-medium">Total Profit</p>
@@ -178,7 +178,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
                 <CurrencyDisplay amount={canteenData.totalProfit} />
               </p>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/30 hover:border-blue-500/30 transition-colors">
+            <div className="theme-inset p-4 hover:border-blue-500/30 transition-colors">
               <div className="flex items-center gap-2 mb-2">
                 <Package className="h-4 w-4 text-blue-400" />
                 <p className="text-xs text-gray-400 font-medium">Stock Value</p>
@@ -190,7 +190,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
           </div>
 
           {/* Enhanced Profit Margin */}
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm text-gray-300 font-medium">Profit Margin</span>
               <span className="text-lg font-bold text-orange-400">
@@ -221,7 +221,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
                   {canteenData.allProducts.map((product, index) => (
                     <div 
                       key={index} 
-                      className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/30 hover:border-gray-600/50 transition-all duration-200 group"
+                      className="theme-inset p-3 hover:border-white/15 transition-all duration-200 group"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
@@ -247,7 +247,7 @@ const CanteenSalesProfitWidget: React.FC<CanteenSalesProfitWidgetProps> = ({ sta
                 </div>
               </ScrollArea>
             ) : (
-              <div className="bg-gray-800/30 border border-gray-700/30 rounded-lg p-6 text-center">
+              <div className="theme-inset p-6 text-center">
                 <Package className="h-8 w-8 text-gray-500 mx-auto mb-2" />
                 <p className="text-sm text-gray-400">
                   No product sales data for the selected period

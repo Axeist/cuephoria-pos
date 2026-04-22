@@ -105,8 +105,8 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
   }, [chartData, selectedPeriod]);
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300 backdrop-blur-sm">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
+    <Card className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300 backdrop-blur-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-white/10">
         <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-blue-400" />
           Daily Sales Trend
@@ -125,7 +125,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               className={`text-xs transition-all duration-200 ${
                 selectedPeriod === '7days' 
                   ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30' 
-                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500/50'
+                  : 'bg-white/[0.06] border-white/10 text-white/70 hover:bg-white/10 hover:border-white/15'
               }`}
             >
               7 Days
@@ -137,7 +137,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               className={`text-xs transition-all duration-200 ${
                 selectedPeriod === '30days' 
                   ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30' 
-                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500/50'
+                  : 'bg-white/[0.06] border-white/10 text-white/70 hover:bg-white/10 hover:border-white/15'
               }`}
             >
               30 Days
@@ -149,7 +149,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
               className={`text-xs transition-all duration-200 ${
                 selectedPeriod === 'year' 
                   ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30' 
-                  : 'bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500/50'
+                  : 'bg-white/[0.06] border-white/10 text-white/70 hover:bg-white/10 hover:border-white/15'
               }`}
             >
               This Year
@@ -157,19 +157,19 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30 hover:border-gray-600/50 transition-colors">
+            <div className="theme-inset p-3 hover:border-white/15 transition-colors">
               <div className="flex items-center gap-2 mb-1">
                 <Calendar className="h-4 w-4 text-green-400" />
-                <p className="text-xs text-gray-400">Total Sales</p>
+                <p className="text-xs text-white/55">Total Sales</p>
               </div>
               <p className="text-lg font-bold text-green-400">
                 <CurrencyDisplay amount={metrics.totalSales} />
               </p>
             </div>
-            <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30 hover:border-gray-600/50 transition-colors">
+            <div className="theme-inset p-3 hover:border-white/15 transition-colors">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp className="h-4 w-4 text-purple-400" />
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-white/55">
                   {selectedPeriod === 'year' ? 'Monthly Avg' : 'Daily Avg'}
                 </p>
               </div>
@@ -179,7 +179,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
             </div>
           </div>
 
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -218,7 +218,7 @@ const DailySalesTrendWidget: React.FC<DailySalesTrendWidgetProps> = ({ startDate
             </div>
           </div>
 
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-purple-400 shadow-lg shadow-purple-400/30"></div>

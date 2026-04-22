@@ -87,7 +87,7 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
       {widgets.map((widget, index) => (
         <Card 
           key={index} 
-          className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-xl hover:shadow-cuephoria-purple/20 transition-all duration-300 backdrop-blur-sm"
+          className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-cuephoria-purple/25 transition-all duration-300"
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-medium text-white">
@@ -101,7 +101,7 @@ const CustomerInsightWidgets: React.FC<CustomerInsightWidgetsProps> = ({
             <div className="text-xl font-bold text-white">
               {widget.value}
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-white/55">
               {widget.description}
             </p>
           </CardContent>

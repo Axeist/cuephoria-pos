@@ -178,7 +178,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
   }, [bills, startDate, endDate]);
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900/95 to-gray-800/90 border-gray-700/50 shadow-xl hover:shadow-green-500/20 hover:border-green-500/30 transition-all duration-300 backdrop-blur-sm">
+    <Card className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-green-500/20 hover:border-green-500/30 transition-all duration-300 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
         <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
           <CreditCard className="h-5 w-5 text-green-400" />
@@ -190,7 +190,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
       </CardHeader>
       <CardContent className="p-6">
         <div className="space-y-4">
-          <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
+          <div className="theme-inset p-4">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-200">Total Sales</span>
               <span className="font-bold text-xl text-green-400">
@@ -239,7 +239,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
 
           <div className="space-y-3">
             {paymentData.chartData.map((item, index) => (
-              <div key={index} className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3 hover:bg-gray-700/30 hover:border-gray-600/50 transition-all duration-200 group">
+              <div key={index} className="theme-inset p-3 hover:border-white/15 transition-all duration-200 group">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div 
@@ -272,14 +272,14 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             </h4>
             
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+              <div className="theme-inset p-3">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Total Transactions</p>
                   <p className="text-lg font-bold text-white">{paymentData.totalTransactions}</p>
                 </div>
               </div>
               
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+              <div className="theme-inset p-3">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Avg Transaction</p>
                   <p className="text-lg font-bold text-white">
@@ -290,21 +290,21 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             </div>
             
             <div className="grid grid-cols-3 gap-3">
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+              <div className="theme-inset p-3">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Cash Preference</p>
                   <p className="text-lg font-bold text-green-400">{paymentData.cashPreference.toFixed(1)}%</p>
                 </div>
               </div>
               
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+              <div className="theme-inset p-3">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">UPI Preference</p>
                   <p className="text-lg font-bold text-purple-400">{paymentData.upiPreference.toFixed(1)}%</p>
                 </div>
               </div>
 
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/30">
+              <div className="theme-inset p-3">
                 <div className="text-center">
                   <p className="text-xs text-gray-400">Credit Preference</p>
                   <p className="text-lg font-bold text-yellow-400">{paymentData.creditPreference.toFixed(1)}%</p>
@@ -318,7 +318,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             <h4 className="text-sm font-medium text-gray-200 mb-2">Avg by Payment Method</h4>
             
             {paymentData.paymentMethodCounts.cashOnly > 0 && (
-              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+              <div className="theme-inset p-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg Cash Only:</span>
                   <span className="font-medium text-white">
@@ -329,7 +329,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             )}
             
             {paymentData.paymentMethodCounts.upiOnly > 0 && (
-              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+              <div className="theme-inset p-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg UPI Only:</span>
                   <span className="font-medium text-white">
@@ -340,7 +340,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             )}
 
             {paymentData.paymentMethodCounts.creditOnly > 0 && (
-              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+              <div className="theme-inset p-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg Credit Only:</span>
                   <span className="font-medium text-white">
@@ -351,7 +351,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             )}
 
             {paymentData.paymentMethodCounts.razorpayOnly > 0 && (
-              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+              <div className="theme-inset p-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg Razorpay Only:</span>
                   <span className="font-medium text-white">
@@ -362,7 +362,7 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             )}
             
             {paymentData.paymentMethodCounts.split > 0 && (
-              <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+              <div className="theme-inset p-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-400">Avg Split Payment:</span>
                   <span className="font-medium text-white">
@@ -377,25 +377,25 @@ const PaymentAnalyticsWidget: React.FC<PaymentAnalyticsWidgetProps> = ({ startDa
             <div className="pt-2 border-t border-gray-700/30">
               <h4 className="text-sm font-medium text-gray-200 mb-2">Split Payment Details</h4>
               <div className="space-y-2">
-                <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+                <div className="theme-inset p-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400">Split transactions:</span>
                     <span className="text-white">{paymentData.splitBreakdown.count}</span>
                   </div>
                 </div>
-                <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+                <div className="theme-inset p-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400">Cash portion:</span>
                     <span className="text-white"><CurrencyDisplay amount={paymentData.splitBreakdown.cash} /></span>
                   </div>
                 </div>
-                <div className="bg-gray-800/40 rounded-lg p-2 border border-gray-700/30">
+                <div className="theme-inset p-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400">UPI portion:</span>
                     <span className="text-white"><CurrencyDisplay amount={paymentData.splitBreakdown.upi} /></span>
                   </div>
                 </div>
-                <div className="bg-gray-800/30 rounded-lg p-2 border border-gray-700/30">
+                <div className="theme-inset p-2">
                   <div className="flex justify-between text-xs font-medium">
                     <span className="text-gray-300">Split total:</span>
                     <span className="text-green-400"><CurrencyDisplay amount={paymentData.splitBreakdown.total} /></span>
