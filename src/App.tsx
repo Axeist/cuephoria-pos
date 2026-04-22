@@ -39,6 +39,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
+import CompareHub from "./pages/CompareHub";
 import CustomerLogin from "./pages/CustomerLogin";
 import CafeLogin from "./pages/cafe/CafeLogin";
 
@@ -78,7 +79,6 @@ const ShippingAndDelivery = lazy(() => import("./pages/ShippingAndDelivery"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const AcceptableUse = lazy(() => import("./pages/AcceptableUse"));
 const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
-const CompareHub = lazy(() => import("./pages/CompareHub"));
 const VsCompetitor = lazy(() => import("./pages/VsCompetitor"));
 const CafePOS = lazy(() => import("./pages/cafe/CafePOS"));
 const CafeMenu = lazy(() => import("./pages/cafe/CafeMenu"));
@@ -375,14 +375,7 @@ const App = () => {
                 <Route path="/account/verify-email" element={<VerifyEmail />} />
 
                 {/* SEO comparison pages (public marketing) */}
-                <Route
-                  path="/compare"
-                  element={
-                    <LazyPage>
-                      <CompareHub />
-                    </LazyPage>
-                  }
-                />
+                <Route path="/compare" element={<CompareHub />} />
                 <Route
                   path="/vs/:slug"
                   element={
