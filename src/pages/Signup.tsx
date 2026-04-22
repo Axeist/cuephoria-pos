@@ -149,7 +149,7 @@ export default function Signup() {
         setSubmitting(false);
         return;
       }
-      const delivered = json?.verificationEmailDispatched !== false;
+      const delivered = json?.verificationEmailDispatched === true;
       setVerificationEmailDispatched(delivered);
       appToast.success(
         "Workspace created",

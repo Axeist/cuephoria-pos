@@ -312,7 +312,7 @@ export default async function handler(req: Request) {
           month: "short",
           year: "numeric",
         });
-        await sendEmail({
+        const emailResult = await sendEmail({
           kind: "signup_welcome",
           to: newUser.email,
           vars: {
@@ -327,7 +327,7 @@ export default async function handler(req: Request) {
           adminUserId: newUser.id,
           supabase,
         });
-        verificationEmailDispatched = true;
+        verificationEmailDispatched = !!emailResult.ok;
       } catch (mailErr) {
         console.warn("signup: welcome email failed", (mailErr as Error).message);
       }
