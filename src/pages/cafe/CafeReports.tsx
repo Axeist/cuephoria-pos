@@ -225,10 +225,10 @@ const CafeReports: React.FC = () => {
               <Calendar className="h-3 w-3 text-orange-400" /> Date range
             </Label>
             <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
-              <SelectTrigger className="h-10 bg-white/[0.03] border-white/[0.06] text-white font-quicksand">
+              <SelectTrigger className="h-10 font-quicksand">
                 <SelectValue placeholder="Period" />
               </SelectTrigger>
-              <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
+              <SelectContent>
                 <SelectItem value="today">Today</SelectItem>
                 <SelectItem value="7d">Last 7 days</SelectItem>
                 <SelectItem value="30d">Last 30 days</SelectItem>
@@ -262,10 +262,10 @@ const CafeReports: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Order type</Label>
                   <Select value={filterOrderType} onValueChange={(v) => setFilterOrderType(v as 'all' | CafeOrderType)}>
-                    <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.06] text-white text-xs font-quicksand">
+                    <SelectTrigger className="h-9 text-xs font-quicksand">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
+                    <SelectContent>
                       <SelectItem value="all">All types</SelectItem>
                       <SelectItem value="dine_in">Dine in</SelectItem>
                       <SelectItem value="takeaway">Takeaway</SelectItem>
@@ -277,10 +277,10 @@ const CafeReports: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Payment</Label>
                   <Select value={filterPayment} onValueChange={(v) => setFilterPayment(v as 'all' | CafePaymentMethod)}>
-                    <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.06] text-white text-xs font-quicksand">
+                    <SelectTrigger className="h-9 text-xs font-quicksand">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
+                    <SelectContent>
                       <SelectItem value="all">All methods</SelectItem>
                       <SelectItem value="cash">Cash</SelectItem>
                       <SelectItem value="upi">UPI</SelectItem>
@@ -293,10 +293,10 @@ const CafeReports: React.FC = () => {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase tracking-wider text-gray-500 font-quicksand">Source</Label>
                   <Select value={filterSource} onValueChange={(v) => setFilterSource(v as 'all' | CafeOrderSource)}>
-                    <SelectTrigger className="h-9 bg-white/[0.03] border-white/[0.06] text-white text-xs font-quicksand">
+                    <SelectTrigger className="h-9 text-xs font-quicksand">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-zinc-900/95 border-white/[0.08]">
+                    <SelectContent>
                       <SelectItem value="all">All sources</SelectItem>
                       <SelectItem value="pos">POS</SelectItem>
                       <SelectItem value="customer">Customer app</SelectItem>

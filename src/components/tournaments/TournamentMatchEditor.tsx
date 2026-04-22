@@ -99,8 +99,8 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
               <Button
                 variant="outline"
                 className={cn(
-                  "w-full justify-start text-left font-normal border-gray-600/60 bg-gray-800/60 text-gray-200 hover:bg-gray-700/70 hover:border-gray-500/80 rounded-xl px-4 py-4 h-auto transition-all duration-200",
-                  !date && "text-muted-foreground"
+                  "theme-menu-trigger w-full justify-start text-left font-normal rounded-xl px-4 py-4 h-auto border-white/10 hover:text-white",
+                  !date && "text-white/50"
                 )}
               >
                 <CalendarIcon className="mr-3 h-5 w-5 text-blue-400" />
@@ -109,13 +109,13 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
                 </span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-gray-900/95 border-gray-700/60 backdrop-blur-sm" align="start">
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={date}
                 onSelect={(newDate) => newDate && setDate(newDate)}
                 initialFocus
-                className="pointer-events-auto bg-gray-900/95 text-white rounded-xl"
+                className="pointer-events-auto bg-transparent text-white rounded-xl"
               />
             </PopoverContent>
           </Popover>
@@ -146,18 +146,18 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
             Player 1
           </Label>
           <Select value={player1Id} onValueChange={setPlayer1Id}>
-            <SelectTrigger className="border-gray-600/60 bg-gray-800/60 text-white hover:bg-gray-700/70 focus:border-blue-500/80 rounded-xl px-4 py-4 h-auto transition-all duration-200">
+            <SelectTrigger className="theme-menu-trigger rounded-xl px-4 py-4 h-auto focus:ring-blue-400/40">
               <div className="flex items-center gap-3">
                 <Users className="h-4 w-4 text-blue-400" />
                 <SelectValue placeholder="Select Player 1" />
               </div>
             </SelectTrigger>
-            <SelectContent className="bg-gray-900/95 border-gray-700/60 backdrop-blur-sm">
+            <SelectContent>
               {availablePlayers.map((player) => (
                 <SelectItem 
                   key={player.id} 
                   value={player.id}
-                  className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80 rounded-lg m-1"
+                  className="rounded-lg m-1"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
@@ -178,18 +178,18 @@ const TournamentMatchEditor: React.FC<TournamentMatchEditorProps> = ({
             Player 2
           </Label>
           <Select value={player2Id} onValueChange={setPlayer2Id}>
-            <SelectTrigger className="border-gray-600/60 bg-gray-800/60 text-white hover:bg-gray-700/70 focus:border-red-500/80 rounded-xl px-4 py-4 h-auto transition-all duration-200">
+            <SelectTrigger className="theme-menu-trigger rounded-xl px-4 py-4 h-auto focus:ring-red-400/40">
               <div className="flex items-center gap-3">
                 <Users className="h-4 w-4 text-red-400" />
                 <SelectValue placeholder="Select Player 2" />
               </div>
             </SelectTrigger>
-            <SelectContent className="bg-gray-900/95 border-gray-700/60 backdrop-blur-sm">
+            <SelectContent>
               {availablePlayers.filter(p => p.id !== player1Id).map((player) => (
                 <SelectItem 
                   key={player.id} 
                   value={player.id}
-                  className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80 rounded-lg m-1"
+                  className="rounded-lg m-1"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-red-500 rounded-full"></div>

@@ -13,7 +13,8 @@
     --card: 260 40% 9%;
     --card-foreground: 0 0% 100%;
 
-    --popover: 260 45% 8%;
+    /* Popover / menus — violet-tinted (avoid flat slate gray) */
+    --popover: 262 42% 11%;
     --popover-foreground: 0 0% 100%;
 
     --primary: 262 83% 64%;
@@ -22,8 +23,8 @@
     --secondary: 25 95% 53%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 260 22% 14%;
-    --muted-foreground: 255 12% 72%;
+    --muted: 262 28% 16%;
+    --muted-foreground: 255 14% 72%;
 
     --accent: 293 69% 55%;
     --accent-foreground: 0 0% 98%;
@@ -31,8 +32,8 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 260 22% 20%;
-    --input: 260 22% 20%;
+    --border: 262 30% 22%;
+    --input: 262 28% 18%;
     --ring: 262 83% 55%;
 
     --radius: 0.75rem;
@@ -1120,6 +1121,33 @@
     color-mix(in oklab, var(--brand-primary-hex) 9%, rgba(255, 255, 255, 0.04)) 0%,
     rgba(4, 3, 10, 0.5) 100%
   );
+}
+
+/* Select triggers, compact filter buttons — matches ambient glass (replaces flat gray-800). */
+.theme-menu-trigger {
+  @apply rounded-xl border border-white/10 backdrop-blur-md text-white shadow-lg shadow-black/25;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--brand-primary-hex) 14%, rgba(255, 255, 255, 0.05)) 0%,
+    rgba(6, 4, 16, 0.82) 100%
+  );
+}
+.theme-menu-trigger:hover {
+  border-color: color-mix(in oklab, var(--brand-primary-hex) 45%, rgba(255, 255, 255, 0.12));
+}
+
+/* Dropdown / select panel / date popover content */
+.theme-menu-content {
+  @apply rounded-xl border border-white/10 backdrop-blur-xl text-white;
+  background: linear-gradient(
+    165deg,
+    color-mix(in oklab, var(--brand-primary-hex) 20%, rgba(255, 255, 255, 0.06)) 0%,
+    color-mix(in oklab, var(--brand-primary-hex) 8%, rgba(255, 255, 255, 0.02)) 48%,
+    rgba(5, 3, 14, 0.94) 100%
+  );
+  box-shadow:
+    0 24px 56px -20px color-mix(in oklab, var(--brand-primary-hex) 32%, rgba(0, 0, 0, 0.85)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 /* Landing-class gradient CTA. Use for primary actions. */

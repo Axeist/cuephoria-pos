@@ -428,7 +428,7 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
                           value={formData.discount_type}
                           onValueChange={(value: 'percentage' | 'fixed' | 'bogo' | 'free_item') => setFormData(prev => ({ ...prev, discount_type: value }))}
                         >
-                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -461,7 +461,7 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
                           value={formData.target_audience}
                           onValueChange={(value: 'all' | 'members' | 'non_members' | 'new_customers' | 'vip') => setFormData(prev => ({ ...prev, target_audience: value }))}
                         >
-                          <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

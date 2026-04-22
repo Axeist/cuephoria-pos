@@ -1213,10 +1213,10 @@ const ReportsPage: React.FC = () => {
             </div>
             
             <Select value={paymentTypeFilter} onValueChange={setPaymentTypeFilter}>
-              <SelectTrigger className="w-full md:w-[180px] bg-white/[0.06] border-white/10 text-white">
+              <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Payment Type" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700 text-white">
+              <SelectContent>
                 <SelectItem value="all">All Payments</SelectItem>
                 <SelectItem value="upi">UPI</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
@@ -1846,10 +1846,10 @@ const ReportsPage: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
           <Select value={dateRangeKey} onValueChange={handleDateRangeChange}>
-            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700 text-white text-sm">
+            <SelectTrigger className="w-full sm:w-[180px] text-sm">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-gray-700 text-white">
+            <SelectContent>
               <SelectItem value="today">Today</SelectItem>
               <SelectItem value="yesterday">Yesterday</SelectItem>
               <SelectItem value="thisWeek">This week</SelectItem>
@@ -1865,13 +1865,16 @@ const ReportsPage: React.FC = () => {
           
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2 bg-gray-800 border-gray-700 text-white text-xs sm:text-sm flex-1 sm:flex-initial">
+              <Button
+                variant="outline"
+                className="theme-menu-trigger gap-2 border-white/10 text-white text-xs sm:text-sm flex-1 sm:flex-initial hover:text-white"
+              >
                 <CalendarIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">{dateRangeString}</span>
                 <span className="sm:hidden">Date</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700" align={isMobile ? "start" : "end"}>
+            <PopoverContent className="w-auto p-0" align={isMobile ? "start" : "end"}>
               <Calendar
                 initialFocus
                 mode="range"
@@ -1879,12 +1882,12 @@ const ReportsPage: React.FC = () => {
                 selected={date}
                 onSelect={handleCalendarSelect}
                 numberOfMonths={isMobile ? 1 : 2}
-                className="p-3 pointer-events-auto bg-gray-800 text-white"
+                className="p-3 pointer-events-auto bg-transparent text-white"
               />
             </PopoverContent>
           </Popover>
           
-          <Button onClick={handleDownloadReport} className="gap-2 bg-purple-500 hover:bg-purple-600 text-white text-xs sm:text-sm flex-1 sm:flex-initial">
+          <Button onClick={handleDownloadReport} className="gap-2 btn-gradient border-0 text-white text-xs sm:text-sm flex-1 sm:flex-initial">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export</span>
             <span className="sm:hidden">Export</span>

@@ -287,12 +287,12 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
               <div className="space-y-3">
                 <Label htmlFor="gameType" className="text-gray-200 font-medium">Game Type *</Label>
                 <Select value={gameType} onValueChange={(value: GameType) => setGameType(value)}>
-                  <SelectTrigger className="bg-gray-800/60 border-gray-600/60 text-white focus:border-green-500/80 rounded-xl px-4 py-3 h-auto">
+                  <SelectTrigger className="theme-menu-trigger rounded-xl px-4 py-3 h-auto focus:ring-green-500/40">
                     <SelectValue placeholder="Select game type" />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900/95 border-gray-700/60 backdrop-blur-sm">
-                    <SelectItem value="PS5" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">PlayStation 5</SelectItem>
-                    <SelectItem value="Pool" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">Pool/Billiards</SelectItem>
+                  <SelectContent>
+                    <SelectItem value="PS5">PlayStation 5</SelectItem>
+                    <SelectItem value="Pool">Pool/Billiards</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -301,12 +301,12 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                 <div className="space-y-3">
                   <Label htmlFor="gameVariant" className="text-gray-200 font-medium">Pool Variant</Label>
                   <Select value={gameVariant || ''} onValueChange={(value: PoolGameVariant) => setGameVariant(value)}>
-                    <SelectTrigger className="bg-gray-800/60 border-gray-600/60 text-white focus:border-green-500/80 rounded-xl px-4 py-3 h-auto">
+                    <SelectTrigger className="theme-menu-trigger rounded-xl px-4 py-3 h-auto focus:ring-green-500/40">
                       <SelectValue placeholder="Select pool variant" />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-900/95 border-gray-700/60 backdrop-blur-sm">
-                      <SelectItem value="8 Ball" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">8 Ball</SelectItem>
-                      <SelectItem value="Snooker" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">Snooker</SelectItem>
+                    <SelectContent>
+                      <SelectItem value="8 Ball">8 Ball</SelectItem>
+                      <SelectItem value="Snooker">Snooker</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -543,12 +543,12 @@ const TournamentDialog: React.FC<TournamentDialogProps> = ({
                     className="bg-gray-800/60 border-gray-600/60 text-white placeholder-gray-400 focus:border-green-500/80 rounded-lg px-3 py-2 h-auto"
                   />
                   <Select value={newCouponType} onValueChange={(value: 'percentage' | 'fixed') => setNewCouponType(value)}>
-                    <SelectTrigger className="bg-gray-800/60 border-gray-600/60 text-white focus:border-green-500/80 rounded-lg px-3 py-2 h-auto">
+                    <SelectTrigger className="theme-menu-trigger rounded-lg px-3 py-2 h-auto focus:ring-green-500/40">
                       <SelectValue placeholder="Discount Type" />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-900/95 border-gray-700/60 backdrop-blur-sm">
-                      <SelectItem value="percentage" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">Percentage (%)</SelectItem>
-                      <SelectItem value="fixed" className="text-white hover:bg-gray-800/80 focus:bg-gray-800/80">Fixed Amount (₹)</SelectItem>
+                    <SelectContent>
+                      <SelectItem value="percentage">Percentage (%)</SelectItem>
+                      <SelectItem value="fixed">Fixed Amount (₹)</SelectItem>
                     </SelectContent>
                   </Select>
                   <Input

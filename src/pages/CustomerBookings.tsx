@@ -403,10 +403,10 @@ export default function CustomerBookings() {
       <div className="max-w-5xl mx-auto px-4 pt-4">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-full sm:w-[200px] bg-gray-800/50 border-purple-500/30 text-white">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Filter by date" />
             </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-purple-500/30">
+            <SelectContent>
               <SelectItem value="all">All Time</SelectItem>
               <SelectItem value="today">Today</SelectItem>
               <SelectItem value="yesterday">Yesterday</SelectItem>
@@ -424,12 +424,12 @@ export default function CustomerBookings() {
             <div className="flex gap-2 items-center">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="bg-gray-800/50 border-purple-500/30 text-white">
+                  <Button variant="outline" className="theme-menu-trigger border-white/10 text-white hover:text-white">
                     <Calendar size={16} className="mr-2" />
                     {customDateFrom ? formatDate(customDateFrom.toISOString().split('T')[0]) : 'From'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-gray-800 border-purple-500/30">
+                <PopoverContent className="w-auto p-0">
                   <CalendarComponent
                     mode="single"
                     selected={customDateFrom}
@@ -439,16 +439,16 @@ export default function CustomerBookings() {
                 </PopoverContent>
               </Popover>
 
-              <span className="text-gray-400">to</span>
+              <span className="text-white/45">to</span>
 
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="bg-gray-800/50 border-purple-500/30 text-white">
+                  <Button variant="outline" className="theme-menu-trigger border-white/10 text-white hover:text-white">
                     <Calendar size={16} className="mr-2" />
                     {customDateTo ? formatDate(customDateTo.toISOString().split('T')[0]) : 'To'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-gray-800 border-purple-500/30">
+                <PopoverContent className="w-auto p-0">
                   <CalendarComponent
                     mode="single"
                     selected={customDateTo}

@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
 interface ExpenseDateFilterProps {
   onDateRangeChange: (startDate: Date, endDate: Date) => void;
@@ -126,31 +125,17 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
   return (
     <div className="flex items-center gap-3">
       <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
-        <SelectTrigger className="w-48 bg-gray-800 border-gray-700 text-white">
+        <SelectTrigger className="w-48">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="bg-gray-800 border-gray-700">
-          <SelectItem value="this-month" className="text-white hover:bg-gray-700">
-            This month
-          </SelectItem>
-          <SelectItem value="last-month" className="text-white hover:bg-gray-700">
-            Last month
-          </SelectItem>
-          <SelectItem value="last-3-months" className="text-white hover:bg-gray-700">
-            Last 3 months
-          </SelectItem>
-          <SelectItem value="this-year" className="text-white hover:bg-gray-700">
-            This year
-          </SelectItem>
-          <SelectItem value="last-year" className="text-white hover:bg-gray-700">
-            Last year
-          </SelectItem>
-          <SelectItem value="all-time" className="text-white hover:bg-gray-700">
-            All time
-          </SelectItem>
-          <SelectItem value="custom" className="text-white hover:bg-gray-700">
-            Custom range
-          </SelectItem>
+        <SelectContent>
+          <SelectItem value="this-month">This month</SelectItem>
+          <SelectItem value="last-month">Last month</SelectItem>
+          <SelectItem value="last-3-months">Last 3 months</SelectItem>
+          <SelectItem value="this-year">This year</SelectItem>
+          <SelectItem value="last-year">Last year</SelectItem>
+          <SelectItem value="all-time">All time</SelectItem>
+          <SelectItem value="custom">Custom range</SelectItem>
         </SelectContent>
       </Select>
 
@@ -160,13 +145,13 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                className="theme-menu-trigger border-white/10 text-white hover:text-white"
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 {customStartDate ? format(customStartDate, 'dd MMM yyyy') : 'Start date'}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
+            <PopoverContent className="w-auto p-0">
               <CalendarComponent
                 mode="single"
                 selected={customStartDate}
@@ -176,19 +161,19 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
             </PopoverContent>
           </Popover>
 
-          <span className="text-gray-400">to</span>
+          <span className="text-white/45">to</span>
 
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                className="theme-menu-trigger border-white/10 text-white hover:text-white"
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 {customEndDate ? format(customEndDate, 'dd MMM yyyy') : 'End date'}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
+            <PopoverContent className="w-auto p-0">
               <CalendarComponent
                 mode="single"
                 selected={customEndDate}
@@ -205,16 +190,16 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
           <PopoverTrigger asChild>
             <Button
               variant="outline"
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+              className="theme-menu-trigger border-white/10 text-white hover:text-white"
             >
               <Calendar className="h-4 w-4 mr-2" />
               {getDateRangeLabel()}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-700">
+          <PopoverContent className="w-auto p-0">
             <div className="grid grid-cols-2 gap-2 p-4">
               <div>
-                <label className="text-sm text-gray-400 mb-2 block">From</label>
+                <label className="text-sm text-white/55 mb-2 block">From</label>
                 <CalendarComponent
                   mode="single"
                   selected={customStartDate}
@@ -223,7 +208,7 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
                 />
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-2 block">To</label>
+                <label className="text-sm text-white/55 mb-2 block">To</label>
                 <CalendarComponent
                   mode="single"
                   selected={customEndDate}
@@ -237,10 +222,7 @@ const ExpenseDateFilter: React.FC<ExpenseDateFilterProps> = ({
       )}
 
       {onExport && (
-        <Button
-          onClick={onExport}
-          className="bg-purple-600 hover:bg-purple-700 text-white"
-        >
+        <Button onClick={onExport} className="btn-gradient text-white border-0">
           <Download className="h-4 w-4 mr-2" />
           Export
         </Button>

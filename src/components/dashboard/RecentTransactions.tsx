@@ -1016,10 +1016,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                             value={item.type} 
                             onValueChange={(value) => handleUpdateItem(index, 'type', value as 'product' | 'session')}
                           >
-                                  <SelectTrigger className="bg-gray-700 border-gray-600 text-white h-9 text-sm">
+                                  <SelectTrigger className="h-9 text-sm">
                               <SelectValue placeholder="Type" />
                             </SelectTrigger>
-                            <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                            <SelectContent>
                               <SelectItem value="product">Product</SelectItem>
                               <SelectItem value="session">Session</SelectItem>
                             </SelectContent>
@@ -1082,10 +1082,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       value={editingDiscountType}
                       onValueChange={(value) => setEditingDiscountType(value as 'percentage' | 'fixed')}
                     >
-                      <SelectTrigger className="bg-gray-700 border-gray-600 text-white w-24">
+                      <SelectTrigger className="w-24 h-9 text-sm">
                         <SelectValue placeholder="Type" />
                       </SelectTrigger>
-                      <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                      <SelectContent>
                         <SelectItem value="percentage">%</SelectItem>
                         <SelectItem value="fixed">₹</SelectItem>
                       </SelectContent>
