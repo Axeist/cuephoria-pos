@@ -20,7 +20,7 @@ import SiteAmbientBackground from "@/components/landing/SiteAmbientBackground";
 import { Button } from "@/components/ui/button";
 import { competitors } from "@/data/competitors";
 
-const FEATURED_SLUGS = ["playo", "hudle", "ggleap"];
+const FEATURED_SLUGS = ["gamebiller", "playo", "hudle", "ggleap"];
 
 const BrandBadge: React.FC<{ mark: string; color: string }> = ({ mark, color }) => (
   <div
@@ -65,7 +65,7 @@ const CompareHub: React.FC = () => {
   useEffect(() => {
     const prevTitle = document.title;
     document.title =
-      "Cuetronix Comparisons — Playo, Hudle, ggLeap, SENET, CourtReserve, Skedda, SmartLaunch & SpringboardVR (2026)";
+      "Cuetronix Comparisons — GameBiller, Playo, Hudle, ggLeap, SENET, CourtReserve, Skedda, SmartLaunch & SpringboardVR (2026)";
 
     const upsert = (selector: string, attr: "name" | "property", key: string, value: string) => {
       let el = document.head.querySelector<HTMLMetaElement>(selector);
@@ -79,11 +79,11 @@ const CompareHub: React.FC = () => {
     };
 
     const desc =
-      "See how Cuetronix — the world's first all-in-one gaming and sports venue OS — compares with Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR. Honest feature-by-feature comparisons, pricing, migration guides and verdicts for each.";
+      "See how Cuetronix — the world's first all-in-one gaming and sports venue OS — compares with GameBiller, Playo, Hudle, ggLeap, SENET, SmartLaunch, CourtReserve, Skedda and SpringboardVR. Honest feature-by-feature comparisons, pricing, migration guides and verdicts for each.";
 
     const created = [
       upsert(`meta[name="description"]`,         "name",     "description",         desc),
-      upsert(`meta[name="keywords"]`,            "name",     "keywords",            "gaming venue software comparison, Playo alternative, Hudle alternative, ggLeap alternative, SENET alternative, CourtReserve alternative, Skedda alternative, SpringboardVR alternative, venue management software, gaming lounge POS"),
+      upsert(`meta[name="keywords"]`,            "name",     "keywords",            "gaming venue software comparison, GameBiller alternative, Playo alternative, Hudle alternative, ggLeap alternative, SENET alternative, CourtReserve alternative, Skedda alternative, SpringboardVR alternative, venue management software, gaming lounge POS"),
       upsert(`meta[property="og:title"]`,        "property", "og:title",            "Cuetronix Comparisons — the complete competitor index"),
       upsert(`meta[property="og:description"]`,  "property", "og:description",      desc),
       upsert(`meta[property="og:type"]`,         "property", "og:type",             "website"),

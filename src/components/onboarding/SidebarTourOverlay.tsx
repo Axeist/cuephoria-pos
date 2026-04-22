@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Info, Sparkles, X } from "lucide-react";
@@ -150,14 +151,16 @@ const SidebarTourOverlay: React.FC = () => {
     setOpen(false);
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="pointer-events-none fixed inset-0 z-[90] bg-[radial-gradient(circle_at_25%_20%,rgba(99,102,241,0.16),transparent_45%),radial-gradient(circle_at_85%_70%,rgba(217,70,239,0.16),transparent_45%),rgba(8,4,20,0.42)] backdrop-blur-[8px]"
+        className="pointer-events-none fixed inset-0 z-[10050] bg-[radial-gradient(circle_at_25%_20%,rgba(99,102,241,0.2),transparent_45%),radial-gradient(circle_at_85%_70%,rgba(217,70,239,0.22),transparent_45%),rgba(8,4,20,0.62)] backdrop-blur-[14px] backdrop-saturate-150"
       >
         {targetRect && (
           <motion.div
@@ -172,14 +175,14 @@ const SidebarTourOverlay: React.FC = () => {
             }}
           />
         )}
-      <motion.div
-        key={item.path}
-        initial={{ opacity: 0, y: 10, scale: 0.985 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.22, ease: "easeOut" }}
-        className="pointer-events-auto absolute w-[380px] rounded-3xl border border-white/20 bg-[linear-gradient(180deg,rgba(34,18,60,0.78),rgba(16,10,30,0.72))] p-5 text-zinc-100 shadow-[0_28px_80px_-28px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.06)] backdrop-blur-2xl"
-        style={{ top: cardPos.top, left: cardPos.left }}
-      >
+        <motion.div
+          key={item.path}
+          initial={{ opacity: 0, y: 10, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          className="pointer-events-auto absolute w-[380px] rounded-3xl border border-white/25 bg-[linear-gradient(180deg,rgba(48,28,82,0.74),rgba(18,10,34,0.7))] p-5 text-zinc-100 shadow-[0_28px_90px_-28px_rgba(0,0,0,0.92),0_0_0_1px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-3xl"
+          style={{ top: cardPos.top, left: cardPos.left }}
+        >
         <div
           aria-hidden
           className={`absolute top-[52%] h-3.5 w-3.5 -translate-y-1/2 rotate-45 border border-white/20 bg-[rgba(32,16,56,0.86)] ${anchorSide === "left" ? "-left-2" : "-right-2"}`}
@@ -259,9 +262,10 @@ const SidebarTourOverlay: React.FC = () => {
           )}
         </div>
         <p className="mt-3 text-[11px] text-zinc-500">Tip: Press Esc to close this guide.</p>
+        </motion.div>
       </motion.div>
-    </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 };
 

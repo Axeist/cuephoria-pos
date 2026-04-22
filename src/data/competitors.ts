@@ -1031,7 +1031,253 @@ const smartLaunch: Competitor = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
- *  6. COURTRESERVE
+ *  6. GAMEBILLER
+ * ─────────────────────────────────────────────────────────────────────── */
+const gameBiller: Competitor = {
+  slug: "gamebiller",
+  name: "GameBiller",
+  brandMark: "GB",
+  brandColor: "#22C55E",
+  tagline: "India-focused gaming cafe billing and session platform.",
+  oneLiner:
+    "GameBiller is a gaming-cafe-focused billing product for PC and console venues in India, with session tracking, GST-style invoicing and floor-level operational controls.",
+  category: "Gaming centre",
+  region: "India",
+  website: "https://www.gamebiller.com/",
+
+  stats: {
+    foundedYear: 2024,
+    hqCountry: "India (exact HQ not publicly listed)",
+    employees: "Not publicly disclosed",
+    primaryMarkets: ["India"],
+    publicRating: { score: 5.0, max: 5, source: "Claimed on GameBiller site testimonials" },
+    customerEstimate: "500+ centers (website claim)",
+  },
+
+  metaTitle: "Cuetronix vs GameBiller (2026) — Full Venue OS vs Billing-First Gaming Cafe Tool",
+  metaDescription:
+    "Cuetronix vs GameBiller comparison. GameBiller focuses on gaming-cafe billing, session tracking and GST-style invoicing in India. Cuetronix goes beyond billing with branded online booking, Razorpay flow automation, multi-vertical station engines, payroll-grade HR, loyalty, tournaments and branch-level analytics.",
+  keywords: [
+    "Cuetronix vs GameBiller",
+    "GameBiller alternative",
+    "gaming cafe billing software India",
+    "PS5 cafe billing software",
+    "PC gaming cafe software India",
+    "GameBiller vs Cuetronix",
+  ],
+  longTailKeywords: [
+    "best GameBiller alternative for gaming centers",
+    "GameBiller vs full gaming venue management software",
+    "gaming cafe billing software with payroll India",
+    "software like GameBiller with online booking",
+    "GameBiller competitor with turf and snooker support",
+    "GameBiller vs POS plus booking platform",
+    "GameBiller vs Cuetronix feature comparison",
+    "GameBiller alternative with attendance and payroll",
+    "gaming cafe software with booking and loyalty India",
+  ],
+
+  headline: "GameBiller is billing-first. Cuetronix is operations-first.",
+  deck:
+    "GameBiller's public positioning is strong for floor billing: timers, invoices, role-based controls and basic reporting. Cuetronix includes these foundations, then adds the rest of the operating stack owners usually need next: branded online booking, payment orchestration, customer lifecycle/loyalty, payroll-grade HR and multi-branch analytics across gaming plus sports verticals.",
+
+  tldr:
+    "If your problem is only counter billing, GameBiller can fit. If your problem is running and scaling the entire venue business, Cuetronix is the stronger system.",
+
+  bestFor:
+    "Single-location gaming cafes that mainly want session billing, GST-style invoices, role access and straightforward reporting.",
+  cuetronixBestFor:
+    "Owners who want one product for growth and operations: booking + POS + payment + loyalty + staffing + analytics across gaming and sports use cases.",
+
+  strengths: [
+    "Clear India-first messaging around gaming cafe workflows and GST-style billing.",
+    "Public product language is practical for PC/console front-desk operations.",
+    "Entry pricing and free-trial messaging are approachable for first-time operators.",
+    "Highlights floor-safety patterns like conflict prevention and role permissions.",
+    "Website content is focused on real daily use cases (session control, invoicing, reports).",
+  ],
+  limitations: [
+    "Public positioning remains billing-centric versus full end-to-end venue operating workflows.",
+    "No clearly published payroll-grade HR module depth (attendance, salary cycles, payslips, overtime).",
+    "Limited evidence of mature booking-first experiences on branded customer portals.",
+    "Public use cases are gaming-cafe heavy, with less explicit multi-vertical depth for turfs/courts/cue-sports.",
+    "Governance controls (security posture, granular auditability, multi-branch finance hierarchy) are less explicit publicly.",
+    "Low entry pricing can still lead to tool sprawl when operators add booking, payroll and growth tooling later.",
+  ],
+  cuetronixAdvantages: [
+    {
+      title: "One source of truth for bookings + counter + walk-ins",
+      description:
+        "Cuetronix keeps online slots, walk-ins, POS tickets and extensions on one ledger, so teams do not reconcile across separate systems.",
+      icon: "workflow",
+      proof: "Built-in booking and POS stack removes double-entry across apps.",
+    },
+    {
+      title: "Multi-vertical station engine beyond PC/PS5",
+      description:
+        "Run PCs, consoles, cue sports, turfs, courts and VR from the same control plane and analytics model.",
+      icon: "boxes",
+      proof: "Operators can expand services without replacing core software.",
+    },
+    {
+      title: "Payroll-grade HR and attendance in-product",
+      description:
+        "Biometric attendance, shifts, payroll runs and payslips are core modules, reducing month-end manual payroll work.",
+      icon: "users",
+      proof: "No separate HR stack needed for most venues.",
+    },
+    {
+      title: "Razorpay + branded booking journey",
+      description:
+        "Take UPI/cards/net-banking through a venue-branded booking flow and keep customer relationships under your brand.",
+      icon: "coins",
+      proof: "Direct bookings stay commission-free on your own portal.",
+    },
+    {
+      title: "Operator analytics tied to decisions, not just reports",
+      description:
+        "Track utilization, branch revenue, product mix, staff output and audit events from one dashboard built for owner decisions.",
+      icon: "chart",
+      proof: "Built for day-level actions (pricing, staffing, upsell mix), not just month-end viewing.",
+    },
+    {
+      title: "Scale architecture for growing chains",
+      description:
+        "Start single-location and scale to multi-branch without re-platforming or stitching extra systems.",
+      icon: "globe",
+      proof: "Same data model and access controls work from 1 to many branches.",
+    },
+  ],
+
+  pricing: {
+    cuetronix: "₹1,999/month flat (Starter) · 14-day free trial",
+    competitor: "From ₹199/month (claimed) + plan-tier limits",
+    note: "Entry price is lower on GameBiller. Cuetronix is usually evaluated on total operating cost once booking, staff, loyalty and scale workflows are included.",
+  },
+
+  features: [
+    { category: "Billing & POS", name: "Real-time station timers (PC/console)", cuetronix: YES, competitor: YES, note: "Both position this as core functionality" },
+    { category: "Billing & POS", name: "Pause/resume/extend session controls", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "GST-ready invoice workflows", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Snack/add-on billing linked to session ticket", cuetronix: YES, competitor: YES },
+    { category: "Billing & POS", name: "Advanced pricing (peak/off-peak, bundles, split bills)", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Online Booking", name: "Branded booking portal on venue sub-domain", cuetronix: YES, competitor: PARTIAL },
+    { category: "Online Booking", name: "Online slot booking with deposit/prepay controls", cuetronix: YES, competitor: PARTIAL },
+    { category: "Online Booking", name: "Unified calendar for online + walk-in demand", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Payments", name: "Native Razorpay payment orchestration", cuetronix: YES, competitor: PARTIAL },
+    { category: "Payments", name: "Webhook-safe payment verification and reconciliation", cuetronix: YES, competitor: PARTIAL },
+    { category: "Payments", name: "Partial capture/refund workflow in same console", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Operations", name: "Snooker/pool table billing and station logic", cuetronix: YES, competitor: PARTIAL },
+    { category: "Operations", name: "Turf/court scheduling (football, cricket, pickleball, badminton)", cuetronix: YES, competitor: NO },
+    { category: "Operations", name: "Tournament brackets, leaderboards and event workflows", cuetronix: YES, competitor: PARTIAL },
+    { category: "Operations", name: "Multi-vertical expansion (VR, cue-sports, courts, cafe) without new stack", cuetronix: YES, competitor: NO },
+
+    { category: "Staff & HR", name: "Biometric or QR attendance", cuetronix: YES, competitor: PARTIAL },
+    { category: "Staff & HR", name: "Payroll cycles, overtime and payslips", cuetronix: YES, competitor: NO },
+    { category: "Staff & HR", name: "Shift rostering with role hierarchy", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Analytics", name: "Revenue/utilization dashboards", cuetronix: YES, competitor: YES },
+    { category: "Analytics", name: "Branch-level P&L and cost-centre views", cuetronix: YES, competitor: PARTIAL },
+    { category: "Analytics", name: "Customer lifecycle and repeat-booking insights", cuetronix: YES, competitor: PARTIAL },
+
+    { category: "Platform", name: "Row-level security and audit trail", cuetronix: YES, competitor: PARTIAL },
+    { category: "Platform", name: "2FA-ready identity controls", cuetronix: YES, competitor: PARTIAL },
+    { category: "Platform", name: "Loyalty/wallet programs for repeat revenue", cuetronix: YES, competitor: PARTIAL },
+    { category: "Platform", name: "API/webhook-first extension model", cuetronix: YES, competitor: PARTIAL },
+  ],
+
+  whenToPickCuetronix: [
+    "You need one platform for booking, billing, payments, loyalty, HR and reporting.",
+    "You want to reduce tool sprawl and reconciliation between disconnected apps.",
+    "You run or plan multi-vertical operations: console + cue sports + turf/courts + cafe.",
+    "You need payroll-grade staffing and attendance, not just access controls.",
+    "You are scaling to multiple branches and need governance from day one.",
+  ],
+  whenToPickCompetitor: [
+    "You want a lightweight entry point mainly for single-venue gaming cafe billing.",
+    "Your immediate priority is basic session billing at the lowest headline monthly spend.",
+    "You can manage booking, HR and growth workflows in separate tools for now.",
+  ],
+
+  operatorProfile: {
+    headline: "Who upgrades from billing-first tools to Cuetronix",
+    venueType: "Single-venue gaming cafe growing into a broader multi-service operation",
+    before: [
+      "Billing is cleaner, but bookings, loyalty, HR and growth workflows stay fragmented.",
+      "Staff roles are controlled, but attendance/payroll remain external and manual.",
+      "Ops reports exist, but owner-level decisions still rely on stitched spreadsheets.",
+      "As revenue grows, reconciliation overhead increases every week.",
+    ],
+    after: [
+      "One operating layer handles sessions, billing, bookings, payments and staff workflows.",
+      "Payroll and attendance become systemized daily operations, not month-end fire drills.",
+      "Leadership gets branch-ready utilization and margin visibility from a single dashboard.",
+      "Expansion into turf/court/cue-sports workflows happens without platform migration.",
+    ],
+  },
+
+  migration: {
+    difficulty: "easy",
+    duration: "3–7 working days",
+    steps: [
+      { title: "Audit and scoping", description: "Map existing station logic, billing rules, products, staff hierarchy and current reports." },
+      { title: "Data migration", description: "Import customers, memberships, balances and product data through structured CSV templates." },
+      { title: "Payments and booking setup", description: "Configure booking policies, deposit rules and payment rails for online and counter flows." },
+      { title: "People ops rollout", description: "Enable attendance, shift plans, payroll components and permission boundaries." },
+      { title: "Controlled cutover", description: "Run both systems briefly, verify ledger parity, then switch fully with onboarding support." },
+    ],
+  },
+
+  integrations: [
+    "Razorpay payments",
+    "WhatsApp notifications",
+    "Google Calendar",
+    "GST exports / accounting flows",
+    "Biometric attendance hardware",
+    "Webhook/API integration points",
+  ],
+  support: CUETRONIX_SUPPORT,
+
+  faqs: [
+    {
+      q: "Is Cuetronix a GameBiller alternative?",
+      a: "Yes. GameBiller is mostly positioned around billing/session control, while Cuetronix is a full operating system: bookings, payments, loyalty, staffing, payroll and multi-vertical operations in one product.",
+    },
+    {
+      q: "How do I compare pricing fairly?",
+      a: "Compare total operating cost, not just entry plan price. Include booking stack, HR/payroll tooling, reconciliation time and multi-branch readiness. Cuetronix may have a higher headline price but often lower all-in operations cost as venues scale.",
+    },
+    {
+      q: "Can Cuetronix handle PC and PS5 billing as well as GameBiller?",
+      a: "Yes. Cuetronix supports real-time PC/console session billing and adds broader workflows like branded booking, loyalty, payroll and multi-vertical operations from the same ledger.",
+    },
+    {
+      q: "What is Cuetronix's biggest advantage over billing-first tools?",
+      a: "Operational consolidation. One platform for booking, billing, payments, staffing and analytics reduces tool sprawl, prevents data drift and gives owners a cleaner decision layer.",
+    },
+    {
+      q: "Do I still need separate payroll software with Cuetronix?",
+      a: "Usually no. Attendance, shifts, payroll and payslips are built in, which removes a common external HR tool for most operators.",
+    },
+    {
+      q: "Can I migrate from GameBiller without business interruption?",
+      a: "Typically yes. Most venues use a short parallel run, verify numbers once, then switch fully in under a week with guided onboarding.",
+    },
+    {
+      q: "Which platform is stronger for multi-branch growth?",
+      a: "Cuetronix is architected for multi-branch operations, governance and analytics from the start, making it a safer long-term platform for scaling teams.",
+    },
+  ],
+
+  verdict:
+    "GameBiller is a capable billing-first start for small gaming cafes. Cuetronix is the stronger choice when your goal is to run faster, grow cleaner and scale the full venue business from one system.",
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+ *  7. COURTRESERVE
  * ─────────────────────────────────────────────────────────────────────── */
 const courtReserve: Competitor = {
   slug: "courtreserve",
@@ -1503,6 +1749,7 @@ export const competitors: Competitor[] = [
   ggLeap,
   senet,
   smartLaunch,
+  gameBiller,
   courtReserve,
   skedda,
   springboardVR,
