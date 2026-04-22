@@ -10,7 +10,7 @@
  *     accentColor?: string,      // #rrggbb
  *     logoUrl?: string,          // https://...
  *     iconUrl?: string,          // https://...
- *     businessType?: "gaming_lounge" | "cafe" | "arcade" | "club" | "billiards" | "bowling" | "other",
+ *     businessType?: "gaming_lounge" | "gaming_turfs" | "cafe" | "arcade" | "club" | "billiards" | "bowling" | "other",
  *     timezone?: string,
  *     complete?: boolean         // alternative to step==="complete"
  *   }
@@ -31,6 +31,7 @@ const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 const HTTPS_URL_RE = /^https:\/\//i;
 const BUSINESS_TYPES = new Set([
   "gaming_lounge",
+  "gaming_turfs",
   "cafe",
   "arcade",
   "club",

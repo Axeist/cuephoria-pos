@@ -36,6 +36,14 @@ function makeCustomerCode(): string {
   return `CUE${suffix}`;
 }
 
+function normalizeCustomerPhone(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) return digits;
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  return "";
+}
+
 async function handler(req: Request, ctx: OrgContext): Promise<Response> {
   if (req.method !== "POST") {
     return j({ ok: false, error: "Method not allowed" }, 405);
@@ -56,6 +64,7 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
   const incomingStations = Array.isArray(body.stations) ? body.stations : [];
   const incomingProducts = Array.isArray(body.products) ? body.products : [];
   const firstCustomerName = normalizeName(body.firstCustomerName, 120);
+  const firstCustomerPhone = normalizeCustomerPhone(body.firstCustomerPhone);
 
   const categories = [...new Set(incomingCategories.map((v) => normalizeCategory(v)).filter(Boolean))]
     .slice(0, MAX_CATEGORIES);
@@ -123,7 +132,22 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
       .map((name) => ({ name, location_id: locationId, organization_id: ctx.organizationId }));
     if (rows.length) {
       const { error: categoriesErr } = await ctx.supabase.from("categories").insert(rows);
-      if (categoriesErr) return j({ ok: false, error: categoriesErr.message }, 500);
+      if (categoriesErr) {
+        if (
+          categoriesErr.code === "23505" &&
+          String(categoriesErr.message || "").toLowerCase().includes("categories_name_key")
+        ) {
+          return j(
+            {
+              ok: false,
+              error:
+                "Category setup failed because your database still uses global category uniqueness. Apply latest migrations and retry onboarding.",
+            },
+            409,
+          );
+        }
+        return j({ ok: false, error: categoriesErr.message }, 500);
+      }
       createdCategories = rows.length;
     }
   }
@@ -179,21 +203,19 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
     }
   }
 
-  if (firstCustomerName) {
+  if (firstCustomerName && firstCustomerPhone) {
     const { data: existingCustomer } = await ctx.supabase
       .from("customers")
       .select("id")
       .eq("location_id", locationId)
-      .ilike("name", firstCustomerName)
+      .eq("phone", firstCustomerPhone)
       .maybeSingle();
 
     if (!existingCustomer) {
-      const phoneSeed = Date.now().toString().slice(-9);
-      const demoPhone = `9${phoneSeed.padStart(9, "0")}`.slice(0, 10);
       const customerCode = makeCustomerCode();
       const { error: customerErr } = await ctx.supabase.from("customers").insert({
         name: firstCustomerName,
-        phone: demoPhone,
+        phone: firstCustomerPhone,
         custom_id: customerCode,
         customer_id: customerCode,
         is_member: false,

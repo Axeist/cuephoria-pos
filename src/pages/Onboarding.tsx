@@ -93,6 +93,7 @@ const STEPS: { id: StepId; label: string; short: string; subtitle: string }[] = 
 
 type BusinessType =
   | "gaming_lounge"
+  | "gaming_turfs"
   | "cafe"
   | "arcade"
   | "club"
@@ -113,6 +114,13 @@ const BUSINESS_TYPES: {
     description: "PCs, consoles, esports setups, and tournaments.",
     icon: Gamepad2,
     accent: "from-fuchsia-500 to-indigo-500",
+  },
+  {
+    id: "gaming_turfs",
+    label: "Gaming Turfs",
+    description: "Cricket, football, and pickleball turf/court bookings.",
+    icon: Trophy,
+    accent: "from-emerald-500 to-cyan-500",
   },
   {
     id: "cafe",
@@ -187,6 +195,7 @@ interface OnboardingState {
   }>;
   products: Array<{ name: string; category: string; price: number; stock: number }>;
   firstCustomerName: string;
+  firstCustomerPhone: string;
 }
 
 const ONBOARDING_PRESETS: Record<
@@ -206,6 +215,19 @@ const ONBOARDING_PRESETS: Record<
     products: [
       { name: "Hourly Pass 1H", category: "hourly_pass", price: 180, stock: 999 },
       { name: "Energy Drink", category: "beverages", price: 90, stock: 30 },
+    ],
+  },
+  gaming_turfs: {
+    categories: ["turf_booking", "equipment_rental", "refreshments", "membership"],
+    stations: [
+      { name: "Cricket Turf A", type: "cricket_turf", category: "regular", hourlyRate: 1800 },
+      { name: "Football Turf A", type: "football_turf", category: "regular", hourlyRate: 2200 },
+      { name: "Pickleball Court 1", type: "pickleball_court", category: "regular", hourlyRate: 900 },
+    ],
+    products: [
+      { name: "Cricket Turf Slot (60 min)", category: "turf_booking", price: 1800, stock: 999 },
+      { name: "Football Turf Slot (60 min)", category: "turf_booking", price: 2200, stock: 999 },
+      { name: "Pickleball Paddle Rental", category: "equipment_rental", price: 120, stock: 40 },
     ],
   },
   cafe: {
@@ -282,6 +304,7 @@ export default function Onboarding() {
     stations: [],
     products: [],
     firstCustomerName: "",
+    firstCustomerPhone: "",
   });
 
   const activePreset = useMemo(
@@ -290,7 +313,17 @@ export default function Onboarding() {
   );
   const stationTypeSuggestions = useMemo(
     () =>
-      [...new Set(["ps5", "8ball", "vr", ...activePreset.stations.map((station) => station.type)])].filter(
+      [
+        ...new Set([
+          "ps5",
+          "8ball",
+          "vr",
+          "cricket_turf",
+          "football_turf",
+          "pickleball_court",
+          ...activePreset.stations.map((station) => station.type),
+        ]),
+      ].filter(
         Boolean,
       ),
     [activePreset.stations],
@@ -367,6 +400,7 @@ export default function Onboarding() {
       stations: state.stations,
       products: state.products,
       firstCustomerName: customerSkipped ? "" : state.firstCustomerName,
+      firstCustomerPhone: customerSkipped ? "" : state.firstCustomerPhone,
     };
     const res = await fetch("/api/tenant/onboarding-bootstrap", {
       method: "POST",
@@ -379,7 +413,14 @@ export default function Onboarding() {
       throw new Error(json?.error || `Bootstrap failed (${res.status})`);
     }
     return json;
-  }, [customerSkipped, state.categories, state.firstCustomerName, state.products, state.stations]);
+  }, [
+    customerSkipped,
+    state.categories,
+    state.firstCustomerName,
+    state.firstCustomerPhone,
+    state.products,
+    state.stations,
+  ]);
 
   async function handleFileUpload(file: File, kind: "logo" | "icon") {
     if (file.size > 512 * 1024) {
@@ -472,6 +513,18 @@ export default function Onboarding() {
           appToast.error("Add one category", "Create at least one category for your menu.");
           setSaving(false);
           return;
+        }
+        if (!customerSkipped && state.firstCustomerName.trim()) {
+          const digits = state.firstCustomerPhone.replace(/\D/g, "");
+          const isValidPhone = digits.length === 10 || (digits.length === 12 && digits.startsWith("91"));
+          if (!isValidPhone) {
+            appToast.error(
+              "Missing customer phone",
+              "Enter a valid 10-digit number (or +91 format) for the first customer, or skip this step.",
+            );
+            setSaving(false);
+            return;
+          }
         }
         const incompleteStation = state.stations.find(
           (station) => station.name.trim() && !station.type.trim(),
@@ -765,19 +818,39 @@ export default function Onboarding() {
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-zinc-100">Game Stations & Types</h4>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
-                  onClick={() =>
-                    setState((prev) => ({
-                      ...prev,
-                      stations: [...prev.stations, ...activePreset.stations].slice(0, 10),
-                    }))
-                  }
-                >
-                  Suggest stations
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
+                    onClick={() =>
+                      setState((prev) => ({
+                        ...prev,
+                        stations: [...prev.stations, ...activePreset.stations].slice(0, 12),
+                      }))
+                    }
+                  >
+                    Suggest stations
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-2 text-xs text-zinc-300"
+                    onClick={() =>
+                      setState((prev) => ({
+                        ...prev,
+                        stations: [
+                          ...prev.stations,
+                          { name: "Cricket Turf A", type: "cricket_turf", category: "regular", hourlyRate: 1800 },
+                          { name: "Football Turf A", type: "football_turf", category: "regular", hourlyRate: 2200 },
+                          { name: "Pickleball Court 1", type: "pickleball_court", category: "regular", hourlyRate: 900 },
+                        ].slice(0, 12),
+                      }))
+                    }
+                  >
+                    Add turf presets
+                  </Button>
+                </div>
               </div>
               <Button
                 type="button"
@@ -992,16 +1065,34 @@ export default function Onboarding() {
 
             <section className="space-y-2">
               <h4 className="text-sm font-semibold text-zinc-100">First customer (optional)</h4>
-              <div className="flex gap-2">
+              <p className="text-xs text-zinc-500">
+                Add one real customer now so your first invoice/search flow works instantly.
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Input
                   value={state.firstCustomerName}
                   disabled={customerSkipped}
                   onChange={(e) =>
                     setState((prev) => ({ ...prev, firstCustomerName: e.target.value }))
                   }
-                  placeholder="e.g. Test Customer"
+                  placeholder="e.g. Rahul Sharma"
                   className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100"
                 />
+                <Input
+                  value={state.firstCustomerPhone}
+                  disabled={customerSkipped}
+                  inputMode="numeric"
+                  onChange={(e) =>
+                    setState((prev) => ({
+                      ...prev,
+                      firstCustomerPhone: e.target.value.replace(/[^\d+]/g, "").slice(0, 13),
+                    }))
+                  }
+                  placeholder="10-digit mobile number"
+                  className="h-10 rounded-xl border-white/10 bg-white/[0.04] text-zinc-100"
+                />
+              </div>
+              <div className="flex gap-2">
                 <Button
                   type="button"
                   variant="ghost"
