@@ -85,8 +85,26 @@ function emptySnapshot(): UsageSnapshot {
   };
 }
 
-function keyFor(orgId: string | null | undefined, userId: string | null | undefined): string {
-  return `${STORAGE_PREFIX}:${orgId ?? "_"}:${userId ?? "_"}`;
+/**
+ * Treat an id/slug as "present" only if it's a non-empty string. We
+ * refuse to key storage on null/undefined/"" because that silently
+ * collides across tenants inside the `_:_` bucket — which is exactly
+ * the cross-tenant leakage we're fixing here.
+ */
+function isScoped(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+): orgId is string {
+  return (
+    typeof orgId === "string" &&
+    orgId.length > 0 &&
+    typeof userId === "string" &&
+    userId.length > 0
+  );
+}
+
+function keyFor(orgId: string, userId: string): string {
+  return `${STORAGE_PREFIX}:${orgId}:${userId}`;
 }
 
 function safeParse(raw: string | null): UsageSnapshot | null {
@@ -142,6 +160,7 @@ export function getUsage(
   userId: string | null | undefined,
 ): UsageSnapshot {
   if (typeof window === "undefined") return emptySnapshot();
+  if (!isScoped(orgId, userId)) return emptySnapshot();
   return safeParse(window.localStorage.getItem(keyFor(orgId, userId))) ?? emptySnapshot();
 }
 
@@ -161,6 +180,7 @@ export function recordUsage(
   },
 ): UsageSnapshot | null {
   if (typeof window === "undefined") return null;
+  if (!isScoped(orgId, userId)) return null;
   const prompt = Math.max(0, args.promptTokens ?? 0);
   const completion = Math.max(0, args.completionTokens ?? 0);
   const total = Math.max(0, args.totalTokens ?? prompt + completion);
@@ -240,6 +260,7 @@ export function resetUsage(
   userId: string | null | undefined,
 ): void {
   if (typeof window === "undefined") return;
+  if (!isScoped(orgId, userId)) return;
   const key = keyFor(orgId, userId);
   window.localStorage.removeItem(key);
   window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { key } }));
@@ -257,6 +278,7 @@ export function useAIUsage(
 
   useEffect(() => {
     setSnapshot(getUsage(orgId, userId));
+    if (!isScoped(orgId, userId)) return;
     const ourKey = keyFor(orgId, userId);
     const onChange = (e: Event) => {
       const detail = (e as CustomEvent).detail as { key?: string } | undefined;

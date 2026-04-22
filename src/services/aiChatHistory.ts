@@ -22,8 +22,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const STORAGE_PREFIX = "cuephoria.ai.threads.v1";
+const LEGACY_ORPHAN_KEY_PREFIX = `${STORAGE_PREFIX}:_:`;
+const MIGRATION_FLAG_PREFIX = "cuephoria.ai.threads.migrated.v1";
 const UPDATE_EVENT = "cuephoria:ai-threads";
 const MAX_THREADS = 50;
+
+/**
+ * Treat an id/slug as "present" only if it's a non-empty string. We
+ * explicitly refuse to key storage on null/undefined/"" because that
+ * silently collides across tenants inside the `_:_` bucket — which is
+ * exactly the cross-tenant leakage this file is trying to prevent.
+ */
+function isScoped(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+): orgId is string {
+  return (
+    typeof orgId === "string" &&
+    orgId.length > 0 &&
+    typeof userId === "string" &&
+    userId.length > 0
+  );
+}
 
 export type ThreadRole = "user" | "assistant";
 
@@ -46,8 +66,66 @@ export interface ChatThread {
   messages: ThreadMessage[];
 }
 
-function keyFor(orgId: string | null | undefined, userId: string | null | undefined): string {
-  return `${STORAGE_PREFIX}:${orgId ?? "_"}:${userId ?? "_"}`;
+function keyFor(orgId: string, userId: string): string {
+  return `${STORAGE_PREFIX}:${orgId}:${userId}`;
+}
+
+/**
+ * One-shot migration of legacy orphan-bucket threads.
+ *
+ * Prior versions of this module used `${STORAGE_PREFIX}:_:_` (or
+ * `:_:<userId>`) as a fallback when the organization context hadn't
+ * finished loading yet. That bucket is visible to every tenant the
+ * user later opens — exactly the cross-tenant leak we're fixing here.
+ *
+ * Strategy: the first tenant a user visits after this fix lands adopts
+ * any orphan threads (iff its own bucket is empty). A one-shot flag
+ * prevents the same orphans from getting adopted twice. After this
+ * runs once per (orgId, userId) pair the orphan bucket is wiped.
+ */
+function migrateOrphanBucketIfNeeded(orgId: string, userId: string): void {
+  if (typeof window === "undefined") return;
+  const flagKey = `${MIGRATION_FLAG_PREFIX}:${orgId}:${userId}`;
+  try {
+    if (window.localStorage.getItem(flagKey)) return;
+    window.localStorage.setItem(flagKey, new Date().toISOString());
+
+    const orphanUserKey = `${LEGACY_ORPHAN_KEY_PREFIX}${userId}`;
+    const orphanBothKey = `${LEGACY_ORPHAN_KEY_PREFIX}_`;
+    const orphanRaw =
+      window.localStorage.getItem(orphanUserKey) ??
+      window.localStorage.getItem(orphanBothKey);
+    if (!orphanRaw) return;
+
+    const orphans = safeParse(orphanRaw);
+    if (orphans.length === 0) {
+      window.localStorage.removeItem(orphanUserKey);
+      window.localStorage.removeItem(orphanBothKey);
+      return;
+    }
+
+    const ownKey = keyFor(orgId, userId);
+    const own = safeParse(window.localStorage.getItem(ownKey));
+
+    // Only adopt if the current tenant has no chats of its own — we
+    // can't know which tenant the orphan chats really belong to, so
+    // the safest heuristic is "first non-empty tenant wins". If the
+    // target already has chats, leave it alone and just drop the
+    // orphan bucket so it stops leaking.
+    if (own.length === 0) {
+      const merged = orphans.map((t) => ({ ...t }));
+      merged.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      window.localStorage.setItem(
+        ownKey,
+        JSON.stringify(merged.slice(0, MAX_THREADS)),
+      );
+    }
+
+    window.localStorage.removeItem(orphanUserKey);
+    window.localStorage.removeItem(orphanBothKey);
+  } catch {
+    /* storage unavailable or quota — safe to ignore */
+  }
 }
 
 function safeParse(raw: string | null): ChatThread[] {
@@ -85,6 +163,8 @@ export function getThreads(
   userId: string | null | undefined,
 ): ChatThread[] {
   if (typeof window === "undefined") return [];
+  if (!isScoped(orgId, userId)) return [];
+  migrateOrphanBucketIfNeeded(orgId, userId);
   return safeParse(window.localStorage.getItem(keyFor(orgId, userId)));
 }
 
@@ -125,6 +205,9 @@ export function createThread(
     updatedAt: now,
     messages: args.firstMessage ? [args.firstMessage] : [],
   };
+  // Silently refuse to persist if we don't yet know which tenant this
+  // belongs to — the caller is expected to retry once context loads.
+  if (!isScoped(orgId, userId)) return thread;
   const key = keyFor(orgId, userId);
   const all = getThreads(orgId, userId);
   all.unshift(thread);
@@ -139,6 +222,7 @@ export function upsertThread(
   thread: ChatThread,
 ): void {
   if (typeof window === "undefined") return;
+  if (!isScoped(orgId, userId)) return;
   const key = keyFor(orgId, userId);
   const all = getThreads(orgId, userId);
   const idx = all.findIndex((t) => t.id === thread.id);
@@ -163,6 +247,7 @@ export function saveThreadMessages(
   modelId?: string,
 ): void {
   if (typeof window === "undefined") return;
+  if (!isScoped(orgId, userId)) return;
   const key = keyFor(orgId, userId);
   const all = getThreads(orgId, userId);
   const idx = all.findIndex((t) => t.id === threadId);
@@ -190,6 +275,7 @@ export function renameThread(
   title: string,
 ): void {
   if (typeof window === "undefined") return;
+  if (!isScoped(orgId, userId)) return;
   const key = keyFor(orgId, userId);
   const all = getThreads(orgId, userId);
   const idx = all.findIndex((t) => t.id === threadId);
@@ -204,6 +290,7 @@ export function deleteThread(
   threadId: string,
 ): void {
   if (typeof window === "undefined") return;
+  if (!isScoped(orgId, userId)) return;
   const key = keyFor(orgId, userId);
   const all = getThreads(orgId, userId).filter((t) => t.id !== threadId);
   writeThreads(key, all);
@@ -214,6 +301,7 @@ export function clearAllThreads(
   userId: string | null | undefined,
 ): void {
   if (typeof window === "undefined") return;
+  if (!isScoped(orgId, userId)) return;
   const key = keyFor(orgId, userId);
   window.localStorage.removeItem(key);
   window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { key } }));
@@ -232,6 +320,7 @@ export function useChatThreads(
 
   useEffect(() => {
     setThreads(getThreads(orgId, userId));
+    if (!isScoped(orgId, userId)) return;
     const ourKey = keyFor(orgId, userId);
     const onChange = (e: Event) => {
       const detail = (e as CustomEvent).detail as { key?: string } | undefined;

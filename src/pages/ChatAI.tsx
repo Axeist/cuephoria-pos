@@ -264,8 +264,30 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
   const [messages, setMessages] = useState<ChatBubbleMessage[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Load the most recent thread on first mount — keeps "continuity" without
-  // surprising users by jumping into an ancient chat.
+  // ---- Streaming state ------------------------------------------------------
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // When the active tenant changes (user switches between orgs, e.g.
+  // Cuephoria Main → Cuephoria Lite) we MUST drop any in-flight
+  // conversation state, because it references thread ids that only
+  // exist in the previous tenant's storage bucket. Otherwise the old
+  // thread keeps rendering and any new message gets saved under the
+  // new tenant but linked to a thread id that doesn't exist there.
+  useEffect(() => {
+    abortRef.current?.abort();
+    setActiveThreadId(null);
+    setMessages([]);
+  }, [orgId, userId]);
+
+  // Load the most recent thread on first mount (and after a tenant
+  // switch) — keeps "continuity" without surprising users by jumping
+  // into an ancient chat from the wrong tenant.
   useEffect(() => {
     if (activeThreadId !== null) return;
     const latest = threads[0];
@@ -281,16 +303,7 @@ const ChatAIDesktop: React.FC<DesktopProps> = ({
       })),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threads.length]);
-
-  // ---- Streaming state ------------------------------------------------------
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const abortRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  }, [threads.length, orgId, userId]);
 
   // Scroll on new messages only (not every delta) — streaming scroll is
   // handled inside the batched rAF flush below.

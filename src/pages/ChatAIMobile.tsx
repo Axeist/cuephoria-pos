@@ -186,6 +186,30 @@ const ChatAIMobile: React.FC = () => {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatBubbleMessage[]>([]);
 
+  // ---- Composer + streaming -----------------------------------------------
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [threadsOpen, setThreadsOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset conversation state when the tenant changes so chats from a
+  // different org never leak across — see ChatAI.tsx for the full
+  // rationale.
+  useEffect(() => {
+    abortRef.current?.abort();
+    setActiveThreadId(null);
+    setMessages([]);
+    setInput("");
+  }, [orgId, userId]);
+
   useEffect(() => {
     if (activeThreadId !== null) return;
     const latest = threads[0];
@@ -201,21 +225,7 @@ const ChatAIMobile: React.FC = () => {
       })),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threads.length]);
-
-  // ---- Composer + streaming -----------------------------------------------
-  const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [threadsOpen, setThreadsOpen] = useState(false);
-  const [usageOpen, setUsageOpen] = useState(false);
-  const [modelOpen, setModelOpen] = useState(false);
-
-  const abortRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  }, [threads.length, orgId, userId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
