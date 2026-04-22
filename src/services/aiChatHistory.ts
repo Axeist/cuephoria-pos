@@ -1,0 +1,299 @@
+/**
+ * Per-tenant AI chat thread storage.
+ *
+ * Each (organization, user) pair gets its own list of threads, so a staff
+ * member who works across multiple venues never sees someone else's
+ * conversations. Storage is client-side only (localStorage) — chats rarely
+ * matter after a few days and shipping them to the server would just be a
+ * privacy liability.
+ *
+ * Storage key: `cuephoria.ai.threads.v1:<orgId>:<userId>`
+ *
+ * A thread holds:
+ *   - id         — random local id
+ *   - title      — auto-generated from the first user message (can be renamed)
+ *   - messages   — full chat transcript (role + content + timestamp)
+ *   - modelId    — model in use when the thread was last active
+ *   - createdAt  — ISO
+ *   - updatedAt  — ISO (drives sort order)
+ *
+ * We cap at 50 threads per (org,user) and evict the oldest updatedAt first.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+const STORAGE_PREFIX = "cuephoria.ai.threads.v1";
+const UPDATE_EVENT = "cuephoria:ai-threads";
+const MAX_THREADS = 50;
+
+export type ThreadRole = "user" | "assistant";
+
+export interface ThreadMessage {
+  id: string;
+  role: ThreadRole;
+  content: string;
+  /** ISO timestamp. */
+  timestamp: string;
+  /** True if generation errored out — kept so the UI can style it. */
+  error?: boolean;
+}
+
+export interface ChatThread {
+  id: string;
+  title: string;
+  modelId: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ThreadMessage[];
+}
+
+function keyFor(orgId: string | null | undefined, userId: string | null | undefined): string {
+  return `${STORAGE_PREFIX}:${orgId ?? "_"}:${userId ?? "_"}`;
+}
+
+function safeParse(raw: string | null): ChatThread[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Minimal validation: discard anything missing id/messages.
+    return parsed.filter(
+      (t) =>
+        t &&
+        typeof t.id === "string" &&
+        typeof t.title === "string" &&
+        Array.isArray(t.messages),
+    ) as ChatThread[];
+  } catch {
+    return [];
+  }
+}
+
+function writeThreads(key: string, threads: ChatThread[]) {
+  // Enforce cap before writing. Newest first by updatedAt.
+  threads.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const trimmed = threads.slice(0, MAX_THREADS);
+  try {
+    window.localStorage.setItem(key, JSON.stringify(trimmed));
+    window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { key } }));
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+export function getThreads(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+): ChatThread[] {
+  if (typeof window === "undefined") return [];
+  return safeParse(window.localStorage.getItem(keyFor(orgId, userId)));
+}
+
+export function getThread(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+  threadId: string,
+): ChatThread | null {
+  return getThreads(orgId, userId).find((t) => t.id === threadId) ?? null;
+}
+
+function makeId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+/** Build a human-friendly title from a user prompt. */
+function deriveTitle(firstUserMessage: string): string {
+  const trimmed = firstUserMessage.replace(/\s+/g, " ").trim();
+  if (trimmed.length === 0) return "New chat";
+  // Keep first sentence or first ~55 chars, whichever is shorter.
+  const firstStop = trimmed.search(/[.?!]\s/);
+  const candidate =
+    firstStop !== -1 && firstStop < 55 ? trimmed.slice(0, firstStop + 1) : trimmed;
+  return candidate.length > 58 ? candidate.slice(0, 55).trimEnd() + "…" : candidate;
+}
+
+export function createThread(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+  args: { modelId: string; firstMessage?: ThreadMessage },
+): ChatThread {
+  const now = new Date().toISOString();
+  const thread: ChatThread = {
+    id: makeId(),
+    title: args.firstMessage ? deriveTitle(args.firstMessage.content) : "New chat",
+    modelId: args.modelId,
+    createdAt: now,
+    updatedAt: now,
+    messages: args.firstMessage ? [args.firstMessage] : [],
+  };
+  const key = keyFor(orgId, userId);
+  const all = getThreads(orgId, userId);
+  all.unshift(thread);
+  writeThreads(key, all);
+  return thread;
+}
+
+/** Upsert — creates the thread if it doesn't exist, else patches it. */
+export function upsertThread(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+  thread: ChatThread,
+): void {
+  if (typeof window === "undefined") return;
+  const key = keyFor(orgId, userId);
+  const all = getThreads(orgId, userId);
+  const idx = all.findIndex((t) => t.id === thread.id);
+  if (idx >= 0) {
+    all[idx] = thread;
+  } else {
+    all.unshift(thread);
+  }
+  writeThreads(key, all);
+}
+
+/**
+ * Replace the full message list on an existing thread and refresh
+ * updatedAt. If the current title is still "New chat", we auto-title from
+ * the first user message.
+ */
+export function saveThreadMessages(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+  threadId: string,
+  messages: ThreadMessage[],
+  modelId?: string,
+): void {
+  if (typeof window === "undefined") return;
+  const key = keyFor(orgId, userId);
+  const all = getThreads(orgId, userId);
+  const idx = all.findIndex((t) => t.id === threadId);
+  if (idx < 0) return;
+
+  const existing = all[idx];
+  const firstUser = messages.find((m) => m.role === "user");
+  const title =
+    existing.title === "New chat" && firstUser ? deriveTitle(firstUser.content) : existing.title;
+
+  all[idx] = {
+    ...existing,
+    title,
+    modelId: modelId ?? existing.modelId,
+    messages,
+    updatedAt: new Date().toISOString(),
+  };
+  writeThreads(key, all);
+}
+
+export function renameThread(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+  threadId: string,
+  title: string,
+): void {
+  if (typeof window === "undefined") return;
+  const key = keyFor(orgId, userId);
+  const all = getThreads(orgId, userId);
+  const idx = all.findIndex((t) => t.id === threadId);
+  if (idx < 0) return;
+  all[idx] = { ...all[idx], title: title.trim() || "New chat" };
+  writeThreads(key, all);
+}
+
+export function deleteThread(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+  threadId: string,
+): void {
+  if (typeof window === "undefined") return;
+  const key = keyFor(orgId, userId);
+  const all = getThreads(orgId, userId).filter((t) => t.id !== threadId);
+  writeThreads(key, all);
+}
+
+export function clearAllThreads(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+): void {
+  if (typeof window === "undefined") return;
+  const key = keyFor(orgId, userId);
+  window.localStorage.removeItem(key);
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT, { detail: { key } }));
+}
+
+/**
+ * React hook. Owns the in-memory thread list + `activeThreadId` for the
+ * currently-open conversation. The chat page calls `persist()` after every
+ * streaming turn to keep storage in sync.
+ */
+export function useChatThreads(
+  orgId: string | null | undefined,
+  userId: string | null | undefined,
+) {
+  const [threads, setThreads] = useState<ChatThread[]>(() => getThreads(orgId, userId));
+
+  useEffect(() => {
+    setThreads(getThreads(orgId, userId));
+    const ourKey = keyFor(orgId, userId);
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { key?: string } | undefined;
+      if (!detail || detail.key === ourKey) setThreads(getThreads(orgId, userId));
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === ourKey) setThreads(getThreads(orgId, userId));
+    };
+    window.addEventListener(UPDATE_EVENT, onChange as EventListener);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(UPDATE_EVENT, onChange as EventListener);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [orgId, userId]);
+
+  const create = useCallback(
+    (args: { modelId: string; firstMessage?: ThreadMessage }) => {
+      const t = createThread(orgId, userId, args);
+      setThreads(getThreads(orgId, userId));
+      return t;
+    },
+    [orgId, userId],
+  );
+
+  const save = useCallback(
+    (threadId: string, messages: ThreadMessage[], modelId?: string) => {
+      saveThreadMessages(orgId, userId, threadId, messages, modelId);
+      setThreads(getThreads(orgId, userId));
+    },
+    [orgId, userId],
+  );
+
+  const remove = useCallback(
+    (threadId: string) => {
+      deleteThread(orgId, userId, threadId);
+      setThreads(getThreads(orgId, userId));
+    },
+    [orgId, userId],
+  );
+
+  const rename = useCallback(
+    (threadId: string, title: string) => {
+      renameThread(orgId, userId, threadId, title);
+      setThreads(getThreads(orgId, userId));
+    },
+    [orgId, userId],
+  );
+
+  const clear = useCallback(() => {
+    clearAllThreads(orgId, userId);
+    setThreads([]);
+  }, [orgId, userId]);
+
+  const byUpdated = useMemo(
+    () => [...threads].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [threads],
+  );
+
+  return { threads: byUpdated, create, save, remove, rename, clear };
+}
+
+export function makeMessageId(): string {
+  return makeId();
+}

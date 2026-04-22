@@ -135,6 +135,9 @@ export default async function handler(req: Request): Promise<Response> {
       model,
       messages,
       stream: true,
+      // Ensure OpenRouter emits a final chunk with `usage` populated so the
+      // client can track token + cost per request.
+      stream_options: { include_usage: true },
       temperature,
       max_tokens: maxTokens,
       // Attribute spend to the logged-in user for OpenRouter's usage dashboard.

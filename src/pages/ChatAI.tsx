@@ -1,26 +1,31 @@
 /**
- * Cuephoria AI — the in-app business assistant.
+ * Cuephoria AI — tenant-themed, immersive, multi-model assistant.
  *
- * Talks to OpenRouter (any model the user picks: Haiku, Sonnet, Opus, GPT,
- * Gemini, Llama, …) and feeds it a compact Supabase-backed snapshot of the
- * whole business. Token usage is minimised by:
- *  - a single small system turn carrying the snapshot
- *  - short conversational turns on top of that system turn
- *  - a modest default `max_tokens` cap
+ * High-level architecture:
+ * - Data: `fetchBusinessSnapshot()` (Supabase-backed, compact)
+ * - Streaming: `streamChatCompletion()` → OpenRouter (server-proxy by default)
+ * - Per-tenant persistence:
+ *     · `useChatThreads(orgId, userId)` — saved conversations
+ *     · `useAIUsage(orgId, userId)`   — token + cost tracker
+ * - Theming: reads tenant tokens through `useTenantBrandingOptional()` and
+ *   CSS vars (`--primary`, `--brand-*-hex`) so re-branding is instant.
+ * - Layout:
+ *     · Desktop / tablet → this component (sidebar + main column + ambient
+ *       3D backdrop).
+ *     · Mobile (or `?m=1`) → delegates to `<ChatAIMobile />` so the
+ *       pop-out experience is properly thumb-friendly.
  *
- * The page supports a "standalone" layout (for the pop-out window) and a
- * regular in-shell layout, driven by the `standalone` prop.
+ * Animation language uses framer-motion exclusively. `prefers-reduced-motion`
+ * is respected by the backdrop and typing indicator.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   ArrowUp,
   BarChart3,
-  Bot,
   Calendar,
-  Check,
-  Copy,
   DatabaseZap,
   DollarSign,
   ExternalLink,
@@ -40,7 +45,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ai/ModelPicker";
 import { AISettingsDialog } from "@/components/ai/AISettingsDialog";
-import { MessageContent } from "@/components/ai/MessageContent";
+import { AmbientBackdrop } from "@/components/ai/AmbientBackdrop";
+import { ChatBubble, type ChatBubbleMessage } from "@/components/ai/ChatBubble";
+import { ThreadSidebar } from "@/components/ai/ThreadSidebar";
+import { UsagePill } from "@/components/ai/UsageWidget";
 import { useAISettings } from "@/services/aiSettings";
 import {
   getModelById,
@@ -51,22 +59,23 @@ import {
   fetchBusinessSnapshot,
   type BusinessSnapshot,
 } from "@/services/chatDataService";
+import {
+  makeMessageId,
+  useChatThreads,
+  type ThreadMessage,
+} from "@/services/aiChatHistory";
+import { useAIUsage } from "@/services/aiUsageTracker";
 import { useAuth } from "@/context/AuthContext";
-
-interface DisplayMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-  streaming?: boolean;
-  error?: boolean;
-}
+import { useOrganizationOptional } from "@/context/OrganizationContext";
+import { useTenantBrandingOptional } from "@/branding/BrandingProvider";
+import { useIsMobile } from "@/hooks/use-mobile";
+import ChatAIMobile from "@/pages/ChatAIMobile";
 
 interface SuggestionCard {
   title: string;
   prompt: string;
   icon: React.ReactNode;
-  tint: string;
+  accent: "primary" | "accent" | "emerald" | "amber" | "rose" | "cyan";
 }
 
 const SUGGESTIONS: SuggestionCard[] = [
@@ -75,52 +84,75 @@ const SUGGESTIONS: SuggestionCard[] = [
     prompt:
       "Give me today's performance snapshot — total revenue, sales count, payment-mix, and how it compares with the 7-day average.",
     icon: <TrendingUp className="h-4 w-4" />,
-    tint: "from-emerald-500 to-green-600",
+    accent: "emerald",
   },
   {
     title: "Peak hour",
     prompt:
       "Which hour today has generated the most revenue so far? Show the top three hours with their revenue.",
     icon: <BarChart3 className="h-4 w-4" />,
-    tint: "from-violet-500 to-purple-600",
+    accent: "primary",
   },
   {
     title: "Upcoming bookings",
     prompt:
       "What bookings are coming up next? Include the date, time and status for the next few.",
     icon: <Calendar className="h-4 w-4" />,
-    tint: "from-indigo-500 to-blue-600",
+    accent: "accent",
   },
   {
     title: "Top customers",
     prompt:
       "Who are my top spending customers right now, and how many new customers did I get this week?",
     icon: <Users className="h-4 w-4" />,
-    tint: "from-cyan-500 to-blue-600",
+    accent: "cyan",
   },
   {
     title: "Inventory alerts",
     prompt:
       "Which products are low on stock or completely out? Suggest what to reorder first.",
     icon: <Package className="h-4 w-4" />,
-    tint: "from-rose-500 to-red-600",
+    accent: "rose",
   },
   {
     title: "Revenue vs. expenses",
     prompt:
       "Give me a 30-day summary of revenue vs. expenses (by category) and estimate my net position.",
     icon: <DollarSign className="h-4 w-4" />,
-    tint: "from-amber-500 to-orange-600",
+    accent: "amber",
   },
 ];
 
+const ACCENT_STYLE: Record<SuggestionCard["accent"], { from: string; to: string; glow: string }> = {
+  primary: {
+    from: "hsl(var(--primary))",
+    to: "hsl(var(--primary) / 0.55)",
+    glow: "hsl(var(--primary) / 0.4)",
+  },
+  accent: {
+    from: "hsl(var(--accent))",
+    to: "hsl(var(--accent) / 0.55)",
+    glow: "hsl(var(--accent) / 0.4)",
+  },
+  emerald: { from: "#10b981", to: "#059669", glow: "rgba(16,185,129,0.35)" },
+  amber: { from: "#f59e0b", to: "#d97706", glow: "rgba(245,158,11,0.35)" },
+  rose: { from: "#f43f5e", to: "#e11d48", glow: "rgba(244,63,94,0.35)" },
+  cyan: { from: "#06b6d4", to: "#0891b2", glow: "rgba(6,182,212,0.35)" },
+};
+
 /**
- * Builds the system prompt. Rules focus on token-accuracy over style so
- * numbers don't get approximated away. The snapshot follows it as a clearly
- * delimited "DATA" block.
+ * Build the system prompt: rules + tenant-scoped snapshot. Optimised for
+ * token accuracy — numbers must not be hallucinated.
  */
-function buildSystemPrompt(snapshot: BusinessSnapshot, custom: string, userName: string | null): string {
-  const headline = `You are Cuephoria AI — an operational assistant for a gaming-cafe and arcade POS. You answer questions about the business using the DATA block below.`;
+function buildSystemPrompt(
+  snapshot: BusinessSnapshot,
+  custom: string,
+  userName: string | null,
+  tenantName: string | null,
+): string {
+  const headline = `You are Cuephoria AI — an operational assistant for ${
+    tenantName ?? "a gaming-cafe / arcade"
+  }. You answer questions about the business using the DATA block below.`;
 
   const rules = [
     "Respond in crisp, skimmable Markdown. Use headings and bullets when helpful.",
@@ -147,37 +179,62 @@ function buildSystemPrompt(snapshot: BusinessSnapshot, custom: string, userName:
     .join("\n");
 }
 
-function makeId(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
 interface ChatAIProps {
-  /** If true, the page renders without hosting the app shell's padding. */
   standalone?: boolean;
 }
 
 const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
   const { user } = useAuth();
+  const org = useOrganizationOptional();
+  const branding = useTenantBrandingOptional();
+  const isMobile = useIsMobile();
   const { settings, update: updateSettings } = useAISettings();
   const [searchParams] = useSearchParams();
 
-  // Standalone mode can be driven by prop OR `?focus=1` query (so
-  // window.open to the same route with that param works transparently).
+  // Pop-out mode + explicit "mobile view" override.
   const standalone = standaloneProp ?? searchParams.get("focus") === "1";
+  const forceMobile = searchParams.get("m") === "1";
 
+  // Route mobile devices (or explicit ?m=1) to the mobile layout. This
+  // covers both "user is on a phone" and "user popped out to a mobile
+  // view from desktop".
+  if (isMobile || forceMobile) {
+    return <ChatAIMobile />;
+  }
+
+  return <ChatAIDesktop standalone={standalone} user={user} org={org} branding={branding} settings={settings} updateSettings={updateSettings} />;
+};
+
+// ============================================================================
+// Desktop / tablet shell
+// ============================================================================
+
+interface DesktopProps {
+  standalone: boolean;
+  user: ReturnType<typeof useAuth>["user"];
+  org: ReturnType<typeof useOrganizationOptional>;
+  branding: ReturnType<typeof useTenantBrandingOptional>;
+  settings: ReturnType<typeof useAISettings>["settings"];
+  updateSettings: ReturnType<typeof useAISettings>["update"];
+}
+
+const ChatAIDesktop: React.FC<DesktopProps> = ({
+  standalone,
+  user,
+  org,
+  branding,
+  settings,
+  updateSettings,
+}) => {
+  const orgId = org?.organization?.id ?? null;
+  const userId = user?.id ?? null;
+  const userInitial = user?.username?.[0]?.toUpperCase() ?? "U";
+  const tenantName = branding?.brand?.name ?? org?.organization?.name ?? null;
+
+  // ---- Business snapshot ----------------------------------------------------
   const [snapshot, setSnapshot] = useState<BusinessSnapshot | null>(null);
-  const [snapshotLoading, setSnapshotLoading] = useState<boolean>(true);
+  const [snapshotLoading, setSnapshotLoading] = useState(true);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
-
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [input, setInput] = useState<string>("");
-  const [isStreaming, setIsStreaming] = useState<boolean>(false);
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const abortRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadSnapshot = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!opts.silent) setSnapshotLoading(true);
@@ -186,26 +243,60 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
       const snap = await fetchBusinessSnapshot();
       setSnapshot(snap);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to load business data.";
-      setSnapshotError(msg);
+      setSnapshotError(e instanceof Error ? e.message : "Failed to load business data.");
     } finally {
       setSnapshotLoading(false);
     }
   }, []);
 
-  // Load on mount + refresh every 3 minutes in the background so long chat
-  // sessions don't go stale.
   useEffect(() => {
     loadSnapshot();
     const id = window.setInterval(() => loadSnapshot({ silent: true }), 3 * 60 * 1000);
     return () => window.clearInterval(id);
   }, [loadSnapshot]);
 
+  // ---- Threads --------------------------------------------------------------
+  const { threads, create: createThread, save: saveThread, remove: removeThread, rename: renameThread } =
+    useChatThreads(orgId, userId);
+  const { record: recordUsage } = useAIUsage(orgId, userId);
+
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatBubbleMessage[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Load the most recent thread on first mount — keeps "continuity" without
+  // surprising users by jumping into an ancient chat.
+  useEffect(() => {
+    if (activeThreadId !== null) return;
+    const latest = threads[0];
+    if (!latest) return;
+    setActiveThreadId(latest.id);
+    setMessages(
+      latest.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.timestamp),
+        error: m.error,
+      })),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threads.length]);
+
+  // ---- Streaming state ------------------------------------------------------
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  // Auto-grow the textarea as the user types.
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -215,20 +306,28 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
 
   const activeModel = useMemo(() => getModelById(settings.modelId), [settings.modelId]);
 
-  const buildHistoryTurns = useCallback(
-    (history: DisplayMessage[]): ChatTurn[] => {
-      // Keep the last 10 turns to cap prompt size. Business context lives in
-      // the system message so we don't need long conversation history.
-      return history
-        .filter((m) => !m.error)
-        .slice(-10)
-        .map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
+  // ---- Persistence helpers --------------------------------------------------
+  const persist = useCallback(
+    (threadId: string, msgs: ChatBubbleMessage[]) => {
+      const toStore: ThreadMessage[] = msgs.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp.toISOString(),
+        error: m.error,
+      }));
+      saveThread(threadId, toStore, settings.modelId);
     },
-    [],
+    [saveThread, settings.modelId],
   );
+
+  // ---- Compose & send -------------------------------------------------------
+  const buildHistoryTurns = useCallback((history: ChatBubbleMessage[]): ChatTurn[] => {
+    return history
+      .filter((m) => !m.error)
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.content }));
+  }, []);
 
   const sendMessage = useCallback(
     async (prompt?: string) => {
@@ -239,15 +338,14 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
         return;
       }
 
-      const userMsg: DisplayMessage = {
-        id: makeId(),
+      const userMsg: ChatBubbleMessage = {
+        id: makeMessageId(),
         role: "user",
         content: text,
         timestamp: new Date(),
       };
-
-      const assistantId = makeId();
-      const assistantPlaceholder: DisplayMessage = {
+      const assistantId = makeMessageId();
+      const assistantPlaceholder: ChatBubbleMessage = {
         id: assistantId,
         role: "assistant",
         content: "",
@@ -255,22 +353,43 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
         streaming: true,
       };
 
-      setMessages((prev) => [...prev, userMsg, assistantPlaceholder]);
+      // Ensure a thread exists for this conversation so we persist as we go.
+      let threadId = activeThreadId;
+      if (!threadId) {
+        const t = createThread({
+          modelId: settings.modelId,
+          firstMessage: {
+            id: userMsg.id,
+            role: userMsg.role,
+            content: userMsg.content,
+            timestamp: userMsg.timestamp.toISOString(),
+          },
+        });
+        threadId = t.id;
+        setActiveThreadId(threadId);
+      }
+
+      const nextHistory = [...messages, userMsg, assistantPlaceholder];
+      setMessages(nextHistory);
       setInput("");
       setIsStreaming(true);
 
-      const system = buildSystemPrompt(snapshot, settings.customInstructions, user?.username ?? null);
-      const history = [...messages, userMsg];
+      const system = buildSystemPrompt(
+        snapshot,
+        settings.customInstructions,
+        user?.username ?? null,
+        tenantName,
+      );
       const turns: ChatTurn[] = [
         { role: "system", content: system },
-        ...buildHistoryTurns(history),
+        ...buildHistoryTurns([...messages, userMsg]),
       ];
 
       const controller = new AbortController();
       abortRef.current = controller;
 
       try {
-        await streamChatCompletion({
+        const result = await streamChatCompletion({
           messages: turns,
           model: settings.modelId,
           apiKeyOverride: settings.apiKey,
@@ -279,42 +398,45 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
           signal: controller.signal,
           onDelta: (delta) => {
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: m.content + delta }
-                  : m,
-              ),
+              prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + delta } : m)),
             );
           },
         });
 
-        setMessages((prev) =>
-          prev.map((m) =>
+        setMessages((prev) => {
+          const finalMsgs = prev.map((m) =>
             m.id === assistantId ? { ...m, streaming: false } : m,
-          ),
-        );
-      } catch (err: unknown) {
-        const aborted =
-          err instanceof DOMException && err.name === "AbortError";
-        if (aborted) {
-          // Keep whatever was streamed so far but mark as done.
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? { ...m, streaming: false, content: m.content || "_(stopped)_" }
-                : m,
-            ),
           );
-        } else {
-          const msg = err instanceof Error ? err.message : "Unknown error";
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? { ...m, streaming: false, error: true, content: `⚠ ${msg}` }
-                : m,
-            ),
-          );
+          if (threadId) persist(threadId, finalMsgs);
+          return finalMsgs;
+        });
+
+        if (result.usage) {
+          recordUsage({
+            modelId: settings.modelId,
+            promptTokens: result.usage.prompt_tokens,
+            completionTokens: result.usage.completion_tokens,
+            totalTokens: result.usage.total_tokens,
+          });
         }
+      } catch (err: unknown) {
+        const aborted = err instanceof DOMException && err.name === "AbortError";
+        setMessages((prev) => {
+          const finalMsgs = prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  streaming: false,
+                  error: !aborted,
+                  content: aborted
+                    ? m.content || "_(stopped)_"
+                    : `⚠ ${err instanceof Error ? err.message : "Unknown error"}`,
+                }
+              : m,
+          );
+          if (threadId) persist(threadId, finalMsgs);
+          return finalMsgs;
+        });
       } finally {
         setIsStreaming(false);
         abortRef.current = null;
@@ -322,16 +444,21 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
       }
     },
     [
+      activeThreadId,
       buildHistoryTurns,
+      createThread,
       input,
       isStreaming,
       messages,
+      persist,
+      recordUsage,
       settings.apiKey,
       settings.customInstructions,
       settings.maxTokens,
       settings.modelId,
       settings.temperature,
       snapshot,
+      tenantName,
       user?.username,
     ],
   );
@@ -343,13 +470,42 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
     }
   };
 
-  const handleStop = () => {
-    abortRef.current?.abort();
+  const handleStop = () => abortRef.current?.abort();
+
+  const handleNewThread = () => {
+    if (isStreaming) abortRef.current?.abort();
+    setActiveThreadId(null);
+    setMessages([]);
+    textareaRef.current?.focus();
   };
 
-  const handleClear = () => {
+  const handleSelectThread = (id: string) => {
     if (isStreaming) abortRef.current?.abort();
-    setMessages([]);
+    const t = threads.find((x) => x.id === id);
+    if (!t) return;
+    setActiveThreadId(t.id);
+    setMessages(
+      t.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.timestamp),
+        error: m.error,
+      })),
+    );
+  };
+
+  const handleDeleteThread = (id: string) => {
+    removeThread(id);
+    if (activeThreadId === id) {
+      setActiveThreadId(null);
+      setMessages([]);
+    }
+  };
+
+  const handleClearCurrent = () => {
+    if (!activeThreadId) return;
+    handleDeleteThread(activeThreadId);
   };
 
   const handleCopy = async (id: string, text: string) => {
@@ -374,308 +530,485 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
     );
   };
 
-  // -------- Render helpers --------
+  // ==========================================================================
+  // Render
+  // ==========================================================================
 
-  const header = (
+  const shellHeight = standalone
+    ? "h-screen"
+    : "h-[calc(100vh-var(--app-header-height,56px))]";
+
+  return (
     <div
-      className="relative flex items-center justify-between gap-3 px-4 py-3 border-b"
-      style={{
-        background:
-          "linear-gradient(180deg, rgba(13,7,30,0.85) 0%, rgba(13,7,30,0.5) 100%)",
-        backdropFilter: "blur(18px) saturate(160%)",
-        WebkitBackdropFilter: "blur(18px) saturate(160%)",
-        borderColor: "rgba(255,255,255,0.06)",
-      }}
+      className={`relative flex ${shellHeight} w-full overflow-hidden text-white`}
+      style={{ background: "hsl(var(--background))" }}
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 opacity-60"
-        style={{
-          background:
-            "radial-gradient(90% 180% at 15% -60%, rgba(168,85,247,0.22) 0%, rgba(168,85,247,0) 55%)",
-        }}
-      />
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="relative flex-shrink-0">
-          <div className="absolute inset-0 rounded-full bg-cuephoria-purple/40 blur-lg" />
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple shadow-lg shadow-cuephoria-purple/40">
-            <Bot className="h-5 w-5 text-white" />
-          </div>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-base sm:text-lg font-bold text-white leading-none">
-              Cuephoria <span className="gradient-text">AI</span>
-            </h1>
-            <Badge
-              variant="outline"
-              className="h-5 border-emerald-400/40 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-300"
-            >
-              Live
-            </Badge>
-          </div>
-          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-white/50">
-            <DatabaseZap className="h-3 w-3 text-cuephoria-lightpurple" />
-            {snapshot ? (
-              <span className="tabular-nums">
-                {snapshot.meta.approxTokens} ctx tokens · {activeModel.provider}
-              </span>
-            ) : (
-              <span>Loading business data…</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <AmbientBackdrop />
 
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        <ModelPicker
-          value={settings.modelId}
-          onChange={(id) => updateSettings({ modelId: id })}
-          compact
+      {/* Thread rail */}
+      <div className="relative z-10 flex">
+        <ThreadSidebar
+          threads={threads}
+          activeThreadId={activeThreadId}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={setSidebarCollapsed}
+          onNew={handleNewThread}
+          onSelect={handleSelectThread}
+          onRename={renameThread}
+          onDelete={handleDeleteThread}
         />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => loadSnapshot()}
-          disabled={snapshotLoading}
-          className="h-8 w-8 text-white/70 hover:bg-white/5 hover:text-white"
-          title="Refresh business data"
+      </div>
+
+      {/* Main chat column */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        {/* Top bar */}
+        <header
+          className="relative flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5 backdrop-blur-xl"
+          style={{
+            background:
+              "linear-gradient(180deg, hsl(var(--background) / 0.75) 0%, hsl(var(--background) / 0.45) 100%)",
+            boxShadow: "inset 0 -1px 0 rgba(255,255,255,0.04)",
+          }}
         >
-          <RefreshCw
-            className={`h-4 w-4 ${snapshotLoading ? "animate-spin" : ""}`}
-          />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSettingsOpen(true)}
-          className="h-8 w-8 text-white/70 hover:bg-white/5 hover:text-white"
-          title="AI settings"
-        >
-          <Settings2 className="h-4 w-4" />
-        </Button>
-        {!standalone ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePopout}
-            className="h-8 w-8 text-white/70 hover:bg-white/5 hover:text-white"
-            title="Pop out to a separate window"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.close()}
-            className="h-8 w-8 text-white/70 hover:bg-white/5 hover:text-white"
-            title="Close window"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-        {messages.length > 0 && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClear}
-            className="h-8 w-8 text-white/70 hover:bg-white/5 hover:text-white"
-            title="Clear chat"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-
-  const welcome = (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <div className="text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple shadow-xl shadow-cuephoria-purple/40">
-          <Sparkles className="h-8 w-8 text-white" />
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-bold text-white">
-          {user?.username
-            ? `Hey @${user.username.charAt(0).toUpperCase() + user.username.slice(1)}`
-            : "Welcome"}
-          <span className="gradient-text"> — what should we look at?</span>
-        </h2>
-        <p className="mt-2 text-sm text-white/60 max-w-xl mx-auto">
-          I can see live sales, bookings, stations, customers, inventory and
-          expenses from your Supabase. Pick a quick start or just ask anything.
-        </p>
-      </div>
-
-      <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {SUGGESTIONS.map((s) => (
-          <button
-            key={s.title}
-            onClick={() => sendMessage(s.prompt)}
-            disabled={isStreaming || snapshotLoading}
-            className="group relative flex flex-col items-start gap-2 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition-all duration-300 hover:border-cuephoria-purple/50 hover:bg-white/[0.06] hover:shadow-lg hover:shadow-cuephoria-purple/10 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-          >
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-30 blur-3xl transition-opacity group-hover:opacity-60"
-              style={{
-                background:
-                  "radial-gradient(circle, rgba(168,85,247,0.6) 0%, transparent 70%)",
-              }}
-            />
-            <div
-              className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${s.tint} text-white shadow-md`}
-            >
-              {s.icon}
-            </div>
-            <div className="font-semibold text-white group-hover:text-cuephoria-lightpurple transition-colors">
-              {s.title}
-            </div>
-            <p className="text-[12.5px] leading-snug text-white/55 line-clamp-2">
-              {s.prompt}
-            </p>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-
-  const messagesList = (
-    <div className="mx-auto max-w-3xl px-3 sm:px-4 py-4 space-y-5">
-      {messages.map((m) => {
-        const isUser = m.role === "user";
-        return (
-          <div
-            key={m.id}
-            className={`flex gap-2.5 ${isUser ? "justify-end" : "justify-start"}`}
-          >
-            {!isUser && (
-              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple shadow-md shadow-cuephoria-purple/30">
-                <Bot className="h-4 w-4 text-white" />
+          <div className="flex min-w-0 items-center gap-3">
+            <BrandAvatar />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-[15px] font-bold leading-none">
+                  {tenantName ? `${tenantName} AI` : "Cuephoria AI"}
+                </h1>
+                <Badge
+                  variant="outline"
+                  className="h-5 border-emerald-400/40 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-300"
+                >
+                  <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                  Live
+                </Badge>
               </div>
-            )}
-
-            <div
-              className={`group relative max-w-[85%] rounded-2xl px-4 py-3 shadow-lg transition-colors ${
-                isUser
-                  ? "bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple text-white shadow-cuephoria-purple/40"
-                  : "border border-white/10 bg-white/[0.04] text-white/90 backdrop-blur-md"
-              } ${m.error ? "border-red-500/50 bg-red-500/10" : ""}`}
-            >
-              {isUser ? (
-                <p className="whitespace-pre-wrap text-[14px] leading-relaxed">
-                  {m.content}
-                </p>
-              ) : (
-                <MessageContent content={m.content || "…"} streaming={m.streaming} />
-              )}
-              <div className="mt-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider opacity-60">
-                <span>
-                  {m.timestamp.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {!isUser && m.content && !m.streaming && (
-                  <button
-                    onClick={() => handleCopy(m.id, m.content)}
-                    className="flex items-center gap-1 hover:text-white transition-colors"
-                    title="Copy"
-                  >
-                    {copiedId === m.id ? (
-                      <>
-                        <Check className="h-3 w-3" /> copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3 w-3" /> copy
-                      </>
-                    )}
-                  </button>
+              <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-white/50">
+                <DatabaseZap className="h-3 w-3 text-[hsl(var(--primary))]" />
+                {snapshot ? (
+                  <span className="tabular-nums">
+                    {snapshot.meta.approxTokens.toLocaleString()} ctx tokens ·{" "}
+                    {activeModel.provider}
+                  </span>
+                ) : (
+                  <span>Loading business data…</span>
                 )}
               </div>
             </div>
+          </div>
 
-            {isUser && (
-              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cuephoria-blue to-cyan-500 text-white shadow-md">
-                <span className="text-xs font-bold">
-                  {user?.username?.[0]?.toUpperCase() ?? "U"}
-                </span>
-              </div>
+          <div className="flex flex-shrink-0 items-center gap-1.5">
+            <UsagePill orgId={orgId} userId={userId} />
+            <ModelPicker
+              value={settings.modelId}
+              onChange={(id) => updateSettings({ modelId: id })}
+              compact
+            />
+            <div className="mx-1 hidden h-5 w-px bg-white/10 md:block" />
+            <IconBtn title="Refresh business data" onClick={() => loadSnapshot()} disabled={snapshotLoading}>
+              <RefreshCw className={`h-4 w-4 ${snapshotLoading ? "animate-spin" : ""}`} />
+            </IconBtn>
+            <IconBtn title="AI settings" onClick={() => setSettingsOpen(true)}>
+              <Settings2 className="h-4 w-4" />
+            </IconBtn>
+            {!standalone ? (
+              <IconBtn title="Pop out to a separate window" onClick={handlePopout}>
+                <ExternalLink className="h-4 w-4" />
+              </IconBtn>
+            ) : (
+              <IconBtn title="Close window" onClick={() => window.close()}>
+                <X className="h-4 w-4" />
+              </IconBtn>
+            )}
+            {messages.length > 0 && (
+              <IconBtn title="Delete this chat" onClick={handleClearCurrent}>
+                <Trash2 className="h-4 w-4" />
+              </IconBtn>
             )}
           </div>
-        );
-      })}
-      <div ref={messagesEndRef} />
+        </header>
+
+        {/* Snapshot error banner */}
+        {snapshotError && (
+          <div className="mx-auto w-full max-w-3xl px-4 pt-3">
+            <Alert
+              variant="destructive"
+              className="border-red-500/40 bg-red-500/10 text-red-200 backdrop-blur-md"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Data load failed</AlertTitle>
+              <AlertDescription className="flex items-center justify-between gap-3">
+                <span>{snapshotError}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => loadSnapshot()}
+                  className="border-red-400/40 bg-transparent text-red-200 hover:bg-red-500/10"
+                >
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        {/* Conversation / welcome */}
+        <div className="relative flex-1 overflow-y-auto">
+          {messages.length === 0 ? (
+            <Welcome
+              userName={user?.username ?? null}
+              disabled={isStreaming || snapshotLoading}
+              onPick={(prompt) => sendMessage(prompt)}
+            />
+          ) : (
+            <div className="mx-auto flex max-w-3xl flex-col gap-4 px-3 py-5 sm:px-5">
+              <AnimatePresence initial={false}>
+                {messages.map((m) => (
+                  <ChatBubble
+                    key={m.id}
+                    message={m}
+                    userInitial={userInitial}
+                    onCopy={handleCopy}
+                    copied={copiedId === m.id}
+                  />
+                ))}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Composer */}
+        <Composer
+          value={input}
+          onChange={setInput}
+          onSubmit={() => sendMessage()}
+          onStop={handleStop}
+          onKeyDown={handleKeyDown}
+          textareaRef={textareaRef}
+          isStreaming={isStreaming}
+          snapshotLoading={snapshotLoading}
+          activeModelLabel={activeModel.label}
+          temperature={settings.temperature}
+          maxTokens={settings.maxTokens}
+          snapshotGeneratedAt={snapshot?.meta.generatedAt}
+        />
+      </div>
+
+      <AISettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
+};
 
-  const inputBar = (
-    <div
-      className="relative border-t"
+// ============================================================================
+// Brand avatar — glowing, breathing "C" tile
+// ============================================================================
+
+const BrandAvatar: React.FC = () => {
+  const branding = useTenantBrandingOptional();
+  const logo = branding?.brand?.assets?.logoLightUrl ?? null;
+
+  return (
+    <motion.div
+      className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl text-white"
       style={{
         background:
-          "linear-gradient(0deg, rgba(13,7,30,0.9) 0%, rgba(13,7,30,0.55) 100%)",
-        backdropFilter: "blur(18px) saturate(160%)",
-        WebkitBackdropFilter: "blur(18px) saturate(160%)",
-        borderColor: "rgba(255,255,255,0.06)",
+          "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 120%)",
+        boxShadow:
+          "0 10px 24px -8px hsl(var(--primary) / 0.55), inset 0 1px 0 rgba(255,255,255,0.2)",
+      }}
+      animate={{
+        boxShadow: [
+          "0 10px 24px -8px hsl(var(--primary) / 0.45), inset 0 1px 0 rgba(255,255,255,0.2)",
+          "0 14px 32px -6px hsl(var(--primary) / 0.75), inset 0 1px 0 rgba(255,255,255,0.3)",
+          "0 10px 24px -8px hsl(var(--primary) / 0.45), inset 0 1px 0 rgba(255,255,255,0.2)",
+        ],
+      }}
+      transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+    >
+      {logo ? (
+        <img src={logo} alt="" className="h-6 w-6 object-contain" />
+      ) : (
+        <Sparkles className="h-5 w-5" />
+      )}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-60"
+        style={{
+          background:
+            "radial-gradient(120% 60% at 50% 0%, rgba(255,255,255,0.35) 0%, transparent 60%)",
+        }}
+      />
+    </motion.div>
+  );
+};
+
+// ============================================================================
+// Icon button
+// ============================================================================
+
+const IconBtn: React.FC<
+  React.ComponentProps<typeof Button> & { title: string; children: React.ReactNode }
+> = ({ title, children, ...props }) => (
+  <Button
+    {...props}
+    variant="ghost"
+    size="icon"
+    title={title}
+    className="h-8 w-8 rounded-lg text-white/65 transition-all hover:bg-white/5 hover:text-white"
+  >
+    {children}
+  </Button>
+);
+
+// ============================================================================
+// Welcome screen (suggestion cards with 3D tilt)
+// ============================================================================
+
+interface WelcomeProps {
+  userName: string | null;
+  disabled: boolean;
+  onPick: (prompt: string) => void;
+}
+
+const Welcome: React.FC<WelcomeProps> = ({ userName, disabled, onPick }) => {
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 240, damping: 24 }}
+        className="text-center"
+      >
+        <motion.div
+          animate={{ y: [0, -4, 0] }}
+          transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+          className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl text-white"
+          style={{
+            background:
+              "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 120%)",
+            boxShadow:
+              "0 18px 40px -12px hsl(var(--primary) / 0.55), inset 0 1px 0 rgba(255,255,255,0.2)",
+          }}
+        >
+          <Sparkles className="h-8 w-8" />
+        </motion.div>
+
+        <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          {userName ? (
+            <>
+              Hey{" "}
+              <span className="text-white">
+                @{userName.charAt(0).toUpperCase() + userName.slice(1)}
+              </span>
+              <span
+                className="bg-clip-text text-transparent"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
+                }}
+              >
+                {" "}
+                — what should we look at?
+              </span>
+            </>
+          ) : (
+            <span
+              className="bg-clip-text text-transparent"
+              style={{
+                backgroundImage:
+                  "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
+              }}
+            >
+              Welcome to Cuephoria AI
+            </span>
+          )}
+        </h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm text-white/55">
+          I see live sales, bookings, stations, customers, inventory and expenses
+          from your Supabase. Pick a quick start, or just ask anything.
+        </p>
+      </motion.div>
+
+      <div className="mt-9 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {SUGGESTIONS.map((s, i) => {
+          const style = ACCENT_STYLE[s.accent];
+          return (
+            <motion.button
+              key={s.title}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 240,
+                damping: 22,
+                delay: 0.08 + i * 0.04,
+              }}
+              whileHover={{ y: -3, scale: 1.01 }}
+              whileTap={{ scale: 0.985 }}
+              disabled={disabled}
+              onClick={() => onPick(s.prompt)}
+              className="group relative flex flex-col items-start gap-2 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left backdrop-blur-md transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+              style={{
+                boxShadow:
+                  "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px -18px rgba(0,0,0,0.5)",
+              }}
+            >
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full opacity-50 blur-3xl transition-opacity group-hover:opacity-80"
+                style={{ background: style.glow }}
+              />
+              <div
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-white shadow-md"
+                style={{
+                  background: `linear-gradient(135deg, ${style.from} 0%, ${style.to} 100%)`,
+                  boxShadow: `0 8px 16px -6px ${style.glow}`,
+                }}
+              >
+                {s.icon}
+              </div>
+              <div className="font-semibold text-white transition-colors">
+                {s.title}
+              </div>
+              <p className="line-clamp-2 text-[12.5px] leading-snug text-white/55">
+                {s.prompt}
+              </p>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// Composer
+// ============================================================================
+
+interface ComposerProps {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  onStop: () => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  isStreaming: boolean;
+  snapshotLoading: boolean;
+  activeModelLabel: string;
+  temperature: number;
+  maxTokens: number;
+  snapshotGeneratedAt: string | undefined;
+}
+
+const Composer: React.FC<ComposerProps> = ({
+  value,
+  onChange,
+  onSubmit,
+  onStop,
+  onKeyDown,
+  textareaRef,
+  isStreaming,
+  snapshotLoading,
+  activeModelLabel,
+  temperature,
+  maxTokens,
+  snapshotGeneratedAt,
+}) => {
+  return (
+    <div
+      className="relative border-t border-white/5 backdrop-blur-xl"
+      style={{
+        background:
+          "linear-gradient(0deg, hsl(var(--background) / 0.85) 0%, hsl(var(--background) / 0.45) 100%)",
       }}
     >
-      <div className="mx-auto max-w-3xl px-3 sm:px-4 py-3">
-        <div
-          className={`group relative rounded-2xl border bg-white/[0.04] transition-colors ${
+      <div className="mx-auto max-w-3xl px-3 py-3 sm:px-5">
+        <motion.div
+          animate={{
+            boxShadow: isStreaming
+              ? "0 0 0 3px hsl(var(--primary) / 0.18), 0 18px 40px -20px hsl(var(--primary) / 0.6)"
+              : "0 0 0 0px hsl(var(--primary) / 0), 0 10px 30px -22px rgba(0,0,0,0.8)",
+          }}
+          transition={{ duration: 0.25 }}
+          className={`group relative rounded-2xl border transition-colors ${
             isStreaming
-              ? "border-cuephoria-purple/40 shadow-[0_0_0_3px_rgba(168,85,247,0.12)]"
-              : "border-white/10 focus-within:border-cuephoria-purple/50 focus-within:shadow-[0_0_0_3px_rgba(168,85,247,0.12)]"
+              ? "border-[hsl(var(--primary)/0.45)] bg-white/[0.05]"
+              : "border-white/10 bg-white/[0.04] focus-within:border-[hsl(var(--primary)/0.55)]"
           }`}
         >
           <Textarea
             ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={onKeyDown}
             placeholder={
               snapshotLoading
                 ? "Loading business data…"
-                : `Ask about sales, bookings, inventory, customers… (⇧+⏎ for newline)`
+                : "Ask about sales, bookings, inventory, customers… (⇧+⏎ for newline)"
             }
             rows={1}
-            className="min-h-[46px] resize-none border-0 bg-transparent px-4 py-3 pr-14 text-[14px] text-white placeholder:text-white/35 focus-visible:ring-0"
             disabled={snapshotLoading}
+            className="min-h-[46px] resize-none border-0 bg-transparent px-4 py-3 pr-14 text-[14px] text-white placeholder:text-white/35 focus-visible:ring-0"
           />
           <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
-            {isStreaming ? (
-              <Button
-                onClick={handleStop}
-                size="icon"
-                className="h-9 w-9 rounded-xl bg-white/10 text-white hover:bg-white/15"
-                title="Stop"
-              >
-                <Square className="h-4 w-4" fill="currentColor" />
-              </Button>
-            ) : (
-              <Button
-                onClick={() => sendMessage()}
-                disabled={!input.trim() || snapshotLoading}
-                size="icon"
-                className="h-9 w-9 rounded-xl bg-gradient-to-br from-cuephoria-purple to-cuephoria-lightpurple text-white shadow-md shadow-cuephoria-purple/40 hover:opacity-95 disabled:opacity-40"
-                title="Send"
-              >
-                <ArrowUp className="h-4 w-4" />
-              </Button>
-            )}
+            <AnimatePresence initial={false} mode="wait">
+              {isStreaming ? (
+                <motion.div
+                  key="stop"
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Button
+                    onClick={onStop}
+                    size="icon"
+                    className="h-9 w-9 rounded-xl bg-white/10 text-white hover:bg-white/15"
+                    title="Stop"
+                  >
+                    <Square className="h-4 w-4" fill="currentColor" />
+                  </Button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="send"
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Button
+                    onClick={onSubmit}
+                    disabled={!value.trim() || snapshotLoading}
+                    size="icon"
+                    className="h-9 w-9 rounded-xl text-white disabled:opacity-40"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
+                      boxShadow: "0 10px 22px -6px hsl(var(--primary) / 0.55)",
+                    }}
+                    title="Send"
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        </div>
-        <div className="mt-1.5 flex items-center justify-between px-1 text-[10px] text-white/35">
+        </motion.div>
+
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] text-white/35">
           <span>
-            Model: <span className="text-white/60">{activeModel.label}</span> ·
-            temp {settings.temperature.toFixed(2)} · max {settings.maxTokens}
+            Model: <span className="text-white/60">{activeModelLabel}</span> · temp{" "}
+            {temperature.toFixed(2)} · max {maxTokens}
           </span>
-          {snapshot && (
+          {snapshotGeneratedAt && (
             <span className="tabular-nums">
               Context refreshed{" "}
-              {new Date(snapshot.meta.generatedAt).toLocaleTimeString([], {
+              {new Date(snapshotGeneratedAt).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
@@ -683,47 +1016,6 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
           )}
         </div>
       </div>
-    </div>
-  );
-
-  const outerClass = standalone
-    ? "flex h-screen w-screen flex-col bg-gradient-to-br from-[#0A061A] via-[#0E0827] to-[#0A061A] text-white"
-    : "flex h-[calc(100vh-var(--app-header-height,56px))] flex-col bg-gradient-to-br from-[#0A061A] via-[#0E0827] to-[#0A061A] text-white";
-
-  return (
-    <div className={outerClass}>
-      {header}
-
-      {snapshotError && (
-        <div className="mx-auto w-full max-w-3xl px-4 pt-3">
-          <Alert
-            variant="destructive"
-            className="border-red-500/40 bg-red-500/10 text-red-200"
-          >
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Data load failed</AlertTitle>
-            <AlertDescription className="flex items-center justify-between gap-3">
-              <span>{snapshotError}</span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => loadSnapshot()}
-                className="border-red-400/40 bg-transparent text-red-200 hover:bg-red-500/10"
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      <div className="relative flex-1 overflow-y-auto">
-        {messages.length === 0 ? welcome : messagesList}
-      </div>
-
-      {inputBar}
-
-      <AISettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 };

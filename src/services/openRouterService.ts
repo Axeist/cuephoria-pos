@@ -231,6 +231,9 @@ export async function streamChatCompletion(
         model,
         messages: opts.messages,
         stream: true,
+        // OpenAI-compatible hint — makes OpenRouter emit a final chunk with
+        // `usage` populated so we can cost-track per request.
+        stream_options: { include_usage: true },
         temperature: opts.temperature ?? 0.3,
         max_tokens: opts.maxTokens ?? 800,
       }
