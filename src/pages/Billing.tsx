@@ -90,6 +90,8 @@ interface Invoice {
   paid_at: string | null;
   short_url: string | null;
   provider_invoice_id: string | null;
+  provider_payment_id?: string | null;
+  provider_subscription_id?: string | null;
   created_at: string;
 }
 
@@ -379,7 +381,10 @@ export default function Billing() {
                 const price = interval === "year" ? plan.price_inr_year : plan.price_inr_month;
                 const rzpId = interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
                 const stripeId = interval === "year" ? plan.stripe_price_id_year : plan.stripe_price_id_month;
-                const mapped = billingProvider === "razorpay" ? !!rzpId : !!stripeId;
+                const mapped =
+                  billingProvider === "razorpay"
+                    ? !!rzpId || (typeof price === "number" && price > 0)
+                    : !!stripeId;
                 const isCurrent =
                   subscription?.interval === interval && currentPlan?.code === plan.code && status === "active";
                 const gradient = PLAN_GRADIENTS[plan.code] ?? PLAN_GRADIENTS.growth;
@@ -426,6 +431,8 @@ export default function Billing() {
                             ? "Current plan"
                             : !mapped
                               ? "Coming soon"
+                              : !rzpId && billingProvider === "razorpay"
+                                ? "Start " + plan.name + " (auto-setup)"
                               : subscription?.razorpay_subscription_id
                                 ? "Switch to " + plan.name
                                 : "Start " + plan.name}
@@ -459,6 +466,7 @@ export default function Billing() {
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-wider text-zinc-500 border-b border-white/5">
                       <th className="py-2 pr-4">Date</th>
+                      <th className="py-2 pr-4">Invoice</th>
                       <th className="py-2 pr-4">Period</th>
                       <th className="py-2 pr-4">Amount</th>
                       <th className="py-2 pr-4">Status</th>
@@ -469,6 +477,12 @@ export default function Billing() {
                     {invoices.map((inv) => (
                       <tr key={inv.id} className="border-b border-white/5 last:border-0">
                         <td className="py-3 pr-4 text-zinc-200">{formatDate(inv.paid_at || inv.created_at)}</td>
+                        <td className="py-3 pr-4 text-zinc-300">
+                          <div className="font-mono text-xs">{inv.provider_invoice_id || inv.id}</div>
+                          {inv.provider_payment_id ? (
+                            <div className="text-[10px] text-zinc-500">pay: {inv.provider_payment_id}</div>
+                          ) : null}
+                        </td>
                         <td className="py-3 pr-4 text-zinc-400">
                           {inv.period_start && inv.period_end ? (
                             <span>

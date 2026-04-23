@@ -117,6 +117,48 @@ export interface RzpCustomer {
   notes?: Record<string, string> | null;
 }
 
+export interface RzpInvoice {
+  id: string;
+  status: string;
+  amount?: number;
+  amount_paid?: number;
+  currency?: string;
+  subscription_id?: string | null;
+  payment_id?: string | null;
+  short_url?: string | null;
+  period_start?: number | null;
+  period_end?: number | null;
+  paid_at?: number | null;
+  issued_at?: number | null;
+  line_items?: Array<{
+    id?: string;
+    name?: string;
+    description?: string;
+    amount?: number;
+    unit_amount?: number;
+    quantity?: number;
+  }>;
+}
+
+export interface RzpPlan {
+  id: string;
+  period?: "daily" | "weekly" | "monthly" | "yearly";
+  interval?: number;
+  item?: {
+    name?: string;
+    description?: string;
+    amount?: number;
+    currency?: string;
+  };
+  notes?: Record<string, string> | null;
+}
+
+type RzpListResponse<T> = {
+  entity: "collection";
+  count: number;
+  items: T[];
+};
+
 // ---------------------------------------------------------------------------
 // Subscription + customer endpoints
 // ---------------------------------------------------------------------------
@@ -141,6 +183,20 @@ export function createRzpSubscription(body: {
   return rzp<RzpSubscription>("/subscriptions", { method: "POST", body });
 }
 
+export function createRzpPlan(body: {
+  period: "monthly" | "yearly";
+  interval: number;
+  item: {
+    name: string;
+    amount: number;
+    currency: string;
+    description?: string;
+  };
+  notes?: Record<string, string>;
+}): Promise<RzpPlan> {
+  return rzp<RzpPlan>("/plans", { method: "POST", body });
+}
+
 export function fetchRzpSubscription(id: string): Promise<RzpSubscription> {
   return rzp<RzpSubscription>(`/subscriptions/${encodeURIComponent(id)}`, { method: "GET" });
 }
@@ -163,6 +219,19 @@ export function updateRzpSubscription(
     method: "POST",
     body,
   });
+}
+
+export function listRzpInvoices(opts: {
+  subscription_id?: string;
+  count?: number;
+  skip?: number;
+} = {}): Promise<RzpListResponse<RzpInvoice>> {
+  const qs = new URLSearchParams();
+  if (opts.subscription_id) qs.set("subscription_id", opts.subscription_id);
+  qs.set("count", String(opts.count ?? 24));
+  if (typeof opts.skip === "number" && opts.skip > 0) qs.set("skip", String(opts.skip));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return rzp<RzpListResponse<RzpInvoice>>(`/invoices${suffix}`, { method: "GET" });
 }
 
 // ---------------------------------------------------------------------------

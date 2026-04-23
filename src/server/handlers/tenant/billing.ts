@@ -29,6 +29,7 @@ import { j } from "../../adminApiUtils";
 import { withOrgContext, type OrgContext } from "../../orgContext";
 import {
   createRzpCustomer,
+  createRzpPlan,
   createRzpSubscription,
   cancelRzpSubscription,
   fetchRzpSubscription,
@@ -45,6 +46,57 @@ const DEFAULT_TOTAL_COUNT_MONTHLY = 12 * 10; // 10 years — we treat sub as eve
 const DEFAULT_TOTAL_COUNT_YEARLY = 10;
 
 type Interval = "month" | "year";
+
+async function ensureRazorpayPlanMapping(args: {
+  supabase: OrgContext["supabase"];
+  plan: {
+    id: string;
+    code: string;
+    name: string;
+    price_inr_month: number | null;
+    price_inr_year: number | null;
+    razorpay_plan_id_month: string | null;
+    razorpay_plan_id_year: string | null;
+  };
+  interval: Interval;
+}): Promise<string> {
+  const { supabase, plan, interval } = args;
+  const existing =
+    interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
+  if (existing) return existing;
+
+  const price = interval === "year" ? plan.price_inr_year : plan.price_inr_month;
+  if (!price || Number(price) <= 0) {
+    throw new Error(
+      `Plan "${plan.code}" is missing a valid ${interval}ly price, so Razorpay mapping cannot be auto-created.`,
+    );
+  }
+
+  const createdPlan = await createRzpPlan({
+    period: interval === "year" ? "yearly" : "monthly",
+    interval: 1,
+    item: {
+      name: `${plan.name} (${interval === "year" ? "Yearly" : "Monthly"})`,
+      description: `Auto-created from tenant billing for ${plan.code}`,
+      amount: Math.round(Number(price) * 100), // INR paise
+      currency: "INR",
+    },
+    notes: {
+      plan_code: plan.code,
+      interval,
+      source: "tenant_billing_auto_map",
+    },
+  });
+
+  const patch =
+    interval === "year"
+      ? { razorpay_plan_id_year: createdPlan.id }
+      : { razorpay_plan_id_month: createdPlan.id };
+
+  const { error } = await supabase.from("plans").update(patch).eq("id", plan.id);
+  if (error) throw new Error(`Razorpay plan created (${createdPlan.id}) but local mapping update failed: ${error.message}`);
+  return createdPlan.id;
+}
 
 async function handler(req: Request, ctx: OrgContext): Promise<Response> {
   if (req.method === "GET") return getBilling(ctx);
@@ -81,7 +133,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
     supabase
       .from("invoices")
       .select(
-        "id, status, amount_inr, currency, period_start, period_end, paid_at, short_url, provider_invoice_id, created_at",
+        "id, status, amount_inr, currency, period_start, period_end, paid_at, short_url, provider_invoice_id, provider_payment_id, provider_subscription_id, created_at",
       )
       .eq("organization_id", ctx.organizationId)
       .order("created_at", { ascending: false })
@@ -194,13 +246,14 @@ async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): 
     return j({ ok: false, error: "Plan not available for subscription." }, 404);
   }
 
-  const razorpayPlanId =
-    interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
-  if (!razorpayPlanId) {
+  let razorpayPlanId: string;
+  try {
+    razorpayPlanId = await ensureRazorpayPlanMapping({ supabase, plan, interval });
+  } catch (err) {
     return j(
       {
         ok: false,
-        error: `This plan isn't mapped to a Razorpay plan for ${interval}ly billing. Ask the Cuetronix team to finish configuring it.`,
+        error: err instanceof Error ? err.message : "Could not prepare Razorpay plan mapping.",
       },
       400,
     );

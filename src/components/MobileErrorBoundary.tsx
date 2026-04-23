@@ -14,6 +14,40 @@ interface State {
   errorInfo: ErrorInfo | null;
 }
 
+const CHUNK_RELOAD_GUARD_KEY = "__cuephoria_boundary_chunk_reload_at";
+const CHUNK_RELOAD_COOLDOWN_MS = 15_000;
+
+function isChunkLoadError(error: Error): boolean {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("failed to fetch dynamically imported module") ||
+    message.includes("failed to load dynamic import module") ||
+    message.includes("failed to load module script") ||
+    message.includes("loading chunk") ||
+    message.includes("chunkloaderror") ||
+    (message.includes("importing") && message.includes("failed"))
+  );
+}
+
+function tryChunkRecoveryReload(reason: string): boolean {
+  try {
+    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_GUARD_KEY) || 0);
+    if (Date.now() - last < CHUNK_RELOAD_COOLDOWN_MS) {
+      console.warn("[error-boundary chunk-recover] skip reload, recently attempted");
+      return false;
+    }
+    sessionStorage.setItem(CHUNK_RELOAD_GUARD_KEY, String(Date.now()));
+  } catch {
+    // If sessionStorage is unavailable, still try one reload.
+  }
+
+  console.warn(`[error-boundary chunk-recover] forcing reload (${reason})`);
+  const url = new URL(window.location.href);
+  url.searchParams.set("_v", String(Date.now()));
+  window.location.replace(url.toString());
+  return true;
+}
+
 /**
  * Mobile-aware Error Boundary Component
  * Catches JavaScript errors anywhere in the child component tree
@@ -41,6 +75,12 @@ class MobileErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log the error to console
     console.error('Error caught by boundary:', error, errorInfo);
+
+    // Auto-recover stale deploy chunk mismatches without user action.
+    if (isChunkLoadError(error)) {
+      const reloading = tryChunkRecoveryReload(error.message || "chunk load failure");
+      if (reloading) return;
+    }
     
     // You could also log to an error reporting service here
     // Example: Sentry.captureException(error);

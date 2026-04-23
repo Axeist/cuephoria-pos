@@ -31,6 +31,7 @@ import { DEFAULT_TENANT_BRAND } from './branding/brand';
     const m = msg.toLowerCase();
     return (
       m.includes("failed to fetch dynamically imported module") ||
+      m.includes("failed to load dynamic import module") ||
       m.includes("failed to load module script") ||
       m.includes("loading chunk") ||
       m.includes("loading css chunk") ||
