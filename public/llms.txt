@@ -15,7 +15,7 @@ Before Cuetronix, operators had to stitch together a POS, a third-party booking 
 - [Solutions](https://www.cuetronix.com/#solutions): Every vertical Cuetronix supports, with keyword-mapped cards.
 - [Workflow](https://www.cuetronix.com/#workflow): A realistic day in a Cuetronix-powered lounge, from booking to checkout.
 - [Features](https://www.cuetronix.com/#modules): POS, bookings, stations, cafe, loyalty, tournaments, staff, payroll, reports.
-- [Pricing](https://www.cuetronix.com/#pricing): Starter ₹1,999/mo · Growth ₹4,999/mo · Pro ₹9,999/mo · Enterprise on request.
+- [Pricing](https://www.cuetronix.com/#pricing): Starter ₹999/mo · Growth ₹2,499/mo · Pro ₹3,999/mo · Enterprise on request.
 - [FAQ](https://www.cuetronix.com/#faq): Answers to the most-asked operator questions.
 
 ## Verticals

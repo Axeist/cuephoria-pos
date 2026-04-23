@@ -236,14 +236,14 @@ const playo: Competitor = {
     },
     {
       title: "Flat SaaS fee",
-      description: "₹1,999/month flat for the whole venue. No per-booking commission, no revenue share.",
+      description: "₹999/month flat for the whole venue. No per-booking commission, no revenue share.",
       icon: "chart",
       proof: "Break-even vs Playo commissions at ~40 paid bookings/mo.",
     },
   ],
 
   pricing: {
-    cuetronix: "₹1,999–₹9,999/month flat · 14-day free trial · 0% commission",
+    cuetronix: "₹999–₹3,999/month flat · 14-day free trial · 0% commission",
     competitor: "Free for players · venue listing commissions / subscription (varies by negotiation)",
     note: "Playo monetises via booking-level commissions; Cuetronix is a flat SaaS subscription with 0% transaction fees.",
   },
@@ -343,7 +343,7 @@ const playo: Competitor = {
     },
     {
       q: "Which is cheaper — Playo or Cuetronix?",
-      a: "They're different models. Playo typically takes booking-level commissions, so cost scales with your revenue. Cuetronix is a flat monthly SaaS fee from ₹1,999. Break-even for most turfs is around 40 paid bookings a month — beyond that Cuetronix is cheaper and you also unlock POS, payroll, cafe and reporting.",
+      a: "They're different models. Playo typically takes booking-level commissions, so cost scales with your revenue. Cuetronix is a flat monthly SaaS fee from ₹999. Break-even for most turfs is around 40 paid bookings a month — beyond that Cuetronix is cheaper and you also unlock POS, payroll, cafe and reporting.",
     },
     {
       q: "Does Cuetronix work for non-turf venues like snooker or PS5 lounges?",
@@ -451,7 +451,7 @@ const hudle: Competitor = {
   ],
 
   pricing: {
-    cuetronix: "₹1,999–₹9,999/month flat · 14-day free trial",
+    cuetronix: "₹999–₹3,999/month flat · 14-day free trial",
     competitor: "Free for players · listing fees / booking commissions for venues (varies)",
   },
 
@@ -620,7 +620,7 @@ const ggLeap: Competitor = {
   ],
 
   pricing: {
-    cuetronix: "₹1,999/month (~$24) flat · 14-day free trial",
+    cuetronix: "₹999/month (~$12) flat · 14-day free trial",
     competitor: "Per-station / per-seat pricing · scales with station count",
   },
 
@@ -700,7 +700,7 @@ const ggLeap: Competitor = {
   faqs: [
     { q: "Is Cuetronix a ggLeap alternative?", a: "Yes, for most hybrid gaming centres. Cuetronix covers PCs plus consoles, VR, pool/snooker, turfs and cafe from one product, and ships with booking, Razorpay, tournaments and staff payroll out of the box." },
     { q: "Does Cuetronix have a PC launcher like ggLeap?", a: "Cuetronix focuses on the operator OS — billing, bookings, cafe, payroll — and supports PC timers at the POS layer. A dedicated per-PC client launcher with curated game libraries is on our roadmap. Pure-PC cafes that need client-side launcher control today may still prefer ggLeap." },
-    { q: "Which is cheaper?", a: "Cuetronix starts at ₹1,999/month (~$24) as a flat fee for the whole venue. ggLeap's cost scales with station count. For hybrid venues with 10+ stations and a cafe, Cuetronix is usually materially cheaper overall." },
+    { q: "Which is cheaper?", a: "Cuetronix starts at ₹999/month (~$12) as a flat fee for the whole venue. ggLeap's cost scales with station count. For hybrid venues with 10+ stations and a cafe, Cuetronix is usually materially cheaper overall." },
     { q: "Can I run tournaments in Cuetronix like I do in ggLeap?", a: "Yes — Cuetronix has a multi-vertical tournament engine with brackets, seeding, prize pools and live leaderboards for esports, pool, pickleball and FIFA." },
     { q: "What about game licensing?", a: "Cuetronix doesn't license game titles today — that's ggLeap's core strength. Most of our hybrid customers use vendor-managed Steam/Xbox accounts per station." },
     { q: "Do you support multi-currency for chains?", a: "Yes. Multi-branch, multi-currency, with per-branch P&L and consolidated reporting." },
@@ -789,7 +789,7 @@ const senet: Competitor = {
   ],
 
   pricing: {
-    cuetronix: "₹1,999/month (~$24) flat",
+    cuetronix: "₹999/month (~$12) flat",
     competitor: "Custom / tiered per centre · typically higher for mixed-vertical venues",
   },
 
@@ -863,7 +863,7 @@ const senet: Competitor = {
 
   faqs: [
     { q: "How is Cuetronix different from SENET?", a: "SENET specialises in PC esports automation. Cuetronix is a full venue OS that bills PCs, consoles, VR, cue sports, turfs, courts and cafe from one platform, and adds online booking with Razorpay plus corporate-grade staff payroll and attendance." },
-    { q: "Which is cheaper?", a: "Cuetronix is a flat ₹1,999–₹9,999/month SaaS fee for the whole venue. SENET pricing scales by station and centre, and is usually higher for mixed-vertical venues." },
+    { q: "Which is cheaper?", a: "Cuetronix is a flat ₹999–₹3,999/month SaaS fee for the whole venue. SENET pricing scales by station and centre, and is usually higher for mixed-vertical venues." },
     { q: "Does Cuetronix have esports content deals?", a: "Not today — SENET's content relationships are one of its differentiators. Cuetronix partners with local and regional esports leagues instead, and our tournament engine is a fit for any title." },
     { q: "Can we run a chain on Cuetronix?", a: "Yes. Multi-branch, multi-currency, role-based access and branch-level P&L are all core features." },
     { q: "How does migration handle loyalty balances?", a: "Loyalty balances, memberships and prepaid wallets are imported via CSV and validated with the customer in-app." },
@@ -946,12 +946,12 @@ const smartLaunch: Competitor = {
     { title: "All verticals included", description: "PC + console + VR + pool/snooker + turf + cafe, in one product.", icon: "boxes" },
     { title: "Razorpay, UPI, GST", description: "India-ready payments and invoicing out of the box.", icon: "coins" },
     { title: "Staff payroll & attendance", description: "Biometric check-in, shifts, payroll and payslips.", icon: "users" },
-    { title: "Flat SaaS pricing", description: "₹1,999/month for the whole venue.", icon: "chart" },
+    { title: "Flat SaaS pricing", description: "₹999/month for the whole venue.", icon: "chart" },
     { title: "Modern security", description: "Row-level security, TOTP 2FA, audit log, encrypted-at-rest backups.", icon: "shield" },
   ],
 
   pricing: {
-    cuetronix: "₹1,999/month flat · modern SaaS",
+    cuetronix: "₹999/month flat · modern SaaS",
     competitor: "Per-client licence model · higher TCO once hardware and maintenance are added",
   },
 
@@ -1150,7 +1150,7 @@ const gameBiller: Competitor = {
   ],
 
   pricing: {
-    cuetronix: "₹1,999/month flat (Starter) · 14-day free trial",
+    cuetronix: "₹999/month flat (Starter) · 14-day free trial",
     competitor: "From ₹199/month (claimed) + plan-tier limits",
     note: "Entry price is lower on GameBiller. Cuetronix is usually evaluated on total operating cost once booking, staff, loyalty and scale workflows are included.",
   },
@@ -1352,7 +1352,7 @@ const courtReserve: Competitor = {
   ],
 
   pricing: {
-    cuetronix: "₹1,999/month flat · whole venue",
+    cuetronix: "₹999/month flat · whole venue",
     competitor: "Monthly fee scales with number of courts / members",
   },
 
@@ -1514,7 +1514,7 @@ const skedda: Competitor = {
   ],
 
   pricing: {
-    cuetronix: "₹1,999/month flat · full venue OS",
+    cuetronix: "₹999/month flat · full venue OS",
     competitor: "Monthly fee scaling with number of spaces / users",
   },
 
@@ -1665,7 +1665,7 @@ const springboardVR: Competitor = {
   ],
 
   pricing: {
-    cuetronix: "₹1,999/month flat",
+    cuetronix: "₹999/month flat",
     competitor: "Revenue-share / per-headset licensing on top of platform fees",
   },
 

@@ -59,5 +59,5 @@ CREATE INDEX IF NOT EXISTS idx_organizations_onboarding_pending
 -- onto `starter` by default; the owner can switch from /settings/billing.
 -- ---------------------------------------------------------------------------
 INSERT INTO public.plans (code, name, is_public, price_inr_month, price_inr_year, sort_order, is_active)
-VALUES ('starter', 'Starter', true, 1999, 19990, 10, true)
+VALUES ('starter', 'Starter', true, 999, 9588, 10, true)
 ON CONFLICT (code) DO NOTHING;

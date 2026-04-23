@@ -8,57 +8,57 @@ const PLANS = [
   {
     code: "starter",
     name: "Starter",
-    price: 1999,
-    priceYear: 19990,
-    tagline: "For single-branch lounges finding their feet.",
+    price: 999,
+    priceYear: 9588,
+    tagline: "For first-time venues getting started fast.",
     cta: "Start 14-day trial",
     featured: false,
     features: [
       "1 branch",
-      "Up to 10 stations",
-      "3 admin seats",
-      "Online bookings + POS",
-      "Cafe module",
-      "Loyalty & memberships",
-      "Razorpay UPI + cards",
-      "Email support",
+      "Up to 6 stations",
+      "1 admin seat",
+      "Walk-in POS billing",
+      "Basic discounts",
+      "No online booking portal",
+      "No payroll",
+      "Email support (48h SLA)",
     ],
   },
   {
     code: "growth",
     name: "Growth",
-    price: 4999,
-    priceYear: 49990,
-    tagline: "For busy venues that need speed and depth.",
+    price: 2499,
+    priceYear: 23988,
+    tagline: "For busy single-branch venues ready to scale.",
     cta: "Start 14-day trial",
     featured: true,
     features: [
       "1 branch",
-      "Up to 30 stations",
-      "10 admin seats",
-      "Everything in Starter",
-      "Tournaments + brackets",
-      "Advanced happy hours",
+      "Up to 20 stations",
+      "5 admin seats",
+      "Online bookings + POS",
+      "Loyalty & memberships",
+      "Basic tournaments",
       "Branded sub-domain",
-      "Priority email support",
+      "Priority support",
     ],
   },
   {
     code: "pro",
     name: "Pro",
-    price: 9999,
-    priceYear: 99990,
-    tagline: "For chains running multiple branches.",
+    price: 3999,
+    priceYear: 38388,
+    tagline: "For operators managing advanced multi-branch ops.",
     cta: "Start 14-day trial",
     featured: false,
     features: [
-      "Up to 5 branches",
+      "Up to 3 branches",
       "Unlimited stations",
       "Unlimited admin seats",
       "Everything in Growth",
+      "Attendance + payroll + payslips",
+      "Advanced pricing automation",
       "Multi-branch reporting",
-      "Custom SMS sender",
-      "Audit log + SSO-ready",
       "Dedicated success manager",
     ],
   },
@@ -87,7 +87,7 @@ const FAQ = [
   },
   {
     q: "How much does Cuetronix cost?",
-    a: "Starter is ₹1,999/month, Growth is ₹4,999/month, Pro is ₹9,999/month. Annual plans save roughly 17%. Enterprise pricing is custom. Every plan starts with a 14-day free trial and no credit card upfront.",
+    a: "Starter is ₹999/month, Growth is ₹2,499/month, Pro is ₹3,999/month. Annual plans save 20%. Enterprise pricing is custom. Every plan starts with a 14-day free trial and no credit card upfront.",
   },
   {
     q: "Is my data secure?",
@@ -131,7 +131,7 @@ const PricingSection: React.FC = () => {
           </motion.h2>
           <motion.p variants={fadeUp} className="text-gray-400 max-w-xl mx-auto text-lg">
             14-day free trial on every plan. No credit card. Cancel with one click.
-            Yearly billing saves roughly 17%.
+            Yearly billing saves 20%.
           </motion.p>
         </motion.div>
 
@@ -153,7 +153,7 @@ const PricingSection: React.FC = () => {
                 {c === "month" ? "Monthly" : "Yearly"}
                 {c === "year" && (
                   <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    SAVE 17%
+                    SAVE 20%
                   </span>
                 )}
               </button>

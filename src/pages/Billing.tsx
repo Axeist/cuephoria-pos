@@ -367,7 +367,7 @@ export default function Billing() {
               }`}
             >
               Yearly{" "}
-              <span className="ml-1 text-[10px] text-emerald-500 font-bold">SAVE ~17%</span>
+              <span className="ml-1 text-[10px] text-emerald-500 font-bold">SAVE 20%</span>
             </button>
           </div>
         )}

@@ -223,9 +223,9 @@ COMMENT ON TABLE public.audit_log IS
 INSERT INTO public.plans (code, name, is_public, price_inr_month, price_inr_year, sort_order)
 VALUES
   ('internal',   'Internal (Cuephoria-owned)', false, NULL,  NULL,    0),
-  ('starter',    'Starter',                    true,  1999,  19990,   10),
-  ('growth',     'Growth',                     true,  4999,  49990,   20),
-  ('pro',        'Pro',                        true,  9999,  99990,   30),
+  ('starter',    'Starter',                    true,   999,   9588,   10),
+  ('growth',     'Growth',                     true,  2499,  23988,   20),
+  ('pro',        'Pro',                        true,  3999,  38388,   30),
   ('enterprise', 'Enterprise',                 false, NULL,  NULL,    40)
 ON CONFLICT (code) DO NOTHING;
 
@@ -256,15 +256,15 @@ JOIN (
     ('internal',   'custom_sms_sender',     'true'::jsonb),
     ('internal',   'priority_support',      'true'::jsonb),
 
-    -- Starter (₹1,999/mo) — 1 branch, core POS + bookings + loyalty (basic)
+    -- Starter (₹999/mo) — 1 branch, essentials only
     ('starter',    'max_branches',          '1'::jsonb),
-    ('starter',    'max_stations',          '10'::jsonb),
-    ('starter',    'max_admin_seats',       '3'::jsonb),
+    ('starter',    'max_stations',          '6'::jsonb),
+    ('starter',    'max_admin_seats',       '1'::jsonb),
     ('starter',    'tournaments_enabled',   'false'::jsonb),
-    ('starter',    'loyalty_enabled',       'true'::jsonb),
+    ('starter',    'loyalty_enabled',       'false'::jsonb),
     ('starter',    'happy_hours_enabled',   'false'::jsonb),
     ('starter',    'memberships_enabled',   'false'::jsonb),
-    ('starter',    'public_booking',        'true'::jsonb),
+    ('starter',    'public_booking',        'false'::jsonb),
     ('starter',    'cafe_module',           'false'::jsonb),
     ('starter',    'exports_enabled',       'false'::jsonb),
     ('starter',    'custom_domain',         'false'::jsonb),
@@ -273,10 +273,10 @@ JOIN (
     ('starter',    'custom_sms_sender',     'false'::jsonb),
     ('starter',    'priority_support',      'false'::jsonb),
 
-    -- Growth (₹4,999/mo) — up to 3 branches, tournaments, exports
-    ('growth',     'max_branches',          '3'::jsonb),
-    ('growth',     'max_stations',          '25'::jsonb),
-    ('growth',     'max_admin_seats',       '10'::jsonb),
+    -- Growth (₹2,499/mo) — single branch scale with online bookings
+    ('growth',     'max_branches',          '1'::jsonb),
+    ('growth',     'max_stations',          '20'::jsonb),
+    ('growth',     'max_admin_seats',       '5'::jsonb),
     ('growth',     'tournaments_enabled',   'true'::jsonb),
     ('growth',     'loyalty_enabled',       'true'::jsonb),
     ('growth',     'happy_hours_enabled',   'true'::jsonb),
@@ -288,12 +288,12 @@ JOIN (
     ('growth',     'custom_font',           'true'::jsonb),
     ('growth',     'hide_powered_by',       'false'::jsonb),
     ('growth',     'custom_sms_sender',     'false'::jsonb),
-    ('growth',     'priority_support',      'false'::jsonb),
+    ('growth',     'priority_support',      'true'::jsonb),
 
-    -- Pro (₹9,999/mo) — up to 10 branches, custom domain, priority support
-    ('pro',        'max_branches',          '10'::jsonb),
+    -- Pro (₹3,999/mo) — advanced operations, multi-branch
+    ('pro',        'max_branches',          '3'::jsonb),
     ('pro',        'max_stations',          '999'::jsonb),
-    ('pro',        'max_admin_seats',       '25'::jsonb),
+    ('pro',        'max_admin_seats',       '999'::jsonb),
     ('pro',        'tournaments_enabled',   'true'::jsonb),
     ('pro',        'loyalty_enabled',       'true'::jsonb),
     ('pro',        'happy_hours_enabled',   'true'::jsonb),

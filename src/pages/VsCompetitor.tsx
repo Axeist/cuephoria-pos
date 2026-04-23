@@ -288,7 +288,7 @@ const VsCompetitor: React.FC = () => {
         "url": "https://www.cuetronix.com/",
         "offers": {
           "@type": "Offer",
-          "price": "1999",
+          "price": "999",
           "priceCurrency": "INR",
           "availability": "https://schema.org/InStock",
         },
