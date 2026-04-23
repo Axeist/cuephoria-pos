@@ -69,21 +69,36 @@ function authHeader(creds: Creds): string {
 
 const BASE = "https://api.razorpay.com/v1";
 
-async function rzp<T>(
-  path: string,
-  init: { method: "GET" | "POST"; body?: unknown } = { method: "GET" },
-): Promise<T> {
-  const creds = getRazorpayCreds();
+type RzpRequestInit = { method: "GET" | "POST"; body?: unknown };
+
+async function doRzpFetch(path: string, init: RzpRequestInit, creds: Creds): Promise<Response> {
   const isGet = init.method === "GET";
-  const res = await fetch(`${BASE}${path}`, {
+  return fetch(`${BASE}${path}`, {
     method: init.method,
     headers: {
-      Accept: "application/json",
+      // Use permissive accept for compatibility with intermediary proxies/WAFs.
+      Accept: "*/*",
       Authorization: authHeader(creds),
       ...(isGet ? {} : { "content-type": "application/json" }),
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
+}
+
+async function rzp<T>(
+  path: string,
+  init: RzpRequestInit = { method: "GET" },
+): Promise<T> {
+  const creds = getRazorpayCreds();
+  let res = await doRzpFetch(path, init, creds);
+  // Some environments surface a 406 on GETs due aggressive content negotiation.
+  // Retry once with the most minimal header set before failing hard.
+  if (res.status === 406 && init.method === "GET") {
+    res = await fetch(`${BASE}${path}`, {
+      method: "GET",
+      headers: { Authorization: authHeader(creds) },
+    });
+  }
   const text = await res.text();
   let json: unknown = null;
   try {
