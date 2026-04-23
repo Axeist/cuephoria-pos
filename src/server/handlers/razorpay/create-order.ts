@@ -6,6 +6,12 @@ import {
   parseRazorpayProfile,
   type RazorpayProfile,
 } from "../lib/razorpay-credentials";
+import {
+  getDefaultCheckoutCurrency,
+  parseCurrency,
+  toMinorUnits,
+} from "../lib/payment-provider";
+import { assertProviderEnabledNow, resolveRequestedProvider } from "../lib/payment-provider-facade";
 
 // Increase timeout to 30 seconds to handle Razorpay API calls
 export const config = {
@@ -15,7 +21,7 @@ export const config = {
 // Vercel Node.js runtime types
 type VercelRequest = {
   method?: string;
-  body?: any;
+  body?: Record<string, unknown>;
   query?: Record<string, string>;
   headers?: Record<string, string | string[] | undefined>;
 };
@@ -23,7 +29,7 @@ type VercelRequest = {
 type VercelResponse = {
   setHeader: (name: string, value: string) => void;
   status: (code: number) => VercelResponse;
-  json: (data: any) => void;
+  json: (data: unknown) => void;
   end: () => void;
 };
 
@@ -41,6 +47,7 @@ function j(res: VercelResponse, data: unknown, status = 200) {
 // Create Razorpay order using Razorpay SDK (Node.js runtime)
 async function createRazorpayOrder(
   amount: number,
+  currency: string,
   receipt: string,
   notes: Record<string, string> | undefined,
   profile: RazorpayProfile
@@ -55,17 +62,18 @@ async function createRazorpayOrder(
     const credentials = getRazorpayCredentials(profile);
     keyId = credentials.keyId;
     keySecret = credentials.keySecret;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as { message?: string };
     console.error("❌ Failed to get Razorpay credentials:", err);
-    throw new Error(`Configuration error: ${err?.message || "Missing Razorpay credentials"}`);
+    throw new Error(`Configuration error: ${error?.message || "Missing Razorpay credentials"}`);
   }
   
-  // Validate amount and ensure it's an integer
-  const amountInPaise = Math.round(Number(amount) * 100);
-  if (amountInPaise < 100) {
-    throw new Error("Amount must be at least ₹1.00 (100 paise)");
+  const normalizedCurrency = parseCurrency(currency, getDefaultCheckoutCurrency());
+  const amountInMinor = toMinorUnits(Number(amount), normalizedCurrency);
+  if (amountInMinor < 1) {
+    throw new Error("Amount must be at least 1 minor unit");
   }
-  if (!Number.isInteger(amountInPaise)) {
+  if (!Number.isInteger(amountInMinor)) {
     throw new Error("Amount must be a valid number");
   }
 
@@ -76,9 +84,9 @@ async function createRazorpayOrder(
   });
 
   // Build order options
-  const orderOptions: any = {
-    amount: amountInPaise, // Amount in paise
-    currency: "INR",
+  const orderOptions: Record<string, unknown> = {
+    amount: amountInMinor, // Amount in minor units
+    currency: normalizedCurrency,
     receipt: receipt.substring(0, 40).trim(), // Razorpay has 40 char limit
   };
   
@@ -109,18 +117,22 @@ async function createRazorpayOrder(
     
     console.log("✅ Razorpay order created:", order.id);
     return order;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as {
+      message?: string;
+      error?: { description?: string; message?: string; code?: string; field?: string };
+    };
     console.error("❌ Razorpay SDK error:", {
       error: err,
-      message: err?.message,
-      description: err?.error?.description,
-      code: err?.error?.code,
-      field: err?.error?.field
+      message: error?.message,
+      description: error?.error?.description,
+      code: error?.error?.code,
+      field: error?.error?.field
     });
     
-    const errorMsg = err?.error?.description || 
-                    err?.error?.message || 
-                    err?.message ||
+    const errorMsg = error?.error?.description || 
+                    error?.error?.message || 
+                    error?.message ||
                     "Failed to create Razorpay order";
     throw new Error(errorMsg);
   }
@@ -143,14 +155,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     const {
       amount,
+      currency: currencyRaw,
       receipt,
       notes,
       profile: profileRaw,
+      provider: providerRaw,
     } = payload;
 
     const profile = parseRazorpayProfile(profileRaw);
+    const provider = resolveRequestedProvider(providerRaw);
+    assertProviderEnabledNow(provider, "order creation");
+    const currency = parseCurrency(currencyRaw, getDefaultCheckoutCurrency());
 
-    console.log("💳 Razorpay order request:", { amount, receipt, profile });
+    console.log("💳 Razorpay order request:", { amount, currency, receipt, profile, provider });
 
     if (!amount || Number(amount) <= 0) {
       return j(res, { ok: false, error: "Amount must be > 0" }, 400);
@@ -160,31 +177,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Receipt ID is required" }, 400);
     }
 
-    const order = await createRazorpayOrder(Number(amount), receipt, notes, profile);
+    const order = await createRazorpayOrder(
+      Number(amount),
+      currency,
+      String(receipt),
+      (notes as Record<string, string> | undefined) ?? undefined,
+      profile,
+    );
 
     return j(res, {
       ok: true,
+      provider,
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
       receipt: order.receipt,
       status: order.status,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as { message?: string; stack?: string; name?: string };
     console.error("💥 Razorpay order error:", {
-      message: err?.message,
-      stack: err?.stack,
+      message: error?.message,
+      stack: error?.stack,
       error: err
     });
     
     // Return detailed error for debugging
-    const errorMessage = err?.message || String(err);
+    const errorMessage = error?.message || String(err);
+    const status = String(error?.message || "").includes("not enabled yet") ? 501 : 500;
     return j(res, { 
       ok: false, 
       error: errorMessage,
       // Include error type for debugging (remove in production if needed)
-      type: err?.name || "UnknownError"
-    }, 500);
+      type: error?.name || "UnknownError"
+    }, status);
   }
 }
 

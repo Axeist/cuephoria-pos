@@ -25,7 +25,7 @@ export default async function handler(req: Request) {
       supabase
         .from("plans")
         .select(
-          "id, code, name, description, is_active, is_public, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year, sort_order",
+          "id, code, name, description, is_active, is_public, price_inr_month, price_inr_year, price_usd_month, price_usd_year, razorpay_plan_id_month, razorpay_plan_id_year, stripe_price_id_month, stripe_price_id_year, sort_order",
         )
         .order("sort_order", { ascending: true }),
       supabase.from("plan_features").select("plan_id, key, value"),

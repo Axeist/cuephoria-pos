@@ -58,6 +58,8 @@ type Plan = {
   price_usd_year?: number | null;
   razorpay_plan_id_month: string | null;
   razorpay_plan_id_year: string | null;
+  stripe_price_id_month?: string | null;
+  stripe_price_id_year?: string | null;
   sort_order: number;
   features?: Record<string, unknown>;
 };
@@ -73,6 +75,8 @@ type PlanUpdatePayload = {
   price_usd_year?: number | null;
   razorpay_plan_id_month?: string | null;
   razorpay_plan_id_year?: string | null;
+  stripe_price_id_month?: string | null;
+  stripe_price_id_year?: string | null;
   is_active?: boolean;
   is_public?: boolean;
   sort_order?: number;
@@ -98,6 +102,7 @@ const inr = new Intl.NumberFormat("en-IN", {
 });
 
 const PLAN_ID_RE = /^plan_[A-Za-z0-9]{4,32}$/;
+const STRIPE_PRICE_ID_RE = /^price_[A-Za-z0-9]{4,64}$/;
 
 // ---------------------------------------------------------------------------
 // Page
@@ -191,6 +196,8 @@ const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => {
     price_usd_year: p.price_usd_year ?? "",
     razorpay_plan_id_month: p.razorpay_plan_id_month ?? "",
     razorpay_plan_id_year: p.razorpay_plan_id_year ?? "",
+    stripe_price_id_month: p.stripe_price_id_month ?? "",
+    stripe_price_id_year: p.stripe_price_id_year ?? "",
     is_active: p.is_active,
     is_public: p.is_public,
     sort_order: p.sort_order,
@@ -238,6 +245,17 @@ const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => {
       }
     }
 
+    const stripeFields: Array<keyof Draft> = [
+      "stripe_price_id_month",
+      "stripe_price_id_year",
+    ];
+    for (const f of stripeFields) {
+      const raw = String(draft[f] ?? "").trim();
+      if (raw.length > 0 && !STRIPE_PRICE_ID_RE.test(raw)) {
+        e[f] = "Must match price_XXXX.";
+      }
+    }
+
     const so = Number(draft.sort_order);
     if (!Number.isInteger(so) || so < 0) e.sort_order = "Integer ≥ 0.";
 
@@ -278,6 +296,12 @@ const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => {
     }
     if (stringOrNull(draft.razorpay_plan_id_year) !== (plan.razorpay_plan_id_year ?? null)) {
       payload.razorpay_plan_id_year = stringOrNull(draft.razorpay_plan_id_year);
+    }
+    if (stringOrNull(draft.stripe_price_id_month) !== (plan.stripe_price_id_month ?? null)) {
+      payload.stripe_price_id_month = stringOrNull(draft.stripe_price_id_month);
+    }
+    if (stringOrNull(draft.stripe_price_id_year) !== (plan.stripe_price_id_year ?? null)) {
+      payload.stripe_price_id_year = stringOrNull(draft.stripe_price_id_year);
     }
     if (draft.is_active !== plan.is_active) payload.is_active = draft.is_active;
     if (draft.is_public !== plan.is_public) payload.is_public = draft.is_public;
@@ -480,6 +504,31 @@ const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => {
           </div>
         </div>
 
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Wallet className="h-3.5 w-3.5 text-zinc-500" />
+            <div className="text-[11px] uppercase tracking-wider text-zinc-500">Stripe price IDs (foundation)</div>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            <Field label="Monthly price ID" error={errors.stripe_price_id_month}>
+              <Input
+                value={draft.stripe_price_id_month}
+                onChange={(e) => set("stripe_price_id_month", e.target.value.trim())}
+                placeholder="price_XXXXXXXXXXXX"
+                className="bg-black/30 border-white/10 font-mono text-sm"
+              />
+            </Field>
+            <Field label="Yearly price ID" error={errors.stripe_price_id_year}>
+              <Input
+                value={draft.stripe_price_id_year}
+                onChange={(e) => set("stripe_price_id_year", e.target.value.trim())}
+                placeholder="price_XXXXXXXXXXXX"
+                className="bg-black/30 border-white/10 font-mono text-sm"
+              />
+            </Field>
+          </div>
+        </div>
+
         {/* Flags */}
         <div className="grid grid-cols-2 gap-3">
           <ToggleRow
@@ -561,6 +610,8 @@ type Draft = {
   price_usd_year: number | "";
   razorpay_plan_id_month: string;
   razorpay_plan_id_year: string;
+  stripe_price_id_month: string;
+  stripe_price_id_year: string;
   is_active: boolean;
   is_public: boolean;
   sort_order: number;

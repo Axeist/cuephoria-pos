@@ -59,6 +59,8 @@ interface Plan {
   price_inr_year: number | null;
   razorpay_plan_id_month: string | null;
   razorpay_plan_id_year: string | null;
+  stripe_price_id_month?: string | null;
+  stripe_price_id_year?: string | null;
   sort_order: number;
   is_active: boolean;
 }
@@ -145,6 +147,7 @@ export default function Billing() {
   const { toast } = useToast();
   const [interval, setInterval] = React.useState<Interval>("month");
   const [cancelOpen, setCancelOpen] = React.useState(false);
+  const [billingProvider] = React.useState<"razorpay" | "stripe">("razorpay");
 
   const billingQ = useQuery<BillingResponse>({
     queryKey: ["tenant-billing"],
@@ -164,7 +167,7 @@ export default function Billing() {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "subscribe", planCode, interval }),
+        body: JSON.stringify({ action: "subscribe", planCode, interval, provider: billingProvider }),
       });
       const json = await res.json();
       if (json.ok === false) throw new Error(json.error || "Subscribe failed");
@@ -280,6 +283,11 @@ export default function Billing() {
                 ? "This workspace is managed by the Cuetronix team. Billing is handled offline — no Razorpay charges will ever be issued."
                 : "Pick the plan that fits your lounge. Upgrade, downgrade, or cancel anytime — changes apply at the end of the current period."}
             </p>
+            {!isInternal && (
+              <p className="mt-2 text-xs text-zinc-500">
+                Billing provider: <span className="text-zinc-300 font-medium">{billingProvider}</span> (Stripe scaffolded, activation pending)
+              </p>
+            )}
 
             {!isInternal && (
               <div className="mt-5 flex flex-wrap items-center gap-4">
@@ -370,7 +378,8 @@ export default function Billing() {
               .map((plan) => {
                 const price = interval === "year" ? plan.price_inr_year : plan.price_inr_month;
                 const rzpId = interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
-                const mapped = !!rzpId;
+                const stripeId = interval === "year" ? plan.stripe_price_id_year : plan.stripe_price_id_month;
+                const mapped = billingProvider === "razorpay" ? !!rzpId : !!stripeId;
                 const isCurrent =
                   subscription?.interval === interval && currentPlan?.code === plan.code && status === "active";
                 const gradient = PLAN_GRADIENTS[plan.code] ?? PLAN_GRADIENTS.growth;

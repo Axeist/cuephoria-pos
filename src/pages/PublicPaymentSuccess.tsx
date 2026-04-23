@@ -64,6 +64,7 @@ export default function PublicPaymentSuccess() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            provider: "razorpay",
             razorpay_order_id: orderId,
             razorpay_payment_id: paymentId,
             razorpay_signature: signature,

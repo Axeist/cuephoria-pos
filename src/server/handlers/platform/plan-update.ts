@@ -15,6 +15,8 @@
  *       price_usd_year?:  number | null,
  *       razorpay_plan_id_month?: string | null,   // plan_XXXX or null
  *       razorpay_plan_id_year?:  string | null,
+ *       stripe_price_id_month?: string | null,     // price_XXXX or null
+ *       stripe_price_id_year?:  string | null,
  *       is_active?: boolean,
  *       is_public?: boolean,
  *       sort_order?: number               // integer
@@ -37,6 +39,7 @@ import { requirePlatformSession } from "../../platformApiUtils";
 export const config = { runtime: "edge" };
 
 const PLAN_ID_RE = /^plan_[A-Za-z0-9]{4,32}$/;
+const STRIPE_PRICE_ID_RE = /^price_[A-Za-z0-9]{4,64}$/;
 
 type PlanUpdates = {
   name?: string;
@@ -47,6 +50,8 @@ type PlanUpdates = {
   price_usd_year?: number | null;
   razorpay_plan_id_month?: string | null;
   razorpay_plan_id_year?: string | null;
+  stripe_price_id_month?: string | null;
+  stripe_price_id_year?: string | null;
   is_active?: boolean;
   is_public?: boolean;
   sort_order?: number;
@@ -132,6 +137,24 @@ export default async function handler(req: Request) {
   planIdKey("razorpay_plan_id_month", "razorpay_plan_id_month");
   planIdKey("razorpay_plan_id_year", "razorpay_plan_id_year");
 
+  const stripePriceKey = (k: keyof PlanUpdates, label: string) => {
+    if (!(k in updates)) return;
+    const raw = updates[k];
+    if (raw === null || raw === "") {
+      clean[k as string] = null;
+      return;
+    }
+    const v = String(raw).trim();
+    if (!STRIPE_PRICE_ID_RE.test(v)) {
+      errors.push(`${label} must look like price_XXXX (letters/digits, 4-64).`);
+      return;
+    }
+    clean[k as string] = v;
+  };
+
+  stripePriceKey("stripe_price_id_month", "stripe_price_id_month");
+  stripePriceKey("stripe_price_id_year", "stripe_price_id_year");
+
   if ("is_active" in updates) clean.is_active = Boolean(updates.is_active);
   if ("is_public" in updates) clean.is_public = Boolean(updates.is_public);
 
@@ -157,7 +180,7 @@ export default async function handler(req: Request) {
     const { data: before, error: lookupErr } = await supabase
       .from("plans")
       .select(
-        "id, code, name, description, is_active, is_public, price_inr_month, price_inr_year, price_usd_month, price_usd_year, razorpay_plan_id_month, razorpay_plan_id_year, sort_order",
+        "id, code, name, description, is_active, is_public, price_inr_month, price_inr_year, price_usd_month, price_usd_year, razorpay_plan_id_month, razorpay_plan_id_year, stripe_price_id_month, stripe_price_id_year, sort_order",
       )
       .eq("code", planCode)
       .maybeSingle();
@@ -176,7 +199,7 @@ export default async function handler(req: Request) {
       .update(clean)
       .eq("id", before.id)
       .select(
-        "id, code, name, description, is_active, is_public, price_inr_month, price_inr_year, price_usd_month, price_usd_year, razorpay_plan_id_month, razorpay_plan_id_year, sort_order",
+        "id, code, name, description, is_active, is_public, price_inr_month, price_inr_year, price_usd_month, price_usd_year, razorpay_plan_id_month, razorpay_plan_id_year, stripe_price_id_month, stripe_price_id_year, sort_order",
       )
       .single();
     if (updErr) return j({ ok: false, error: updErr.message }, 500);

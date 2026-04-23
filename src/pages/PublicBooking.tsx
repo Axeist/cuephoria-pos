@@ -1997,6 +1997,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          provider: "razorpay",
+          currency: "INR",
           amount: totalWithFee,
           receipt: txnId,
           notes: notes,

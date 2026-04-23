@@ -6,11 +6,14 @@ import {
   parseRazorpayProfile,
   type RazorpayProfile,
 } from "../lib/razorpay-credentials";
+import { createHmac, timingSafeEqual } from "crypto";
+import { fromMinorUnits } from "../lib/payment-provider";
+import { assertProviderEnabledNow, resolveRequestedProvider } from "../lib/payment-provider-facade";
 
 // Vercel Node.js runtime types
 type VercelRequest = {
   method?: string;
-  body?: any;
+  body?: Record<string, unknown>;
   query?: Record<string, string>;
   headers?: Record<string, string | string[] | undefined>;
 };
@@ -18,7 +21,7 @@ type VercelRequest = {
 type VercelResponse = {
   setHeader: (name: string, value: string) => void;
   status: (code: number) => VercelResponse;
-  json: (data: any) => void;
+  json: (data: unknown) => void;
   end: () => void;
 };
 
@@ -45,24 +48,18 @@ function verifyPaymentSignature(
   profile: RazorpayProfile
 ): boolean {
   const keySecret = getRazorpayKeySecret(profile);
-  
-  // Create the signature string: order_id|payment_id
   const payload = `${razorpayOrderId}|${razorpayPaymentId}`;
-  
-  // Generate HMAC SHA256 signature
-  const crypto = globalThis.crypto;
-  if (!crypto || !crypto.subtle) {
-    console.error("❌ Crypto API not available for signature verification");
+
+  try {
+    const expected = createHmac("sha256", keySecret).update(payload).digest("hex");
+    const a = Buffer.from(expected, "hex");
+    const b = Buffer.from(String(razorpaySignature || "").trim(), "hex");
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch (err) {
+    console.error("❌ Payment signature verification failed:", err);
     return false;
   }
-
-  // For edge runtime, we'll use a simpler approach with Web Crypto API
-  // Note: This is a simplified version. For production, consider using a library
-  // that properly handles HMAC in edge runtime
-  
-  // Since edge runtime has limitations with crypto, we'll verify on the client side
-  // and also fetch payment status from Razorpay API to double-check
-  return true; // Will be verified via API call below
 }
 
 // Fetch payment status from Razorpay API using SDK
@@ -82,14 +79,18 @@ async function fetchPaymentStatus(paymentId: string, profile: RazorpayProfile) {
     // Fetch payment using Razorpay SDK
     const payment = await razorpay.payments.fetch(paymentId);
     return payment;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as {
+      message?: string;
+      error?: { description?: string; code?: string };
+    };
     console.error("❌ Failed to fetch payment status:", {
       error: err,
-      message: err?.message,
-      description: err?.error?.description,
-      code: err?.error?.code
+      message: error?.message,
+      description: error?.error?.description,
+      code: error?.error?.code
     });
-    throw new Error(err?.error?.description || err?.message || "Failed to fetch payment status");
+    throw new Error(error?.error?.description || error?.message || "Failed to fetch payment status");
   }
 }
 
@@ -112,14 +113,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       razorpay_payment_id,
       razorpay_signature,
       profile: profileRaw,
+      provider: providerRaw,
     } = payload;
 
     const profile = parseRazorpayProfile(profileRaw);
+    const provider = resolveRequestedProvider(providerRaw);
+    assertProviderEnabledNow(provider, "payment verification");
 
     console.log("🔍 Verifying Razorpay payment:", {
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
       profile,
+      provider,
     });
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -133,14 +138,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let payment;
     try {
       payment = await fetchPaymentStatus(razorpay_payment_id, profile);
-    } catch (fetchErr: any) {
+    } catch (fetchErr: unknown) {
+      const fetchError = fetchErr as { message?: string };
       // If payment doesn't exist or fetch fails, it's likely a failed payment
-      console.error("❌ Failed to fetch payment:", fetchErr?.message);
+      console.error("❌ Failed to fetch payment:", fetchError?.message);
       return j(res, {
         ok: false,
         success: false,
         status: "failed",
-        error: fetchErr?.message || "Payment not found or failed",
+        error: fetchError?.message || "Payment not found or failed",
       });
     }
 
@@ -168,6 +174,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       razorpay_signature,
       profile
     );
+    if (!signatureValid) {
+      return j(
+        res,
+        {
+          ok: false,
+          success: false,
+          status: "failed",
+          error: "Invalid payment signature",
+        },
+        401,
+      );
+    }
 
     console.log("✅ Payment verified:", {
       paymentId: razorpay_payment_id,
@@ -181,18 +199,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       success: true,
       paymentId: razorpay_payment_id,
       orderId: razorpay_order_id,
+      provider,
       status: payment.status,
-      amount: payment.amount / 100, // Convert from paise to rupees
+      amount: fromMinorUnits(payment.amount, payment.currency), // Minor -> major units
       currency: payment.currency,
       signatureValid,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as { message?: string };
     console.error("💥 Payment verification error:", err);
+    const status = String(error?.message || "").includes("not enabled yet") ? 501 : 500;
     return j(res, { 
       ok: false, 
       success: false,
-      error: String(err?.message || err) 
-    }, 500);
+      error: String(error?.message || err) 
+    }, status);
   }
 }
 

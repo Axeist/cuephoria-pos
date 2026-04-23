@@ -4,6 +4,8 @@ import {
   handleSubscriptionWebhookEvent,
   isSubscriptionWebhookEvent,
 } from "../../src/server/lib/razorpay-subscription-webhook.js";
+import { createHmac, timingSafeEqual } from "crypto";
+import { recordWebhookEventHeartbeat } from "../../src/server/lib/payment-gateway-config.js";
 
 export const config = {
   maxDuration: 30, // 30 seconds
@@ -65,18 +67,19 @@ function verifyWebhookSignature(
   signature: string,
   secret: string
 ): boolean {
-  // Razorpay webhook signature verification
-  // Signature format: HMAC SHA256 of payload with webhook secret
-  // For edge runtime, we'll do basic validation
-  // Full verification should be implemented with proper crypto library
-  
   if (!signature || !payload) {
     return false;
   }
-
-  // Basic check - full verification requires crypto library
-  // In production, use a proper HMAC verification library
-  return true; // Simplified for edge runtime
+  try {
+    const expected = createHmac("sha256", secret).update(payload).digest("hex");
+    const a = Buffer.from(expected, "hex");
+    const b = Buffer.from(String(signature).trim(), "hex");
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch (err) {
+    console.error("❌ Webhook signature verification failed:", err);
+    return false;
+  }
 }
 
 // Phone number normalization
@@ -133,6 +136,19 @@ async function getSupabaseClient() {
       }
     }
   });
+}
+
+async function reserveWebhookEvent(eventId: string, eventType: string, payload: any): Promise<boolean> {
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("payment_webhook_events").insert({
+    provider: "razorpay",
+    event_id: eventId,
+    event_type: eventType,
+    payload,
+  });
+  if (!error) return true;
+  if (error.code === "23505") return false;
+  throw error;
 }
 
 // Fetch order details from Razorpay to get full booking data
@@ -716,6 +732,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const rawSig = req.headers?.["x-razorpay-signature"];
     const signature: string = Array.isArray(rawSig) ? rawSig[0] : (rawSig ?? "");
+    const rawEventId = req.headers?.["x-razorpay-event-id"];
+    const headerEventId: string = Array.isArray(rawEventId) ? rawEventId[0] : (rawEventId ?? "");
     
     console.log("📥 Razorpay webhook received:", {
       hasSignature: !!signature,
@@ -733,6 +751,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const event = data.event;
     const payment = data.payload?.payment?.entity || data.payload?.payment;
     const order = data.payload?.order?.entity || data.payload?.order;
+    const fallbackEventId = `${event}:${payment?.id || order?.id || "unknown"}`;
+    const eventId = String(headerEventId || fallbackEventId);
+
+    const reserved = await reserveWebhookEvent(eventId, String(event || "unknown"), data);
+    if (!reserved) {
+      console.log("ℹ️ Duplicate webhook event ignored:", eventId);
+      return j(res, { ok: true, duplicate: true, eventId });
+    }
     
     // Also try to get order_id from payment to fetch order details if needed
     const orderIdFromPayment = payment?.order_id;
@@ -757,6 +783,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           signature,
           data,
         });
+        await recordWebhookEventHeartbeat({
+          provider: "razorpay",
+          organizationId: (data?.payload?.subscription?.entity?.notes?.organization_id as string | undefined) ?? null,
+          event,
+        });
         return j(res, { ok: true, ...outcome });
       } catch (err: any) {
         console.error("💥 Subscription webhook error:", err?.message || err);
@@ -771,7 +802,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Handle different webhook events
     switch (event) {
-      case "payment.captured":
+      case "payment.captured": {
         console.log("✅ Payment captured:", payment?.id);
         
         // Try to create booking from order
@@ -793,12 +824,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
         break;
+      }
 
       case "payment.failed":
         console.log("❌ Payment failed:", payment?.id);
         break;
 
-      case "order.paid":
+      case "order.paid": {
         console.log("✅ Order paid:", payment?.order_id || order?.id);
         // Also try to create booking for order.paid event
         const orderIdPaid = order?.id || payment?.order_id;
@@ -820,10 +852,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
         break;
+      }
 
       default:
         console.log("ℹ️ Unhandled webhook event:", event);
     }
+
+    await recordWebhookEventHeartbeat({
+      provider: "razorpay",
+      organizationId: null,
+      event,
+    });
 
     return j(res, { ok: true, received: true });
   } catch (err: any) {

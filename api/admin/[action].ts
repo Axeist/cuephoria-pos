@@ -20,6 +20,7 @@ import { j } from "../../src/server/adminApiUtils";
 import aiChat from "../../src/server/handlers/admin/ai-chat";
 import emailHealth from "../../src/server/handlers/admin/email-health";
 import bookingSettings from "../../src/server/handlers/admin/booking-settings";
+import paymentConfig from "../../src/server/handlers/admin/payment-config";
 import changePassword from "../../src/server/handlers/admin/change-password";
 import forgotPassword from "../../src/server/handlers/admin/forgot-password";
 import locations from "../../src/server/handlers/admin/locations";
@@ -41,6 +42,7 @@ const routes: Record<string, Handler> = {
   "ai-chat": aiChat,
   "email-health": emailHealth,
   "booking-settings": bookingSettings,
+  "payment-config": paymentConfig,
   "change-password": changePassword,
   "forgot-password": forgotPassword,
   "locations": locations,

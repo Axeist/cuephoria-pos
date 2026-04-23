@@ -35,6 +35,7 @@ import {
   mapRzpSubToRow,
   RazorpayRestError,
 } from "../../razorpayRest";
+import { resolveRequestedProvider } from "../../lib/payment-provider-facade";
 
 export const config = { runtime: "edge" };
 
@@ -72,7 +73,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
     supabase
       .from("plans")
       .select(
-        "id, code, name, is_public, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year, sort_order, is_active",
+        "id, code, name, is_public, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year, stripe_price_id_month, stripe_price_id_year, sort_order, is_active",
       )
       .eq("is_active", true)
       .eq("is_public", true)
@@ -166,14 +167,24 @@ async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): 
 
   const planCode = String(body.planCode ?? "").trim().toLowerCase();
   const interval: Interval = body.interval === "year" ? "year" : "month";
+  const provider = resolveRequestedProvider(body.provider);
   if (!planCode) return j({ ok: false, error: "planCode is required." }, 400);
+  if (provider !== "razorpay") {
+    return j(
+      {
+        ok: false,
+        error: `Provider ${provider} is not enabled yet for tenant billing.`,
+      },
+      501,
+    );
+  }
 
   const supabase = ctx.supabase;
 
   const { data: plan, error: planErr } = await supabase
     .from("plans")
     .select(
-      "id, code, name, is_public, is_active, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year",
+      "id, code, name, is_public, is_active, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year, stripe_price_id_month, stripe_price_id_year",
     )
     .eq("code", planCode)
     .maybeSingle();
@@ -220,6 +231,7 @@ async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): 
           reused: true,
           subscription: fresh,
           shortUrl: fresh.short_url ?? null,
+          provider,
         },
         200,
       );
@@ -317,6 +329,7 @@ async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): 
       reused: false,
       subscription: sub,
       shortUrl: sub.short_url ?? null,
+      provider,
     },
     200,
   );

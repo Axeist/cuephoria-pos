@@ -3,11 +3,12 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2 } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CafePartnerSettings from '@/components/cafe/CafePartnerSettings';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
+import PaymentGatewaySettings from '@/components/settings/PaymentGatewaySettings';
 import BookingSettings from '@/components/settings/BookingSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
@@ -328,6 +329,12 @@ const Settings = () => {
             Leaderboard
           </TabsTrigger>
           {isAdmin && (
+            <TabsTrigger value="payments" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Payments
+            </TabsTrigger>
+          )}
+          {isAdmin && (
             <TabsTrigger value="staff" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <Shield className="h-3 w-3 text-amber-500" />
@@ -485,6 +492,12 @@ const Settings = () => {
           
           <TournamentLeaderboard />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="payments" className="space-y-4">
+            <PaymentGatewaySettings />
+          </TabsContent>
+        )}
         
         {isAdmin && (
           <TabsContent value="staff" className="space-y-4">

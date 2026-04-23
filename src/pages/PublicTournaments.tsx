@@ -622,6 +622,8 @@ const PublicTournaments = ({ branchSlug = 'main' }: { branchSlug?: string }) => 
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          provider: "razorpay",
+          currency: "INR",
           amount: totalWithFee,
           receipt: txnId,
           notes: {
