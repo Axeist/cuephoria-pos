@@ -10,23 +10,11 @@
  * edge (Web Crypto has no constant-time compare primitive).
  */
 
+import { getRazorpayCredentials } from "./lib/razorpay-credentials";
+
 export type RazorpayMode = "test" | "live";
 
 type Creds = { keyId: string; keySecret: string; isLive: boolean };
-
-function env(name: string): string | undefined {
-  if (typeof process !== "undefined" && process.env) {
-    return (process.env as Record<string, string | undefined>)[name];
-  }
-  const deno = (globalThis as { Deno?: { env?: { get?: (n: string) => string | undefined } } }).Deno;
-  return deno?.env?.get?.(name);
-}
-
-function needEnv(name: string): string {
-  const v = env(name);
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
-}
 
 function normalizeCredential(raw: string | undefined): string {
   const trimmed = String(raw ?? "").trim();
@@ -42,24 +30,14 @@ function normalizeCredential(raw: string | undefined): string {
 
 /** Returns the Razorpay credentials for the *main* (default) profile. */
 export function getRazorpayCreds(): Creds {
-  const mode = (env("RAZORPAY_MODE") || "test").toLowerCase();
-  const isLive = mode === "live";
-
-  const keyIdRaw = isLive
-    ? env("RAZORPAY_KEY_ID_LIVE") || env("RAZORPAY_KEY_ID") || needEnv("RAZORPAY_KEY_ID_LIVE")
-    : env("RAZORPAY_KEY_ID_TEST") || env("RAZORPAY_KEY_ID") || needEnv("RAZORPAY_KEY_ID_TEST");
-
-  const keySecretRaw = isLive
-    ? env("RAZORPAY_KEY_SECRET_LIVE") || env("RAZORPAY_KEY_SECRET") || needEnv("RAZORPAY_KEY_SECRET_LIVE")
-    : env("RAZORPAY_KEY_SECRET_TEST") || env("RAZORPAY_KEY_SECRET") || needEnv("RAZORPAY_KEY_SECRET_TEST");
-
-  const keyId = normalizeCredential(keyIdRaw);
-  const keySecret = normalizeCredential(keySecretRaw);
+  const base = getRazorpayCredentials("default");
+  const keyId = normalizeCredential(base.keyId);
+  const keySecret = normalizeCredential(base.keySecret);
   if (!keyId || !keySecret) {
     throw new Error("Missing or invalid Razorpay credentials after normalization.");
   }
 
-  return { keyId, keySecret, isLive };
+  return { keyId, keySecret, isLive: base.isLive };
 }
 
 function authHeader(creds: Creds): string {

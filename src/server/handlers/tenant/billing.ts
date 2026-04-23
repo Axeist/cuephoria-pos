@@ -95,9 +95,26 @@ async function ensureRazorpayPlanMapping(args: {
     });
     createdPlanId = createdPlan.id;
   } catch (err) {
-    // Fallback: recover by matching an existing plan in Razorpay account.
+    // Fallback only when creation likely failed because the plan already exists.
+    // Avoid masking auth/config problems with an unrelated GET /plans error.
     if (!(err instanceof RazorpayRestError)) throw err;
-    const list = await listRzpPlans({ count: 100 });
+    const providerMsg = String(err.message || "").toLowerCase();
+    const providerBody = JSON.stringify(err.body || "").toLowerCase();
+    const looksLikeDuplicate =
+      providerMsg.includes("already") ||
+      providerMsg.includes("exists") ||
+      providerMsg.includes("duplicate") ||
+      providerBody.includes("already") ||
+      providerBody.includes("exists") ||
+      providerBody.includes("duplicate");
+    if (!looksLikeDuplicate) throw err;
+
+    let list;
+    try {
+      list = await listRzpPlans({ count: 100 });
+    } catch {
+      throw err;
+    }
     const match = (list.items ?? []).find((p) => {
       const samePeriod = (p.period || "").toLowerCase() === period;
       const sameAmount = Number(p.item?.amount ?? -1) === amount;
