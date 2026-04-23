@@ -33,6 +33,7 @@ import {
   createRzpSubscription,
   cancelRzpSubscription,
   fetchRzpSubscription,
+  listRzpPlans,
   mapRzpSubToRow,
   RazorpayRestError,
 } from "../../razorpayRest";
@@ -72,30 +73,60 @@ async function ensureRazorpayPlanMapping(args: {
     );
   }
 
-  const createdPlan = await createRzpPlan({
-    period: interval === "year" ? "yearly" : "monthly",
-    interval: 1,
-    item: {
-      name: `${plan.name} (${interval === "year" ? "Yearly" : "Monthly"})`,
-      description: `Auto-created from tenant billing for ${plan.code}`,
-      amount: Math.round(Number(price) * 100), // INR paise
-      currency: "INR",
-    },
-    notes: {
-      plan_code: plan.code,
-      interval,
-      source: "tenant_billing_auto_map",
-    },
-  });
+  const period = interval === "year" ? "yearly" : "monthly";
+  const itemName = `${plan.name} (${interval === "year" ? "Yearly" : "Monthly"})`;
+  const amount = Math.round(Number(price) * 100); // INR paise
+  let createdPlanId: string | null = null;
+  try {
+    const createdPlan = await createRzpPlan({
+      period,
+      interval: 1,
+      item: {
+        name: itemName,
+        description: `Auto-created from tenant billing for ${plan.code}`,
+        amount,
+        currency: "INR",
+      },
+      notes: {
+        plan_code: plan.code,
+        interval,
+        source: "tenant_billing_auto_map",
+      },
+    });
+    createdPlanId = createdPlan.id;
+  } catch (err) {
+    // Fallback: recover by matching an existing plan in Razorpay account.
+    if (!(err instanceof RazorpayRestError)) throw err;
+    const list = await listRzpPlans({ count: 100 });
+    const match = (list.items ?? []).find((p) => {
+      const samePeriod = (p.period || "").toLowerCase() === period;
+      const sameAmount = Number(p.item?.amount ?? -1) === amount;
+      const noteCode = String(p.notes?.plan_code ?? "").toLowerCase();
+      const noteInterval = String(p.notes?.interval ?? "").toLowerCase();
+      const noteMatch = noteCode === plan.code.toLowerCase() && noteInterval === interval;
+      const nameMatch = String(p.item?.name ?? "").toLowerCase() === itemName.toLowerCase();
+      return samePeriod && sameAmount && (noteMatch || nameMatch);
+    });
+    if (!match?.id) {
+      throw new Error(
+        `Razorpay auto-plan setup failed (${err.status}). ${err.message}. Create a ${interval}ly plan in Razorpay dashboard and map it in platform plans.`,
+      );
+    }
+    createdPlanId = match.id;
+  }
+
+  if (!createdPlanId) {
+    throw new Error("Razorpay plan mapping could not be resolved.");
+  }
 
   const patch =
     interval === "year"
-      ? { razorpay_plan_id_year: createdPlan.id }
-      : { razorpay_plan_id_month: createdPlan.id };
+      ? { razorpay_plan_id_year: createdPlanId }
+      : { razorpay_plan_id_month: createdPlanId };
 
   const { error } = await supabase.from("plans").update(patch).eq("id", plan.id);
-  if (error) throw new Error(`Razorpay plan created (${createdPlan.id}) but local mapping update failed: ${error.message}`);
-  return createdPlan.id;
+  if (error) throw new Error(`Razorpay plan resolved (${createdPlanId}) but local mapping update failed: ${error.message}`);
+  return createdPlanId;
 }
 
 async function handler(req: Request, ctx: OrgContext): Promise<Response> {
@@ -475,7 +506,16 @@ async function resumeAction(ctx: OrgContext): Promise<Response> {
 // ---------------------------------------------------------------------------
 function billingError(err: unknown): Response {
   if (err instanceof RazorpayRestError) {
-    return j({ ok: false, error: err.message, provider: "razorpay", status: err.status }, 502);
+    return j(
+      {
+        ok: false,
+        error: err.message,
+        provider: "razorpay",
+        status: err.status,
+        provider_body: err.body,
+      },
+      502,
+    );
   }
   console.error("billing action failed", err);
   return j(

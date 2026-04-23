@@ -72,9 +72,12 @@ async function rzp<T>(
     /* ignore */
   }
   if (!res.ok) {
+    const providerError = (json as { error?: { description?: string; code?: string; reason?: string } })?.error;
     const msg =
-      (json as { error?: { description?: string; code?: string } })?.error?.description ||
-      `Razorpay ${init.method} ${path} failed with ${res.status}`;
+      providerError?.description ||
+      providerError?.reason ||
+      providerError?.code ||
+      `Razorpay ${init.method} ${path} failed with ${res.status}${text ? `: ${text.slice(0, 220)}` : ""}`;
     throw new RazorpayRestError(msg, res.status, json);
   }
   return json as T;
@@ -195,6 +198,14 @@ export function createRzpPlan(body: {
   notes?: Record<string, string>;
 }): Promise<RzpPlan> {
   return rzp<RzpPlan>("/plans", { method: "POST", body });
+}
+
+export function listRzpPlans(opts: { count?: number; skip?: number } = {}): Promise<RzpListResponse<RzpPlan>> {
+  const qs = new URLSearchParams();
+  qs.set("count", String(opts.count ?? 100));
+  if (typeof opts.skip === "number" && opts.skip > 0) qs.set("skip", String(opts.skip));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return rzp<RzpListResponse<RzpPlan>>(`/plans${suffix}`, { method: "GET" });
 }
 
 export function fetchRzpSubscription(id: string): Promise<RzpSubscription> {
