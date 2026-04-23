@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -378,36 +378,62 @@ export default function BookingManagement() {
     if (activeLocationId) fetchBookings();
   }, [branchView]);
 
+  // Keep refs so the realtime subscription doesn't have to re-create whenever
+  // filter / branch / location state changes (previous implementation could
+  // drop events in the gap between unsubscribe and resubscribe).
+  const filtersRef = useRef(filters);
+  const branchViewRef = useRef(branchView);
+  const activeLocationIdRef = useRef(activeLocationId);
+  useEffect(() => { filtersRef.current = filters; }, [filters]);
+  useEffect(() => { branchViewRef.current = branchView; }, [branchView]);
+  useEffect(() => { activeLocationIdRef.current = activeLocationId; }, [activeLocationId]);
+
+  const fetchBookingsRef = useRef<() => Promise<void>>(async () => {});
+
   useEffect(() => {
-    // ✅ OPTIMIZED: Real-time subscription with cache invalidation
-    // Only invalidates cache, doesn't immediately refetch (reduces egress)
+    // Real-time subscription: invalidate cache on any change and also auto
+    // refetch on INSERT so new public bookings appear live in the admin view
+    // without requiring a manual refresh.
     const channel = supabase
       .channel('booking-management-changes')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'bookings' 
-      }, () => {
-        // ✅ Invalidate cache instead of immediate refetch
-        // This allows user to continue working with cached data
-        // and refresh when they navigate or manually refresh
-        const analyticsFromDate = filters.datePreset === 'alltime' 
-          ? '2020-01-01' 
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'bookings'
+      }, (payload) => {
+        const preset = filtersRef.current.datePreset;
+        const analyticsFromDate = preset === 'alltime'
+          ? '2020-01-01'
           : format(subDays(new Date(), 60), 'yyyy-MM-dd');
         const cacheKey = cacheKeyWithLocation(
-          `${CACHE_KEYS.BOOKINGS}_${filters.datePreset}_${analyticsFromDate}_${branchView}`,
-          branchView === 'current' ? activeLocationId : 'all'
+          `${CACHE_KEYS.BOOKINGS}_${preset}_${analyticsFromDate}_${branchViewRef.current}`,
+          branchViewRef.current === 'current' ? activeLocationIdRef.current : 'all'
         );
         invalidateCache(cacheKey);
-        
-        // Optional: Show a subtle notification that data was updated
-        // User can manually refresh if needed, or we can auto-refresh after delay
-        console.log('📡 Booking change detected, cache invalidated');
+        console.log('📡 Booking change detected:', payload.eventType);
+
+        // Trigger an immediate refetch for new bookings so they appear live.
+        if (payload.eventType === 'INSERT') {
+          fetchBookingsRef.current().catch((err) =>
+            console.error('Error auto-refetching bookings after INSERT:', err)
+          );
+        }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ BookingManagement: realtime subscription active');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(
+            '❌ BookingManagement: realtime subscription failed (CHANNEL_ERROR).',
+            'Ensure public.bookings is part of the supabase_realtime publication.'
+          );
+        } else if (status === 'TIMED_OUT') {
+          console.error('❌ BookingManagement: realtime subscription timed out');
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
-  }, [filters.datePreset]);
+  }, []);
 
   const handleDatePresetChange = (preset: string) => {
     if (preset === 'custom') {
@@ -517,7 +543,13 @@ export default function BookingManagement() {
       setLoading(false);
     }
   };
-  
+
+  // Keep the realtime subscription's refetch callback pointing at the latest
+  // closure of fetchBookings so it always sees current state when it runs.
+  useEffect(() => {
+    fetchBookingsRef.current = fetchBookings;
+  });
+
   const fetchBookingsFromDB = async (cacheKey: string, analyticsFromDate: string, silent: boolean = false) => {
     try {
       if (!silent) setLoading(true);
