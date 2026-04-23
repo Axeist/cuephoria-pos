@@ -29,11 +29,9 @@ import { j } from "../../adminApiUtils";
 import { withOrgContext, type OrgContext } from "../../orgContext";
 import {
   createRzpCustomer,
-  createRzpPlan,
   createRzpSubscription,
   cancelRzpSubscription,
   fetchRzpSubscription,
-  listRzpPlans,
   mapRzpSubToRow,
   RazorpayRestError,
 } from "../../razorpayRest";
@@ -61,89 +59,14 @@ async function ensureRazorpayPlanMapping(args: {
   };
   interval: Interval;
 }): Promise<string> {
-  const { supabase, plan, interval } = args;
+  const { plan, interval } = args;
   const existing =
     interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
   if (existing) return existing;
 
-  const price = interval === "year" ? plan.price_inr_year : plan.price_inr_month;
-  if (!price || Number(price) <= 0) {
-    throw new Error(
-      `Plan "${plan.code}" is missing a valid ${interval}ly price, so Razorpay mapping cannot be auto-created.`,
-    );
-  }
-
-  const period = interval === "year" ? "yearly" : "monthly";
-  const itemName = `${plan.name} (${interval === "year" ? "Yearly" : "Monthly"})`;
-  const amount = Math.round(Number(price) * 100); // INR paise
-  let createdPlanId: string | null = null;
-  try {
-    const createdPlan = await createRzpPlan({
-      period,
-      interval: 1,
-      item: {
-        name: itemName,
-        description: `Auto-created from tenant billing for ${plan.code}`,
-        amount,
-        currency: "INR",
-      },
-      notes: {
-        plan_code: plan.code,
-        interval,
-        source: "tenant_billing_auto_map",
-      },
-    });
-    createdPlanId = createdPlan.id;
-  } catch (err) {
-    // Fallback only when creation likely failed because the plan already exists.
-    // Avoid masking auth/config problems with an unrelated GET /plans error.
-    if (!(err instanceof RazorpayRestError)) throw err;
-    const providerMsg = String(err.message || "").toLowerCase();
-    const providerBody = JSON.stringify(err.body || "").toLowerCase();
-    const looksLikeDuplicate =
-      providerMsg.includes("already") ||
-      providerMsg.includes("exists") ||
-      providerMsg.includes("duplicate") ||
-      providerBody.includes("already") ||
-      providerBody.includes("exists") ||
-      providerBody.includes("duplicate");
-    if (!looksLikeDuplicate) throw err;
-
-    let list;
-    try {
-      list = await listRzpPlans({ count: 100 });
-    } catch {
-      throw err;
-    }
-    const match = (list.items ?? []).find((p) => {
-      const samePeriod = (p.period || "").toLowerCase() === period;
-      const sameAmount = Number(p.item?.amount ?? -1) === amount;
-      const noteCode = String(p.notes?.plan_code ?? "").toLowerCase();
-      const noteInterval = String(p.notes?.interval ?? "").toLowerCase();
-      const noteMatch = noteCode === plan.code.toLowerCase() && noteInterval === interval;
-      const nameMatch = String(p.item?.name ?? "").toLowerCase() === itemName.toLowerCase();
-      return samePeriod && sameAmount && (noteMatch || nameMatch);
-    });
-    if (!match?.id) {
-      throw new Error(
-        `Razorpay auto-plan setup failed (${err.status}). ${err.message}. Create a ${interval}ly plan in Razorpay dashboard and map it in platform plans.`,
-      );
-    }
-    createdPlanId = match.id;
-  }
-
-  if (!createdPlanId) {
-    throw new Error("Razorpay plan mapping could not be resolved.");
-  }
-
-  const patch =
-    interval === "year"
-      ? { razorpay_plan_id_year: createdPlanId }
-      : { razorpay_plan_id_month: createdPlanId };
-
-  const { error } = await supabase.from("plans").update(patch).eq("id", plan.id);
-  if (error) throw new Error(`Razorpay plan resolved (${createdPlanId}) but local mapping update failed: ${error.message}`);
-  return createdPlanId;
+  throw new Error(
+    `Missing Razorpay ${interval}ly plan mapping for "${plan.code}". Add plan_XXXX in /platform/plans before subscribing.`,
+  );
 }
 
 async function handler(req: Request, ctx: OrgContext): Promise<Response> {

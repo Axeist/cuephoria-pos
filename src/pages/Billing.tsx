@@ -383,7 +383,7 @@ export default function Billing() {
                 const stripeId = interval === "year" ? plan.stripe_price_id_year : plan.stripe_price_id_month;
                 const mapped =
                   billingProvider === "razorpay"
-                    ? !!rzpId || (typeof price === "number" && price > 0)
+                    ? !!rzpId
                     : !!stripeId;
                 const isCurrent =
                   subscription?.interval === interval && currentPlan?.code === plan.code && status === "active";
@@ -431,8 +431,6 @@ export default function Billing() {
                             ? "Current plan"
                             : !mapped
                               ? "Coming soon"
-                              : !rzpId && billingProvider === "razorpay"
-                                ? "Start " + plan.name + " (auto-setup)"
                               : subscription?.razorpay_subscription_id
                                 ? "Switch to " + plan.name
                                 : "Start " + plan.name}
