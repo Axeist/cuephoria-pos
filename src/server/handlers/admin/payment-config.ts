@@ -9,24 +9,61 @@ import {
   parsePaymentMode,
   parsePaymentProvider,
   type PaymentProvider,
+  type PaymentMode,
 } from "../../lib/payment-provider";
 import { getRazorpayCredentials } from "../../lib/razorpay-credentials";
+import { getEnv } from "../../adminApiUtils";
 
 export const config = { runtime: "edge" };
 
-async function verifyRazorpayCredentials(): Promise<{ ok: boolean; message: string }> {
+function getRazorpayCredentialsByMode(mode: PaymentMode): { keyId: string; keySecret: string } {
+  const keyId =
+    (mode === "live" ? getEnv("RAZORPAY_KEY_ID_LIVE") : getEnv("RAZORPAY_KEY_ID_TEST")) ||
+    getEnv("RAZORPAY_KEY_ID");
+  const keySecret =
+    (mode === "live" ? getEnv("RAZORPAY_KEY_SECRET_LIVE") : getEnv("RAZORPAY_KEY_SECRET_TEST")) ||
+    getEnv("RAZORPAY_KEY_SECRET");
+
+  if (!keyId || !keySecret) {
+    throw new Error(
+      mode === "live"
+        ? "Missing RAZORPAY_KEY_ID_LIVE / RAZORPAY_KEY_SECRET_LIVE"
+        : "Missing RAZORPAY_KEY_ID_TEST / RAZORPAY_KEY_SECRET_TEST",
+    );
+  }
+  return {
+    keyId: keyId.trim(),
+    keySecret: keySecret.trim(),
+  };
+}
+
+async function verifyRazorpayCredentials(mode?: PaymentMode): Promise<{ ok: boolean; message: string }> {
   try {
-    const { keyId, keySecret, isLive } = getRazorpayCredentials("default");
+    const resolvedMode = mode ?? (getRazorpayCredentials("default").isLive ? "live" : "test");
+    const { keyId, keySecret } = getRazorpayCredentialsByMode(resolvedMode);
     const auth = btoa(`${keyId}:${keySecret}`);
-    const response = await fetch("https://api.razorpay.com/v1/payments?count=1", {
+    const response = await fetch("https://api.razorpay.com/v1/orders?count=1", {
       method: "GET",
-      headers: { Authorization: `Basic ${auth}` },
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "content-type": "application/json",
+      },
     });
     if (!response.ok) {
       const text = await response.text();
-      return { ok: false, message: `Razorpay auth failed (${response.status}): ${text.slice(0, 200)}` };
+      let message = text.slice(0, 300);
+      try {
+        const parsed = JSON.parse(text) as { error?: { description?: string; code?: string } };
+        message = parsed?.error?.description || parsed?.error?.code || message;
+      } catch {
+        // keep raw text fallback
+      }
+      return {
+        ok: false,
+        message: `Razorpay auth failed (${response.status}, ${resolvedMode}): ${message}`,
+      };
     }
-    return { ok: true, message: `Razorpay credentials are valid in ${isLive ? "live" : "test"} mode.` };
+    return { ok: true, message: `Razorpay credentials are valid in ${resolvedMode} mode.` };
   } catch (err) {
     return {
       ok: false,
@@ -77,6 +114,7 @@ export default withOrgContext(async (req, ctx) => {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const action = String(body.action || "").trim().toLowerCase();
     const provider = parsePaymentProvider(body.provider);
+    const mode = parsePaymentMode(body.mode);
 
     if (action === "test-credentials") {
       if (provider !== "razorpay") {
@@ -92,7 +130,7 @@ export default withOrgContext(async (req, ctx) => {
           200,
         );
       }
-      const result = await verifyRazorpayCredentials();
+      const result = await verifyRazorpayCredentials(mode);
       return j({ ok: true, provider, result }, 200);
     }
 

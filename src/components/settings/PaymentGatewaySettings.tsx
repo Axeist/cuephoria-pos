@@ -110,7 +110,7 @@ export default function PaymentGatewaySettings() {
   });
 
   const actionMutation = useMutation({
-    mutationFn: async (args: { provider: Provider; action: "test-credentials" | "webhook-health" }) =>
+    mutationFn: async (args: { provider: Provider; mode?: Mode; action: "test-credentials" | "webhook-health" }) =>
       fetchJson<{ ok: true; result?: { ok: boolean; message: string }; webhook?: { configured: boolean; last_event_at: string | null } }>(
         "/api/admin/payment-config",
         {
@@ -285,7 +285,13 @@ export default function PaymentGatewaySettings() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => actionMutation.mutate({ provider, action: "test-credentials" })}
+                  onClick={() =>
+                    actionMutation.mutate({
+                      provider,
+                      mode: row.mode,
+                      action: "test-credentials",
+                    })
+                  }
                   disabled={actionMutation.isPending}
                 >
                   <Zap className="h-4 w-4 mr-2" />
