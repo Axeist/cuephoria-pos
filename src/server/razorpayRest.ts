@@ -28,18 +28,36 @@ function needEnv(name: string): string {
   return v;
 }
 
+function normalizeCredential(raw: string | undefined): string {
+  const trimmed = String(raw ?? "").trim();
+  // Defensively strip wrapping quotes if a value was pasted into host env vars as `"value"`.
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 /** Returns the Razorpay credentials for the *main* (default) profile. */
 export function getRazorpayCreds(): Creds {
   const mode = (env("RAZORPAY_MODE") || "test").toLowerCase();
   const isLive = mode === "live";
 
-  const keyId = isLive
+  const keyIdRaw = isLive
     ? env("RAZORPAY_KEY_ID_LIVE") || env("RAZORPAY_KEY_ID") || needEnv("RAZORPAY_KEY_ID_LIVE")
     : env("RAZORPAY_KEY_ID_TEST") || env("RAZORPAY_KEY_ID") || needEnv("RAZORPAY_KEY_ID_TEST");
 
-  const keySecret = isLive
+  const keySecretRaw = isLive
     ? env("RAZORPAY_KEY_SECRET_LIVE") || env("RAZORPAY_KEY_SECRET") || needEnv("RAZORPAY_KEY_SECRET_LIVE")
     : env("RAZORPAY_KEY_SECRET_TEST") || env("RAZORPAY_KEY_SECRET") || needEnv("RAZORPAY_KEY_SECRET_TEST");
+
+  const keyId = normalizeCredential(keyIdRaw);
+  const keySecret = normalizeCredential(keySecretRaw);
+  if (!keyId || !keySecret) {
+    throw new Error("Missing or invalid Razorpay credentials after normalization.");
+  }
 
   return { keyId, keySecret, isLive };
 }
@@ -56,11 +74,13 @@ async function rzp<T>(
   init: { method: "GET" | "POST"; body?: unknown } = { method: "GET" },
 ): Promise<T> {
   const creds = getRazorpayCreds();
+  const isGet = init.method === "GET";
   const res = await fetch(`${BASE}${path}`, {
     method: init.method,
     headers: {
-      "content-type": "application/json",
-      authorization: authHeader(creds),
+      Accept: "application/json",
+      Authorization: authHeader(creds),
+      ...(isGet ? {} : { "content-type": "application/json" }),
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
