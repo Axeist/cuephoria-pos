@@ -63,6 +63,30 @@ async function doRzpFetch(path: string, init: RzpRequestInit, creds: Creds): Pro
   });
 }
 
+function appendFormField(out: URLSearchParams, key: string, value: unknown): void {
+  if (value === null || typeof value === "undefined") return;
+  if (Array.isArray(value)) {
+    for (const item of value) appendFormField(out, key, item);
+    return;
+  }
+  if (typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      appendFormField(out, `${key}[${k}]`, v);
+    }
+    return;
+  }
+  out.append(key, String(value));
+}
+
+function asFormBody(body: unknown): URLSearchParams {
+  const params = new URLSearchParams();
+  if (!body || typeof body !== "object") return params;
+  for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
+    appendFormField(params, k, v);
+  }
+  return params;
+}
+
 async function rzp<T>(
   path: string,
   init: RzpRequestInit = { method: "GET" },
@@ -75,6 +99,29 @@ async function rzp<T>(
     res = await fetch(`${BASE}${path}`, {
       method: "GET",
       headers: { Authorization: authHeader(creds) },
+    });
+  }
+  // Some edges/proxies reject JSON POSTs to Razorpay with 406 despite valid auth.
+  // Retry progressively with simpler headers/body encodings before failing.
+  if (res.status === 406 && init.method === "POST") {
+    res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader(creds),
+        "content-type": "application/json",
+      },
+      body: init.body ? JSON.stringify(init.body) : undefined,
+    });
+  }
+  if (res.status === 406 && init.method === "POST") {
+    const form = asFormBody(init.body);
+    res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader(creds),
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: form.toString(),
     });
   }
   const text = await res.text();
