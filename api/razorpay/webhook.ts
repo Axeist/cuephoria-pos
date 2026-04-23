@@ -210,26 +210,22 @@ async function createBillFromBooking(
       currentTotalSpent: customerCheck.total_spent || 0
     });
     
-    // Check if bill already exists for these bookings (by checking payment_txn_id in bookings)
-    const { data: existingBillCheck } = await supabase
-      .from("bookings")
-      .select("payment_txn_id")
-      .in("id", bookings.map(b => b.id))
-      .limit(1);
-    
-    if (existingBillCheck && existingBillCheck.length > 0 && existingBillCheck[0].payment_txn_id) {
-      // Check if a bill exists for this customer with razorpay payment method around the same time
-      const { data: existingBills } = await supabase
-        .from("bills")
-        .select("id")
-        .eq("customer_id", customerId)
-        .eq("payment_method", "razorpay")
-        .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Within last 5 minutes
+    // Check if a bill already exists for *these specific bookings* (idempotency).
+    // We look this up via bill_items.item_id, which references booking.id for
+    // session-type rows. This is strictly per-payment and cannot be polluted by
+    // other Razorpay bills the customer may have created around the same time.
+    const bookingIds = bookings.map(b => b.id).filter(Boolean);
+    if (bookingIds.length > 0) {
+      const { data: existingBillItems } = await supabase
+        .from("bill_items")
+        .select("bill_id")
+        .in("item_id", bookingIds)
+        .eq("item_type", "session")
         .limit(1);
-      
-      if (existingBills && existingBills.length > 0) {
-        console.log("✅ Bill already exists for this payment");
-        return { success: true, billId: existingBills[0].id, alreadyExists: true };
+
+      if (existingBillItems && existingBillItems.length > 0) {
+        console.log("✅ Bill already exists for this payment:", existingBillItems[0].bill_id);
+        return { success: true, billId: existingBillItems[0].bill_id, alreadyExists: true };
       }
     }
     
@@ -448,17 +444,19 @@ async function createBookingFromWebhook(orderId: string, paymentId: string, book
       const bookingCustomerId = existingBookings[0].customer_id || customer.id;
 
       if (bookingCustomerId) {
-        // Check if a bill already exists for this payment
-        const { data: existingBill } = await supabase
-          .from("bills")
-          .select("id")
-          .eq("customer_id", bookingCustomerId)
-          .eq("payment_method", "razorpay")
-          .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString())
+        // Idempotency scoped to THIS payment via bill_items → booking.id link.
+        // Avoids a broad customer+time window that could falsely treat an
+        // unrelated Razorpay bill as a match for this payment.
+        const existingBookingIds = existingBookings.map((b: any) => b.id).filter(Boolean);
+        const { data: existingBillItem } = await supabase
+          .from("bill_items")
+          .select("bill_id")
+          .in("item_id", existingBookingIds)
+          .eq("item_type", "session")
           .limit(1);
 
-        if (existingBill && existingBill.length > 0) {
-          console.log("✅ Bill already exists for this payment:", existingBill[0].id);
+        if (existingBillItem && existingBillItem.length > 0) {
+          console.log("✅ Bill already exists for this payment:", existingBillItem[0].bill_id);
         } else {
           console.log("📝 Bill missing — creating bill for existing booking");
           try {

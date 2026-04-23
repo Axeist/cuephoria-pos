@@ -274,6 +274,138 @@ export default function PublicPaymentSuccess() {
       const firstSlot = pb.slots[0];
       const lastSlot = pb.slots[pb.slots.length - 1];
 
+      // 5a) Safety-net: ensure a Razorpay bill exists for this payment.
+      // The webhook is the primary bill-creator, but if it didn't fire (missing
+      // webhook config, network issue, etc.) the booking would never show up in
+      // "Recent Transactions". We make this idempotent by looking up bill_items
+      // that reference any of this payment's booking ids.
+      try {
+        const bookingIds = (insertedBookings || []).map((b: any) => b.id).filter(Boolean);
+        if (bookingIds.length > 0 && customerId) {
+          const { data: existingBillItems } = await supabase
+            .from("bill_items")
+            .select("bill_id")
+            .in("item_id", bookingIds)
+            .eq("item_type", "session")
+            .limit(1);
+
+          const billAlreadyExists =
+            Array.isArray(existingBillItems) && existingBillItems.length > 0;
+
+          if (!billAlreadyExists) {
+            // Re-fetch booking rows to get exact prices/location written to DB
+            // (handles the webhook-wrote-first path too).
+            const { data: bookingRows } = await supabase
+              .from("bookings")
+              .select("id, station_id, start_time, end_time, final_price, original_price, location_id")
+              .in("id", bookingIds);
+
+            const rows = bookingRows || [];
+            if (rows.length > 0) {
+              const subtotal = rows.reduce(
+                (s, r: any) => s + (Number(r.original_price) || Number(r.final_price) || 0),
+                0
+              );
+              const total = rows.reduce((s, r: any) => s + (Number(r.final_price) || 0), 0);
+              const discountValue = Math.max(0, subtotal - total);
+              const billLocationId =
+                rows.find((r: any) => r.location_id)?.location_id || locationId;
+
+              const { data: billInsert, error: billErr } = await supabase
+                .from("bills")
+                .insert({
+                  customer_id: customerId,
+                  subtotal,
+                  discount: subtotal > 0 ? (discountValue / subtotal) * 100 : 0,
+                  discount_value: discountValue,
+                  discount_type: "fixed",
+                  loyalty_points_used: 0,
+                  loyalty_points_earned: 0,
+                  total,
+                  payment_method: "razorpay",
+                  status: "completed",
+                  is_split_payment: false,
+                  cash_amount: 0,
+                  upi_amount: 0,
+                  location_id: billLocationId,
+                })
+                .select("id")
+                .single();
+
+              if (billErr) {
+                console.warn("⚠️ Safety-net bill insert failed (webhook may handle it):", billErr);
+              } else if (billInsert?.id) {
+                const stationMap = new Map(
+                  (stationsData || []).map((s: any) => [s.id, s.name])
+                );
+                const bookingDateObj = new Date(pb.selectedDateISO);
+                const dateStr = bookingDateObj.toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                });
+
+                const billItems = rows.map((r: any) => {
+                  const stationName = stationMap.get(r.station_id) || "Station";
+                  const itemName = `${stationName} - ${dateStr} (${r.start_time} - ${r.end_time})`;
+                  return {
+                    bill_id: billInsert.id,
+                    item_id: r.id,
+                    name: itemName,
+                    price: Number(r.final_price) || 0,
+                    quantity: 1,
+                    total: Number(r.final_price) || 0,
+                    item_type: "session",
+                    location_id: billLocationId,
+                  };
+                });
+
+                const { error: itemsErr } = await supabase
+                  .from("bill_items")
+                  .insert(billItems);
+
+                if (itemsErr) {
+                  console.error(
+                    "❌ Safety-net bill_items insert failed — rolling back bill:",
+                    itemsErr
+                  );
+                  await supabase.from("bills").delete().eq("id", billInsert.id);
+                } else {
+                  console.log(
+                    "✅ Safety-net bill created for payment",
+                    paymentId,
+                    "→ bill",
+                    billInsert.id
+                  );
+
+                  // Best-effort: bump customer total_spent so dashboards stay accurate
+                  const { data: custRow } = await supabase
+                    .from("customers")
+                    .select("total_spent")
+                    .eq("id", customerId)
+                    .maybeSingle();
+
+                  const currentSpent = Number(custRow?.total_spent) || 0;
+                  await supabase
+                    .from("customers")
+                    .update({ total_spent: currentSpent + total })
+                    .eq("id", customerId);
+                }
+              }
+            }
+          } else {
+            console.log(
+              "✅ Bill already exists for this payment (created by webhook) — skipping safety-net"
+            );
+          }
+        }
+      } catch (billSafetyErr) {
+        console.warn(
+          "⚠️ Safety-net bill creation threw — webhook should still create it:",
+          billSafetyErr
+        );
+      }
+
       // Format times
       const formatTime = (timeString: string) => {
         return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("en-US", {
