@@ -18,6 +18,7 @@ import {
 import { BookingStatusBadge } from '@/components/booking/BookingStatusBadge';
 import { BookingEditDialog } from '@/components/booking/BookingEditDialog';
 import { BookingDeleteDialog } from '@/components/booking/BookingDeleteDialog';
+import PaymentReconciliationTab from '@/components/booking/PaymentReconciliationTab';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -2652,12 +2653,13 @@ export default function BookingManagement() {
 
           {/* Analytics Dashboard */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="flex w-full overflow-x-auto scrollbar-hide gap-1 sm:grid sm:grid-cols-5">
+            <TabsList className="flex w-full overflow-x-auto scrollbar-hide gap-1 sm:grid sm:grid-cols-6">
               <TabsTrigger value="overview" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Overview</TabsTrigger>
               <TabsTrigger value="revenue" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Revenue</TabsTrigger>
               <TabsTrigger value="customers" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Customers</TabsTrigger>
               <TabsTrigger value="coupons" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Coupons & Marketing</TabsTrigger>
               <TabsTrigger value="stations" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Stations</TabsTrigger>
+              <TabsTrigger value="reconciliation" className="whitespace-nowrap flex-shrink-0 text-xs sm:text-sm">Reconciliation</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -3734,6 +3736,10 @@ export default function BookingManagement() {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="reconciliation" className="space-y-6">
+              <PaymentReconciliationTab activeLocationId={activeLocationId} />
             </TabsContent>
           </Tabs>
 

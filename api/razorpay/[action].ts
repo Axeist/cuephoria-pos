@@ -13,6 +13,7 @@
  *   POST /api/razorpay/create-order      → handlers/razorpay/create-order (Node)
  *   POST /api/razorpay/verify-payment    → handlers/razorpay/verify-payment (Node)
  *   *    /api/razorpay/callback          → handlers/razorpay/callback (Edge, HTML)
+ *   GET/POST /api/razorpay/reconcile     → handlers/razorpay/reconcile (Node, cron)
  *
  * The dispatcher runs in Node.js runtime so the Razorpay SDK (required by
  * create-order / verify-payment) loads correctly. Edge-style handlers are
@@ -65,6 +66,11 @@ async function loadEntry(action: string): Promise<DispatchEntry | null> {
     case "verify-payment": {
       const mod = await import("../../src/server/handlers/razorpay/verify-payment.js")
         .catch(() => import("../../src/server/handlers/razorpay/verify-payment"));
+      return { kind: "node", handler: mod.default as unknown as NodeHandler };
+    }
+    case "reconcile": {
+      const mod = await import("../../src/server/handlers/razorpay/reconcile.js")
+        .catch(() => import("../../src/server/handlers/razorpay/reconcile"));
       return { kind: "node", handler: mod.default as unknown as NodeHandler };
     }
     default:

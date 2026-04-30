@@ -58,49 +58,88 @@ export default function PublicPaymentSuccess() {
         return;
       }
 
-      // 1) Verify payment with backend
+      setStatus("creating");
+      setMsg("Payment successful! Creating your booking…");
+
+      // ──────────────────────────────────────────────────────────────────
+      // The booking is materialized server-side via /api/bookings/materialize.
+      // The same idempotent helper is also called by:
+      //   - /api/razorpay/webhook on payment.captured / order.paid
+      //   - /api/razorpay/reconcile fired by pg_cron every 15s
+      // So even if the customer never reaches this page (closed UPI app,
+      // lost network, etc.), the booking still gets created.
+      // ──────────────────────────────────────────────────────────────────
       try {
-        const verifyRes = await fetch("/api/razorpay/verify-payment", {
+        const matRes = await fetch("/api/bookings/materialize", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            provider: "razorpay",
             razorpay_order_id: orderId,
             razorpay_payment_id: paymentId,
             razorpay_signature: signature,
             ...(razorpayProfile === "lite" ? { profile: "lite" } : {}),
           }),
         });
-
-        const verifyData = await verifyRes.json().catch(() => null);
-
-        if (!verifyRes.ok || !verifyData?.ok || !verifyData?.success) {
-          localStorage.removeItem("pendingBooking");
-          setStatus("failed");
-          setMsg(verifyData?.error || "Payment verification failed. Please try again.");
-          return;
+        const matData = await matRes.json().catch(() => null);
+        if (!matRes.ok || !matData?.ok || matData?.success === false) {
+          // Fall back to the legacy localStorage path below — gives us one
+          // more chance to create the booking client-side if the server
+          // path failed (e.g., transient network blip on Razorpay fetch).
+          console.warn(
+            "⚠️ Server-side materialize did not succeed, falling back to client path:",
+            matData,
+          );
+        } else {
+          console.log("✅ Server-side booking materialized:", matData);
         }
-
-        console.log("✅ Payment verified:", verifyData);
       } catch (err) {
-        console.error("Payment verification error:", err);
-        setStatus("failed");
-        setMsg("Could not verify payment at this time. Please try again.");
-        return;
+        console.warn("⚠️ Server-side materialize threw, falling back to client path:", err);
       }
 
-      // 2) Get saved booking payload
+      // Legacy / fallback path: read pendingBooking from localStorage and
+      // do the booking insert client-side. Kept ONLY as a backup — the
+      // primary path is now server-side. Most users will hit "already
+      // exists" here because the webhook or reconciler beat them to it.
       const raw = localStorage.getItem("pendingBooking");
       if (!raw) {
+        // No localStorage payload → check whether the server path created
+        // a booking we can show, then we're done.
+        const serverBookingRes = (await supabase
+          .from("bookings")
+          .select("id")
+          .eq("payment_txn_id", paymentId)
+          .limit(1)) as { data: Array<{ id: string }> | null };
+        const serverBooking = serverBookingRes.data;
+        if (Array.isArray(serverBooking) && serverBooking.length > 0) {
+          setStatus("done");
+          setMsg("Payment successful — your booking is confirmed!");
+          // Best-effort confirmation dialog hand-off; UI may have less detail
+          // than the localStorage path but the booking exists in the DB.
+          localStorage.setItem(
+            "bookingConfirmation",
+            JSON.stringify({
+              bookingId: serverBooking[0].id?.slice(0, 8).toUpperCase() || "BOOKING",
+              customerName: "",
+              stationNames: [],
+              date: new Date().toISOString().split("T")[0],
+              startTime: "",
+              endTime: "",
+              totalAmount: 0,
+              paymentMode: "razorpay",
+              paymentTxnId: paymentId,
+            }),
+          );
+          const bookingBase =
+            razorpayProfile === "lite" ? "/lite/public/booking" : "/public/booking";
+          navigate(`${bookingBase}?booking_success=true`);
+          return;
+        }
         setStatus("failed");
-        setMsg("No booking data found. Please rebook.");
+        setMsg("Payment received but booking details are not available. Please contact support — your payment is safe and we'll reconcile it within 30 seconds automatically.");
         return;
       }
 
       const pb: PendingBooking = JSON.parse(raw);
-
-      setStatus("creating");
-      setMsg("Payment successful! Creating your booking…");
 
       // Resolve location_id early — needed for both customer and booking inserts
       let locationId: string | null = pb.locationId || null;

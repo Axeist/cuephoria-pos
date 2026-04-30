@@ -82,6 +82,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!receipt) return j(res, { ok: false, error: "Receipt ID is required" }, 400);
 
     const order = await createRazorpayOrder(Number(amount), receipt, notes, profile);
+
+    // Persist a payment_orders intent row so reconciler / webhook can
+    // materialize the booking even if the customer never returns from
+    // their UPI app. Best-effort — failures must not break checkout.
+    try {
+      const bookingPayload = (payload as { booking_payload?: unknown }).booking_payload;
+      const locationIdRaw = (payload as { location_id?: unknown }).location_id;
+      const customerInfo = (payload as { customer?: { name?: string; phone?: string; email?: string } }).customer;
+      const kindRaw = (payload as { kind?: unknown }).kind;
+      const kind = typeof kindRaw === "string" && (kindRaw === "tournament" || kindRaw === "booking") ? kindRaw : "booking";
+
+      if (kind === "booking" && bookingPayload && typeof bookingPayload === "object") {
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabaseUrl =
+          process.env.SUPABASE_URL ||
+          process.env.NEXT_PUBLIC_SUPABASE_URL ||
+          process.env.VITE_SUPABASE_URL;
+        const supabaseKey =
+          process.env.SUPABASE_SERVICE_ROLE_KEY ||
+          process.env.SUPABASE_SERVICE_KEY ||
+          process.env.SUPABASE_ANON_KEY ||
+          process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        if (supabaseUrl && supabaseKey) {
+          const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+            global: { headers: { "x-application-name": "cuephoria-create-order" } },
+          });
+          const amountPaise = Number(order.amount) || Math.round(Number(amount) * 100);
+          const profileTag = profile === "lite" ? "lite" : "default";
+          const { error: poErr } = await supabase.from("payment_orders").insert({
+            provider: "razorpay",
+            profile: profileTag,
+            kind,
+            status: "created",
+            provider_order_id: order.id,
+            location_id: typeof locationIdRaw === "string" && locationIdRaw.length > 0 ? locationIdRaw : null,
+            customer_name: customerInfo?.name?.trim() || null,
+            customer_phone: customerInfo?.phone?.trim() || null,
+            customer_email: customerInfo?.email?.trim() || null,
+            amount_paise: amountPaise,
+            currency: order.currency,
+            booking_payload: bookingPayload as Record<string, unknown>,
+            notes: (notes as Record<string, unknown>) ?? null,
+          });
+          if (poErr) {
+            console.warn("⚠️ payment_orders insert failed (legacy notes path is fallback):", poErr.message);
+          }
+        }
+      }
+    } catch (poErr) {
+      console.warn("⚠️ payment_orders side-write threw (non-fatal):", (poErr as Error)?.message || poErr);
+    }
+
     return j(res, {
       ok: true,
       orderId: order.id,

@@ -8,6 +8,7 @@
  *
  *   POST /api/bookings/create         → handlers/bookings/create (Node runtime)
  *   POST /api/bookings/cleanup-blocks → handlers/bookings/cleanup-blocks (Edge style)
+ *   POST /api/bookings/materialize    → handlers/bookings/materialize (Node runtime)
  *
  * The dispatcher runs in Node.js runtime (to support the Supabase client used
  * in `create.ts`); the Edge-style `cleanup-blocks` handler is called via the
@@ -42,6 +43,11 @@ async function loadEntry(action: string): Promise<DispatchEntry | null> {
       const mod = await import("../../src/server/handlers/bookings/cleanup-blocks.js")
         .catch(() => import("../../src/server/handlers/bookings/cleanup-blocks"));
       return { kind: "edge", handler: mod.default as unknown as EdgeHandler };
+    }
+    case "materialize": {
+      const mod = await import("../../src/server/handlers/bookings/materialize.js")
+        .catch(() => import("../../src/server/handlers/bookings/materialize"));
+      return { kind: "node", handler: mod.default as unknown as NodeHandler };
     }
     default:
       return null;

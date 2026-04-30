@@ -1992,7 +1992,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         }
       }
 
-      // Create order on server with total including transaction fee
+      // Create order on server with total including transaction fee.
+      // We send the FULL booking_payload alongside notes so the server can
+      // persist a payment_orders intent row — this is what lets the
+      // webhook / pg_cron reconciler materialize the booking even if the
+      // customer never returns from their UPI app. Notes are kept for
+      // backward compatibility with in-flight orders during the deploy.
       const orderRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -2002,6 +2007,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           amount: totalWithFee,
           receipt: txnId,
           notes: notes,
+          location_id: publicLocationId || undefined,
+          customer: {
+            name: customerInfo.name,
+            phone: customerInfo.phone,
+            email: customerInfo.email || "",
+          },
+          booking_payload: pendingBooking,
+          kind: "booking",
           ...(branchSlug === "lite" ? { profile: "lite" } : {}),
         }),
       });

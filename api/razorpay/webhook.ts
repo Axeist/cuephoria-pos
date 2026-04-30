@@ -6,6 +6,7 @@ import {
 } from "../../src/server/lib/razorpay-subscription-webhook.js";
 import { createHmac, timingSafeEqual } from "crypto";
 import { recordWebhookEventHeartbeat } from "../../src/server/lib/payment-gateway-config.js";
+import { materializeBookingFromPaymentOrder } from "../../src/server/lib/materialize-booking.js";
 
 export const config = {
   maxDuration: 30, // 30 seconds
@@ -800,25 +801,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Handle different webhook events
     switch (event) {
-      case "payment.captured": {
-        console.log("✅ Payment captured:", payment?.id);
-        
-        // Try to create booking from order
+      case "payment.captured":
+      case "order.paid": {
         const orderIdForBooking = payment?.order_id || order?.id;
         const paymentIdForBooking = payment?.id;
-        
+        const paymentAmountPaise = Number(payment?.amount) || 0;
+
+        console.log(`✅ ${event}:`, {
+          orderId: orderIdForBooking,
+          paymentId: paymentIdForBooking,
+          amount: paymentAmountPaise,
+        });
+
         if (orderIdForBooking && paymentIdForBooking) {
           try {
-            console.log("📝 Attempting to create booking from webhook...");
-            // Try to get booking data from order notes first, otherwise fetch from Razorpay
-            const bookingDataFromNotes = order?.notes?.booking_data || 
-                                         order?.notes?.booking_data_1 || 
-                                         payment?.notes?.booking_data;
-            const result = await createBookingFromWebhook(orderIdForBooking, paymentIdForBooking, bookingDataFromNotes || order?.notes);
-            console.log("✅ Booking creation result:", result);
-          } catch (bookingError: any) {
-            console.error("❌ Failed to create booking from webhook:", bookingError);
-            // Don't fail the webhook - booking might be created by frontend
+            const outcome = await materializeBookingFromPaymentOrder({
+              orderId: orderIdForBooking,
+              paymentId: paymentIdForBooking,
+              paymentAmountPaise,
+              source: "webhook",
+            });
+            console.log(
+              `✅ Webhook materialize → ${outcome.status} bookings=${outcome.bookingIds.length} bill=${outcome.billId}`,
+            );
+          } catch (bookingError: unknown) {
+            console.error("❌ Webhook materialize threw:", bookingError);
+            // Never throw out of the webhook — pg_cron reconciler will retry.
           }
         }
         break;
@@ -827,30 +835,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "payment.failed":
         console.log("❌ Payment failed:", payment?.id);
         break;
-
-      case "order.paid": {
-        console.log("✅ Order paid:", payment?.order_id || order?.id);
-        // Also try to create booking for order.paid event
-        const orderIdPaid = order?.id || payment?.order_id;
-        const paymentIdPaid = payment?.id;
-        
-        if (orderIdPaid && paymentIdPaid) {
-          try {
-            console.log("📝 Attempting to create booking from order.paid webhook...");
-            // Match same booking_data reconstruction logic as payment.captured
-            const bookingDataFromNotesPaid = order?.notes?.booking_data ||
-                                             (order?.notes?.booking_data_1
-                                               ? String(order.notes.booking_data_1) + String(order.notes.booking_data_2 || '')
-                                               : null) ||
-                                             payment?.notes?.booking_data;
-            const result = await createBookingFromWebhook(orderIdPaid, paymentIdPaid, bookingDataFromNotesPaid || order?.notes);
-            console.log("✅ Booking creation result:", result);
-          } catch (bookingError: any) {
-            console.error("❌ Failed to create booking from webhook:", bookingError);
-          }
-        }
-        break;
-      }
 
       default:
         console.log("ℹ️ Unhandled webhook event:", event);
