@@ -30,16 +30,28 @@ import {
   RefreshCw,
   Search,
   XCircle,
+  Activity,
+  Pause,
+  Play,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-// The generated Supabase types don't yet know about the `payment_orders`
-// table (added by migration 20260602100000). We narrow query results to
-// `PaymentOrder[]` locally and use a small typed escape on the from()
-// table-name argument only.
+// The generated Supabase types don't yet know about the new tables
+// (`payment_orders`, `reconciler_heartbeat`). Narrow query results to
+// the local row types below and use a small typed escape on the
+// from()/channel() arguments only.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const fromPaymentOrders = (): any => (supabase as unknown as { from: (t: string) => unknown }).from("payment_orders");
+const fromTable = (table: string): any => (supabase as unknown as { from: (t: string) => unknown }).from(table);
+const fromPaymentOrders = () => fromTable("payment_orders");
+const fromHeartbeat = () => fromTable("reconciler_heartbeat");
+
+// How often the client-side auto-reconciler runs and which rows it picks up.
+const AUTO_TICK_MS = 15_000;
+const MIN_AGE_FOR_AUTO_MS = 10_000;
+const MAX_PARALLEL_RECHECKS = 4;
+const HEARTBEAT_FRESH_MS = 60_000;
+const HEARTBEAT_STALE_MS = 5 * 60_000;
 
 type PaymentOrder = {
   id: string;
@@ -60,6 +72,18 @@ type PaymentOrder = {
   materialized_bill_id: string | null;
   created_at: string;
   expires_at: string;
+};
+
+type Heartbeat = {
+  last_run_at: string;
+  last_source: string | null;
+  last_scanned: number;
+  last_paid: number;
+  last_pending: number;
+  last_expired: number;
+  last_failed: number;
+  last_errors: number;
+  last_elapsed_ms: number;
 };
 
 type Props = {
@@ -110,6 +134,10 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
   const [recheckInProgress, setRecheckInProgress] = useState<Set<string>>(new Set());
+  const [autoOn, setAutoOn] = useState<boolean>(true);
+  const [autoLastTickAt, setAutoLastTickAt] = useState<number | null>(null);
+  const [autoLastResult, setAutoLastResult] = useState<{ checked: number; flipped: number } | null>(null);
+  const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
@@ -170,6 +198,44 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
   }, []);
   void tick;
 
+  // pg_cron heartbeat: read the singleton row + subscribe to updates so we
+  // can show whether the database-side cron is firing.
+  const fetchHeartbeat = useCallback(async () => {
+    try {
+      const { data, error } = (await fromHeartbeat()
+        .select(
+          "last_run_at, last_source, last_scanned, last_paid, last_pending, last_expired, last_failed, last_errors, last_elapsed_ms",
+        )
+        .eq("id", 1)
+        .maybeSingle()) as { data: Heartbeat | null; error: { message: string } | null };
+      if (error) {
+        // table missing in older deployments → silently ignore
+        return;
+      }
+      if (data) setHeartbeat(data);
+    } catch {
+      /* swallow */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchHeartbeat();
+  }, [fetchHeartbeat]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("reconciler_heartbeat_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reconciler_heartbeat" },
+        () => fetchHeartbeat(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchHeartbeat]);
+
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return rows.filter((r) => {
@@ -210,22 +276,34 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     return { pending, stuck, paidLast24h, expiredLast7d, stuckAmountPaise };
   }, [rows]);
 
+  // Low-level single recheck (used by both manual button and auto loop).
+  // Returns the new status string or null on error so the caller can tally.
+  const recheckOne = useCallback(async (orderId: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/razorpay/reconcile", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-source": "ui-auto" },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; status?: string; message?: string; error?: string }
+        | null;
+      if (!res.ok || !data?.ok) return null;
+      return data.status || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const recheck = useCallback(
     async (row: PaymentOrder) => {
       setRecheckInProgress((s) => new Set(s).add(row.id));
       try {
-        const res = await fetch("/api/razorpay/reconcile", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ order_id: row.provider_order_id }),
-        });
-        const data = (await res.json().catch(() => null)) as
-          | { ok?: boolean; status?: string; message?: string; error?: string }
-          | null;
-        if (!res.ok || !data?.ok) {
-          toast.error(`Re-check failed: ${data?.error || data?.message || res.statusText}`);
+        const status = await recheckOne(row.provider_order_id);
+        if (!status) {
+          toast.error("Re-check failed");
         } else {
-          toast.success(`Re-check complete: ${data.status || "ok"}`);
+          toast.success(`Re-check complete: ${status}`);
           await fetchRows();
         }
       } catch (err) {
@@ -238,11 +316,126 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
         });
       }
     },
-    [fetchRows],
+    [fetchRows, recheckOne],
   );
+
+  // Client-side auto-reconciler.
+  //
+  // Every AUTO_TICK_MS while this tab is open and `autoOn` is true, we
+  // pick up rows that are still pending/created and at least
+  // MIN_AGE_FOR_AUTO_MS old, then call recheckOne in parallel batches.
+  // This is a complementary safety net to the server-side pg_cron job —
+  // it works even if pg_cron / GUCs / RECONCILE_CRON_SECRET aren't set.
+  const rowsRef = React.useRef(rows);
+  rowsRef.current = rows;
+
+  useEffect(() => {
+    if (!autoOn) return;
+    let cancelled = false;
+    let inFlight = false;
+
+    async function tick() {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        const now = Date.now();
+        const candidates = rowsRef.current.filter((r) => {
+          if (r.status !== "created" && r.status !== "pending") return false;
+          const age = now - new Date(r.created_at).getTime();
+          if (age < MIN_AGE_FOR_AUTO_MS) return false;
+          return true;
+        });
+
+        let checked = 0;
+        let flipped = 0;
+        // Process in chunks to bound parallelism.
+        for (let i = 0; i < candidates.length; i += MAX_PARALLEL_RECHECKS) {
+          if (cancelled) break;
+          const chunk = candidates.slice(i, i + MAX_PARALLEL_RECHECKS);
+          const results = await Promise.all(
+            chunk.map((r) => recheckOne(r.provider_order_id)),
+          );
+          checked += chunk.length;
+          for (const status of results) {
+            if (status === "paid" || status === "reconciled" || status === "expired" || status === "failed") {
+              flipped += 1;
+            }
+          }
+        }
+
+        setAutoLastTickAt(Date.now());
+        setAutoLastResult({ checked, flipped });
+        if (flipped > 0) await fetchRows();
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    tick();
+    const interval = setInterval(tick, AUTO_TICK_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [autoOn, recheckOne, fetchRows]);
+
+  // Heartbeat freshness for the pg_cron badge.
+  const hbAgeMs = heartbeat ? Date.now() - new Date(heartbeat.last_run_at).getTime() : null;
+  const hbColor =
+    hbAgeMs == null
+      ? "bg-zinc-500"
+      : hbAgeMs < HEARTBEAT_FRESH_MS
+        ? "bg-green-500"
+        : hbAgeMs < HEARTBEAT_STALE_MS
+          ? "bg-amber-500"
+          : "bg-red-500";
+  const hbLabel =
+    hbAgeMs == null
+      ? "pg_cron: never run"
+      : hbAgeMs < HEARTBEAT_FRESH_MS
+        ? `pg_cron: healthy (${Math.round(hbAgeMs / 1000)}s ago)`
+        : hbAgeMs < HEARTBEAT_STALE_MS
+          ? `pg_cron: slow (${Math.round(hbAgeMs / 1000)}s ago)`
+          : `pg_cron: stalled (${timeAgo(heartbeat!.last_run_at)})`;
 
   return (
     <div className="space-y-6">
+      {/* Auto-reconciler status bar */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Activity
+                  className={`h-4 w-4 ${autoOn ? "text-green-500 animate-pulse" : "text-muted-foreground"}`}
+                />
+                <span className="text-sm font-medium">
+                  Auto-reconcile {autoOn ? "ON" : "OFF"}
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {autoOn
+                  ? autoLastTickAt
+                    ? `last tick ${Math.max(0, Math.round((Date.now() - autoLastTickAt) / 1000))}s ago` +
+                      (autoLastResult ? ` • checked ${autoLastResult.checked}, resolved ${autoLastResult.flipped}` : "")
+                    : "starting…"
+                  : "manual mode"}
+              </span>
+              <span className={`inline-block h-2 w-2 rounded-full ${hbColor}`} />
+              <span className="text-xs text-muted-foreground">{hbLabel}</span>
+            </div>
+            <Button
+              size="sm"
+              variant={autoOn ? "outline" : "default"}
+              onClick={() => setAutoOn((v) => !v)}
+            >
+              {autoOn ? <Pause className="h-3.5 w-3.5 mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
+              {autoOn ? "Pause auto-reconcile" : "Resume auto-reconcile"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -449,10 +642,26 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
         </CardContent>
       </Card>
 
-      <div className="text-xs text-muted-foreground">
-        Reconciler runs automatically every 15 seconds via Supabase pg_cron. Razorpay webhook is
-        the primary real-time path. Use Re-check above to force an immediate check for a single
-        order.
+      <div className="text-xs text-muted-foreground space-y-1">
+        <div>
+          <strong>How automatic reconciliation works (3 layers):</strong>
+        </div>
+        <div>
+          1. <strong>Razorpay webhook</strong> — primary real-time path: Razorpay calls our
+          webhook the instant a payment is captured.
+        </div>
+        <div>
+          2. <strong>Browser auto-reconciler</strong> — every 15s while this tab is open we
+          re-check every pending row directly against Razorpay (no secrets needed). Status
+          shown above.
+        </div>
+        <div>
+          3. <strong>Supabase pg_cron</strong> — every 15s server-side sweep. Status shown
+          above; if you see <em>“never run”</em> or <em>“stalled”</em>, ask ops to enable
+          <code className="mx-1">pg_cron</code> + <code>pg_net</code> and set
+          <code className="mx-1">app.reconcile_url</code> /
+          <code className="mx-1">app.reconcile_secret</code> GUCs.
+        </div>
       </div>
     </div>
   );

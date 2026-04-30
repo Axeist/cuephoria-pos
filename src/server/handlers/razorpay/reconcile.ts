@@ -192,11 +192,18 @@ async function processRow(
   row: PaymentOrderRow,
 ): Promise<"paid" | "pending" | "expired" | "failed" | "error"> {
   const profile: RazorpayProfile = row.profile === "lite" ? "lite" : "default";
+  console.log(
+    `[reconcile] processRow order=${row.provider_order_id} profile=${profile} amount_paise=${row.amount_paise} attempts=${row.reconcile_attempts}`,
+  );
   let payments: RazorpayPaymentEntity[] = [];
   try {
     payments = await fetchOrderPayments(row.provider_order_id, profile);
+    console.log(
+      `[reconcile] fetched ${payments.length} payment(s) for order=${row.provider_order_id} statuses=[${payments.map((p) => p.status).join(",")}]`,
+    );
   } catch (err) {
     const message = (err as Error)?.message || String(err);
+    console.error(`[reconcile] fetchPayments failed order=${row.provider_order_id}: ${message}`);
     await supabase
       .from("payment_orders")
       .update({ last_error: `razorpay fetchPayments: ${message}` })
@@ -209,6 +216,9 @@ async function processRow(
   );
 
   if (captured) {
+    console.log(
+      `[reconcile] order=${row.provider_order_id} HAS captured payment=${captured.id} amount_paise=${captured.amount} → materialize`,
+    );
     try {
       const outcome = await materializeBookingFromPaymentOrder({
         orderId: row.provider_order_id,
@@ -216,10 +226,14 @@ async function processRow(
         paymentAmountPaise: Number(captured.amount) || 0,
         source: "reconciler",
       });
+      console.log(
+        `[reconcile] order=${row.provider_order_id} materialize → status=${outcome.status} bookings=${outcome.bookingIds?.length ?? 0}`,
+      );
       if (outcome.status === "amount_mismatch") return "failed";
       return "paid";
     } catch (err) {
       const message = (err as Error)?.message || String(err);
+      console.error(`[reconcile] materialize threw order=${row.provider_order_id}: ${message}`);
       await supabase
         .from("payment_orders")
         .update({ last_error: `materialize: ${message}` })
@@ -228,13 +242,14 @@ async function processRow(
     }
   }
 
-  // No captured payment — expire if the order has been pending too long.
   const ageMs = Date.now() - new Date(row.created_at).getTime();
   if (ageMs > 30 * 60 * 1000) {
+    console.log(`[reconcile] order=${row.provider_order_id} expired (age=${Math.round(ageMs / 1000)}s, no captured payment)`);
     await expireRow(supabase, row, "no captured payment after 30 minutes");
     return "expired";
   }
 
+  console.log(`[reconcile] order=${row.provider_order_id} still pending (age=${Math.round(ageMs / 1000)}s)`);
   return "pending";
 }
 
@@ -280,6 +295,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
+  const sourceLog = readHeader(req, "x-source") || (req.query?.source as string) || "unknown";
+  console.log(`[reconcile] hit method=${req.method} source=${sourceLog} ts=${new Date().toISOString()}`);
+
   if (req.method !== "GET" && req.method !== "POST") {
     return j(res, { ok: false, error: "Method not allowed" }, 405);
   }
@@ -305,16 +323,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = await getSupabase();
 
   if (isSingleOrderRecheck) {
+    const orderId = body.order_id as string;
+    console.log(`[reconcile] single-order recheck order=${orderId} source=${sourceLog}`);
     try {
-      const single = await processSingleOrder(supabase, body.order_id as string);
+      const single = await processSingleOrder(supabase, orderId);
+      console.log(`[reconcile] single-order result order=${orderId} status=${single.status} ok=${single.ok}`);
       return j(res, { ok: single.ok, mode: "single", ...single });
     } catch (err) {
-      console.error("[reconcile single] threw:", err);
+      console.error(`[reconcile single] threw order=${orderId}:`, err);
       return j(res, { ok: false, error: (err as Error).message }, 500);
     }
   }
 
-  // Sweep mode (pg_cron / Vercel Cron).
+  // Sweep mode (pg_cron). Authenticated path.
+  console.log(`[reconcile] sweep start source=${sourceLog}`);
   const startedAt = Date.now();
   const tally = { scanned: 0, paid: 0, pending: 0, expired: 0, failed: 0, errors: 0 };
   try {
@@ -329,9 +351,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const rows = (claimed as PaymentOrderRow[] | null) || [];
     tally.scanned = rows.length;
+    console.log(`[reconcile] sweep claimed ${rows.length} row(s)`);
 
     for (const row of rows) {
-      // Bound the work per invocation to stay well under maxDuration.
       if (Date.now() - startedAt > 24_000) break;
       try {
         const outcome = await processRow(supabase, row);
@@ -352,5 +374,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return j(res, { ok: false, error: (err as Error).message, ...tally }, 200);
   }
 
+  // Persist last-sweep timestamp + tally so the UI can show pg_cron health.
+  try {
+    await supabase.from("reconciler_heartbeat").upsert(
+      {
+        id: 1,
+        last_run_at: new Date().toISOString(),
+        last_source: sourceLog,
+        last_scanned: tally.scanned,
+        last_paid: tally.paid,
+        last_pending: tally.pending,
+        last_expired: tally.expired,
+        last_failed: tally.failed,
+        last_errors: tally.errors,
+        last_elapsed_ms: Date.now() - startedAt,
+      },
+      { onConflict: "id" },
+    );
+  } catch (err) {
+    console.warn("[reconcile] heartbeat upsert failed:", (err as Error).message);
+  }
+
+  console.log(`[reconcile] sweep done elapsedMs=${Date.now() - startedAt} tally=${JSON.stringify(tally)}`);
   return j(res, { ok: true, mode: "sweep", elapsedMs: Date.now() - startedAt, ...tally });
 }
