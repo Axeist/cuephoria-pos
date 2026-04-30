@@ -37,12 +37,12 @@ import {
   type VercelResponse,
 } from "../../src/server/lib/node-dispatcher.js";
 
-import callbackHandler from "../../src/server/handlers/razorpay/callback";
-import createOrderHandler from "../../src/server/handlers/razorpay/create-order";
-import getKeyIdHandler from "../../src/server/handlers/razorpay/get-key-id";
-import reconcileHandler from "../../src/server/handlers/razorpay/reconcile";
-import testCredentialsHandler from "../../src/server/handlers/razorpay/test-credentials";
-import verifyPaymentHandler from "../../src/server/handlers/razorpay/verify-payment";
+import callbackHandler from "../../src/server/handlers/razorpay/callback.js";
+import createOrderHandler from "../../src/server/handlers/razorpay/create-order.js";
+import getKeyIdHandler from "../../src/server/handlers/razorpay/get-key-id.js";
+import reconcileHandler from "../../src/server/handlers/razorpay/reconcile.js";
+import testCredentialsHandler from "../../src/server/handlers/razorpay/test-credentials.js";
+import verifyPaymentHandler from "../../src/server/handlers/razorpay/verify-payment.js";
 
 export const config = {
   maxDuration: 30,

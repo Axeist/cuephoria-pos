@@ -27,9 +27,9 @@ import {
   type VercelResponse,
 } from "../../src/server/lib/node-dispatcher.js";
 
-import cleanupBlocksHandler from "../../src/server/handlers/bookings/cleanup-blocks";
-import createHandler from "../../src/server/handlers/bookings/create";
-import materializeHandler from "../../src/server/handlers/bookings/materialize";
+import cleanupBlocksHandler from "../../src/server/handlers/bookings/cleanup-blocks.js";
+import createHandler from "../../src/server/handlers/bookings/create.js";
+import materializeHandler from "../../src/server/handlers/bookings/materialize.js";
 
 export const config = {
   maxDuration: 30,

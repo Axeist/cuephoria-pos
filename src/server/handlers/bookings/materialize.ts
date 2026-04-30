@@ -14,8 +14,8 @@
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
-import { getRazorpayCredentials, type RazorpayProfile } from "../../lib/razorpay-credentials";
-import { materializeBookingFromPaymentOrder } from "../../lib/materialize-booking";
+import { getRazorpayCredentials, type RazorpayProfile } from "../../lib/razorpay-credentials.js";
+import { materializeBookingFromPaymentOrder } from "../../lib/materialize-booking.js";
 
 export const config = {
   maxDuration: 30,
