@@ -1,31 +1,31 @@
 /**
- * Catch-all dispatcher for /api/razorpay/* routes (except /api/razorpay/webhook,
- * which stays as a standalone function because it ships a long handler with
- * subscription-webhook bookkeeping).
+ * Catch-all dispatcher for /api/razorpay/* routes that DON'T have a
+ * concrete sibling file in this directory.
  *
- * Each concrete handler lives in src/server/handlers/razorpay/; this file
- * only maps URL path → module.
+ * Vercel resolves concrete files before dynamic segments, so the existing
+ * concrete handlers continue to serve their own routes:
  *
- *   GET  /api/razorpay/get-key-id        → handlers/razorpay/get-key-id (Edge)
- *   GET  /api/razorpay/test-credentials  → handlers/razorpay/test-credentials (Edge)
- *   POST /api/razorpay/create-order      → handlers/razorpay/create-order (Node)
- *   POST /api/razorpay/verify-payment    → handlers/razorpay/verify-payment (Node)
- *   *    /api/razorpay/callback          → handlers/razorpay/callback (Edge, HTML)
- *   GET/POST /api/razorpay/reconcile     → handlers/razorpay/reconcile (Node, cron)
+ *   /api/razorpay/callback        → api/razorpay/callback.ts
+ *   /api/razorpay/create-order    → api/razorpay/create-order.ts
+ *   /api/razorpay/get-key-id      → api/razorpay/get-key-id.ts
+ *   /api/razorpay/verify-payment  → api/razorpay/verify-payment.ts
+ *   /api/razorpay/webhook         → api/razorpay/webhook.ts
  *
- * The dispatcher runs in Node.js runtime so the Razorpay SDK (required by
- * create-order / verify-payment / reconcile) loads correctly. Edge-style
- * handlers are called through the Node↔Edge adapter in
- * `src/server/lib/node-dispatcher`.
+ * This dispatcher is responsible only for actions WITHOUT a concrete file:
  *
- * IMPORTANT: All handler imports are STATIC so Vercel's Node File Trace
- * actually bundles them. Dynamic `await import("...")` is NOT reliably
- * traced by Vercel's serverless build pipeline — modules can be missing
- * at runtime.
+ *   GET      /api/razorpay/test-credentials  → handlers/razorpay/test-credentials (Edge)
+ *   GET/POST /api/razorpay/reconcile         → handlers/razorpay/reconcile (Node, cron)
  *
- * NOTE: Vercel resolves concrete files before dynamic segments, so the
- * existing `api/razorpay/webhook.ts` continues to serve `/api/razorpay/webhook`
- * without being intercepted here.
+ * IMPORTANT:
+ *   1. All handler imports are STATIC so Vercel's Node File Trace bundles
+ *      them. Dynamic `await import("...")` is NOT reliably traced.
+ *   2. Relative imports must use `.js` extension because the deployment
+ *      runs as Node ESM (`"type": "module"` in package.json).
+ *   3. We do NOT import handlers that have a concrete sibling file
+ *      (e.g. create-order, verify-payment). Those modules are duplicate
+ *      stale copies under src/server/handlers/razorpay/ that are not
+ *      maintained and import broken relative paths; loading them here
+ *      would crash the dispatcher at module-init time.
  */
 
 import {
@@ -37,12 +37,8 @@ import {
   type VercelResponse,
 } from "../../src/server/lib/node-dispatcher.js";
 
-import callbackHandler from "../../src/server/handlers/razorpay/callback.js";
-import createOrderHandler from "../../src/server/handlers/razorpay/create-order.js";
-import getKeyIdHandler from "../../src/server/handlers/razorpay/get-key-id.js";
 import reconcileHandler from "../../src/server/handlers/razorpay/reconcile.js";
 import testCredentialsHandler from "../../src/server/handlers/razorpay/test-credentials.js";
-import verifyPaymentHandler from "../../src/server/handlers/razorpay/verify-payment.js";
 
 export const config = {
   maxDuration: 30,
@@ -53,12 +49,8 @@ type DispatchEntry =
   | { kind: "edge"; handler: EdgeHandler };
 
 const ROUTES: Record<string, DispatchEntry> = {
-  callback:           { kind: "edge", handler: callbackHandler as unknown as EdgeHandler },
-  "create-order":     { kind: "node", handler: createOrderHandler as unknown as NodeHandler },
-  "get-key-id":       { kind: "edge", handler: getKeyIdHandler as unknown as EdgeHandler },
   reconcile:          { kind: "node", handler: reconcileHandler as unknown as NodeHandler },
   "test-credentials": { kind: "edge", handler: testCredentialsHandler as unknown as EdgeHandler },
-  "verify-payment":   { kind: "node", handler: verifyPaymentHandler as unknown as NodeHandler },
 };
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {

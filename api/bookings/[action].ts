@@ -1,21 +1,21 @@
 /**
- * Catch-all dispatcher for /api/bookings/* routes.
+ * Catch-all dispatcher for /api/bookings/* routes that DON'T have a
+ * concrete sibling file in this directory.
  *
- * Each concrete handler lives in src/server/handlers/bookings/; this file
- * only maps URL path → module.
+ * Vercel resolves concrete files before dynamic segments, so:
  *
- *   POST /api/bookings/create         → handlers/bookings/create (Node runtime)
+ *   /api/bookings/create → api/bookings/create.ts
+ *
+ * This dispatcher is responsible only for actions WITHOUT a concrete file:
+ *
  *   POST /api/bookings/cleanup-blocks → handlers/bookings/cleanup-blocks (Edge style)
  *   POST /api/bookings/materialize    → handlers/bookings/materialize (Node runtime)
  *
- * The dispatcher runs in Node.js runtime (to support the Supabase client used
- * in `create.ts`); the Edge-style `cleanup-blocks` handler is called via the
- * Node↔Edge adapter in `src/server/lib/node-dispatcher`.
- *
- * IMPORTANT: All handler imports are STATIC so Vercel's Node File Trace
- * actually bundles them. Dynamic `await import("...")` is NOT reliably
- * traced by Vercel's serverless build pipeline — modules can be missing
- * at runtime.
+ * IMPORTANT:
+ *   1. All handler imports are STATIC so Vercel's Node File Trace bundles
+ *      them. Dynamic `await import("...")` is NOT reliably traced.
+ *   2. Relative imports must use `.js` extension because the deployment
+ *      runs as Node ESM (`"type": "module"` in package.json).
  */
 
 import {
@@ -28,7 +28,6 @@ import {
 } from "../../src/server/lib/node-dispatcher.js";
 
 import cleanupBlocksHandler from "../../src/server/handlers/bookings/cleanup-blocks.js";
-import createHandler from "../../src/server/handlers/bookings/create.js";
 import materializeHandler from "../../src/server/handlers/bookings/materialize.js";
 
 export const config = {
@@ -41,7 +40,6 @@ type DispatchEntry =
 
 const ROUTES: Record<string, DispatchEntry> = {
   "cleanup-blocks": { kind: "edge", handler: cleanupBlocksHandler as unknown as EdgeHandler },
-  create:           { kind: "node", handler: createHandler as unknown as NodeHandler },
   materialize:      { kind: "node", handler: materializeHandler as unknown as NodeHandler },
 };
 
