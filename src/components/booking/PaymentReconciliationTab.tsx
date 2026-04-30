@@ -459,9 +459,9 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
       </Card>
 
       <div className="text-xs text-muted-foreground">
-        Reconciler runs automatically every 15 seconds via Supabase pg_cron and once per minute via
-        Vercel Cron. Razorpay webhook is the primary path. Use Re-check above to force an immediate
-        check for a single order.
+        Reconciler runs automatically every 15 seconds via Supabase pg_cron. Razorpay webhook is
+        the primary real-time path. Use Re-check above to force an immediate check for a single
+        order.
       </div>
     </div>
   );

@@ -4,13 +4,10 @@
  * Reached at /api/razorpay/reconcile via the api/razorpay/[action].ts
  * dispatcher (so we add ZERO new Vercel function files).
  *
- * Three callers, three auth modes:
+ * Two callers, one auth header:
  *
  *   1. pg_cron (every 15s)    → POST,  header `x-cron-secret`
- *   2. Vercel Cron (1m belt)  → GET,   header `Authorization: Bearer ${CRON_SECRET}`
- *   3. Manual UI re-check     → POST,  body `{ order_id }` (admin-only,
- *                                       same x-cron-secret accepted from
- *                                       the platform-admin UI for parity)
+ *   2. Manual UI re-check     → POST,  body `{ order_id }`, header `x-cron-secret`
  *
  * The handler:
  *   - Claims a batch of stuck `payment_orders` rows via the
@@ -72,15 +69,13 @@ function readHeader(req: VercelRequest, name: string): string {
 }
 
 function authorize(req: VercelRequest): boolean {
-  // Mode A: Vercel Cron — sends `Authorization: Bearer ${CRON_SECRET}`.
-  const auth = readHeader(req, "authorization");
-  const cronSecretVercel = getEnv("CRON_SECRET");
-  if (cronSecretVercel && auth === `Bearer ${cronSecretVercel}`) return true;
-
-  // Mode B: pg_cron / manual UI — `x-cron-secret`.
   const x = readHeader(req, "x-cron-secret");
   const reconcileSecret = getEnv("RECONCILE_CRON_SECRET");
   if (reconcileSecret && x && x === reconcileSecret) return true;
+
+  // Bearer fallback (kept for parity with Razorpay-style admin tooling).
+  const auth = readHeader(req, "authorization");
+  if (reconcileSecret && auth === `Bearer ${reconcileSecret}`) return true;
 
   return false;
 }

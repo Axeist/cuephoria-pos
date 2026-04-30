@@ -12,10 +12,8 @@ Three independent paths converge on one idempotent helper
 1. **Razorpay webhook** (`/api/razorpay/webhook`) — fires within seconds of
    `payment.captured` / `order.paid`.
 2. **pg_cron reconciler** (`/api/razorpay/reconcile`) — Supabase's pg_cron
-   pings the reconciler every **15 seconds**.
-3. **Vercel Cron** (`/api/razorpay/reconcile?source=vercel`) — every 1
-   minute (Pro) / daily (Hobby) as a third belt.
-4. **Success page** (`/api/bookings/materialize`) — the customer's browser,
+   pings the reconciler every **15 seconds**. This is the safety net.
+3. **Success page** (`/api/bookings/materialize`) — the customer's browser,
    if they make it back.
 
 The DB has a partial unique index on
@@ -28,11 +26,10 @@ so even concurrent materializers can never produce a double booking.
 
 | Name | Required | Notes |
 | ---- | -------- | ----- |
-| `CRON_SECRET` | Vercel-internal Cron auth. Vercel sets this automatically when you use the dashboard, or you can set your own. | |
 | `RECONCILE_CRON_SECRET` | Yes | Used by Supabase pg_cron and the manual "Re-check" button. Generate a random 32-char string. |
 
-The reconcile endpoint accepts either `Authorization: Bearer <CRON_SECRET>`
-or `x-cron-secret: <RECONCILE_CRON_SECRET>` headers.
+The reconcile endpoint expects `x-cron-secret: <RECONCILE_CRON_SECRET>` on
+all incoming calls (pg_cron and the manual UI button).
 
 ### 2. Supabase: enable extensions
 
@@ -154,7 +151,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS bookings_no_double_book_idx
 
 | Scenario | What happens |
 | -------- | ------------ |
-| Customer never returns from UPI app | Webhook captures within seconds. If webhook misconfigured, pg_cron picks it up within 15s. If pg_cron unhealthy, Vercel Cron picks it up within 1min. |
+| Customer never returns from UPI app | Webhook captures within seconds. If webhook misconfigured, pg_cron picks it up within 15s. |
 | Webhook fires before client redirect | Success page calls `/api/bookings/materialize`; helper returns `already_exists`. |
 | Two clients race on same slot | `slot_blocks` deflects most; for the rest, the partial unique index raises `23505` and the loser re-fetches existing booking. |
 | Two reconciler invocations concurrent | `claim_payment_orders_for_reconcile` uses `FOR UPDATE SKIP LOCKED` — disjoint batches. |

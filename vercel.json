@@ -32,8 +32,5 @@
     "api/**/*.ts": {
       "includeFiles": "src/server/**"
     }
-  },
-  "crons": [
-    { "path": "/api/razorpay/reconcile?source=vercel", "schedule": "* * * * *" }
-  ]
+  }
 }
