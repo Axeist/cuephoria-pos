@@ -22,7 +22,7 @@
  *     stored `profile` (so main vs lite is deterministic).
  *   - On a captured/authorized payment → calls
  *     `materializeBookingFromPaymentOrder`. On amount mismatch → marks
- *     `failed`. On no payment after 30 min → marks `expired` and releases
+ *     `failed`. On no payment after ~5 minutes → marks `expired` and releases
  *     stale slot_blocks.
  *   - Always returns 200 (even on per-row errors) so neither pg_cron nor
  *     Vercel Cron retry-storm.
@@ -31,6 +31,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getRazorpayCredentials, type RazorpayProfile } from "../../lib/razorpay-credentials.js";
 import { materializeBookingFromPaymentOrder } from "../../lib/materialize-booking.js";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../lib/payment-order-ttl.js";
 
 export const config = {
   maxDuration: 30,
@@ -243,9 +244,9 @@ async function processRow(
   }
 
   const ageMs = Date.now() - new Date(row.created_at).getTime();
-  if (ageMs > 30 * 60 * 1000) {
+  if (ageMs > PAYMENT_ORDER_PENDING_TTL_MS) {
     console.log(`[reconcile] order=${row.provider_order_id} expired (age=${Math.round(ageMs / 1000)}s, no captured payment)`);
-    await expireRow(supabase, row, "no captured payment after 30 minutes");
+    await expireRow(supabase, row, "no captured payment within payment window");
     return "expired";
   }
 

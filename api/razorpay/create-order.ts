@@ -3,6 +3,7 @@ import {
   parseRazorpayProfile,
   type RazorpayProfile,
 } from "./credentials.js";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.ts";
 
 export const config = {
   maxDuration: 30,
@@ -111,6 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
           const amountPaise = Number(order.amount) || Math.round(Number(amount) * 100);
           const profileTag = profile === "lite" ? "lite" : "default";
+          const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
           const { error: poErr } = await supabase.from("payment_orders").insert({
             provider: "razorpay",
             profile: profileTag,
@@ -125,6 +127,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             currency: order.currency,
             booking_payload: bookingPayload as Record<string, unknown>,
             notes: (notes as Record<string, unknown>) ?? null,
+            expires_at: expiresAt,
           });
           if (poErr) {
             console.warn("⚠️ payment_orders insert failed (legacy notes path is fallback):", poErr.message);

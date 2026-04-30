@@ -18,6 +18,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchRazorpayOrderWithMerchantFallback } from "./razorpay-fetch-order.js";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "./payment-order-ttl.js";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -635,6 +636,7 @@ export async function materializeBookingFromPaymentOrder(
   // honest and gives subsequent retries a fast-path lookup.
   if (!paymentOrder) {
     try {
+      const expiresAtBackfill = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
       const { data: created } = await supabase
         .from("payment_orders")
         .insert({
@@ -651,6 +653,7 @@ export async function materializeBookingFromPaymentOrder(
           amount_paise: Math.max(1, Math.round((normalized.pricing.final || 0) * 100)),
           currency: "INR",
           booking_payload: normalized as unknown as Record<string, unknown>,
+          expires_at: expiresAtBackfill,
         })
         .select(
           "id, provider, profile, status, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id",

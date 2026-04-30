@@ -12,6 +12,7 @@ import {
   toMinorUnits,
 } from "../lib/payment-provider";
 import { assertProviderEnabledNow, resolveRequestedProvider } from "../lib/payment-provider-facade";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "../lib/payment-order-ttl.js";
 
 // Increase timeout to 30 seconds to handle Razorpay API calls
 export const config = {
@@ -223,6 +224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           const amountPaise = Number(order.amount) || Math.round(Number(amount) * 100);
           const profileTag: "default" | "lite" = profile === "lite" ? "lite" : "default";
+          const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
           const { error: poErr } = await supabase.from("payment_orders").insert({
             provider: "razorpay",
             profile: profileTag,
@@ -237,6 +239,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             currency: order.currency || currency,
             booking_payload: bookingPayload as Record<string, unknown>,
             notes: (notes as Record<string, unknown>) ?? null,
+            expires_at: expiresAt,
           });
           if (poErr) {
             // Non-fatal: webhook can still recover from notes.
