@@ -25,15 +25,28 @@ import {
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Clock3,
   ExternalLink,
   RefreshCw,
   Search,
+  Trash2,
   XCircle,
   Activity,
   Pause,
   Play,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -47,11 +60,48 @@ const fromPaymentOrders = () => fromTable("payment_orders");
 const fromHeartbeat = () => fromTable("reconciler_heartbeat");
 
 // How often the client-side auto-reconciler runs and which rows it picks up.
-const AUTO_TICK_MS = 15_000;
-const MIN_AGE_FOR_AUTO_MS = 10_000;
+// 5s gives near-real-time recovery while staying well under Razorpay's
+// orders.fetchPayments rate limits (we cap parallelism + skip rows
+// younger than MIN_AGE_FOR_AUTO_MS).
+const AUTO_TICK_MS = 5_000;
+const MIN_AGE_FOR_AUTO_MS = 5_000;
 const MAX_PARALLEL_RECHECKS = 4;
 const HEARTBEAT_FRESH_MS = 60_000;
 const HEARTBEAT_STALE_MS = 5 * 60_000;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+
+type BookingSlot = {
+  start_time?: string;
+  end_time?: string;
+  s?: string;
+  e?: string;
+};
+
+type BookingPayload = {
+  selectedStations?: string[];
+  s?: string[];
+  selectedDateISO?: string;
+  d?: string;
+  slots?: BookingSlot[];
+  t?: BookingSlot[];
+  duration?: number;
+  customer?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    [key: string]: unknown;
+  };
+  locationId?: string;
+  pricing?: {
+    original?: number;
+    discount?: number;
+    final?: number;
+    transactionFee?: number;
+    totalWithFee?: number;
+    coupons?: string;
+  };
+  [key: string]: unknown;
+};
 
 type PaymentOrder = {
   id: string;
@@ -70,9 +120,12 @@ type PaymentOrder = {
   last_error: string | null;
   materialized_booking_ids: string[] | null;
   materialized_bill_id: string | null;
+  booking_payload: BookingPayload | null;
   created_at: string;
   expires_at: string;
 };
+
+type StationLite = { id: string; name: string };
 
 type Heartbeat = {
   last_run_at: string;
@@ -138,13 +191,19 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
   const [autoLastTickAt, setAutoLastTickAt] = useState<number | null>(null);
   const [autoLastResult, setAutoLastResult] = useState<{ checked: number; flipped: number } | null>(null);
   const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<PaymentOrder | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [stationMap, setStationMap] = useState<Record<string, string>>({});
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
     try {
       let q = fromPaymentOrders()
         .select(
-          "id, provider, profile, status, provider_order_id, provider_payment_id, amount_paise, currency, customer_name, customer_phone, customer_email, reconcile_attempts, last_reconciled_at, last_error, materialized_booking_ids, materialized_bill_id, created_at, expires_at",
+          "id, provider, profile, status, provider_order_id, provider_payment_id, amount_paise, currency, customer_name, customer_phone, customer_email, reconcile_attempts, last_reconciled_at, last_error, materialized_booking_ids, materialized_bill_id, booking_payload, created_at, expires_at",
         )
         .order("created_at", { ascending: false })
         .limit(500);
@@ -197,6 +256,29 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     return () => clearInterval(t);
   }, []);
   void tick;
+
+  // Station id → name map so we can render readable station labels in the
+  // expanded booking detail. We fetch all stations once and cache them.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = (await fromTable("stations").select("id, name")) as {
+          data: StationLite[] | null;
+          error: { message: string } | null;
+        };
+        if (cancelled || error) return;
+        const map: Record<string, string> = {};
+        for (const s of data || []) map[s.id] = s.name;
+        setStationMap(map);
+      } catch {
+        /* swallow */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // pg_cron heartbeat: read the singleton row + subscribe to updates so we
   // can show whether the database-side cron is firing.
@@ -253,6 +335,20 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
       return hay.includes(needle);
     });
   }, [rows, statusFilter, search]);
+
+  // Reset to page 1 whenever the filter set or page size changes.
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, search, pageSize, activeLocationId]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const paginated = useMemo(
+    () => filtered.slice(pageStart, pageEnd),
+    [filtered, pageStart, pageEnd],
+  );
 
   const kpi = useMemo(() => {
     const now = Date.now();
@@ -318,6 +414,34 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     },
     [fetchRows, recheckOne],
   );
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      const { error } = (await fromPaymentOrders().delete().eq("id", pendingDelete.id)) as {
+        error: { message: string } | null;
+      };
+      if (error) {
+        toast.error(`Delete failed: ${error.message}`);
+      } else {
+        toast.success("Payment order deleted");
+        setRows((rs) => rs.filter((r) => r.id !== pendingDelete.id));
+      }
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
+  }, [pendingDelete]);
 
   // Client-side auto-reconciler.
   //
@@ -536,6 +660,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-left text-xs text-muted-foreground">
+                  <th className="px-2 py-3 font-medium w-8" aria-label="expand" />
                   <th className="px-4 py-3 font-medium">Created</th>
                   <th className="px-4 py-3 font-medium">Customer</th>
                   <th className="px-4 py-3 font-medium">Amount</th>
@@ -549,98 +674,240 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
               <tbody>
                 {filtered.length === 0 && !loading && (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={8}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={9}>
                       No payment orders match the current filter.
                     </td>
                   </tr>
                 )}
-                {filtered.map((r) => {
+                {paginated.map((r) => {
                   const ageMs = Date.now() - new Date(r.created_at).getTime();
                   const isStuck =
                     (r.status === "created" || r.status === "pending") && ageMs > 30 * 1000;
+                  const isExpanded = expanded.has(r.id);
                   return (
-                    <tr
-                      key={r.id}
-                      className={`border-t hover:bg-muted/30 ${isStuck ? "bg-red-500/5" : ""}`}
-                    >
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div>{new Date(r.created_at).toLocaleString()}</div>
-                        <div className="text-xs text-muted-foreground">{timeAgo(r.created_at)}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium">{r.customer_name || "—"}</div>
-                        <div className="text-xs text-muted-foreground">{r.customer_phone || ""}</div>
-                      </td>
-                      <td className="px-4 py-3 font-medium whitespace-nowrap">
-                        {formatINR(r.amount_paise)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge className={`${STATUS_TO_BADGE[r.status].className} text-white`}>
-                          {STATUS_TO_BADGE[r.status].label}
-                        </Badge>
-                        {r.reconcile_attempts > 0 && (
-                          <div className="text-[10px] text-muted-foreground mt-1">
-                            tried {r.reconcile_attempts}×
+                    <React.Fragment key={r.id}>
+                      <tr
+                        className={`border-t hover:bg-muted/30 ${isStuck ? "bg-red-500/5" : ""} ${isExpanded ? "bg-muted/20" : ""}`}
+                      >
+                        <td className="px-2 py-3 align-top">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(r.id)}
+                            className="p-1 rounded hover:bg-muted-foreground/10"
+                            aria-label={isExpanded ? "Collapse" : "Expand"}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap align-top">
+                          <div>{new Date(r.created_at).toLocaleString()}</div>
+                          <div className="text-xs text-muted-foreground">{timeAgo(r.created_at)}</div>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <div className="font-medium">{r.customer_name || "—"}</div>
+                          <div className="text-xs text-muted-foreground">{r.customer_phone || ""}</div>
+                          {r.customer_email && (
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={r.customer_email}>
+                              {r.customer_email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-medium whitespace-nowrap align-top">
+                          {formatINR(r.amount_paise)}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <Badge className={`${STATUS_TO_BADGE[r.status].className} text-white`}>
+                            {STATUS_TO_BADGE[r.status].label}
+                          </Badge>
+                          {r.reconcile_attempts > 0 && (
+                            <div className="text-[10px] text-muted-foreground mt-1">
+                              tried {r.reconcile_attempts}×
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 max-w-[220px] align-top">
+                          <a
+                            href={dashboardLink(r.provider_order_id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:underline inline-flex items-center gap-1 font-mono text-xs"
+                            title={r.provider_order_id}
+                          >
+                            {r.provider_order_id}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                          {r.provider_payment_id && (
+                            <div className="font-mono text-[10px] text-muted-foreground truncate">
+                              {r.provider_payment_id}
+                            </div>
+                          )}
+                          <div className="text-[10px] text-muted-foreground">profile: {r.profile}</div>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <span className="text-xs">
+                            {(r.materialized_booking_ids || []).length} booking
+                            {(r.materialized_booking_ids || []).length === 1 ? "" : "s"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 max-w-[260px] align-top">
+                          <span
+                            className="text-[11px] text-red-500/90 line-clamp-2"
+                            title={r.last_error || ""}
+                          >
+                            {r.last_error || ""}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap align-top">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => recheck(r)}
+                              disabled={
+                                recheckInProgress.has(r.id) ||
+                                r.status === "paid" ||
+                                r.status === "reconciled"
+                              }
+                            >
+                              <RefreshCw
+                                className={`h-3.5 w-3.5 mr-1 ${recheckInProgress.has(r.id) ? "animate-spin" : ""}`}
+                              />
+                              Re-check
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setPendingDelete(r)}
+                              className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                              title="Delete this payment order row"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 max-w-[220px]">
-                        <a
-                          href={dashboardLink(r.provider_order_id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline inline-flex items-center gap-1 font-mono text-xs"
-                          title={r.provider_order_id}
-                        >
-                          {r.provider_order_id}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                        {r.provider_payment_id && (
-                          <div className="font-mono text-[10px] text-muted-foreground truncate">
-                            {r.provider_payment_id}
-                          </div>
-                        )}
-                        <div className="text-[10px] text-muted-foreground">profile: {r.profile}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs">
-                          {(r.materialized_booking_ids || []).length} booking
-                          {(r.materialized_booking_ids || []).length === 1 ? "" : "s"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 max-w-[260px]">
-                        <span
-                          className="text-[11px] text-red-500/90 line-clamp-2"
-                          title={r.last_error || ""}
-                        >
-                          {r.last_error || ""}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => recheck(r)}
-                          disabled={
-                            recheckInProgress.has(r.id) ||
-                            r.status === "paid" ||
-                            r.status === "reconciled"
-                          }
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 mr-1 ${recheckInProgress.has(r.id) ? "animate-spin" : ""}`}
-                          />
-                          Re-check
-                        </Button>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="border-t bg-muted/10">
+                          <td colSpan={9} className="px-6 py-4">
+                            <BookingDetailsBlock row={r} stationMap={stationMap} />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination footer */}
+          {filtered.length > 0 && (
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3 border-t bg-muted/20 text-xs text-muted-foreground">
+              <div>
+                Showing <span className="font-medium text-foreground">{pageStart + 1}</span>–
+                <span className="font-medium text-foreground">
+                  {Math.min(pageEnd, filtered.length)}
+                </span>{" "}
+                of <span className="font-medium text-foreground">{filtered.length}</span> orders
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Rows per page:</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => setPageSize(Number(v))}
+                >
+                  <SelectTrigger className="h-8 w-[80px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                >
+                  Prev
+                </Button>
+                <span>
+                  Page <span className="font-medium text-foreground">{safePage}</span> /{" "}
+                  {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={pendingDelete != null}
+        onOpenChange={(o) => {
+          if (!o && !deleting) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this payment order?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <div>
+                  This removes the <code>payment_orders</code> row only. Bookings and bills
+                  that have already been created remain untouched.
+                </div>
+                {pendingDelete && (
+                  <div className="rounded border bg-muted/40 p-2 text-xs space-y-1">
+                    <div>
+                      <strong>Order:</strong>{" "}
+                      <span className="font-mono">{pendingDelete.provider_order_id}</span>
+                    </div>
+                    <div>
+                      <strong>Status:</strong>{" "}
+                      {STATUS_TO_BADGE[pendingDelete.status].label} •{" "}
+                      <strong>Amount:</strong> {formatINR(pendingDelete.amount_paise)}
+                    </div>
+                    {(pendingDelete.materialized_booking_ids || []).length > 0 && (
+                      <div className="text-amber-600">
+                        ⚠ This order already produced{" "}
+                        {(pendingDelete.materialized_booking_ids || []).length} booking
+                        {(pendingDelete.materialized_booking_ids || []).length === 1 ? "" : "s"}.
+                        Deleting only removes the reconciliation record.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="text-xs text-muted-foreground space-y-1">
         <div>
@@ -651,9 +918,9 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
           webhook the instant a payment is captured.
         </div>
         <div>
-          2. <strong>Browser auto-reconciler</strong> — every 15s while this tab is open we
-          re-check every pending row directly against Razorpay (no secrets needed). Status
-          shown above.
+          2. <strong>Browser auto-reconciler</strong> — every {AUTO_TICK_MS / 1000}s while this
+          tab is open we re-check every pending row directly against Razorpay (no secrets
+          needed). Status shown above.
         </div>
         <div>
           3. <strong>Supabase pg_cron</strong> — every 15s server-side sweep. Status shown
@@ -666,5 +933,172 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     </div>
   );
 };
+
+/**
+ * Expanded booking detail panel.
+ *
+ * Renders everything the operator might need to triage a stuck or paid
+ * order: stations, slots, customer details, pricing breakdown, and links
+ * to the materialized bookings/bill so they can jump straight to the
+ * actual records.
+ */
+function BookingDetailsBlock({
+  row,
+  stationMap,
+}: {
+  row: PaymentOrder;
+  stationMap: Record<string, string>;
+}) {
+  const payload: BookingPayload = (row.booking_payload || {}) as BookingPayload;
+  const stations: string[] = payload.selectedStations || payload.s || [];
+  const dateISO: string = payload.selectedDateISO || payload.d || "";
+  const slots: BookingSlot[] = payload.slots || payload.t || [];
+  const customer = payload.customer || {};
+  const pricing = payload.pricing || {};
+
+  const stationLabels =
+    stations.length > 0
+      ? stations.map((id) => stationMap[id] || id.slice(0, 8))
+      : [];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+      {/* Booking intent */}
+      <div className="space-y-1">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+          Booking intent
+        </div>
+        <div>
+          <strong>Date:</strong>{" "}
+          {dateISO ? (
+            <span>{dateISO}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+        <div>
+          <strong>Stations ({stationLabels.length}):</strong>{" "}
+          {stationLabels.length > 0 ? (
+            <span>{stationLabels.join(", ")}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+        <div>
+          <strong>Slots ({slots.length}):</strong>
+          {slots.length === 0 ? (
+            <span className="text-muted-foreground"> —</span>
+          ) : (
+            <ul className="list-disc list-inside ml-2 mt-1 space-y-0.5">
+              {slots.map((s, i) => (
+                <li key={i}>
+                  {s.start_time || s.s || "?"} → {s.end_time || s.e || "?"}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {typeof payload.duration === "number" && (
+          <div>
+            <strong>Duration:</strong> {payload.duration} hr
+          </div>
+        )}
+      </div>
+
+      {/* Customer */}
+      <div className="space-y-1">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+          Customer
+        </div>
+        <div>
+          <strong>Name:</strong>{" "}
+          {(customer.name as string) || row.customer_name || (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+        <div>
+          <strong>Phone:</strong>{" "}
+          {(customer.phone as string) || row.customer_phone || (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+        <div>
+          <strong>Email:</strong>{" "}
+          {(customer.email as string) || row.customer_email || (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+      </div>
+
+      {/* Pricing + outcome */}
+      <div className="space-y-1">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+          Pricing &amp; outcome
+        </div>
+        {typeof pricing.original === "number" && (
+          <div>
+            <strong>Original:</strong> ₹{pricing.original}
+          </div>
+        )}
+        {typeof pricing.discount === "number" && pricing.discount > 0 && (
+          <div>
+            <strong>Discount:</strong> −₹{pricing.discount}
+          </div>
+        )}
+        {typeof pricing.final === "number" && (
+          <div>
+            <strong>Final:</strong> ₹{pricing.final}
+          </div>
+        )}
+        {typeof pricing.transactionFee === "number" && pricing.transactionFee > 0 && (
+          <div>
+            <strong>Txn fee:</strong> ₹{pricing.transactionFee}
+          </div>
+        )}
+        {typeof pricing.totalWithFee === "number" && (
+          <div>
+            <strong>Total charged:</strong> ₹{pricing.totalWithFee}
+          </div>
+        )}
+        {pricing.coupons && (
+          <div>
+            <strong>Coupons:</strong> {pricing.coupons}
+          </div>
+        )}
+
+        <div className="pt-2 border-t mt-2">
+          <div>
+            <strong>Booking IDs:</strong>{" "}
+            {(row.materialized_booking_ids || []).length === 0 ? (
+              <span className="text-muted-foreground">none yet</span>
+            ) : (
+              <div className="font-mono text-[10px] mt-1 space-y-0.5">
+                {(row.materialized_booking_ids || []).map((id) => (
+                  <div key={id} title={id}>
+                    {id}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {row.materialized_bill_id && (
+            <div className="mt-1">
+              <strong>Bill ID:</strong>{" "}
+              <span className="font-mono text-[10px]">{row.materialized_bill_id}</span>
+            </div>
+          )}
+          <div className="mt-1 text-muted-foreground">
+            Expires: {new Date(row.expires_at).toLocaleString()}
+          </div>
+          {row.last_reconciled_at && (
+            <div className="text-muted-foreground">
+              Last reconciled: {timeAgo(row.last_reconciled_at)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default PaymentReconciliationTab;
