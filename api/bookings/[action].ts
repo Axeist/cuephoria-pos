@@ -1,10 +1,8 @@
 /**
  * Catch-all dispatcher for /api/bookings/* routes.
  *
- * Vercel's Hobby tier caps the deployment at 12 Serverless Functions, so the
- * booking endpoints are collapsed behind one dynamic route. Each concrete
- * handler still lives in src/server/handlers/bookings/; this file only maps
- * URL path → module.
+ * Each concrete handler lives in src/server/handlers/bookings/; this file
+ * only maps URL path → module.
  *
  *   POST /api/bookings/create         → handlers/bookings/create (Node runtime)
  *   POST /api/bookings/cleanup-blocks → handlers/bookings/cleanup-blocks (Edge style)
@@ -13,6 +11,11 @@
  * The dispatcher runs in Node.js runtime (to support the Supabase client used
  * in `create.ts`); the Edge-style `cleanup-blocks` handler is called via the
  * Node↔Edge adapter in `src/server/lib/node-dispatcher`.
+ *
+ * IMPORTANT: All handler imports are STATIC so Vercel's Node File Trace
+ * actually bundles them. Dynamic `await import("...")` is NOT reliably
+ * traced by Vercel's serverless build pipeline — modules can be missing
+ * at runtime.
  */
 
 import {
@@ -24,6 +27,10 @@ import {
   type VercelResponse,
 } from "../../src/server/lib/node-dispatcher.js";
 
+import cleanupBlocksHandler from "../../src/server/handlers/bookings/cleanup-blocks";
+import createHandler from "../../src/server/handlers/bookings/create";
+import materializeHandler from "../../src/server/handlers/bookings/materialize";
+
 export const config = {
   maxDuration: 30,
 };
@@ -32,32 +39,16 @@ type DispatchEntry =
   | { kind: "node"; handler: NodeHandler }
   | { kind: "edge"; handler: EdgeHandler };
 
-async function loadEntry(action: string): Promise<DispatchEntry | null> {
-  switch (action) {
-    case "create": {
-      const mod = await import("../../src/server/handlers/bookings/create.js")
-        .catch(() => import("../../src/server/handlers/bookings/create"));
-      return { kind: "node", handler: mod.default as unknown as NodeHandler };
-    }
-    case "cleanup-blocks": {
-      const mod = await import("../../src/server/handlers/bookings/cleanup-blocks.js")
-        .catch(() => import("../../src/server/handlers/bookings/cleanup-blocks"));
-      return { kind: "edge", handler: mod.default as unknown as EdgeHandler };
-    }
-    case "materialize": {
-      const mod = await import("../../src/server/handlers/bookings/materialize.js")
-        .catch(() => import("../../src/server/handlers/bookings/materialize"));
-      return { kind: "node", handler: mod.default as unknown as NodeHandler };
-    }
-    default:
-      return null;
-  }
-}
+const ROUTES: Record<string, DispatchEntry> = {
+  "cleanup-blocks": { kind: "edge", handler: cleanupBlocksHandler as unknown as EdgeHandler },
+  create:           { kind: "node", handler: createHandler as unknown as NodeHandler },
+  materialize:      { kind: "node", handler: materializeHandler as unknown as NodeHandler },
+};
 
 export default async function dispatcher(req: VercelRequest, res: VercelResponse) {
   try {
     const action = getAction(req);
-    const entry = await loadEntry(action);
+    const entry = ROUTES[action];
     if (!entry) {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader("Access-Control-Allow-Origin", "*");
