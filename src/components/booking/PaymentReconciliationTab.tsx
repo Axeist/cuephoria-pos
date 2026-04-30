@@ -216,16 +216,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
       try {
         const res = await fetch("/api/razorpay/reconcile", {
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            // The backend accepts manual rechecks via the same x-cron-secret
-            // it expects from pg_cron. Operators set this to the public
-            // (admin-side) value that matches the server env.
-            "x-cron-secret":
-              (typeof window !== "undefined" &&
-                (window as { __RECONCILE_SECRET?: string }).__RECONCILE_SECRET) ||
-              "",
-          },
+          headers: { "content-type": "application/json" },
           body: JSON.stringify({ order_id: row.provider_order_id }),
         });
         const data = (await res.json().catch(() => null)) as

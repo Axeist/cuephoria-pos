@@ -4,10 +4,16 @@
  * Reached at /api/razorpay/reconcile via the api/razorpay/[action].ts
  * dispatcher (so we add ZERO new Vercel function files).
  *
- * Two callers, one auth header:
+ * Two callers, two auth modes:
  *
- *   1. pg_cron (every 15s)    → POST,  header `x-cron-secret`
- *   2. Manual UI re-check     → POST,  body `{ order_id }`, header `x-cron-secret`
+ *   1. pg_cron (every 15s)    → POST,  header `x-cron-secret`         (sweep)
+ *   2. Manual UI re-check     → POST,  body `{ order_id: "..." }`     (no auth)
+ *
+ * Single-order rechecks are unauthenticated on purpose: they can only
+ * convert a Razorpay-paid order into the booking that customer already
+ * paid for, and they are gated by the Razorpay-side payment record. There
+ * is no privilege escalation surface. The sweep path is still secret-gated
+ * because it is an unbounded background job.
  *
  * The handler:
  *   - Claims a batch of stuck `payment_orders` rows via the
@@ -278,20 +284,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return j(res, { ok: false, error: "Method not allowed" }, 405);
   }
 
-  if (!authorize(req)) {
+  // Parse body up-front so we can branch on order_id BEFORE the auth gate.
+  // Manual single-order rechecks (POST { order_id }) are intentionally
+  // unauthenticated — they can only convert a Razorpay-paid order into
+  // the booking the customer already paid for. The sweep path remains
+  // secret-gated because it is an unbounded background job.
+  let body: Record<string, unknown> = {};
+  if (req.method === "POST" && req.body) {
+    body = (typeof req.body === "string" ? JSON.parse(req.body) : (req.body as Record<string, unknown>)) || {};
+  }
+  const isSingleOrderRecheck =
+    req.method === "POST" &&
+    typeof body.order_id === "string" &&
+    (body.order_id as string).length > 0;
+
+  if (!isSingleOrderRecheck && !authorize(req)) {
     return j(res, { ok: false, error: "Unauthorized" }, 401);
   }
 
   const supabase = await getSupabase();
 
-  // Manual single-order recheck (UI button or admin script).
-  let body: Record<string, unknown> = {};
-  if (req.method === "POST" && req.body) {
-    body = (typeof req.body === "string" ? JSON.parse(req.body) : (req.body as Record<string, unknown>)) || {};
-  }
-  if (req.method === "POST" && typeof body.order_id === "string" && body.order_id.length > 0) {
+  if (isSingleOrderRecheck) {
     try {
-      const single = await processSingleOrder(supabase, body.order_id);
+      const single = await processSingleOrder(supabase, body.order_id as string);
       return j(res, { ok: single.ok, mode: "single", ...single });
     } catch (err) {
       console.error("[reconcile single] threw:", err);
