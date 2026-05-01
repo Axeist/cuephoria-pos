@@ -457,6 +457,101 @@ export type Database = {
         }
         Relationships: []
       }
+      shop_cash_balances: {
+        Row: {
+          location_id: string
+          piggy_amount: number
+          till_amount: number
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          location_id: string
+          piggy_amount?: number
+          till_amount?: number
+          updated_at?: string
+          updated_by?: string
+        }
+        Update: {
+          location_id?: string
+          piggy_amount?: number
+          till_amount?: number
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_cash_balances_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: true
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_cash_ledger: {
+        Row: {
+          amount: number
+          bank_reference: string | null
+          created_at: string
+          created_by: string
+          delta_piggy: number
+          delta_till: number
+          entry_kind: string
+          id: string
+          idempotency_key: string | null
+          location_id: string
+          notes: string | null
+          owner: string | null
+          reverses_ledger_id: string | null
+        }
+        Insert: {
+          amount: number
+          bank_reference?: string | null
+          created_at?: string
+          created_by?: string
+          delta_piggy: number
+          delta_till: number
+          entry_kind: string
+          id?: string
+          idempotency_key?: string | null
+          location_id: string
+          notes?: string | null
+          owner?: string | null
+          reverses_ledger_id?: string | null
+        }
+        Update: {
+          amount?: number
+          bank_reference?: string | null
+          created_at?: string
+          created_by?: string
+          delta_piggy?: number
+          delta_till?: number
+          entry_kind?: string
+          id?: string
+          idempotency_key?: string | null
+          location_id?: string
+          notes?: string | null
+          owner?: string | null
+          reverses_ledger_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_cash_ledger_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_cash_ledger_reverses_ledger_id_fkey"
+            columns: ["reverses_ledger_id"]
+            isOneToOne: false
+            referencedRelation: "shop_cash_ledger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string | null

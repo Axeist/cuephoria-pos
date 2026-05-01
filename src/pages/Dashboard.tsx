@@ -17,7 +17,7 @@ import ProductPerformance from '@/components/dashboard/ProductPerformance';
 import ExpenseList from '@/components/expenses/ExpenseList';
 import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
-import CashManagement from '@/components/cash/CashManagement';
+import VaultDashboard from '@/components/vault/VaultDashboard';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
@@ -412,7 +412,7 @@ const Dashboard = () => {
 
       {currentDashboardTab === 'cash' && (
         <div className="space-y-3 sm:space-y-6 mt-3 sm:mt-0 overflow-x-hidden">
-          <CashManagement />
+          <VaultDashboard />
         </div>
       )}
     </div>
