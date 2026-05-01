@@ -77,36 +77,44 @@ const ENTRY_LABELS: Record<ShopCashEntryKind, string> = {
   reversal: 'Undo previous line',
 };
 
-/** Large tappable card — opens the dialog passed as parent AmountFormDialog trigger */
-function MovementActionCard(props: {
+export type MovementActionCardProps = {
   icon: React.ElementType;
   title: string;
   subtitle: string;
   emphasize?: boolean;
-}) {
-  const Icon = props.icon;
-  return (
-    <button
-      type="button"
-      className={cn(
-        'flex flex-col rounded-xl border p-4 text-left transition-all min-h-[132px] w-full',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f0a18]',
-        props.emphasize
-          ? 'border-fuchsia-500/35 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/8 to-transparent shadow-[0_0_28px_-10px_rgba(192,38,211,0.45)] hover:border-fuchsia-400/55'
-          : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/18'
-      )}
-    >
-      <Icon
-        className={cn('h-6 w-6 mb-2 shrink-0', props.emphasize ? 'text-fuchsia-300' : 'text-white/75')}
-      />
-      <span className="font-semibold text-white text-sm leading-snug">{props.title}</span>
-      <span className="text-xs text-white/55 mt-1.5 leading-relaxed">{props.subtitle}</span>
-      <span className="text-[10px] font-medium uppercase tracking-wider text-white/35 mt-auto pt-3">
-        Tap to enter amount
-      </span>
-    </button>
-  );
-}
+  className?: string;
+};
+
+/**
+ * Must use forwardRef: Radix DialogTrigger with `asChild` merges ref + listeners onto this button.
+ * Without forwardRef, clicks do nothing (handlers never attach).
+ */
+const MovementActionCard = React.forwardRef<HTMLButtonElement, MovementActionCardProps>(
+  function MovementActionCard({ icon: Icon, title, subtitle, emphasize, className }, ref) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        className={cn(
+          'flex flex-col rounded-xl border p-4 text-left transition-all min-h-[132px] w-full cursor-pointer',
+          'active:scale-[0.99] hover:brightness-110',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f0a18]',
+          emphasize
+            ? 'border-fuchsia-500/35 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/8 to-transparent shadow-[0_0_28px_-10px_rgba(192,38,211,0.45)] hover:border-fuchsia-400/55'
+            : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/18',
+          className
+        )}
+      >
+        <Icon className={cn('h-6 w-6 mb-2 shrink-0', emphasize ? 'text-fuchsia-300' : 'text-white/75')} />
+        <span className="font-semibold text-white text-sm leading-snug">{title}</span>
+        <span className="text-xs text-white/55 mt-1.5 leading-relaxed">{subtitle}</span>
+        <span className="text-[10px] font-medium uppercase tracking-wider text-purple-300/90 mt-auto pt-3">
+          Click to enter amount
+        </span>
+      </button>
+    );
+  }
+);
 
 function AmountFormDialog(props: {
   title: string;
