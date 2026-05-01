@@ -1,13 +1,9 @@
 /**
- * Payment Reconciliation tab for the Booking Management page.
+ * Payment command centre (Booking Management → Reconciliation tab).
  *
- * Shows every Razorpay payment_orders row scoped to the active location
- * (with realtime updates), KPI cards for stuck/paid/expired counts, and
- * a manual "Re-check now" button that POSTs to /api/razorpay/reconcile
- * for a single order_id.
- *
- * The webhook + pg_cron reconciler do the actual work — this view just
- * surfaces the state to operators so any anomaly is visible immediately.
+ * Combines Razorpay payment_orders reconciliation with live checkout visibility:
+ * slot_blocks holds, countdown until hold expiry, ₹ in flight, and realtime
+ * updates on both tables.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -29,6 +25,8 @@ import {
   ChevronRight,
   Clock3,
   ExternalLink,
+  Layers,
+  Radio,
   RefreshCw,
   Search,
   Trash2,
@@ -49,6 +47,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { PAYMENT_CHECKOUT_TTL_MINUTES } from "@/lib/payment-checkout-ttl";
 
 // The generated Supabase types don't yet know about the new tables
 // (`payment_orders`, `reconciler_heartbeat`). Narrow query results to
@@ -127,6 +126,17 @@ type PaymentOrder = {
 
 type StationLite = { id: string; name: string };
 
+type SlotBlockRow = {
+  id: string;
+  station_id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  expires_at: string;
+  session_id: string | null;
+  customer_phone: string | null;
+};
+
 type Heartbeat = {
   last_run_at: string;
   last_source: string | null;
@@ -181,6 +191,18 @@ function dashboardLink(orderId: string): string {
   return `https://dashboard.razorpay.com/app/orders/${encodeURIComponent(orderId)}`;
 }
 
+function remainingMs(expiresAt: string): number {
+  return Math.max(0, new Date(expiresAt).getTime() - Date.now());
+}
+
+function formatCountdown(ms: number): string {
+  const sec = Math.floor(ms / 1000);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m <= 0) return `${s}s`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) => {
   const [rows, setRows] = useState<PaymentOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,6 +219,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
   const [stationMap, setStationMap] = useState<Record<string, string>>({});
+  const [holds, setHolds] = useState<SlotBlockRow[]>([]);
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
@@ -218,6 +241,26 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
         return;
       }
       setRows(data || []);
+
+      let hq = fromTable("slot_blocks")
+        .select(
+          "id, station_id, booking_date, start_time, end_time, expires_at, session_id, customer_phone",
+        )
+        .eq("is_confirmed", false)
+        .gt("expires_at", new Date().toISOString())
+        .order("expires_at", { ascending: true })
+        .limit(200);
+      if (activeLocationId) hq = hq.eq("location_id", activeLocationId);
+      const { data: hd, error: he } = (await hq) as {
+        data: SlotBlockRow[] | null;
+        error: { message: string } | null;
+      };
+      if (he) {
+        console.warn("[reconciliation] slot_blocks fetch", he);
+        setHolds([]);
+      } else {
+        setHolds(hd || []);
+      }
     } finally {
       setLoading(false);
     }
@@ -227,16 +270,28 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     fetchRows();
   }, [fetchRows]);
 
-  // Realtime: react to inserts/updates so the tab stays live.
+  // Realtime: payment_orders + slot_blocks (single command centre feed).
   useEffect(() => {
     const channel = supabase
-      .channel(`payment_orders_recon_${activeLocationId || "all"}`)
+      .channel(`payment_command_centre_${activeLocationId || "all"}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "payment_orders",
+          ...(activeLocationId ? { filter: `location_id=eq.${activeLocationId}` } : {}),
+        },
+        () => {
+          fetchRows();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "slot_blocks",
           ...(activeLocationId ? { filter: `location_id=eq.${activeLocationId}` } : {}),
         },
         () => {
@@ -256,6 +311,13 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     return () => clearInterval(t);
   }, []);
   void tick;
+
+  const [countdownTick, setCountdownTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setCountdownTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  void countdownTick;
 
   // Station id → name map so we can render readable station labels in the
   // expanded booking detail. We fetch all stations once and cache them.
@@ -349,6 +411,22 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
     () => filtered.slice(pageStart, pageEnd),
     [filtered, pageStart, pageEnd],
   );
+
+  const inFlightPaise = useMemo(
+    () =>
+      rows
+        .filter((r) => r.status === "created" || r.status === "pending")
+        .reduce((s, r) => s + (Number(r.amount_paise) || 0), 0),
+    [rows],
+  );
+
+  const holdCountByStation = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const h of holds) {
+      m[h.station_id] = (m[h.station_id] || 0) + 1;
+    }
+    return m;
+  }, [holds]);
 
   const kpi = useMemo(() => {
     const now = Date.now();
@@ -524,6 +602,19 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-start gap-3">
+          <Radio className="h-7 w-7 text-emerald-400 shrink-0 mt-0.5 animate-pulse" />
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Payment command centre</h2>
+            <p className="text-sm text-muted-foreground">
+              Live Razorpay orders and station slot holds in one place. Unpaid holds release after{" "}
+              <strong>{PAYMENT_CHECKOUT_TTL_MINUTES} minutes</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Auto-reconciler status bar */}
       <Card>
         <CardContent className="p-4">
@@ -560,8 +651,8 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
         </CardContent>
       </Card>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* KPIs — reconciliation + live checkout */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -592,6 +683,30 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
             </div>
           </CardContent>
         </Card>
+        <Card className="border-amber-500/30 bg-amber-950/10">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Slot holds</p>
+                <p className="text-2xl font-bold text-amber-400">{holds.length}</p>
+                <p className="text-xs text-muted-foreground mt-1">unconfirmed blocks</p>
+              </div>
+              <Layers className="h-8 w-8 text-amber-500/80" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-violet-500/30 bg-violet-950/10">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">₹ in flight</p>
+                <p className="text-2xl font-bold text-violet-300">{formatINR(inFlightPaise)}</p>
+                <p className="text-xs text-muted-foreground mt-1">pending orders only</p>
+              </div>
+              <Activity className="h-8 w-8 text-violet-400/80" />
+            </div>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -617,6 +732,60 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
           </CardContent>
         </Card>
       </div>
+
+      {/* Live slot reservations (same timer as checkout) */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">
+            <span className="text-sm font-medium">Active slot reservations</span>
+            <span className="text-xs text-muted-foreground">Realtime · releases when timer hits 0</span>
+          </div>
+          {holds.length === 0 ? (
+            <p className="text-sm text-muted-foreground px-4 py-8 text-center">No temporary holds right now.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Release in</th>
+                    <th className="px-4 py-3 font-medium">Station</th>
+                    <th className="px-4 py-3 font-medium">Date / slot</th>
+                    <th className="px-4 py-3 font-medium">Phone</th>
+                    <th className="px-4 py-3 font-medium">Session</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {holds.map((h) => {
+                    const ms = remainingMs(h.expires_at);
+                    return (
+                      <tr key={h.id} className="border-t border-border/40">
+                        <td className="px-4 py-3 whitespace-nowrap font-mono text-amber-400/90">
+                          {formatCountdown(ms)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {stationMap[h.station_id] || h.station_id.slice(0, 8)}
+                          {holdCountByStation[h.station_id] > 1 ? (
+                            <Badge className="ml-2 text-[10px]" variant="outline">
+                              multi
+                            </Badge>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {h.booking_date} {String(h.start_time).slice(0, 5)}–{String(h.end_time).slice(0, 5)}
+                        </td>
+                        <td className="px-4 py-3">{h.customer_phone || "—"}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground font-mono truncate max-w-[160px]">
+                          {h.session_id || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card>
@@ -664,6 +833,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
                   <th className="px-4 py-3 font-medium">Created</th>
                   <th className="px-4 py-3 font-medium">Customer</th>
                   <th className="px-4 py-3 font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Hold ends</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Razorpay</th>
                   <th className="px-4 py-3 font-medium">Bookings</th>
@@ -674,7 +844,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
               <tbody>
                 {filtered.length === 0 && !loading && (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={9}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={10}>
                       No payment orders match the current filter.
                     </td>
                   </tr>
@@ -718,6 +888,21 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
                         </td>
                         <td className="px-4 py-3 font-medium whitespace-nowrap align-top">
                           {formatINR(r.amount_paise)}
+                        </td>
+                        <td className="px-4 py-3 align-top whitespace-nowrap">
+                          {r.status === "created" || r.status === "pending" ? (
+                            <span
+                              className={
+                                remainingMs(r.expires_at) < 60_000
+                                  ? "text-amber-400 font-medium font-mono"
+                                  : "text-emerald-400/90 font-mono"
+                              }
+                            >
+                              {formatCountdown(remainingMs(r.expires_at))}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 align-top">
                           <Badge className={`${STATUS_TO_BADGE[r.status].className} text-white`}>
@@ -792,7 +977,7 @@ export const PaymentReconciliationTab: React.FC<Props> = ({ activeLocationId }) 
                       </tr>
                       {isExpanded && (
                         <tr className="border-t bg-muted/10">
-                          <td colSpan={9} className="px-6 py-4">
+                          <td colSpan={10} className="px-6 py-4">
                             <BookingDetailsBlock row={r} stationMap={stationMap} />
                           </td>
                         </tr>

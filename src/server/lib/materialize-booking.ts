@@ -39,7 +39,16 @@ export type MaterializeStatus =
   | "already_exists"   // booking + bill already present (idempotent)
   | "amount_mismatch"  // payment.amount != payment_orders.amount_paise — refused
   | "order_unknown"    // no payment_orders row and Razorpay notes had no payload
-  | "no_op";           // payment_orders already finalized (e.g. paid by another caller)
+  | "no_op"            // payment_orders already finalized (e.g. paid by another caller)
+  | "slot_race_lost";  // payment captured but booking insert lost DB race — refund/reconcile
+
+/** Thrown when unique index blocks insert and rows are not for this payment. */
+export class BookingSlotRaceLostError extends Error {
+  constructor() {
+    super("BOOKING_SLOT_RACE_LOST");
+    this.name = "BookingSlotRaceLostError";
+  }
+}
 
 export type MaterializeOutcome = {
   status: MaterializeStatus;
@@ -85,7 +94,7 @@ type BookingPayload = {
   profile?: "default" | "lite";
 };
 
-type NormalizedPayload = {
+export type NormalizedPayload = {
   selectedStations: string[];
   selectedDateISO: string;
   slots: Array<{ start_time: string; end_time: string }>;
@@ -100,6 +109,7 @@ type PaymentOrderRow = {
   provider: string;
   profile: string;
   status: string;
+  last_error?: string | null;
   provider_order_id: string;
   provider_payment_id: string | null;
   amount_paise: number;
@@ -167,7 +177,7 @@ function timeToMinutes(timeStr: string): number {
   return h * 60 + m;
 }
 
-function normalizeBookingPayload(raw: BookingPayload | string): NormalizedPayload {
+export function normalizeBookingPayload(raw: BookingPayload | string): NormalizedPayload {
   const data: BookingPayload = typeof raw === "string" ? JSON.parse(raw) : raw;
 
   const selectedStations: string[] = data.selectedStations || data.s || [];
@@ -362,10 +372,9 @@ async function createBookingsRows(
     return { ids: (inserted as Array<{ id: string }>).map((r) => r.id), alreadyExists: false };
   }
 
-  // Concurrent materializer won the race — partial unique index raised 23505.
-  // Re-fetch the bookings created by the winner and treat as already-exists.
+  // Partial unique index (or other unique violation): only treat as idempotent
+  // if these rows belong to THIS payment. Never return another customer's ids.
   if (error?.code === "23505") {
-    // Try by payment id first.
     const { data: byPayment } = await supabase
       .from("bookings")
       .select("id")
@@ -373,19 +382,7 @@ async function createBookingsRows(
     if (Array.isArray(byPayment) && byPayment.length > 0) {
       return { ids: (byPayment as Array<{ id: string }>).map((r) => r.id), alreadyExists: true };
     }
-    // Fall back to slot-level lookup.
-    const { data: bySlot } = await supabase
-      .from("bookings")
-      .select("id, station_id, start_time, end_time")
-      .in("station_id", payload.selectedStations)
-      .eq("booking_date", payload.selectedDateISO)
-      .in("status", ["confirmed", "in-progress"]);
-    const matching = ((bySlot || []) as Array<{ id: string; station_id: string; start_time: string; end_time: string }>).filter((b) =>
-      payload.slots.some((s) => s.start_time === b.start_time && s.end_time === b.end_time),
-    );
-    if (matching.length > 0) {
-      return { ids: matching.map((r) => r.id), alreadyExists: true };
-    }
+    throw new BookingSlotRaceLostError();
   }
 
   throw new Error(`Booking insert failed: ${error?.message || "unknown"}`);
@@ -554,13 +551,24 @@ export async function materializeBookingFromPaymentOrder(
   const { data: poRow } = await supabase
     .from("payment_orders")
     .select(
-      "id, provider, profile, status, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id",
+      "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id",
     )
     .eq("provider", "razorpay")
     .eq("provider_order_id", orderId)
     .maybeSingle();
 
   let paymentOrder = poRow as PaymentOrderRow | null;
+
+  // 2a. Terminal failure (e.g. slot race lost, amount mismatch) — do not retry materialization.
+  if (paymentOrder?.status === "failed") {
+    return {
+      status: "no_op",
+      bookingIds: [],
+      billId: null,
+      paymentOrderId: paymentOrder.id,
+      message: paymentOrder.last_error || "payment_order failed",
+    };
+  }
 
   // 2. If the row was already finalized — short-circuit.
   if (paymentOrder && (paymentOrder.status === "paid" || paymentOrder.status === "reconciled")) {
@@ -656,7 +664,7 @@ export async function materializeBookingFromPaymentOrder(
           expires_at: expiresAtBackfill,
         })
         .select(
-          "id, provider, profile, status, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id",
+          "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id",
         )
         .single();
       if (created) {
@@ -686,14 +694,52 @@ export async function materializeBookingFromPaymentOrder(
     };
   }
 
-  // 6. Bookings (idempotent + 23505-safe).
-  const { ids: bookingIds, alreadyExists } = await createBookingsRows(supabase, {
-    customerId,
-    locationId,
-    payload: { ...normalized, locationId },
-    orderId,
-    paymentId,
-  });
+  // 6. Bookings (idempotent for same payment; 23505 without our payment = lost race).
+  let bookingIds: string[] = [];
+  let alreadyExists = false;
+  try {
+    const result = await createBookingsRows(supabase, {
+      customerId,
+      locationId,
+      payload: { ...normalized, locationId },
+      orderId,
+      paymentId,
+    });
+    bookingIds = result.ids;
+    alreadyExists = result.alreadyExists;
+  } catch (e) {
+    if (e instanceof BookingSlotRaceLostError) {
+      await supabase
+        .from("slot_blocks")
+        .delete()
+        .eq("session_id", orderId)
+        .eq("is_confirmed", false);
+      if (paymentOrder) {
+        await supabase
+          .from("payment_orders")
+          .update({
+            status: "failed",
+            last_error:
+              "slot_race_lost_after_payment_needs_refund: booking insert blocked by existing slot",
+            provider_payment_id: paymentId,
+            materialized_booking_ids: [],
+            materialized_bill_id: null,
+          })
+          .eq("id", paymentOrder.id);
+      }
+      console.error(
+        `[materialize:${source}] slot race lost order=${orderId} payment=${paymentId} — manual refund may be required`,
+      );
+      return {
+        status: "slot_race_lost",
+        bookingIds: [],
+        billId: null,
+        paymentOrderId: paymentOrder?.id ?? null,
+        message: "Slot was taken before booking could be confirmed; payment may need refund.",
+      };
+    }
+    throw e;
+  }
 
   // 7. Confirm slot blocks (best-effort).
   if (bookingIds.length > 0) {

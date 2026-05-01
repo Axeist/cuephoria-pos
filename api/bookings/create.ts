@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "../../src/server/lib/payment-order-ttl.ts";
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -201,7 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
     const blockRows = (slotsToBook as any[]).flatMap((slot) =>
       selectedStations.map((stationId: string) => ({
         station_id: stationId,

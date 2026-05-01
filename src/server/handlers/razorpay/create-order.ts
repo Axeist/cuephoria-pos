@@ -13,6 +13,16 @@ import {
 } from "../lib/payment-provider";
 import { assertProviderEnabledNow, resolveRequestedProvider } from "../lib/payment-provider-facade";
 import { PAYMENT_ORDER_PENDING_TTL_MS } from "../lib/payment-order-ttl.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  assertNoConfirmedBookingOverlap,
+  deleteSlotHoldsBySessionId,
+  insertExclusiveCheckoutHolds,
+  newCheckoutHoldSessionId,
+  normalizePayloadFromBody,
+  reassignHoldSessionToProviderOrderId,
+  resolveLocationIdForCheckout,
+} from "../lib/checkout-slot-hold.js";
 
 // Increase timeout to 30 seconds to handle Razorpay API calls
 export const config = {
@@ -43,6 +53,20 @@ function setCorsHeaders(res: VercelResponse) {
 function j(res: VercelResponse, data: unknown, status = 200) {
   setCorsHeaders(res);
   res.status(status).json(data);
+}
+
+function getSupabaseEnv(): { url: string; key: string } | null {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return null;
+  return { url, key };
 }
 
 // Create Razorpay order using Razorpay SDK (Node.js runtime)
@@ -178,54 +202,106 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return j(res, { ok: false, error: "Receipt ID is required" }, 400);
     }
 
-    const order = await createRazorpayOrder(
-      Number(amount),
-      currency,
-      String(receipt),
-      (notes as Record<string, string> | undefined) ?? undefined,
-      profile,
-    );
+    const kindRaw = (payload as { kind?: unknown }).kind;
+    const kind =
+      typeof kindRaw === "string" && (kindRaw === "tournament" || kindRaw === "booking")
+        ? kindRaw
+        : "booking";
+    const bookingPayload = (payload as { booking_payload?: unknown }).booking_payload;
+    const wantsBookingHold = kind === "booking" && bookingPayload && typeof bookingPayload === "object";
 
-    // ────────────────────────────────────────────────────────────────────
-    // Persist a payment_orders row so the booking can be materialized via
-    // webhook OR pg_cron reconciler OR success page. The booking_payload
-    // column has no 256-char-per-note Razorpay limit. Best-effort: a
-    // failure here MUST NOT break the checkout flow — the legacy notes
-    // path remains as a fallback for in-flight orders.
-    // ────────────────────────────────────────────────────────────────────
-    try {
-      const bookingPayload = (payload as { booking_payload?: unknown }).booking_payload;
-      const locationIdRaw = (payload as { location_id?: unknown }).location_id;
-      const customerInfo = (payload as { customer?: { name?: string; phone?: string; email?: string } }).customer;
-      const kindRaw = (payload as { kind?: unknown }).kind;
-      const kind =
-        typeof kindRaw === "string" && (kindRaw === "tournament" || kindRaw === "booking")
-          ? kindRaw
-          : "booking";
+    let supabase: SupabaseClient | null = null;
+    let holdSessionId: string | null = null;
 
-      // Only persist intent rows for the booking flow today. Tournament
-      // flow can opt-in later by passing kind:"tournament" + booking_payload.
-      if (kind === "booking" && bookingPayload && typeof bookingPayload === "object") {
+    if (wantsBookingHold) {
+      const env = getSupabaseEnv();
+      if (env) {
         const { createClient } = await import("@supabase/supabase-js");
-        const supabaseUrl =
-          process.env.SUPABASE_URL ||
-          process.env.NEXT_PUBLIC_SUPABASE_URL ||
-          process.env.VITE_SUPABASE_URL;
-        const supabaseKey =
-          process.env.SUPABASE_SERVICE_ROLE_KEY ||
-          process.env.SUPABASE_SERVICE_KEY ||
-          process.env.SUPABASE_ANON_KEY ||
-          process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        if (supabaseUrl && supabaseKey) {
-          const supabase = createClient(supabaseUrl, supabaseKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
-            global: { headers: { "x-application-name": "cuephoria-create-order" } },
-          });
+        supabase = createClient(env.url, env.key, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { "x-application-name": "cuephoria-create-order" } },
+        });
+        const normalized = normalizePayloadFromBody(bookingPayload);
+        if (
+          !normalized ||
+          normalized.selectedStations.length === 0 ||
+          normalized.slots.length === 0 ||
+          !normalized.selectedDateISO
+        ) {
+          return j(
+            res,
+            { ok: false, error: "Invalid booking_payload: need stations, slots, and date." },
+            400,
+          );
+        }
+        const profileTag: "default" | "lite" = profile === "lite" ? "lite" : "default";
+        const locationId = await resolveLocationIdForCheckout(supabase, normalized.locationId, profileTag);
+        if (!locationId) {
+          return j(res, { ok: false, error: "Could not resolve venue for this booking." }, 500);
+        }
+        const overlap = await assertNoConfirmedBookingOverlap(supabase, normalized, locationId);
+        if (!overlap.ok) {
+          return j(res, { ok: false, conflict: true, error: overlap.message }, 409);
+        }
+        holdSessionId = newCheckoutHoldSessionId();
+        const expiresAtIso = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
+        const ins = await insertExclusiveCheckoutHolds(supabase, {
+          locationId,
+          payload: normalized,
+          holdSessionId,
+          expiresAtIso,
+        });
+        if (!ins.ok) {
+          if (ins.code === "duplicate") {
+            return j(res, { ok: false, conflict: true, error: ins.message }, 409);
+          }
+          return j(res, { ok: false, error: ins.message }, 500);
+        }
+      } else {
+        console.warn(
+          "[handlers/razorpay/create-order] Supabase env missing — slot hold skipped; legacy checkout only.",
+        );
+      }
+    }
 
+    let order;
+    try {
+      order = await createRazorpayOrder(
+        Number(amount),
+        currency,
+        String(receipt),
+        (notes as Record<string, string> | undefined) ?? undefined,
+        profile,
+      );
+    } catch (err) {
+      if (holdSessionId && supabase) {
+        await deleteSlotHoldsBySessionId(supabase, holdSessionId);
+      }
+      throw err;
+    }
+
+    if (holdSessionId && supabase) {
+      await reassignHoldSessionToProviderOrderId(supabase, holdSessionId, order.id);
+    }
+
+    try {
+      if (wantsBookingHold && typeof bookingPayload === "object") {
+        const env = getSupabaseEnv();
+        if (env) {
+          const { createClient } = await import("@supabase/supabase-js");
+          const sb =
+            supabase ??
+            createClient(env.url, env.key, {
+              auth: { persistSession: false, autoRefreshToken: false },
+              global: { headers: { "x-application-name": "cuephoria-create-order" } },
+            });
+          const locationIdRaw = (payload as { location_id?: unknown }).location_id;
+          const customerInfo = (payload as { customer?: { name?: string; phone?: string; email?: string } })
+            .customer;
           const amountPaise = Number(order.amount) || Math.round(Number(amount) * 100);
           const profileTag: "default" | "lite" = profile === "lite" ? "lite" : "default";
           const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
-          const { error: poErr } = await supabase.from("payment_orders").insert({
+          const { error: poErr } = await sb.from("payment_orders").insert({
             provider: "razorpay",
             profile: profileTag,
             kind,
@@ -242,8 +318,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             expires_at: expiresAt,
           });
           if (poErr) {
-            // Non-fatal: webhook can still recover from notes.
             console.warn("⚠️ payment_orders insert failed (legacy notes path is fallback):", poErr.message);
+            if (holdSessionId) {
+              await deleteSlotHoldsBySessionId(sb, order.id);
+            }
           }
         }
       }
@@ -252,6 +330,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "⚠️ payment_orders side-write threw (non-fatal):",
         (poErr as Error)?.message || poErr,
       );
+      if (holdSessionId && supabase) {
+        await deleteSlotHoldsBySessionId(supabase, order.id);
+      }
     }
 
     return j(res, {

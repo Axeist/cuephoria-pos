@@ -2035,7 +2035,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       if (!orderRes.ok || !orderData?.ok || !orderData?.orderId) {
         const error = orderData?.error || "Failed to create payment order";
         console.error("❌ Order creation failed:", error);
-        toast.error(`Payment setup failed: ${error}`);
+        if (orderData?.conflict || orderRes.status === 409) {
+          toast.error(error);
+        } else {
+          toast.error(`Payment setup failed: ${error}`);
+        }
         setLoading(false);
         return;
       }

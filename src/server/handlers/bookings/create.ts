@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { PAYMENT_ORDER_PENDING_TTL_MS } from "../lib/payment-order-ttl.js";
 
 function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
@@ -256,8 +257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // STEP 3: Create slot blocks for all selected stations
     console.log("🔒 Creating slot blocks for stations...");
-    const blockDurationMinutes = 5; // 5 minutes block duration
-    const expiresAt = new Date(Date.now() + blockDurationMinutes * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + PAYMENT_ORDER_PENDING_TTL_MS).toISOString();
 
     const blockRows = (slotsToBook as any[]).flatMap((slot) =>
       selectedStations.map((stationId: string) => ({
