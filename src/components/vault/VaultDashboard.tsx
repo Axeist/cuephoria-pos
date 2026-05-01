@@ -39,15 +39,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import {
   PiggyBank,
   Vault,
   RefreshCw,
   ArrowDownToLine,
   ArrowUpFromLine,
+  ArrowRight,
+  ArrowRightLeft,
   Landmark,
   Undo2,
   Loader2,
+  Wallet,
+  Building2,
+  Scale,
 } from 'lucide-react';
 
 /** Accepts "8800", "8,800", "₹8800" style input */
@@ -60,15 +67,46 @@ function parsePositiveAmountInput(raw: string): number | null {
 }
 
 const ENTRY_LABELS: Record<ShopCashEntryKind, string> = {
-  till_top_up: 'Drawer — cash in',
-  till_adjustment: 'Drawer — count adjustment',
-  till_to_piggy_owner: 'Drawer → Piggy (owner)',
-  till_to_piggy_cash_expense: 'Drawer → Piggy (cash expense)',
-  till_bank_deposit: 'Bank deposit (from drawer)',
-  piggy_bank_deposit: 'Bank deposit (from piggy)',
-  piggy_to_till_return: 'Piggy → Till return',
-  reversal: 'Reversal',
+  till_top_up: 'Put cash in drawer',
+  till_adjustment: 'Drawer count fix',
+  till_to_piggy_owner: 'Owner took cash (→ piggy)',
+  till_to_piggy_cash_expense: 'Paid expense with cash (→ piggy)',
+  till_bank_deposit: 'Deposited drawer cash at bank',
+  piggy_bank_deposit: 'Deposited piggy cash at bank',
+  piggy_to_till_return: 'Moved piggy cash back to drawer',
+  reversal: 'Undo previous line',
 };
+
+/** Large tappable card — opens the dialog passed as parent AmountFormDialog trigger */
+function MovementActionCard(props: {
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  emphasize?: boolean;
+}) {
+  const Icon = props.icon;
+  return (
+    <button
+      type="button"
+      className={cn(
+        'flex flex-col rounded-xl border p-4 text-left transition-all min-h-[132px] w-full',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f0a18]',
+        props.emphasize
+          ? 'border-fuchsia-500/35 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/8 to-transparent shadow-[0_0_28px_-10px_rgba(192,38,211,0.45)] hover:border-fuchsia-400/55'
+          : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/18'
+      )}
+    >
+      <Icon
+        className={cn('h-6 w-6 mb-2 shrink-0', props.emphasize ? 'text-fuchsia-300' : 'text-white/75')}
+      />
+      <span className="font-semibold text-white text-sm leading-snug">{props.title}</span>
+      <span className="text-xs text-white/55 mt-1.5 leading-relaxed">{props.subtitle}</span>
+      <span className="text-[10px] font-medium uppercase tracking-wider text-white/35 mt-auto pt-3">
+        Tap to enter amount
+      </span>
+    </button>
+  );
+}
 
 function AmountFormDialog(props: {
   title: string;
@@ -336,17 +374,14 @@ const VaultDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-white/65 max-w-2xl space-y-1">
-          <p>
-            <strong className="text-white/85">Vault</strong> tracks physical cash: what should be in the{' '}
-            <strong className="text-white/85">drawer</strong> (shop counter) vs money moved to the{' '}
-            <strong className="text-white/85">piggy bank</strong> pool (owner draws and cash-only expenses you still want
-            accounted for).
-          </p>
-          <p>
-            Every action writes one line to the ledger. To fix a mistake, use <strong className="text-white/85">Reverse</strong>{' '}
-            on that row—entries are never deleted.
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2 max-w-2xl">
+          <h3 className="text-lg font-semibold text-white font-heading tracking-tight">Shop cash vault</h3>
+          <p className="text-sm text-white/60 leading-relaxed">
+            Two balances: <strong className="text-white/90">drawer</strong> (what should be in the cashbox) and{' '}
+            <strong className="text-white/90">piggy</strong> (cash you still track after it left the drawer). Pick{' '}
+            <strong className="text-white/90">Record movement</strong> below, then open <strong className="text-white/90">History</strong>{' '}
+            to review lines — use <strong className="text-white/90">Reverse</strong> there if you made a mistake.
           </p>
         </div>
         <Button variant="outline" size="sm" className="border-white/15 text-white shrink-0" onClick={() => void refreshAll()}>
@@ -360,9 +395,9 @@ const VaultDashboard: React.FC = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-white/85 flex items-center gap-2">
               <Vault className="h-5 w-5 text-emerald-400" />
-              Cash drawer (vault)
+              Cash drawer
             </CardTitle>
-            <p className="text-xs text-white/50 font-normal pt-1">Notes and coins that should physically be on site.</p>
+            <p className="text-xs text-white/50 font-normal pt-1">Physical cash that should be in the shop right now.</p>
           </CardHeader>
           <CardContent>
             {balancesLoading ? (
@@ -382,7 +417,7 @@ const VaultDashboard: React.FC = () => {
               Piggy bank
             </CardTitle>
             <p className="text-xs text-white/50 font-normal pt-1">
-              Cash that left the drawer but you still track (owners / petty cash–style spend).
+              Cash that already left the drawer but you still account for (owners, petty cash, etc.).
             </p>
           </CardHeader>
           <CardContent>
@@ -397,198 +432,265 @@ const VaultDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <div className="space-y-6">
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Cash coming in or correcting the drawer</h3>
-          <div className="flex flex-wrap gap-2">
-            <AmountFormDialog
-              title="Add cash to drawer"
-              description="Use when you put more cash into the shop drawer (float, ATM withdrawal for change, etc.). This increases the drawer balance only."
-              trigger={
-                <Button size="sm" className="btn-gradient border-0 text-white">
-                  <ArrowDownToLine className="h-4 w-4 mr-1" />
-                  Add cash to drawer
-                </Button>
-              }
-              onSubmit={async (amount, { notes }) =>
-                await postEntry({ kind: 'till_top_up', amount, notes: notes || undefined })
-              }
-            />
+      <Tabs defaultValue="record" className="w-full">
+        <TabsList className="glass-card border border-white/10 bg-white/[0.04] p-1 h-auto min-h-11 w-full flex flex-col sm:flex-row sm:inline-flex gap-1 rounded-xl">
+          <TabsTrigger
+            value="record"
+            className="rounded-lg flex-1 sm:flex-none px-4 py-2.5 text-white/70 data-[state=active]:btn-gradient data-[state=active]:text-white data-[state=active]:border-0 data-[state=active]:shadow-lg"
+          >
+            Record movement
+          </TabsTrigger>
+          <TabsTrigger
+            value="ledger"
+            className="rounded-lg flex-1 sm:flex-none px-4 py-2.5 text-white/70 data-[state=active]:btn-gradient data-[state=active]:text-white data-[state=active]:border-0 data-[state=active]:shadow-lg"
+          >
+            History & reverse
+          </TabsTrigger>
+        </TabsList>
 
-            <TillAdjustmentDialog
-              currentTill={till}
-              trigger={
-                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-                  Adjust drawer count
-                </Button>
-              }
-              onSubmit={async (deltaTill, notes) =>
-                await postEntry({
-                  kind: 'till_adjustment',
-                  amount: Math.abs(deltaTill),
-                  deltaTill,
-                  deltaPiggy: 0,
-                  notes,
-                })
-              }
-            />
-          </div>
-        </section>
-
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Move cash: drawer → piggy bank</h3>
-          <p className="text-xs text-white/45">
-            Drawer balance goes down by this amount; piggy balance goes up by the same amount (nothing leaves your tracking).
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <AmountFormDialog
-              title="Owner draw → piggy"
-              description="You or Krishna took cash from the drawer for personal use—record it here so the drawer matches reality."
-              showOwner
-              trigger={
-                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-                  Owner draw → piggy
-                </Button>
-              }
-              onSubmit={async (amount, { notes, owner }) =>
-                await postEntry({
-                  kind: 'till_to_piggy_owner',
-                  amount,
-                  notes: notes || undefined,
-                  owner,
-                })
-              }
-            />
-
-            <AmountFormDialog
-              title="Cash expense → piggy"
-              description="You paid a supplier or expense with physical cash from the drawer—log it so that spend is tracked in piggy."
-              requireNotes
-              trigger={
-                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-                  Cash expense → piggy
-                </Button>
-              }
-              onSubmit={async (amount, { notes }) =>
-                await postEntry({
-                  kind: 'till_to_piggy_cash_expense',
-                  amount,
-                  notes: notes || undefined,
-                })
-              }
-            />
-          </div>
-        </section>
-
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Bank deposits</h3>
-          <p className="text-xs text-white/45">Cash leaves the drawer or piggy pool because it was deposited at the bank.</p>
-          <div className="flex flex-wrap gap-2">
-            <AmountFormDialog
-              title="Bank deposit (from drawer)"
-              description="Cash walked from the shop drawer to the bank. Reference / slip is required."
-              requireBankRef
-              trigger={
-                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-                  <Landmark className="h-4 w-4 mr-1" />
-                  Deposit from drawer
-                </Button>
-              }
-              onSubmit={async (amount, { notes, bankRef }) =>
-                await postEntry({
-                  kind: 'till_bank_deposit',
-                  amount,
-                  notes: notes || undefined,
-                  bankReference: bankRef || undefined,
-                })
-              }
-            />
-
-            <AmountFormDialog
-              title="Bank deposit (from piggy)"
-              description="You deposited piggy-pooled cash at the bank. Reference / slip is required."
-              requireBankRef
-              trigger={
-                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-                  <Landmark className="h-4 w-4 mr-1" />
-                  Deposit from piggy
-                </Button>
-              }
-              onSubmit={async (amount, { notes, bankRef }) =>
-                await postEntry({
-                  kind: 'piggy_bank_deposit',
-                  amount,
-                  notes: notes || undefined,
-                  bankReference: bankRef || undefined,
-                })
-              }
-            />
-          </div>
-        </section>
-
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Return cash to drawer</h3>
-          <div className="flex flex-wrap gap-2">
-            <AmountFormDialog
-              title="Return piggy cash to drawer"
-              description="Cash comes back from the piggy pool into the physical drawer (e.g. bringing float back)."
-              trigger={
-                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-                  <ArrowUpFromLine className="h-4 w-4 mr-1" />
-                  Piggy → drawer
-                </Button>
-              }
-              onSubmit={async (amount, { notes }) =>
-                await postEntry({
-                  kind: 'piggy_to_till_return',
-                  amount,
-                  notes: notes || undefined,
-                })
-              }
-            />
-          </div>
-        </section>
-      </div>
-
-      <Card className="glass-card border-white/10">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-white font-heading">Ledger (append-only)</CardTitle>
-          {ledgerLoading && ledger.length === 0 ? (
-            <Loader2 className="h-5 w-5 animate-spin text-white/40" />
-          ) : null}
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {ledger.length === 0 && !ledgerLoading ? (
-            <p className="text-center text-white/55 py-8">No movements yet for this branch.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-left text-white/65">
-                  <th className="pb-2 pr-3 font-medium">When</th>
-                  <th className="pb-2 pr-3 font-medium">Type</th>
-                  <th className="pb-2 pr-3 font-medium">Amount</th>
-                  <th className="pb-2 pr-3 font-medium">Δ Till</th>
-                  <th className="pb-2 pr-3 font-medium">Δ Piggy</th>
-                  <th className="pb-2 pr-3 font-medium">Notes</th>
-                  <th className="pb-2 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledger.map((row) => (
-                  <LedgerRow key={row.id} row={row} onReverse={() => void reverseEntry(row)} />
-                ))}
-              </tbody>
-            </table>
-          )}
-          {hasMore ? (
-            <div className="mt-4 flex justify-center">
-              <Button variant="outline" size="sm" className="border-white/15 text-white" onClick={loadMore} disabled={ledgerLoading}>
-                {ledgerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load more'}
-              </Button>
+        <TabsContent value="record" className="mt-5 space-y-8 focus-visible:outline-none">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 sm:px-6">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40 mb-3">How money flows</p>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-center gap-3 sm:gap-2">
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 flex-1 sm:max-w-[200px]">
+                <Wallet className="h-8 w-8 text-emerald-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-white">Drawer</p>
+                  <p className="text-[11px] text-white/50 leading-snug">Cash at the counter</p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 text-white/25 shrink-0 hidden sm:block self-center" />
+              <div className="flex items-center gap-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-4 py-3 flex-1 sm:max-w-[200px]">
+                <PiggyBank className="h-8 w-8 text-amber-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-white">Piggy</p>
+                  <p className="text-[11px] text-white/50 leading-snug">Tracked after leaving drawer</p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 text-white/25 shrink-0 hidden sm:block self-center" />
+              <div className="flex items-center gap-3 rounded-lg border border-sky-500/25 bg-sky-500/10 px-4 py-3 flex-1 sm:max-w-[200px]">
+                <Building2 className="h-8 w-8 text-sky-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-white">Bank</p>
+                  <p className="text-[11px] text-white/50 leading-snug">Money you deposited externally</p>
+                </div>
+              </div>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+          </div>
+
+          <section className="space-y-3">
+            <h4 className="text-sm font-semibold text-white/90">A · Put cash in the drawer or fix the count</h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AmountFormDialog
+                title="Add cash to drawer"
+                description="More notes/coins going into the cashbox (float, change from bank, etc.). Only increases the drawer total."
+                trigger={
+                  <MovementActionCard
+                    emphasize
+                    icon={ArrowDownToLine}
+                    title="Add cash to drawer"
+                    subtitle="You physically added money to the shop cashbox."
+                  />
+                }
+                onSubmit={async (amount, { notes }) =>
+                  await postEntry({ kind: 'till_top_up', amount, notes: notes || undefined })
+                }
+              />
+              <TillAdjustmentDialog
+                currentTill={till}
+                trigger={
+                  <MovementActionCard
+                    icon={Scale}
+                    title="Fix drawer count"
+                    subtitle="Counted the drawer and it doesn’t match this number — adjust up or down."
+                  />
+                }
+                onSubmit={async (deltaTill, notes) =>
+                  await postEntry({
+                    kind: 'till_adjustment',
+                    amount: Math.abs(deltaTill),
+                    deltaTill,
+                    deltaPiggy: 0,
+                    notes,
+                  })
+                }
+              />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h4 className="text-sm font-semibold text-white/90">B · Cash left the drawer → track it in piggy</h4>
+            <p className="text-xs text-white/45 -mt-1">
+              Drawer goes down, piggy goes up by the same ₹ — nothing disappears from your records.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AmountFormDialog
+                title="Owner took cash"
+                description="You or Krishna took money from the drawer for personal use — so the drawer total should drop."
+                showOwner
+                trigger={
+                  <MovementActionCard
+                    icon={Vault}
+                    title="Owner took cash"
+                    subtitle="Personal draw from the cashbox — we move that amount into piggy for tracking."
+                  />
+                }
+                onSubmit={async (amount, { notes, owner }) =>
+                  await postEntry({
+                    kind: 'till_to_piggy_owner',
+                    amount,
+                    notes: notes || undefined,
+                    owner,
+                  })
+                }
+              />
+              <AmountFormDialog
+                title="Paid someone with drawer cash"
+                description="Required note: who / what (supplier, supplies, delivery, etc.)."
+                requireNotes
+                trigger={
+                  <MovementActionCard
+                    icon={ArrowUpFromLine}
+                    title="Paid an expense with cash"
+                    subtitle="Cash went out for the business — we park it in piggy so you remember it."
+                  />
+                }
+                onSubmit={async (amount, { notes }) =>
+                  await postEntry({
+                    kind: 'till_to_piggy_cash_expense',
+                    amount,
+                    notes: notes || undefined,
+                  })
+                }
+              />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h4 className="text-sm font-semibold text-white/90">C · Took cash to the bank</h4>
+            <p className="text-xs text-white/45 -mt-1">Pick whether that cash came from the drawer or from piggy. Reference / slip is required.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AmountFormDialog
+                title="Bank deposit (from drawer)"
+                description="You walked cash from the shop drawer to the bank. Enter slip / UTR."
+                requireBankRef
+                trigger={
+                  <MovementActionCard
+                    icon={Landmark}
+                    title="Deposit — from drawer"
+                    subtitle="Less cash should remain in the cashbox."
+                  />
+                }
+                onSubmit={async (amount, { notes, bankRef }) =>
+                  await postEntry({
+                    kind: 'till_bank_deposit',
+                    amount,
+                    notes: notes || undefined,
+                    bankReference: bankRef || undefined,
+                  })
+                }
+              />
+              <AmountFormDialog
+                title="Bank deposit (from piggy)"
+                description="You deposited money that was tracked in piggy. Enter slip / UTR."
+                requireBankRef
+                trigger={
+                  <MovementActionCard
+                    icon={Landmark}
+                    title="Deposit — from piggy"
+                    subtitle="Less cash remains in the piggy pool."
+                  />
+                }
+                onSubmit={async (amount, { notes, bankRef }) =>
+                  await postEntry({
+                    kind: 'piggy_bank_deposit',
+                    amount,
+                    notes: notes || undefined,
+                    bankReference: bankRef || undefined,
+                  })
+                }
+              />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h4 className="text-sm font-semibold text-white/90">D · Put cash back into the drawer</h4>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <AmountFormDialog
+                title="Return piggy cash to drawer"
+                description="Cash came back from piggy into the physical drawer (e.g. returning float)."
+                trigger={
+                  <MovementActionCard
+                    icon={ArrowRightLeft}
+                    title="Piggy → drawer"
+                    subtitle="Moves money from piggy back into the cashbox."
+                  />
+                }
+                onSubmit={async (amount, { notes }) =>
+                  await postEntry({
+                    kind: 'piggy_to_till_return',
+                    amount,
+                    notes: notes || undefined,
+                  })
+                }
+              />
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="ledger" className="mt-5 focus-visible:outline-none">
+          <Card className="glass-card border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-white font-heading">Movement history</CardTitle>
+                <p className="text-xs text-white/50 font-normal mt-1">
+                  Every row is permanent; use Reverse to correct a mistake (adds an undo line).
+                </p>
+              </div>
+              {ledgerLoading && ledger.length === 0 ? (
+                <Loader2 className="h-5 w-5 animate-spin text-white/40 shrink-0" />
+              ) : null}
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {ledger.length === 0 && !ledgerLoading ? (
+                <p className="text-center text-white/55 py-10">No movements recorded for this branch yet.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-left text-white/65">
+                      <th className="pb-2 pr-3 font-medium">When</th>
+                      <th className="pb-2 pr-3 font-medium">What happened</th>
+                      <th className="pb-2 pr-3 font-medium">Amount</th>
+                      <th className="pb-2 pr-3 font-medium">Drawer Δ</th>
+                      <th className="pb-2 pr-3 font-medium">Piggy Δ</th>
+                      <th className="pb-2 pr-3 font-medium">Notes</th>
+                      <th className="pb-2 font-medium text-right">Fix</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledger.map((row) => (
+                      <LedgerRow key={row.id} row={row} onReverse={() => void reverseEntry(row)} />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {hasMore ? (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-white/15 text-white"
+                    onClick={loadMore}
+                    disabled={ledgerLoading}
+                  >
+                    {ledgerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load older rows'}
+                  </Button>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
