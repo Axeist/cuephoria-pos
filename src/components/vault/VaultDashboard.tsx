@@ -174,7 +174,8 @@ function AmountFormDialog(props: {
         {
           onClick: (e: React.MouseEvent) => {
             (props.trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>).props.onClick?.(e);
-            setOpen(true);
+            // Defer past this tick — Radix dismiss layer can otherwise treat the opening click as "outside" and close instantly.
+            window.setTimeout(() => setOpen(true), 0);
           },
         }
       )
@@ -312,7 +313,7 @@ function TillAdjustmentDialog(props: {
         {
           onClick: (e: React.MouseEvent) => {
             (props.trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>).props.onClick?.(e);
-            setOpen(true);
+            window.setTimeout(() => setOpen(true), 0);
           },
         }
       )
