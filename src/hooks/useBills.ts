@@ -12,7 +12,7 @@ export const useBills = (
 ) => {
   const [bills, setBills] = useState<Bill[]>([]);
   const { toast } = useToast();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, loading: locationsLoading } = useLocation();
   const { loadBills: hydrateBills, billsDeepSync } = usePOSHydration();
   const billsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.BILLS, activeLocationId),
@@ -178,7 +178,7 @@ export const useBills = (
   }, [activeLocationId]);
 
   useEffect(() => {
-    if (!hydrateBills) {
+    if (!hydrateBills || locationsLoading) {
       return;
     }
 
@@ -302,7 +302,7 @@ export const useBills = (
     return () => {
       isMounted = false;
     };
-  }, [activeLocationId, billsCacheKey, hydrateBills, billsDeepSync]);
+  }, [activeLocationId, billsCacheKey, hydrateBills, billsDeepSync, locationsLoading]);
 
   // ✅ UPDATED: Added customTimestamp parameter
   const completeSale = async (

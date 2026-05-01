@@ -89,6 +89,22 @@ export default async function handler(req: Request) {
     if (linkErr) return j({ ok: false, error: linkErr.message }, 500);
 
     const ids = [...new Set((links || []).map((r) => r.location_id).filter(Boolean))] as string[];
+
+    // Org admins occasionally have org_memberships rows but missing link rows on
+    // admin_user_locations (failed migration, tooling gap). They should still see
+    // every active branch in their workspace; non-admin staff stay strict.
+    if (!ids.length && sessionUser.isAdmin && orgIds.length > 0) {
+      const { data: fallbackLocs, error: fbErr } = await supabase
+        .from("locations")
+        .select("id, name, slug, short_code, sort_order, is_active")
+        .in("organization_id", orgIds)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      if (fbErr) return j({ ok: false, error: fbErr.message }, 500);
+      return j({ ok: true, locations: fallbackLocs || [] }, 200);
+    }
+
     if (!ids.length) {
       return j({ ok: true, locations: [] }, 200);
     }

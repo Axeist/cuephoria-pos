@@ -34,7 +34,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, loading: locationsLoading } = useLocation();
   const { loadCustomers: hydrateCustomers } = usePOSHydration();
   
   // Stable ref so the realtime handler can always call the latest fetchCustomersFromDB
@@ -42,6 +42,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
   const fetchFromDBRef = useRef<((silent: boolean) => Promise<void>) | null>(null);
 
   useEffect(() => {
+    if (locationsLoading) return;
+
     // Clear customers immediately when branch changes so stale data is never shown
     setCustomers([]);
     setSelectedCustomer(null);
@@ -303,7 +305,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     fetchFromDBRef.current = fetchCustomersFromDB;
 
     fetchCustomers();
-  }, [activeLocationId, hydrateCustomers]);
+  }, [activeLocationId, hydrateCustomers, locationsLoading]);
   
   // ✅ Shared cache save function (per-location)
   const saveToCache = (customersList: Customer[]) => {

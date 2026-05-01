@@ -11,7 +11,7 @@ export const useProducts = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, loading: locationsLoading } = useLocation();
   const productsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.PRODUCTS, activeLocationId),
     [activeLocationId]
@@ -20,6 +20,8 @@ export const useProducts = () => {
   const lowStockProducts = products.filter(p => p.stock < 5 && p.category !== 'membership');
   
   useEffect(() => {
+    if (locationsLoading) return;
+
     console.log('useProducts initialized with', products.length, 'products');
     
     const loadProducts = async () => {
@@ -45,7 +47,7 @@ export const useProducts = () => {
     };
     
     loadProducts();
-  }, [activeLocationId, productsCacheKey]);
+  }, [activeLocationId, productsCacheKey, locationsLoading]);
   
   const isProductDuplicate = (productName: string, excludeId?: string): boolean => {
     return products.some(p => 

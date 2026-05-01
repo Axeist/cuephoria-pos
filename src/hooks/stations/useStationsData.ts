@@ -14,7 +14,7 @@ export const useStationsData = () => {
   const [stationsLoading, setStationsLoading] = useState<boolean>(false);
   const [stationsError, setStationsError] = useState<Error | null>(null);
   const { toast } = useToast();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, loading: locationsLoading } = useLocation();
   const stationsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.STATIONS, activeLocationId),
     [activeLocationId]
@@ -337,9 +337,11 @@ export const useStationsData = () => {
   // Clear stale data immediately when branch changes so the UI doesn't flash
   // the previous branch's numbers while new data loads.
   useEffect(() => {
+    if (locationsLoading) return;
+
     setStations([]);
     refreshStationsFromDB(false);
-  }, [activeLocationId]);
+  }, [activeLocationId, locationsLoading, refreshStationsFromDB]);
 
   // ── REALTIME: listen to any stations row change and refresh immediately ──
   useEffect(() => {

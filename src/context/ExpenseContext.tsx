@@ -40,7 +40,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
   const { bills } = usePOS();
   const { toast } = useToast();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, loading: locationsLoading } = useLocation();
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -249,7 +249,18 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  useEffect(() => { fetchExpenses(); }, [activeLocationId]);
+  useEffect(() => {
+    if (locationsLoading) return;
+
+    if (!activeLocationId) {
+      setExpenses([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    void fetchExpenses();
+  }, [activeLocationId, locationsLoading]);
   useEffect(() => { calculateBusinessSummary(); }, [bills, expenses]);
 
   const contextValue: ExpenseContextType = {

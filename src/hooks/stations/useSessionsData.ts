@@ -15,7 +15,7 @@ export const useSessionsData = () => {
   const [sessionsLoading, setSessionsLoading] = useState<boolean>(true); // start true — prevents sessionsInitialized from firing before first fetch
   const [sessionsError, setSessionsError] = useState<Error | null>(null);
   const { toast } = useToast();
-  const { activeLocationId } = useLocation();
+  const { activeLocationId, loading: locationsLoading } = useLocation();
   const sessionsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.SESSIONS, activeLocationId),
     [activeLocationId]
@@ -177,9 +177,11 @@ export const useSessionsData = () => {
   // We intentionally bypass the cache here — stale cache with ended sessions
   // is the root cause of stations showing as unoccupied on first load.
   useEffect(() => {
+    if (locationsLoading) return;
+
     setSessions([]);
     refreshSessionsFromDB(false);
-  }, [activeLocationId]);
+  }, [activeLocationId, locationsLoading, refreshSessionsFromDB]);
 
   // Per-location Realtime subscription: fires on any INSERT/UPDATE/DELETE on
   // the sessions table for this location only.

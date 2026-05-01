@@ -88,7 +88,22 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [user]);
 
   useEffect(() => {
-    if (!locations.length) return;
+    if (loading) return;
+
+    // No franchise branches exposed (wrong account, revoked links, stale cache):
+    // clear stored branch ID so POS queries never run with an orphan UUID.
+    if (!locations.length) {
+      if (activeLocationId !== null) {
+        setActiveLocationIdState(null);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
+
     const valid = locations.some((l) => l.id === activeLocationId);
     if (!valid) {
       const first = locations[0].id;
@@ -99,7 +114,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         /* ignore */
       }
     }
-  }, [locations, activeLocationId]);
+  }, [locations, activeLocationId, loading]);
 
   const setActiveLocationId = useCallback((id: string) => {
     // Find the target location for overlay display
