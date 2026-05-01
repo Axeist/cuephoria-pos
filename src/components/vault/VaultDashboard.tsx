@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import {
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -49,12 +50,21 @@ import {
   Loader2,
 } from 'lucide-react';
 
+/** Accepts "8800", "8,800", "₹8800" style input */
+function parsePositiveAmountInput(raw: string): number | null {
+  const cleaned = raw.replace(/,/g, '').replace(/₹/g, '').replace(/\s/g, '').trim();
+  if (!cleaned) return null;
+  const n = parseFloat(cleaned);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
 const ENTRY_LABELS: Record<ShopCashEntryKind, string> = {
-  till_top_up: 'Till — cash in',
-  till_adjustment: 'Till — count adjustment',
-  till_to_piggy_owner: 'Till → Piggy (owner)',
-  till_to_piggy_cash_expense: 'Till → Piggy (cash expense)',
-  till_bank_deposit: 'Bank deposit (from till)',
+  till_top_up: 'Drawer — cash in',
+  till_adjustment: 'Drawer — count adjustment',
+  till_to_piggy_owner: 'Drawer → Piggy (owner)',
+  till_to_piggy_cash_expense: 'Drawer → Piggy (cash expense)',
+  till_bank_deposit: 'Bank deposit (from drawer)',
   piggy_bank_deposit: 'Bank deposit (from piggy)',
   piggy_to_till_return: 'Piggy → Till return',
   reversal: 'Reversal',
@@ -62,8 +72,13 @@ const ENTRY_LABELS: Record<ShopCashEntryKind, string> = {
 
 function AmountFormDialog(props: {
   title: string;
+  description?: string;
   trigger: React.ReactNode;
-  onSubmit: (amount: number, extra: { notes: string; bankRef: string; owner: string }) => void | Promise<void>;
+  /** Return false to keep the dialog open (failed save). */
+  onSubmit: (
+    amount: number,
+    extra: { notes: string; bankRef: string; owner: string }
+  ) => boolean | Promise<boolean>;
   requireBankRef?: boolean;
   requireNotes?: boolean;
   showOwner?: boolean;
@@ -75,10 +90,18 @@ function AmountFormDialog(props: {
   const [bankRef, setBankRef] = useState('');
   const [owner, setOwner] = useState('me');
   const [busy, setBusy] = useState(false);
+  const formId = `vault-amt-${useId().replace(/:/g, '')}`;
 
   const submit = async () => {
-    const n = parseFloat(amount);
-    if (!Number.isFinite(n) || n <= 0) return;
+    const n = parsePositiveAmountInput(amount);
+    if (n === null) {
+      toast({
+        title: 'Enter a valid amount',
+        description: 'Use a number greater than zero (you can use commas, e.g. 8,800).',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (props.requireBankRef && !bankRef.trim()) {
       toast({ title: 'Reference required', description: 'Enter bank reference or slip details.', variant: 'destructive' });
       return;
@@ -89,7 +112,8 @@ function AmountFormDialog(props: {
     }
     setBusy(true);
     try {
-      await onSubmit(n, { notes, bankRef, owner });
+      const ok = await props.onSubmit(n, { notes, bankRef, owner });
+      if (ok === false) return;
       setAmount('');
       setNotes('');
       setBankRef('');
@@ -105,13 +129,28 @@ function AmountFormDialog(props: {
       <DialogContent className="glass-card border-white/10 text-white sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">{props.title}</DialogTitle>
+          {props.description ? (
+            <DialogDescription className="text-white/65">{props.description}</DialogDescription>
+          ) : null}
         </DialogHeader>
-        <div className="space-y-3">
+        <form
+          id={formId}
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
           <div>
-            <label className="text-sm text-white/70">Amount (₹)</label>
+            <label className="text-sm text-white/70" htmlFor={`${formId}-amount`}>
+              Amount (₹)
+            </label>
             <Input
-              type="number"
-              step="0.01"
+              id={`${formId}-amount`}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="e.g. 8800 or 8,800"
               className="theme-inset border-white/10 text-white mt-1"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -144,20 +183,23 @@ function AmountFormDialog(props: {
             </div>
           )}
           <div>
-            <label className="text-sm text-white/70">Notes</label>
+            <label className="text-sm text-white/70" htmlFor={`${formId}-notes`}>
+              Notes
+            </label>
             <Textarea
+              id={`${formId}-notes`}
               className="theme-inset border-white/10 text-white mt-1 min-h-[72px]"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional context"
+              placeholder="Optional — e.g. source of cash, date reference"
             />
           </div>
-        </div>
+        </form>
         <DialogFooter className="gap-2">
           <Button variant="outline" className="border-white/15" onClick={() => setOpen(false)} type="button">
             Cancel
           </Button>
-          <Button className="btn-gradient border-0 text-white" disabled={busy} onClick={() => void submit()}>
+          <Button className="btn-gradient border-0 text-white" disabled={busy} type="submit" form={formId}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
           </Button>
         </DialogFooter>
@@ -169,19 +211,34 @@ function AmountFormDialog(props: {
 function TillAdjustmentDialog(props: {
   trigger: React.ReactNode;
   currentTill: number;
-  onSubmit: (deltaTill: number, notes: string) => void | Promise<void>;
+  onSubmit: (deltaTill: number, notes: string) => boolean | Promise<boolean>;
 }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [delta, setDelta] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
+  const formId = `vault-adj-${useId().replace(/:/g, '')}`;
 
   const submit = async () => {
-    const d = parseFloat(delta);
-    if (!Number.isFinite(d) || d === 0) return;
+    const cleaned = delta.replace(/,/g, '').replace(/₹/g, '').replace(/\s/g, '').trim();
+    const d = parseFloat(cleaned);
+    if (!Number.isFinite(d) || d === 0) {
+      toast({
+        title: 'Enter a valid adjustment',
+        description: 'Use a non-zero number (negative if the drawer is short).',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!notes.trim()) {
+      toast({ title: 'Reason required', description: 'Explain why the drawer changed.', variant: 'destructive' });
+      return;
+    }
     setBusy(true);
     try {
-      await props.onSubmit(d, notes);
+      const ok = await props.onSubmit(d, notes);
+      if (ok === false) return;
       setDelta('');
       setNotes('');
       setOpen(false);
@@ -195,19 +252,29 @@ function TillAdjustmentDialog(props: {
       <DialogTrigger asChild>{props.trigger}</DialogTrigger>
       <DialogContent className="glass-card border-white/10 text-white sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">Till adjustment</DialogTitle>
-          <p className="text-sm text-white/55">
-            Current till (expected): <CurrencyDisplay amount={props.currentTill} />
-            <br />
-            Enter <strong>positive</strong> to add cash found, <strong>negative</strong> to remove (short).
-          </p>
+          <DialogTitle className="text-white">Drawer count adjustment</DialogTitle>
+          <DialogDescription className="text-white/65">
+            Current expected cash in drawer: <CurrencyDisplay amount={props.currentTill} />. Enter a{' '}
+            <strong>positive</strong> adjustment if you counted more cash than the app, or <strong>negative</strong> if the
+            drawer is short.
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <form
+          id={formId}
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
           <div>
-            <label className="text-sm text-white/70">Change to till (₹)</label>
+            <label className="text-sm text-white/70" htmlFor={`${formId}-delta`}>
+              Change to drawer (₹)
+            </label>
             <Input
-              type="number"
-              step="0.01"
+              id={`${formId}-delta`}
+              type="text"
+              inputMode="decimal"
               className="theme-inset border-white/10 text-white mt-1"
               value={delta}
               onChange={(e) => setDelta(e.target.value)}
@@ -215,20 +282,23 @@ function TillAdjustmentDialog(props: {
             />
           </div>
           <div>
-            <label className="text-sm text-white/70">Reason</label>
+            <label className="text-sm text-white/70" htmlFor={`${formId}-reason`}>
+              Reason
+            </label>
             <Textarea
+              id={`${formId}-reason`}
               className="theme-inset border-white/10 text-white mt-1"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Required — count correction, misc."
+              placeholder="Required — e.g. count mismatch, change fund"
             />
           </div>
-        </div>
+        </form>
         <DialogFooter className="gap-2">
           <Button variant="outline" className="border-white/15" onClick={() => setOpen(false)} type="button">
             Cancel
           </Button>
-          <Button className="btn-gradient border-0 text-white" disabled={busy || !notes.trim()} onClick={() => void submit()}>
+          <Button className="btn-gradient border-0 text-white" disabled={busy} type="submit" form={formId}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Record'}
           </Button>
         </DialogFooter>
@@ -267,11 +337,19 @@ const VaultDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-white/65 max-w-xl">
-          Physical cash in the shop (till) and owner / cash-expense pool (piggy). Every movement is recorded; use reversal to
-          correct mistakes—nothing is silently deleted.
-        </p>
-        <Button variant="outline" size="sm" className="border-white/15 text-white" onClick={() => void refreshAll()}>
+        <div className="text-sm text-white/65 max-w-2xl space-y-1">
+          <p>
+            <strong className="text-white/85">Vault</strong> tracks physical cash: what should be in the{' '}
+            <strong className="text-white/85">drawer</strong> (shop counter) vs money moved to the{' '}
+            <strong className="text-white/85">piggy bank</strong> pool (owner draws and cash-only expenses you still want
+            accounted for).
+          </p>
+          <p>
+            Every action writes one line to the ledger. To fix a mistake, use <strong className="text-white/85">Reverse</strong>{' '}
+            on that row—entries are never deleted.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="border-white/15 text-white shrink-0" onClick={() => void refreshAll()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -282,8 +360,9 @@ const VaultDashboard: React.FC = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-white/85 flex items-center gap-2">
               <Vault className="h-5 w-5 text-emerald-400" />
-              Shop till (cashbox)
+              Cash drawer (vault)
             </CardTitle>
+            <p className="text-xs text-white/50 font-normal pt-1">Notes and coins that should physically be on site.</p>
           </CardHeader>
           <CardContent>
             {balancesLoading ? (
@@ -302,6 +381,9 @@ const VaultDashboard: React.FC = () => {
               <PiggyBank className="h-5 w-5 text-amber-400" />
               Piggy bank
             </CardTitle>
+            <p className="text-xs text-white/50 font-normal pt-1">
+              Cash that left the drawer but you still track (owners / petty cash–style spend).
+            </p>
           </CardHeader>
           <CardContent>
             {balancesLoading ? (
@@ -315,127 +397,157 @@ const VaultDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <AmountFormDialog
-          title="Add cash to till"
-          trigger={
-            <Button size="sm" className="btn-gradient border-0 text-white">
-              <ArrowDownToLine className="h-4 w-4 mr-1" />
-              Add to till
-            </Button>
-          }
-          onSubmit={(amount, { notes }) =>
-            postEntry({ kind: 'till_top_up', amount, notes: notes || undefined })
-          }
-        />
+      <div className="space-y-6">
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Cash coming in or correcting the drawer</h3>
+          <div className="flex flex-wrap gap-2">
+            <AmountFormDialog
+              title="Add cash to drawer"
+              description="Use when you put more cash into the shop drawer (float, ATM withdrawal for change, etc.). This increases the drawer balance only."
+              trigger={
+                <Button size="sm" className="btn-gradient border-0 text-white">
+                  <ArrowDownToLine className="h-4 w-4 mr-1" />
+                  Add cash to drawer
+                </Button>
+              }
+              onSubmit={async (amount, { notes }) =>
+                await postEntry({ kind: 'till_top_up', amount, notes: notes || undefined })
+              }
+            />
 
-        <TillAdjustmentDialog
-          currentTill={till}
-          trigger={
-            <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-              Adjust till count
-            </Button>
-          }
-          onSubmit={(deltaTill, notes) =>
-            postEntry({
-              kind: 'till_adjustment',
-              amount: Math.abs(deltaTill),
-              deltaTill,
-              deltaPiggy: 0,
-              notes,
-            })
-          }
-        />
+            <TillAdjustmentDialog
+              currentTill={till}
+              trigger={
+                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
+                  Adjust drawer count
+                </Button>
+              }
+              onSubmit={async (deltaTill, notes) =>
+                await postEntry({
+                  kind: 'till_adjustment',
+                  amount: Math.abs(deltaTill),
+                  deltaTill,
+                  deltaPiggy: 0,
+                  notes,
+                })
+              }
+            />
+          </div>
+        </section>
 
-        <AmountFormDialog
-          title="Till → Piggy (owner draw)"
-          showOwner
-          trigger={
-            <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-              Owner → piggy
-            </Button>
-          }
-          onSubmit={(amount, { notes, owner }) =>
-            postEntry({
-              kind: 'till_to_piggy_owner',
-              amount,
-              notes: notes || undefined,
-              owner,
-            })
-          }
-        />
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Move cash: drawer → piggy bank</h3>
+          <p className="text-xs text-white/45">
+            Drawer balance goes down by this amount; piggy balance goes up by the same amount (nothing leaves your tracking).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <AmountFormDialog
+              title="Owner draw → piggy"
+              description="You or Krishna took cash from the drawer for personal use—record it here so the drawer matches reality."
+              showOwner
+              trigger={
+                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
+                  Owner draw → piggy
+                </Button>
+              }
+              onSubmit={async (amount, { notes, owner }) =>
+                await postEntry({
+                  kind: 'till_to_piggy_owner',
+                  amount,
+                  notes: notes || undefined,
+                  owner,
+                })
+              }
+            />
 
-        <AmountFormDialog
-          title="Till → Piggy (cash expense)"
-          requireNotes
-          trigger={
-            <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-              Cash expense → piggy
-            </Button>
-          }
-          onSubmit={(amount, { notes }) =>
-            postEntry({
-              kind: 'till_to_piggy_cash_expense',
-              amount,
-              notes: notes || undefined,
-            })
-          }
-        />
+            <AmountFormDialog
+              title="Cash expense → piggy"
+              description="You paid a supplier or expense with physical cash from the drawer—log it so that spend is tracked in piggy."
+              requireNotes
+              trigger={
+                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
+                  Cash expense → piggy
+                </Button>
+              }
+              onSubmit={async (amount, { notes }) =>
+                await postEntry({
+                  kind: 'till_to_piggy_cash_expense',
+                  amount,
+                  notes: notes || undefined,
+                })
+              }
+            />
+          </div>
+        </section>
 
-        <AmountFormDialog
-          title="Bank deposit from till"
-          requireBankRef
-          trigger={
-            <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-              <Landmark className="h-4 w-4 mr-1" />
-              Deposit (till)
-            </Button>
-          }
-          onSubmit={(amount, { notes, bankRef }) =>
-            postEntry({
-              kind: 'till_bank_deposit',
-              amount,
-              notes: notes || undefined,
-              bankReference: bankRef || undefined,
-            })
-          }
-        />
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Bank deposits</h3>
+          <p className="text-xs text-white/45">Cash leaves the drawer or piggy pool because it was deposited at the bank.</p>
+          <div className="flex flex-wrap gap-2">
+            <AmountFormDialog
+              title="Bank deposit (from drawer)"
+              description="Cash walked from the shop drawer to the bank. Reference / slip is required."
+              requireBankRef
+              trigger={
+                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
+                  <Landmark className="h-4 w-4 mr-1" />
+                  Deposit from drawer
+                </Button>
+              }
+              onSubmit={async (amount, { notes, bankRef }) =>
+                await postEntry({
+                  kind: 'till_bank_deposit',
+                  amount,
+                  notes: notes || undefined,
+                  bankReference: bankRef || undefined,
+                })
+              }
+            />
 
-        <AmountFormDialog
-          title="Bank deposit from piggy"
-          requireBankRef
-          trigger={
-            <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-              <Landmark className="h-4 w-4 mr-1" />
-              Deposit (piggy)
-            </Button>
-          }
-          onSubmit={(amount, { notes, bankRef }) =>
-            postEntry({
-              kind: 'piggy_bank_deposit',
-              amount,
-              notes: notes || undefined,
-              bankReference: bankRef || undefined,
-            })
-          }
-        />
+            <AmountFormDialog
+              title="Bank deposit (from piggy)"
+              description="You deposited piggy-pooled cash at the bank. Reference / slip is required."
+              requireBankRef
+              trigger={
+                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
+                  <Landmark className="h-4 w-4 mr-1" />
+                  Deposit from piggy
+                </Button>
+              }
+              onSubmit={async (amount, { notes, bankRef }) =>
+                await postEntry({
+                  kind: 'piggy_bank_deposit',
+                  amount,
+                  notes: notes || undefined,
+                  bankReference: bankRef || undefined,
+                })
+              }
+            />
+          </div>
+        </section>
 
-        <AmountFormDialog
-          title="Return cash from piggy to till"
-          trigger={
-            <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
-              <ArrowUpFromLine className="h-4 w-4 mr-1" />
-              Piggy → till
-            </Button>
-          }
-          onSubmit={(amount, { notes }) =>
-            postEntry({
-              kind: 'piggy_to_till_return',
-              amount,
-              notes: notes || undefined,
-            })
-          }
-        />
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-white/45">Return cash to drawer</h3>
+          <div className="flex flex-wrap gap-2">
+            <AmountFormDialog
+              title="Return piggy cash to drawer"
+              description="Cash comes back from the piggy pool into the physical drawer (e.g. bringing float back)."
+              trigger={
+                <Button size="sm" variant="secondary" className="bg-white/[0.08] border-white/10 text-white">
+                  <ArrowUpFromLine className="h-4 w-4 mr-1" />
+                  Piggy → drawer
+                </Button>
+              }
+              onSubmit={async (amount, { notes }) =>
+                await postEntry({
+                  kind: 'piggy_to_till_return',
+                  amount,
+                  notes: notes || undefined,
+                })
+              }
+            />
+          </div>
+        </section>
       </div>
 
       <Card className="glass-card border-white/10">
