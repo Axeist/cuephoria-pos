@@ -18,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -86,8 +85,8 @@ export type MovementActionCardProps = {
 };
 
 /**
- * Must use forwardRef: Radix DialogTrigger with `asChild` merges ref + listeners onto this button.
- * Without forwardRef, clicks do nothing (handlers never attach).
+ * Card button for each movement type. Vault dialogs merge `onClick` via `cloneElement` to open modals
+ * (Radix `DialogTrigger asChild` was unreliable inside Tabs/layout).
  */
 const MovementActionCard = React.forwardRef<HTMLButtonElement, MovementActionCardProps>(
   function MovementActionCard({ icon: Icon, title, subtitle, emphasize, className }, ref) {
@@ -169,10 +168,23 @@ function AmountFormDialog(props: {
     }
   };
 
+  const triggerNode = React.isValidElement(props.trigger)
+    ? React.cloneElement(
+        props.trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>,
+        {
+          onClick: (e: React.MouseEvent) => {
+            (props.trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>).props.onClick?.(e);
+            setOpen(true);
+          },
+        }
+      )
+    : props.trigger;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent className="glass-card border-white/10 text-white sm:max-w-md">
+    <>
+      {triggerNode}
+      <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="glass-card border-white/10 text-white sm:max-w-md z-[10000]">
         <DialogHeader>
           <DialogTitle className="text-white">{props.title}</DialogTitle>
           {props.description ? (
@@ -251,6 +263,7 @@ function AmountFormDialog(props: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
@@ -293,10 +306,23 @@ function TillAdjustmentDialog(props: {
     }
   };
 
+  const triggerNode = React.isValidElement(props.trigger)
+    ? React.cloneElement(
+        props.trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>,
+        {
+          onClick: (e: React.MouseEvent) => {
+            (props.trigger as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>).props.onClick?.(e);
+            setOpen(true);
+          },
+        }
+      )
+    : props.trigger;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{props.trigger}</DialogTrigger>
-      <DialogContent className="glass-card border-white/10 text-white sm:max-w-md">
+    <>
+      {triggerNode}
+      <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="glass-card border-white/10 text-white sm:max-w-md z-[10000]">
         <DialogHeader>
           <DialogTitle className="text-white">Drawer count adjustment</DialogTitle>
           <DialogDescription className="text-white/65">
@@ -350,6 +376,7 @@ function TillAdjustmentDialog(props: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
