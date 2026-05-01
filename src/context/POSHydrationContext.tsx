@@ -35,7 +35,9 @@ function flagsForPath(pathname: string): POSHydrationFlags {
     p.startsWith('/pos') ||
     p.startsWith('/reports');
 
-  const billsDeepSync = p.startsWith('/reports');
+  /** Dashboard chart + KPIs aggregate full history; same accuracy need as Reports. */
+  const billsDeepSync =
+    p.startsWith('/reports') || p.startsWith('/dashboard');
 
   return { loadCustomers, loadBills, billsDeepSync };
 }

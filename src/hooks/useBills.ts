@@ -184,9 +184,9 @@ export const useBills = (
 
     let isMounted = true;
     let dbLoadInFlight = false;
-    /** Extra pages after cache hit — keep small off Reports to reduce jank. */
-    const BACKGROUND_MAX_PAGES = billsDeepSync ? 5 : 2;
-    /** First-load cap (non-silent) when not on Reports — avoids downloading full history on login. */
+    /** Extra pages after cache hit on light routes (e.g. POS) — avoids huge downloads. */
+    const BACKGROUND_MAX_PAGES = 2;
+    /** First-load cap (non-silent) when analytics does not need full history. */
     const INITIAL_BILL_PAGES_CAP = 16;
 
     const loadBills = async () => {
@@ -199,9 +199,12 @@ export const useBills = (
           // Revive dates to keep runtime behavior consistent
           setBills(reviveCachedBills(cachedBills));
           
-          // Always continue loading in background so Reports (older ranges) work.
-          // If cache is stale, a 1-page refresh is enough; otherwise we still load older pages quietly.
-          const refreshPages = isCacheStale(billsCacheKey) ? 1 : BACKGROUND_MAX_PAGES;
+          // Dashboard / Reports need every bill for accurate aggregates; shallow routes only refresh head + a few pages.
+          const refreshPages = billsDeepSync
+            ? Number.POSITIVE_INFINITY
+            : isCacheStale(billsCacheKey)
+              ? 1
+              : BACKGROUND_MAX_PAGES;
           loadBillsFromDB({ silent: true, maxPages: refreshPages }).catch(err => {
             console.error('Error loading bills in background:', err);
           });

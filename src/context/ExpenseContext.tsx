@@ -46,13 +46,28 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setLoading(true);
     setError(null);
     try {
-      let query = (supabase.from('expenses' as any).select('*').order('date', { ascending: false }) as any);
+      const pageSize = 1000;
+      let page = 0;
+      let supabaseExpenses: any[] = [];
+      let supabaseError: { message?: string } | null = null;
 
-      if (activeLocationId) {
-        query = query.eq('location_id', activeLocationId);
+      while (!supabaseError) {
+        let q = (supabase.from('expenses' as any).select('*').order('date', { ascending: false }) as any);
+
+        if (activeLocationId) {
+          q = q.eq('location_id', activeLocationId);
+        }
+
+        const { data, error } = await q.range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) {
+          supabaseError = error;
+          break;
+        }
+        const batch = data || [];
+        supabaseExpenses = supabaseExpenses.concat(batch);
+        if (batch.length < pageSize) break;
+        page += 1;
       }
-
-      const { data: supabaseExpenses, error: supabaseError } = await query;
 
       if (supabaseError) {
         const storedExpenses = localStorage.getItem(STORAGE_KEY);
