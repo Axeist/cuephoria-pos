@@ -128,7 +128,7 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
       {/* Active filter pill */}
       {selectedCategory && (
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-300">
+          <span className="text-sm text-white/75">
             Showing: {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
           </span>
           <Button variant="ghost" size="sm" onClick={() => onCategorySelect?.(null)} className="text-red-300 hover:text-red-200">
@@ -138,13 +138,13 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
       )}
 
       {/* Detailed expense list */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-gray-200">
+      <Card className="glass-card glass-card-interactive border-white/10 shadow-xl backdrop-blur-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
+          <CardTitle className="text-lg font-semibold text-white font-heading tracking-tight">
             Expenses for Selected Period ({visibleExpenses.length} items)
           </CardTitle>
           <ExpenseDialog>
-            <Button variant="default" className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700">
+            <Button variant="default" className="flex items-center gap-2 border-0 text-white shadow-lg shadow-purple-500/20">
               <PlusCircle className="h-4 w-4" />
               Add Expense
             </Button>
@@ -152,46 +152,46 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
         </CardHeader>
         <CardContent>
           {visibleExpenses.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 text-white/55">
               No expenses found for the selected filters.
             </div>
           ) : (
-            <div className="rounded-md border border-gray-700">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-700">
-                    <TableHead className="text-gray-300">Name</TableHead>
-                    <TableHead className="text-gray-300">Category</TableHead>
-                    <TableHead className="text-gray-300">Amount</TableHead>
-                    <TableHead className="text-gray-300">Date</TableHead>
-                    <TableHead className="text-gray-300">Recurring</TableHead>
-                    <TableHead className="w-[100px] text-right text-gray-300">Actions</TableHead>
+                  <TableRow className="border-white/10 hover:bg-transparent">
+                    <TableHead className="text-white/70 font-medium">Name</TableHead>
+                    <TableHead className="text-white/70 font-medium">Category</TableHead>
+                    <TableHead className="text-white/70 font-medium">Amount</TableHead>
+                    <TableHead className="text-white/70 font-medium">Date</TableHead>
+                    <TableHead className="text-white/70 font-medium">Recurring</TableHead>
+                    <TableHead className="w-[100px] text-right text-white/70 font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visibleExpenses.map((expense) => {
                     const label = normalizeCategory(expense.category);
                     return (
-                      <TableRow key={expense.id} className="border-gray-700 hover:bg-gray-700/50">
-                        <TableCell className="text-gray-200">{expense.name}</TableCell>
+                      <TableRow key={expense.id} className="border-white/10 hover:bg-white/[0.04]">
+                        <TableCell className="text-white/90">{expense.name}</TableCell>
                         <TableCell>
                           <Badge className={`${getCategoryColor(expense.category)}`}>
                             {label.charAt(0).toUpperCase() + label.slice(1)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-gray-200">
+                        <TableCell className="text-white/90">
                           <CurrencyDisplay amount={expense.amount} />
                         </TableCell>
-                        <TableCell className="text-gray-200">
+                        <TableCell className="text-white/90">
                           {format(new Date(expense.date), 'MMM dd, yyyy')}
                         </TableCell>
                         <TableCell>
                           {expense.isRecurring ? (
-                            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">
+                            <Badge variant="outline" className="border-sky-400/35 bg-sky-500/15 text-sky-200">
                               {expense.frequency}
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="bg-gray-100 text-gray-800 border-gray-200">
+                            <Badge variant="outline" className="border-white/15 bg-white/[0.06] text-white/75">
                               one-time
                             </Badge>
                           )}
@@ -199,7 +199,7 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <ExpenseDialog expense={expense}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-600">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-white/50 hover:text-white hover:bg-white/10">
                                 <Pencil className="h-4 w-4" />
                               </Button>
                             </ExpenseDialog>
@@ -209,15 +209,15 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
-                              <AlertDialogContent className="bg-gray-800 border-gray-700">
+                              <AlertDialogContent className="glass-card border-white/10 text-white">
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle className="text-gray-200">Delete Expense</AlertDialogTitle>
-                                  <AlertDialogDescription className="text-gray-400">
+                                  <AlertDialogTitle className="text-white">Delete Expense</AlertDialogTitle>
+                                  <AlertDialogDescription className="text-white/65">
                                     Are you sure you want to delete this expense? This action cannot be undone.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel className="bg-gray-700 text-gray-200 hover:bg-gray-600">Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10">Cancel</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleDeleteExpense(expense.id)}
                                     className="bg-red-500 hover:bg-red-600 text-white"
