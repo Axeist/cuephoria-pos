@@ -34,6 +34,93 @@ import { useLocation } from '@/context/LocationContext';
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
 type SortDirection = 'asc' | 'desc' | null;
 
+/** PIN required to delete a session from Reports (staff safeguard). */
+const SESSION_DELETE_PIN = "2101";
+
+function SessionDeleteDialog({
+  sessionId,
+  onDelete,
+}: {
+  sessionId: string;
+  onDelete: (id: string) => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const { toast } = useToast();
+  const pinOk = pin === SESSION_DELETE_PIN;
+
+  const handleConfirm = async () => {
+    if (!pinOk) {
+      toast({
+        title: "Incorrect PIN",
+        description: "Enter the correct PIN to delete a session.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await onDelete(sessionId);
+    setOpen(false);
+    setPin("");
+  };
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setPin("");
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="sr-only">Delete session</span>
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent className="bg-gray-900 border-gray-800 text-white">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Session</AlertDialogTitle>
+          <AlertDialogDescription className="text-gray-400">
+            This cannot be undone. Enter the staff PIN to confirm deletion.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-2 py-1">
+          <Label htmlFor={`session-delete-pin-${sessionId}`} className="text-gray-200">
+            PIN
+          </Label>
+          <Input
+            id={`session-delete-pin-${sessionId}`}
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="Enter PIN"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            className="bg-gray-800 border-gray-700 text-white"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-red-900 hover:bg-red-800 focus:ring-red-800 disabled:opacity-50"
+            disabled={!pinOk}
+            onClick={(e) => {
+              e.preventDefault();
+              void handleConfirm();
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 const ReportsPage: React.FC = () => {
   const {
     expenses,
@@ -1627,35 +1714,7 @@ const ReportsPage: React.FC = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete session</span>
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-gray-900 border-gray-800 text-white">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Session</AlertDialogTitle>
-                          <AlertDialogDescription className="text-gray-400">
-                            Are you sure you want to delete this session? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel className="bg-gray-800 text-white hover:bg-gray-700">Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-red-900 hover:bg-red-800 focus:ring-red-800"
-                            onClick={() => handleDeleteSession(session.id)}
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <SessionDeleteDialog sessionId={session.id} onDelete={handleDeleteSession} />
                   </TableCell>
                 </TableRow>
               );
