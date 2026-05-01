@@ -1,10 +1,17 @@
 -- Shop physical cash: till + piggy bank, append-only ledger (per location).
 -- Drops legacy cash_vault mutation triggers so the old incorrect balance logic cannot run.
+-- Must drop triggers before functions (Postgres will block DROP FUNCTION if triggers remain).
 
+-- INSERT-side vault updates (name differs across environments / schema dumps)
+DROP TRIGGER IF EXISTS update_vault_on_transaction ON public.cash_vault_transactions;
 DROP TRIGGER IF EXISTS trigger_update_cash_vault ON public.cash_vault_transactions;
+-- DELETE-side reversals
+DROP TRIGGER IF EXISTS reverse_vault_on_transaction ON public.cash_vault_transactions;
 DROP TRIGGER IF EXISTS trigger_reverse_cash_vault_on_delete ON public.cash_vault_transactions;
-DROP FUNCTION IF EXISTS public.update_cash_vault();
-DROP FUNCTION IF EXISTS public.reverse_cash_vault_on_delete();
+
+-- CASCADE removes any remaining triggers still attached to these functions (unknown names).
+DROP FUNCTION IF EXISTS public.update_cash_vault() CASCADE;
+DROP FUNCTION IF EXISTS public.reverse_cash_vault_on_delete() CASCADE;
 
 CREATE TABLE IF NOT EXISTS public.shop_cash_balances (
   location_id uuid PRIMARY KEY REFERENCES public.locations (id) ON DELETE CASCADE,
