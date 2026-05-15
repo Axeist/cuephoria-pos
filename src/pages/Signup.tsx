@@ -150,18 +150,27 @@ export default function Signup() {
       }
       const delivered = json?.verificationEmailDispatched === true;
       const emailIssue = json?.verificationEmailIssue as string | undefined;
+      const emailErr =
+        typeof json?.verificationEmailError === "string" ? json.verificationEmailError.trim() : "";
       setVerificationEmailDispatched(delivered);
       if (emailIssue === "not_configured") {
         appToast.warning(
           "Workspace created",
           "This deployment is not set up to send email yet (missing Resend configuration). You won't receive a verification link until an administrator adds RESEND_API_KEY and RESEND_FROM.",
         );
+      } else if (!delivered) {
+        const detail =
+          emailErr ? ` ${emailIssue === "token_failed" ? "Token error:" : "Details:"} ${emailErr}` : "";
+        appToast.warning(
+          "Workspace created",
+          (emailIssue === "token_failed"
+            ? "We could not create your verification link. Try “Resend verification email” below or contact support."
+            : "We could not send the verification email. Try “Resend verification email” below or contact support.") + detail,
+        );
       } else {
         appToast.success(
           "Workspace created",
-          delivered
-            ? "Check your inbox — open the verification link to sign in automatically and start onboarding."
-            : "Workspace created, but we could not send the verification email. Try “Resend verification email” below or contact support.",
+          "Check your inbox — open the verification link to sign in automatically and start onboarding.",
         );
       }
       setCreatedEmail(typeof json?.email === "string" ? json.email : email.trim().toLowerCase());

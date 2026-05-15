@@ -147,11 +147,28 @@ export interface SendEmailResult {
   error?: string;
 }
 
+/** Prefer literal `process.env` reads so Vercel Edge bundles always inline Resend keys. */
+function resendCredentials(): { apiKey?: string; from?: string; replyTo?: string } {
+  const pe = typeof process !== "undefined" ? process.env : undefined;
+  const apiKey =
+    (pe?.RESEND_API_KEY && String(pe.RESEND_API_KEY).trim()) || getEnv("RESEND_API_KEY")?.trim() || "";
+  const from =
+    (pe?.RESEND_FROM && String(pe.RESEND_FROM).trim()) || getEnv("RESEND_FROM")?.trim() || "";
+  const replyTo =
+    (pe?.RESEND_REPLY_TO && String(pe.RESEND_REPLY_TO).trim()) ||
+    getEnv("RESEND_REPLY_TO")?.trim() ||
+    "";
+  return {
+    apiKey: apiKey || undefined,
+    from: from || undefined,
+    replyTo: replyTo || undefined,
+  };
+}
+
 export async function sendEmail<K extends EmailKind>(
   opts: SendEmailOptions<K>,
 ): Promise<SendEmailResult> {
-  const apiKey = getEnv("RESEND_API_KEY");
-  const from = getEnv("RESEND_FROM");
+  const { apiKey, from, replyTo: envReplyTo } = resendCredentials();
 
   // Soft-skip instead of crashing if email infra isn't configured yet. This
   // lets the app run in a pre-Resend staging environment.
@@ -163,7 +180,16 @@ export async function sendEmail<K extends EmailKind>(
     return { ok: false, skipped: true, error: "Email not configured" };
   }
 
-  const rendered = renderTemplate(opts.kind, opts.vars as never);
+  let rendered: RenderedEmail;
+  try {
+    rendered = renderTemplate(opts.kind, opts.vars as never);
+  } catch (renderErr) {
+    const msg = renderErr instanceof Error ? renderErr.message : String(renderErr);
+    console.warn(`[email] renderTemplate failed for ${opts.kind}:`, msg);
+    await recordEvent(opts, "failed", `template: ${msg}`);
+    return { ok: false, error: msg };
+  }
+
   const body: Record<string, unknown> = {
     from,
     to: [opts.to],
@@ -175,7 +201,7 @@ export async function sendEmail<K extends EmailKind>(
       ...(opts.organizationId ? [{ name: "org", value: opts.organizationId.slice(0, 32) }] : []),
     ],
   };
-  const replyTo = opts.replyTo || getEnv("RESEND_REPLY_TO");
+  const replyTo = opts.replyTo || envReplyTo;
   if (replyTo) body.reply_to = replyTo;
 
   try {

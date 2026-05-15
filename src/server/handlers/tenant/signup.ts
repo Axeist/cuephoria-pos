@@ -293,14 +293,16 @@ export default async function handler(req: Request) {
 
     // ── Welcome + verification email (best-effort, never blocks signup)
     let verificationEmailDispatched = false;
-    let verificationEmailIssue: "not_configured" | "send_failed" | null = null;
-    if (newUser.email) {
+    let verificationEmailIssue: "not_configured" | "send_failed" | "token_failed" | null = null;
+    let verificationEmailError: string | null = null;
+
+    if (ownerEmail) {
       try {
         const base = appBaseUrl();
         const token = await issueEmailToken({
           supabase,
           adminUserId: newUser.id,
-          email: newUser.email,
+          email: ownerEmail,
           purpose: "verify_email",
           ttlMinutes: 60 * 24,
           requestedIp: req.headers.get("x-forwarded-for") || null,
@@ -313,9 +315,10 @@ export default async function handler(req: Request) {
           month: "short",
           year: "numeric",
         });
-        const emailResult = await sendEmail({
+
+        let emailResult = await sendEmail({
           kind: "signup_welcome",
-          to: newUser.email,
+          to: ownerEmail,
           vars: {
             appBaseUrl: base,
             displayName: ownerDisplayName || ownerEmail.split("@")[0] || ownerUsername,
@@ -328,13 +331,36 @@ export default async function handler(req: Request) {
           adminUserId: newUser.id,
           supabase,
         });
+
+        // Fallback: slimmer template if welcome mail fails (same Resend payload edge cases).
+        if (!emailResult.ok && !emailResult.skipped) {
+          emailResult = await sendEmail({
+            kind: "verify_email",
+            to: ownerEmail,
+            vars: {
+              appBaseUrl: base,
+              displayName: ownerDisplayName || ownerEmail.split("@")[0] || ownerUsername,
+              verifyUrl,
+              expiresInMinutes: 60 * 24,
+            },
+            organizationId: newOrg.id,
+            adminUserId: newUser.id,
+            supabase,
+          });
+        }
+
         verificationEmailDispatched = !!emailResult.ok;
         if (!emailResult.ok) {
           verificationEmailIssue = emailResult.skipped ? "not_configured" : "send_failed";
+          if (emailResult.error) {
+            verificationEmailError = emailResult.error.slice(0, 280);
+          }
         }
       } catch (mailErr) {
-        console.warn("signup: welcome email failed", (mailErr as Error).message);
-        verificationEmailIssue = "send_failed";
+        const msg = mailErr instanceof Error ? mailErr.message : String(mailErr);
+        console.warn("signup: welcome email failed", msg);
+        verificationEmailIssue = msg.includes("issueEmailToken") ? "token_failed" : "send_failed";
+        verificationEmailError = msg.slice(0, 280);
       }
     }
     // ── Audit log ────────────────────────────────────────────────────────
@@ -358,9 +384,10 @@ export default async function handler(req: Request) {
       {
         ok: true,
         verificationRequired: true,
-        email: newUser.email,
+        email: ownerEmail || newUser.email,
         verificationEmailDispatched,
         ...(verificationEmailIssue ? { verificationEmailIssue } : {}),
+        ...(verificationEmailError ? { verificationEmailError } : {}),
         organization: {
           id: newOrg.id,
           slug: newOrg.slug,

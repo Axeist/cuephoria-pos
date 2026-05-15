@@ -25,6 +25,11 @@ function formatSupabaseWriteError(err: unknown): string {
   if (err == null) return "unknown error (null)";
   if (typeof err === "string") return err;
   if (typeof err !== "object") return String(err);
+  // Error subclasses (incl. PostgREST): `message` is usually non-enumerable, so JSON.stringify yields "{}".
+  if (err instanceof Error) {
+    const m = err.message?.trim();
+    if (m) return m;
+  }
   const o = err as {
     message?: string;
     details?: string;
@@ -35,13 +40,34 @@ function formatSupabaseWriteError(err: unknown): string {
     (p): p is string => Boolean(p && String(p).trim()),
   );
   if (parts.length) return parts.join(" — ");
+  const own = Object.getOwnPropertyNames(err as object);
+  if (own.length) {
+    const rec = err as Record<string, unknown>;
+    return ownerString(rec, own);
+  }
   try {
     const s = JSON.stringify(err);
-    if (s === "{}" || s === "[]") return "empty error object from database API (check network / Supabase logs)";
+    if (s === "{}" || s === "[]")
+      return "empty error object from database API — confirm table admin_user_email_tokens exists (migration slice14), Supabase URL/key match this project, and check Supabase API logs)";
     return s;
   } catch {
     return "unserializable error from database client";
   }
+}
+
+function ownerString(rec: Record<string, unknown>, keys: string[]): string {
+  return keys.map((k) => `${k}=${String(rec[k])}`).join("; ");
+}
+
+/** True when PostgREST sets `error` to a useless `{}` (truthy but no fields). */
+function isEmptySupabaseError(err: unknown): boolean {
+  if (err == null || typeof err !== "object") return false;
+  if (err instanceof Error) return !String(err.message || "").trim();
+  const o = err as Record<string, unknown>;
+  return !["message", "details", "hint", "code"].some((k) => {
+    const v = o[k];
+    return v != null && String(v).trim() !== "";
+  });
 }
 
 const TOKEN_BYTES = 32;
@@ -111,24 +137,42 @@ export async function issueEmailToken(opts: IssueTokenOptions): Promise<IssuedTo
     console.warn("[issueEmailToken] invalidate prior:", formatSupabaseWriteError(invErr));
   }
 
-  const { error } = await opts.supabase.from("admin_user_email_tokens").insert({
-    admin_user_id: opts.adminUserId,
-    purpose: opts.purpose,
-    token_hash: tokenHash,
-    email: emailNorm,
-    expires_at: expiresAt.toISOString(),
-    requested_ip:
-      opts.requestedIp != null && String(opts.requestedIp).trim() !== ""
-        ? String(opts.requestedIp).slice(0, 512)
-        : null,
-    requested_ua:
-      opts.requestedUa != null && String(opts.requestedUa).trim() !== ""
-        ? String(opts.requestedUa).slice(0, 4096)
-        : null,
-  });
-  if (error) throw new Error(`issueEmailToken: ${formatSupabaseWriteError(error)}`);
+  const { data: inserted, error } = await opts.supabase
+    .from("admin_user_email_tokens")
+    .insert({
+      admin_user_id: opts.adminUserId,
+      purpose: opts.purpose,
+      token_hash: tokenHash,
+      email: emailNorm,
+      expires_at: expiresAt.toISOString(),
+      requested_ip:
+        opts.requestedIp != null && String(opts.requestedIp).trim() !== ""
+          ? String(opts.requestedIp).slice(0, 512)
+          : null,
+      requested_ua:
+        opts.requestedUa != null && String(opts.requestedUa).trim() !== ""
+          ? String(opts.requestedUa).slice(0, 4096)
+          : null,
+    })
+    .select("id")
+    .maybeSingle();
 
-  return { token: raw, expiresAt };
+  // Some Edge / proxy paths surface `error: {}` while the row still commits; trust a returned id.
+  if (inserted?.id) {
+    return { token: raw, expiresAt };
+  }
+
+  if (error && !isEmptySupabaseError(error)) {
+    throw new Error(`issueEmailToken: ${formatSupabaseWriteError(error)}`);
+  }
+
+  if (error && isEmptySupabaseError(error)) {
+    console.warn("[issueEmailToken] insert returned empty error object and no row id; treating as failure");
+  }
+
+  throw new Error(
+    `issueEmailToken: could not create token row (table admin_user_email_tokens missing, RLS, or API mismatch — run DB migrations and verify SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY for this project)`,
+  );
 }
 
 export interface ConsumeTokenResult {
