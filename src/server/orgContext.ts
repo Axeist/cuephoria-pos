@@ -217,7 +217,19 @@ export function withOrgContext(
     if ("code" in result) {
       return j({ ok: false, error: result.message, code: result.code }, result.status);
     }
-    return handler(req, result);
+    try {
+      return await handler(req, result);
+    } catch (err) {
+      console.error("withOrgContext handler error", err);
+      return j(
+        {
+          ok: false,
+          error: err instanceof Error ? err.message : "Internal server error",
+          code: "handler_exception",
+        },
+        500,
+      );
+    }
   };
 }
 

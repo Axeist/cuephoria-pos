@@ -144,6 +144,21 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+async function parseTenantBillingJson(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  const trimmed = text.trim();
+  const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+  if (!looksJson) {
+    const snippet = trimmed.replace(/\s+/g, " ").slice(0, 160);
+    throw new Error(snippet || `Billing request failed (HTTP ${res.status}).`);
+  }
+  try {
+    return JSON.parse(trimmed) as Record<string, unknown>;
+  } catch {
+    throw new Error(trimmed.replace(/\s+/g, " ").slice(0, 160));
+  }
+}
+
 export default function Billing() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -155,10 +170,10 @@ export default function Billing() {
     queryKey: ["tenant-billing"],
     queryFn: async () => {
       const res = await fetch("/api/tenant/billing", { credentials: "include" });
-      const json = await res.json();
-      if (json.ok === false) throw new Error(json.error || "Failed to load billing");
+      const json = await parseTenantBillingJson(res);
+      if (json.ok === false) throw new Error(String(json.error || "Failed to load billing"));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return json;
+      return json as BillingResponse;
     },
     staleTime: 15_000,
   });
@@ -171,8 +186,8 @@ export default function Billing() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "subscribe", planCode, interval, provider: billingProvider }),
       });
-      const json = await res.json();
-      if (json.ok === false) throw new Error(json.error || "Subscribe failed");
+      const json = await parseTenantBillingJson(res);
+      if (json.ok === false) throw new Error(String(json.error || "Subscribe failed"));
       return json as { shortUrl: string | null };
     },
     onSuccess: (data) => {
@@ -197,8 +212,8 @@ export default function Billing() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "cancel" }),
       });
-      const json = await res.json();
-      if (json.ok === false) throw new Error(json.error || "Cancel failed");
+      const json = await parseTenantBillingJson(res);
+      if (json.ok === false) throw new Error(String(json.error || "Cancel failed"));
       return json;
     },
     onSuccess: () => {
@@ -219,8 +234,8 @@ export default function Billing() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "resume" }),
       });
-      const json = await res.json();
-      if (json.ok === false) throw new Error(json.error || "Resume failed");
+      const json = await parseTenantBillingJson(res);
+      if (json.ok === false) throw new Error(String(json.error || "Resume failed"));
       return json;
     },
     onSuccess: () => {

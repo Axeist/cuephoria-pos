@@ -19,6 +19,9 @@ import {
 } from "../../src/server/lib/razorpay-subscriptions";
 import { resolveRequestedProvider } from "../../src/server/lib/payment-provider-facade";
 
+/** Node runtime — avoids Edge bundling `node:crypto` from razorpay-subscriptions helpers. */
+export const config = { maxDuration: 60 };
+
 const EDITOR_ROLES = new Set(["owner", "admin"]);
 const INVOICE_PAGE_SIZE = 24;
 const DEFAULT_TOTAL_COUNT_MONTHLY = 12 * 10;

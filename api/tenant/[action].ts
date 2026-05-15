@@ -7,11 +7,15 @@
  * several of those modules are already wrapped in `withOrgContext` and
  * therefore export a plain (req) => Response default, so the dispatcher needs
  * no special-casing.
+ *
+ * Billing is intentionally NOT routed here — it is implemented only in
+ * `api/tenant/billing.ts` (Node + Razorpay SDK). See `api/bookings/[action].ts`
+ * note: concrete sibling files resolve before `[action]`; importing a second
+ * copy here risks divergent behaviour and wastes a function bundle.
  */
 
 import { j } from "../../src/server/adminApiUtils";
 
-import billing from "../../src/server/handlers/tenant/billing";
 import brandingUpload from "../../src/server/handlers/tenant/branding-upload";
 import branding from "../../src/server/handlers/tenant/branding";
 import onboarding from "../../src/server/handlers/tenant/onboarding";
@@ -26,7 +30,6 @@ export const config = { runtime: "edge" };
 type Handler = (req: Request) => Promise<Response> | Response;
 
 const routes: Record<string, Handler> = {
-  "billing": billing,
   "branding-upload": brandingUpload,
   "branding": branding,
   "onboarding": onboarding,
