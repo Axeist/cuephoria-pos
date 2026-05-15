@@ -7,6 +7,7 @@ import {
   verifyAdminSession,
 } from "../../adminApiUtils";
 import { hashPassword } from "../../passwordUtils";
+import { resolveOrgContext } from "../../orgContext";
 
 export const config = { runtime: "edge" };
 
@@ -153,11 +154,39 @@ export default async function handler(req: Request) {
           password_updated_at: new Date().toISOString(),
           is_admin: isAdmin,
           is_super_admin: isSuperAdmin,
+          // Admin-provisioned accounts: org attests the email; no inbox verification required.
+          email_verified_at: new Date().toISOString(),
         })
         .select("id")
         .single();
 
       if (insertErr || !newUser) return j({ ok: false, error: insertErr?.message ?? "Insert failed" }, 500);
+
+      const ctx = await resolveOrgContext(req);
+      if ("code" in ctx) {
+        await supabase.from("admin_users").delete().eq("id", newUser.id);
+        return j(
+          {
+            ok: false,
+            error:
+              ctx.code === "no_org"
+                ? "Your session has no workspace — open the correct venue first, then add users."
+                : ctx.message || "Could not resolve workspace for this user.",
+          },
+          ctx.status,
+        );
+      }
+
+      const orgRole: "admin" | "staff" = isAdmin || isSuperAdmin ? "admin" : "staff";
+      const { error: memInsertErr } = await supabase.from("org_memberships").insert({
+        organization_id: ctx.organizationId,
+        admin_user_id: newUser.id,
+        role: orgRole,
+      });
+      if (memInsertErr) {
+        await supabase.from("admin_users").delete().eq("id", newUser.id);
+        return j({ ok: false, error: memInsertErr.message }, 500);
+      }
 
       // Assign locations
       const locs = isSuperAdmin
@@ -197,12 +226,14 @@ export default async function handler(req: Request) {
         const { data: other } = await supabase.from("admin_users").select("id").eq("email", emailNorm).neq("id", id).maybeSingle();
         if (other?.id) return j({ ok: false, error: "Another account already uses this email." }, 409);
         update.email = emailNorm;
+        update.email_verified_at = new Date().toISOString();
       } else if (typeof update.username === "string" && update.username.trim()) {
         const sync = normalizeAdminEmail(undefined, update.username);
         if (sync) {
           const { data: other } = await supabase.from("admin_users").select("id").eq("email", sync).neq("id", id).maybeSingle();
           if (other?.id) return j({ ok: false, error: "Another account already uses this email." }, 409);
           update.email = sync;
+          update.email_verified_at = new Date().toISOString();
         }
       }
       if (typeof body?.newPassword === "string" && body.newPassword.trim()) {

@@ -122,7 +122,7 @@ const SignupGoogle: React.FC = () => {
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && json.ok) {
-        appToast.success("Workspace created — welcome aboard!");
+        appToast.success("Workspace created — continue in onboarding.");
         try {
           sessionStorage.removeItem("gh_show_login_splash_v1");
         } catch {

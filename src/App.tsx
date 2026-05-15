@@ -275,6 +275,9 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
   if (!user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
+  if (user.mustChangePassword && location.pathname !== "/account/change-password") {
+    return <Navigate to="/account/change-password" replace />;
+  }
   return <OrganizationProvider>{children}</OrganizationProvider>;
 };
 

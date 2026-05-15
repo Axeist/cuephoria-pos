@@ -262,7 +262,7 @@ export default async function handler(req: Request) {
           appBaseUrl: base,
           displayName: resolvedDisplayName || identity.email.split("@")[0] || username,
           organizationName,
-          verifyUrl: `${base}/dashboard`,
+          verifyUrl: `${base}/onboarding`,
           dashboardUrl: `${base}/onboarding`,
           signupMode: "oauth",
           trialEndsAt: new Date(trialEndsAt).toLocaleDateString("en-IN", {

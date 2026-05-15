@@ -5,12 +5,9 @@
 
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CheckCircle2, Loader2, ShieldAlert, Sparkles } from "lucide-react";
+import { Loader2, ShieldAlert, Sparkles } from "lucide-react";
 
-type State =
-  | { kind: "loading" }
-  | { kind: "ok"; email: string }
-  | { kind: "error"; message: string };
+type State = { kind: "loading" } | { kind: "error"; message: string };
 
 const VerifyEmail: React.FC = () => {
   const [params] = useSearchParams();
@@ -27,6 +24,7 @@ const VerifyEmail: React.FC = () => {
       try {
         const res = await fetch("/api/admin/verify-email", {
           method: "POST",
+          credentials: "include",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ token }),
         });
@@ -37,7 +35,13 @@ const VerifyEmail: React.FC = () => {
         };
         if (cancelled) return;
         if (res.ok && json.ok) {
-          setState({ kind: "ok", email: json.email || "" });
+          try {
+            sessionStorage.setItem("gh_show_login_splash_v1", "1");
+          } catch {
+            /* ignore */
+          }
+          window.location.replace("/onboarding");
+          return;
         } else {
           setState({ kind: "error", message: json.error || "Verification failed." });
         }
@@ -64,25 +68,7 @@ const VerifyEmail: React.FC = () => {
         {state.kind === "loading" && (
           <div className="flex flex-col items-center text-center gap-4 py-8">
             <Loader2 className="h-8 w-8 animate-spin text-fuchsia-400" />
-            <p className="text-sm text-zinc-400">Confirming your email…</p>
-          </div>
-        )}
-
-        {state.kind === "ok" && (
-          <div className="flex flex-col items-center text-center gap-4 py-2">
-            <div className="h-14 w-14 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/30">
-              <CheckCircle2 className="h-7 w-7 text-emerald-400" />
-            </div>
-            <h1 className="text-2xl font-bold">Email verified</h1>
-            <p className="text-sm text-zinc-400">
-              {state.email || "Your email address"} is now confirmed. You can close this tab or head back to the app.
-            </p>
-            <Link
-              to="/dashboard"
-              className="mt-2 inline-flex items-center justify-center h-11 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-95"
-            >
-              Go to dashboard
-            </Link>
+            <p className="text-sm text-zinc-400">Confirming your email and signing you in…</p>
           </div>
         )}
 

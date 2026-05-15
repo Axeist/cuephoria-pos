@@ -146,7 +146,6 @@ export default function Signup() {
           setFieldError({ field: json.field, message });
         }
         appToast.error("Could not create workspace", message);
-        setSubmitting(false);
         return;
       }
       const delivered = json?.verificationEmailDispatched === true;
@@ -161,14 +160,14 @@ export default function Signup() {
         appToast.success(
           "Workspace created",
           delivered
-            ? "Check your inbox to verify your email before first login."
+            ? "Check your inbox — open the verification link to sign in automatically and start onboarding."
             : "Workspace created, but we could not send the verification email. Try “Resend verification email” below or contact support.",
         );
       }
       setCreatedEmail(typeof json?.email === "string" ? json.email : email.trim().toLowerCase());
-      return;
     } catch (err) {
       appToast.error("Something went wrong", (err as Error)?.message || "Please try again.");
+    } finally {
       setSubmitting(false);
     }
   }
@@ -220,7 +219,8 @@ export default function Signup() {
               {verificationEmailDispatched ? (
                 <>
                   We sent a verification link to <span className="text-zinc-200 font-medium">{createdEmail}</span>.
-                  Click it first, then sign in to access your new Cuetronix workspace.
+                  Open it on this device to <strong className="text-zinc-200">confirm your email</strong>, get{" "}
+                  <strong className="text-zinc-200">signed in automatically</strong>, and land in the onboarding wizard.
                 </>
               ) : (
                 <>
@@ -235,13 +235,6 @@ export default function Signup() {
             <div className="mt-7 flex flex-col sm:flex-row gap-2.5 justify-center">
               <Button
                 className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 text-white"
-                onClick={() => navigate("/login")}
-              >
-                Go to sign in
-              </Button>
-              <Button
-                variant="outline"
-                className="border-white/15 bg-white/5 text-zinc-200 hover:bg-white/10"
                 disabled={resendSubmitting || resendCooldownSec > 0}
                 onClick={handleResendVerification}
               >
@@ -250,6 +243,13 @@ export default function Signup() {
                   : resendCooldownSec > 0
                   ? `Resend in ${resendCooldownSec}s`
                   : "Resend verification email"}
+              </Button>
+              <Button
+                variant="outline"
+                className="border-white/15 bg-white/5 text-zinc-200 hover:bg-white/10"
+                onClick={() => navigate("/login")}
+              >
+                I&apos;ll sign in manually
               </Button>
             </div>
           </div>

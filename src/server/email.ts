@@ -330,9 +330,9 @@ function renderTemplate<K extends EmailKind>(
               ``,
               `You signed in with Google, so your email is already verified.`,
               ``,
-              `Open your dashboard: ${v.verifyUrl}`,
+              `Jump straight into onboarding: ${v.verifyUrl}`,
               ``,
-              `Continue onboarding: ${v.dashboardUrl}`,
+              `You can also open this setup URL when signed in: ${v.dashboardUrl}`,
               ``,
               v.trialEndsAt ? `Your 14-day free trial runs until ${v.trialEndsAt}.` : "",
               `— The Cuetronix team`,
@@ -344,10 +344,10 @@ function renderTemplate<K extends EmailKind>(
               ``,
               `Your Cuetronix workspace is ready.`,
               ``,
-              `Before your first login, verify your email:`,
+              `Use this link to verify your email — you'll be signed in automatically and taken to onboarding:`,
               v.verifyUrl,
               ``,
-              `After verification, sign in and continue onboarding: ${v.dashboardUrl}`,
+              `Direct link to the setup wizard: ${v.dashboardUrl}`,
               ``,
               v.trialEndsAt
                 ? `Your 14-day free trial runs until ${v.trialEndsAt}.`
@@ -358,19 +358,19 @@ function renderTemplate<K extends EmailKind>(
               .join("\n"),
         html: wrapShell({
           preheader: isOauth
-            ? "Your workspace is live — you're signed in and ready to finish setup."
-            : "Your workspace is live. Verify email to unlock first login.",
+            ? "Your workspace is live — open the link to continue setup."
+            : "One click verifies your email and opens your onboarding wizard.",
           heading: isOauth
             ? `Welcome — ${v.organizationName ? htmlEscape(v.organizationName) : "your workspace"} is live ✨`
             : `Welcome, ${v.displayName ? htmlEscape(v.displayName) : "operator"} — let's go live ✨`,
           bodyHtml: isOauth
             ? `
             <p style="margin:12px 0 0 0">Your workspace <strong style="color:#ffffff">${htmlEscape(v.organizationName || "Cuetronix")}</strong> is provisioned. You signed in with Google, so your email is already verified.</p>
-            <p style="margin:14px 0 0 0">Jump into the dashboard and continue onboarding when you're ready.</p>
+            <p style="margin:14px 0 0 0">Use the button below to open the onboarding wizard and finish setup.</p>
             `
             : `
             <p style="margin:12px 0 0 0">Your workspace <strong style="color:#ffffff">${htmlEscape(v.organizationName || "Cuetronix")}</strong> has been provisioned and is waiting for you.</p>
-            <p style="margin:14px 0 0 0">To protect your account and enable sign-in, confirm your email first. It takes one click.</p>
+            <p style="margin:14px 0 0 0">Confirm your email with one click — we&apos;ll sign you in and open the onboarding wizard so you can finish setup.</p>
             <table cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;width:100%;border-collapse:collapse;border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden">
               <tr>
                 <td style="padding:11px 14px;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em">Workspace</td>
@@ -378,18 +378,18 @@ function renderTemplate<K extends EmailKind>(
               </tr>
               <tr>
                 <td style="padding:11px 14px;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;border-top:1px solid rgba(255,255,255,0.06)">Next step</td>
-                <td style="padding:11px 14px;color:#ffffff;font-weight:600;border-top:1px solid rgba(255,255,255,0.06)">Verify email to unlock first login</td>
+                <td style="padding:11px 14px;color:#ffffff;font-weight:600;border-top:1px solid rgba(255,255,255,0.06)">Verify email → signed in → onboarding</td>
               </tr>
               ${v.trialEndsAt ? `<tr><td style="padding:11px 14px;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;border-top:1px solid rgba(255,255,255,0.06)">Trial until</td><td style="padding:11px 14px;color:#ffffff;font-weight:600;border-top:1px solid rgba(255,255,255,0.06)">${htmlEscape(v.trialEndsAt)}</td></tr>` : ""}
             </table>
           `,
           cta: {
-            label: isOauth ? "Open your workspace" : "Verify Email & Continue",
+            label: isOauth ? "Continue onboarding" : "Verify Email & Continue",
             url: v.verifyUrl,
           },
           footerNote: isOauth
-            ? `Continue onboarding: ${v.dashboardUrl}`
-            : `Once verified, sign in and continue setup: ${v.dashboardUrl}`,
+            ? `You're already signed in — this link opens onboarding: ${v.dashboardUrl}`
+            : `After you verify, you'll land in onboarding (no separate sign-in on this device). Setup wizard: ${v.dashboardUrl}`,
           appBaseUrl: v.appBaseUrl,
         }),
       };
@@ -403,7 +403,7 @@ function renderTemplate<K extends EmailKind>(
         html: wrapShell({
           preheader: "Confirm your email to protect your Cuetronix workspace.",
           heading: "Confirm your email",
-          bodyHtml: `<p style="margin:12px 0 0 0">Click the button below to confirm this address. The link is valid for <strong>${v.expiresInMinutes} minutes</strong> and can only be used once.</p>`,
+          bodyHtml: `<p style="margin:12px 0 0 0">Click the button below to confirm this address. The link is valid for <strong>${v.expiresInMinutes} minutes</strong> and can only be used once. You&apos;ll be signed in automatically after confirming.</p>`,
           cta: { label: "Confirm email", url: v.verifyUrl },
           footerNote: "If you didn't request this, it's safe to ignore this email.",
           appBaseUrl: v.appBaseUrl,

@@ -36,7 +36,9 @@ function formatSupabaseWriteError(err: unknown): string {
   );
   if (parts.length) return parts.join(" — ");
   try {
-    return JSON.stringify(err);
+    const s = JSON.stringify(err);
+    if (s === "{}" || s === "[]") return "empty error object from database API (check network / Supabase logs)";
+    return s;
   } catch {
     return "unserializable error from database client";
   }
