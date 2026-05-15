@@ -8,6 +8,7 @@
  *   {
  *     orgId: string (uuid),
  *     username: string,        // ends up as the login username
+ *     email: string,           // required — stored on admin_users (NOT NULL + unique)
  *     displayName?: string,    // not persisted today; reserved for Slice 5
  *     tempPassword: string,    // >= 8 chars, displayed once to the operator
  *     role?: 'owner' | 'admin' // default 'owner'
@@ -15,7 +16,7 @@
  *
  * Behaviour:
  *   1. Rejects invites into internal orgs (Cuephoria). Use the app directly.
- *   2. Enforces global admin_users.username uniqueness with a friendly 409.
+ *   2. Enforces global admin_users.username and email uniqueness with friendly 409s.
  *   3. Creates admin_user + org_membership + admin_user_locations (all active
  *      branches) atomically; rolls back on any failure.
  *   4. Writes an audit log entry.
@@ -34,6 +35,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const USERNAME_RE = /^[a-zA-Z0-9._+@-]{3,64}$/;
 const ALLOWED_ROLES = new Set(["owner", "admin"]);
 
+function isValidEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
 export default async function handler(req: Request) {
   if (req.method !== "POST") return j({ ok: false, error: "Method not allowed" }, 405);
   if (req.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
@@ -47,6 +52,7 @@ export default async function handler(req: Request) {
   let body: {
     orgId?: string;
     username?: string;
+    email?: string;
     displayName?: string;
     tempPassword?: string;
     role?: string;
@@ -59,6 +65,7 @@ export default async function handler(req: Request) {
 
   const orgId = (body.orgId || "").trim();
   const username = (body.username || "").trim();
+  const ownerEmail = (body.email || "").trim().toLowerCase();
   const tempPassword = body.tempPassword || "";
   const role = (body.role || "owner").trim();
 
@@ -68,6 +75,9 @@ export default async function handler(req: Request) {
       { ok: false, error: "Username must be 3–64 chars: letters, digits, '.', '_', '+', '@', '-'." },
       400,
     );
+  }
+  if (!ownerEmail || !isValidEmail(ownerEmail)) {
+    return j({ ok: false, error: "Enter a valid email address for this invite.", field: "email" }, 400);
   }
   if (typeof tempPassword !== "string" || tempPassword.length < 8 || tempPassword.length > 128) {
     return j({ ok: false, error: "Temporary password must be 8–128 characters." }, 400);
@@ -115,6 +125,23 @@ export default async function handler(req: Request) {
       );
     }
 
+    const { data: emailTaken, error: emailCheckErr } = await supabase
+      .from("admin_users")
+      .select("id")
+      .eq("email", ownerEmail)
+      .maybeSingle();
+    if (emailCheckErr) return j({ ok: false, error: emailCheckErr.message }, 500);
+    if (emailTaken) {
+      return j(
+        {
+          ok: false,
+          error: "An account with this email already exists. Use another email or have them sign in.",
+          field: "email",
+        },
+        409,
+      );
+    }
+
     // -----------------------------------------------------------------------
     // 3) Create admin_user. Store only the PBKDF2 hash and force a rotation
     //    on first login so the temp password we just showed the operator
@@ -125,6 +152,7 @@ export default async function handler(req: Request) {
       .from("admin_users")
       .insert({
         username,
+        email: ownerEmail,
         password: null,
         password_hash: passwordHash,
         password_updated_at: new Date().toISOString(),
@@ -189,7 +217,7 @@ export default async function handler(req: Request) {
       action: "organization.owner_invited",
       target_type: "admin_user",
       target_id: newUser.id,
-      meta: { username, role, locationsLinked: locations?.length ?? 0 },
+      meta: { username, email: ownerEmail, role, locationsLinked: locations?.length ?? 0 },
     });
 
     return j(
@@ -198,6 +226,7 @@ export default async function handler(req: Request) {
         owner: {
           adminUserId: newUser.id,
           username: newUser.username,
+          email: ownerEmail,
           tempPassword,
           role: membership.role,
           locationsLinked: locations?.length ?? 0,

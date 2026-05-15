@@ -27,6 +27,7 @@ import {
 } from "../../adminApiUtils";
 import { verifyOauthState } from "../../googleOauth";
 import { usernameFromEmail } from "../../lib/tenantUsername";
+import { ensureTenantSignupEmailAvailable } from "../../lib/reclaimOrphanTenantAdmin";
 import { appBaseUrl, sendEmail } from "../../email";
 
 export const config = { runtime: "edge" };
@@ -120,14 +121,12 @@ export default async function handler(req: Request) {
       },
     );
 
-    // Refuse if this email already has an account (force them back to login
-    // where callback.ts will link the sub).
-    const { data: existingEmail } = await supabase
-      .from("admin_users")
-      .select("id")
-      .ilike("email", identity.email)
-      .maybeSingle();
-    if (existingEmail) {
+    const googleEmail = identity.email.trim().toLowerCase();
+    const emailGate = await ensureTenantSignupEmailAvailable(supabase, googleEmail, "signup-google");
+    if (!emailGate.ok) {
+      if (emailGate.reason === "db_error") {
+        return j({ ok: false, error: "Could not verify email availability. Try again in a moment." }, 500);
+      }
       return j(
         {
           ok: false,
@@ -206,7 +205,7 @@ export default async function handler(req: Request) {
         password_hash: null, // Google is the auth
         password: null,
         must_change_password: false,
-        email: identity.email.toLowerCase(),
+        email: googleEmail,
         email_verified_at: new Date().toISOString(),
         google_sub: identity.sub,
         display_name: resolvedDisplayName,

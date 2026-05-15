@@ -2,7 +2,7 @@
  * PlatformInviteOwnerDialog — seed the first (or additional) owner of a tenant.
  *
  * Flow:
- *   1. Operator fills username + role, generates a one-time password.
+ *   1. Operator fills username, email, role, generates a one-time password.
  *   2. Submit creates admin_user + membership + branch links atomically.
  *   3. On success, the dialog pivots to a "credentials reveal" state with
  *      a one-time copy-to-clipboard view. Closing that state is final —
@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const USERNAME_RE = /^[a-zA-Z0-9._+@-]{3,64}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function suggestPassword(): string {
   const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -53,6 +54,7 @@ type InviteResponse = {
   owner: {
     adminUserId: string;
     username: string;
+    email: string;
     tempPassword: string;
     role: string;
     locationsLinked: number;
@@ -72,16 +74,18 @@ export const PlatformInviteOwnerDialog: React.FC<{
   const queryClient = useQueryClient();
 
   const [username, setUsername] = React.useState("");
+  const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<"owner" | "admin">("owner");
   const [password, setPassword] = React.useState<string>(() => suggestPassword());
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<InviteResponse["owner"] | null>(null);
-  const [copied, setCopied] = React.useState<"username" | "password" | "bundle" | null>(null);
+  const [copied, setCopied] = React.useState<"email" | "username" | "password" | "bundle" | null>(null);
 
   React.useEffect(() => {
     if (open) {
       setUsername(suggestedUsername || `owner-${orgSlug}`);
+      setEmail("");
       setRole("owner");
       setPassword(suggestPassword());
       setShowPassword(false);
@@ -100,6 +104,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
         body: JSON.stringify({
           orgId,
           username: username.trim(),
+          email: email.trim().toLowerCase(),
           tempPassword: password,
           role,
         }),
@@ -117,9 +122,11 @@ export const PlatformInviteOwnerDialog: React.FC<{
   });
 
   const usernameValid = USERNAME_RE.test(username.trim());
+  const emailTrimmed = email.trim().toLowerCase();
+  const emailValid = EMAIL_RE.test(emailTrimmed);
   const passwordValid = password.length >= 8 && password.length <= 128;
 
-  const copy = async (what: "username" | "password" | "bundle", text: string) => {
+  const copy = async (what: "email" | "username" | "password" | "bundle", text: string) => {
     try {
       await navigator.clipboard?.writeText(text);
       setCopied(what);
@@ -130,7 +137,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
   };
 
   const bundle = result
-    ? `Workspace: ${orgName}\nSlug: ${orgSlug}\nUsername: ${result.username}\nTemporary password: ${result.tempPassword}\nRole: ${result.role}\nLogin at: https://cuephoriatech.in/login`
+    ? `Workspace: ${orgName}\nSlug: ${orgSlug}\nEmail: ${result.email}\nUsername: ${result.username}\nTemporary password: ${result.tempPassword}\nRole: ${result.role}\nLogin at: https://cuephoriatech.in/login`
     : "";
 
   return (
@@ -154,7 +161,8 @@ export const PlatformInviteOwnerDialog: React.FC<{
               <DialogTitle className="text-lg font-semibold">Invite an owner</DialogTitle>
               <DialogDescription className="text-zinc-400">
                 This creates a login for <strong className="text-zinc-200">{orgName}</strong>. You'll
-                see the password exactly once, so copy it and share it securely.
+                see the password exactly once, so copy it and share it securely. They can sign in with
+                username or email.
               </DialogDescription>
             </DialogHeader>
 
@@ -176,6 +184,29 @@ export const PlatformInviteOwnerDialog: React.FC<{
                   className="mt-1 bg-black/40 border-white/10 font-mono"
                   autoFocus
                 />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="invite-email" className="text-zinc-300">Email</Label>
+                  {emailTrimmed && !emailValid && (
+                    <span className="text-xs text-rose-400 inline-flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" /> Valid email required
+                    </span>
+                  )}
+                </div>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value.trimStart())}
+                  placeholder="owner@example.com"
+                  className="mt-1 bg-black/40 border-white/10"
+                />
+                <p className="mt-1 text-xs text-zinc-500">
+                  Used for login, password reset, and verification — use their real inbox.
+                </p>
               </div>
 
               <div>
@@ -266,7 +297,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
                   setError(null);
                   mutation.mutate();
                 }}
-                disabled={!usernameValid || !passwordValid || mutation.isPending}
+                disabled={!usernameValid || !emailValid || !passwordValid || mutation.isPending}
                 className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white hover:opacity-90"
               >
                 {mutation.isPending ? (
@@ -302,6 +333,12 @@ export const PlatformInviteOwnerDialog: React.FC<{
             </DialogHeader>
 
             <div className="space-y-3 py-2">
+              <CredRow
+                label="Email"
+                value={result.email}
+                onCopy={() => copy("email", result.email)}
+                copied={copied === "email"}
+              />
               <CredRow
                 label="Username"
                 value={result.username}

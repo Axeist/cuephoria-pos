@@ -28,6 +28,7 @@ import { hashPassword } from "../../passwordUtils";
 import { usernameFromEmail } from "../../lib/tenantUsername";
 import { appBaseUrl, sendEmail } from "../../email";
 import { issueEmailToken } from "../../emailTokens";
+import { ensureTenantSignupEmailAvailable } from "../../lib/reclaimOrphanTenantAdmin";
 
 export const config = { runtime: "edge" };
 
@@ -128,12 +129,11 @@ export default async function handler(req: Request) {
     );
 
     let ownerUsername = usernameFromEmail(ownerEmail);
-    const { data: emailTaken } = await supabase
-      .from("admin_users")
-      .select("id")
-      .eq("email", ownerEmail)
-      .maybeSingle();
-    if (emailTaken) {
+    const emailGate = await ensureTenantSignupEmailAvailable(supabase, ownerEmail, "signup");
+    if (!emailGate.ok) {
+      if (emailGate.reason === "db_error") {
+        return j({ ok: false, error: "Could not verify email availability. Try again in a moment." }, 500);
+      }
       return j(
         {
           ok: false,
