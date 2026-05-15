@@ -20,6 +20,28 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type EmailTokenPurpose = "verify_email" | "reset_password";
 
+/** PostgREST / network errors don't always populate `message`. */
+function formatSupabaseWriteError(err: unknown): string {
+  if (err == null) return "unknown error (null)";
+  if (typeof err === "string") return err;
+  if (typeof err !== "object") return String(err);
+  const o = err as {
+    message?: string;
+    details?: string;
+    hint?: string;
+    code?: string;
+  };
+  const parts = [o.message, o.details, o.hint, o.code ? `code ${o.code}` : ""].filter(
+    (p): p is string => Boolean(p && String(p).trim()),
+  );
+  if (parts.length) return parts.join(" — ");
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "unserializable error from database client";
+  }
+}
+
 const TOKEN_BYTES = 32;
 
 function toBase64Url(bytes: Uint8Array): string {
@@ -67,28 +89,42 @@ export interface IssuedToken {
  * works — a simple protection against stale-link attacks.
  */
 export async function issueEmailToken(opts: IssueTokenOptions): Promise<IssuedToken> {
+  const emailNorm = opts.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    throw new Error("issueEmailToken: invalid email address");
+  }
+
   const raw = toBase64Url(randomBytes(TOKEN_BYTES));
   const tokenHash = await sha256Hex(raw);
   const expiresAt = new Date(Date.now() + opts.ttlMinutes * 60 * 1000);
 
   // Invalidate prior unconsumed tokens of the same purpose.
-  await opts.supabase
+  const { error: invErr } = await opts.supabase
     .from("admin_user_email_tokens")
     .update({ consumed_at: new Date().toISOString() })
     .eq("admin_user_id", opts.adminUserId)
     .eq("purpose", opts.purpose)
     .is("consumed_at", null);
+  if (invErr) {
+    console.warn("[issueEmailToken] invalidate prior:", formatSupabaseWriteError(invErr));
+  }
 
   const { error } = await opts.supabase.from("admin_user_email_tokens").insert({
     admin_user_id: opts.adminUserId,
     purpose: opts.purpose,
     token_hash: tokenHash,
-    email: opts.email,
+    email: emailNorm,
     expires_at: expiresAt.toISOString(),
-    requested_ip: opts.requestedIp ?? null,
-    requested_ua: opts.requestedUa ?? null,
+    requested_ip:
+      opts.requestedIp != null && String(opts.requestedIp).trim() !== ""
+        ? String(opts.requestedIp).slice(0, 512)
+        : null,
+    requested_ua:
+      opts.requestedUa != null && String(opts.requestedUa).trim() !== ""
+        ? String(opts.requestedUa).slice(0, 4096)
+        : null,
   });
-  if (error) throw new Error(`issueEmailToken: ${error.message}`);
+  if (error) throw new Error(`issueEmailToken: ${formatSupabaseWriteError(error)}`);
 
   return { token: raw, expiresAt };
 }
@@ -124,7 +160,7 @@ export async function consumeEmailToken(
     .eq("purpose", purpose)
     .maybeSingle();
 
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: formatSupabaseWriteError(error) };
   if (!row) return { ok: false, error: "Token not found." };
   if (row.consumed_at) return { ok: false, error: "This link has already been used." };
   if (new Date(row.expires_at).getTime() < Date.now()) {
@@ -135,7 +171,7 @@ export async function consumeEmailToken(
     .from("admin_user_email_tokens")
     .update({ consumed_at: new Date().toISOString() })
     .eq("id", row.id);
-  if (markErr) return { ok: false, error: markErr.message };
+  if (markErr) return { ok: false, error: formatSupabaseWriteError(markErr) };
 
   return { ok: true, adminUserId: row.admin_user_id, email: row.email };
 }

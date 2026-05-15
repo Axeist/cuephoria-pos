@@ -7,13 +7,15 @@
  *           here — use GET /api/tenant/billing-payment-instrument for card/UPI hint.
  * - POST  — { action: "subscribe" | "verify-payment" | "cancel" | "resume", … }
  *
- * Aligned with Razorpay Subscriptions + Standard Checkout:
+ * Aligned with Razorpay **Create Subscription Link** (`POST /v1/subscriptions`)
+ * https://razorpay.com/docs/api/payments/subscriptions/create-subscription-link/
+ * plus subscriptions overview + Standard Checkout:
  * https://razorpay.com/docs/api/payments/subscriptions/
  * https://razorpay.com/docs/payments/subscriptions/
  *
- * Subscribe returns `checkout` ({ keyId, subscriptionId, customerId }) for
- * Checkout.js (`subscription_id`, `customer_id`, prefill) plus `short_url`
- * (recommended hosted mandate flow from create-subscription response).
+ * Subscribe returns `checkout` ({ keyId, subscriptionId, optional customerId }) for
+ * Checkout.js (`subscription_id`, optional `customer_id`, prefill) plus `short_url`
+ * on the create response (hosted mandate).
  */
 
 import { j } from "../../src/server/adminApiUtils.js";
@@ -33,8 +35,6 @@ const EDITOR_ROLES = new Set(["owner", "admin"]);
 const INVOICE_PAGE_SIZE = 24;
 const DEFAULT_TOTAL_COUNT_MONTHLY = 12 * 10;
 const DEFAULT_TOTAL_COUNT_YEARLY = 10;
-/** Deadline (unix sec) for the customer to complete the auth charge (Razorpay `expire_by`). */
-const SUBSCRIPTION_AUTH_WINDOW_SEC = 14 * 24 * 60 * 60;
 
 type Interval = "month" | "year";
 
@@ -330,40 +330,38 @@ async function subscribeAction(
     }
   }
 
-  let customerId = currentSub?.razorpay_customer_id ?? null;
-  if (!customerId) {
-    const nameHint =
-      typeof body.displayName === "string" && body.displayName.trim()
-        ? body.displayName.trim()
-        : ctx.organizationSlug;
-
-    try {
-      const customer = await client.customers.create({
-        name: nameHint,
-        email: contactHint || undefined,
-        notes: {
-          organization_id: String(ctx.organizationId),
-          organization_slug: String(ctx.organizationSlug),
-          created_by: String(ctx.user.username),
-        },
-      });
-      customerId = customer.id;
-    } catch (err) {
-      return billingError(err);
-    }
+  /**
+   * Create Subscription Link — request body per Razorpay docs only includes
+   * plan_id, total_count, quantity, start_at, expire_by, customer_notify, addons,
+   * offer_id, notes, notify_info. **Do not** send `customer_id` on create; the
+   * docs state it is populated after the customer completes authorisation.
+   * @see https://razorpay.com/docs/api/payments/subscriptions/create-subscription-link/
+   */
+  let notifyEmail = "";
+  if (contactHint.includes("@")) {
+    notifyEmail = contactHint;
+  } else {
+    const { data: adminRow } = await supabase
+      .from("admin_users")
+      .select("email")
+      .eq("id", ctx.user.id)
+      .maybeSingle();
+    const em = adminRow?.email;
+    if (typeof em === "string" && em.includes("@")) notifyEmail = em.trim();
   }
 
   let sub: RazorpaySubscription;
-  const authDueBy = Math.floor(Date.now() / 1000) + SUBSCRIPTION_AUTH_WINDOW_SEC;
   const createReq: Record<string, unknown> = {
     plan_id: razorpayPlanId,
-    customer_id: customerId ?? undefined,
     total_count: interval === "year" ? DEFAULT_TOTAL_COUNT_YEARLY : DEFAULT_TOTAL_COUNT_MONTHLY,
     quantity: 1,
-    /** Razorpay API: Boolean — see razorpay-node `normalizeBoolean`. */
     customer_notify: true,
-    /** Razorpay: customer must authorize before this Unix timestamp. */
-    expire_by: authDueBy,
+    /**
+     * Omit `expire_by` — Razorpay defaults mandate-link validity (~30 years per docs).
+     * Sending a custom `expire_by` triggered `BAD_REQUEST_ERROR`:
+     * "Link expire by cannot be lesser than the current time." (clock / validation edge cases).
+     * @see https://razorpay.com/docs/api/payments/subscriptions/create-subscription-link/
+     */
     notes: {
       organization_id: String(ctx.organizationId),
       organization_slug: String(ctx.organizationSlug),
@@ -371,11 +369,17 @@ async function subscribeAction(
       interval: String(interval),
     },
   };
+  if (notifyEmail) {
+    createReq.notify_info = { notify_email: notifyEmail };
+  }
+
   try {
     sub = await client.subscriptions.create(createReq);
   } catch (err) {
     return billingError(err);
   }
+
+  const checkoutCustomerId = sub.customer_id ?? null;
 
   const mapped = mapSdkSubToRow(sub);
   const updatePayload = {
@@ -419,7 +423,7 @@ async function subscribeAction(
       checkout: {
         keyId: creds.keyId,
         subscriptionId: sub.id,
-        customerId,
+        customerId: checkoutCustomerId,
         shortUrl: sub.short_url ?? null,
       },
       provider,

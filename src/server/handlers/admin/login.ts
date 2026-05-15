@@ -182,6 +182,7 @@ export default async function handler(req: Request) {
     }
 
     if (userRow.email && !userRow.email_verified_at) {
+      const emailNorm = String(userRow.email).trim().toLowerCase();
       let emailSent = false;
       let emailSkipped = false;
       let dispatchError: string | null = null;
@@ -189,7 +190,7 @@ export default async function handler(req: Request) {
         const token = await issueEmailToken({
           supabase,
           adminUserId: userRow.id,
-          email: userRow.email,
+          email: emailNorm,
           purpose: "verify_email",
           ttlMinutes: 60 * 24,
           requestedIp: metadata.ip || req.headers.get("x-forwarded-for") || null,
@@ -197,15 +198,30 @@ export default async function handler(req: Request) {
         });
         const base = appBaseUrl();
         const verifyUrl = `${base}/account/verify-email?token=${encodeURIComponent(token.token)}`;
+
+        let organizationId: string | null = null;
+        try {
+          const { data: mem } = await supabase
+            .from("org_memberships")
+            .select("organization_id")
+            .eq("admin_user_id", userRow.id)
+            .limit(1)
+            .maybeSingle();
+          organizationId = mem?.organization_id ?? null;
+        } catch {
+          /* non-fatal */
+        }
+
         const sent = await sendEmail({
           kind: "verify_email",
-          to: userRow.email,
+          to: emailNorm,
           vars: {
             appBaseUrl: base,
             displayName: userRow.display_name || userRow.username,
             verifyUrl,
             expiresInMinutes: 60 * 24,
           },
+          organizationId,
           adminUserId: userRow.id,
           supabase,
         });
@@ -213,7 +229,12 @@ export default async function handler(req: Request) {
         emailSkipped = !!sent.skipped;
         if (!sent.ok && !sent.skipped) dispatchError = sent.error || "Could not send verification email.";
       } catch (err) {
-        dispatchError = (err as Error)?.message || "Could not send verification email.";
+        dispatchError =
+          err instanceof Error
+            ? err.message
+            : typeof err === "string"
+              ? err
+              : `Could not send verification email (${String(err)})`;
       }
 
       return j(
@@ -225,7 +246,9 @@ export default async function handler(req: Request) {
           emailSkipped,
           error: dispatchError
             ? `Email not verified and we couldn't send a new verification email: ${dispatchError}`
-            : "Email not verified. We've sent a fresh verification link to your inbox.",
+            : emailSkipped
+              ? "Email not verified. Outgoing mail is not configured on the server — contact your administrator (Resend / RESEND_FROM)."
+              : "Email not verified. We've sent a fresh verification link to your inbox.",
         },
         200,
       );
