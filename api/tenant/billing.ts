@@ -4,10 +4,15 @@
  * Contract (rebuilt May 2026):
  * - GET   — org + subscription snapshot + catalog + invoices + Razorpay key id
  *           (publishable; safe for Checkout.js) + payment-instrument hint.
- * - POST  — { action: "subscribe" | "cancel" | "resume", … }
+ * - POST  — { action: "subscribe" | "verify-payment" | "cancel" | "resume", … }
  *
- * Subscribe returns a `checkout` payload for Razorpay Checkout.js
- * ({ keyId, subscriptionId }) plus `shortUrl` fallback (hosted mandate page).
+ * Aligned with Razorpay Subscriptions + Standard Checkout:
+ * https://razorpay.com/docs/api/payments/subscriptions/
+ * https://razorpay.com/docs/payments/subscriptions/
+ *
+ * Subscribe returns `checkout` ({ keyId, subscriptionId, customerId }) for
+ * Checkout.js (`subscription_id`, `customer_id`, prefill) plus `short_url`
+ * (recommended hosted mandate flow from create-subscription response).
  */
 
 import { j } from "../../src/server/adminApiUtils.js";
@@ -17,6 +22,7 @@ import {
   getPaymentInstrumentForCustomer,
   getRazorpayClient,
   mapRazorpaySubscriptionToRow,
+  verifySubscriptionCheckoutSignature,
   type RazorpaySubscription,
 } from "../../src/server/lib/razorpay-subscriptions.js";
 import { resolveRequestedProvider } from "../../src/server/lib/payment-provider-facade.js";
@@ -27,6 +33,8 @@ const EDITOR_ROLES = new Set(["owner", "admin"]);
 const INVOICE_PAGE_SIZE = 24;
 const DEFAULT_TOTAL_COUNT_MONTHLY = 12 * 10;
 const DEFAULT_TOTAL_COUNT_YEARLY = 10;
+/** Deadline (unix sec) for the customer to complete the auth charge (Razorpay `expire_by`). */
+const SUBSCRIPTION_AUTH_WINDOW_SEC = 14 * 24 * 60 * 60;
 
 type Interval = "month" | "year";
 
@@ -145,9 +153,18 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
   }
 
   let billingContactEmail: string | null = null;
-  const { data: adminRow } = await supabase.from("admin_users").select("email").eq("id", ctx.user.id).maybeSingle();
+  let billingPrefillName: string | null = null;
+  const { data: adminRow } = await supabase
+    .from("admin_users")
+    .select("email, display_name, username")
+    .eq("id", ctx.user.id)
+    .maybeSingle();
   const em = adminRow?.email;
   if (typeof em === "string" && em.includes("@")) billingContactEmail = em.trim();
+  const dn = adminRow?.display_name;
+  const un = adminRow?.username;
+  if (typeof dn === "string" && dn.trim()) billingPrefillName = dn.trim();
+  else if (typeof un === "string" && un.trim()) billingPrefillName = un.trim();
 
   return j(
     {
@@ -164,6 +181,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
         keyId: creds.keyId,
       },
       billingContactEmail,
+      billingPrefillName,
       paymentInstrument: paymentInstrument ?? { kind: "none" },
     },
     200,
@@ -196,6 +214,8 @@ async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
   switch (action) {
     case "subscribe":
       return subscribeAction(ctx, body, creds);
+    case "verify-payment":
+      return verifyPaymentAction(ctx, body, creds);
     case "cancel":
       return cancelAction(ctx);
     case "resume":
@@ -203,6 +223,38 @@ async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
     default:
       return j({ ok: false, error: `Unknown action: ${action}` }, 400);
   }
+}
+
+async function verifyPaymentAction(
+  ctx: OrgContext,
+  body: Record<string, unknown>,
+  creds: ReturnType<typeof getRazorpayCredentials>,
+): Promise<Response> {
+  const paymentId = String(body.razorpay_payment_id ?? "").trim();
+  const subscriptionId = String(body.razorpay_subscription_id ?? "").trim();
+  const signature = String(body.razorpay_signature ?? "").trim();
+  if (!paymentId || !subscriptionId || !signature) {
+    return j(
+      {
+        ok: false,
+        error: "Missing razorpay_payment_id, razorpay_subscription_id, or razorpay_signature.",
+      },
+      400,
+    );
+  }
+  const { data: row } = await ctx.supabase
+    .from("subscriptions")
+    .select("razorpay_subscription_id")
+    .eq("organization_id", ctx.organizationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!row?.razorpay_subscription_id || row.razorpay_subscription_id !== subscriptionId) {
+    return j({ ok: false, error: "Subscription does not belong to this workspace." }, 403);
+  }
+  const valid = verifySubscriptionCheckoutSignature(paymentId, subscriptionId, signature, creds.keySecret);
+  if (!valid) return j({ ok: false, error: "Invalid Razorpay payment signature." }, 400);
+  return j({ ok: true }, 200);
 }
 
 async function subscribeAction(
@@ -262,6 +314,8 @@ async function subscribeAction(
     .maybeSingle();
   if (subErr) return j({ ok: false, error: subErr.message }, 500);
 
+  const contactHint = typeof body.contactEmail === "string" ? body.contactEmail.trim() : "";
+
   const client = await getRazorpayClient();
 
   if (
@@ -272,6 +326,10 @@ async function subscribeAction(
   ) {
     try {
       const fresh = await client.subscriptions.fetch(currentSub.razorpay_subscription_id);
+      const cust =
+        typeof fresh.customer_id === "string" && fresh.customer_id
+          ? fresh.customer_id
+          : currentSub.razorpay_customer_id ?? null;
       return j(
         {
           ok: true,
@@ -281,6 +339,7 @@ async function subscribeAction(
           checkout: {
             keyId: creds.keyId,
             subscriptionId: fresh.id,
+            customerId: cust,
             shortUrl: fresh.short_url ?? null,
           },
           provider,
@@ -294,7 +353,6 @@ async function subscribeAction(
 
   let customerId = currentSub?.razorpay_customer_id ?? null;
   if (!customerId) {
-    const contactHint = typeof body.contactEmail === "string" ? body.contactEmail.trim() : "";
     const nameHint =
       typeof body.displayName === "string" && body.displayName.trim()
         ? body.displayName.trim()
@@ -305,9 +363,9 @@ async function subscribeAction(
         name: nameHint,
         email: contactHint || undefined,
         notes: {
-          organization_id: ctx.organizationId,
-          organization_slug: ctx.organizationSlug,
-          created_by: ctx.user.username,
+          organization_id: String(ctx.organizationId),
+          organization_slug: String(ctx.organizationSlug),
+          created_by: String(ctx.user.username),
         },
       });
       customerId = customer.id;
@@ -317,20 +375,25 @@ async function subscribeAction(
   }
 
   let sub: RazorpaySubscription;
+  const authDueBy = Math.floor(Date.now() / 1000) + SUBSCRIPTION_AUTH_WINDOW_SEC;
+  const createReq: Record<string, unknown> = {
+    plan_id: razorpayPlanId,
+    customer_id: customerId ?? undefined,
+    total_count: interval === "year" ? DEFAULT_TOTAL_COUNT_YEARLY : DEFAULT_TOTAL_COUNT_MONTHLY,
+    quantity: 1,
+    /** Razorpay API: Boolean — see razorpay-node `normalizeBoolean`. */
+    customer_notify: true,
+    /** Razorpay: customer must authorize before this Unix timestamp. */
+    expire_by: authDueBy,
+    notes: {
+      organization_id: String(ctx.organizationId),
+      organization_slug: String(ctx.organizationSlug),
+      plan_code: String(plan.code),
+      interval: String(interval),
+    },
+  };
   try {
-    sub = await client.subscriptions.create({
-      plan_id: razorpayPlanId,
-      customer_id: customerId ?? undefined,
-      total_count: interval === "year" ? DEFAULT_TOTAL_COUNT_YEARLY : DEFAULT_TOTAL_COUNT_MONTHLY,
-      quantity: 1,
-      customer_notify: 1,
-      notes: {
-        organization_id: ctx.organizationId,
-        organization_slug: ctx.organizationSlug,
-        plan_code: plan.code,
-        interval,
-      },
-    });
+    sub = await client.subscriptions.create(createReq);
   } catch (err) {
     return billingError(err);
   }
@@ -377,6 +440,7 @@ async function subscribeAction(
       checkout: {
         keyId: creds.keyId,
         subscriptionId: sub.id,
+        customerId,
         shortUrl: sub.short_url ?? null,
       },
       provider,
@@ -404,7 +468,7 @@ async function cancelAction(ctx: OrgContext): Promise<Response> {
 
   try {
     const client = await getRazorpayClient();
-    await client.subscriptions.cancel(sub.razorpay_subscription_id, { cancel_at_cycle_end: 1 });
+    await client.subscriptions.cancel(sub.razorpay_subscription_id, { cancel_at_cycle_end: true });
   } catch (err) {
     return billingError(err);
   }

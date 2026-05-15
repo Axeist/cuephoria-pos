@@ -1,9 +1,12 @@
 /**
  * /settings/billing — tenant SaaS subscriptions (Razorpay).
  *
- * Flow: plans + prices come from the platform-configured catalog; subscribing
- * creates a Razorpay subscription server-side and opens Checkout.js inline
- * (mandate/card capture). Renewals run on Razorpay; webhooks persist invoices.
+ * Server creates a Razorpay subscription (plan-backed, recurring) per
+ * https://razorpay.com/docs/api/payments/subscriptions/
+ * Customer completes mandate via `short_url` (hosted Checkout, recommended)
+ * https://razorpay.com/docs/payments/subscriptions/ or embedded Standard Checkout
+ * with `subscription_id` + `customer_id`
+ * https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/integration-steps/
  */
 
 import React from "react";
@@ -116,6 +119,8 @@ interface BillingResponse {
   razorpay: { mode: "live" | "test"; keyId: string };
   /** Logged-in admin email for Razorpay Checkout prefill (when present). */
   billingContactEmail: string | null;
+  /** Display name prefill / customer name hint (display_name → username). */
+  billingPrefillName: string | null;
   paymentInstrument: PaymentInstrument;
 }
 
@@ -123,7 +128,12 @@ type SubscribeSuccess = {
   ok: true;
   reused?: boolean;
   shortUrl?: string | null;
-  checkout?: { keyId: string; subscriptionId: string; shortUrl?: string | null };
+  checkout?: {
+    keyId: string;
+    subscriptionId: string;
+    customerId?: string | null;
+    shortUrl?: string | null;
+  };
 };
 
 const STATUS_META: Record<string, { label: string; badge: string }> = {
@@ -225,53 +235,96 @@ export default function Billing() {
     staleTime: 15_000,
   });
 
-  const openHosted = (shortUrl?: string | null) => {
-    if (!shortUrl) return;
-    window.open(shortUrl, "_blank", "noopener,noreferrer");
-  };
-
-  const launchCheckout = async (payload: SubscribeSuccess, opts: { orgName: string; prefilledEmail: string }) => {
+  const launchCheckout = async (
+    payload: SubscribeSuccess,
+    opts: { orgName: string; prefilledEmail: string; prefilledName: string },
+  ) => {
     const ch = payload.checkout;
-    if (!ch?.keyId || !ch.subscriptionId) {
-      toast({ variant: "destructive", title: "Checkout unavailable", description: "Missing Razorpay checkout tokens from server." });
-      return false;
+    const hosted = ch?.shortUrl ?? payload.shortUrl ?? null;
+    if (hosted) {
+      toast({ title: "Complete payment on Razorpay", description: "Opening the secure Razorpay page…" });
+      window.open(hosted, "_blank", "noopener,noreferrer");
+      return;
     }
+
+    if (!ch?.keyId || !ch.subscriptionId) {
+      toast({
+        variant: "destructive",
+        title: "Checkout unavailable",
+        description: "No Razorpay subscription link returned from server.",
+      });
+      return;
+    }
+
     try {
       await loadRazorpayCheckoutScript();
     } catch {
-      toast({ title: "Using hosted page instead", description: "Opening Razorpay in a new tab." });
-      openHosted(ch.shortUrl ?? payload.shortUrl);
-      return true;
+      toast({ variant: "destructive", title: "Checkout script blocked", description: "Allow scripts for this site and try again." });
+      return;
     }
-    if (!window.Razorpay) {
-      openHosted(ch.shortUrl ?? payload.shortUrl);
-      return true;
-    }
-    return await new Promise<boolean>((resolve) => {
-      const rzp = new window.Razorpay!({
-        key: ch.keyId,
-        subscription_id: ch.subscriptionId,
-        name: opts.orgName,
-        description: "Workspace subscription — saves your card for monthly auto‑debit",
-        prefill: {
-          email: opts.prefilledEmail || undefined,
-        },
-        theme: { color: "#6366f1" },
-        handler: () => {
-          toast({ title: "Payment received", description: "Your subscription is updating — this can take a few seconds." });
-          void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
-          resolve(true);
-        },
-        modal: {
-          ondismiss: () => resolve(false),
-        },
-      });
-      rzp.on?.("payment.failed", () => {
-        toast({ variant: "destructive", title: "Payment failed", description: "Try again or use the hosted link." });
-        resolve(false);
+    if (!window.Razorpay) return;
+
+    const checkoutOpts: Record<string, unknown> = {
+      key: ch.keyId,
+      subscription_id: ch.subscriptionId,
+      name: opts.orgName,
+      description: "Workspace subscription · recurring mandate",
+      prefill: {
+        name: opts.prefilledName || undefined,
+        email: opts.prefilledEmail || undefined,
+      },
+      ...(ch.customerId ? { customer_id: ch.customerId } : {}),
+      subscription_card_change: true,
+      theme: { color: "#6366f1" },
+      handler: async (resp: Record<string, unknown>) => {
+        const payId = String(resp.razorpay_payment_id ?? "");
+        const subId = String(resp.razorpay_subscription_id ?? "");
+        const sig = String(resp.razorpay_signature ?? "");
+        if (payId && subId && sig) {
+          try {
+            const vr = await fetch("/api/tenant/billing", {
+              method: "POST",
+              credentials: "include",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                action: "verify-payment",
+                razorpay_payment_id: payId,
+                razorpay_subscription_id: subId,
+                razorpay_signature: sig,
+              }),
+            });
+            const vjson = await parseTenantBillingJson(vr);
+            if (vjson.ok !== true) throw new Error(String(vjson.error || "Verification failed"));
+          } catch (e) {
+            toast({
+              variant: "destructive",
+              title: "Could not verify payment",
+              description: (e as Error).message || "Webhooks may still update billing shortly.",
+            });
+          }
+        }
+        toast({ title: "Payment recorded", description: "Refreshing billing status…" });
+        void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+      },
+    };
+
+    try {
+      const rzp = new window.Razorpay!(checkoutOpts);
+      rzp.on?.("payment.failed", (_r: Record<string, unknown>) => {
+        const inner =
+          _r?.error && typeof _r.error === "object"
+            ? (_r.error as { description?: string })
+            : ({} as { description?: string });
+        toast({
+          variant: "destructive",
+          title: "Payment failed",
+          description: inner.description ?? "Try again.",
+        });
       });
       rzp.open();
-    });
+    } catch {
+      toast({ variant: "destructive", title: "Checkout error", description: "Reload and try again." });
+    }
   };
 
   const subscribeM = useMutation({
@@ -287,6 +340,8 @@ export default function Billing() {
           provider: "razorpay",
           contactEmail:
             qc.getQueryData<BillingResponse>(["tenant-billing"])?.billingContactEmail ?? undefined,
+          displayName:
+            qc.getQueryData<BillingResponse>(["tenant-billing"])?.billingPrefillName ?? undefined,
         }),
       });
       const json = await parseTenantBillingJson(res);
@@ -297,7 +352,8 @@ export default function Billing() {
       const snap = qc.getQueryData<BillingResponse>(["tenant-billing"]);
       const orgName = snap?.organization.name ?? billingQ.data?.organization.name ?? "Workspace";
       const email = snap?.billingContactEmail ?? billingQ.data?.billingContactEmail ?? "";
-      await launchCheckout(data, { orgName, prefilledEmail: email });
+      const prefName = snap?.billingPrefillName ?? billingQ.data?.billingPrefillName ?? "";
+      await launchCheckout(data, { orgName, prefilledEmail: email, prefilledName: prefName });
       void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
     },
     onError: (err: Error) => {
@@ -597,6 +653,17 @@ export default function Billing() {
             )}
           </CardContent>
         </Card>
+
+        <p className="text-center text-[11px] text-zinc-600 pb-2">
+          Recurring billing uses{" "}
+          <a href="https://razorpay.com/docs/payments/subscriptions/" className="text-indigo-400 hover:underline">
+            Razorpay Subscriptions
+          </a>{" "}
+          ·{" "}
+          <a href="https://razorpay.com/docs/api/payments/subscriptions/" className="text-indigo-400 hover:underline">
+            Subscriptions API
+          </a>
+        </p>
       </div>
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>

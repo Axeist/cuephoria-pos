@@ -31,7 +31,7 @@ export type RazorpayClient = {
   subscriptions: {
     create: (opts: Record<string, unknown>) => Promise<RazorpaySubscription>;
     fetch: (id: string) => Promise<RazorpaySubscription>;
-    cancel: (id: string, body?: { cancel_at_cycle_end?: 0 | 1 }) => Promise<RazorpaySubscription>;
+    cancel: (id: string, body?: { cancel_at_cycle_end?: boolean | 0 | 1 }) => Promise<RazorpaySubscription>;
     update: (id: string, body: Record<string, unknown>) => Promise<RazorpaySubscription>;
   };
   customers: {
@@ -114,6 +114,19 @@ export async function getRazorpayClient(): Promise<RazorpayClient> {
   /** Static import so Vercel / esbuild traces `razorpay` into the Node bundle (dynamic import was often omitted). */
   const Ctor = Razorpay as unknown as new (opts: { key_id: string; key_secret: string }) => RazorpayClient;
   return new Ctor({ key_id: keyId, key_secret: keySecret }) as RazorpayClient;
+}
+
+/** Verify subscription Checkout success payload (https://razorpay.com/docs/api/payments/subscriptions/#payment-verification). */
+export function verifySubscriptionCheckoutSignature(
+  paymentId: string,
+  subscriptionId: string,
+  signature: string,
+  apiKeySecret: string,
+): boolean {
+  if (!paymentId || !subscriptionId || !signature || !apiKeySecret) return false;
+  const payload = `${paymentId}|${subscriptionId}`;
+  const expected = createHmac("sha256", apiKeySecret).update(payload).digest("hex");
+  return expected === signature.trim();
 }
 
 /**
