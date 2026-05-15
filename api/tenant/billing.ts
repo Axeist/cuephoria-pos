@@ -10,14 +10,14 @@
  * handler, but uses Razorpay SDK for customer/subscription lifecycle calls.
  */
 
-import { j } from "../../src/server/adminApiUtils";
-import { withOrgContext, type OrgContext } from "../../src/server/orgContext";
+import { j } from "../../src/server/adminApiUtils.js";
+import { withOrgContext, type OrgContext } from "../../src/server/orgContext.js";
 import {
   getRazorpayClient,
   mapRazorpaySubscriptionToRow,
   type RazorpaySubscription,
-} from "../../src/server/lib/razorpay-subscriptions";
-import { resolveRequestedProvider } from "../../src/server/lib/payment-provider-facade";
+} from "../../src/server/lib/razorpay-subscriptions.js";
+import { resolveRequestedProvider } from "../../src/server/lib/payment-provider-facade.js";
 
 /** Node runtime — avoids Edge bundling `node:crypto` from razorpay-subscriptions helpers. */
 export const config = { maxDuration: 60 };

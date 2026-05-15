@@ -1,4 +1,4 @@
-import { parsePaymentProvider, type PaymentProvider } from "./payment-provider";
+import { parsePaymentProvider, type PaymentProvider } from "./payment-provider.js";
 
 export function resolveRequestedProvider(raw: unknown): PaymentProvider {
   return parsePaymentProvider(raw, "razorpay");

@@ -35,7 +35,7 @@ import {
   j,
   parseCookies,
   verifyAdminSession,
-} from "./adminApiUtils";
+} from "./adminApiUtils.js";
 
 export type OrgMembershipRole = "owner" | "admin" | "manager" | "staff" | "read_only";
 
