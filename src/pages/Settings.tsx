@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2, CreditCard } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2, CreditCard, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CafePartnerSettings from '@/components/cafe/CafePartnerSettings';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
@@ -36,6 +36,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePinVerification } from '@/hooks/usePinVerification';
 import PinVerificationDialog from '@/components/PinVerificationDialog';
 import { useLocation } from '@/context/LocationContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Settings = () => {
   const { user } = useAuth();
@@ -54,6 +55,70 @@ const Settings = () => {
   const { toast } = useToast();
   const { showPinDialog, requestPinVerification, handlePinSuccess, handlePinCancel } = usePinVerification();
   const { activeLocationId, activeLocation } = useLocation();
+
+  const [emailHealth, setEmailHealth] = useState<{
+    ok?: boolean;
+    configured?: boolean;
+    resend?: {
+      apiKeyPresent?: boolean;
+      fromPresent?: boolean;
+      appBaseUrlPresent?: boolean;
+      from?: string | null;
+    };
+  } | null>(null);
+  const [emailHealthLoading, setEmailHealthLoading] = useState(false);
+  const [emailTestSending, setEmailTestSending] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setEmailHealth(null);
+      return;
+    }
+    let cancelled = false;
+    setEmailHealthLoading(true);
+    fetch('/api/admin/email-health', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled) setEmailHealth(json);
+      })
+      .catch(() => {
+        if (!cancelled) setEmailHealth(null);
+      })
+      .finally(() => {
+        if (!cancelled) setEmailHealthLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
+  const sendTransactionalTestEmail = async () => {
+    setEmailTestSending(true);
+    try {
+      const res = await fetch('/api/admin/email-test-send', { method: 'POST', credentials: 'same-origin' });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        toast({
+          title: 'Test email sent',
+          description: `Check ${typeof json.to === 'string' ? json.to : 'your inbox'} (and spam).`,
+        });
+      } else {
+        toast({
+          title: 'Test email failed',
+          description: typeof json?.error === 'string' ? json.error : 'Could not send.',
+          variant: 'destructive',
+        });
+      }
+    } catch (e) {
+      toast({
+        title: 'Test email failed',
+        description: (e as Error)?.message || 'Network error.',
+        variant: 'destructive',
+      });
+    } finally {
+      setEmailTestSending(false);
+    }
+  };
 
   const handleImageUploaded = () => {
     // Refresh tournaments list if needed
@@ -350,6 +415,44 @@ const Settings = () => {
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
+          {isAdmin && activeLocation?.slug !== 'lite' && (
+            <Card className="border-white/10 bg-white/[0.02]">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 font-semibold">
+                  <Mail className="h-4 w-4 opacity-80" />
+                  Transactional email (Resend)
+                </CardTitle>
+                <CardDescription>
+                  Send yourself a test message using the same pipeline as signup and password reset. Your account must have an email address on file.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-sm text-muted-foreground">
+                  {emailHealthLoading ? (
+                    <span>Checking server configuration…</span>
+                  ) : emailHealth?.configured ? (
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      Resend appears configured (API key, From, and app URL present).
+                    </span>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Missing server env: add <code className="text-xs">RESEND_API_KEY</code>,{' '}
+                      <code className="text-xs">RESEND_FROM</code>, and <code className="text-xs">APP_BASE_URL</code> on the host.
+                    </span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={emailTestSending || emailHealthLoading}
+                  onClick={sendTransactionalTestEmail}
+                  className="gap-2"
+                >
+                  {emailTestSending ? 'Sending…' : 'Send test email to my address'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           <GeneralSettings />
         </TabsContent>
 

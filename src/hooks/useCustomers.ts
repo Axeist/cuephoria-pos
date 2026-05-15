@@ -40,6 +40,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
   // Stable ref so the realtime handler can always call the latest fetchCustomersFromDB
   // without creating a circular dependency on useCallback deps.
   const fetchFromDBRef = useRef<((silent: boolean) => Promise<void>) | null>(null);
+  const activeBranchRef = useRef<string | null>(null);
+  activeBranchRef.current = activeLocationId;
 
   useEffect(() => {
     if (locationsLoading) return;
@@ -203,84 +205,99 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             totalPlayTime: item.total_play_time,
             createdAt: new Date(item.created_at)
           }));
-          
-          // ✅ OPTIMIZED: Run duplicate cleanup only once per day
+
+          setCustomers(transformedCustomers);
+          saveToCache(transformedCustomers);
+
+          // ✅ Run duplicate cleanup at most once per day — never block first paint.
+          // Cleanup does many sequential Supabase writes; awaiting it here left isLoading true
+          // and froze shell routes until every merge finished.
           const lastCleanup = localStorage.getItem(LAST_DUPLICATE_CLEANUP_KEY);
           const shouldRunCleanup = !lastCleanup || (Date.now() - parseInt(lastCleanup, 10)) > DUPLICATE_CLEANUP_INTERVAL_MS;
-          
+
           if (shouldRunCleanup) {
-            console.log('🔧 Running scheduled duplicate cleanup...');
-            const { cleaned, merged } = await cleanupDuplicates(transformedCustomers);
-            
-            if (cleaned > 0) {
-              // Re-fetch only if duplicates were cleaned
-              page = 0;
-              allCustomersData = [];
-              finished = false;
-              
-              while (!finished) {
-                const { data, error } = await supabase
-                  .from('customers')
-                  .select(selectFields)
-                  .eq('location_id', activeLocationId)
-                  .order('created_at', { ascending: false })
-                  .range(page * pageSize, (page + 1) * pageSize - 1);
-                  
-                if (error) {
-                  console.error('Error re-fetching customers after cleanup:', error);
-                  break;
+            const branchWhenCleanupStarted = activeLocationId;
+            void (async () => {
+              try {
+                console.log('🔧 Running scheduled duplicate cleanup…');
+                const { cleaned, merged } = await cleanupDuplicates(transformedCustomers);
+
+                if (cleaned <= 0) return;
+
+                if (branchWhenCleanupStarted !== activeBranchRef.current) {
+                  console.warn('[customers] skipped post-cleanup refresh (branch changed)');
+                  return;
                 }
-                
-                if (data && data.length > 0) {
-                  allCustomersData = [...allCustomersData, ...data];
-                  if (data.length < pageSize) {
-                    finished = true;
-                  } else {
-                    page++;
+
+                let p = 0;
+                let refetchRows: any[] = [];
+                let done = false;
+                while (!done) {
+                  const { data, error } = await supabase
+                    .from('customers')
+                    .select(selectFields)
+                    .eq('location_id', branchWhenCleanupStarted)
+                    .order('created_at', { ascending: false })
+                    .range(p * pageSize, (p + 1) * pageSize - 1);
+
+                  if (error) {
+                    console.error('Error re-fetching customers after cleanup:', error);
+                    break;
                   }
-                } else {
-                  finished = true;
+
+                  if (data && data.length > 0) {
+                    refetchRows = [...refetchRows, ...data];
+                    if (data.length < pageSize) {
+                      done = true;
+                    } else {
+                      p++;
+                    }
+                  } else {
+                    done = true;
+                  }
+                }
+
+                const cleanedCustomers = refetchRows.map(item => ({
+                  id: item.id,
+                  customerId: (item as any).customer_id || generateCustomerID(item.phone),
+                  name: item.name,
+                  phone: item.phone,
+                  email: item.email || undefined,
+                  isMember: item.is_member,
+                  membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
+                  membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
+                  membershipPlan: item.membership_plan || undefined,
+                  membershipHoursLeft: item.membership_hours_left || undefined,
+                  membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
+                  loyaltyPoints: item.loyalty_points,
+                  totalSpent: item.total_spent,
+                  totalPlayTime: item.total_play_time,
+                  createdAt: new Date(item.created_at)
+                }));
+
+                if (branchWhenCleanupStarted !== activeBranchRef.current) return;
+
+                setCustomers(cleanedCustomers);
+                saveToCache(cleanedCustomers);
+
+                if (!silent) {
+                  toast({
+                    title: 'Duplicates Cleaned',
+                    description: `Automatically merged ${cleaned} duplicate customer(s) into ${merged} account(s).`,
+                    duration: 5000
+                  });
+                }
+              } catch (cleanupErr) {
+                console.error('Scheduled duplicate cleanup failed:', cleanupErr);
+              } finally {
+                try {
+                  localStorage.setItem(LAST_DUPLICATE_CLEANUP_KEY, Date.now().toString());
+                } catch {
+                  /* ignore quota / private mode */
                 }
               }
-              
-              // Transform again after cleanup
-              const cleanedCustomers = allCustomersData.map(item => ({
-                id: item.id,
-                customerId: (item as any).customer_id || generateCustomerID(item.phone),
-                name: item.name,
-                phone: item.phone,
-                email: item.email || undefined,
-                isMember: item.is_member,
-                membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
-                membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
-                membershipPlan: item.membership_plan || undefined,
-                membershipHoursLeft: item.membership_hours_left || undefined,
-                membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
-                loyaltyPoints: item.loyalty_points,
-                totalSpent: item.total_spent,
-                totalPlayTime: item.total_play_time,
-                createdAt: new Date(item.created_at)
-              }));
-              
-              setCustomers(cleanedCustomers);
-              saveToCache(cleanedCustomers);
-              
-              if (!silent && cleaned > 0) {
-                toast({
-                  title: 'Duplicates Cleaned',
-                  description: `Automatically merged ${cleaned} duplicate customer(s) into ${merged} account(s).`,
-                  duration: 5000
-                });
-              }
-              
-              localStorage.setItem(LAST_DUPLICATE_CLEANUP_KEY, Date.now().toString());
-            } else {
-              setCustomers(transformedCustomers);
-              saveToCache(transformedCustomers);
-            }
+            })();
           } else {
-            setCustomers(transformedCustomers);
-            saveToCache(transformedCustomers);
             console.log(`✅ Loaded ${transformedCustomers.length} customers from database (cleanup skipped - ran recently)`);
           }
         } else {
