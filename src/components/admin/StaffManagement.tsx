@@ -124,7 +124,7 @@ const StaffManagement: React.FC = () => {
 
   const openEdit = (staff: StaffUser) => {
     setEditingStaff(staff);
-    setEditUsername(staff.username);
+    setEditUsername(staff.email ?? staff.username);
     setEditIsSuperAdmin(staff.isSuperAdmin);
     setEditLocationIds(staff.locations.map(l => l.id));
     setEditPassword('');
@@ -356,8 +356,8 @@ const StaffManagement: React.FC = () => {
                     <User className="h-4 w-4" /> Username / email
                   </Label>
                   <Input value={editUsername} onChange={(e) => setEditUsername(e.target.value)} className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
-                  {editingStaff.email && (
-                    <p className="text-xs text-white/40">Email on file: {editingStaff.email}</p>
+                  {editingStaff.email && editingStaff.username !== editingStaff.email && (
+                    <p className="text-xs text-white/40">Username: {editingStaff.username}</p>
                   )}
                 </div>
 
