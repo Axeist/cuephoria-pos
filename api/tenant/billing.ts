@@ -3,7 +3,8 @@
  *
  * Contract (rebuilt May 2026):
  * - GET   — org + subscription snapshot + catalog + invoices + Razorpay key id
- *           (publishable; safe for Checkout.js) + payment-instrument hint.
+ *           (publishable; safe for Checkout.js); paymentInstrument is `{ kind:"none" }`
+ *           here — use GET /api/tenant/billing-payment-instrument for card/UPI hint.
  * - POST  — { action: "subscribe" | "verify-payment" | "cancel" | "resume", … }
  *
  * Aligned with Razorpay Subscriptions + Standard Checkout:
@@ -19,7 +20,6 @@ import { j } from "../../src/server/adminApiUtils.js";
 import { withOrgContext, type OrgContext } from "../../src/server/orgContext.js";
 import { getRazorpayCredentials } from "../../src/server/lib/razorpay-credentials.js";
 import {
-  getPaymentInstrumentForCustomer,
   getRazorpayClient,
   mapRazorpaySubscriptionToRow,
   verifySubscriptionCheckoutSignature,
@@ -125,32 +125,11 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
     }
   }
 
-  let paymentInstrument:
-    | Awaited<ReturnType<typeof getPaymentInstrumentForCustomer>>
-    | undefined;
-
-  const sub = subQ.data;
-  const wantsInstrument =
-    sub?.razorpay_customer_id &&
-    sub?.razorpay_subscription_id &&
-    !ctx.isInternal &&
-    (sub.status === "active" || sub.status === "trialing");
-
-  if (wantsInstrument) {
-    try {
-      const client = await getRazorpayClient();
-      let customerId = sub.razorpay_customer_id;
-      try {
-        const fresh = await client.subscriptions.fetch(sub.razorpay_subscription_id!);
-        if (fresh.customer_id) customerId = fresh.customer_id;
-      } catch {
-        /* use DB mirror */
-      }
-      paymentInstrument = await getPaymentInstrumentForCustomer(client, customerId);
-    } catch {
-      paymentInstrument = { kind: "none" };
-    }
-  }
+  /**
+   * Card/UPI hints are fetched lazily via GET /api/tenant/billing-payment-instrument so this
+   * handler stays within the ~60s platform limit (Razorpay + cold start + DB previously hit 504s).
+   */
+  const paymentInstrument = { kind: "none" as const };
 
   let billingContactEmail: string | null = null;
   let billingPrefillName: string | null = null;
@@ -182,7 +161,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
       },
       billingContactEmail,
       billingPrefillName,
-      paymentInstrument: paymentInstrument ?? { kind: "none" },
+      paymentInstrument,
     },
     200,
   );

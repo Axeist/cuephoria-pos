@@ -150,13 +150,21 @@ export default function Signup() {
         return;
       }
       const delivered = json?.verificationEmailDispatched === true;
+      const emailIssue = json?.verificationEmailIssue as string | undefined;
       setVerificationEmailDispatched(delivered);
-      appToast.success(
-        "Workspace created",
-        delivered
-          ? "Check your inbox to verify your email before first login."
-          : "Workspace created, but verification email delivery is delayed. Try signing in once to trigger resend.",
-      );
+      if (emailIssue === "not_configured") {
+        appToast.warning(
+          "Workspace created",
+          "This deployment is not set up to send email yet (missing Resend configuration). You won't receive a verification link until an administrator adds RESEND_API_KEY and RESEND_FROM.",
+        );
+      } else {
+        appToast.success(
+          "Workspace created",
+          delivered
+            ? "Check your inbox to verify your email before first login."
+            : "Workspace created, but we could not send the verification email. Try “Resend verification email” below or contact support.",
+        );
+      }
       setCreatedEmail(typeof json?.email === "string" ? json.email : email.trim().toLowerCase());
       return;
     } catch (err) {

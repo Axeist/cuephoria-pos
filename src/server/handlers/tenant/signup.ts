@@ -293,6 +293,7 @@ export default async function handler(req: Request) {
 
     // ── Welcome + verification email (best-effort, never blocks signup)
     let verificationEmailDispatched = false;
+    let verificationEmailIssue: "not_configured" | "send_failed" | null = null;
     if (newUser.email) {
       try {
         const base = appBaseUrl();
@@ -328,8 +329,12 @@ export default async function handler(req: Request) {
           supabase,
         });
         verificationEmailDispatched = !!emailResult.ok;
+        if (!emailResult.ok) {
+          verificationEmailIssue = emailResult.skipped ? "not_configured" : "send_failed";
+        }
       } catch (mailErr) {
         console.warn("signup: welcome email failed", (mailErr as Error).message);
+        verificationEmailIssue = "send_failed";
       }
     }
     // ── Audit log ────────────────────────────────────────────────────────
@@ -355,6 +360,7 @@ export default async function handler(req: Request) {
         verificationRequired: true,
         email: newUser.email,
         verificationEmailDispatched,
+        ...(verificationEmailIssue ? { verificationEmailIssue } : {}),
         organization: {
           id: newOrg.id,
           slug: newOrg.slug,

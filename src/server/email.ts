@@ -53,6 +53,11 @@ export interface SignupWelcomeVars extends BaseTemplateVars {
   verifyUrl: string;
   dashboardUrl: string;
   trialEndsAt?: string;
+  /**
+   * `oauth` — email already verified (e.g. Google); CTA opens the app instead of
+   * a verification link. Omit or `password` for normal email+password signup.
+   */
+  signupMode?: "password" | "oauth";
 }
 
 export interface VerifyEmailVars extends BaseTemplateVars {
@@ -312,29 +317,58 @@ function renderTemplate<K extends EmailKind>(
     case "signup_welcome": {
       const v = vars as SignupWelcomeVars;
       const greet = v.displayName || v.organizationName || "there";
+      const isOauth = v.signupMode === "oauth";
       return {
-        subject: `Welcome to Cuetronix — verify and launch ${v.organizationName ? v.organizationName : "your workspace"}`,
-        text: [
-          `Hey ${greet},`,
-          ``,
-          `Your Cuetronix workspace is ready.`,
-          ``,
-          `Before your first login, verify your email:`,
-          v.verifyUrl,
-          ``,
-          `After verification, sign in and continue onboarding: ${v.dashboardUrl}`,
-          ``,
-          v.trialEndsAt
-            ? `Your 14-day free trial runs until ${v.trialEndsAt}.`
-            : "",
-          `— The Cuetronix team`,
-        ]
-          .filter(Boolean)
-          .join("\n"),
+        subject: isOauth
+          ? `Welcome to Cuetronix — ${v.organizationName ? v.organizationName : "your workspace"}`
+          : `Welcome to Cuetronix — verify and launch ${v.organizationName ? v.organizationName : "your workspace"}`,
+        text: isOauth
+          ? [
+              `Hey ${greet},`,
+              ``,
+              `Your Cuetronix workspace is ready.`,
+              ``,
+              `You signed in with Google, so your email is already verified.`,
+              ``,
+              `Open your dashboard: ${v.verifyUrl}`,
+              ``,
+              `Continue onboarding: ${v.dashboardUrl}`,
+              ``,
+              v.trialEndsAt ? `Your 14-day free trial runs until ${v.trialEndsAt}.` : "",
+              `— The Cuetronix team`,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : [
+              `Hey ${greet},`,
+              ``,
+              `Your Cuetronix workspace is ready.`,
+              ``,
+              `Before your first login, verify your email:`,
+              v.verifyUrl,
+              ``,
+              `After verification, sign in and continue onboarding: ${v.dashboardUrl}`,
+              ``,
+              v.trialEndsAt
+                ? `Your 14-day free trial runs until ${v.trialEndsAt}.`
+                : "",
+              `— The Cuetronix team`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
         html: wrapShell({
-          preheader: "Your workspace is live. Verify email to unlock first login.",
-          heading: `Welcome, ${v.displayName ? htmlEscape(v.displayName) : "operator"} — let's go live ✨`,
-          bodyHtml: `
+          preheader: isOauth
+            ? "Your workspace is live — you're signed in and ready to finish setup."
+            : "Your workspace is live. Verify email to unlock first login.",
+          heading: isOauth
+            ? `Welcome — ${v.organizationName ? htmlEscape(v.organizationName) : "your workspace"} is live ✨`
+            : `Welcome, ${v.displayName ? htmlEscape(v.displayName) : "operator"} — let's go live ✨`,
+          bodyHtml: isOauth
+            ? `
+            <p style="margin:12px 0 0 0">Your workspace <strong style="color:#ffffff">${htmlEscape(v.organizationName || "Cuetronix")}</strong> is provisioned. You signed in with Google, so your email is already verified.</p>
+            <p style="margin:14px 0 0 0">Jump into the dashboard and continue onboarding when you're ready.</p>
+            `
+            : `
             <p style="margin:12px 0 0 0">Your workspace <strong style="color:#ffffff">${htmlEscape(v.organizationName || "Cuetronix")}</strong> has been provisioned and is waiting for you.</p>
             <p style="margin:14px 0 0 0">To protect your account and enable sign-in, confirm your email first. It takes one click.</p>
             <table cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;width:100%;border-collapse:collapse;border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden">
@@ -349,8 +383,13 @@ function renderTemplate<K extends EmailKind>(
               ${v.trialEndsAt ? `<tr><td style="padding:11px 14px;color:#a1a1aa;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;border-top:1px solid rgba(255,255,255,0.06)">Trial until</td><td style="padding:11px 14px;color:#ffffff;font-weight:600;border-top:1px solid rgba(255,255,255,0.06)">${htmlEscape(v.trialEndsAt)}</td></tr>` : ""}
             </table>
           `,
-          cta: { label: "Verify Email & Continue", url: v.verifyUrl },
-          footerNote: `Once verified, sign in and continue setup: ${v.dashboardUrl}`,
+          cta: {
+            label: isOauth ? "Open your workspace" : "Verify Email & Continue",
+            url: v.verifyUrl,
+          },
+          footerNote: isOauth
+            ? `Continue onboarding: ${v.dashboardUrl}`
+            : `Once verified, sign in and continue setup: ${v.dashboardUrl}`,
           appBaseUrl: v.appBaseUrl,
         }),
       };

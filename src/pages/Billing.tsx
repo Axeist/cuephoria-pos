@@ -98,6 +98,11 @@ interface Invoice {
   created_at: string;
 }
 
+type BillingInstrumentOk = {
+  ok: true;
+  paymentInstrument: PaymentInstrument;
+};
+
 interface BillingResponse {
   ok: true;
   role: string;
@@ -223,16 +228,76 @@ export default function Billing() {
   const [interval, setInterval] = React.useState<Interval>("month");
   const [cancelOpen, setCancelOpen] = React.useState(false);
 
+  const refreshBilling = React.useCallback(() => {
+    void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+    void qc.invalidateQueries({ queryKey: ["tenant-billing-instrument"] });
+  }, [qc]);
+
   const billingQ = useQuery<BillingResponse>({
     queryKey: ["tenant-billing"],
-    queryFn: async () => {
-      const res = await fetch("/api/tenant/billing", { credentials: "include" });
-      const json = await parseTenantBillingJson(res);
-      if (json.ok === false) throw new Error(String(json.error || "Failed to load billing"));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return json as BillingResponse;
+    queryFn: async ({ signal }) => {
+      const controller = new AbortController();
+      const onMainAbort = () => controller.abort();
+      signal.addEventListener("abort", onMainAbort);
+
+      const t = window.setTimeout(() => controller.abort(), 55_000);
+      try {
+        const res = await fetch("/api/tenant/billing", {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        const json = await parseTenantBillingJson(res);
+        if (json.ok === false) throw new Error(String(json.error || "Failed to load billing"));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return json as BillingResponse;
+      } catch (e: unknown) {
+        const name = e && typeof e === "object" && "name" in e ? (e as { name?: string }).name : "";
+        if (name === "AbortError") {
+          throw new Error("Billing request timed out. Check your connection and try again.");
+        }
+        throw e;
+      } finally {
+        window.clearTimeout(t);
+        signal.removeEventListener("abort", onMainAbort);
+      }
     },
     staleTime: 15_000,
+  });
+
+  const billingInstrumentQ = useQuery<BillingInstrumentOk>({
+    queryKey: ["tenant-billing-instrument"],
+    queryFn: async ({ signal }) => {
+      const controller = new AbortController();
+      const onMainAbort = () => controller.abort();
+      signal.addEventListener("abort", onMainAbort);
+      const t = window.setTimeout(() => controller.abort(), 25_000);
+      try {
+        const res = await fetch("/api/tenant/billing-payment-instrument", {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        const json = await parseTenantBillingJson(res);
+        if (json.ok === false) throw new Error(String(json.error || "Failed to load payment method"));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return json as BillingInstrumentOk;
+      } catch (e: unknown) {
+        const name = e && typeof e === "object" && "name" in e ? (e as { name?: string }).name : "";
+        if (name === "AbortError") {
+          throw new Error("Payment method lookup timed out.");
+        }
+        throw e;
+      } finally {
+        window.clearTimeout(t);
+        signal.removeEventListener("abort", onMainAbort);
+      }
+    },
+    staleTime: 60_000,
+    enabled:
+      billingQ.isSuccess &&
+      !!billingQ.data?.subscription?.razorpay_customer_id &&
+      !!billingQ.data?.subscription?.razorpay_subscription_id &&
+      !billingQ.data.organization.is_internal &&
+      (billingQ.data.subscription.status === "active" || billingQ.data.subscription.status === "trialing"),
   });
 
   const launchCheckout = async (
@@ -304,7 +369,7 @@ export default function Billing() {
           }
         }
         toast({ title: "Payment recorded", description: "Refreshing billing status…" });
-        void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+        refreshBilling();
       },
     };
 
@@ -354,7 +419,7 @@ export default function Billing() {
       const email = snap?.billingContactEmail ?? billingQ.data?.billingContactEmail ?? "";
       const prefName = snap?.billingPrefillName ?? billingQ.data?.billingPrefillName ?? "";
       await launchCheckout(data, { orgName, prefilledEmail: email, prefilledName: prefName });
-      void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+      refreshBilling();
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Subscription failed", description: err.message });
@@ -374,7 +439,7 @@ export default function Billing() {
       return json;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+      refreshBilling();
       toast({ title: "Cancel scheduled", description: "Access continues until the end of the paid period." });
       setCancelOpen(false);
     },
@@ -396,7 +461,7 @@ export default function Billing() {
       return json;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+      refreshBilling();
       toast({ title: "Subscription continues", description: "Auto‑renewals are back on." });
     },
     onError: (err: Error) => {
@@ -413,7 +478,7 @@ export default function Billing() {
             <XCircle className="h-12 w-12 text-rose-400 mx-auto mb-4" />
             <h1 className="text-lg font-semibold">Billing unavailable</h1>
             <p className="text-sm text-zinc-400 mt-2">{(billingQ.error as Error | undefined)?.message}</p>
-            <Button variant="outline" className="mt-6 border-white/20" onClick={() => void billingQ.refetch()}>
+            <Button variant="outline" className="mt-6 border-white/20" onClick={() => refreshBilling()}>
               <RefreshCw className="h-4 w-4 mr-2" /> Try again
             </Button>
           </CardContent>
@@ -423,8 +488,27 @@ export default function Billing() {
   }
 
   const data = billingQ.data;
-  const { subscription, currentPlan, plans, invoices, organization, canEdit, paymentInstrument, razorpay } = data;
+  const {
+    subscription,
+    currentPlan,
+    plans,
+    invoices,
+    organization,
+    canEdit,
+    paymentInstrument: paymentInstrumentBase,
+    razorpay,
+  } = data;
+  const paymentInstrument =
+    billingInstrumentQ.data?.ok === true ? billingInstrumentQ.data.paymentInstrument : paymentInstrumentBase;
+
   const internal = organization.is_internal;
+
+  const showPaymentInstrumentPending =
+    billingInstrumentQ.isPending &&
+    !internal &&
+    !!subscription?.razorpay_customer_id &&
+    !!subscription?.razorpay_subscription_id &&
+    (subscription.status === "active" || subscription.status === "trialing");
   const statusKey = subscription?.status ?? "trialing";
   const statusUi = STATUS_META[statusKey] ?? STATUS_META.active;
 
@@ -497,6 +581,9 @@ export default function Billing() {
                     <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Payment method</div>
                     <div className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 bg-black/25 text-sm font-mono">
                       <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                      {showPaymentInstrumentPending && (
+                        <Loader2 className="h-4 w-4 animate-spin text-zinc-500 shrink-0" aria-hidden />
+                      )}
                       <span>{instrumentLabel(paymentInstrument)}</span>
                     </div>
                   </div>

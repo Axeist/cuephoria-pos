@@ -11,9 +11,27 @@ export function j(body: unknown, status = 200, headers: Record<string, string> =
 // Edge-safe env getter (matches existing style in api/razorpay/*)
 export function getEnv(name: string): string | undefined {
   const fromDeno = (globalThis as any)?.Deno?.env?.get?.(name);
-  const fromProcess =
-    typeof process !== "undefined" ? (process.env as any)?.[name] : undefined;
-  return fromDeno ?? fromProcess;
+  if (fromDeno !== undefined && fromDeno !== "") return fromDeno;
+
+  // Vercel Edge bundles can omit vars unless they appear as explicit
+  // `process.env.FOO` reads. Keep transactional-email + app URL keys literal.
+  if (typeof process !== "undefined" && process.env) {
+    switch (name) {
+      case "RESEND_API_KEY":
+        return process.env.RESEND_API_KEY;
+      case "RESEND_FROM":
+        return process.env.RESEND_FROM;
+      case "RESEND_REPLY_TO":
+        return process.env.RESEND_REPLY_TO;
+      case "APP_BASE_URL":
+        return process.env.APP_BASE_URL;
+      case "VITE_APP_BASE_URL":
+        return process.env.VITE_APP_BASE_URL;
+      default:
+        return (process.env as Record<string, string | undefined>)[name];
+    }
+  }
+  return undefined;
 }
 
 export function needEnv(name: string): string {

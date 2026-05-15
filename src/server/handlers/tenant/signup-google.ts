@@ -264,6 +264,7 @@ export default async function handler(req: Request) {
           organizationName,
           verifyUrl: `${base}/dashboard`,
           dashboardUrl: `${base}/onboarding`,
+          signupMode: "oauth",
           trialEndsAt: new Date(trialEndsAt).toLocaleDateString("en-IN", {
             day: "numeric",
             month: "short",
