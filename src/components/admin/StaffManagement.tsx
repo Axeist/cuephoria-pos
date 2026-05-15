@@ -24,6 +24,7 @@ interface LocationInfo {
 interface StaffUser {
   id: string;
   username: string;
+  email?: string | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   locations: LocationInfo[];
@@ -101,7 +102,7 @@ const StaffManagement: React.FC = () => {
 
   const handleAddStaff = async () => {
     if (!newUsername || !newPassword) {
-      toast({ title: 'Error', description: 'Username and password are required', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Email address and password are required', variant: 'destructive' });
       return;
     }
     if (!newIsSuperAdmin && selectedLocationIds.length === 0) {
@@ -302,9 +303,9 @@ const StaffManagement: React.FC = () => {
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
-                  <User className="h-4 w-4" /> Username
+                  <User className="h-4 w-4" /> Email (login)
                 </Label>
-                <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Enter username" className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
+                <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="staff@yourbusiness.com" className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
               </div>
 
               <div className="space-y-2">
@@ -352,9 +353,12 @@ const StaffManagement: React.FC = () => {
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
-                    <User className="h-4 w-4" /> Username
+                    <User className="h-4 w-4" /> Username / email
                   </Label>
                   <Input value={editUsername} onChange={(e) => setEditUsername(e.target.value)} className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
+                  {editingStaff.email && (
+                    <p className="text-xs text-white/40">Email on file: {editingStaff.email}</p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -439,7 +443,7 @@ const StaffManagement: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Username</TableHead>
+                  <TableHead>Login</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Branch Access</TableHead>
                   <TableHead>Actions</TableHead>
@@ -448,7 +452,7 @@ const StaffManagement: React.FC = () => {
               <TableBody>
                 {staffMembers.map((staff) => (
                   <TableRow key={staff.id}>
-                    <TableCell className="font-medium">{staff.username}</TableCell>
+                    <TableCell className="font-medium">{staff.email ?? staff.username}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <Badge variant="secondary" className={staff.isAdmin ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : ''}>

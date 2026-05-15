@@ -24,6 +24,17 @@ function getSupabaseServiceRoleKey() {
   return getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY");
 }
 
+/** Must match login.ts: identifiers with `@` authenticate against admin_users.email (lowercase). */
+const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeAdminEmail(explicit: unknown, username: string): string | null {
+  const raw = typeof explicit === "string" ? explicit.trim() : "";
+  const candidates = raw ? raw : username.trim();
+  if (!candidates || !candidates.includes("@")) return null;
+  const lower = candidates.toLowerCase();
+  return SIMPLE_EMAIL.test(lower) ? lower : null;
+}
+
 export default async function handler(req: Request) {
   try {
     const cookies = parseCookies(req.headers.get("cookie"));
@@ -48,7 +59,7 @@ export default async function handler(req: Request) {
     if (req.method === "GET") {
       const { data: users, error: usersErr } = await supabase
         .from("admin_users")
-        .select("id, username, is_admin, is_super_admin")
+        .select("id, username, email, is_admin, is_super_admin")
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
@@ -82,6 +93,7 @@ export default async function handler(req: Request) {
       const result = (users ?? []).map((u) => ({
         id: u.id,
         username: u.username,
+        email: u.email ?? null,
         isAdmin: u.is_admin,
         isSuperAdmin: u.is_super_admin,
         locations: userLocations[u.id] ?? [],
@@ -105,13 +117,29 @@ export default async function handler(req: Request) {
       if (!isSuperAdmin && locationIds.length === 0)
         return j({ ok: false, error: "Assign at least one branch to this user" }, 400);
 
-      const { data: existing } = await supabase
+      const emailNorm = normalizeAdminEmail(body?.email, username);
+      if (!emailNorm) {
+        return j(
+          {
+            ok: false,
+            error:
+              "A valid email is required for every account (use an email address as username or add an email field). Used for login and password recovery.",
+          },
+          400,
+        );
+      }
+
+      const { data: existingUser } = await supabase
         .from("admin_users")
         .select("id")
         .eq("username", username)
         .maybeSingle();
 
-      if (existing?.id) return j({ ok: false, error: "Username already exists" }, 409);
+      if (existingUser?.id) return j({ ok: false, error: "Username already exists" }, 409);
+
+      const { data: existingEmail } = await supabase.from("admin_users").select("id").eq("email", emailNorm).maybeSingle();
+
+      if (existingEmail?.id) return j({ ok: false, error: "An account with this email already exists" }, 409);
 
       const passwordHash = await hashPassword(password);
 
@@ -119,6 +147,7 @@ export default async function handler(req: Request) {
         .from("admin_users")
         .insert({
           username,
+          email: emailNorm,
           password: null,
           password_hash: passwordHash,
           password_updated_at: new Date().toISOString(),
@@ -161,6 +190,20 @@ export default async function handler(req: Request) {
       const update: Record<string, any> = {};
       if (typeof body?.username === "string" && body.username.trim()) {
         update.username = body.username.trim();
+      }
+      if (typeof body?.email === "string" && body.email.trim()) {
+        const emailNorm = normalizeAdminEmail(body.email, "");
+        if (!emailNorm) return j({ ok: false, error: "Invalid email format." }, 400);
+        const { data: other } = await supabase.from("admin_users").select("id").eq("email", emailNorm).neq("id", id).maybeSingle();
+        if (other?.id) return j({ ok: false, error: "Another account already uses this email." }, 409);
+        update.email = emailNorm;
+      } else if (typeof update.username === "string" && update.username.trim()) {
+        const sync = normalizeAdminEmail(undefined, update.username);
+        if (sync) {
+          const { data: other } = await supabase.from("admin_users").select("id").eq("email", sync).neq("id", id).maybeSingle();
+          if (other?.id) return j({ ok: false, error: "Another account already uses this email." }, 409);
+          update.email = sync;
+        }
       }
       if (typeof body?.newPassword === "string" && body.newPassword.trim()) {
         const newPw = body.newPassword.trim();
