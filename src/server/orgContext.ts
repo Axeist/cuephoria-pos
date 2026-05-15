@@ -211,21 +211,39 @@ export function withOrgContext(
   handler: (req: Request, ctx: OrgContext) => Promise<Response> | Response,
 ) {
   return async function wrapped(req: Request): Promise<Response> {
-    const url = new URL(req.url);
-    const requestedOrgSlug = url.searchParams.get("org") || undefined;
-    const result = await resolveOrgContext(req, { requestedOrgSlug });
-    if ("code" in result) {
-      return j({ ok: false, error: result.message, code: result.code }, result.status);
-    }
     try {
-      return await handler(req, result);
+      let requestedOrgSlug: string | undefined;
+      try {
+        requestedOrgSlug = new URL(req.url).searchParams.get("org") || undefined;
+      } catch {
+        // Some gateways pass a bare path; omit ?org rather than crashing the Lambda.
+        requestedOrgSlug = undefined;
+      }
+
+      const result = await resolveOrgContext(req, { requestedOrgSlug });
+      if ("code" in result) {
+        return j({ ok: false, error: result.message, code: result.code }, result.status);
+      }
+      try {
+        return await handler(req, result);
+      } catch (err) {
+        console.error("withOrgContext handler error", err);
+        return j(
+          {
+            ok: false,
+            error: err instanceof Error ? err.message : "Internal server error",
+            code: "handler_exception",
+          },
+          500,
+        );
+      }
     } catch (err) {
-      console.error("withOrgContext handler error", err);
+      console.error("withOrgContext fatal error", err);
       return j(
         {
           ok: false,
           error: err instanceof Error ? err.message : "Internal server error",
-          code: "handler_exception",
+          code: "org_context_fatal",
         },
         500,
       );

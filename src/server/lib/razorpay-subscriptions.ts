@@ -11,6 +11,7 @@
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
+import Razorpay from "razorpay";
 import { getRazorpayCredentials } from "./razorpay-credentials.js";
 
 /** Authoritative mapping from Razorpay subscription.status → our internal status. */
@@ -110,8 +111,9 @@ export interface RazorpayInvoice {
 /** Create a Razorpay SDK client using the default (main) profile credentials. */
 export async function getRazorpayClient(): Promise<RazorpayClient> {
   const { keyId, keySecret } = getRazorpayCredentials("default");
-  const Razorpay = (await import("razorpay")).default;
-  return new Razorpay({ key_id: keyId, key_secret: keySecret }) as unknown as RazorpayClient;
+  /** Static import so Vercel / esbuild traces `razorpay` into the Node bundle (dynamic import was often omitted). */
+  const Ctor = Razorpay as unknown as new (opts: { key_id: string; key_secret: string }) => RazorpayClient;
+  return new Ctor({ key_id: keyId, key_secret: keySecret }) as RazorpayClient;
 }
 
 /**
