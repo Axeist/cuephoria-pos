@@ -9,25 +9,20 @@
  *     orgId: string (uuid),
  *     username: string,        // ends up as the login username
  *     email: string,           // required — stored on admin_users (NOT NULL + unique)
- *     displayName?: string,    // not persisted today; reserved for Slice 5
- *     tempPassword: string,    // >= 8 chars, displayed once to the operator
  *     role?: 'owner' | 'admin' // default 'owner'
  *   }
  *
  * Behaviour:
  *   1. Rejects invites into internal orgs (Cuephoria). Use the app directly.
  *   2. Enforces global admin_users.username and email uniqueness with friendly 409s.
- *   3. Creates admin_user + org_membership + admin_user_locations (all active
- *      branches) atomically; rolls back on any failure.
+ *   3. Creates admin_user (no password — invitee uses Google sign-in at /login)
+ *      + org_membership + admin_user_locations (all active branches) atomically.
  *   4. Writes an audit log entry.
- *   5. Response includes the plaintext password — operator must copy it now;
- *      it is never stored beyond the admin_users row.
  */
 
 import { j } from "../../adminApiUtils";
 import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 import { requirePlatformSession } from "../../platformApiUtils";
-import { hashPassword } from "../../passwordUtils";
 
 export const config = { runtime: "edge" };
 
@@ -54,7 +49,6 @@ export default async function handler(req: Request) {
     username?: string;
     email?: string;
     displayName?: string;
-    tempPassword?: string;
     role?: string;
   };
   try {
@@ -66,7 +60,6 @@ export default async function handler(req: Request) {
   const orgId = (body.orgId || "").trim();
   const username = (body.username || "").trim();
   const ownerEmail = (body.email || "").trim().toLowerCase();
-  const tempPassword = body.tempPassword || "";
   const role = (body.role || "owner").trim();
 
   if (!UUID_RE.test(orgId)) return j({ ok: false, error: "Invalid orgId." }, 400);
@@ -78,9 +71,6 @@ export default async function handler(req: Request) {
   }
   if (!ownerEmail || !isValidEmail(ownerEmail)) {
     return j({ ok: false, error: "Enter a valid email address for this invite.", field: "email" }, 400);
-  }
-  if (typeof tempPassword !== "string" || tempPassword.length < 8 || tempPassword.length > 128) {
-    return j({ ok: false, error: "Temporary password must be 8–128 characters." }, 400);
   }
   if (!ALLOWED_ROLES.has(role)) {
     return j({ ok: false, error: `Role must be one of: ${Array.from(ALLOWED_ROLES).join(", ")}.` }, 400);
@@ -143,20 +133,17 @@ export default async function handler(req: Request) {
     }
 
     // -----------------------------------------------------------------------
-    // 3) Create admin_user. Store only the PBKDF2 hash and force a rotation
-    //    on first login so the temp password we just showed the operator
-    //    stops working as soon as the invitee uses it.
+    // 3) Create admin_user (Google sign-in only for this tenant).
     // -----------------------------------------------------------------------
-    const passwordHash = await hashPassword(tempPassword);
     const { data: newUser, error: userErr } = await supabase
       .from("admin_users")
       .insert({
         username,
         email: ownerEmail,
         password: null,
-        password_hash: passwordHash,
-        password_updated_at: new Date().toISOString(),
-        must_change_password: true,
+        password_hash: null,
+        password_updated_at: null,
+        must_change_password: false,
         is_admin: true,
         is_super_admin: false,
       })
@@ -227,7 +214,6 @@ export default async function handler(req: Request) {
           adminUserId: newUser.id,
           username: newUser.username,
           email: ownerEmail,
-          tempPassword,
           role: membership.role,
           locationsLinked: locations?.length ?? 0,
         },

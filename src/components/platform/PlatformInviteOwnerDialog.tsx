@@ -1,12 +1,8 @@
 /**
- * PlatformInviteOwnerDialog — seed the first (or additional) owner of a tenant.
+ * PlatformInviteOwnerDialog — seed owner/admin on a tenant for Google sign-in.
  *
- * Flow:
- *   1. Operator fills username, email, role, generates a one-time password.
- *   2. Submit creates admin_user + membership + branch links atomically.
- *   3. On success, the dialog pivots to a "credentials reveal" state with
- *      a one-time copy-to-clipboard view. Closing that state is final —
- *      the temp password is never shown again.
+ * Creates admin_user without a password; invitee signs in at /login with Google
+ * using the same email so OAuth can link `google_sub`.
  */
 
 import React from "react";
@@ -15,11 +11,7 @@ import {
   AlertCircle,
   Check,
   Copy,
-  Eye,
-  EyeOff,
-  KeyRound,
   Loader2,
-  RefreshCw,
   ShieldAlert,
   UserPlus,
 } from "lucide-react";
@@ -40,27 +32,19 @@ import { cn } from "@/lib/utils";
 const USERNAME_RE = /^[a-zA-Z0-9._+@-]{3,64}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function suggestPassword(): string {
-  const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = new Uint32Array(14);
-  crypto.getRandomValues(bytes);
-  let out = "";
-  for (const b of bytes) out += alphabet[b % alphabet.length];
-  return out;
-}
-
 type InviteResponse = {
   ok: true;
   owner: {
     adminUserId: string;
     username: string;
     email: string;
-    tempPassword: string;
     role: string;
     locationsLinked: number;
   };
   organization: { id: string; slug: string; name: string };
 };
+
+const LOGIN_URL = "https://cuephoriatech.in/login";
 
 export const PlatformInviteOwnerDialog: React.FC<{
   open: boolean;
@@ -76,24 +60,9 @@ export const PlatformInviteOwnerDialog: React.FC<{
   const [username, setUsername] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<"owner" | "admin">("owner");
-  const [password, setPassword] = React.useState<string>(() => suggestPassword());
-  const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<InviteResponse["owner"] | null>(null);
-  const [copied, setCopied] = React.useState<"email" | "username" | "password" | "bundle" | null>(null);
-
-  React.useEffect(() => {
-    if (open) {
-      setUsername(suggestedUsername || `owner-${orgSlug}`);
-      setEmail("");
-      setRole("owner");
-      setPassword(suggestPassword());
-      setShowPassword(false);
-      setError(null);
-      setResult(null);
-      setCopied(null);
-    }
-  }, [open, orgSlug, suggestedUsername]);
+  const [copied, setCopied] = React.useState<"email" | "username" | "bundle" | null>(null);
 
   const mutation = useMutation({
     mutationFn: async (): Promise<InviteResponse> => {
@@ -105,7 +74,6 @@ export const PlatformInviteOwnerDialog: React.FC<{
           orgId,
           username: username.trim(),
           email: email.trim().toLowerCase(),
-          tempPassword: password,
           role,
         }),
       });
@@ -121,12 +89,27 @@ export const PlatformInviteOwnerDialog: React.FC<{
     onError: (err: Error) => setError(err.message),
   });
 
+  React.useEffect(() => {
+    if (open) {
+      setUsername(suggestedUsername || `owner-${orgSlug}`);
+      setEmail("");
+      setRole("owner");
+      setError(null);
+      setResult(null);
+      setCopied(null);
+    }
+  }, [open, orgSlug, suggestedUsername]);
+
+  const handleOpenChange = (v: boolean) => {
+    if (!v && mutation.isPending) return;
+    onOpenChange(v);
+  };
+
   const usernameValid = USERNAME_RE.test(username.trim());
   const emailTrimmed = email.trim().toLowerCase();
   const emailValid = EMAIL_RE.test(emailTrimmed);
-  const passwordValid = password.length >= 8 && password.length <= 128;
 
-  const copy = async (what: "email" | "username" | "password" | "bundle", text: string) => {
+  const copy = async (what: "email" | "username" | "bundle", text: string) => {
     try {
       await navigator.clipboard?.writeText(text);
       setCopied(what);
@@ -137,15 +120,11 @@ export const PlatformInviteOwnerDialog: React.FC<{
   };
 
   const bundle = result
-    ? `Workspace: ${orgName}\nSlug: ${orgSlug}\nEmail: ${result.email}\nUsername: ${result.username}\nTemporary password: ${result.tempPassword}\nRole: ${result.role}\nLogin at: https://cuephoriatech.in/login`
+    ? `Workspace: ${orgName}\nSlug: ${orgSlug}\nEmail (must match Google): ${result.email}\nUsername: ${result.username}\nRole: ${result.role}\nSign in: ${LOGIN_URL} → Continue with Google`
     : "";
 
   return (
-    <Dialog open={open} onOpenChange={(v) => {
-      // Once credentials are revealed, close resets the whole dialog.
-      if (!v && mutation.isPending) return;
-      onOpenChange(v);
-    }}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg bg-[#0b0b14] border-white/10 text-zinc-100">
         {!result ? (
           <>
@@ -160,9 +139,9 @@ export const PlatformInviteOwnerDialog: React.FC<{
               </div>
               <DialogTitle className="text-lg font-semibold">Invite an owner</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                This creates a login for <strong className="text-zinc-200">{orgName}</strong>. You'll
-                see the password exactly once, so copy it and share it securely. They can sign in with
-                username or email.
+                Creates their profile on <strong className="text-zinc-200">{orgName}</strong>. They{" "}
+                <strong className="text-zinc-200">must use Continue with Google</strong> on the login page
+                with this exact email so we can link their Google account.
               </DialogDescription>
             </DialogHeader>
 
@@ -205,7 +184,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
                   className="mt-1 bg-black/40 border-white/10"
                 />
                 <p className="mt-1 text-xs text-zinc-500">
-                  Used for login, password reset, and verification — use their real inbox.
+                  Must be the same address they will use with Google (e.g. Workspace @cuetronix.com).
                 </p>
               </div>
 
@@ -230,49 +209,9 @@ export const PlatformInviteOwnerDialog: React.FC<{
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-zinc-300">Temporary password</Label>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((s) => !s)}
-                      className="text-xs text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-1"
-                    >
-                      {showPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                      {showPassword ? "Hide" : "Show"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPassword(suggestPassword())}
-                      className="ml-2 text-xs text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-1"
-                      title="Regenerate"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      Regenerate
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-black/40 border-white/10 font-mono"
-                    maxLength={128}
-                  />
-                </div>
-                {!passwordValid && (
-                  <div className="mt-1 text-xs text-rose-400">8–128 chars required.</div>
-                )}
-              </div>
-
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200 flex items-start gap-2">
                 <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <span>
-                  You'll be shown this password once. Share it over a trusted channel and ask
-                  the owner to rotate it on first login.
-                </span>
+                <span>No password is set. If they try a different Google account, sign-in will fail until the email on file matches.</span>
               </div>
 
               {error && (
@@ -286,7 +225,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
             <DialogFooter>
               <Button
                 variant="ghost"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 disabled={mutation.isPending}
                 className="text-zinc-400 hover:text-zinc-100"
               >
@@ -297,7 +236,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
                   setError(null);
                   mutation.mutate();
                 }}
-                disabled={!usernameValid || !emailValid || !passwordValid || mutation.isPending}
+                disabled={!usernameValid || !emailValid || mutation.isPending}
                 className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white hover:opacity-90"
               >
                 {mutation.isPending ? (
@@ -306,10 +245,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
                     Creating…
                   </>
                 ) : (
-                  <>
-                    <KeyRound className="h-4 w-4 mr-2" />
-                    Create &amp; reveal credentials
-                  </>
+                  "Create invite"
                 )}
               </Button>
             </DialogFooter>
@@ -325,16 +261,16 @@ export const PlatformInviteOwnerDialog: React.FC<{
                   Owner provisioned
                 </Badge>
               </div>
-              <DialogTitle className="text-lg font-semibold">Copy these credentials</DialogTitle>
+              <DialogTitle className="text-lg font-semibold">Share sign-in instructions</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Share these over a trusted channel. Once you close this dialog, the password
-                can't be shown again — only reset.
+                They should open the login page and use <strong className="text-zinc-200">Continue with Google</strong>{" "}
+                with the email below.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
               <CredRow
-                label="Email"
+                label="Email (Google)"
                 value={result.email}
                 onCopy={() => copy("email", result.email)}
                 copied={copied === "email"}
@@ -345,14 +281,6 @@ export const PlatformInviteOwnerDialog: React.FC<{
                 onCopy={() => copy("username", result.username)}
                 copied={copied === "username"}
                 mono
-              />
-              <CredRow
-                label="Temporary password"
-                value={result.tempPassword}
-                onCopy={() => copy("password", result.tempPassword)}
-                copied={copied === "password"}
-                mono
-                secret
               />
               <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
                 <div className="flex items-center justify-between">
@@ -380,7 +308,7 @@ export const PlatformInviteOwnerDialog: React.FC<{
 
             <DialogFooter>
               <Button
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 className="bg-white/10 text-zinc-100 hover:bg-white/15"
               >
                 Done
@@ -399,36 +327,22 @@ const CredRow: React.FC<{
   onCopy: () => void;
   copied: boolean;
   mono?: boolean;
-  secret?: boolean;
-}> = ({ label, value, onCopy, copied, mono, secret }) => {
-  const [show, setShow] = React.useState(!secret);
+}> = ({ label, value, onCopy, copied, mono }) => {
   return (
     <div className="rounded-lg border border-white/10 bg-black/30 p-3">
       <div className="flex items-center justify-between">
         <div className="text-xs uppercase tracking-wider text-zinc-500">{label}</div>
-        <div className="flex items-center gap-2">
-          {secret && (
-            <button
-              type="button"
-              onClick={() => setShow((s) => !s)}
-              className="text-xs text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-1"
-            >
-              {show ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              {show ? "Hide" : "Show"}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onCopy}
-            className="text-xs text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1"
-          >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {copied ? "Copied" : "Copy"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="text-xs text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1"
+        >
+          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
       </div>
       <div className={cn("mt-1 text-sm text-zinc-100 break-all", mono && "font-mono")}>
-        {secret && !show ? "•".repeat(Math.min(value.length, 16)) : value}
+        {value}
       </div>
     </div>
   );

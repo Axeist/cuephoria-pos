@@ -23,11 +23,9 @@ import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Eye, EyeOff, Loader2, Lock, ShieldCheck, Sparkles, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Lock, ShieldCheck, Sparkles, Users } from "lucide-react";
+import GoogleButton from "@/components/auth/GoogleButton";
 import { useAuth } from "@/context/AuthContext";
-import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 type PublicBranding = {
@@ -60,17 +58,7 @@ const fetcher = async <T,>(url: string): Promise<T> => {
 const BrandedLogin: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user, login } = useAuth();
-
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [submitting, setSubmitting] = React.useState(false);
-  const [needsTotp, setNeedsTotp] = React.useState(false);
-  const [totpCode, setTotpCode] = React.useState("");
-  const [useBackup, setUseBackup] = React.useState(false);
-  const [loginType, setLoginType] = React.useState<"admin" | "staff">("admin");
+  const { user } = useAuth();
 
   const wsQuery = useQuery({
     queryKey: ["public", "workspace", slug],
@@ -111,131 +99,8 @@ const BrandedLogin: React.FC = () => {
   const tagline = branding.tagline;
   const initial = (displayName || "?").trim().charAt(0).toUpperCase();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return;
-    if (!email.trim() || !password) {
-      toast({ title: "Enter your credentials", description: "Email and password are both required." });
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const result = await login(email.trim(), password, loginType === "admin");
-      if (result.ok) {
-        navigate("/dashboard", { replace: true });
-      } else if ("requireTotp" in result && result.requireTotp) {
-        setNeedsTotp(true);
-        toast({
-          title: "Two-factor authentication",
-          description: "Enter the 6-digit code from your authenticator app.",
-        });
-      } else {
-        toast({
-          title: "Invalid credentials",
-          description: result.error || `Check your ${loginType} email and password.`,
-          variant: "destructive",
-        });
-      }
-    } catch (err) {
-      toast({
-        title: "Something went wrong",
-        description: err instanceof Error ? err.message : "Please try again in a moment.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleTotp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = totpCode.trim().replace(/\s+/g, "");
-    if (!code) {
-      toast({ title: "Enter your 2FA code", variant: "destructive" });
-      return;
-    }
-    setSubmitting(true);
-    const result = await login(
-      email.trim(),
-      password,
-      loginType === "admin",
-      undefined,
-      useBackup ? { backupCode: code } : { totpCode: code },
-    );
-    setSubmitting(false);
-    if (result.ok) {
-      navigate("/dashboard", { replace: true });
-    } else {
-      toast({
-        title: "Invalid code",
-        description: (result as { error?: string }).error || "Try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-[#05060c] text-zinc-100 relative overflow-hidden">
-      {needsTotp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <form
-            onSubmit={handleTotp}
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0d0e1c] p-6 shadow-2xl"
-            style={{ boxShadow: `0 16px 40px -16px ${primary}aa` }}
-          >
-            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: primary }}>Two-factor auth</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-100">
-              {useBackup ? "Enter a backup code" : "Enter authenticator code"}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              {useBackup
-                ? "Backup codes are single-use."
-                : "Open your authenticator app for the 6-digit code."}
-            </p>
-            <input
-              autoFocus
-              inputMode={useBackup ? "text" : "numeric"}
-              maxLength={useBackup ? 16 : 6}
-              placeholder={useBackup ? "ABCD-EFGH-IJKL" : "123 456"}
-              value={totpCode}
-              onChange={(e) => setTotpCode(e.target.value)}
-              className="mt-4 w-full rounded-md bg-[#05060c] border border-white/10 text-center text-xl tracking-[0.4em] text-zinc-100 py-3"
-            />
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-4 w-full rounded-md py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-              style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}
-            >
-              {submitting ? "Verifying…" : "Verify"}
-            </button>
-            <div className="mt-3 flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setUseBackup((v) => !v);
-                  setTotpCode("");
-                }}
-                className="font-medium"
-                style={{ color: primary }}
-              >
-                {useBackup ? "Use authenticator code" : "Use a backup code"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setNeedsTotp(false);
-                  setTotpCode("");
-                  setUseBackup(false);
-                }}
-                className="text-zinc-500 hover:text-zinc-300"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
       {/* Aurora background */}
       <div
         aria-hidden
@@ -361,110 +226,14 @@ const BrandedLogin: React.FC = () => {
           >
             <h2 className="text-[26px] font-extrabold tracking-tight">Sign in</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Enter your credentials for{" "}
+              Continue with Google — use the account that matches your profile for{" "}
               <span className="text-zinc-300 font-medium">{displayName}</span>
             </p>
           </motion.div>
 
-          {/* Role toggle */}
-          <div
-            className="mt-7 flex p-1 rounded-xl"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-          >
-            {(["admin", "staff"] as const).map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setLoginType(type)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 text-[13px] py-2.5 rounded-lg font-semibold transition-all",
-                  loginType === type ? "text-white" : "text-zinc-500 hover:text-zinc-300",
-                )}
-                style={
-                  loginType === type
-                    ? {
-                        background: `linear-gradient(135deg, ${primary}, ${accent})`,
-                        boxShadow: `0 4px 18px ${primary}55`,
-                      }
-                    : undefined
-                }
-              >
-                {type === "admin" ? <ShieldCheck size={14} /> : <Users size={14} />}
-                {type === "admin" ? "Admin" : "Staff"}
-              </button>
-            ))}
+          <div className="mt-8">
+            <GoogleButton intent="login" next="/dashboard" />
           </div>
-
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label className="block text-[13px] font-semibold text-zinc-400 mb-1.5">Email</label>
-              <Input
-                type="email"
-                inputMode="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="owner@yourbusiness.com"
-                className="h-11 text-sm rounded-xl"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.09)",
-                  color: "white",
-                }}
-                autoComplete="email"
-                disabled={submitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-[13px] font-semibold text-zinc-400 mb-1.5">Password</label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="h-11 text-sm rounded-xl pr-11"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.09)",
-                    color: "white",
-                  }}
-                  autoComplete="current-password"
-                  disabled={submitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={submitting || wsQuery.isLoading}
-              className="w-full h-12 font-bold text-sm rounded-xl text-white transition-transform hover:scale-[1.01]"
-              style={{
-                background: `linear-gradient(135deg, ${primary}, ${accent})`,
-                boxShadow: `0 6px 24px ${primary}55`,
-              }}
-            >
-              {submitting ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Verifying…
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  Sign in to {displayName}
-                  <ArrowRight size={15} />
-                </span>
-              )}
-            </Button>
-          </form>
 
           <div
             className="mt-8 pt-6 text-center text-[11px] text-zinc-600"
