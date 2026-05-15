@@ -81,9 +81,17 @@ export interface LoginLog {
 }
 
 export type LoginResult =
-  | { ok: true; error?: undefined; requireTotp?: undefined }
-  | { ok: false; requireTotp: true; error?: string }
-  | { ok: false; error?: string; requireTotp?: undefined };
+  | { ok: true; error?: undefined; requireTotp?: undefined; emailVerificationRequired?: undefined }
+  | { ok: false; requireTotp: true; error?: string; emailVerificationRequired?: undefined }
+  | {
+      ok: false;
+      emailVerificationRequired: true;
+      emailSent?: boolean;
+      emailSkipped?: boolean;
+      error?: string;
+      requireTotp?: undefined;
+    }
+  | { ok: false; error?: string; requireTotp?: undefined; emailVerificationRequired?: undefined };
 
 interface AuthContextType {
   user: AdminUser | null;
@@ -206,6 +214,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (json?.requireTotp) {
         return { ok: false, requireTotp: true, error: json?.error };
+      }
+
+      if (json?.emailVerificationRequired) {
+        return {
+          ok: false,
+          emailVerificationRequired: true,
+          emailSent: !!json.emailSent,
+          emailSkipped: !!json.emailSkipped,
+          error: typeof json.error === 'string' ? json.error : undefined,
+        };
       }
 
       const loginSuccess = !!json?.success;

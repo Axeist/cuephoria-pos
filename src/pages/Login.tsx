@@ -18,6 +18,7 @@ import {
   Gamepad2,
   Loader2,
   Lock,
+  Mail,
   ShieldCheck,
   Sparkles,
   Users,
@@ -55,6 +56,9 @@ const Login = () => {
   const locationState = location.state as LocationState;
 
   const [showPassword, setShowPassword] = useState(false);
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [verifyResendSubmitting, setVerifyResendSubmitting] = useState(false);
+  const [verifyResendCooldownSec, setVerifyResendCooldownSec] = useState(0);
 
   // Hidden webcam + canvas for silent capture
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -86,6 +90,18 @@ const Login = () => {
     const q = params.toString();
     window.history.replaceState({}, '', q ? `${location.pathname}?${q}` : location.pathname);
   }, [location.search, location.pathname]);
+
+  useEffect(() => {
+    setNeedsEmailVerification(false);
+  }, [loginType]);
+
+  useEffect(() => {
+    if (verifyResendCooldownSec <= 0) return;
+    const timer = window.setInterval(() => {
+      setVerifyResendCooldownSec((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [verifyResendCooldownSec]);
 
   // Silently initialize camera in background
   useEffect(() => {
@@ -132,6 +148,31 @@ const Login = () => {
     }
     return null;
   };
+
+  async function handleResendVerificationEmail() {
+    const addr = email.trim().toLowerCase();
+    if (!addr || !addr.includes('@') || verifyResendSubmitting || verifyResendCooldownSec > 0) return;
+    setVerifyResendSubmitting(true);
+    try {
+      const res = await fetch('/api/public/resend-verification', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: addr }),
+      });
+      const json = await res.json().catch(() => ({}));
+      appToast.info(
+        'Verification email',
+        typeof json?.message === 'string'
+          ? json.message
+          : 'If this account is unverified, a fresh link was sent. Check your inbox and spam.',
+      );
+      setVerifyResendCooldownSec(45);
+    } catch (err) {
+      appToast.error("Couldn't resend", (err as Error)?.message || 'Try again in a moment.');
+    } finally {
+      setVerifyResendSubmitting(false);
+    }
+  }
 
   const decode = (base64: string): Uint8Array => {
     const binaryString = window.atob(base64);
@@ -288,17 +329,31 @@ const Login = () => {
           stream.getTracks().forEach((track) => track.stop());
         }
 
+        setNeedsEmailVerification(false);
         appToast.success(
           `${isAdminLogin ? 'Admin' : 'Staff'} access granted`,
           'Loading your control panel…',
         );
         const redirectTo = locationState?.from || '/dashboard';
         navigate(redirectTo);
+      } else if ('emailVerificationRequired' in result && result.emailVerificationRequired) {
+        setNeedsEmailVerification(true);
+        appToast.warning(
+          'Verify your email',
+          result.error ||
+            (result.emailSkipped
+              ? 'Outgoing mail is not configured on this deployment. Contact support or your administrator.'
+              : result.emailSent
+                ? 'We sent a verification link. Open it on this device to continue.'
+                : 'Confirm your email before signing in. Use resend below if you need a new link.'),
+        );
       } else if ('requireTotp' in result && result.requireTotp) {
+        setNeedsEmailVerification(false);
         setNeedsTotp(true);
         setCachedMetadata(enhancedMetadata);
         appToast.info('Two-factor authentication', 'Enter the 6-digit code from your authenticator app.');
       } else {
+        setNeedsEmailVerification(false);
         appToast.error(
           'Invalid credentials',
           result.error || `Check your ${isAdminLogin ? 'admin' : 'staff'} email and password.`,
@@ -628,6 +683,58 @@ const Login = () => {
                     </span>
                   )}
                 </Button>
+
+                <AnimatePresence>
+                  {needsEmailVerification && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-3.5 py-3 text-left"
+                    >
+                      <div className="flex gap-2.5">
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-200">
+                          <Mail size={17} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-semibold text-amber-100/95">
+                            Email not verified yet
+                          </p>
+                          <p className="mt-1 text-[12px] leading-relaxed text-amber-100/70">
+                            Open the link we sent, or request a new one to{' '}
+                            <span className="font-medium text-amber-50/90">{email.trim() || 'your inbox'}</span>.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={
+                              verifyResendSubmitting ||
+                              verifyResendCooldownSec > 0 ||
+                              !email.trim().includes('@')
+                            }
+                            onClick={handleResendVerificationEmail}
+                            className="mt-2.5 h-9 w-full border-amber-400/35 bg-amber-950/40 text-[12px] font-semibold text-amber-50 hover:bg-amber-900/50 hover:text-white sm:w-auto sm:px-4"
+                          >
+                            {verifyResendSubmitting ? (
+                              <span className="inline-flex items-center gap-2">
+                                <Loader2 size={13} className="animate-spin" />
+                                Sending…
+                              </span>
+                            ) : verifyResendCooldownSec > 0 ? (
+                              `Resend in ${verifyResendCooldownSec}s`
+                            ) : (
+                              <>
+                                <Mail size={14} className="mr-1.5 opacity-90" />
+                                Resend verification email
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </form>
 
               {/* Divider */}
