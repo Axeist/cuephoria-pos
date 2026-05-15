@@ -1,17 +1,9 @@
 /**
- * /settings/billing — tenant-side subscription + invoice management.
+ * /settings/billing — tenant SaaS subscriptions (Razorpay).
  *
- * Features:
- *   • Shows the current plan + status + next renewal date
- *   • Plan picker with month/year toggle + live price display
- *   • "Subscribe / switch" action redirects to the Razorpay-hosted checkout
- *     (short_url returned by subscription create)
- *   • Cancel-at-period-end and undo
- *   • Invoice history table with download links
- *
- * Internal orgs (is_internal=true) see a banner explaining that they're
- * managed manually — the checkout / cancel controls are hidden so the
- * Cuephoria Main/Lite lounges can never accidentally be billed.
+ * Flow: plans + prices come from the platform-configured catalog; subscribing
+ * creates a Razorpay subscription server-side and opens Checkout.js inline
+ * (mandate/card capture). Renewals run on Razorpay; webhooks persist invoices.
  */
 
 import React from "react";
@@ -21,18 +13,19 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  Crown,
   CreditCard,
   Download,
   ExternalLink,
   Loader2,
   Receipt,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,6 +42,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 type Interval = "month" | "year";
+
+type PaymentInstrument =
+  | { kind: "card"; last4: string; network: string | null; type: string | null; issuer: string | null }
+  | { kind: "upi"; vpa: string }
+  | { kind: "emandate"; bank: string | null }
+  | { kind: "wallet"; provider: string | null }
+  | { kind: "none" };
 
 interface Plan {
   id: string;
@@ -113,28 +113,65 @@ interface BillingResponse {
   currentPlan: { id: string; code: string; name: string } | null;
   plans: Plan[];
   invoices: Invoice[];
+  razorpay: { mode: "live" | "test"; keyId: string };
+  /** Logged-in admin email for Razorpay Checkout prefill (when present). */
+  billingContactEmail: string | null;
+  paymentInstrument: PaymentInstrument;
 }
 
-const STATUS_PILL: Record<string, { label: string; tone: string }> = {
-  active: { label: "Active", tone: "bg-emerald-500/20 text-emerald-200 border-emerald-500/40" },
-  trialing: { label: "Trial", tone: "bg-sky-500/20 text-sky-200 border-sky-500/40" },
-  past_due: { label: "Past due", tone: "bg-amber-500/20 text-amber-200 border-amber-500/40" },
-  paused: { label: "Paused", tone: "bg-zinc-500/20 text-zinc-200 border-zinc-500/40" },
-  canceled: { label: "Canceled", tone: "bg-rose-500/20 text-rose-200 border-rose-500/40" },
-  internal: { label: "Internal", tone: "bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-500/40" },
+type SubscribeSuccess = {
+  ok: true;
+  reused?: boolean;
+  shortUrl?: string | null;
+  checkout?: { keyId: string; subscriptionId: string; shortUrl?: string | null };
 };
 
-const PLAN_GRADIENTS: Record<string, string> = {
-  starter: "from-cyan-500/20 via-cyan-500/10 to-transparent",
-  growth: "from-violet-500/25 via-violet-500/10 to-transparent",
-  pro: "from-amber-500/25 via-orange-500/10 to-transparent",
-  internal: "from-fuchsia-500/25 via-fuchsia-500/10 to-transparent",
+const STATUS_META: Record<string, { label: string; badge: string }> = {
+  active: { label: "Active — auto‑renews monthly", badge: "bg-emerald-500/20 text-emerald-200 border-emerald-500/40" },
+  trialing: { label: "Complete payment to activate mandate", badge: "bg-sky-500/20 text-sky-200 border-sky-500/40" },
+  past_due: { label: "Payment failed — Razorpay will retry", badge: "bg-amber-500/20 text-amber-200 border-amber-500/40" },
+  paused: { label: "Paused", badge: "bg-zinc-500/20 text-zinc-200 border-zinc-500/40" },
+  canceled: { label: "Canceled", badge: "bg-rose-500/20 text-rose-200 border-rose-500/40" },
 };
+
+declare global {
+  interface Window {
+    Razorpay?: new (opts: Record<string, unknown>) => {
+      open: () => void;
+      on: (evt: string, fn: (...args: unknown[]) => void) => void;
+    };
+  }
+}
+
+let razorpayScriptPromise: Promise<void> | null = null;
+
+function loadRazorpayCheckoutScript(): Promise<void> {
+  if (typeof window === "undefined") return Promise.reject(new Error("No window"));
+  if (window.Razorpay) return Promise.resolve();
+  if (!razorpayScriptPromise) {
+    razorpayScriptPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existing) {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Razorpay script failed")), { once: true });
+        return;
+      }
+      const s = document.createElement("script");
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error("Razorpay script failed"));
+      document.body.appendChild(s);
+    });
+  }
+  return razorpayScriptPromise;
+}
 
 function formatINR(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 }
+
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
@@ -159,12 +196,22 @@ async function parseTenantBillingJson(res: Response): Promise<Record<string, unk
   }
 }
 
+function instrumentLabel(p: PaymentInstrument): string {
+  if (p.kind === "card") {
+    const net = p.network ? `${p.network} ` : "";
+    return `${net}···· ${p.last4}`;
+  }
+  if (p.kind === "upi") return `UPI ${p.vpa}`;
+  if (p.kind === "emandate") return p.bank ? `eMandate · ${p.bank}` : "eMandate linked";
+  if (p.kind === "wallet") return `Wallet · ${p.provider ?? "—"}`;
+  return "Payment method captured after Checkout";
+}
+
 export default function Billing() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [interval, setInterval] = React.useState<Interval>("month");
   const [cancelOpen, setCancelOpen] = React.useState(false);
-  const [billingProvider] = React.useState<"razorpay" | "stripe">("razorpay");
 
   const billingQ = useQuery<BillingResponse>({
     queryKey: ["tenant-billing"],
@@ -178,26 +225,80 @@ export default function Billing() {
     staleTime: 15_000,
   });
 
+  const openHosted = (shortUrl?: string | null) => {
+    if (!shortUrl) return;
+    window.open(shortUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const launchCheckout = async (payload: SubscribeSuccess, opts: { orgName: string; prefilledEmail: string }) => {
+    const ch = payload.checkout;
+    if (!ch?.keyId || !ch.subscriptionId) {
+      toast({ variant: "destructive", title: "Checkout unavailable", description: "Missing Razorpay checkout tokens from server." });
+      return false;
+    }
+    try {
+      await loadRazorpayCheckoutScript();
+    } catch {
+      toast({ title: "Using hosted page instead", description: "Opening Razorpay in a new tab." });
+      openHosted(ch.shortUrl ?? payload.shortUrl);
+      return true;
+    }
+    if (!window.Razorpay) {
+      openHosted(ch.shortUrl ?? payload.shortUrl);
+      return true;
+    }
+    return await new Promise<boolean>((resolve) => {
+      const rzp = new window.Razorpay!({
+        key: ch.keyId,
+        subscription_id: ch.subscriptionId,
+        name: opts.orgName,
+        description: "Workspace subscription — saves your card for monthly auto‑debit",
+        prefill: {
+          email: opts.prefilledEmail || undefined,
+        },
+        theme: { color: "#6366f1" },
+        handler: () => {
+          toast({ title: "Payment received", description: "Your subscription is updating — this can take a few seconds." });
+          void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+          resolve(true);
+        },
+        modal: {
+          ondismiss: () => resolve(false),
+        },
+      });
+      rzp.on?.("payment.failed", () => {
+        toast({ variant: "destructive", title: "Payment failed", description: "Try again or use the hosted link." });
+        resolve(false);
+      });
+      rzp.open();
+    });
+  };
+
   const subscribeM = useMutation({
     mutationFn: async ({ planCode }: { planCode: string }) => {
       const res = await fetch("/api/tenant/billing", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "subscribe", planCode, interval, provider: billingProvider }),
+        body: JSON.stringify({
+          action: "subscribe",
+          planCode,
+          interval,
+          provider: "razorpay",
+          contactEmail:
+            qc.getQueryData<BillingResponse>(["tenant-billing"])?.billingContactEmail ?? undefined,
+        }),
       });
       const json = await parseTenantBillingJson(res);
       if (json.ok === false) throw new Error(String(json.error || "Subscribe failed"));
-      return json as { shortUrl: string | null };
+      return json as SubscribeSuccess;
     },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["tenant-billing"] });
-      if (data.shortUrl) {
-        toast({ title: "Redirecting to checkout", description: "Opening secure Razorpay page…" });
-        window.open(data.shortUrl, "_blank", "noopener,noreferrer");
-      } else {
-        toast({ title: "Subscription ready", description: "Your plan is now active." });
-      }
+    onSuccess: async (data) => {
+      const snap = qc.getQueryData<BillingResponse>(["tenant-billing"]);
+      const orgName = snap?.organization.name ?? billingQ.data?.organization.name ?? "Workspace";
+      const email = snap?.billingContactEmail ?? billingQ.data?.billingContactEmail ?? "";
+      await launchCheckout(data, { orgName, prefilledEmail: email });
+      void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Subscription failed", description: err.message });
@@ -217,8 +318,8 @@ export default function Billing() {
       return json;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tenant-billing"] });
-      toast({ title: "Cancel scheduled", description: "Your plan stays active until period end." });
+      void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+      toast({ title: "Cancel scheduled", description: "Access continues until the end of the paid period." });
       setCancelOpen(false);
     },
     onError: (err: Error) => {
@@ -239,8 +340,8 @@ export default function Billing() {
       return json;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tenant-billing"] });
-      toast({ title: "Welcome back", description: "Your subscription will continue renewing." });
+      void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
+      toast({ title: "Subscription continues", description: "Auto‑renewals are back on." });
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Resume failed", description: err.message });
@@ -250,289 +351,242 @@ export default function Billing() {
   if (billingQ.isLoading) return <BillingSkeleton />;
   if (billingQ.isError || !billingQ.data) {
     return (
-      <div className="min-h-screen bg-[#0a0b14] text-zinc-100 p-6">
-        <div className="max-w-3xl mx-auto">
-          <Card className="border-rose-500/30 bg-rose-500/5">
-            <CardContent className="py-8 text-center">
-              <XCircle className="h-10 w-10 text-rose-400 mx-auto mb-3" />
-              <div className="text-lg font-semibold">Couldn't load billing</div>
-              <div className="text-sm text-rose-200 mt-1">
-                {(billingQ.error as Error | undefined)?.message || "Please try again."}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="min-h-screen bg-[#070815] text-zinc-100 p-6 flex items-center justify-center">
+        <Card className="max-w-lg w-full border-rose-500/30 bg-rose-950/20">
+          <CardContent className="py-10 text-center">
+            <XCircle className="h-12 w-12 text-rose-400 mx-auto mb-4" />
+            <h1 className="text-lg font-semibold">Billing unavailable</h1>
+            <p className="text-sm text-zinc-400 mt-2">{(billingQ.error as Error | undefined)?.message}</p>
+            <Button variant="outline" className="mt-6 border-white/20" onClick={() => void billingQ.refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" /> Try again
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   const data = billingQ.data;
-  const { subscription, currentPlan, plans, invoices, organization, canEdit } = data;
-  const status = subscription?.status || organization.status;
-  const statusPill = STATUS_PILL[status] ?? STATUS_PILL.active;
-  const isInternal = organization.is_internal;
+  const { subscription, currentPlan, plans, invoices, organization, canEdit, paymentInstrument, razorpay } = data;
+  const internal = organization.is_internal;
+  const statusKey = subscription?.status ?? "trialing";
+  const statusUi = STATUS_META[statusKey] ?? STATUS_META.active;
 
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-zinc-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-3 mb-4 text-sm text-zinc-400">
-          <Link to="/settings/organization" className="hover:text-zinc-100 flex items-center gap-1">
-            <ArrowLeft className="h-4 w-4" />
-            Back to organization
-          </Link>
-        </div>
-
-        {/* Hero */}
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0d0b18] via-[#11122a] to-[#0b0a14] p-6 sm:p-8 mb-6">
-          <div className="absolute -top-24 -left-16 h-80 w-80 rounded-full blur-[120px] bg-violet-500/25" />
-          <div className="absolute -bottom-24 -right-20 h-80 w-80 rounded-full blur-[120px] bg-fuchsia-500/20" />
-          <div className="relative">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-300">
-              <CreditCard className="h-3.5 w-3.5" />
-              Billing
-            </div>
-            <h1 className="mt-3 text-3xl font-extrabold tracking-tight">
-              {isInternal ? "Internal workspace" : "Your plan"}
-            </h1>
-            <p className="mt-1 text-sm text-zinc-400 max-w-xl">
-              {isInternal
-                ? "This workspace is managed by the Cuetronix team. Billing is handled offline — no Razorpay charges will ever be issued."
-                : "Pick the plan that fits your lounge. Upgrade, downgrade, or cancel anytime — changes apply at the end of the current period."}
+    <div className="min-h-screen bg-[#070815] text-zinc-100">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Link to="/settings/organization" className="inline-flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-200">
+              <ArrowLeft className="h-4 w-4" /> Organization
+            </Link>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">Billing & subscription</h1>
+            <p className="text-sm text-zinc-400 mt-1 max-w-2xl">
+              {internal
+                ? "This workspace is invoiced internally by Cuetronix — nothing is charged on card here."
+                : "Pricing is pulled from Platform → Plans (Razorpay). Subscribe once — your card stays on file and renews automatically each billing cycle."}
             </p>
-            {!isInternal && (
-              <p className="mt-2 text-xs text-zinc-500">
-                Billing provider: <span className="text-zinc-300 font-medium">{billingProvider}</span> (Stripe scaffolded, activation pending)
-              </p>
-            )}
-
-            {!isInternal && (
-              <div className="mt-5 flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${statusPill.tone}`}>
-                    {statusPill.label}
-                  </span>
-                  {currentPlan && (
-                    <span className="inline-flex items-center gap-1 text-sm text-zinc-300">
-                      <Crown className="h-4 w-4 text-amber-400" />
-                      {currentPlan.name}
-                    </span>
-                  )}
-                </div>
-                {subscription?.current_period_end && (
-                  <div className="text-sm text-zinc-400 flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" />
-                    {subscription.cancel_at_period_end ? "Cancels on" : "Renews on"}{" "}
-                    <span className="text-zinc-200 font-medium">{formatDate(subscription.current_period_end)}</span>
-                  </div>
-                )}
-                {subscription?.cancel_at_period_end && canEdit && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-emerald-500/40 text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20"
-                    disabled={resumeM.isPending}
-                    onClick={() => resumeM.mutate()}
-                  >
-                    {resumeM.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
-                    Undo cancel
-                  </Button>
-                )}
-                {!subscription?.cancel_at_period_end && subscription?.razorpay_subscription_id && canEdit && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10 text-zinc-200 hover:bg-white/5"
-                    onClick={() => setCancelOpen(true)}
-                  >
-                    Cancel plan
-                  </Button>
-                )}
-              </div>
-            )}
           </div>
+          <Badge variant="outline" className="border-white/15 text-[10px] uppercase tracking-wide w-fit">
+            Razorpay {razorpay.mode}
+          </Badge>
         </div>
 
-        {!canEdit && !isInternal && (
-          <Card className="mb-6 border-sky-500/30 bg-sky-500/5">
-            <CardContent className="py-3 px-4 text-sm text-sky-200 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" />
-              Only owners and admins can change billing. Contact your workspace owner if you'd like a different plan.
+        {!canEdit && !internal && (
+          <Card className="border-sky-500/30 bg-sky-950/20">
+            <CardContent className="py-4 flex gap-3 text-sm text-sky-100">
+              <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5" />
+              Only owners and admins can change billing. Ask a workspace owner to upgrade/downgrade plans.
             </CardContent>
           </Card>
         )}
 
-        {/* Interval toggle */}
-        {!isInternal && canEdit && (
-          <div className="mb-4 flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 w-fit">
-            <button
-              type="button"
-              onClick={() => setInterval("month")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                interval === "month" ? "bg-white text-zinc-900" : "text-zinc-400 hover:text-zinc-100"
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              type="button"
-              onClick={() => setInterval("year")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                interval === "year" ? "bg-white text-zinc-900" : "text-zinc-400 hover:text-zinc-100"
-              }`}
-            >
-              Yearly{" "}
-              <span className="ml-1 text-[10px] text-emerald-500 font-bold">SAVE 20%</span>
-            </button>
-          </div>
-        )}
-
-        {/* Plan picker */}
-        {!isInternal && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            {plans
-              .filter((p) => p.is_public && p.is_active)
-              .map((plan) => {
-                const price = interval === "year" ? plan.price_inr_year : plan.price_inr_month;
-                const rzpId = interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
-                const stripeId = interval === "year" ? plan.stripe_price_id_year : plan.stripe_price_id_month;
-                const mapped =
-                  billingProvider === "razorpay"
-                    ? !!rzpId
-                    : !!stripeId;
-                const isCurrent =
-                  subscription?.interval === interval && currentPlan?.code === plan.code && status === "active";
-                const gradient = PLAN_GRADIENTS[plan.code] ?? PLAN_GRADIENTS.growth;
-
-                return (
-                  <div
-                    key={plan.id}
-                    className={`relative overflow-hidden rounded-2xl border p-5 transition-all ${
-                      isCurrent
-                        ? "border-emerald-500/40 bg-emerald-500/5 shadow-lg shadow-emerald-500/10"
-                        : "border-white/10 bg-[#0f1020] hover:border-white/20"
-                    }`}
-                  >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${gradient} pointer-events-none`} />
-                    <div className="relative">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">{plan.code}</div>
-                          <div className="text-xl font-bold mt-0.5">{plan.name}</div>
-                        </div>
-                        {isCurrent && (
-                          <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-500/40 text-[10px]">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Current
-                          </Badge>
-                        )}
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Card className="lg:col-span-2 border-white/10 bg-zinc-900/40 backdrop-blur">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-indigo-400" />
+                Current subscription
+              </CardTitle>
+              <CardDescription>Status synced from Razorpay webhooks.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {internal ? (
+                <p className="text-sm text-zinc-400">Internal tenancy — billing is settled offline.</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusUi.badge}`}>{statusUi.label}</span>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-zinc-500">Plan</div>
+                    <div className="text-xl font-semibold">{currentPlan?.name ?? "No plan yet"}</div>
+                    {subscription?.interval && (
+                      <div className="text-xs text-zinc-500 mt-1">
+                        Billing: {subscription.interval === "year" ? "Yearly (12 mo)" : "Monthly"}
                       </div>
-                      <div className="mt-4">
-                        <div className="flex items-end gap-1">
-                          <span className="text-3xl font-extrabold tracking-tight">{formatINR(price)}</span>
-                          <span className="text-xs text-zinc-500 mb-1">/ {interval}</span>
-                        </div>
-                      </div>
-                      <Separator className="my-4 bg-white/10" />
-                      <div className="mt-4">
-                        <Button
-                          className="w-full"
-                          disabled={!canEdit || subscribeM.isPending || isCurrent || !mapped}
-                          onClick={() => subscribeM.mutate({ planCode: plan.code })}
-                          title={!mapped ? "This plan isn't live yet — ask the Cuetronix team." : undefined}
-                        >
-                          {subscribeM.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                          {isCurrent
-                            ? "Current plan"
-                            : !mapped
-                              ? "Coming soon"
-                              : subscription?.razorpay_subscription_id
-                                ? "Switch to " + plan.name
-                                : "Start " + plan.name}
-                        </Button>
+                    )}
+                  </div>
+                  {subscription?.current_period_end && (
+                    <div className="flex items-start gap-2 text-sm">
+                      <Clock className="h-4 w-4 text-zinc-500 mt-0.5" />
+                      <div>
+                        {subscription.cancel_at_period_end ? "Access until" : "Next renewal"}
+                        <div className="font-medium">{formatDate(subscription.current_period_end)}</div>
                       </div>
                     </div>
+                  )}
+                  <Separator className="bg-white/10" />
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Payment method</div>
+                    <div className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 bg-black/25 text-sm font-mono">
+                      <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                      <span>{instrumentLabel(paymentInstrument)}</span>
+                    </div>
                   </div>
-                );
-              })}
-          </div>
-        )}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {subscription?.cancel_at_period_end && canEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={resumeM.isPending}
+                        onClick={() => resumeM.mutate()}
+                        className="border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10"
+                      >
+                        {resumeM.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                        Keep subscription
+                      </Button>
+                    )}
+                    {!subscription?.cancel_at_period_end && subscription?.razorpay_subscription_id && canEdit && (
+                      <Button variant="ghost" size="sm" className="text-rose-300 hover:text-rose-200" onClick={() => setCancelOpen(true)}>
+                        Cancel at period end
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Invoices */}
-        <Card className="border-white/10 bg-[#0d0e1c]">
+          <Card className="lg:col-span-3 border-white/10 bg-zinc-900/30">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-amber-400" />
+                    Choose a plan
+                  </CardTitle>
+                  <CardDescription>IDs and amounts mirror Platform Plans + Razorpay catalog.</CardDescription>
+                </div>
+                {!internal && canEdit && (
+                  <div className="flex rounded-full border border-white/10 bg-black/40 p-0.5 w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setInterval("month")}
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+                        interval === "month" ? "bg-white text-zinc-900" : "text-zinc-400"
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInterval("year")}
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+                        interval === "year" ? "bg-white text-zinc-900" : "text-zinc-400"
+                      }`}
+                    >
+                      Yearly
+                    </button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {internal ? (
+                <p className="text-zinc-500 text-sm py-8 text-center">No self‑serve billing for internal orgs.</p>
+              ) : (
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {plans
+                    .filter((p) => p.is_public && p.is_active)
+                    .map((plan) => {
+                      const price = interval === "year" ? plan.price_inr_year : plan.price_inr_month;
+                      const rzpId = interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
+                      const mapped = !!rzpId;
+                      const isCurrent =
+                        subscription?.interval === interval && currentPlan?.code === plan.code && (subscription?.status === "active" || subscription?.status === "trialing");
+                      return (
+                        <div
+                          key={plan.id}
+                          className={`relative rounded-2xl border p-4 flex flex-col ${
+                            isCurrent ? "border-indigo-500/50 bg-indigo-500/10" : "border-white/10 bg-black/20"
+                          }`}
+                        >
+                          <div className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">{plan.code}</div>
+                          <div className="font-bold text-lg">{plan.name}</div>
+                          <div className="mt-4 text-3xl font-extrabold">{formatINR(price)}</div>
+                          <div className="text-xs text-zinc-500 mb-2">/{interval === "month" ? "mo" : "yr"} GST as applicable</div>
+                          {!mapped && <Badge className="w-fit mb-3 bg-rose-900/60 text-[10px]">Map plan_XXXX in platform</Badge>}
+                          <div className="flex-1" />
+                          <Button
+                            className="w-full mt-4"
+                            disabled={!canEdit || subscribeM.isPending || !mapped || isCurrent}
+                            onClick={() => subscribeM.mutate({ planCode: plan.code })}
+                          >
+                            {subscribeM.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+                            {isCurrent ? "Active" : "Pay & subscribe"}
+                          </Button>
+                          {isCurrent && (
+                            <div className="mt-2 text-[11px] text-center text-emerald-400 flex items-center justify-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> On file for renewals
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-white/10 bg-zinc-900/30">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-zinc-100">
-              <Receipt className="h-5 w-5 text-zinc-400" />
-              Invoice history
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Receipt className="h-5 w-5" />
+              Payment history
             </CardTitle>
-            <CardDescription>Every Razorpay invoice issued for this workspace.</CardDescription>
+            <CardDescription>Successful charges synced from Razorpay invoices.</CardDescription>
           </CardHeader>
           <CardContent>
             {invoices.length === 0 ? (
-              <div className="py-10 text-center text-sm text-zinc-500">
-                <Sparkles className="h-8 w-8 mx-auto mb-2 text-zinc-600" />
-                No invoices yet. Once your first billing cycle runs you'll see them here.
-              </div>
+              <div className="py-12 text-center text-sm text-zinc-500">No charges yet.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-wider text-zinc-500 border-b border-white/5">
-                      <th className="py-2 pr-4">Date</th>
-                      <th className="py-2 pr-4">Invoice</th>
-                      <th className="py-2 pr-4">Period</th>
-                      <th className="py-2 pr-4">Amount</th>
-                      <th className="py-2 pr-4">Status</th>
-                      <th className="py-2 pr-4 text-right">Receipt</th>
+                    <tr className="text-left text-[10px] uppercase text-zinc-500 border-b border-white/5">
+                      <th className="pb-2 pr-3">Paid</th>
+                      <th className="pb-2 pr-3">Invoice</th>
+                      <th className="pb-2 pr-3">Amount</th>
+                      <th className="pb-2 pr-3">Status</th>
+                      <th className="pb-2 text-right">Receipt</th>
                     </tr>
                   </thead>
                   <tbody>
                     {invoices.map((inv) => (
                       <tr key={inv.id} className="border-b border-white/5 last:border-0">
-                        <td className="py-3 pr-4 text-zinc-200">{formatDate(inv.paid_at || inv.created_at)}</td>
-                        <td className="py-3 pr-4 text-zinc-300">
-                          <div className="font-mono text-xs">{inv.provider_invoice_id || inv.id}</div>
-                          {inv.provider_payment_id ? (
-                            <div className="text-[10px] text-zinc-500">pay: {inv.provider_payment_id}</div>
-                          ) : null}
-                        </td>
-                        <td className="py-3 pr-4 text-zinc-400">
-                          {inv.period_start && inv.period_end ? (
-                            <span>
-                              {formatDate(inv.period_start)} → {formatDate(inv.period_end)}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="py-3 pr-4 font-semibold text-zinc-100">{formatINR(inv.amount_inr)}</td>
-                        <td className="py-3 pr-4">
-                          <Badge
-                            className={
-                              inv.status === "paid"
-                                ? "bg-emerald-500/20 text-emerald-200 border-emerald-500/40"
-                                : inv.status === "issued"
-                                  ? "bg-sky-500/20 text-sky-200 border-sky-500/40"
-                                  : "bg-rose-500/20 text-rose-200 border-rose-500/40"
-                            }
-                          >
-                            {inv.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 pr-4 text-right">
+                        <td className="py-3 pr-3">{formatDate(inv.paid_at || inv.created_at)}</td>
+                        <td className="py-3 pr-3 font-mono text-xs">{inv.provider_invoice_id || inv.id}</td>
+                        <td className="py-3 pr-3 font-semibold">{formatINR(inv.amount_inr)}</td>
+                        <td className="py-3 pr-3 capitalize">{inv.status}</td>
+                        <td className="py-3 text-right">
                           {inv.short_url ? (
-                            <a
-                              href={inv.short_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-sky-400 hover:text-sky-300"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              Receipt
-                              <ExternalLink className="h-3 w-3" />
+                            <a href={inv.short_url} target="_blank" rel="noopener noreferrer" className="text-indigo-400 inline-flex gap-1 text-xs items-center hover:underline">
+                              <Download className="h-3.5 w-3.5" /> PDF <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
-                            <span className="text-zinc-600 text-xs">—</span>
+                            "—"
                           )}
                         </td>
                       </tr>
@@ -545,31 +599,26 @@ export default function Billing() {
         </Card>
       </div>
 
-      {/* Cancel dialog */}
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <AlertDialogContent className="border-white/10 bg-[#0d0e1c] text-zinc-100">
+        <AlertDialogContent className="border-white/10 bg-zinc-900 text-zinc-100">
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel your subscription?</AlertDialogTitle>
+            <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-400">
-              Your plan will stay active until{" "}
-              <span className="text-zinc-100 font-semibold">
-                {formatDate(subscription?.current_period_end)}
-              </span>
-              . No refund is issued for the current period, but you won't be charged again.
+              You&apos;ll retain access until <span className="text-white font-semibold">{formatDate(subscription?.current_period_end)}</span>.
+              Charges stop after that — no refunds for time already prepaid.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/10 text-zinc-200">Keep plan</AlertDialogCancel>
+            <AlertDialogCancel className="border-white/10">Keep subscribing</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-rose-600 hover:bg-rose-700"
+              className="bg-rose-600"
+              disabled={cancelM.isPending}
               onClick={(e) => {
                 e.preventDefault();
                 cancelM.mutate();
               }}
-              disabled={cancelM.isPending}
             >
-              {cancelM.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Confirm cancel
+              {cancelM.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -580,17 +629,13 @@ export default function Billing() {
 
 function BillingSkeleton() {
   return (
-    <div className="min-h-screen bg-[#0a0b14] text-zinc-100 p-6">
-      <div className="max-w-6xl mx-auto space-y-4">
-        <Skeleton className="h-8 w-40 bg-white/5" />
-        <Skeleton className="h-48 w-full rounded-3xl bg-white/5" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Skeleton className="h-64 rounded-2xl bg-white/5" />
-          <Skeleton className="h-64 rounded-2xl bg-white/5" />
-          <Skeleton className="h-64 rounded-2xl bg-white/5" />
-        </div>
-        <Skeleton className="h-48 w-full rounded-2xl bg-white/5" />
+    <div className="min-h-screen bg-[#070815] p-6 space-y-6 max-w-5xl mx-auto">
+      <Skeleton className="h-10 w-64 bg-white/10" />
+      <div className="grid lg:grid-cols-5 gap-6">
+        <Skeleton className="h-72 lg:col-span-2 rounded-xl bg-white/10" />
+        <Skeleton className="h-72 lg:col-span-3 rounded-xl bg-white/10" />
       </div>
+      <Skeleton className="h-52 rounded-xl bg-white/10" />
     </div>
   );
 }

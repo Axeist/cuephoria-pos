@@ -1,25 +1,26 @@
 /**
- * Node runtime override for /api/tenant/billing.
+ * /api/tenant/billing — Node runtime (default on Vercel for this route).
  *
- * Why this exists:
- * - The edge REST path has intermittently returned 406 for Razorpay subscription
- *   endpoints (/customers, /subscriptions) in production environments.
- * - Public booking already succeeds via Razorpay SDK on Node runtime.
+ * Contract (rebuilt May 2026):
+ * - GET   — org + subscription snapshot + catalog + invoices + Razorpay key id
+ *           (publishable; safe for Checkout.js) + payment-instrument hint.
+ * - POST  — { action: "subscribe" | "cancel" | "resume", … }
  *
- * This route keeps the same request/response contract as the edge tenant billing
- * handler, but uses Razorpay SDK for customer/subscription lifecycle calls.
+ * Subscribe returns a `checkout` payload for Razorpay Checkout.js
+ * ({ keyId, subscriptionId }) plus `shortUrl` fallback (hosted mandate page).
  */
 
 import { j } from "../../src/server/adminApiUtils.js";
 import { withOrgContext, type OrgContext } from "../../src/server/orgContext.js";
+import { getRazorpayCredentials } from "../../src/server/lib/razorpay-credentials.js";
 import {
+  getPaymentInstrumentForCustomer,
   getRazorpayClient,
   mapRazorpaySubscriptionToRow,
   type RazorpaySubscription,
 } from "../../src/server/lib/razorpay-subscriptions.js";
 import { resolveRequestedProvider } from "../../src/server/lib/payment-provider-facade.js";
 
-/** Node runtime — avoids Edge bundling `node:crypto` from razorpay-subscriptions helpers. */
 export const config = { maxDuration: 60 };
 
 const EDITOR_ROLES = new Set(["owner", "admin"]);
@@ -56,6 +57,12 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
 
 async function getBilling(ctx: OrgContext): Promise<Response> {
   const supabase = ctx.supabase;
+  let creds: ReturnType<typeof getRazorpayCredentials>;
+  try {
+    creds = getRazorpayCredentials("default");
+  } catch (e) {
+    return j({ ok: false, error: e instanceof Error ? e.message : "Razorpay not configured" }, 503);
+  }
 
   const [orgQ, subQ, plansQ, invQ] = await Promise.all([
     supabase
@@ -110,6 +117,38 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
     }
   }
 
+  let paymentInstrument:
+    | Awaited<ReturnType<typeof getPaymentInstrumentForCustomer>>
+    | undefined;
+
+  const sub = subQ.data;
+  const wantsInstrument =
+    sub?.razorpay_customer_id &&
+    sub?.razorpay_subscription_id &&
+    !ctx.isInternal &&
+    (sub.status === "active" || sub.status === "trialing");
+
+  if (wantsInstrument) {
+    try {
+      const client = await getRazorpayClient();
+      let customerId = sub.razorpay_customer_id;
+      try {
+        const fresh = await client.subscriptions.fetch(sub.razorpay_subscription_id!);
+        if (fresh.customer_id) customerId = fresh.customer_id;
+      } catch {
+        /* use DB mirror */
+      }
+      paymentInstrument = await getPaymentInstrumentForCustomer(client, customerId);
+    } catch {
+      paymentInstrument = { kind: "none" };
+    }
+  }
+
+  let billingContactEmail: string | null = null;
+  const { data: adminRow } = await supabase.from("admin_users").select("email").eq("id", ctx.user.id).maybeSingle();
+  const em = adminRow?.email;
+  if (typeof em === "string" && em.includes("@")) billingContactEmail = em.trim();
+
   return j(
     {
       ok: true,
@@ -120,12 +159,25 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
       currentPlan,
       plans: plansQ.data ?? [],
       invoices: invQ.data ?? [],
+      razorpay: {
+        mode: creds.isLive ? "live" : "test",
+        keyId: creds.keyId,
+      },
+      billingContactEmail,
+      paymentInstrument: paymentInstrument ?? { kind: "none" },
     },
     200,
   );
 }
 
 async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
+  let creds: ReturnType<typeof getRazorpayCredentials>;
+  try {
+    creds = getRazorpayCredentials("default");
+  } catch (e) {
+    return j({ ok: false, error: e instanceof Error ? e.message : "Razorpay not configured" }, 503);
+  }
+
   if (!EDITOR_ROLES.has(ctx.role)) {
     return j({ ok: false, error: "Only owners and admins can manage billing." }, 403);
   }
@@ -143,7 +195,7 @@ async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
   const action = String(body.action ?? "").toLowerCase();
   switch (action) {
     case "subscribe":
-      return subscribeAction(ctx, body);
+      return subscribeAction(ctx, body, creds);
     case "cancel":
       return cancelAction(ctx);
     case "resume":
@@ -153,7 +205,11 @@ async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
   }
 }
 
-async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): Promise<Response> {
+async function subscribeAction(
+  ctx: OrgContext,
+  body: Record<string, unknown>,
+  creds: ReturnType<typeof getRazorpayCredentials>,
+): Promise<Response> {
   if (ctx.isInternal) {
     return j(
       {
@@ -186,13 +242,12 @@ async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): 
     return j({ ok: false, error: "Plan not available for subscription." }, 404);
   }
 
-  const razorpayPlanId =
-    interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
+  const razorpayPlanId = interval === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
   if (!razorpayPlanId) {
     return j(
       {
         ok: false,
-        error: `Missing Razorpay ${interval}ly plan mapping for "${plan.code}". Add plan_XXXX in /platform/plans before subscribing.`,
+        error: `Missing Razorpay ${interval}ly plan mapping for "${plan.code}". Set plan_XXXX in Platform → Plans.`,
       },
       400,
     );
@@ -223,6 +278,11 @@ async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): 
           reused: true,
           subscription: fresh,
           shortUrl: fresh.short_url ?? null,
+          checkout: {
+            keyId: creds.keyId,
+            subscriptionId: fresh.id,
+            shortUrl: fresh.short_url ?? null,
+          },
           provider,
         },
         200,
@@ -314,6 +374,11 @@ async function subscribeAction(ctx: OrgContext, body: Record<string, unknown>): 
       reused: false,
       subscription: sub,
       shortUrl: sub.short_url ?? null,
+      checkout: {
+        keyId: creds.keyId,
+        subscriptionId: sub.id,
+        shortUrl: sub.short_url ?? null,
+      },
       provider,
     },
     200,
@@ -423,4 +488,3 @@ function billingError(err: unknown): Response {
 }
 
 export default withOrgContext(handler);
-

@@ -42,6 +42,33 @@ export type RazorpayClient = {
   };
 };
 
+/**
+ * Razorpay payment token — what the subscription auto-debits on each cycle.
+ * The `card` field is what we expose to tenants as "card on file".
+ */
+export interface RazorpayToken {
+  id: string;
+  entity: string;
+  token: string;
+  method: "card" | "upi" | "emandate" | string;
+  recurring: boolean;
+  recurring_details?: { status?: string; failure_reason?: string | null } | null;
+  card?: {
+    last4?: string;
+    network?: string;
+    type?: string;
+    issuer?: string | null;
+    international?: boolean;
+    emi?: boolean;
+    sub_type?: string | null;
+  } | null;
+  vpa?: { username?: string; handle?: string; name?: string | null } | null;
+  bank?: string | null;
+  wallet?: string | null;
+  used_at?: number | null;
+  created_at?: number | null;
+}
+
 export interface RazorpaySubscription {
   id: string;
   status: string;
@@ -137,4 +164,87 @@ export function mapRazorpaySubscriptionToRow(sub: RazorpaySubscription): {
     razorpay_subscription_id: sub.id,
     razorpay_customer_id: sub.customer_id ?? null,
   };
+}
+
+/**
+ * UI-friendly card / payment-instrument summary for the billing page.
+ * Returned by `getPaymentInstrumentForCustomer` and embedded in the
+ * GET /api/tenant/billing response.
+ */
+export type PaymentInstrumentSummary =
+  | {
+      kind: "card";
+      last4: string;
+      network: string | null;
+      type: string | null;
+      issuer: string | null;
+    }
+  | { kind: "upi"; vpa: string }
+  | { kind: "emandate"; bank: string | null }
+  | { kind: "wallet"; provider: string | null }
+  | { kind: "none" };
+
+/**
+ * Fetch the active recurring token Razorpay is auto-debiting against for the
+ * given customer. Cards are preferred (most common), then UPI/eMandate/wallet
+ * fall-throughs. Never throws — returns `{ kind: "none" }` on failure so the
+ * billing page can degrade gracefully.
+ */
+async function listCustomerTokens(client: RazorpayClient, customerId: string): Promise<RazorpayToken[]> {
+  const c = client.customers as unknown as {
+    fetchTokens?: (id: string) => Promise<{ items?: RazorpayToken[] }>;
+    allTokens?: (id: string) => Promise<{ items?: RazorpayToken[] }>;
+  };
+  try {
+    if (typeof c.fetchTokens === "function") {
+      const res = await c.fetchTokens(customerId);
+      return res?.items ?? [];
+    }
+    if (typeof c.allTokens === "function") {
+      const res = await c.allTokens(customerId);
+      return res?.items ?? [];
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+export async function getPaymentInstrumentForCustomer(
+  client: RazorpayClient,
+  customerId: string | null,
+): Promise<PaymentInstrumentSummary> {
+  if (!customerId) return { kind: "none" };
+  const tokens = await listCustomerTokens(client, customerId);
+
+  const recurring = tokens.filter((t) => t.recurring);
+  const candidates = recurring.length ? recurring : tokens;
+  if (candidates.length === 0) return { kind: "none" };
+
+  candidates.sort((a, b) => (b.used_at ?? b.created_at ?? 0) - (a.used_at ?? a.created_at ?? 0));
+  const top = candidates[0];
+
+  if (top.method === "card" && top.card?.last4) {
+    return {
+      kind: "card",
+      last4: top.card.last4,
+      network: top.card.network ?? null,
+      type: top.card.type ?? null,
+      issuer: top.card.issuer ?? null,
+    };
+  }
+  if (top.method === "upi" && top.vpa) {
+    const vpa =
+      typeof top.vpa === "object" && top.vpa
+        ? `${top.vpa.username ?? ""}@${top.vpa.handle ?? ""}`.replace(/^@$/, "")
+        : "";
+    return { kind: "upi", vpa: vpa || "upi" };
+  }
+  if (top.method === "emandate") {
+    return { kind: "emandate", bank: top.bank ?? null };
+  }
+  if (top.wallet) {
+    return { kind: "wallet", provider: top.wallet };
+  }
+  return { kind: "none" };
 }

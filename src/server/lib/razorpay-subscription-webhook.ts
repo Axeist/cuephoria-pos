@@ -175,6 +175,7 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
 
     if (event === "subscription.cancelled") {
       updatePayload.cancel_at_period_end = true;
+      updatePayload.cancel_requested_at = new Date().toISOString();
     }
     if (event === "subscription.resumed") {
       updatePayload.cancel_at_period_end = false;
@@ -197,12 +198,18 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
       if (blankRow) {
         await supabase.from("subscriptions").update(updatePayload).eq("id", blankRow.id);
       } else {
-        await supabase.from("subscriptions").insert({
+        const { error: insErr } = await supabase.from("subscriptions").insert({
           organization_id: rowOrgId,
           plan_id: existingRow?.plan_id ?? null,
           interval: "month",
           ...updatePayload,
         });
+        const dup = insErr && typeof insErr === "object" && (insErr as { code?: string }).code === "23505";
+        if (dup) {
+          await supabase.from("subscriptions").update(updatePayload).eq("razorpay_subscription_id", subId);
+        } else if (insErr) {
+          console.error("⚠️ Subscription webhook insert failed", insErr);
+        }
       }
     } else {
       console.warn("⚠️ Subscription webhook — could not resolve organization", { subId, event });
