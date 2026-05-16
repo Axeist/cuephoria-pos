@@ -1,29 +1,31 @@
 /**
- * Razorpay subscription webhook processing (Node-only).
+ * Razorpay subscription webhook handler (Node-only).
  *
  * Called from /api/razorpay/webhook when the incoming event is a subscription
- * or invoice lifecycle event. We:
- *   1. Verify the HMAC SHA256 signature (strict — failures return 401).
- *   2. Upsert the local `subscriptions` row keyed by razorpay_subscription_id.
- *   3. Record `invoices` rows for invoice.paid / invoice.issued events.
- *   4. Append an audit_log entry for every processed event.
+ * or invoice lifecycle event. Handles all 9 subscription events plus invoice
+ * events per https://razorpay.com/docs/webhooks/subscriptions/.
  *
- * Idempotency
- *   - Subscription upserts use the razorpay_subscription_id unique index to
- *     noop on duplicate deliveries.
- *   - Invoice inserts use a (organization_id, provider_invoice_id) guard to
- *     prevent double-counting if Razorpay retries.
+ * Important: the dispatcher in api/razorpay/webhook.ts verifies the signature
+ * BEFORE calling us. We intentionally do NOT re-verify here — a single
+ * verification point at the edge prevents the two paths from drifting on
+ * secret-resolution rules.
+ *
+ * State writes:
+ *   - subscriptions.status keeps the INTERNAL bucket vocabulary used by
+ *     organization-action.ts and OrganizationSettings.tsx
+ *     (active / trialing / past_due / canceled / paused / suspended).
+ *   - subscriptions.razorpay_status carries the verbatim 9-state value for
+ *     the new Billing page.
+ *   - subscriptions.paid_count / remaining_count / charge_at /
+ *     last_payment_id / last_payment_amount / access_suspended are mirrored
+ *     from the payload on every applicable event. paid_count is ALWAYS set
+ *     from the payload (never incremented) so duplicate or out-of-order
+ *     deliveries stay idempotent.
+ *   - invoices are inserted ONLY from invoice.* events (subscription.charged
+ *     does not insert, to avoid double-counting against the same charge).
  */
 
-import { createHmac, timingSafeEqual } from "crypto";
-
-// Local env helper — webhook file lives outside src/server/ bundling scope
-function env(name: string): string | undefined {
-  if (typeof process !== "undefined" && process.env) {
-    return (process.env as Record<string, string | undefined>)[name];
-  }
-  return undefined;
-}
+import { RZP_STATUS_TO_INTERNAL } from "./razorpay-subscriptions.js";
 
 const SUBSCRIPTION_EVENTS = new Set([
   "subscription.authenticated",
@@ -46,56 +48,23 @@ export function isSubscriptionWebhookEvent(evt?: string): boolean {
   return SUBSCRIPTION_EVENTS.has(evt);
 }
 
-const RZP_STATUS_TO_INTERNAL: Record<string, string> = {
-  created: "trialing",
-  authenticated: "trialing",
-  active: "active",
-  pending: "past_due",
-  halted: "past_due",
-  cancelled: "canceled",
-  completed: "canceled",
-  expired: "canceled",
-  paused: "paused",
-};
+function env(name: string): string | undefined {
+  if (typeof process !== "undefined" && process.env) {
+    return (process.env as Record<string, string | undefined>)[name];
+  }
+  return undefined;
+}
 
 function unixToIso(n: number | null | undefined): string | null {
   if (!n || Number.isNaN(n)) return null;
   return new Date(n * 1000).toISOString();
 }
 
-function getWebhookSecret(): string {
-  const mode = env("RAZORPAY_MODE") || "test";
-  const isLive = mode === "live";
-  const secret = isLive
-    ? env("RAZORPAY_WEBHOOK_SECRET_LIVE") || env("RAZORPAY_WEBHOOK_SECRET")
-    : env("RAZORPAY_WEBHOOK_SECRET_TEST") || env("RAZORPAY_WEBHOOK_SECRET");
-  if (!secret) {
-    throw Object.assign(new Error("Webhook secret not configured"), { status: 500 });
-  }
-  return secret;
-}
-
-function verifySignature(rawBody: string, signature: string): boolean {
-  if (!signature || !rawBody) return false;
-  try {
-    const secret = getWebhookSecret();
-    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-    const a = Buffer.from(expected, "hex");
-    const b = Buffer.from(signature.trim(), "hex");
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
-
 async function getSupabase() {
   const { createClient } = await import("@supabase/supabase-js");
   const url = env("SUPABASE_URL") || env("VITE_SUPABASE_URL") || env("NEXT_PUBLIC_SUPABASE_URL");
   const key =
-    env("SUPABASE_SERVICE_ROLE_KEY") ||
-    env("SUPABASE_ANON_KEY") ||
-    env("VITE_SUPABASE_PUBLISHABLE_KEY");
+    env("SUPABASE_SERVICE_ROLE_KEY") || env("SUPABASE_ANON_KEY") || env("VITE_SUPABASE_PUBLISHABLE_KEY");
   if (!url) throw Object.assign(new Error("Supabase URL missing"), { status: 500 });
   if (!key) throw Object.assign(new Error("Supabase key missing"), { status: 500 });
   return createClient(url, key, {
@@ -104,11 +73,58 @@ async function getSupabase() {
   });
 }
 
+type SubscriptionEntity = {
+  id: string;
+  status: string;
+  plan_id?: string;
+  customer_id?: string;
+  paid_count?: number;
+  total_count?: number;
+  remaining_count?: number;
+  current_start?: number | null;
+  current_end?: number | null;
+  start_at?: number | null;
+  end_at?: number | null;
+  charge_at?: number | null;
+  short_url?: string | null;
+  notes?: Record<string, string> | null;
+};
+
+type InvoiceEntity = {
+  id: string;
+  status: string;
+  subscription_id?: string | null;
+  amount?: number;
+  amount_paid?: number;
+  currency?: string;
+  short_url?: string | null;
+  paid_at?: number | null;
+  issued_at?: number | null;
+  period_start?: number | null;
+  period_end?: number | null;
+};
+
+type PaymentEntity = {
+  id: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+};
+
 type Args = {
   event: string;
+  /** Raw body kept in the args for parity with the dispatcher; not used here. */
   rawBody: string;
+  /** Signature kept in the args for parity; verification is done by the dispatcher. */
   signature: string;
-  data: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  data: {
+    event?: string;
+    payload?: {
+      subscription?: { entity?: SubscriptionEntity };
+      invoice?: { entity?: InvoiceEntity };
+      payment?: { entity?: PaymentEntity };
+    };
+  };
 };
 
 type Outcome = {
@@ -119,77 +135,49 @@ type Outcome = {
   message?: string;
 };
 
+// ---------------------------------------------------------------------------
+// Main entry — dispatches on event name
+// ---------------------------------------------------------------------------
+
 export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcome> {
-  const { event, rawBody, signature, data } = args;
-
-  if (!verifySignature(rawBody, signature)) {
-    throw Object.assign(new Error("Invalid webhook signature"), { status: 401 });
-  }
-
+  const { event, data } = args;
   const supabase = await getSupabase();
 
-  const subPayload = data?.payload?.subscription?.entity || null;
-  const invoicePayload = data?.payload?.invoice?.entity || null;
-  const paymentPayload = data?.payload?.payment?.entity || null;
+  const subEntity = data?.payload?.subscription?.entity ?? null;
+  const invEntity = data?.payload?.invoice?.entity ?? null;
+  const payEntity = data?.payload?.payment?.entity ?? null;
 
-  // ---------------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Subscription events
-  // ---------------------------------------------------------------------
-  if (subPayload?.id) {
-    const subId: string = subPayload.id;
-    // Resolve the local subscription row by razorpay_subscription_id or by notes fallback.
-    let orgId: string | null = subPayload?.notes?.organization_id || null;
+  // -----------------------------------------------------------------------
+  if (subEntity?.id) {
+    const subId = subEntity.id;
 
     const { data: existingRow } = await supabase
       .from("subscriptions")
-      .select("id, organization_id, plan_id")
+      .select(
+        "id, organization_id, plan_id, plan_tier, billing_cycle, scheduled_change, razorpay_subscription_id",
+      )
       .eq("razorpay_subscription_id", subId)
       .maybeSingle();
 
-    if (!existingRow && orgId) {
-      // Grab any row for this org so we can upgrade it instead of inserting duplicates.
-      const { data: orgRow } = await supabase
-        .from("subscriptions")
-        .select("id, organization_id, plan_id")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (orgRow) {
-        orgId = orgRow.organization_id;
-      }
+    let orgId: string | null = existingRow?.organization_id ?? null;
+    if (!orgId) {
+      const notesOrg = subEntity.notes?.organization_id;
+      if (notesOrg) orgId = String(notesOrg);
     }
 
-    const rowOrgId = existingRow?.organization_id || orgId;
-
-    const updatePayload: Record<string, unknown> = {
-      status: RZP_STATUS_TO_INTERNAL[subPayload.status] ?? "active",
-      razorpay_subscription_id: subId,
-      razorpay_customer_id: subPayload.customer_id ?? null,
-      provider: "razorpay",
-      provider_subscription_id: subId,
-      provider_customer_id: subPayload.customer_id ?? null,
-      current_period_start: unixToIso(subPayload.current_start),
-      current_period_end: unixToIso(subPayload.current_end),
-    };
-
-    if (event === "subscription.cancelled") {
-      updatePayload.cancel_at_period_end = true;
-      updatePayload.cancel_requested_at = new Date().toISOString();
-    }
-    if (event === "subscription.resumed") {
-      updatePayload.cancel_at_period_end = false;
-      updatePayload.cancel_requested_at = null;
-    }
+    const updatePayload = buildSubscriptionUpdate(event, subEntity, payEntity, existingRow);
 
     if (existingRow) {
       await supabase.from("subscriptions").update(updatePayload).eq("id", existingRow.id);
-    } else if (rowOrgId) {
-      // Fall back: look up by org + no razorpay_subscription_id match (first subscribe).
+    } else if (orgId) {
+      // Look for a blank row attached to the org that the tenant API may have
+      // started but the create call hasn't returned yet.
       const { data: blankRow } = await supabase
         .from("subscriptions")
         .select("id")
-        .eq("organization_id", rowOrgId)
+        .eq("organization_id", orgId)
         .is("razorpay_subscription_id", null)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -198,40 +186,63 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
       if (blankRow) {
         await supabase.from("subscriptions").update(updatePayload).eq("id", blankRow.id);
       } else {
-        const { error: insErr } = await supabase.from("subscriptions").insert({
-          organization_id: rowOrgId,
-          plan_id: existingRow?.plan_id ?? null,
-          interval: "month",
+        const insertPayload: Record<string, unknown> = {
+          organization_id: orgId,
+          interval: deriveCycle(subEntity),
+          billing_cycle: deriveCycle(subEntity),
+          plan_tier: subEntity.notes?.plan_tier ?? null,
           ...updatePayload,
-        });
-        const dup = insErr && typeof insErr === "object" && (insErr as { code?: string }).code === "23505";
+        };
+        const { error: insErr } = await supabase.from("subscriptions").insert(insertPayload);
+        const dup = insErr && (insErr as { code?: string }).code === "23505";
         if (dup) {
-          await supabase.from("subscriptions").update(updatePayload).eq("razorpay_subscription_id", subId);
+          await supabase
+            .from("subscriptions")
+            .update(updatePayload)
+            .eq("razorpay_subscription_id", subId);
         } else if (insErr) {
-          console.error("⚠️ Subscription webhook insert failed", insErr);
+          console.error("[subscription-webhook] insert failed", insErr);
         }
       }
     } else {
-      console.warn("⚠️ Subscription webhook — could not resolve organization", { subId, event });
+      console.warn("[subscription-webhook] could not resolve organization", { subId, event });
+    }
+
+    // Welcome / cancellation emails are best-effort and never block the
+    // webhook. Templates that don't exist are silently skipped.
+    if (orgId && (event === "subscription.authenticated" || event === "subscription.activated")) {
+      sendOptionalEmail(supabase, orgId, "subscription_welcome").catch((err) =>
+        console.warn("[subscription-webhook] welcome email skipped", (err as Error).message),
+      );
+    }
+    if (orgId && event === "subscription.cancelled") {
+      sendOptionalEmail(supabase, orgId, "subscription_cancelled").catch((err) =>
+        console.warn("[subscription-webhook] cancellation email skipped", (err as Error).message),
+      );
     }
 
     await supabase.from("audit_log").insert({
       actor_type: "webhook",
       actor_label: "razorpay",
-      organization_id: rowOrgId,
+      organization_id: orgId,
       action: event,
       target_type: "subscription",
       target_id: subId,
-      meta: { status: subPayload.status, plan_id: subPayload.plan_id ?? null },
+      meta: {
+        status: subEntity.status,
+        plan_id: subEntity.plan_id ?? null,
+        paid_count: subEntity.paid_count ?? null,
+        remaining_count: subEntity.remaining_count ?? null,
+      },
     });
   }
 
-  // ---------------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Invoice events
-  // ---------------------------------------------------------------------
-  if (invoicePayload?.id) {
-    const invId: string = invoicePayload.id;
-    const subRef: string | null = invoicePayload.subscription_id || subPayload?.id || null;
+  // -----------------------------------------------------------------------
+  if (invEntity?.id) {
+    const invId = invEntity.id;
+    const subRef = invEntity.subscription_id ?? subEntity?.id ?? null;
 
     let orgId: string | null = null;
     let localSubId: string | null = null;
@@ -248,7 +259,6 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
     }
 
     if (orgId) {
-      // Idempotency: skip if we've already recorded this invoice.
       const { data: existing } = await supabase
         .from("invoices")
         .select("id")
@@ -257,14 +267,15 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
         .limit(1)
         .maybeSingle();
 
-      const status = invoicePayload.status === "paid"
-        ? "paid"
-        : invoicePayload.status === "issued"
-          ? "issued"
-          : invoicePayload.status === "expired"
-            ? "cancelled"
-            : "failed";
-      const amountPaise = Number(invoicePayload.amount_paid ?? invoicePayload.amount ?? 0);
+      const status =
+        invEntity.status === "paid"
+          ? "paid"
+          : invEntity.status === "issued"
+            ? "issued"
+            : invEntity.status === "expired"
+              ? "cancelled"
+              : "failed";
+      const amountPaise = Number(invEntity.amount_paid ?? invEntity.amount ?? 0);
       const amountInr = Number.isFinite(amountPaise) ? amountPaise / 100 : 0;
 
       if (!existing) {
@@ -274,15 +285,15 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
           provider: "razorpay",
           provider_invoice_id: invId,
           provider_subscription_id: subRef,
-          provider_payment_id: paymentPayload?.id || null,
+          provider_payment_id: payEntity?.id ?? null,
           status,
           amount_inr: amountInr,
-          currency: invoicePayload.currency || "INR",
-          period_start: unixToIso(invoicePayload.period_start),
-          period_end: unixToIso(invoicePayload.period_end),
-          paid_at: unixToIso(invoicePayload.paid_at ?? invoicePayload.issued_at),
-          short_url: invoicePayload.short_url ?? null,
-          raw: invoicePayload,
+          currency: invEntity.currency || "INR",
+          period_start: unixToIso(invEntity.period_start),
+          period_end: unixToIso(invEntity.period_end),
+          paid_at: unixToIso(invEntity.paid_at ?? invEntity.issued_at),
+          short_url: invEntity.short_url ?? null,
+          raw: invEntity,
         });
       } else {
         await supabase
@@ -290,10 +301,10 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
           .update({
             status,
             amount_inr: amountInr,
-            paid_at: unixToIso(invoicePayload.paid_at ?? invoicePayload.issued_at),
-            short_url: invoicePayload.short_url ?? null,
-            raw: invoicePayload,
-            provider_payment_id: paymentPayload?.id || null,
+            paid_at: unixToIso(invEntity.paid_at ?? invEntity.issued_at),
+            short_url: invEntity.short_url ?? null,
+            provider_payment_id: payEntity?.id ?? null,
+            raw: invEntity,
           })
           .eq("id", existing.id);
       }
@@ -306,39 +317,206 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
       action: event,
       target_type: "invoice",
       target_id: invId,
-      meta: { subscription_id: subRef, amount_paid: invoicePayload.amount_paid ?? null },
+      meta: { subscription_id: subRef, amount_paid: invEntity.amount_paid ?? null },
     });
 
-    // ── Payment success receipt email (best-effort, never blocks the webhook)
-    //    Fires on invoice.paid so every successful charge produces a receipt.
-    //    We ignore failures — the invoice row is already persisted, so the UI
-    //    billing page will still show the charge.
+    // Payment success receipt email (only on invoice.paid). Best-effort —
+    // never blocks the webhook so the invoice row is always persisted.
     if (orgId && event === "invoice.paid") {
       try {
-        const paise = Number(invoicePayload.amount_paid ?? invoicePayload.amount ?? 0);
+        const paise = Number(invEntity.amount_paid ?? invEntity.amount ?? 0);
         await sendPaymentSuccessEmail(supabase, orgId, {
           invoiceId: invId,
           amountInr: Number.isFinite(paise) ? paise / 100 : 0,
-          periodEndUnix: invoicePayload.period_end ?? null,
-          shortUrl: invoicePayload.short_url || null,
+          periodEndUnix: invEntity.period_end ?? null,
+          shortUrl: invEntity.short_url ?? null,
         });
       } catch (mailErr) {
-        console.warn("[webhook] invoice.paid email failed:", (mailErr as Error).message);
+        console.warn("[subscription-webhook] invoice.paid email failed", (mailErr as Error).message);
       }
     }
 
-    return { received: true, event, invoiceId: invId, subscriptionId: subRef || undefined };
+    return { received: true, event, invoiceId: invId, subscriptionId: subRef ?? undefined };
   }
 
-  return { received: true, event, subscriptionId: subPayload?.id };
+  return { received: true, event, subscriptionId: subEntity?.id };
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Payment success email (Node runtime, called from invoice.paid only)
-// ────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Per-event subscription update builder
+// ---------------------------------------------------------------------------
+
+function deriveCycle(sub: SubscriptionEntity): "month" | "year" {
+  // Razorpay doesn't return the period directly on the subscription resource;
+  // we derive from notes (most reliable) or default to month.
+  const fromNotes = (sub.notes?.billing_cycle ?? "").toString().toLowerCase();
+  if (fromNotes === "year") return "year";
+  return "month";
+}
+
+function buildSubscriptionUpdate(
+  event: string,
+  sub: SubscriptionEntity,
+  pay: PaymentEntity | null,
+  existing:
+    | {
+        id: string;
+        plan_tier?: string | null;
+        billing_cycle?: string | null;
+        scheduled_change?: Record<string, unknown> | null;
+      }
+    | null,
+): Record<string, unknown> {
+  const internalStatus = RZP_STATUS_TO_INTERNAL[sub.status] ?? "active";
+  const update: Record<string, unknown> = {
+    status: internalStatus,
+    razorpay_status: sub.status,
+    razorpay_subscription_id: sub.id,
+    razorpay_customer_id: sub.customer_id ?? null,
+    provider: "razorpay",
+    provider_subscription_id: sub.id,
+    provider_customer_id: sub.customer_id ?? null,
+    current_period_start: unixToIso(sub.current_start),
+    current_period_end: unixToIso(sub.current_end),
+    start_at: unixToIso(sub.start_at),
+    end_at: unixToIso(sub.end_at),
+    charge_at: unixToIso(sub.charge_at),
+    total_count: typeof sub.total_count === "number" ? sub.total_count : null,
+    paid_count: typeof sub.paid_count === "number" ? sub.paid_count : 0,
+    remaining_count: typeof sub.remaining_count === "number" ? sub.remaining_count : null,
+    short_url: sub.short_url ?? null,
+  };
+
+  switch (event) {
+    case "subscription.authenticated":
+      update.access_suspended = false;
+      break;
+    case "subscription.activated":
+      update.access_suspended = false;
+      update.cancel_at_period_end = false;
+      update.cancel_requested_at = null;
+      break;
+    case "subscription.charged":
+      // Counters already set above from payload; capture the payment too.
+      if (pay?.id) update.last_payment_id = pay.id;
+      if (typeof pay?.amount === "number") update.last_payment_amount = pay.amount;
+      update.access_suspended = false;
+      break;
+    case "subscription.pending":
+      // Razorpay is retrying; spec says soft warning, do NOT suspend access.
+      update.access_suspended = false;
+      break;
+    case "subscription.halted":
+      update.access_suspended = true;
+      break;
+    case "subscription.cancelled":
+      update.access_suspended = true;
+      update.cancel_at_period_end = true;
+      if (!existing) update.cancel_requested_at = new Date().toISOString();
+      break;
+    case "subscription.completed":
+      update.access_suspended = true;
+      break;
+    case "subscription.updated": {
+      // Razorpay applied the scheduled plan change. If we tracked a
+      // scheduled_change row that matches, clear it and update plan_tier /
+      // billing_cycle to match the new state.
+      const scheduled = existing?.scheduled_change as
+        | { plan_id?: string; razorpay_plan_id?: string; plan_tier?: string; billing_cycle?: string }
+        | null
+        | undefined;
+      if (scheduled && (scheduled.razorpay_plan_id ?? scheduled.plan_id) === sub.plan_id) {
+        update.scheduled_change = null;
+        if (scheduled.plan_id) update.plan_id = scheduled.plan_id;
+        if (scheduled.plan_tier) update.plan_tier = scheduled.plan_tier;
+        if (scheduled.billing_cycle) {
+          update.billing_cycle = scheduled.billing_cycle;
+          update.interval = scheduled.billing_cycle;
+        }
+      }
+      break;
+    }
+    case "subscription.paused":
+      update.access_suspended = true;
+      break;
+    case "subscription.resumed":
+      update.access_suspended = false;
+      break;
+    default:
+      // Unknown subscription event — still mirror the latest snapshot.
+      break;
+  }
+
+  return update;
+}
+
+// ---------------------------------------------------------------------------
+// Email helpers (best-effort; never block the webhook)
+// ---------------------------------------------------------------------------
+
+async function sendOptionalEmail(
+  supabase: Awaited<ReturnType<typeof getSupabase>>,
+  organizationId: string,
+  kind: string,
+): Promise<void> {
+  const apiKey = env("RESEND_API_KEY");
+  const from = env("RESEND_FROM");
+  if (!apiKey || !from) return;
+
+  // We dynamically import the email module so that if the template kind
+  // doesn't exist yet, we never break the webhook. The send is wrapped in a
+  // try/catch at the call site too.
+  const mod = (await import("../email.js")) as unknown as {
+    sendEmail?: (args: Record<string, unknown>) => Promise<unknown>;
+  };
+  if (typeof mod.sendEmail !== "function") return;
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("id, name, slug")
+    .eq("id", organizationId)
+    .maybeSingle();
+
+  const { data: ownerLink } = await supabase
+    .from("org_memberships")
+    .select("admin_user_id, role")
+    .eq("organization_id", organizationId)
+    .in("role", ["owner", "admin"])
+    .limit(5);
+  const adminIds = (ownerLink ?? []).map((r: { admin_user_id: string }) => r.admin_user_id);
+  if (adminIds.length === 0) return;
+
+  const { data: users } = await supabase
+    .from("admin_users")
+    .select("id, email, display_name, username")
+    .in("id", adminIds)
+    .not("email", "is", null);
+  const recipient = (users ?? []).find(
+    (u: { email: string | null }) => typeof u.email === "string" && u.email.includes("@"),
+  );
+  if (!recipient) return;
+
+  try {
+    await mod.sendEmail({
+      kind,
+      to: recipient.email as string,
+      vars: {
+        appBaseUrl: (env("APP_BASE_URL") || "https://www.cuetronix.com").replace(/\/+$/, ""),
+        displayName: (recipient.display_name as string | null) || recipient.username,
+        organizationName: (org?.name as string | null) || undefined,
+      },
+      organizationId,
+      adminUserId: recipient.id as string,
+      supabase,
+    });
+  } catch (err) {
+    // Templates may not exist for these kinds yet; that is intentional.
+    console.warn(`[subscription-webhook] ${kind} email skipped`, (err as Error).message);
+  }
+}
 
 async function sendPaymentSuccessEmail(
-  supabase: { from: (t: string) => { select: (s: string) => unknown } },
+  supabase: Awaited<ReturnType<typeof getSupabase>>,
   organizationId: string,
   payload: {
     invoiceId: string;
@@ -351,47 +529,46 @@ async function sendPaymentSuccessEmail(
   const from = env("RESEND_FROM");
   if (!apiKey || !from) return;
 
-  const db = supabase as unknown as import("@supabase/supabase-js").SupabaseClient;
-
-  const { data: org } = await db
+  const { data: org } = await supabase
     .from("organizations")
-    .select("id, name, slug, branding")
+    .select("id, name, slug")
     .eq("id", organizationId)
     .maybeSingle();
 
-  // Find the owner or first admin with an email.
-  const { data: ownerLink } = await db
+  const { data: ownerLink } = await supabase
     .from("org_memberships")
     .select("admin_user_id, role")
     .eq("organization_id", organizationId)
     .in("role", ["owner", "admin"])
     .limit(5);
-  const adminIds = (ownerLink || []).map((r: { admin_user_id: string }) => r.admin_user_id);
+  const adminIds = (ownerLink ?? []).map((r: { admin_user_id: string }) => r.admin_user_id);
   if (adminIds.length === 0) return;
 
-  const { data: users } = await db
+  const { data: users } = await supabase
     .from("admin_users")
     .select("id, email, display_name, username")
     .in("id", adminIds)
     .not("email", "is", null);
-  const recipient = (users || []).find(
+  const recipient = (users ?? []).find(
     (u: { email: string | null }) => typeof u.email === "string" && u.email.includes("@"),
   );
   if (!recipient) return;
 
-  const planRes = await db
+  const planRes = await supabase
     .from("subscriptions")
     .select("plan_id, plans(code, name)")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  type PlanJoinRow = { plans?: { code?: string; name?: string } | { code?: string; name?: string }[] | null };
+  type PlanJoinRow = {
+    plans?: { code?: string; name?: string } | { code?: string; name?: string }[] | null;
+  };
   const joined = (planRes.data as PlanJoinRow | null)?.plans;
   const planMeta = Array.isArray(joined) ? joined[0] : joined;
   const planName: string = planMeta?.name || planMeta?.code || "Subscription";
 
-  const base = (env("APP_BASE_URL") || "https://cuetronix.app").replace(/\/+$/, "");
+  const base = (env("APP_BASE_URL") || "https://www.cuetronix.com").replace(/\/+$/, "");
   const periodEndDisplay = payload.periodEndUnix
     ? new Date(payload.periodEndUnix * 1000).toLocaleDateString("en-IN", {
         day: "numeric",
@@ -406,9 +583,7 @@ async function sendPaymentSuccessEmail(
     maximumFractionDigits: 0,
   }).format(payload.amountInr);
 
-  // Call our Resend helper dynamically — keeps the module import tree flat
-  // for the Node-only webhook bundle.
-  const { sendEmail } = await import("../email");
+  const { sendEmail } = await import("../email.js");
   await sendEmail({
     kind: "payment_success",
     to: recipient.email as string,
@@ -420,11 +595,10 @@ async function sendPaymentSuccessEmail(
       planName,
       invoiceNumber: payload.invoiceId,
       periodEnd: periodEndDisplay,
-      billingPortalUrl: payload.shortUrl || `${base}/account/billing`,
+      billingPortalUrl: payload.shortUrl || `${base}/settings/billing`,
     },
     organizationId,
     adminUserId: recipient.id as string,
-    supabase: db,
+    supabase,
   });
 }
-
