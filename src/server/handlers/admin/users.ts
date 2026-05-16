@@ -252,6 +252,17 @@ export default async function handler(req: Request) {
           ctx.status,
         );
       }
+      if (ctx.isSuspended) {
+        await supabase.from("admin_users").delete().eq("id", newUser.id);
+        return j(
+          {
+            ok: false,
+            error: "Workspace suspended. Cannot add new users until access is restored.",
+            code: "suspended",
+          },
+          403,
+        );
+      }
 
       const orgRole: "admin" | "staff" = isAdmin || isSuperAdmin ? "admin" : "staff";
       const { error: memInsertErr } = await supabase.from("org_memberships").insert({

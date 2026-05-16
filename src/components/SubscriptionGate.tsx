@@ -9,6 +9,12 @@
  * Policy (configurable below):
  *
  *   - Internal Cuephoria org is always allowed (billed offline).
+ *   - Tenants whose `organizations.status === 'suspended'` are ALWAYS blocked,
+ *     regardless of subscription state. This is set from the platform
+ *     operator console (`/platform/organizations/:slug` → Suspend) and
+ *     reflects an out-of-band decision (non-payment escalation, AUP
+ *     violation, etc.). Owners are NOT redirected to /subscription for this
+ *     reason — paying Razorpay won't unblock the workspace.
  *   - Tenants with `trialEndsAt` in the future are always allowed (free
  *     trial — they get the full app before paying).
  *   - Tenants with a subscription whose `razorpay_status` is in
@@ -98,19 +104,37 @@ function isBypassPath(pathname: string): boolean {
   );
 }
 
+export type AccessReason =
+  | "internal"
+  | "trial"
+  | "active-sub"
+  | "no-sub"
+  | "suspended"
+  | "platform-suspended"
+  | "bad-status";
+
 /**
  * Decide whether a tenant is allowed into the app based on org + subscription
  * state. Pure function so it's trivial to unit-test if we ever want to.
+ *
+ * Precedence: internal > platform suspension > razorpay suspension > trial > paid sub.
+ * Platform suspension (set by the operator console flipping
+ * `organizations.status` to 'suspended') trumps everything except the
+ * "internal Cuephoria org always works" escape hatch.
  */
 export function evaluateSubscriptionAccess(
   organization: ActiveOrganization | null,
   subscription: ActiveSubscription | null,
 ): {
   allowed: boolean;
-  reason: "internal" | "trial" | "active-sub" | "no-sub" | "suspended" | "bad-status";
+  reason: AccessReason;
 } {
   if (!organization) return { allowed: true, reason: "internal" }; // no org loaded yet, fail open
   if (organization.isInternal) return { allowed: true, reason: "internal" };
+
+  if (organization.status === "suspended") {
+    return { allowed: false, reason: "platform-suspended" };
+  }
 
   // Free trial — overrides everything except `access_suspended`.
   const trialActive =
@@ -154,11 +178,12 @@ export const SubscriptionGate: React.FC<{ children: React.ReactNode }> = ({ chil
   const verdict = evaluateSubscriptionAccess(organization, subscription);
   if (verdict.allowed) return <>{children}</>;
 
-  // Blocked. owner/admin → redirect to /subscription (they can pay).
-  // Everyone else → full-screen "ask your owner" notice.
+  // Platform suspension can't be self-served from /subscription (the operator
+  // turned the workspace off; paying Razorpay won't unblock it). Owners,
+  // admins, and everyone else all get the same lock screen.
   const isPrivileged =
     organization?.role === "owner" || organization?.role === "admin";
-  if (isPrivileged) {
+  if (isPrivileged && verdict.reason !== "platform-suspended") {
     return (
       <Navigate
         to="/subscription"
@@ -182,21 +207,29 @@ export const SubscriptionGate: React.FC<{ children: React.ReactNode }> = ({ chil
 // Read-only notice (non-admins)
 // ---------------------------------------------------------------------------
 
-const REASON_COPY: Record<
-  "suspended" | "no-sub" | "bad-status",
-  { title: string; body: string }
-> = {
+type CopyReason = "suspended" | "platform-suspended" | "no-sub" | "bad-status";
+
+const REASON_COPY: Record<CopyReason, { eyebrow: string; title: string; body: string }> = {
+  "platform-suspended": {
+    eyebrow: "Workspace suspended",
+    title: "Workspace suspended",
+    body:
+      "Your Cuetronix workspace has been suspended by the platform operator. Access is paused for everyone on the team. Reach out to your Cuetronix account contact to get it reinstated.",
+  },
   suspended: {
+    eyebrow: "Subscription required",
     title: "Access suspended",
     body:
       "Your workspace's Razorpay subscription was paused, cancelled, or had its retries exhausted. Ask your owner to restore the mandate.",
   },
   "no-sub": {
+    eyebrow: "Subscription required",
     title: "Subscription required",
     body:
       "Your workspace doesn't have an active subscription yet. Ask your owner to choose a plan and activate it.",
   },
   "bad-status": {
+    eyebrow: "Subscription required",
     title: "Subscription needs attention",
     body:
       "Razorpay is reporting an issue with your workspace's subscription. Ask your owner to open Billing and review.",
@@ -206,11 +239,11 @@ const REASON_COPY: Record<
 const SubscriptionRequiredScreen: React.FC<{
   organization: ActiveOrganization | null;
   subscription: ActiveSubscription | null;
-  reason: "suspended" | "no-sub" | "bad-status" | "internal" | "trial" | "active-sub";
+  reason: AccessReason;
   onRefresh: () => void;
 }> = ({ organization, subscription, reason, onRefresh }) => {
-  const copy =
-    REASON_COPY[reason as "suspended" | "no-sub" | "bad-status"] ?? REASON_COPY["no-sub"];
+  const copy = REASON_COPY[reason as CopyReason] ?? REASON_COPY["no-sub"];
+  const isPlatformSuspended = reason === "platform-suspended";
 
   return (
     <div className="min-h-screen app-ambient text-white">
@@ -227,7 +260,7 @@ const SubscriptionRequiredScreen: React.FC<{
 
           <div className="space-y-3">
             <div className="text-[11px] uppercase tracking-[0.22em] font-semibold text-white/55">
-              Subscription required
+              {copy.eyebrow}
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               {copy.title}
@@ -243,7 +276,7 @@ const SubscriptionRequiredScreen: React.FC<{
             </p>
           </div>
 
-          {subscription?.razorpayStatus && (
+          {!isPlatformSuspended && subscription?.razorpayStatus && (
             <div className="theme-inset inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full">
               <Sparkles className="h-3.5 w-3.5 text-amber-300" />
               <span className="text-white/55">Current status</span>
@@ -266,23 +299,42 @@ const SubscriptionRequiredScreen: React.FC<{
           </div>
 
           <div className="pt-4 border-t border-white/10 text-[11px] text-white/45 flex flex-col items-center gap-1.5">
-            <div className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-              Recurring billing handled by Razorpay
-            </div>
-            <div className="inline-flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5" />
-              Need help? Reach out to your workspace owner or
-              {" "}
-              <a className="underline hover:text-white" href="mailto:billing@cuetronix.com">
-                billing@cuetronix.com
-              </a>
-            </div>
-            {!!subscription?.currentPeriodEnd && (
-              <div className="inline-flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
-                Last paid period ended {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
-              </div>
+            {isPlatformSuspended ? (
+              <>
+                <div className="inline-flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+                  This lock is set by Cuetronix, not by Razorpay.
+                </div>
+                <div className="inline-flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                  Need help? Email
+                  {" "}
+                  <a className="underline hover:text-white" href="mailto:support@cuetronix.com">
+                    support@cuetronix.com
+                  </a>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="inline-flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+                  Recurring billing handled by Razorpay
+                </div>
+                <div className="inline-flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Need help? Reach out to your workspace owner or
+                  {" "}
+                  <a className="underline hover:text-white" href="mailto:billing@cuetronix.com">
+                    billing@cuetronix.com
+                  </a>
+                </div>
+                {!!subscription?.currentPeriodEnd && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                    Last paid period ended {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

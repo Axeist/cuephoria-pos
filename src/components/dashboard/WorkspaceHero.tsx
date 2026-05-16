@@ -125,7 +125,13 @@ const WorkspaceHero: React.FC = () => {
   const renewalDate = subscription?.current_period_end;
 
   const isInternal = organization.is_internal;
-  const statusLabel = (subscription?.status ?? organization.status ?? "active").replace(/_/g, " ");
+  // Platform suspension trumps subscription state for display: a workspace
+  // turned off by the operator must not present as "active" just because the
+  // Razorpay subscription happens to still be live.
+  const statusLabel =
+    organization.status === "suspended"
+      ? "suspended"
+      : (subscription?.status ?? organization.status ?? "active").replace(/_/g, " ");
 
   const handleDismiss = () => {
     if (!dismissKey) return;
@@ -233,9 +239,11 @@ const WorkspaceHero: React.FC = () => {
                       ? "#f59e0b"
                       : statusLabel === "active"
                         ? "#10b981"
-                        : statusLabel === "past_due" || statusLabel === "past due"
+                        : statusLabel === "suspended"
                           ? "#ef4444"
-                          : "#64748b"
+                          : statusLabel === "past_due" || statusLabel === "past due"
+                            ? "#ef4444"
+                            : "#64748b"
                   }
                   tone="soft"
                 >

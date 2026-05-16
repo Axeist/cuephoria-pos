@@ -50,12 +50,21 @@ export type OrgContext = {
   isInternal: boolean;
   /** The caller's role inside the active organization. */
   role: OrgMembershipRole;
+  /**
+   * Raw lifecycle status from `organizations.status` (e.g. 'active',
+   * 'trialing', 'suspended'). Surface here so callers — most importantly
+   * `withOrgContext` — can short-circuit suspended workspaces without an
+   * extra round trip.
+   */
+  status: string | null;
+  /** True when `status === 'suspended'`. Convenience flag. */
+  isSuspended: boolean;
   /** A service-role Supabase client tagged for observability. */
   supabase: SupabaseClient;
 };
 
 export type OrgContextError = {
-  code: "unauthorized" | "no_org" | "config" | "db";
+  code: "unauthorized" | "no_org" | "suspended" | "config" | "db";
   status: number;
   message: string;
 };
@@ -127,23 +136,22 @@ export async function resolveOrgContext(
     };
   }
 
-  // Candidate orgs via membership.
+  // Candidate orgs via membership. We pull `status` here too so withOrgContext
+  // can lock suspended workspaces without paying for a second SELECT.
   const { data: memberships, error: memErr } = await supabase
     .from("org_memberships")
-    .select("organization_id, role, organizations:organization_id (id, slug, is_internal)")
+    .select("organization_id, role, organizations:organization_id (id, slug, is_internal, status)")
     .eq("admin_user_id", user.id);
 
   if (memErr) {
     return { code: "db", status: 500, message: memErr.message };
   }
 
+  type OrgRow = { id: string; slug: string; is_internal: boolean; status: string | null };
   type MembershipRow = {
     organization_id: string;
     role: OrgMembershipRole;
-    organizations:
-      | { id: string; slug: string; is_internal: boolean }
-      | Array<{ id: string; slug: string; is_internal: boolean }>
-      | null;
+    organizations: OrgRow | OrgRow[] | null;
   };
 
   const rows = (memberships || []) as unknown as MembershipRow[];
@@ -155,6 +163,7 @@ export async function resolveOrgContext(
       id: o.id,
       slug: o.slug,
       isInternal: !!o.is_internal,
+      status: o.status ?? null,
       role: r.role,
     }];
   });
@@ -171,12 +180,18 @@ export async function resolveOrgContext(
   if (!picked && user.isSuperAdmin) {
     const { data: cue, error: cueErr } = await supabase
       .from("organizations")
-      .select("id, slug, is_internal")
+      .select("id, slug, is_internal, status")
       .eq("slug", "cuephoria")
       .maybeSingle();
     if (cueErr) return { code: "db", status: 500, message: cueErr.message };
     if (cue) {
-      picked = { id: cue.id, slug: cue.slug, isInternal: !!cue.is_internal, role: "owner" };
+      picked = {
+        id: cue.id,
+        slug: cue.slug,
+        isInternal: !!cue.is_internal,
+        status: cue.status ?? null,
+        role: "owner",
+      };
     }
   }
 
@@ -194,6 +209,8 @@ export async function resolveOrgContext(
     organizationSlug: picked.slug,
     isInternal: picked.isInternal,
     role: picked.role,
+    status: picked.status,
+    isSuspended: picked.status === "suspended" && !picked.isInternal,
     supabase,
   };
 }
@@ -224,6 +241,23 @@ export function withOrgContext(
       if ("code" in result) {
         return j({ ok: false, error: result.message, code: result.code }, result.status);
       }
+
+      // Defense-in-depth: even if a client somehow bypasses the
+      // SubscriptionGate, every tenant API call routes through this wrapper,
+      // so refusing here guarantees a suspended workspace is fully locked
+      // server-side too. The internal Cuephoria org bypasses this gate
+      // (mirrors the client policy).
+      if (result.isSuspended) {
+        return j(
+          {
+            ok: false,
+            error: "Workspace suspended. Contact your Cuetronix account contact.",
+            code: "suspended",
+          },
+          403,
+        );
+      }
+
       try {
         return await handler(req, result);
       } catch (err) {
