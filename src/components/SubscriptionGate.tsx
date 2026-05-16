@@ -44,15 +44,17 @@
  *   - Public marketing/legal pages (privacy, terms, refund-policy, etc.)
  *
  * Role-aware UX:
- *   - For "no-sub" / "bad-status": owner/admin is redirected to
- *     /subscription so they can renew/pay. Staff sees a full-screen notice.
+ *   - For "no-sub" / "bad-status": owners/admins see a full-screen interstitial
+ *     that explains why other pages are blocked (with Razorpay context) and a
+ *     clear CTA to Subscription — no silent redirect.
+ *   - Staff see the same explanatory copy plus "ask a workspace owner" context.
  *   - For "platform-suspended" and "suspended" (post-grace): EVERYONE gets
  *     the lock screen, regardless of role — owners can still click "Open
  *     billing" but the redirect is opt-in, not automatic.
  */
 
 import React from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -131,6 +133,89 @@ function isBypassPath(pathname: string): boolean {
   return BYPASS_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(prefix === "/" ? prefix : `${prefix}`),
   );
+}
+
+export type SubscriptionGateBillingState = {
+  subscriptionGateBanner?: {
+    attemptedPath?: string;
+    gateReason?: string;
+    summary: string;
+    detail: string;
+  };
+};
+
+export type SubscriptionBarrierSnapshot = Pick<
+  ActiveSubscription,
+  "hasSubscription" | "razorpayStatus"
+>;
+
+/**
+ * Human-readable blocking explanation for Billing + full-screen notices.
+ */
+export function explainSubscriptionBarrier(
+  reason: "no-sub" | "bad-status",
+  snapshot: SubscriptionBarrierSnapshot | null,
+): { summary: string; detail: string } {
+  if (reason === "no-sub") {
+    return {
+      summary: "No billable subscription on this workspace yet",
+      detail:
+        "Cuephoria needs an active Razorpay subscription row (plan + recurring mandate). Open Subscription below, pick Starter / Growth / Pro, and finish Razorpay checkout. After Razorpay shows Authenticated or Active, Dashboard and POS unlock for everyone—you can close this tab and use the sidebar normally.",
+    };
+  }
+
+  const rz = (snapshot?.razorpayStatus ?? "").trim().toLowerCase() || null;
+  if (rz === "created") {
+    return {
+      summary: "Payment mandate never finished—or the grace period ended",
+      detail:
+        "We created your plan in Razorpay, but the recurring mandate still shows as “Awaiting payment.” Either checkout was never completed, or the allowed setup window has expired. Use Subscription below to reopen Razorpay checkout and authorize the mandate. Until Razorpay moves past Created, POS and bookings stay locked by policy—not a bug.",
+    };
+  }
+  if (rz === "halted" || rz === "paused") {
+    const label = rz === "paused" ? "paused" : "halted";
+    return {
+      summary: `Razorpay has ${label} this subscription`,
+      detail:
+        "Charges are not succeeding under the current Razorpay state. Open Subscription to review status, resume if paused, or update payment methods. If Razorpay is healthy but this message persists after a refresh, webhooks may be delayed briefly.",
+    };
+  }
+  if (rz === "pending") {
+    return {
+      summary: "Razorpay is retrying payment",
+      detail:
+        "If you still cannot open Dashboard or POS, open Subscription once to confirm Razorpay is not asking for manual action—or wait for the next automated retry—and press Refresh session after paying.",
+    };
+  }
+  if (rz === "cancelled" || rz === "completed" || rz === "expired") {
+    return {
+      summary: "This paid subscription has ended",
+      detail:
+        "The billing cycle tied to Razorpay is no longer charging. Renew or pick a fresh plan from Subscription below to unlock the sidebar apps again.",
+    };
+  }
+  if (!snapshot?.razorpayStatus) {
+    return {
+      summary: "Subscription status hasn’t synced from Razorpay yet",
+      detail:
+        "We don’t have a current Razorpay status on file. Finish any open step on Subscription, then use Refresh—or wait ~1 minute for webhooks. If billing still looks wrong after that, reopen checkout from Subscription.",
+    };
+  }
+  return {
+    summary: "Razorpay reports this workspace is not in a paid‑active state",
+    detail:
+      `Current Razorpay status: “${snapshot.razorpayStatus.replace(/_/g, " ")}”. Open Subscription below to resolve the failing step—after Razorpay is healthy again, Refresh or navigate away and modules unlock.`,
+  };
+}
+
+function subscriptionBarrierSnapshotFromActive(
+  subscription: ActiveSubscription | null,
+): SubscriptionBarrierSnapshot | null {
+  if (!subscription) return { hasSubscription: false, razorpayStatus: null };
+  return {
+    hasSubscription: subscription.hasSubscription,
+    razorpayStatus: subscription.razorpayStatus,
+  };
 }
 
 export type AccessReason =
@@ -247,6 +332,112 @@ export function evaluateSubscriptionAccess(
   return { allowed: false, reason: "bad-status" };
 }
 
+/**
+ * Owners/admins: explain why gated routes refuse to render, then explicit CTA
+ * to Subscription (with location state consumed by Billing for a recap banner).
+ */
+const SubscriptionBillingInterstitial: React.FC<{
+  organization: ActiveOrganization | null;
+  subscription: ActiveSubscription | null;
+  reason: "no-sub" | "bad-status";
+  attemptedPath: string;
+  onRefresh: () => void;
+}> = ({ organization, subscription, reason, attemptedPath, onRefresh }) => {
+  const snap = subscriptionBarrierSnapshotFromActive(subscription);
+  const copy = explainSubscriptionBarrier(reason, snap);
+  const billingLinkState = {
+    subscriptionGateBanner: {
+      attemptedPath,
+      gateReason: reason,
+      summary: copy.summary,
+      detail: copy.detail,
+    },
+  };
+
+  const pathLabel =
+    attemptedPath && attemptedPath !== "/" ? attemptedPath : "this workspace";
+
+  const rzChip =
+    !subscription?.hasSubscription
+      ? "No subscription on file yet"
+      : subscription.razorpayStatus
+        ? subscription.razorpayStatus.replace(/_/g, " ")
+        : "Not synced from Razorpay";
+
+  return (
+    <div className="min-h-screen app-ambient text-white">
+      <div className="mx-auto flex min-h-screen max-w-2xl items-center px-4 sm:px-6 py-12 sm:py-20">
+        <div className="w-full glass-card p-8 sm:p-10 space-y-6 text-left">
+          <div className="flex items-start gap-3">
+            <div
+              className="h-12 w-12 shrink-0 rounded-2xl grid place-items-center"
+              style={{
+                background: "linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))",
+              }}
+            >
+              <Lock className="h-6 w-6 text-white" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+                Billing gate (owners &amp; admins)
+              </div>
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug">
+                This workspace can&apos;t open{" "}
+                <span className="text-white font-mono text-[0.92em] break-all">{pathLabel}</span>
+                {organization?.name ? (
+                  <>
+                    {" "}
+                    for{" "}
+                    <span className="gradient-text-brand whitespace-nowrap">{organization.name}</span>
+                  </>
+                ) : null}
+              </h1>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 space-y-2">
+            <div className="text-sm font-semibold text-white flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-300 shrink-0 mt-0.5" />
+              Why you&apos;re seeing this
+            </div>
+            <p className="text-[13px] font-semibold text-white/90">{copy.summary}</p>
+            <p className="text-sm text-white/70 leading-relaxed">{copy.detail}</p>
+          </div>
+
+          <div className="theme-inset flex flex-wrap items-center gap-2 text-xs px-3 py-2 rounded-lg">
+            <span className="text-white/50">Razorpay live status:</span>
+            <span className="font-mono font-semibold text-white capitalize">{rzChip}</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-1">
+            <Button
+              variant="outline"
+              onClick={onRefresh}
+              className="border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08] sm:flex-1"
+            >
+              <RefreshCw className="h-4 w-4 mr-2 shrink-0" />
+              Refresh session
+            </Button>
+            <Button asChild className="btn-gradient text-white sm:flex-[1.3]">
+              <Link to="/subscription" replace state={billingLinkState} className="inline-flex items-center justify-center gap-2">
+                <CreditCard className="h-4 w-4 shrink-0" />
+                Open Subscription &amp; Billing
+                <ArrowRight className="h-4 w-4 shrink-0" />
+              </Link>
+            </Button>
+          </div>
+
+          <p className="text-[11px] text-white/45 leading-relaxed border-t border-white/10 pt-4">
+            Cuephoria only unlocks Dashboard, POS, stations, bookings, etc. when billing is healthy. Complete the
+            step on Subscription; when Razorpay shows <strong className="text-white/65">authenticated</strong> or{" "}
+            <strong className="text-white/65">active</strong>, use Refresh session or revisit from the sidebar.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Gate component
 // ---------------------------------------------------------------------------
@@ -302,23 +493,36 @@ export const SubscriptionGate: React.FC<{ children: React.ReactNode }> = ({ chil
   // admins, and everyone else all get the same lock screen.
   const isPrivileged =
     organization?.role === "owner" || organization?.role === "admin";
-  const shouldAutoRedirect =
+  const shouldExplainBillingBarrier =
     isPrivileged && (verdict.reason === "no-sub" || verdict.reason === "bad-status");
-  if (shouldAutoRedirect) {
+  if (shouldExplainBillingBarrier) {
+    const reason = verdict.reason as "no-sub" | "bad-status";
+    const attemptedPath = `${location.pathname}${location.search}`;
     return (
-      <Navigate
-        to="/subscription"
-        replace
-        state={{ from: location.pathname + location.search, reason: verdict.reason }}
+      <SubscriptionBillingInterstitial
+        organization={organization}
+        reason={reason}
+        attemptedPath={attemptedPath}
+        subscription={subscription}
+        onRefresh={() => orgCtx.refresh()}
       />
     );
   }
+
+  const attemptedPathFull = `${location.pathname}${location.search}`;
+  const snap = subscriptionBarrierSnapshotFromActive(subscription);
+  const barrierExplain =
+    verdict.reason === "no-sub" || verdict.reason === "bad-status"
+      ? explainSubscriptionBarrier(verdict.reason, snap)
+      : null;
 
   return (
     <SubscriptionRequiredScreen
       organization={organization}
       subscription={subscription}
       reason={verdict.reason}
+      attemptedPath={attemptedPathFull}
+      barrierExplain={barrierExplain}
       onRefresh={() => orgCtx.refresh()}
     />
   );
@@ -450,14 +654,49 @@ const REASON_COPY: Record<CopyReason, LockCopy> = {
   },
 };
 
+function pathWithoutSearch(fullPath: string): string {
+  const q = fullPath.indexOf("?");
+  return q === -1 ? fullPath : fullPath.slice(0, q);
+}
+
+function isBillingOrSubscriptionAttempt(fullPath: string): boolean {
+  const pathname = pathWithoutSearch(fullPath);
+  return (
+    pathname === "/subscription" ||
+    pathname.startsWith("/subscription/") ||
+    pathname === "/settings/billing" ||
+    pathname.startsWith("/settings/billing/")
+  );
+}
+
 const SubscriptionRequiredScreen: React.FC<{
   organization: ActiveOrganization | null;
   subscription: ActiveSubscription | null;
   reason: AccessReason;
+  attemptedPath?: string;
+  barrierExplain?: { summary: string; detail: string } | null;
   onRefresh: () => void;
-}> = ({ organization, subscription, reason, onRefresh }) => {
+}> = ({ organization, subscription, reason, attemptedPath, barrierExplain, onRefresh }) => {
   const copy = REASON_COPY[reason as CopyReason] ?? REASON_COPY["no-sub"];
   const isPlatformSuspended = reason === "platform-suspended";
+  const billingBarrier =
+    barrierExplain &&
+    (reason === "no-sub" || reason === "bad-status")
+      ? ({
+          subscriptionGateBanner: {
+            attemptedPath,
+            gateReason: reason,
+            summary: barrierExplain.summary,
+            detail: barrierExplain.detail,
+          },
+        } satisfies SubscriptionGateBillingState)
+      : undefined;
+
+  const showStaffBillingHint =
+    !!organization &&
+    organization.role !== "owner" &&
+    organization.role !== "admin" &&
+    (reason === "no-sub" || reason === "bad-status");
 
   return (
     <div className="min-h-screen app-ambient text-white">
@@ -490,6 +729,32 @@ const SubscriptionRequiredScreen: React.FC<{
             <p className="text-sm sm:text-base text-white/65 max-w-xl mx-auto leading-relaxed">
               {copy.body}
             </p>
+            {attemptedPath && !isBillingOrSubscriptionAttempt(attemptedPath) && (
+              <p className="text-[13px] text-white/50 max-w-xl mx-auto leading-relaxed pt-2">
+                We blocked <span className="font-mono text-white/65 break-all">{attemptedPath}</span>{" "}
+                because billing for this workspace is not passing the Subscription gate yet. Use Subscription below
+                to finish the step; then reopen that page from the sidebar.
+              </p>
+            )}
+            {billingBarrier?.subscriptionGateBanner && (
+              <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.08] px-4 py-3 text-left max-w-xl mx-auto space-y-1.5">
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-200/90">
+                  Why access is paused
+                </div>
+                <div className="text-sm font-semibold text-white">
+                  {billingBarrier.subscriptionGateBanner.summary}
+                </div>
+                <p className="text-xs text-white/75 leading-relaxed">
+                  {billingBarrier.subscriptionGateBanner.detail}
+                </p>
+              </div>
+            )}
+            {showStaffBillingHint && (
+              <p className="text-xs text-sky-100/85 max-w-lg mx-auto leading-relaxed">
+                Billing changes require owner or admin permissions. Ask a workspace owner to open Subscription and
+                complete Razorpay for this tenancy — once they do, Dashboard and POS unlock for everyone.
+              </p>
+            )}
           </div>
 
           {!isPlatformSuspended && subscription?.razorpayStatus && (
@@ -512,7 +777,7 @@ const SubscriptionRequiredScreen: React.FC<{
               Refresh
             </Button>
             <Button asChild className="btn-gradient text-white">
-              <Link to={copy.primaryCta.to}>
+              <Link to={copy.primaryCta.to} replace={!!billingBarrier} state={billingBarrier}>
                 <CreditCard className="h-4 w-4 mr-1.5" />
                 {copy.primaryCta.label}
                 <ArrowRight className="h-4 w-4 ml-1.5" />

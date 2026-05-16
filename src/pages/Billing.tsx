@@ -24,7 +24,8 @@
 
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import type { SubscriptionGateBillingState } from "@/components/SubscriptionGate";
 import { useOrganizationOptional } from "@/context/OrganizationContext";
 import {
   AlertTriangle,
@@ -50,6 +51,7 @@ import {
   TrendingUp,
   Timer,
   XCircle,
+  X,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -433,7 +435,13 @@ async function postBillingAction<T = Record<string, unknown>>(
 export default function Billing() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const location = useLocation();
+  const subscriptionGateBanner = (location.state as SubscriptionGateBillingState | null)
+    ?.subscriptionGateBanner;
+  const dismissSubscriptionGateBanner = React.useCallback(() => {
+    navigate(".", { replace: true, state: {} });
+  }, [navigate]);
   const orgCtx = useOrganizationOptional();
   const [cycle, setCycle] = React.useState<BillingCycle>("month");
   const [cancelOpen, setCancelOpen] = React.useState(false);
@@ -757,7 +765,21 @@ export default function Billing() {
 
   // Render guards ---------------------------------------------------------
 
-  if (billingQ.isLoading) return <BillingSkeleton path={location.pathname} />;
+  if (billingQ.isLoading) {
+    return (
+      <BillingSkeleton
+        path={location.pathname}
+        prepend={
+          subscriptionGateBanner ? (
+            <SubscriptionGateRecapBanner
+              banner={subscriptionGateBanner}
+              onDismiss={dismissSubscriptionGateBanner}
+            />
+          ) : null
+        }
+      />
+    );
+  }
   if (billingQ.isError || !billingQ.data) {
     const err = billingQ.error;
     const apiErr = err instanceof BillingApiError ? err : null;
@@ -862,6 +884,12 @@ export default function Billing() {
   return (
     <div className="min-h-screen app-ambient text-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {subscriptionGateBanner ? (
+          <SubscriptionGateRecapBanner
+            banner={subscriptionGateBanner}
+            onDismiss={dismissSubscriptionGateBanner}
+          />
+        ) : null}
         {/* HERO */}
         <section className="relative overflow-hidden rounded-3xl border border-white/10 p-6 sm:p-9"
           style={{
@@ -993,8 +1021,7 @@ export default function Billing() {
 
                 {mandateGraceDeadline != null &&
                   mandateGraceRemainingMs != null &&
-                  razorpayStatus === "created" &&
-                  (
+                  razorpayStatus === "created" && (
                     <div
                       className={
                         mandateGraceRemainingMs <= 0
@@ -1002,41 +1029,120 @@ export default function Billing() {
                           : "rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100"
                       }
                     >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-2 min-w-0">
                           <Timer className="h-4 w-4 shrink-0 mt-0.5 text-amber-300" />
                           <div className="min-w-0">
                             <div className="font-semibold text-white">Pay within the grace window</div>
                             {mandateGraceRemainingMs <= 0 ? (
                               <p className="mt-1 text-[11px] text-white/80 leading-snug">
-                                Time is up — complete the Razorpay mandate to unlock POS again (workspace access
-                                follows the Subscription gate until payment succeeds).
+                                Time is up — complete payment on your existing Razorpay subscription below. We reuse
+                                the same order (no duplicate plans) unless you switch tier or billing cycle.
                               </p>
                             ) : (
                               <p className="mt-1 text-[11px] text-white/80 leading-snug">
-                                Retry checkout in{" "}
+                                Complete the Razorpay mandate from{" "}
+                                <strong className="text-white font-semibold">Retry payment</strong>. You still have{" "}
                                 <span className="font-mono font-semibold text-white">
                                   {formatGraceCountdown(mandateGraceRemainingMs)}
                                 </span>{" "}
-                                to retain access · fleet grace is{" "}
+                                under fleet grace (
                                 <span className="font-semibold text-white">{billingGraceMinutes}</span>
-                                minute{billingGraceMinutes === 1 ? "" : "s"} (configured in Platform Overview).
+                                minute{billingGraceMinutes === 1 ? "" : "s"} configured in Platform Overview).
                               </p>
                             )}
                           </div>
                         </div>
-                        {canEdit && mandateGraceRemainingMs > 0 && (
+                        {canEdit && (
+                          <div className="flex flex-col sm:flex-row gap-2 shrink-0 sm:items-center sm:justify-end">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="btn-gradient text-white gap-1.5 w-full sm:w-auto"
+                              disabled={
+                                pauseM.isPending ||
+                                resumeM.isPending ||
+                                (createM.isPending && pendingTier === retryTier)
+                              }
+                              onClick={() => handlePlanClick(retryTier)}
+                            >
+                              {createM.isPending && pendingTier === retryTier ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RotateCw className="h-3.5 w-3.5" />
+                              )}
+                              Retry payment
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Button>
+                            {subscription.short_url ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="w-full sm:w-auto border-white/25 bg-transparent text-white/90 hover:bg-white/[0.08]"
+                                asChild
+                              >
+                                <a href={subscription.short_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  Hosted checkout
+                                </a>
+                              </Button>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {razorpayStatus === "created" &&
+                  canEdit &&
+                  subscription?.razorpay_subscription_id &&
+                  mandateGraceDeadline == null && (
+                    <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 space-y-3">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-300" />
+                        <div className="min-w-0">
+                          <div className="font-semibold text-white">Awaiting mandate — finish this subscription</div>
+                          <p className="mt-1 text-[11px] text-white/80 leading-snug">
+                            Razorpay still shows this plan as unpaid. Retry opens checkout for your current
+                            subscription id (existing order · no duplicate row).
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="btn-gradient text-white gap-1.5 w-full sm:w-auto"
+                          disabled={
+                            pauseM.isPending ||
+                            resumeM.isPending ||
+                            (createM.isPending && pendingTier === retryTier)
+                          }
+                          onClick={() => handlePlanClick(retryTier)}
+                        >
+                          {createM.isPending && pendingTier === retryTier ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCw className="h-3.5 w-3.5" />
+                          )}
+                          Retry payment
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                        {subscription.short_url ? (
                           <Button
                             type="button"
+                            variant="outline"
                             size="sm"
-                            className="btn-gradient text-white shrink-0 self-end sm:self-center gap-1.5"
-                            disabled={pauseM.isPending || resumeM.isPending}
-                            onClick={() => handlePlanClick(retryTier)}
+                            className="w-full sm:w-auto border-white/25 bg-transparent text-white/90 hover:bg-white/[0.08]"
+                            asChild
                           >
-                            Retry checkout
-                            <ArrowRight className="h-3.5 w-3.5" />
+                            <a href={subscription.short_url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Hosted checkout
+                            </a>
                           </Button>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   )}
@@ -1594,10 +1700,61 @@ function InvoiceStatusBadge({ status }: { status: string }) {
   );
 }
 
-function BillingSkeleton({ path }: { path?: string }) {
+function subscriptionGateBannerReasonLabel(gateReason?: string): string {
+  if (gateReason === "no-sub") return "No subscription yet";
+  if (gateReason === "bad-status") return "Subscription needs attention";
+  return gateReason ? gateReason.replace(/-/g, " ") : "";
+}
+
+function SubscriptionGateRecapBanner({
+  banner,
+  onDismiss,
+}: {
+  banner: NonNullable<SubscriptionGateBillingState["subscriptionGateBanner"]>;
+  onDismiss: () => void;
+}) {
   return (
-    <div className="min-h-screen app-ambient">
+    <div className="glass-card flex gap-4 p-4 border border-sky-500/30 bg-gradient-to-br from-sky-500/[0.12] via-white/[0.03] to-transparent">
+      <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5 text-sky-300" />
+      <div className="min-w-0 flex-1 space-y-2 text-left">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+              Why you landed here
+            </div>
+            {banner.gateReason ? (
+              <div className="text-xs font-medium text-white/65 mt-0.5">
+                {subscriptionGateBannerReasonLabel(banner.gateReason)}
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-lg p-1.5 text-white/45 hover:bg-white/[0.08] hover:text-white shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="text-sm font-semibold text-white">{banner.summary}</div>
+        <p className="text-xs text-white/72 leading-relaxed">{banner.detail}</p>
+        {banner.attemptedPath ? (
+          <p className="text-[11px] text-white/45">
+            Earlier route blocked:{" "}
+            <span className="font-mono text-white/60 break-all">{banner.attemptedPath}</span>
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function BillingSkeleton({ path, prepend }: { path?: string; prepend?: React.ReactNode }) {
+  return (
+    <div className="min-h-screen app-ambient text-white">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
+        {prepend}
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] font-semibold text-white/40">
           <Loader2 className="h-3 w-3 animate-spin" />
           Loading subscription…{" "}
