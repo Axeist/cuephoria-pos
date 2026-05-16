@@ -16,19 +16,21 @@
  *   3. `organizations.trial_ends_at` in the future → allowed (free trial).
  *   4. `subscriptions.access_suspended === true` (Razorpay halt / pause /
  *      cancel / complete) →
- *        - within 1 hour of `subscriptions.access_suspended_at` →
- *          allowed with reason "grace"; we render the children plus a
- *          sticky banner counting down to the lockout.
+ *        - within the fleet-configured grace window anchored at
+ *          `subscriptions.access_suspended_at` → allowed with reason "grace";
+ *          sticky banner counts down (billing suspend).
  *        - past the grace window → blocked with reason "suspended".
- *   5a. Prefer `subscriptions.lifecycleStatus` (`subscriptions.status` in the
- *       DB) when it is active|trialing and billing is not Razorpay-suspended.
- *       This keeps access aligned with ops + webhooks even if the verbatim
- *       `razorpay_status` column is stale or briefly null during recovery.
- *   5. `subscriptions.razorpay_status` in ALLOWED_RAZORPAY_STATUSES → allowed.
- *      The set is intentionally strict — only `active` and `authenticated`
- *      (mandate verified but charge pending). `created`, `pending`,
- *      `halted`, etc. all fall through to a "bad-status" lock.
- *   6. Otherwise → blocked.
+ *   5. `subscriptions.razorpay_status === "created"` (mandate incomplete) —
+ *        - Once checkout was dismissed (`checkout_abandoned_at`) and still
+ *          within the same fleet grace → allowed with reason "grace" +
+ *          mandate banner + Retry CTA.
+ *        - No abandon stamp yet, or grace expired → "bad-status" lock.
+ *   6a. `subscriptions.lifecycleStatus` active|trialing only when verbatim
+ *       `razorpay_status` is NOT `created` (that state maps internally to
+ *       trialing and must NOT bypass mandate completion).
+ *   7. `subscriptions.razorpay_status` in ALLOWED_RAZORPAY_STATUSES → allowed:
+ *      `active` and `authenticated` only.
+ *   8. Otherwise → blocked.
  *
  * Bypass paths — render even for unpaid / suspended tenants so they can
  * always reach the screens that let them fix the problem:
@@ -87,19 +89,18 @@ import {
 const ALLOWED_RAZORPAY_STATUSES = new Set<string>(["active", "authenticated"]);
 
 /**
- * Grace window granted after Razorpay flips `access_suspended` to true.
- * During this window the workspace stays usable but a sticky banner urges
- * the user to retry payment. After the window expires, full lockout.
- */
-const ACCESS_GRACE_MS = 60 * 60 * 1000; // 1 hour
-
-/**
  * Bucket from `subscriptions.status` (maintained alongside Razorpay). When we
- * are not in Razorpay access-suspended state, active|trialing here means an
+ * are not in Razorpay access-suspended state and mandates are resolved
+ * (`razorpay_status` is not still `created`), active|trialing here means an
  * in-good-standing subscription row even if `razorpay_status` was temporarily
  * null or out of sync (e.g. right after ops reactivated the org).
  */
 const INTERNAL_SUBSCRIPTION_ALLOWED = new Set<string>(["active", "trialing"]);
+
+export type EvaluateSubscriptionAccessOpts = {
+  now?: number;
+  billingAccessGraceMinutes?: number;
+};
 
 /**
  * Paths that are NEVER gated. Compared as prefix matches (e.g. `/account/`
@@ -146,6 +147,11 @@ export type AccessVerdict = {
    * countdown.
    */
   graceUntilMs?: number;
+  /**
+   * Present when `reason === "grace"`: distinguishes Razorpay billing suspend
+   * vs abandoned mandate checkout while Razorpay is still `created`.
+   */
+  graceKind?: "billing-suspend" | "mandate-abandon";
 };
 
 /**
@@ -158,8 +164,12 @@ export type AccessVerdict = {
 export function evaluateSubscriptionAccess(
   organization: ActiveOrganization | null,
   subscription: ActiveSubscription | null,
-  now: number = Date.now(),
+  opts?: EvaluateSubscriptionAccessOpts,
 ): AccessVerdict {
+  const now = opts?.now ?? Date.now();
+  const graceMinutes = opts?.billingAccessGraceMinutes ?? 60;
+  const graceMs = graceMinutes * 60 * 1000;
+
   if (!organization) return { allowed: true, reason: "internal" }; // no org loaded yet, fail open
   if (organization.isInternal) return { allowed: true, reason: "internal" };
 
@@ -180,12 +190,37 @@ export function evaluateSubscriptionAccess(
       ? new Date(subscription.accessSuspendedAt).getTime()
       : null;
     if (suspendedAtMs && Number.isFinite(suspendedAtMs)) {
-      const graceUntilMs = suspendedAtMs + ACCESS_GRACE_MS;
+      const graceUntilMs = suspendedAtMs + graceMs;
       if (now < graceUntilMs) {
-        return { allowed: true, reason: "grace", graceUntilMs };
+        return {
+          allowed: true,
+          reason: "grace",
+          graceUntilMs,
+          graceKind: "billing-suspend",
+        };
       }
     }
     return { allowed: false, reason: "suspended" };
+  }
+
+  const rz = (subscription.razorpayStatus ?? "").trim().toLowerCase();
+  if (rz === "created") {
+    const abandonedRaw = subscription.checkoutAbandonedAt;
+    if (abandonedRaw) {
+      const abandonMs = new Date(abandonedRaw).getTime();
+      if (Number.isFinite(abandonMs)) {
+        const graceUntilMs = abandonMs + graceMs;
+        if (now < graceUntilMs) {
+          return {
+            allowed: true,
+            reason: "grace",
+            graceUntilMs,
+            graceKind: "mandate-abandon",
+          };
+        }
+      }
+    }
+    return { allowed: false, reason: "bad-status" };
   }
 
   const lifecycle = (subscription.lifecycleStatus ?? "").trim().toLowerCase();
@@ -219,7 +254,7 @@ export const SubscriptionGate: React.FC<{ children: React.ReactNode }> = ({ chil
 
   if (!orgCtx) return <>{children}</>;
 
-  const { organization, subscription, status } = orgCtx;
+  const { organization, subscription, status, billingAccessGraceMinutes } = orgCtx;
 
   // While we're still resolving, render children rather than flashing a
   // redirect or a blocking spinner. The OrganizationContext keeps `status`
@@ -230,13 +265,19 @@ export const SubscriptionGate: React.FC<{ children: React.ReactNode }> = ({ chil
   // Bypass paths — always render.
   if (isBypassPath(location.pathname)) return <>{children}</>;
 
-  const verdict = evaluateSubscriptionAccess(organization, subscription);
+  const verdict = evaluateSubscriptionAccess(organization, subscription, {
+    billingAccessGraceMinutes,
+  });
 
   if (verdict.allowed) {
-    if (verdict.reason === "grace" && verdict.graceUntilMs) {
+    if (verdict.reason === "grace" && verdict.graceUntilMs && verdict.graceKind) {
       return (
         <>
-          <GraceBanner graceUntilMs={verdict.graceUntilMs} onRefresh={() => orgCtx.refresh()} />
+          <GraceBanner
+            graceUntilMs={verdict.graceUntilMs}
+            graceKind={verdict.graceKind}
+            onRefresh={() => orgCtx.refresh()}
+          />
           {children}
         </>
       );
@@ -283,10 +324,11 @@ function formatRemaining(ms: number): string {
   return `${secs}s`;
 }
 
-const GraceBanner: React.FC<{ graceUntilMs: number; onRefresh: () => void }> = ({
-  graceUntilMs,
-  onRefresh,
-}) => {
+const GraceBanner: React.FC<{
+  graceUntilMs: number;
+  graceKind: "billing-suspend" | "mandate-abandon";
+  onRefresh: () => void;
+}> = ({ graceUntilMs, graceKind, onRefresh }) => {
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -294,16 +336,30 @@ const GraceBanner: React.FC<{ graceUntilMs: number; onRefresh: () => void }> = (
   }, []);
   const remainingMs = Math.max(0, graceUntilMs - now);
 
+  const headline =
+    graceKind === "mandate-abandon" ? "Checkout closed." : "Payment issue.";
+  const detail =
+    graceKind === "mandate-abandon" ? (
+      <>
+        Complete payment within{" "}
+        <span className="font-mono font-semibold text-white">{formatRemaining(remainingMs)}</span>{" "}
+        to keep workspace access open.
+      </>
+    ) : (
+      <>
+        Workspace access locks in{" "}
+        <span className="font-mono font-semibold text-white">{formatRemaining(remainingMs)}</span>
+        . Retry billing to restore continuous access.
+      </>
+    );
+
   return (
     <div className="sticky top-0 z-50 w-full border-b border-amber-400/30 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-rose-500/15 backdrop-blur supports-[backdrop-filter]:bg-amber-500/10">
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-2 text-amber-100">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
           <div className="text-sm leading-snug">
-            <span className="font-semibold text-white">Payment failed.</span>{" "}
-            Workspace access will be locked in{" "}
-            <span className="font-mono font-semibold text-white">{formatRemaining(remainingMs)}</span>
-            . Retry payment to keep access.
+            <span className="font-semibold text-white">{headline}</span> {detail}
           </div>
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -357,7 +413,7 @@ const REASON_COPY: Record<CopyReason, LockCopy> = {
     eyebrow: "Payment required",
     title: "Subscription suspended",
     body:
-      "Razorpay was unable to charge your subscription within the 1-hour grace window. Retry payment now to restore access — your team can be back in the app in under a minute.",
+      "Razorpay was unable to keep your subscription in good standing through the billing grace window. Retry payment now to restore access — your team can be back in the app in under a minute.",
     primaryCta: { label: "Retry payment", to: "/subscription" },
     showSupportFooter: false,
     showBillingFooter: true,

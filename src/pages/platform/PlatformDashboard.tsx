@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -209,6 +209,7 @@ const PlatformDashboard: React.FC = () => {
   const [createOpen, setCreateOpen] = React.useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const qc = useQueryClient();
 
   const statsQuery = useQuery({
     queryKey: ["platform", "stats"],
@@ -223,6 +224,46 @@ const PlatformDashboard: React.FC = () => {
         "/api/platform/password-migration-status",
       ),
     staleTime: 5 * 60_000,
+  });
+
+  const billingSettingsQuery = useQuery({
+    queryKey: ["platform", "billing-settings"],
+    queryFn: () =>
+      fetcher<{ ok: true; billingAccessGraceMinutes: number }>("/api/platform/settings"),
+    staleTime: 60_000,
+  });
+
+  const [graceDraft, setGraceDraft] = React.useState("");
+  React.useEffect(() => {
+    const m = billingSettingsQuery.data?.billingAccessGraceMinutes;
+    if (typeof m === "number" && Number.isFinite(m)) setGraceDraft(String(m));
+  }, [billingSettingsQuery.data?.billingAccessGraceMinutes]);
+
+  const saveBillingGrace = useMutation({
+    mutationFn: async (billingAccessGraceMinutes: number) => {
+      const res = await fetch("/api/platform/settings", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ billingAccessGraceMinutes }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        billingAccessGraceMinutes?: number;
+      };
+      if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Save failed.");
+      return json;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["platform", "billing-settings"] });
+      toast({
+        title: "Fleet billing grace updated",
+        description: "Tenant Subscription gates pick this up within a minute.",
+      });
+    },
+    onError: (e: Error) =>
+      toast({ variant: "destructive", title: "Could not save", description: e.message }),
   });
 
   const orgParams = React.useMemo(() => {
@@ -369,6 +410,68 @@ const PlatformDashboard: React.FC = () => {
           accent="amber"
           loading={statsQuery.isLoading}
         />
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-300">
+                <Clock className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-zinc-100">Fleet billing grace</div>
+                <p className="mt-1 text-xs text-zinc-500 max-w-xl">
+                  How long tenant workspaces stay usable after a Razorpay billing suspend, or after they close
+                  checkout while the mandate is still uncompleted (
+                  <code className="text-[11px] px-1 rounded bg-white/10">created</code>
+                  ). Shown as a countdown on the tenant Subscription page and the app gate.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">
+              <label htmlFor="fleet-grace-min" className="text-[11px] uppercase tracking-wider text-zinc-500">
+                Minutes
+              </label>
+              <Input
+                id="fleet-grace-min"
+                type="number"
+                min={1}
+                max={10080}
+                value={graceDraft}
+                disabled={billingSettingsQuery.isLoading || saveBillingGrace.isPending}
+                onChange={(e) => setGraceDraft(e.target.value)}
+                className="h-9 w-28 bg-transparent border-white/15 text-zinc-100 font-mono text-sm"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-white/15 bg-white/5 hover:bg-white/10"
+              disabled={
+                billingSettingsQuery.isLoading ||
+                saveBillingGrace.isPending ||
+                graceDraft.trim() === ""
+              }
+              onClick={() => {
+                const n = Number(graceDraft);
+                if (!Number.isFinite(n)) {
+                  toast({
+                    variant: "destructive",
+                    title: "Invalid value",
+                    description: "Enter a number between 1 and 10080 (7 days).",
+                  });
+                  return;
+                }
+                saveBillingGrace.mutate(n);
+              }}
+            >
+              {saveBillingGrace.isPending ? "Saving…" : "Save grace window"}
+            </Button>
+          </div>
+        </div>
       </section>
 
       {pwdMigrationQuery.data?.status && (() => {

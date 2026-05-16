@@ -62,7 +62,11 @@ export type ActiveSubscription = {
    * cancel / complete). Used by SubscriptionGate to compute the 1-hour
    * grace window before the workspace fully locks.
    */
-  accessSuspendedAt: string | null;
+  /**
+   * First Razorpay checkout dismiss without mandate while `razorpay_status`
+   * is still `created`. Anchors the fleet-configured billing grace countdown.
+   */
+  checkoutAbandonedAt: string | null;
   planTier: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
@@ -73,6 +77,8 @@ export type OrganizationStatus = "loading" | "ready" | "no_org" | "error";
 type OrganizationContextValue = {
   organization: ActiveOrganization | null;
   subscription: ActiveSubscription | null;
+  /** Fleet-wide minutes; used by SubscriptionGate grace windows */
+  billingAccessGraceMinutes: number;
   status: OrganizationStatus;
   error: string | null;
   refresh: () => Promise<void>;
@@ -85,6 +91,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const location = useLocation();
   const [organization, setOrganization] = useState<ActiveOrganization | null>(null);
   const [subscription, setSubscription] = useState<ActiveSubscription | null>(null);
+  const [billingAccessGraceMinutes, setBillingAccessGraceMinutes] = useState(60);
   const [status, setStatus] = useState<OrganizationStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef<Promise<void> | null>(null);
@@ -93,6 +100,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!user) {
       setOrganization(null);
       setSubscription(null);
+      setBillingAccessGraceMinutes(60);
       setStatus("no_org");
       setError(null);
       return;
@@ -109,10 +117,15 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (!res.ok || !json?.ok) {
           throw new Error(json?.error || `Failed to load org (${res.status})`);
         }
+        const gm = json.billingAccessGraceMinutes;
+        if (typeof gm === "number" && Number.isFinite(gm) && gm > 0) {
+          setBillingAccessGraceMinutes(Math.floor(gm));
+        }
         const org = json.organization;
         if (!org) {
           setOrganization(null);
           setSubscription(null);
+          setBillingAccessGraceMinutes(60);
           setStatus("no_org");
           return;
         }
@@ -139,6 +152,8 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             accessSuspended: !!sub.accessSuspended,
             accessSuspendedAt:
               typeof sub.accessSuspendedAt === "string" ? sub.accessSuspendedAt : null,
+            checkoutAbandonedAt:
+              typeof sub.checkoutAbandonedAt === "string" ? sub.checkoutAbandonedAt : null,
             planTier: typeof sub.planTier === "string" ? sub.planTier : null,
             currentPeriodEnd:
               typeof sub.currentPeriodEnd === "string" ? sub.currentPeriodEnd : null,
@@ -155,6 +170,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             lifecycleStatus: null,
             accessSuspended: false,
             accessSuspendedAt: null,
+            checkoutAbandonedAt: null,
             planTier: null,
             currentPeriodEnd: null,
             cancelAtPeriodEnd: false,
@@ -164,6 +180,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       } catch (e) {
         setOrganization(null);
         setSubscription(null);
+        setBillingAccessGraceMinutes(60);
         setStatus("error");
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -188,11 +205,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     () => ({
       organization,
       subscription,
+      billingAccessGraceMinutes,
       status,
       error,
       refresh: load,
     }),
-    [organization, subscription, status, error, load],
+    [organization, subscription, billingAccessGraceMinutes, status, error, load],
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;

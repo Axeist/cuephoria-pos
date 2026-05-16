@@ -386,6 +386,7 @@ function buildSubscriptionUpdate(
   const restoreAccess = (target: Record<string, unknown>) => {
     target.access_suspended = false;
     target.access_suspended_at = null;
+    target.checkout_abandoned_at = null;
   };
   const update: Record<string, unknown> = {
     status: internalStatus,

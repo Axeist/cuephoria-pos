@@ -236,6 +236,13 @@ const PlatformLogin: React.FC = () => {
                 <p className="mt-1.5 text-sm text-gray-400">
                   Restricted to {PARENT_BRAND.name} platform operators.
                 </p>
+                <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
+                  Tenant pay-or-lock grace (billing retries and abandoned checkout) is tuned after sign-in: open{" "}
+                  <span className="text-gray-400 font-semibold">
+                    Fleet billing grace on Overview
+                  </span>
+                  .
+                </p>
               </div>
 
               {/* Form */}

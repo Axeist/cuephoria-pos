@@ -27,6 +27,7 @@ import platformAdmins from "../../src/server/handlers/platform/platform-admins";
 import planRazorpayMap from "../../src/server/handlers/platform/plan-razorpay-map";
 import planUpdate from "../../src/server/handlers/platform/plan-update";
 import plans from "../../src/server/handlers/platform/plans";
+import settings from "../../src/server/handlers/platform/settings";
 import stats from "../../src/server/handlers/platform/stats";
 
 export const config = { runtime: "edge" };
@@ -52,6 +53,7 @@ const routes: Record<string, Handler> = {
   "plan-razorpay-map": planRazorpayMap,
   "plan-update": planUpdate,
   "plans": plans,
+  "settings": settings,
   "stats": stats,
 };
 

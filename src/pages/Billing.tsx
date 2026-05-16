@@ -48,6 +48,7 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingUp,
+  Timer,
   XCircle,
   Zap,
 } from "lucide-react";
@@ -135,6 +136,8 @@ interface Subscription {
   last_payment_amount?: number | null;
   scheduled_change?: ScheduledChange | null;
   access_suspended?: boolean;
+  /** Set when Razorpay checkout is dismissed without mandate while status is created */
+  checkout_abandoned_at?: string | null;
 }
 
 interface Invoice {
@@ -173,6 +176,7 @@ interface BillingResponse {
   razorpay: { mode: "live" | "test"; keyId: string };
   billingContactEmail: string | null;
   billingPrefillName: string | null;
+  billingAccessGraceMinutes?: number;
 }
 
 interface CreateSuccess {
@@ -355,6 +359,14 @@ function tierLabel(code: string): string {
   return code.charAt(0).toUpperCase() + code.slice(1);
 }
 
+function formatGraceCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  if (mins >= 1) return `${mins}m ${secs.toString().padStart(2, "0")}s`;
+  return `${secs}s`;
+}
+
 /**
  * Error subtype that carries the raw HTTP status and body snippet from a
  * failed /api/tenant/billing call. The error card surfaces these so a stuck
@@ -425,6 +437,12 @@ export default function Billing() {
   const [cycle, setCycle] = React.useState<BillingCycle>("month");
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [pendingTier, setPendingTier] = React.useState<PlanTier | null>(null);
+  const [billingNow, setBillingNow] = React.useState(Date.now());
+
+  React.useEffect(() => {
+    const id = window.setInterval(() => setBillingNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // Mount-time diagnostics. If you ever look at /settings/billing and the
   // page is stuck on the skeleton, the very first thing to check is whether
@@ -446,6 +464,16 @@ export default function Billing() {
     // re-resolve or the user stays on the wrong screen until the next nav.
     if (orgCtx) void orgCtx.refresh();
   }, [qc, orgCtx]);
+
+  const recordDismissAndRefresh = React.useCallback(async () => {
+    try {
+      await postBillingAction<{ ok: boolean }>({ action: "record-checkout-dismiss" });
+    } catch {
+      // Non-fatal: user can still settle from Razorpay; gate only needs best-effort.
+    } finally {
+      refreshBilling();
+    }
+  }, [refreshBilling]);
 
   const billingQ = useQuery<BillingResponse, BillingApiError | Error>({
     queryKey: ["tenant-billing"],
@@ -701,7 +729,7 @@ export default function Billing() {
       modal: {
         ondismiss: () => {
           setPendingTier(null);
-          refreshBilling();
+          void recordDismissAndRefresh();
         },
       },
     };
@@ -716,6 +744,7 @@ export default function Billing() {
           title: "Payment failed",
           description: errPayload.error?.description ?? "Try again.",
         });
+        void recordDismissAndRefresh();
         setPendingTier(null);
       });
       rzp.open();
@@ -771,6 +800,33 @@ export default function Billing() {
   const isActive = razorpayStatus === "active";
 
   const visiblePlans = plans.filter((p) => p.is_public && p.is_active);
+
+  const billingGraceMinutes =
+    typeof data.billingAccessGraceMinutes === "number" &&
+    Number.isFinite(data.billingAccessGraceMinutes)
+      ? Math.max(1, Math.floor(data.billingAccessGraceMinutes))
+      : 60;
+
+  const mandateAbandonIso =
+    razorpayStatus === "created" &&
+    typeof subscription?.checkout_abandoned_at === "string" &&
+    subscription.checkout_abandoned_at.trim().length > 0
+      ? subscription.checkout_abandoned_at
+      : null;
+  const mandateAbandonMs = mandateAbandonIso ? new Date(mandateAbandonIso).getTime() : NaN;
+  const mandateGraceDeadline =
+    mandateAbandonIso && Number.isFinite(mandateAbandonMs)
+      ? mandateAbandonMs + billingGraceMinutes * 60_000
+      : null;
+  const mandateGraceRemainingMs =
+    mandateGraceDeadline != null ? Math.max(0, mandateGraceDeadline - billingNow) : null;
+
+  const retryTier: PlanTier =
+    subscription?.plan_tier === "starter" ||
+    subscription?.plan_tier === "growth" ||
+    subscription?.plan_tier === "pro"
+      ? subscription.plan_tier
+      : (visiblePlans[0]?.code as PlanTier | undefined) ?? "starter";
 
   const handlePlanClick = (planCode: PlanTier) => {
     setPendingTier(planCode);
@@ -924,6 +980,57 @@ export default function Billing() {
                 {statusUi && (
                   <p className="text-xs text-white/55 -mt-2">{statusUi.description}</p>
                 )}
+
+                {mandateGraceDeadline != null &&
+                  mandateGraceRemainingMs != null &&
+                  razorpayStatus === "created" &&
+                  mandateAbandonIso &&
+                  (
+                    <div
+                      className={
+                        mandateGraceRemainingMs <= 0
+                          ? "rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-100"
+                          : "rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100"
+                      }
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Timer className="h-4 w-4 shrink-0 mt-0.5 text-amber-300" />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-white">Pay within the grace window</div>
+                            {mandateGraceRemainingMs <= 0 ? (
+                              <p className="mt-1 text-[11px] text-white/80 leading-snug">
+                                Time is up — complete the Razorpay mandate to unlock POS again (workspace access
+                                follows the Subscription gate until payment succeeds).
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-[11px] text-white/80 leading-snug">
+                                Retry checkout in{" "}
+                                <span className="font-mono font-semibold text-white">
+                                  {formatGraceCountdown(mandateGraceRemainingMs)}
+                                </span>{" "}
+                                to retain access · fleet grace is{" "}
+                                <span className="font-semibold text-white">{billingGraceMinutes}</span>
+                                minute{billingGraceMinutes === 1 ? "" : "s"} (configured in Platform Overview).
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {canEdit && mandateGraceRemainingMs > 0 && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="btn-gradient text-white shrink-0 self-end sm:self-center gap-1.5"
+                            disabled={pauseM.isPending || resumeM.isPending}
+                            onClick={() => handlePlanClick(retryTier)}
+                          >
+                            Retry checkout
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                 <div className="theme-inset p-4">
                   <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">Plan</div>

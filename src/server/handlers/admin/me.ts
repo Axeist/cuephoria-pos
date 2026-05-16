@@ -5,6 +5,10 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
+import {
+  DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
+  fetchBillingAccessGraceMinutes,
+} from "../../lib/platformBillingGrace";
 import { resolveOrgContext } from "../../orgContext";
 import { supabaseServiceClient } from "../../supabaseServer";
 
@@ -77,12 +81,17 @@ export default async function handler(req: Request) {
       lifecycleStatus: string | null;
       accessSuspended: boolean;
       accessSuspendedAt: string | null;
+      checkoutAbandonedAt: string | null;
       planTier: string | null;
       currentPeriodEnd: string | null;
       cancelAtPeriodEnd: boolean;
     } | null = null;
 
+    let billingAccessGraceMinutes: number | null = null;
+
     try {
+      const graceSupabase = supabaseServiceClient("cuephoria-admin-me-billing-grace");
+      billingAccessGraceMinutes = await fetchBillingAccessGraceMinutes(graceSupabase);
       const ctx = await resolveOrgContext(req);
       if ("code" in ctx) {
         if (ctx.code === "unauthorized" || ctx.code === "no_org") {
@@ -157,6 +166,8 @@ export default async function handler(req: Request) {
                 typeof row.access_suspended === "boolean" ? row.access_suspended : false,
               accessSuspendedAt:
                 typeof row.access_suspended_at === "string" ? row.access_suspended_at : null,
+              checkoutAbandonedAt:
+                typeof row.checkout_abandoned_at === "string" ? row.checkout_abandoned_at : null,
               planTier: typeof row.plan_tier === "string" ? row.plan_tier : null,
               currentPeriodEnd:
                 typeof row.current_period_end === "string" ? row.current_period_end : null,
@@ -172,6 +183,7 @@ export default async function handler(req: Request) {
               lifecycleStatus: null,
               accessSuspended: false,
               accessSuspendedAt: null,
+              checkoutAbandonedAt: null,
               planTier: null,
               currentPeriodEnd: null,
               cancelAtPeriodEnd: false,
@@ -220,6 +232,8 @@ export default async function handler(req: Request) {
         },
         organization,
         subscription,
+        billingAccessGraceMinutes:
+          billingAccessGraceMinutes ?? DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
       },
       200,
     );

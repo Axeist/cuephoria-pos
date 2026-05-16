@@ -34,6 +34,8 @@
  *   - "renew"                   Same payload+behaviour as "create"; explicit name
  *                                so the UI can show a Renew button for terminal subs
  *                                (cancelled / completed / expired).
+ *   - "record-checkout-dismiss"  When Razorpay status is still `created`, stamps
+ *                                `checkout_abandoned_at` once (anchors grace).
  *   - "fetch-invoices"          GET /v1/invoices?subscription_id=:id; upserts local
  *                                public.invoices and returns the merged list.
  *
@@ -57,6 +59,11 @@ import {
   type RazorpayInvoice,
   type RazorpaySubscription,
 } from "../../src/server/lib/razorpay-subscriptions.js";
+import {
+  fetchBillingAccessGraceMinutes,
+  DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
+} from "../../src/server/lib/platformBillingGrace.js";
+import { supabaseServiceClient } from "../../src/server/supabaseServer.js";
 
 export const config = { maxDuration: 60 };
 
@@ -454,6 +461,14 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
   else if (typeof un === "string" && un.trim()) billingPrefillName = un.trim();
 
   log("returning snapshot");
+  let billingAccessGraceMinutes = DEFAULT_BILLING_ACCESS_GRACE_MINUTES;
+  try {
+    billingAccessGraceMinutes = await fetchBillingAccessGraceMinutes(
+      supabaseServiceClient("tenant-billing-platform-grace"),
+    );
+  } catch (graceErr) {
+    err("billingAccessGraceMinutes fetch failed", graceErr);
+  }
   return j(
     {
       ok: true,
@@ -467,6 +482,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
       razorpay: { mode: creds.isLive ? "live" : "test", keyId: creds.keyId },
       billingContactEmail,
       billingPrefillName,
+      billingAccessGraceMinutes,
     },
     200,
   );
@@ -517,6 +533,8 @@ async function postBilling(req: Request, ctx: OrgContext): Promise<Response> {
       return resumeAction(ctx);
     case "fetch-invoices":
       return fetchInvoicesAction(ctx);
+    case "record-checkout-dismiss":
+      return recordCheckoutDismissAction(ctx);
     default:
       return j({ ok: false, error: `Unknown action: ${action}` }, 400);
   }
@@ -677,6 +695,7 @@ async function createOrRenewAction(
     scheduled_change: null,
     access_suspended: false,
     access_suspended_at: null,
+    checkout_abandoned_at: null,
     short_url: sub.short_url ?? null,
     ...mapped,
   };
@@ -728,6 +747,35 @@ async function createOrRenewAction(
   );
 }
 
+async function recordCheckoutDismissAction(ctx: OrgContext): Promise<Response> {
+  if (ctx.isInternal) return j({ ok: true, skipped: true, reason: "internal" }, 200);
+
+  const { data: row, error } = await ctx.supabase
+    .from("subscriptions")
+    .select("id, razorpay_status, checkout_abandoned_at")
+    .eq("organization_id", ctx.organizationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return j({ ok: false, error: error.message }, 500);
+  if (!row?.id) return j({ ok: true, skipped: true, reason: "no_row" }, 200);
+
+  const rs = String(row.razorpay_status ?? "").toLowerCase();
+  if (rs !== "created") return j({ ok: true, skipped: true, reason: "not_created" }, 200);
+
+  if (row.checkout_abandoned_at) return j({ ok: true, skipped: true, reason: "already_abandoned" }, 200);
+
+  const stamp = new Date().toISOString();
+  const { error: upErr } = await ctx.supabase
+    .from("subscriptions")
+    .update({ checkout_abandoned_at: stamp })
+    .eq("id", row.id);
+
+  if (upErr) return j({ ok: false, error: upErr.message }, 500);
+  return j({ ok: true, checkoutAbandonedAt: stamp }, 200);
+}
+
 // ---------------------------------------------------------------------------
 // Actions: verify-payment
 // ---------------------------------------------------------------------------
@@ -749,7 +797,7 @@ async function verifyPaymentAction(
 
   const { data: row } = await ctx.supabase
     .from("subscriptions")
-    .select("razorpay_subscription_id")
+    .select("id, razorpay_subscription_id")
     .eq("organization_id", ctx.organizationId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -760,6 +808,15 @@ async function verifyPaymentAction(
 
   const valid = verifySubscriptionCheckoutSignature(paymentId, subscriptionId, signature, creds.keySecret);
   if (!valid) return j({ ok: false, error: "Invalid Razorpay payment signature." }, 400);
+
+  if (row.id) {
+    const { error: upErr } = await ctx.supabase
+      .from("subscriptions")
+      .update({ checkout_abandoned_at: null })
+      .eq("id", row.id);
+    if (upErr) console.error("[billing] clear checkout_abandoned_at failed", upErr);
+  }
+
   return j({ ok: true }, 200);
 }
 
