@@ -100,29 +100,33 @@ interface ScheduledChange {
 interface Subscription {
   id: string;
   plan_id: string;
-  plan_tier: PlanTier | null;
-  billing_cycle: BillingCycle | null;
-  provider: string;
-  status: string;
-  razorpay_status: RazorpayStatus | null;
-  interval: BillingCycle;
-  current_period_start: string | null;
-  current_period_end: string | null;
-  trial_ends_at: string | null;
-  cancel_at_period_end: boolean;
-  cancel_requested_at: string | null;
-  razorpay_subscription_id: string | null;
-  razorpay_customer_id: string | null;
-  total_count: number | null;
-  paid_count: number;
-  remaining_count: number | null;
-  charge_at: string | null;
-  start_at: string | null;
-  end_at: string | null;
-  last_payment_id: string | null;
-  last_payment_amount: number | null;
-  scheduled_change: ScheduledChange | null;
-  access_suspended: boolean;
+  // All of the lifecycle columns are marked optional because the schema
+  // migration that introduces them may not have been applied yet on a given
+  // environment; the GET handler returns SELECT * and we defend against the
+  // missing-field case throughout the UI.
+  plan_tier?: PlanTier | null;
+  billing_cycle?: BillingCycle | null;
+  provider?: string;
+  status?: string;
+  razorpay_status?: RazorpayStatus | null;
+  interval?: BillingCycle;
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+  trial_ends_at?: string | null;
+  cancel_at_period_end?: boolean;
+  cancel_requested_at?: string | null;
+  razorpay_subscription_id?: string | null;
+  razorpay_customer_id?: string | null;
+  total_count?: number | null;
+  paid_count?: number;
+  remaining_count?: number | null;
+  charge_at?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  last_payment_id?: string | null;
+  last_payment_amount?: number | null;
+  scheduled_change?: ScheduledChange | null;
+  access_suspended?: boolean;
 }
 
 interface Invoice {
@@ -367,7 +371,7 @@ export default function Billing() {
       const controller = new AbortController();
       const onMainAbort = () => controller.abort();
       signal.addEventListener("abort", onMainAbort);
-      const t = window.setTimeout(() => controller.abort(), 45_000);
+      const t = window.setTimeout(() => controller.abort(), 20_000);
       try {
         const res = await fetch("/api/tenant/billing", {
           credentials: "include",
@@ -388,6 +392,10 @@ export default function Billing() {
         signal.removeEventListener("abort", onMainAbort);
       }
     },
+    // Fail fast (one retry) so a real backend error surfaces in a few seconds
+    // instead of holding the skeleton through three slow retries.
+    retry: 1,
+    retryDelay: 1500,
     staleTime: 15_000,
   });
 
@@ -778,9 +786,9 @@ export default function Billing() {
                     <Stat
                       label="Cycles done"
                       value={
-                        subscription.total_count !== null
-                          ? `${subscription.paid_count} / ${subscription.total_count}`
-                          : `${subscription.paid_count}`
+                        subscription.total_count != null
+                          ? `${subscription.paid_count ?? 0} / ${subscription.total_count}`
+                          : `${subscription.paid_count ?? 0}`
                       }
                       icon={CheckCircle2}
                     />

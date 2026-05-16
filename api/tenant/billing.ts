@@ -91,6 +91,14 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
   }
 
   const supabase = ctx.supabase;
+  /**
+   * Use SELECT * for `subscriptions` so the page keeps rendering even when
+   * the new lifecycle migration (plan_tier / razorpay_status / paid_count /
+   * charge_at / scheduled_change / access_suspended / etc.) hasn't been
+   * applied yet on a given environment. Missing columns surface as
+   * `undefined` on the row, which the typed frontend already treats as
+   * "no value" — far better UX than the page hanging on an error.
+   */
   const [orgQ, subQ, plansQ, invQ] = await Promise.all([
     supabase
       .from("organizations")
@@ -99,9 +107,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
       .maybeSingle(),
     supabase
       .from("subscriptions")
-      .select(
-        "id, plan_id, plan_tier, billing_cycle, provider, status, razorpay_status, interval, current_period_start, current_period_end, trial_ends_at, cancel_at_period_end, cancel_requested_at, razorpay_subscription_id, razorpay_customer_id, total_count, paid_count, remaining_count, charge_at, start_at, end_at, last_payment_id, last_payment_amount, scheduled_change, access_suspended",
-      )
+      .select("*")
       .eq("organization_id", ctx.organizationId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -124,11 +130,11 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
       .limit(INVOICE_PAGE_SIZE),
   ]);
 
-  if (orgQ.error) return j({ ok: false, error: orgQ.error.message }, 500);
+  if (orgQ.error) return j({ ok: false, error: `organizations: ${orgQ.error.message}` }, 500);
   if (!orgQ.data) return j({ ok: false, error: "Organization not found." }, 404);
-  if (subQ.error) return j({ ok: false, error: subQ.error.message }, 500);
-  if (plansQ.error) return j({ ok: false, error: plansQ.error.message }, 500);
-  if (invQ.error) return j({ ok: false, error: invQ.error.message }, 500);
+  if (subQ.error) return j({ ok: false, error: `subscriptions: ${subQ.error.message}` }, 500);
+  if (plansQ.error) return j({ ok: false, error: `plans: ${plansQ.error.message}` }, 500);
+  if (invQ.error) return j({ ok: false, error: `invoices: ${invQ.error.message}` }, 500);
 
   let currentPlan: { id: string; code: string; name: string } | null = null;
   if (subQ.data?.plan_id) {
