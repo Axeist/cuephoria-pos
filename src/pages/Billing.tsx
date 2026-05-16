@@ -138,6 +138,7 @@ interface Subscription {
   access_suspended?: boolean;
   /** Set when Razorpay checkout is dismissed without mandate while status is created */
   checkout_abandoned_at?: string | null;
+  created_at?: string | null;
 }
 
 interface Invoice {
@@ -807,17 +808,26 @@ export default function Billing() {
       ? Math.max(1, Math.floor(data.billingAccessGraceMinutes))
       : 60;
 
-  const mandateAbandonIso =
+  const mandateGraceMs = billingGraceMinutes * 60_000;
+  const mandateDeadlineEnds: number[] = [];
+  if (
+    razorpayStatus === "created" &&
+    typeof subscription?.created_at === "string" &&
+    subscription.created_at.trim().length > 0
+  ) {
+    const t = new Date(subscription.created_at).getTime();
+    if (Number.isFinite(t)) mandateDeadlineEnds.push(t + mandateGraceMs);
+  }
+  if (
     razorpayStatus === "created" &&
     typeof subscription?.checkout_abandoned_at === "string" &&
     subscription.checkout_abandoned_at.trim().length > 0
-      ? subscription.checkout_abandoned_at
-      : null;
-  const mandateAbandonMs = mandateAbandonIso ? new Date(mandateAbandonIso).getTime() : NaN;
+  ) {
+    const t = new Date(subscription.checkout_abandoned_at).getTime();
+    if (Number.isFinite(t)) mandateDeadlineEnds.push(t + mandateGraceMs);
+  }
   const mandateGraceDeadline =
-    mandateAbandonIso && Number.isFinite(mandateAbandonMs)
-      ? mandateAbandonMs + billingGraceMinutes * 60_000
-      : null;
+    mandateDeadlineEnds.length > 0 ? Math.max(...mandateDeadlineEnds) : null;
   const mandateGraceRemainingMs =
     mandateGraceDeadline != null ? Math.max(0, mandateGraceDeadline - billingNow) : null;
 
@@ -984,7 +994,6 @@ export default function Billing() {
                 {mandateGraceDeadline != null &&
                   mandateGraceRemainingMs != null &&
                   razorpayStatus === "created" &&
-                  mandateAbandonIso &&
                   (
                     <div
                       className={

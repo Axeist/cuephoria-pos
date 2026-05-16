@@ -22,10 +22,11 @@
  *          sticky banner counts down (billing suspend).
  *        - past the grace window → blocked with reason "suspended".
  *   5. `subscriptions.razorpay_status === "created"` (mandate incomplete) —
- *        - Once checkout was dismissed (`checkout_abandoned_at`) and still
- *          within the same fleet grace → allowed with reason "grace" +
- *          mandate banner + Retry CTA.
- *        - No abandon stamp yet, or grace expired → "bad-status" lock.
+ *        - Fleet grace anchored at later of first `checkout_abandoned_at` stamp
+ *          (checkout dismissed / failed attempt) OR `subscriptions.created_at`
+ *          (fresh subscription API create) → allowed with mandate banner +
+ *          Retry CTA until the later deadline.
+ *        - No anchor timestamps, or grace expired → "bad-status" lock.
  *   6a. `subscriptions.lifecycleStatus` active|trialing only when verbatim
  *       `razorpay_status` is NOT `created` (that state maps internally to
  *       trialing and must NOT bypass mandate completion).
@@ -152,8 +153,8 @@ export type AccessVerdict = {
    */
   graceUntilMs?: number;
   /**
-   * Present when `reason === "grace"`: distinguishes Razorpay billing suspend
-   * vs abandoned mandate checkout while Razorpay is still `created`.
+   * Present when `reason === "grace"`: billing suspend anchor vs mandate
+   * grace while Razorpay is still `created` (anchored on row `created_at` and/or abandon).
    */
   graceKind?: "billing-suspend" | "mandate-abandon";
 };
@@ -211,20 +212,25 @@ export function evaluateSubscriptionAccess(
 
   const rz = (subscription.razorpayStatus ?? "").trim().toLowerCase();
   if (rz === "created") {
+    const anchors: number[] = [];
+    const createdRaw = subscription.subscriptionCreatedAt;
+    if (createdRaw) {
+      const tMs = new Date(createdRaw).getTime();
+      if (Number.isFinite(tMs)) anchors.push(tMs + graceMs);
+    }
     const abandonedRaw = subscription.checkoutAbandonedAt;
     if (abandonedRaw) {
-      const abandonMs = new Date(abandonedRaw).getTime();
-      if (Number.isFinite(abandonMs)) {
-        const graceUntilMs = abandonMs + graceMs;
-        if (now < graceUntilMs) {
-          return {
-            allowed: true,
-            reason: "grace",
-            graceUntilMs,
-            graceKind: "mandate-abandon",
-          };
-        }
-      }
+      const aMs = new Date(abandonedRaw).getTime();
+      if (Number.isFinite(aMs)) anchors.push(aMs + graceMs);
+    }
+    const graceUntilMs = anchors.length ? Math.max(...anchors) : null;
+    if (graceUntilMs != null && now < graceUntilMs) {
+      return {
+        allowed: true,
+        reason: "grace",
+        graceUntilMs,
+        graceKind: "mandate-abandon",
+      };
     }
     return { allowed: false, reason: "bad-status" };
   }
@@ -343,13 +349,13 @@ const GraceBanner: React.FC<{
   const remainingMs = Math.max(0, graceUntilMs - now);
 
   const headline =
-    graceKind === "mandate-abandon" ? "Checkout closed." : "Payment issue.";
+    graceKind === "mandate-abandon" ? "Mandate not complete yet." : "Payment issue.";
   const detail =
     graceKind === "mandate-abandon" ? (
       <>
-        Complete payment within{" "}
+        Finish Razorpay checkout within{" "}
         <span className="font-mono font-semibold text-white">{formatRemaining(remainingMs)}</span>{" "}
-        to keep workspace access open.
+        to keep POS and bookings fully open — or open Billing to retry now.
       </>
     ) : (
       <>

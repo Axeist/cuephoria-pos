@@ -64,6 +64,8 @@ export type ActiveSubscription = {
    * is still `created`. Anchors the fleet-configured billing grace countdown.
    */
   checkoutAbandonedAt: string | null;
+  /** DB `subscriptions.created_at` — anchors mandate grace when Razorpay is still `created`. */
+  subscriptionCreatedAt: string | null;
   planTier: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
@@ -151,6 +153,8 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               typeof sub.accessSuspendedAt === "string" ? sub.accessSuspendedAt : null,
             checkoutAbandonedAt:
               typeof sub.checkoutAbandonedAt === "string" ? sub.checkoutAbandonedAt : null,
+            subscriptionCreatedAt:
+              typeof sub.subscriptionCreatedAt === "string" ? sub.subscriptionCreatedAt : null,
             planTier: typeof sub.planTier === "string" ? sub.planTier : null,
             currentPeriodEnd:
               typeof sub.currentPeriodEnd === "string" ? sub.currentPeriodEnd : null,
@@ -168,6 +172,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             accessSuspended: false,
             accessSuspendedAt: null,
             checkoutAbandonedAt: null,
+            subscriptionCreatedAt: null,
             planTier: null,
             currentPeriodEnd: null,
             cancelAtPeriodEnd: false,

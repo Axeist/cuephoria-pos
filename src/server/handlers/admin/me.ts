@@ -82,6 +82,7 @@ export default async function handler(req: Request) {
       accessSuspended: boolean;
       accessSuspendedAt: string | null;
       checkoutAbandonedAt: string | null;
+      subscriptionCreatedAt: string | null;
       planTier: string | null;
       currentPeriodEnd: string | null;
       cancelAtPeriodEnd: boolean;
@@ -168,6 +169,8 @@ export default async function handler(req: Request) {
                 typeof row.access_suspended_at === "string" ? row.access_suspended_at : null,
               checkoutAbandonedAt:
                 typeof row.checkout_abandoned_at === "string" ? row.checkout_abandoned_at : null,
+              subscriptionCreatedAt:
+                typeof row.created_at === "string" ? row.created_at : null,
               planTier: typeof row.plan_tier === "string" ? row.plan_tier : null,
               currentPeriodEnd:
                 typeof row.current_period_end === "string" ? row.current_period_end : null,
@@ -184,6 +187,7 @@ export default async function handler(req: Request) {
               accessSuspended: false,
               accessSuspendedAt: null,
               checkoutAbandonedAt: null,
+              subscriptionCreatedAt: null,
               planTier: null,
               currentPeriodEnd: null,
               cancelAtPeriodEnd: false,
