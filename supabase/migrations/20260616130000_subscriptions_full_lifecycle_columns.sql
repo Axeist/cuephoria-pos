@@ -16,6 +16,11 @@
 --                                canceled / paused / suspended) — see
 --                                src/server/handlers/platform/organization-action.ts
 --                                and src/pages/OrganizationSettings.tsx.
+--   short_url                  — Razorpay-hosted mandate authentication URL
+--                                (https://rzp.io/i/...). Captured at create
+--                                time and on every subscription.* webhook.
+--                                Used by the Billing UI as a fallback if the
+--                                Razorpay Checkout script is blocked.
 --   total_count / paid_count / remaining_count — Razorpay counters mirrored
 --                                from subscription.charged and subscription.updated
 --                                webhooks. Always assigned from the payload
@@ -43,6 +48,7 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS plan_tier            TEXT,
   ADD COLUMN IF NOT EXISTS billing_cycle        TEXT,
   ADD COLUMN IF NOT EXISTS razorpay_status      TEXT,
+  ADD COLUMN IF NOT EXISTS short_url            TEXT,
   ADD COLUMN IF NOT EXISTS total_count          INTEGER,
   ADD COLUMN IF NOT EXISTS paid_count           INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS remaining_count      INTEGER,

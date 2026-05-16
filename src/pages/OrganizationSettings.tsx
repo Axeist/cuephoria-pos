@@ -401,7 +401,7 @@ const OrganizationSettings: React.FC = () => {
           </dl>
           <div className="mt-5">
             <Button asChild size="sm">
-              <Link to="/settings/billing">Manage plans &amp; invoices</Link>
+              <Link to="/subscription">Manage plans &amp; invoices</Link>
             </Button>
           </div>
         </CardContent>

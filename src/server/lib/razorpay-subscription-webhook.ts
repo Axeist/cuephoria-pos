@@ -595,7 +595,7 @@ async function sendPaymentSuccessEmail(
       planName,
       invoiceNumber: payload.invoiceId,
       periodEnd: periodEndDisplay,
-      billingPortalUrl: payload.shortUrl || `${base}/settings/billing`,
+      billingPortalUrl: payload.shortUrl || `${base}/subscription`,
     },
     organizationId,
     adminUserId: recipient.id as string,

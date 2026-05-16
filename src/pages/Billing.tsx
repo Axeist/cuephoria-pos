@@ -1,5 +1,6 @@
 /**
- * /settings/billing — Razorpay subscription management.
+ * /subscription (also routed at the legacy /settings/billing) — Razorpay
+ * subscription management.
  *
  * Backend contract lives at /api/tenant/billing and supports the actions:
  *   create / renew / verify-payment / upgrade / cancel-scheduled-change /
@@ -14,23 +15,29 @@
  * The page reads `razorpay_status` (verbatim) for badges so all 9 Razorpay
  * lifecycle states are visible. `subscriptions.status` (internal bucket) is
  * still maintained server-side for other surfaces.
+ *
+ * Visual contract:
+ *   - Matches the rest of the app via .glass-card, brand-* CSS vars, and
+ *     .btn-gradient. Razorpay branding (logo + "Secured by Razorpay") is
+ *     surfaced prominently so customers know who is processing the mandate.
  */
 
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowLeft,
   ArrowRight,
   CalendarClock,
   Check,
   CheckCircle2,
   Clock,
   CreditCard,
+  Crown,
   Download,
   ExternalLink,
   Hourglass,
+  Lock,
   Loader2,
   Pause,
   Play,
@@ -39,12 +46,12 @@ import {
   RotateCw,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -178,6 +185,32 @@ interface CreateSuccess {
     customerId?: string | null;
     shortUrl?: string | null;
   };
+}
+
+// ---------------------------------------------------------------------------
+// Razorpay branding
+// ---------------------------------------------------------------------------
+
+/** Razorpay official wordmark. Inlined as SVG so it picks up brand colour. */
+function RazorpayWordmark({ className = "h-4 w-auto" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 105 22"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="Razorpay"
+    >
+      <path
+        d="M16.7 0 11.2 8.6 8.6 17.2 14.2 0H8.5L0 13.5h3.6L1.5 22l15.2-22Z"
+        fill="#3395FF"
+      />
+      <path
+        fill="currentColor"
+        d="M27.7 17.4h-3.1l-2.2-4.6h-1.6v4.6h-2.5V5.7h4.4c2.7 0 4.3 1.4 4.3 3.6 0 1.7-.9 2.9-2.5 3.4l2.7 4.7h.5Zm-4.9-9.5h-2v3h2c1.2 0 1.9-.5 1.9-1.5s-.7-1.5-1.9-1.5Zm7 9.5V5.7h7.7v2.1h-5.2v2.6h4.5V12h-4.5v3.3h5.4v2.1h-7.9Zm12.8 0V5.7h5c2.4 0 3.7 1.1 3.7 3 0 1.2-.6 2.1-1.6 2.6 1.4.4 2.2 1.4 2.2 2.8 0 2.1-1.5 3.3-4.1 3.3h-5.2Zm2.5-7v2.4h2.2c1 0 1.6-.4 1.6-1.2s-.6-1.2-1.6-1.2h-2.2Zm0 4.4v2.5h2.4c1.1 0 1.7-.5 1.7-1.3s-.6-1.2-1.7-1.2h-2.4Zm10 2.6V5.7h2.5v11.7h-2.5Zm5.9 0V5.7h2.5l4.6 7.3V5.7H66v11.7h-2.4l-4.7-7.4v7.4h-2.5Zm12.9 0V5.7h2.5l4.6 7.3V5.7h2.4v11.7h-2.4l-4.7-7.4v7.4H73Z"
+      />
+    </svg>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -692,40 +725,29 @@ export default function Billing() {
     const err = billingQ.error;
     const apiErr = err instanceof BillingApiError ? err : null;
     return (
-      <div className="min-h-screen bg-[#070815] text-zinc-100 p-6 flex items-center justify-center">
-        <Card className="max-w-xl w-full border-rose-500/30 bg-rose-950/20">
-          <CardContent className="py-8">
-            <div className="text-center">
-              <XCircle className="h-12 w-12 text-rose-400 mx-auto mb-4" />
-              <h1 className="text-lg font-semibold">Billing unavailable</h1>
-              <p className="text-sm text-zinc-300 mt-2">{err?.message ?? "Unknown error."}</p>
+      <div className="min-h-screen app-ambient text-white p-6 flex items-center justify-center">
+        <div className="glass-card max-w-xl w-full p-8 text-center">
+          <div className="mx-auto h-12 w-12 rounded-full grid place-items-center bg-rose-500/15 border border-rose-500/40 mb-4">
+            <XCircle className="h-6 w-6 text-rose-300" />
+          </div>
+          <h1 className="text-xl font-bold">Billing unavailable</h1>
+          <p className="text-sm text-white/70 mt-2">{err?.message ?? "Unknown error."}</p>
+          <details className="mt-6 text-left text-xs text-white/60 bg-black/40 rounded-xl p-3 border border-white/10">
+            <summary className="cursor-pointer text-white/80 font-semibold">Developer details</summary>
+            <div className="mt-2 space-y-1 font-mono break-all">
+              <div><span className="text-white/40">URL:</span> {apiErr?.url ?? "/api/tenant/billing"}</div>
+              <div><span className="text-white/40">HTTP status:</span> {apiErr?.status ?? "—"}</div>
+              <div><span className="text-white/40">Body:</span> {apiErr?.bodySnippet ?? "(none)"}</div>
+              <div><span className="text-white/40">Path:</span> {location.pathname}</div>
             </div>
-            <details className="mt-6 text-left text-xs text-zinc-400 bg-black/30 rounded-lg p-3 border border-white/10">
-              <summary className="cursor-pointer text-zinc-300 font-semibold">
-                Developer details
-              </summary>
-              <div className="mt-2 space-y-1 font-mono break-all">
-                <div>
-                  <span className="text-zinc-500">URL:</span> {apiErr?.url ?? "/api/tenant/billing"}
-                </div>
-                <div>
-                  <span className="text-zinc-500">HTTP status:</span> {apiErr?.status ?? "—"}
-                </div>
-                <div>
-                  <span className="text-zinc-500">Body:</span> {apiErr?.bodySnippet ?? "(none)"}
-                </div>
-                <div>
-                  <span className="text-zinc-500">Path:</span> {location.pathname}
-                </div>
-              </div>
-            </details>
-            <div className="mt-6 flex justify-center">
-              <Button variant="outline" className="border-white/20" onClick={() => refreshBilling()}>
-                <RefreshCw className="h-4 w-4 mr-2" /> Try again
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          </details>
+          <Button
+            className="btn-gradient text-white mt-6"
+            onClick={() => refreshBilling()}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" /> Try again
+          </Button>
+        </div>
       </div>
     );
   }
@@ -745,7 +767,6 @@ export default function Billing() {
 
   const handlePlanClick = (planCode: PlanTier) => {
     setPendingTier(planCode);
-    // No active sub OR sub is in a terminal state → create/renew flow.
     if (!subscription?.razorpay_subscription_id || isTerminal) {
       createM.mutate({
         planTier: planCode,
@@ -754,464 +775,626 @@ export default function Billing() {
       });
       return;
     }
-    // Same plan/cycle as active → reuse existing mandate (open Checkout again).
     const samePlan = subscription.plan_tier === planCode;
     const sameCycle = (subscription.billing_cycle ?? subscription.interval) === cycle;
     if (samePlan && sameCycle && isReusable) {
       createM.mutate({ planTier: planCode, billingCycle: cycle });
       return;
     }
-    // Different plan/cycle on a live sub → PATCH at cycle_end.
     upgradeM.mutate({ planTier: planCode, billingCycle: cycle });
   };
 
   // Render ----------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-[#070815] text-zinc-100">
+    <div className="min-h-screen app-ambient text-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <Link
-              to="/settings/organization"
-              className="inline-flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-200"
-            >
-              <ArrowLeft className="h-4 w-4" /> Organization
-            </Link>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight">Billing & subscription</h1>
-            <p className="text-sm text-zinc-400 mt-1 max-w-2xl">
-              {internal
-                ? "This workspace is invoiced internally. No Razorpay charges happen here."
-                : "Manage your Cuephoria POS subscription. Mandates and recurring charges run on Razorpay; your card stays on file across cycles."}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-white/15 text-[10px] uppercase tracking-wide">
-              Razorpay {razorpay.mode}
-            </Badge>
-            {subscription?.access_suspended && (
-              <Badge className="bg-rose-600/20 border border-rose-500/50 text-rose-200 text-[10px] uppercase tracking-wide">
-                Access suspended
-              </Badge>
-            )}
-          </div>
-        </div>
+        {/* HERO */}
+        <section className="relative overflow-hidden rounded-3xl border border-white/10 p-6 sm:p-9"
+          style={{
+            background:
+              'radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--brand-primary-hex) 28%, transparent) 0%, transparent 60%), radial-gradient(80% 60% at 100% 100%, color-mix(in oklab, var(--brand-accent-hex) 22%, transparent) 0%, transparent 60%), linear-gradient(180deg, rgba(10,6,22,0.7) 0%, rgba(7,3,15,0.85) 100%)',
+          }}
+        >
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-[0.035]"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+              mixBlendMode: 'overlay',
+            }}
+          />
 
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3 max-w-2xl">
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-10 w-10 rounded-xl grid place-items-center shadow-[0_8px_24px_-10px_var(--brand-primary-hex)]"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--brand-primary-hex), var(--brand-accent-hex))',
+                  }}
+                >
+                  <CreditCard className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-[11px] uppercase tracking-[0.2em] font-semibold text-white/55">
+                  Subscription
+                </span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+                Your{" "}
+                <span className="gradient-text-brand">{organization.name}</span>{" "}
+                plan
+              </h1>
+              <p className="text-sm sm:text-base text-white/65 max-w-xl">
+                {internal
+                  ? "This workspace is invoiced internally — no Razorpay charges happen here."
+                  : "Manage your Cuephoria POS plan, payment cycle, and invoices. Secure recurring mandates are powered by Razorpay; your card stays on file across cycles."}
+              </p>
+            </div>
+
+            <div className="flex flex-col items-start lg:items-end gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {statusUi && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${statusUi.badge}`}
+                  >
+                    <statusUi.icon className="h-3.5 w-3.5" />
+                    {statusUi.label}
+                  </span>
+                )}
+                {subscription?.access_suspended && (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-3 py-1.5 rounded-full bg-rose-500/20 border border-rose-500/45 text-rose-100">
+                    <Lock className="h-3 w-3" /> Access suspended
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-black/40 backdrop-blur">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+                <span className="text-[11px] text-white/70">Secured by</span>
+                <RazorpayWordmark className="h-3.5 w-auto text-white" />
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-white/45">
+                  {razorpay.mode}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Permissions notice */}
         {!canEdit && !internal && (
-          <Card className="border-sky-500/30 bg-sky-950/20">
-            <CardContent className="py-4 flex gap-3 text-sm text-sky-100">
-              <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5" />
-              Only owners and admins can manage billing. Ask a workspace owner to make changes.
-            </CardContent>
-          </Card>
+          <div className="glass-card flex items-start gap-3 px-4 py-3 text-sm">
+            <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5 text-sky-300" />
+            <div>
+              <div className="font-semibold text-white">Read-only access</div>
+              <div className="text-white/60 text-xs mt-0.5">
+                Only owners and admins can manage billing. Ask a workspace owner to make changes.
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Current subscription panel */}
+        {/* CURRENT SUB + PLAN PICKER */}
         <div className="grid gap-6 lg:grid-cols-5">
-          <Card className="lg:col-span-2 border-white/10 bg-zinc-900/40 backdrop-blur">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-indigo-400" />
-                Current subscription
-              </CardTitle>
-              <CardDescription>State mirrored from Razorpay webhooks.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {internal ? (
-                <p className="text-sm text-zinc-400">Internal tenancy — billing is settled offline.</p>
-              ) : !subscription || !subscription.razorpay_subscription_id ? (
-                <p className="text-sm text-zinc-400">
-                  No active subscription. Choose a plan on the right to get started.
-                </p>
-              ) : (
-                <>
-                  {statusUi && (
-                    <div className="flex flex-wrap items-start gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${statusUi.badge}`}
-                      >
-                        <statusUi.icon className="h-3.5 w-3.5" />
-                        {statusUi.label}
-                      </span>
-                    </div>
-                  )}
-                  {statusUi && <p className="text-xs text-zinc-500">{statusUi.description}</p>}
+          {/* Current subscription */}
+          <section className="glass-card lg:col-span-2 p-6 space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45 flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3" /> Current subscription
+                </div>
+                <div className="mt-0.5 text-xs text-white/50">State mirrored from Razorpay webhooks.</div>
+              </div>
+              {subscription?.razorpay_subscription_id && (
+                <a
+                  href={`https://dashboard.razorpay.com/app/subscriptions/${subscription.razorpay_subscription_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-white/45 hover:text-white/80 transition"
+                  title="Open in Razorpay dashboard"
+                >
+                  Razorpay <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
 
-                  <div>
-                    <div className="text-xs uppercase tracking-wider text-zinc-500">Plan</div>
-                    <div className="text-xl font-semibold">
+            {internal ? (
+              <div className="theme-inset p-4 text-sm text-white/65">
+                Internal tenancy — billing is settled offline.
+              </div>
+            ) : !subscription || !subscription.razorpay_subscription_id ? (
+              <div className="theme-inset p-5 text-sm text-white/70">
+                <div className="flex items-center gap-2 text-white font-semibold mb-1">
+                  <Zap className="h-4 w-4 text-amber-300" />
+                  No active subscription
+                </div>
+                <p className="text-xs text-white/60">
+                  Choose a plan on the right to activate POS, bookings, and AI features.
+                </p>
+              </div>
+            ) : (
+              <>
+                {statusUi && (
+                  <p className="text-xs text-white/55 -mt-2">{statusUi.description}</p>
+                )}
+
+                <div className="theme-inset p-4">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">Plan</div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <div className="text-2xl font-extrabold">
                       {currentPlan?.name ?? tierLabel(subscription.plan_tier ?? "—")}
                     </div>
-                    <div className="text-xs text-zinc-500 mt-1">
+                    <div className="text-[10px] uppercase tracking-wider text-white/45 font-semibold">
                       {(subscription.billing_cycle ?? subscription.interval) === "year"
-                        ? "Yearly billing · 1 cycle"
-                        : "Monthly billing · 12 cycles"}
+                        ? "Yearly"
+                        : "Monthly"}
                     </div>
                   </div>
-
-                  {subscription.scheduled_change && (
-                    <Card className="border-amber-500/30 bg-amber-950/20">
-                      <CardContent className="py-3 text-xs text-amber-100 space-y-2">
-                        <div className="flex items-start gap-2">
-                          <CalendarClock className="h-4 w-4 mt-0.5" />
-                          <div>
-                            Plan switches to{" "}
-                            <strong className="font-semibold capitalize">
-                              {subscription.scheduled_change.plan_tier}{" "}
-                              ({subscription.scheduled_change.billing_cycle === "year" ? "Yearly" : "Monthly"})
-                            </strong>{" "}
-                            at next renewal.
-                          </div>
-                        </div>
-                        {canEdit && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={cancelScheduledM.isPending}
-                            onClick={() => cancelScheduledM.mutate()}
-                            className="border-amber-500/40 text-amber-100 hover:bg-amber-500/10"
-                          >
-                            {cancelScheduledM.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
-                            Cancel scheduled change
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <Stat label="Next charge" value={formatDate(subscription.charge_at)} icon={Clock} />
-                    <Stat
-                      label="Cycles done"
-                      value={
-                        subscription.total_count != null
-                          ? `${subscription.paid_count ?? 0} / ${subscription.total_count}`
-                          : `${subscription.paid_count ?? 0}`
-                      }
-                      icon={CheckCircle2}
-                    />
+                  <div className="text-xs text-white/55 mt-1">
+                    {(subscription.billing_cycle ?? subscription.interval) === "year"
+                      ? "Billed annually · 1 cycle"
+                      : "Billed monthly · auto-renew up to 12 cycles"}
                   </div>
+                </div>
 
-                  {subscription.cancel_at_period_end && subscription.current_period_end && (
-                    <div className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2 text-xs text-rose-100">
-                      Cancellation scheduled. Access continues until{" "}
-                      <strong>{formatDate(subscription.current_period_end)}</strong>.
+                {subscription.scheduled_change && (
+                  <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <CalendarClock className="h-4 w-4 mt-0.5 shrink-0" />
+                      <div>
+                        Plan switches to{" "}
+                        <strong className="font-semibold capitalize">
+                          {subscription.scheduled_change.plan_tier}{" "}
+                          ({subscription.scheduled_change.billing_cycle === "year" ? "Yearly" : "Monthly"})
+                        </strong>{" "}
+                        at next renewal.
+                      </div>
                     </div>
-                  )}
-
-                  <Separator className="bg-white/10" />
-
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {isReusable && !isTerminal && canEdit && !subscription.cancel_at_period_end && (
-                      <>
-                        {!isPaused && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={pauseM.isPending}
-                            onClick={() => pauseM.mutate()}
-                            className="border-amber-500/40 text-amber-100 hover:bg-amber-500/10"
-                          >
-                            {pauseM.isPending ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                            ) : (
-                              <Pause className="h-3.5 w-3.5 mr-1" />
-                            )}
-                            Pause
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-rose-300 hover:text-rose-200"
-                          onClick={() => setCancelOpen(true)}
-                        >
-                          Cancel at period end
-                        </Button>
-                      </>
-                    )}
-                    {isPaused && canEdit && (
-                      <Button
-                        size="sm"
-                        disabled={resumeM.isPending}
-                        onClick={() => resumeM.mutate()}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white"
-                      >
-                        {resumeM.isPending ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                        ) : (
-                          <Play className="h-3.5 w-3.5 mr-1" />
-                        )}
-                        Resume
-                      </Button>
-                    )}
-                    {subscription.cancel_at_period_end && !isTerminal && canEdit && (
+                    {canEdit && (
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={resumeM.isPending}
-                        onClick={() => resumeM.mutate()}
-                        className="border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10"
+                        disabled={cancelScheduledM.isPending}
+                        onClick={() => cancelScheduledM.mutate()}
+                        className="border-amber-500/45 bg-transparent text-amber-100 hover:bg-amber-500/15"
                       >
-                        {resumeM.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
-                        Keep subscription
+                        {cancelScheduledM.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                        Cancel scheduled change
                       </Button>
                     )}
-                    {subscription.razorpay_subscription_id && (
-                      <a
-                        href={`https://dashboard.razorpay.com/app/subscriptions/${subscription.razorpay_subscription_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 ml-auto"
-                      >
-                        Razorpay <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Plan picker */}
-          <Card className="lg:col-span-3 border-white/10 bg-zinc-900/30">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-amber-400" />
-                    {isTerminal || !subscription?.razorpay_subscription_id ? "Choose a plan" : "Switch plan"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isTerminal
-                      ? "Renew to continue using the platform."
-                      : isActive
-                        ? "Plan changes apply at your next renewal."
-                        : "Pick the plan that fits your venue."}
-                  </CardDescription>
-                </div>
-                {!internal && (
-                  <div className="flex rounded-full border border-white/10 bg-black/40 p-0.5 w-fit">
-                    <button
-                      type="button"
-                      onClick={() => setCycle("month")}
-                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-                        cycle === "month" ? "bg-white text-zinc-900" : "text-zinc-400"
-                      }`}
-                    >
-                      Monthly
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCycle("year")}
-                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-                        cycle === "year" ? "bg-white text-zinc-900" : "text-zinc-400"
-                      }`}
-                    >
-                      Yearly{" "}
-                      <span className="ml-1 text-[9px] uppercase opacity-70">save 20%</span>
-                    </button>
                   </div>
                 )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {internal ? (
-                <p className="text-zinc-500 text-sm py-8 text-center">
-                  Internal tenancy — no self-serve billing here.
-                </p>
-              ) : (
-                <div className="grid sm:grid-cols-3 gap-3">
-                  {visiblePlans.map((plan) => {
-                    const planTier = plan.code as PlanTier;
-                    const price = cycle === "year" ? plan.price_inr_year : plan.price_inr_month;
-                    const rzpId =
-                      cycle === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
-                    const mapped = !!rzpId;
-                    const isCurrent =
-                      subscription?.plan_tier === planTier &&
-                      (subscription?.billing_cycle ?? subscription?.interval) === cycle &&
-                      isReusable;
-                    const isPending =
-                      (createM.isPending || upgradeM.isPending) && pendingTier === planTier;
 
-                    const buttonLabel =
-                      !subscription?.razorpay_subscription_id || isTerminal
-                        ? subscription?.razorpay_subscription_id
-                          ? "Renew"
-                          : "Subscribe"
-                        : isCurrent
-                          ? "Active"
-                          : "Switch plan";
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Stat label="Next charge" value={formatDate(subscription.charge_at)} icon={Clock} />
+                  <Stat
+                    label="Cycles paid"
+                    value={
+                      subscription.total_count != null
+                        ? `${subscription.paid_count ?? 0} / ${subscription.total_count}`
+                        : `${subscription.paid_count ?? 0}`
+                    }
+                    icon={CheckCircle2}
+                  />
+                </div>
 
-                    const ButtonIcon =
-                      buttonLabel === "Renew"
-                        ? RotateCw
-                        : buttonLabel === "Switch plan"
-                          ? ArrowRight
-                          : isCurrent
-                            ? Check
-                            : ArrowRight;
+                {subscription.cancel_at_period_end && subscription.current_period_end && (
+                  <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+                    Cancellation scheduled. Access continues until{" "}
+                    <strong>{formatDate(subscription.current_period_end)}</strong>.
+                  </div>
+                )}
 
-                    return (
-                      <div
-                        key={plan.id}
-                        className={`relative rounded-2xl border p-4 flex flex-col transition ${
-                          isCurrent
-                            ? "border-indigo-500/50 bg-indigo-500/10 ring-1 ring-indigo-500/30"
-                            : "border-white/10 bg-black/20 hover:border-white/20"
-                        }`}
-                      >
-                        <div className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">
-                          {plan.code}
-                        </div>
-                        <div className="font-bold text-lg">{plan.name}</div>
-                        <div className="mt-4 text-3xl font-extrabold">{formatINR(price)}</div>
-                        <div className="text-xs text-zinc-500 mb-2">
-                          /{cycle === "month" ? "mo" : "yr"} · GST as applicable
-                        </div>
-                        {!mapped && (
-                          <Badge className="w-fit mb-3 bg-rose-900/60 text-[10px]">
-                            Map plan_XXXX in platform
-                          </Badge>
-                        )}
-                        <div className="flex-1" />
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {isReusable && !isTerminal && canEdit && !subscription.cancel_at_period_end && (
+                    <>
+                      {!isPaused && (
                         <Button
-                          className="w-full mt-4"
-                          disabled={!canEdit || isPending || !mapped || isCurrent}
-                          onClick={() => handlePlanClick(planTier)}
+                          variant="outline"
+                          size="sm"
+                          disabled={pauseM.isPending}
+                          onClick={() => pauseM.mutate()}
+                          className="border-amber-500/40 bg-transparent text-amber-100 hover:bg-amber-500/10"
                         >
-                          {isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                          {pauseM.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                           ) : (
-                            <ButtonIcon className="h-4 w-4 mr-1.5" />
+                            <Pause className="h-3.5 w-3.5 mr-1.5" />
                           )}
-                          {buttonLabel}
+                          Pause
                         </Button>
-                        {isCurrent && (
-                          <div className="mt-2 text-[11px] text-center text-emerald-400 flex items-center justify-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> On file for renewals
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-rose-300 hover:text-rose-200 hover:bg-rose-500/10"
+                        onClick={() => setCancelOpen(true)}
+                      >
+                        Cancel at period end
+                      </Button>
+                    </>
+                  )}
+                  {isPaused && canEdit && (
+                    <Button
+                      size="sm"
+                      disabled={resumeM.isPending}
+                      onClick={() => resumeM.mutate()}
+                      className="btn-gradient text-white"
+                    >
+                      {resumeM.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      ) : (
+                        <Play className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Resume
+                    </Button>
+                  )}
+                  {subscription.cancel_at_period_end && !isTerminal && canEdit && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={resumeM.isPending}
+                      onClick={() => resumeM.mutate()}
+                      className="border-emerald-500/40 bg-transparent text-emerald-200 hover:bg-emerald-500/10"
+                    >
+                      {resumeM.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                      Keep subscription
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* Plan picker */}
+          <section className="glass-card lg:col-span-3 p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45 flex items-center gap-1.5">
+                  <TrendingUp className="h-3 w-3" />
+                  {isTerminal || !subscription?.razorpay_subscription_id ? "Choose a plan" : "Switch plan"}
+                </div>
+                <div className="mt-0.5 text-xs text-white/55">
+                  {isTerminal
+                    ? "Renew to continue using the platform."
+                    : isActive
+                      ? "Plan changes apply at your next renewal."
+                      : "Pick the plan that fits your venue."}
+                </div>
+              </div>
+              {!internal && (
+                <div className="flex rounded-full border border-white/10 bg-black/40 backdrop-blur p-0.5 w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setCycle("month")}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
+                      cycle === "month"
+                        ? "bg-white text-zinc-950 shadow-[0_4px_14px_-4px_rgba(255,255,255,0.4)]"
+                        : "text-white/55 hover:text-white"
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCycle("year")}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
+                      cycle === "year"
+                        ? "bg-white text-zinc-950 shadow-[0_4px_14px_-4px_rgba(255,255,255,0.4)]"
+                        : "text-white/55 hover:text-white"
+                    }`}
+                  >
+                    Yearly{" "}
+                    <span className="ml-1 inline-block px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 text-[9px] uppercase tracking-wider font-bold">
+                      Save 20%
+                    </span>
+                  </button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Invoices */}
-        <Card className="border-white/10 bg-zinc-900/30">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Receipt className="h-5 w-5" />
-                  Payment history
-                </CardTitle>
-                <CardDescription>
-                  Charges synced from Razorpay invoices. Refresh to pull the latest.
-                </CardDescription>
-              </div>
-              {!internal && subscription?.razorpay_subscription_id && canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={fetchInvoicesM.isPending}
-                  onClick={() => fetchInvoicesM.mutate()}
-                  className="border-white/15"
-                >
-                  {fetchInvoicesM.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                  )}
-                  Refresh from Razorpay
-                </Button>
-              )}
             </div>
-          </CardHeader>
-          <CardContent>
-            {invoices.length === 0 ? (
-              <div className="py-12 text-center text-sm text-zinc-500">
-                No charges yet. Successful payments will appear here automatically.
-              </div>
+
+            {internal ? (
+              <p className="text-white/55 text-sm py-10 text-center">
+                Internal tenancy — no self-serve billing here.
+              </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[10px] uppercase text-zinc-500 border-b border-white/5">
-                      <th className="pb-2 pr-3">Date</th>
-                      <th className="pb-2 pr-3">Invoice</th>
-                      <th className="pb-2 pr-3">Amount</th>
-                      <th className="pb-2 pr-3">Status</th>
-                      <th className="pb-2 text-right">Receipt</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map((inv) => (
-                      <tr key={inv.id} className="border-b border-white/5 last:border-0">
-                        <td className="py-3 pr-3">{formatDate(inv.paid_at || inv.created_at)}</td>
-                        <td className="py-3 pr-3 font-mono text-xs">
-                          {inv.provider_invoice_id || inv.id}
-                        </td>
-                        <td className="py-3 pr-3 font-semibold">{formatINR(inv.amount_inr)}</td>
-                        <td className="py-3 pr-3 capitalize">{inv.status}</td>
-                        <td className="py-3 text-right">
-                          {inv.short_url ? (
-                            <a
-                              href={inv.short_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-indigo-400 inline-flex gap-1 text-xs items-center hover:underline"
-                            >
-                              <Download className="h-3.5 w-3.5" /> PDF{" "}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid sm:grid-cols-3 gap-3">
+                {visiblePlans.map((plan) => {
+                  const planTier = plan.code as PlanTier;
+                  const price = cycle === "year" ? plan.price_inr_year : plan.price_inr_month;
+                  const rzpId =
+                    cycle === "year" ? plan.razorpay_plan_id_year : plan.razorpay_plan_id_month;
+                  const mapped = !!rzpId;
+                  const isCurrent =
+                    subscription?.plan_tier === planTier &&
+                    (subscription?.billing_cycle ?? subscription?.interval) === cycle &&
+                    isReusable;
+                  const isPending =
+                    (createM.isPending || upgradeM.isPending) && pendingTier === planTier;
+                  const isMostPopular = plan.code === "growth";
+
+                  const buttonLabel =
+                    !subscription?.razorpay_subscription_id || isTerminal
+                      ? subscription?.razorpay_subscription_id
+                        ? "Renew"
+                        : "Subscribe"
+                      : isCurrent
+                        ? "Current plan"
+                        : "Switch plan";
+
+                  const ButtonIcon =
+                    buttonLabel === "Renew"
+                      ? RotateCw
+                      : buttonLabel === "Switch plan"
+                        ? ArrowRight
+                        : isCurrent
+                          ? Check
+                          : ArrowRight;
+
+                  const PlanIcon =
+                    plan.code === "starter"
+                      ? Zap
+                      : plan.code === "growth"
+                        ? TrendingUp
+                        : Crown;
+
+                  return (
+                    <div
+                      key={plan.id}
+                      className={`relative rounded-2xl border p-5 flex flex-col transition-all duration-200 ${
+                        isCurrent
+                          ? "border-transparent ring-1"
+                          : isMostPopular
+                            ? "border-white/15 hover:border-white/30 hover:-translate-y-0.5"
+                            : "border-white/10 hover:border-white/20 hover:-translate-y-0.5"
+                      }`}
+                      style={
+                        isCurrent
+                          ? {
+                              background:
+                                'linear-gradient(160deg, color-mix(in oklab, var(--brand-primary-hex) 22%, rgba(255,255,255,0.04)) 0%, color-mix(in oklab, var(--brand-primary-hex) 8%, rgba(255,255,255,0.015)) 60%, rgba(5,3,14,0.85) 100%)',
+                              boxShadow:
+                                '0 22px 60px -28px color-mix(in oklab, var(--brand-primary-hex) 60%, rgba(0,0,0,0.6)), inset 0 1px 0 rgba(255,255,255,0.08)',
+                              borderColor:
+                                'color-mix(in oklab, var(--brand-primary-hex) 55%, transparent)',
+                            }
+                          : isMostPopular
+                            ? {
+                                background:
+                                  'linear-gradient(170deg, color-mix(in oklab, var(--brand-accent-hex) 12%, rgba(255,255,255,0.03)) 0%, rgba(6,4,14,0.72) 100%)',
+                              }
+                            : {
+                                background:
+                                  'linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(6,4,14,0.55) 100%)',
+                              }
+                      }
+                    >
+                      {isMostPopular && !isCurrent && (
+                        <div
+                          className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider shadow"
+                          style={{
+                            background:
+                              'linear-gradient(90deg, var(--brand-primary-hex), var(--brand-accent-hex))',
+                            color: '#fff',
+                          }}
+                        >
+                          Most popular
+                        </div>
+                      )}
+                      {isCurrent && (
+                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500 text-zinc-950 shadow">
+                          Current
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-8 w-8 rounded-lg grid place-items-center"
+                          style={{
+                            background:
+                              'linear-gradient(135deg, color-mix(in oklab, var(--brand-primary-hex) 30%, transparent), color-mix(in oklab, var(--brand-accent-hex) 20%, transparent))',
+                            border:
+                              '1px solid color-mix(in oklab, var(--brand-primary-hex) 35%, transparent)',
+                          }}
+                        >
+                          <PlanIcon className="h-4 w-4 text-white" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase font-bold tracking-[0.16em] text-white/55">
+                            {plan.code}
+                          </div>
+                          <div className="font-bold text-base text-white">{plan.name}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-5">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-extrabold tracking-tight">
+                            {formatINR(price)}
+                          </span>
+                          <span className="text-xs text-white/55 font-medium">
+                            /{cycle === "month" ? "mo" : "yr"}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-white/45 mt-1">
+                          GST as applicable · auto-renew via Razorpay
+                        </div>
+                      </div>
+
+                      {!mapped && (
+                        <Badge className="mt-3 w-fit bg-rose-900/60 text-[10px] border border-rose-700/60">
+                          Map plan_XXXX in platform
+                        </Badge>
+                      )}
+
+                      <div className="flex-1" />
+
+                      <Button
+                        className={`w-full mt-5 font-semibold ${
+                          isCurrent
+                            ? 'bg-white/10 hover:bg-white/15 text-white'
+                            : 'btn-gradient text-white'
+                        }`}
+                        disabled={!canEdit || isPending || !mapped || isCurrent}
+                        onClick={() => handlePlanClick(planTier)}
+                      >
+                        {isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        ) : (
+                          <ButtonIcon className="h-4 w-4 mr-1.5" />
+                        )}
+                        {buttonLabel}
+                      </Button>
+                      {isCurrent && (
+                        <div className="mt-2 text-[10px] text-center text-emerald-300 flex items-center justify-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> On file for renewals
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </section>
+        </div>
 
-        <p className="text-center text-[11px] text-zinc-600 pb-2">
-          Recurring billing uses{" "}
-          <a
-            href="https://razorpay.com/docs/payments/subscriptions/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-400 hover:underline"
-          >
-            Razorpay Subscriptions
-          </a>
-          {" · "}
-          <a
-            href="https://razorpay.com/docs/api/payments/subscriptions/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-400 hover:underline"
-          >
-            Subscriptions API
-          </a>
-        </p>
+        {/* INVOICES */}
+        <section className="glass-card p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-white/45 flex items-center gap-1.5">
+                <Receipt className="h-3 w-3" /> Payment history
+              </div>
+              <div className="mt-0.5 text-xs text-white/55">
+                Charges synced from Razorpay invoices. Refresh to pull the latest.
+              </div>
+            </div>
+            {!internal && subscription?.razorpay_subscription_id && canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={fetchInvoicesM.isPending}
+                onClick={() => fetchInvoicesM.mutate()}
+                className="border-white/15 bg-white/[0.03] hover:bg-white/[0.07] text-white"
+              >
+                {fetchInvoicesM.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Refresh from Razorpay
+              </Button>
+            )}
+          </div>
+
+          {invoices.length === 0 ? (
+            <div className="py-14 text-center text-sm text-white/55">
+              <Receipt className="h-7 w-7 mx-auto mb-2 text-white/25" />
+              No charges yet. Successful payments will appear here automatically.
+            </div>
+          ) : (
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-wider text-white/40 border-b border-white/10">
+                    <th className="pb-3 pr-3 pl-1 font-semibold">Date</th>
+                    <th className="pb-3 pr-3 font-semibold">Invoice</th>
+                    <th className="pb-3 pr-3 font-semibold">Amount</th>
+                    <th className="pb-3 pr-3 font-semibold">Status</th>
+                    <th className="pb-3 pr-1 text-right font-semibold">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((inv) => (
+                    <tr
+                      key={inv.id}
+                      className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition"
+                    >
+                      <td className="py-3 pr-3 pl-1 text-white/85">
+                        {formatDate(inv.paid_at || inv.created_at)}
+                      </td>
+                      <td className="py-3 pr-3 font-mono text-xs text-white/65">
+                        {inv.provider_invoice_id || inv.id}
+                      </td>
+                      <td className="py-3 pr-3 font-semibold text-white">{formatINR(inv.amount_inr)}</td>
+                      <td className="py-3 pr-3 capitalize">
+                        <InvoiceStatusBadge status={inv.status} />
+                      </td>
+                      <td className="py-3 pr-1 text-right">
+                        {inv.short_url ? (
+                          <a
+                            href={inv.short_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
+                          >
+                            <Download className="h-3.5 w-3.5" /> PDF
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span className="text-white/30">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* TRUST STRIP */}
+        <section className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 text-xs text-white/65">
+            <ShieldCheck className="h-4 w-4 text-emerald-300 shrink-0" />
+            <div>
+              <div className="text-white font-semibold text-[13px]">
+                Secured by{" "}
+                <RazorpayWordmark className="inline-block h-3.5 w-auto -mt-0.5 text-white" />
+              </div>
+              <div className="text-white/55 text-[11px]">
+                PCI-DSS Level 1 · 256-bit TLS · cards tokenised by Razorpay (your card never touches our servers).
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-[11px] text-white/45">
+            <a
+              href="https://razorpay.com/docs/payments/subscriptions/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition inline-flex items-center gap-1"
+            >
+              Razorpay Subscriptions <ExternalLink className="h-3 w-3" />
+            </a>
+            <span className="text-white/20">·</span>
+            <a
+              href="https://razorpay.com/docs/api/payments/subscriptions/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition inline-flex items-center gap-1"
+            >
+              API <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </section>
       </div>
 
       {/* Cancel dialog */}
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <AlertDialogContent className="border-white/10 bg-zinc-900 text-zinc-100">
+        <AlertDialogContent
+          className="border-white/10 text-white"
+          style={{
+            background:
+              'linear-gradient(165deg, color-mix(in oklab, var(--brand-primary-hex) 18%, rgba(255,255,255,0.045)) 0%, rgba(8,5,18,0.96) 100%)',
+            backdropFilter: 'blur(20px) saturate(140%)',
+          }}
+        >
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-300" />
+              Cancel subscription?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-white/65">
               You&apos;ll keep access until{" "}
               <span className="text-white font-semibold">
                 {formatDate(subscription?.current_period_end)}
@@ -1220,9 +1403,11 @@ export default function Billing() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/10">Keep subscribing</AlertDialogCancel>
+            <AlertDialogCancel className="border-white/15 bg-transparent text-white hover:bg-white/5">
+              Keep subscribing
+            </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-rose-600"
+              className="bg-rose-600 hover:bg-rose-500 text-white border-0"
               disabled={cancelM.isPending}
               onClick={(e) => {
                 e.preventDefault();
@@ -1253,29 +1438,55 @@ function Stat({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="rounded-lg border border-white/5 bg-black/20 p-3">
-      <div className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1">
+    <div className="theme-inset p-3">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-white/45 flex items-center gap-1.5 font-semibold">
         <Icon className="h-3 w-3" />
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold text-zinc-100">{value}</div>
+      <div className="mt-1 text-sm font-bold text-white">{value}</div>
     </div>
+  );
+}
+
+/** Pill for invoice status — paid / issued / partially_paid / cancelled / expired. */
+function InvoiceStatusBadge({ status }: { status: string }) {
+  const s = (status || "").toLowerCase();
+  const meta: { label: string; cls: string } = (() => {
+    if (s === "paid")
+      return { label: "Paid", cls: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40" };
+    if (s === "partially_paid")
+      return { label: "Partial", cls: "bg-amber-500/15 text-amber-200 border-amber-500/40" };
+    if (s === "issued" || s === "due" || s === "pending")
+      return { label: status || "Pending", cls: "bg-sky-500/15 text-sky-200 border-sky-500/40" };
+    if (s === "cancelled" || s === "expired" || s === "failed")
+      return { label: status || "—", cls: "bg-rose-500/15 text-rose-200 border-rose-500/40" };
+    return { label: status || "—", cls: "bg-white/5 text-white/65 border-white/15" };
+  })();
+  return (
+    <span
+      className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.cls}`}
+    >
+      {meta.label}
+    </span>
   );
 }
 
 function BillingSkeleton({ path }: { path?: string }) {
   return (
-    <div className="min-h-screen bg-[#070815] p-6 space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-zinc-500">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Loading billing… {path ? <span className="font-mono text-zinc-600">({path})</span> : null}
+    <div className="min-h-screen app-ambient">
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] font-semibold text-white/40">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Loading subscription…{" "}
+          {path ? <span className="font-mono normal-case text-white/30">({path})</span> : null}
+        </div>
+        <Skeleton className="h-44 w-full rounded-3xl bg-white/[0.04]" />
+        <div className="grid lg:grid-cols-5 gap-6">
+          <Skeleton className="h-96 lg:col-span-2 rounded-2xl bg-white/[0.04]" />
+          <Skeleton className="h-96 lg:col-span-3 rounded-2xl bg-white/[0.04]" />
+        </div>
+        <Skeleton className="h-56 rounded-2xl bg-white/[0.04]" />
       </div>
-      <Skeleton className="h-10 w-64 bg-white/10" />
-      <div className="grid lg:grid-cols-5 gap-6">
-        <Skeleton className="h-80 lg:col-span-2 rounded-xl bg-white/10" />
-        <Skeleton className="h-80 lg:col-span-3 rounded-xl bg-white/10" />
-      </div>
-      <Skeleton className="h-52 rounded-xl bg-white/10" />
     </div>
   );
 }

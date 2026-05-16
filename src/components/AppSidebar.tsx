@@ -19,6 +19,7 @@ import {
   UserCircle,
   Bot,
   Sparkles,
+  CreditCard,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -107,6 +108,7 @@ const AppSidebar: React.FC = () => {
     ...(isAdmin ? [{ icon: Users2, label: 'Staff Management', path: '/staff' }] : []),
     ...(!isAdmin ? [{ icon: UserCircle, label: 'My Portal', path: '/staff-portal' }] : []),
     { icon: Bot, label: 'Cuephoria AI', path: '/chat-ai' },
+    ...(isAdmin ? [{ icon: CreditCard, label: 'Subscription', path: '/subscription' }] : []),
     { icon: Settings, label: 'Settings', path: '/settings' },
     { icon: BookOpen, label: 'How to Use', path: '/how-to-use' },
   ];

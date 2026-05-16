@@ -884,6 +884,16 @@ const App = () => {
                   }
                 />
                 <Route
+                  path="/subscription"
+                  element={
+                    <ProtectedRoute>
+                      <LazyPage>
+                        <Billing />
+                      </LazyPage>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/account/security"
                   element={
                     <ProtectedRoute>
