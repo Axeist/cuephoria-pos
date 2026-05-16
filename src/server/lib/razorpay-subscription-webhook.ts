@@ -156,7 +156,7 @@ export async function handleSubscriptionWebhookEvent(args: Args): Promise<Outcom
     const { data: existingRow } = await supabase
       .from("subscriptions")
       .select(
-        "id, organization_id, plan_id, plan_tier, billing_cycle, scheduled_change, razorpay_subscription_id",
+        "id, organization_id, plan_id, plan_tier, billing_cycle, scheduled_change, razorpay_subscription_id, access_suspended, access_suspended_at",
       )
       .eq("razorpay_subscription_id", subId)
       .maybeSingle();
@@ -364,10 +364,29 @@ function buildSubscriptionUpdate(
         plan_tier?: string | null;
         billing_cycle?: string | null;
         scheduled_change?: Record<string, unknown> | null;
+        access_suspended?: boolean | null;
+        access_suspended_at?: string | null;
       }
     | null,
 ): Record<string, unknown> {
   const internalStatus = RZP_STATUS_TO_INTERNAL[sub.status] ?? "active";
+  // Helper for false->true transitions: only stamp `access_suspended_at` the
+  // first time the subscription enters a suspended state, so retries of the
+  // same halted/cancelled event don't keep resetting the grace clock.
+  const nowIso = new Date().toISOString();
+  const suspendIfFresh = (target: Record<string, unknown>) => {
+    target.access_suspended = true;
+    const wasSuspended = !!existing?.access_suspended;
+    const hadAnchor =
+      typeof existing?.access_suspended_at === "string" && existing.access_suspended_at.length > 0;
+    if (!wasSuspended || !hadAnchor) {
+      target.access_suspended_at = nowIso;
+    }
+  };
+  const restoreAccess = (target: Record<string, unknown>) => {
+    target.access_suspended = false;
+    target.access_suspended_at = null;
+  };
   const update: Record<string, unknown> = {
     status: internalStatus,
     razorpay_status: sub.status,
@@ -389,10 +408,10 @@ function buildSubscriptionUpdate(
 
   switch (event) {
     case "subscription.authenticated":
-      update.access_suspended = false;
+      restoreAccess(update);
       break;
     case "subscription.activated":
-      update.access_suspended = false;
+      restoreAccess(update);
       update.cancel_at_period_end = false;
       update.cancel_requested_at = null;
       break;
@@ -400,22 +419,22 @@ function buildSubscriptionUpdate(
       // Counters already set above from payload; capture the payment too.
       if (pay?.id) update.last_payment_id = pay.id;
       if (typeof pay?.amount === "number") update.last_payment_amount = pay.amount;
-      update.access_suspended = false;
+      restoreAccess(update);
       break;
     case "subscription.pending":
       // Razorpay is retrying; spec says soft warning, do NOT suspend access.
-      update.access_suspended = false;
+      restoreAccess(update);
       break;
     case "subscription.halted":
-      update.access_suspended = true;
+      suspendIfFresh(update);
       break;
     case "subscription.cancelled":
-      update.access_suspended = true;
+      suspendIfFresh(update);
       update.cancel_at_period_end = true;
-      if (!existing) update.cancel_requested_at = new Date().toISOString();
+      if (!existing) update.cancel_requested_at = nowIso;
       break;
     case "subscription.completed":
-      update.access_suspended = true;
+      suspendIfFresh(update);
       break;
     case "subscription.updated": {
       // Razorpay applied the scheduled plan change. If we tracked a
@@ -437,10 +456,10 @@ function buildSubscriptionUpdate(
       break;
     }
     case "subscription.paused":
-      update.access_suspended = true;
+      suspendIfFresh(update);
       break;
     case "subscription.resumed":
-      update.access_suspended = false;
+      restoreAccess(update);
       break;
     default:
       // Unknown subscription event — still mirror the latest snapshot.

@@ -75,6 +75,7 @@ export default async function handler(req: Request) {
       hasSubscription: boolean;
       razorpayStatus: string | null;
       accessSuspended: boolean;
+      accessSuspendedAt: string | null;
       planTier: string | null;
       currentPeriodEnd: string | null;
       cancelAtPeriodEnd: boolean;
@@ -152,6 +153,8 @@ export default async function handler(req: Request) {
                 typeof row.razorpay_status === "string" ? row.razorpay_status : null,
               accessSuspended:
                 typeof row.access_suspended === "boolean" ? row.access_suspended : false,
+              accessSuspendedAt:
+                typeof row.access_suspended_at === "string" ? row.access_suspended_at : null,
               planTier: typeof row.plan_tier === "string" ? row.plan_tier : null,
               currentPeriodEnd:
                 typeof row.current_period_end === "string" ? row.current_period_end : null,
@@ -165,6 +168,7 @@ export default async function handler(req: Request) {
               hasSubscription: false,
               razorpayStatus: null,
               accessSuspended: false,
+              accessSuspendedAt: null,
               planTier: null,
               currentPeriodEnd: null,
               cancelAtPeriodEnd: false,

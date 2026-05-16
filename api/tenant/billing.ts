@@ -114,7 +114,12 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
   return j({ ok: false, error: "Method not allowed" }, 405);
 }
 
-const wrappedHandler = withOrgContext(handler);
+// Allow suspended workspaces to reach this endpoint: the entire point of the
+// /subscription page is to let a tenant retry payment and get unstuck. If
+// `withOrgContext` blocked this route the way it blocks every other tenant
+// endpoint, the user would be locked out of the very screen that could
+// resolve the lock.
+const wrappedHandler = withOrgContext(handler, { allowSuspended: true });
 
 /**
  * Pick a single string value from req.query (Vercel may give string | string[]).
@@ -671,6 +676,7 @@ async function createOrRenewAction(
     cancel_requested_at: null,
     scheduled_change: null,
     access_suspended: false,
+    access_suspended_at: null,
     short_url: sub.short_url ?? null,
     ...mapped,
   };
@@ -1048,7 +1054,7 @@ async function resumeAction(ctx: OrgContext): Promise<Response> {
 
   await ctx.supabase
     .from("subscriptions")
-    .update({ access_suspended: false })
+    .update({ access_suspended: false, access_suspended_at: null })
     .eq("id", sub.id);
 
   await ctx.supabase.from("audit_log").insert({

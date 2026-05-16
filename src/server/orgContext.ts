@@ -224,8 +224,21 @@ export async function resolveOrgContext(
  *     return j({ ok: true, data });
  *   });
  */
+export type WithOrgContextOptions = {
+  /**
+   * Skip the platform-suspension gate. Use this for endpoints the tenant
+   * MUST still be able to reach while suspended — most importantly
+   * `/api/tenant/billing`, so an end user can retry payment from the
+   * `/subscription` page and get unstuck without operator intervention.
+   *
+   * Default: false (suspended orgs get 403).
+   */
+  allowSuspended?: boolean;
+};
+
 export function withOrgContext(
   handler: (req: Request, ctx: OrgContext) => Promise<Response> | Response,
+  options: WithOrgContextOptions = {},
 ) {
   return async function wrapped(req: Request): Promise<Response> {
     try {
@@ -247,7 +260,11 @@ export function withOrgContext(
       // so refusing here guarantees a suspended workspace is fully locked
       // server-side too. The internal Cuephoria org bypasses this gate
       // (mirrors the client policy).
-      if (result.isSuspended) {
+      //
+      // Opt-out via `{ allowSuspended: true }` for endpoints the tenant
+      // legitimately needs while suspended (billing / subscription
+      // management).
+      if (result.isSuspended && !options.allowSuspended) {
         return j(
           {
             ok: false,

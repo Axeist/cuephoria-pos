@@ -49,6 +49,12 @@ export type ActiveSubscription = {
   hasSubscription: boolean;
   razorpayStatus: string | null;
   accessSuspended: boolean;
+  /**
+   * Wall-clock time at which Razorpay first suspended access (halt / pause /
+   * cancel / complete). Used by SubscriptionGate to compute the 1-hour
+   * grace window before the workspace fully locks.
+   */
+  accessSuspendedAt: string | null;
   planTier: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
@@ -120,6 +126,8 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             razorpayStatus:
               typeof sub.razorpayStatus === "string" ? sub.razorpayStatus : null,
             accessSuspended: !!sub.accessSuspended,
+            accessSuspendedAt:
+              typeof sub.accessSuspendedAt === "string" ? sub.accessSuspendedAt : null,
             planTier: typeof sub.planTier === "string" ? sub.planTier : null,
             currentPeriodEnd:
               typeof sub.currentPeriodEnd === "string" ? sub.currentPeriodEnd : null,
@@ -134,6 +142,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             hasSubscription: false,
             razorpayStatus: null,
             accessSuspended: false,
+            accessSuspendedAt: null,
             planTier: null,
             currentPeriodEnd: null,
             cancelAtPeriodEnd: false,
