@@ -63,7 +63,6 @@ import {
   fetchBillingAccessGraceMinutes,
   DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
 } from "../../src/server/lib/platformBillingGrace.js";
-import { supabaseServiceClient } from "../../src/server/supabaseServer.js";
 
 export const config = { maxDuration: 60 };
 
@@ -463,9 +462,10 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
   log("returning snapshot");
   let billingAccessGraceMinutes = DEFAULT_BILLING_ACCESS_GRACE_MINUTES;
   try {
-    billingAccessGraceMinutes = await fetchBillingAccessGraceMinutes(
-      supabaseServiceClient("tenant-billing-platform-grace"),
-    );
+    // Reuse OrgContext service-role client. Do not construct a parallel client via
+    // supabaseServer here — differing ESM resolve paths (*.ts vs *.js imports) broke
+    // Vercel Node cold-starts with FUNCTION_INVOCATION_FAILED for some deployments.
+    billingAccessGraceMinutes = await fetchBillingAccessGraceMinutes(ctx.supabase);
   } catch (graceErr) {
     err("billingAccessGraceMinutes fetch failed", graceErr);
   }

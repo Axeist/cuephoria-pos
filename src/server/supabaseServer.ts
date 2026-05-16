@@ -7,7 +7,7 @@
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { getEnv } from "./adminApiUtils";
+import { getEnv } from "./adminApiUtils.js";
 
 export class SupabaseConfigError extends Error {
   constructor(message: string) {
