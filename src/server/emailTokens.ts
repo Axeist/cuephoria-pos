@@ -163,7 +163,13 @@ export async function issueEmailToken(opts: IssueTokenOptions): Promise<IssuedTo
   }
 
   if (error && !isEmptySupabaseError(error)) {
-    throw new Error(`issueEmailToken: ${formatSupabaseWriteError(error)}`);
+    const msg = formatSupabaseWriteError(error);
+    if (/does not exist|relation|42P01|schema cache/i.test(msg)) {
+      throw new Error(
+        `issueEmailToken: table public.admin_user_email_tokens is missing or not exposed (apply repo migration 20260504100000_slice14_email_and_google.sql on this Supabase project, or reload schema). Details: ${msg}`,
+      );
+    }
+    throw new Error(`issueEmailToken: ${msg}`);
   }
 
   if (error && isEmptySupabaseError(error)) {
@@ -171,7 +177,7 @@ export async function issueEmailToken(opts: IssueTokenOptions): Promise<IssuedTo
   }
 
   throw new Error(
-    `issueEmailToken: could not create token row (table admin_user_email_tokens missing, RLS, or API mismatch — run DB migrations and verify SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY for this project)`,
+    `issueEmailToken: could not create token row (no id returned). Most often: missing table public.admin_user_email_tokens — run migration 20260504100000_slice14_email_and_google.sql; or wrong SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY for this project.`,
   );
 }
 
