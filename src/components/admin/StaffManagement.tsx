@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +25,7 @@ interface StaffUser {
   id: string;
   username: string;
   email?: string | null;
+  emailVerifiedAt?: string | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   locations: LocationInfo[];
@@ -70,7 +71,7 @@ const StaffManagement: React.FC = () => {
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  const { user, addStaffMember, getStaffMembers, updateStaffMember, deleteStaffMember } = useAuth();
+  const { user, addStaffMember, updateStaffMember, deleteStaffMember, verifyStaffEmailManually } = useAuth();
   const { toast } = useToast();
 
   const loadStaffMembers = async () => {
@@ -161,6 +162,29 @@ const StaffManagement: React.FC = () => {
     if (success) loadStaffMembers();
   };
 
+  const handleManualVerifyEmail = async (staff: StaffUser) => {
+    const label = staff.email ?? staff.username;
+    if (!staff.email) {
+      toast({ title: 'No email', description: 'This user has no login email on file.', variant: 'destructive' });
+      return;
+    }
+    if (staff.emailVerifiedAt) return;
+    if (
+      !confirm(
+        `Mark ${label} as verified without them opening the email link?\n\nOnly do this if you are sure they control this inbox. They will then be able to use Google sign-in with this email.`,
+      )
+    ) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const ok = await verifyStaffEmailManually(staff.id);
+      if (ok) loadStaffMembers();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const resetAddForm = () => {
     setNewUsername('');
     setNewPassword('');
@@ -240,7 +264,10 @@ const StaffManagement: React.FC = () => {
           <DialogContent className="bg-cuephoria-dark border border-cuephoria-lightpurple/30 max-w-md">
             <DialogHeader>
               <DialogTitle className="text-xl">Add New User</DialogTitle>
-              <DialogDescription>Create login credentials with branch access</DialogDescription>
+              <DialogDescription>
+                Create login email and a temporary password. We email them a verification link — after they open it,
+                they can sign in with Google using the same email.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-2">
@@ -444,6 +471,7 @@ const StaffManagement: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Login</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Branch Access</TableHead>
                   <TableHead>Actions</TableHead>
@@ -452,7 +480,22 @@ const StaffManagement: React.FC = () => {
               <TableBody>
                 {staffMembers.map((staff) => (
                   <TableRow key={staff.id}>
-                    <TableCell className="font-medium">{staff.email ?? staff.username}</TableCell>
+                    <TableCell className="font-medium">{staff.username}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-sm text-white/80">{staff.email ?? '—'}</span>
+                        {staff.email && !staff.emailVerifiedAt && (
+                          <Badge variant="outline" className="w-fit border-amber-500/40 bg-amber-500/10 text-amber-200 text-[10px]">
+                            Awaiting verification
+                          </Badge>
+                        )}
+                        {staff.email && staff.emailVerifiedAt && (
+                          <Badge variant="outline" className="w-fit border-emerald-500/30 bg-emerald-500/10 text-emerald-200 text-[10px]">
+                            Verified
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <Badge variant="secondary" className={staff.isAdmin ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : ''}>
@@ -479,16 +522,36 @@ const StaffManagement: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(staff)} className="h-8 w-8 p-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEdit(staff)}
+                          className="h-8 w-8 p-0"
+                          title="Edit user"
+                        >
                           <Edit className="h-3.5 w-3.5" />
                         </Button>
+                        {staff.email && !staff.emailVerifiedAt && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleManualVerifyEmail(staff)}
+                            disabled={isLoading}
+                            className="h-8 gap-1 px-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                            title="Mark email as verified (e.g. confirmed in person)"
+                          >
+                            <MailCheck className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline text-[11px]">Verify email</span>
+                          </Button>
+                        )}
                         <Button
-                          size="sm" variant="outline"
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleDeleteStaff(staff.id, staff.username)}
                           className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
                           disabled={staff.id === user?.id}
-                          title={staff.id === user?.id ? "Cannot delete yourself" : "Delete user"}
+                          title={staff.id === user?.id ? 'Cannot delete yourself' : 'Delete user'}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

@@ -7,8 +7,9 @@
  *   3. Find-or-create an admin_user row:
  *        a) Match by google_sub                    → login.
  *        b) Else match by lower(email) with       → link google_sub, login.
- *           email_verified_at NOT NULL (or any,    (existing account links)
- *           depending on intent).
+ *           If the row has no google_sub yet, require email_verified_at
+ *           (staff must open the inbox verification link first). Otherwise
+ *           link google_sub and login.
  *        c) Else if intent=signup → redirect to
  *           /signup/google?g=<signed-ticket> so
  *           the user can pick a workspace.
@@ -131,6 +132,10 @@ export default async function handler(req: Request) {
       if (byEmail.google_sub && byEmail.google_sub !== identity.sub) {
         // Different Google identity already linked — refuse silently.
         return redirect(`${base}/login?oauth_error=account_conflict`, [clearStateCookie()]);
+      }
+      // First-time Google link: inbox must be verified (e.g. staff added by owner).
+      if (!byEmail.google_sub && !byEmail.email_verified_at) {
+        return redirect(`${base}/login?oauth_error=verify_email_first`, [clearStateCookie()]);
       }
       await supabase
         .from("admin_users")

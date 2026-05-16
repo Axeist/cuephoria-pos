@@ -66,7 +66,9 @@ async function getDetail(req: Request, id: string): Promise<Response> {
         .order("sort_order", { ascending: true }),
       supabase
         .from("org_memberships")
-        .select("id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, is_admin, is_super_admin, created_at)")
+        .select(
+          "id, role, created_at, admin_user_id, admin_users:admin_user_id(id, username, email, google_sub, email_verified_at, is_admin, is_super_admin, created_at)",
+        )
         .eq("organization_id", id)
         .order("created_at", { ascending: true }),
       supabase
@@ -127,8 +129,26 @@ async function getDetail(req: Request, id: string): Promise<Response> {
         created_at: string;
         admin_user_id: string;
         admin_users:
-          | { id: string; username: string; is_admin: boolean; is_super_admin: boolean; created_at: string }
-          | Array<{ id: string; username: string; is_admin: boolean; is_super_admin: boolean; created_at: string }>
+          | {
+              id: string;
+              username: string;
+              email: string | null;
+              google_sub: string | null;
+              email_verified_at: string | null;
+              is_admin: boolean;
+              is_super_admin: boolean;
+              created_at: string;
+            }
+          | Array<{
+              id: string;
+              username: string;
+              email: string | null;
+              google_sub: string | null;
+              email_verified_at: string | null;
+              is_admin: boolean;
+              is_super_admin: boolean;
+              created_at: string;
+            }>
           | null;
       }) => {
         const au = Array.isArray(m.admin_users) ? m.admin_users[0] : m.admin_users;
@@ -138,6 +158,9 @@ async function getDetail(req: Request, id: string): Promise<Response> {
           joinedAt: m.created_at,
           adminUserId: m.admin_user_id,
           username: au?.username ?? null,
+          email: au?.email ?? null,
+          googleLinked: Boolean(au?.google_sub),
+          emailVerifiedAt: au?.email_verified_at ?? null,
           isAdmin: au?.is_admin ?? false,
           isSuperAdmin: au?.is_super_admin ?? false,
         };

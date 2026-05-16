@@ -44,8 +44,8 @@ const Login = () => {
       account_conflict: "Another Google identity is already linked to this email.",
       no_workspace:
         "This account no longer has access to any workspace. Ask the owner to re-invite you.",
-      workspace_check_failed:
-        "Couldn't verify your workspace access right now. Please try again in a moment.",
+      verify_email_first:
+        "Open the verification link we emailed to this address first, then sign in with Google using the same email.",
       invalid_state: "Sign-in session expired. Please try again.",
       expired_state: "Sign-in session expired. Please try again.",
     };

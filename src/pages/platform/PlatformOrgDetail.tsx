@@ -27,13 +27,19 @@ import {
   Copy,
   Crown,
   Globe,
+  Image as ImageIcon,
   Loader2,
+  Mail,
   MapPin,
   Pencil,
+  Palette,
   Play,
+  RefreshCcw,
   ShieldCheck,
   Skull,
   Sparkles,
+  Trash2,
+  UserPlus,
   UserRound,
   X,
   Zap,
@@ -54,10 +60,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { PlatformInviteOwnerDialog } from "@/components/platform/PlatformInviteOwnerDialog";
-import { UserPlus, Trash2, Palette, RefreshCcw, Image as ImageIcon } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -108,6 +121,9 @@ type DetailResponse = {
     joinedAt: string;
     adminUserId: string;
     username: string | null;
+    email: string | null;
+    googleLinked: boolean;
+    emailVerifiedAt: string | null;
     isAdmin: boolean;
     isSuperAdmin: boolean;
   }>;
@@ -944,6 +960,9 @@ const MembersTab: React.FC<{
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [removeTarget, setRemoveTarget] = React.useState<DetailResponse["members"][number] | null>(null);
   const [removing, setRemoving] = React.useState(false);
+  const [migrateTarget, setMigrateTarget] = React.useState<DetailResponse["members"][number] | null>(null);
+  const [migrateEmail, setMigrateEmail] = React.useState("");
+  const [migrating, setMigrating] = React.useState(false);
 
   const doRemove = async () => {
     if (!removeTarget) return;
@@ -966,6 +985,49 @@ const MembersTab: React.FC<{
       });
     } finally {
       setRemoving(false);
+    }
+  };
+
+  const doMigrateEmail = async () => {
+    if (!migrateTarget) return;
+    const next = migrateEmail.trim().toLowerCase();
+    if (!next.endsWith("@gmail.com")) {
+      toast({
+        title: "Invalid address",
+        description: "Use a consumer Gmail address ending in @gmail.com.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setMigrating(true);
+    try {
+      const res = await fetch("/api/platform/organization-member-migrate-email", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          membershipId: migrateTarget.membershipId,
+          newEmail: next,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string; email?: string };
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `Request failed (${res.status})`);
+      toast({
+        title: "Login email updated",
+        description: `${migrateTarget.username ?? "Member"} will sign in with ${json.email ?? next}. Google link was cleared.`,
+      });
+      setMigrateTarget(null);
+      setMigrateEmail("");
+      onMutated();
+    } catch (err) {
+      toast({
+        title: "Couldn't migrate email",
+        description: (err as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setMigrating(false);
     }
   };
 
@@ -1022,7 +1084,17 @@ const MembersTab: React.FC<{
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-zinc-500">role: {m.role}</div>
+                    <div className="text-[11px] text-zinc-500">
+                      role: {m.role}
+                      {m.email ? (
+                        <span className="text-zinc-400"> · {m.email}</span>
+                      ) : (
+                        <span className="text-zinc-600"> · no email</span>
+                      )}
+                      {m.googleLinked && (
+                        <span className="ml-1.5 text-[10px] uppercase tracking-wide text-emerald-400/90">Google</span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1030,6 +1102,21 @@ const MembersTab: React.FC<{
                     <Clock className="h-3 w-3" />
                     joined {relative(m.joinedAt)}
                   </div>
+                  {!m.isSuperAdmin && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-300 hover:text-indigo-200 hover:bg-indigo-500/10"
+                      onClick={() => {
+                        setMigrateTarget(m);
+                        setMigrateEmail("");
+                      }}
+                      title="Change login email to a Gmail address for Google sign-in"
+                    >
+                      <Mail className="h-3.5 w-3.5 mr-1" />
+                      Migrate login
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -1054,6 +1141,73 @@ const MembersTab: React.FC<{
         orgSlug={orgSlug}
         onInvited={onMutated}
       />
+
+      <Dialog
+        open={Boolean(migrateTarget)}
+        onOpenChange={(v) => {
+          if (!v && !migrating) {
+            setMigrateTarget(null);
+            setMigrateEmail("");
+          }
+        }}
+      >
+        <DialogContent className="bg-[#0b0b14] border-white/10 text-zinc-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Migrate login to Gmail</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Updates this person’s <span className="text-zinc-300">admin_users.email</span> for their whole account
+              (every workspace they belong to). Any linked Google account is cleared so they must sign in with the new
+              Gmail on next visit.
+            </DialogDescription>
+          </DialogHeader>
+          {migrateTarget && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                <span className="text-zinc-500">Current: </span>
+                <span className="text-zinc-200">{migrateTarget.email ?? "—"}</span>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="migrate-gmail" className="text-zinc-300">
+                  New Gmail address
+                </Label>
+                <Input
+                  id="migrate-gmail"
+                  type="email"
+                  autoComplete="off"
+                  placeholder="name@gmail.com"
+                  value={migrateEmail}
+                  onChange={(e) => setMigrateEmail(e.target.value)}
+                  className="border-white/10 bg-white/[0.04] text-zinc-100"
+                  disabled={migrating}
+                />
+                <p className="text-[11px] text-zinc-500">Only @gmail.com is supported on this path.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-zinc-300"
+              disabled={migrating}
+              onClick={() => {
+                setMigrateTarget(null);
+                setMigrateEmail("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white"
+              disabled={migrating || !migrateEmail.trim()}
+              onClick={doMigrateEmail}
+            >
+              {migrating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & clear Google link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={Boolean(removeTarget)} onOpenChange={(v) => !v && !removing && setRemoveTarget(null)}>
         <AlertDialogContent className="bg-[#0b0b14] border-white/10 text-zinc-100">

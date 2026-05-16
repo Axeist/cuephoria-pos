@@ -19,6 +19,7 @@ import organizationBranding from "../../src/server/handlers/platform/organizatio
 import organizationDelete from "../../src/server/handlers/platform/organization-delete";
 import organizationInviteOwner from "../../src/server/handlers/platform/organization-invite-owner";
 import organizationMember from "../../src/server/handlers/platform/organization-member";
+import organizationMemberMigrateEmail from "../../src/server/handlers/platform/organization-member-migrate-email";
 import organization from "../../src/server/handlers/platform/organization";
 import organizations from "../../src/server/handlers/platform/organizations";
 import passwordMigrationStatus from "../../src/server/handlers/platform/password-migration-status";
@@ -43,6 +44,7 @@ const routes: Record<string, Handler> = {
   "organization-delete": organizationDelete,
   "organization-invite-owner": organizationInviteOwner,
   "organization-member": organizationMember,
+  "organization-member-migrate-email": organizationMemberMigrateEmail,
   "organization": organization,
   "organizations": organizations,
   "password-migration-status": passwordMigrationStatus,

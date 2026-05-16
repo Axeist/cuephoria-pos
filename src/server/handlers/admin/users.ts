@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   ADMIN_SESSION_COOKIE,
   getEnv,
@@ -6,6 +6,8 @@ import {
   parseCookies,
   verifyAdminSession,
 } from "../../adminApiUtils";
+import { appBaseUrl, sendEmail } from "../../email";
+import { issueEmailToken } from "../../emailTokens";
 import { hashPassword } from "../../passwordUtils";
 import { resolveOrgContext } from "../../orgContext";
 
@@ -36,6 +38,54 @@ function normalizeAdminEmail(explicit: unknown, username: string): string | null
   return SIMPLE_EMAIL.test(lower) ? lower : null;
 }
 
+const VERIFY_TTL_MINUTES = 60 * 24;
+
+/** Sends the same verification link as /api/admin/send-verification (new staff must verify before Google sign-in). */
+async function sendAdminVerificationEmail(opts: {
+  supabase: SupabaseClient;
+  adminUserId: string;
+  email: string;
+  displayName: string;
+  organizationId: string | null;
+  req: Request;
+}): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
+  try {
+    const token = await issueEmailToken({
+      supabase: opts.supabase,
+      adminUserId: opts.adminUserId,
+      email: opts.email,
+      purpose: "verify_email",
+      ttlMinutes: VERIFY_TTL_MINUTES,
+      requestedIp: opts.req.headers.get("x-forwarded-for") || null,
+      requestedUa: opts.req.headers.get("user-agent") || null,
+    });
+    const base = appBaseUrl();
+    const verifyUrl = `${base}/account/verify-email?token=${encodeURIComponent(token.token)}`;
+    const sent = await sendEmail({
+      kind: "verify_email",
+      to: opts.email,
+      vars: {
+        appBaseUrl: base,
+        displayName: opts.displayName,
+        verifyUrl,
+        expiresInMinutes: VERIFY_TTL_MINUTES,
+      },
+      organizationId: opts.organizationId,
+      adminUserId: opts.adminUserId,
+      supabase: opts.supabase,
+    });
+    if (!sent.ok && !sent.skipped) {
+      return { ok: false, error: sent.error || "Could not send email." };
+    }
+    return { ok: sent.ok, skipped: !!sent.skipped };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 export default async function handler(req: Request) {
   try {
     const cookies = parseCookies(req.headers.get("cookie"));
@@ -60,7 +110,7 @@ export default async function handler(req: Request) {
     if (req.method === "GET") {
       const { data: users, error: usersErr } = await supabase
         .from("admin_users")
-        .select("id, username, email, is_admin, is_super_admin")
+        .select("id, username, email, email_verified_at, is_admin, is_super_admin")
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
@@ -95,6 +145,7 @@ export default async function handler(req: Request) {
         id: u.id,
         username: u.username,
         email: u.email ?? null,
+        emailVerifiedAt: u.email_verified_at ?? null,
         isAdmin: u.is_admin,
         isSuperAdmin: u.is_super_admin,
         locations: userLocations[u.id] ?? [],
@@ -154,8 +205,8 @@ export default async function handler(req: Request) {
           password_updated_at: new Date().toISOString(),
           is_admin: isAdmin,
           is_super_admin: isSuperAdmin,
-          // Admin-provisioned accounts: org attests the email; no inbox verification required.
-          email_verified_at: new Date().toISOString(),
+          // Staff must click the verification link before Google sign-in matches this row.
+          email_verified_at: null,
         })
         .select("id")
         .single();
@@ -207,33 +258,135 @@ export default async function handler(req: Request) {
         }
       }
 
-      return j({ ok: true }, 200);
+      const mailResult = await sendAdminVerificationEmail({
+        supabase,
+        adminUserId: newUser.id,
+        email: emailNorm,
+        displayName: username,
+        organizationId: ctx.organizationId,
+        req,
+      });
+
+      return j(
+        {
+          ok: true,
+          verificationEmailSent: mailResult.ok,
+          verificationEmailSkipped: !!mailResult.skipped,
+          verificationEmailError: mailResult.error ?? null,
+        },
+        200,
+      );
     }
 
     // ─── PATCH (update) ──────────────────────────────────────────────────────
     if (req.method === "PATCH") {
       const body = await req.json().catch(() => ({}));
+
+      /** Owner/admin attests inbox without sending a link (same workspace only). */
+      if (body.verifyEmailManually === true) {
+        const targetId = String(body.id || "").trim();
+        if (!targetId) return j({ ok: false, error: "Missing id." }, 400);
+
+        const { data: target, error: tErr } = await supabase
+          .from("admin_users")
+          .select("id, email, email_verified_at, is_super_admin")
+          .eq("id", targetId)
+          .maybeSingle();
+        if (tErr) return j({ ok: false, error: tErr.message }, 500);
+        if (!target) return j({ ok: false, error: "User not found." }, 404);
+        if (!target.email) return j({ ok: false, error: "This user has no email on file." }, 400);
+        if (target.email_verified_at) {
+          return j({ ok: true, alreadyVerified: true, emailVerifiedAt: target.email_verified_at }, 200);
+        }
+
+        if (target.is_super_admin && !sessionUser.isSuperAdmin) {
+          return j({ ok: false, error: "Only a super-admin can verify this account." }, 403);
+        }
+
+        const { data: actorOrgs, error: actorOrgErr } = await supabase
+          .from("org_memberships")
+          .select("organization_id")
+          .eq("admin_user_id", sessionUser.id);
+        if (actorOrgErr) return j({ ok: false, error: actorOrgErr.message }, 500);
+
+        const { data: targetOrgs, error: targetOrgErr } = await supabase
+          .from("org_memberships")
+          .select("organization_id")
+          .eq("admin_user_id", targetId);
+        if (targetOrgErr) return j({ ok: false, error: targetOrgErr.message }, 500);
+
+        const actorSet = new Set((actorOrgs ?? []).map((r: { organization_id: string }) => r.organization_id));
+        const sharedOrgId = (targetOrgs ?? []).find((r: { organization_id: string }) =>
+          actorSet.has(r.organization_id),
+        )?.organization_id;
+        if (!sharedOrgId && !sessionUser.isSuperAdmin) {
+          return j(
+            { ok: false, error: "You can only verify users who belong to a workspace you share." },
+            403,
+          );
+        }
+
+        const verifiedAt = new Date().toISOString();
+        const { error: updErr } = await supabase
+          .from("admin_users")
+          .update({ email_verified_at: verifiedAt })
+          .eq("id", targetId);
+        if (updErr) return j({ ok: false, error: updErr.message }, 500);
+
+        const { error: auditErr } = await supabase.from("audit_log").insert({
+            actor_type: "admin_user",
+            actor_id: sessionUser.id,
+            actor_label: sessionUser.username,
+            organization_id: sharedOrgId ?? (actorOrgs ?? [])[0]?.organization_id ?? null,
+            action: "admin_user.email_manually_verified",
+            target_type: "admin_user",
+            target_id: targetId,
+            meta: { targetEmail: String(target.email).trim().toLowerCase() },
+          });
+        if (auditErr) console.warn("audit_log email_manually_verified:", auditErr.message);
+
+        return j({ ok: true, emailVerifiedAt: verifiedAt }, 200);
+      }
+
       const id = String(body?.id || "");
       if (!id) return j({ ok: false, error: "Missing id" }, 400);
 
       const update: Record<string, any> = {};
+      let emailChangedForVerification: string | null = null;
+
       if (typeof body?.username === "string" && body.username.trim()) {
         update.username = body.username.trim();
       }
       if (typeof body?.email === "string" && body.email.trim()) {
         const emailNorm = normalizeAdminEmail(body.email, "");
         if (!emailNorm) return j({ ok: false, error: "Invalid email format." }, 400);
-        const { data: other } = await supabase.from("admin_users").select("id").eq("email", emailNorm).neq("id", id).maybeSingle();
-        if (other?.id) return j({ ok: false, error: "Another account already uses this email." }, 409);
-        update.email = emailNorm;
-        update.email_verified_at = new Date().toISOString();
+        const { data: selfBefore } = await supabase.from("admin_users").select("email").eq("id", id).maybeSingle();
+        const prevEmail = String(selfBefore?.email || "").trim().toLowerCase();
+        if (prevEmail !== emailNorm) {
+          const { data: other } = await supabase.from("admin_users").select("id").eq("email", emailNorm).neq("id", id).maybeSingle();
+          if (other?.id) return j({ ok: false, error: "Another account already uses this email." }, 409);
+          update.email = emailNorm;
+          update.email_verified_at = null;
+          update.google_sub = null;
+          emailChangedForVerification = emailNorm;
+        }
       } else if (typeof update.username === "string" && update.username.trim()) {
         const sync = normalizeAdminEmail(undefined, update.username);
         if (sync) {
           const { data: other } = await supabase.from("admin_users").select("id").eq("email", sync).neq("id", id).maybeSingle();
           if (other?.id) return j({ ok: false, error: "Another account already uses this email." }, 409);
+          const { data: selfRow } = await supabase
+            .from("admin_users")
+            .select("email")
+            .eq("id", id)
+            .maybeSingle();
+          const prevEmail = String(selfRow?.email || "").trim().toLowerCase();
           update.email = sync;
-          update.email_verified_at = new Date().toISOString();
+          update.email_verified_at = null;
+          if (prevEmail !== sync) {
+            update.google_sub = null;
+            emailChangedForVerification = sync;
+          }
         }
       }
       if (typeof body?.newPassword === "string" && body.newPassword.trim()) {
@@ -278,7 +431,49 @@ export default async function handler(req: Request) {
         }
       }
 
-      return j({ ok: true }, 200);
+      let verificationEmailSent = false;
+      let verificationEmailSkipped = false;
+      let verificationEmailError: string | null = null;
+      if (emailChangedForVerification) {
+        const { data: who } = await supabase
+          .from("admin_users")
+          .select("username, display_name")
+          .eq("id", id)
+          .maybeSingle();
+        let organizationId: string | null = null;
+        const { data: mem } = await supabase
+          .from("org_memberships")
+          .select("organization_id")
+          .eq("admin_user_id", id)
+          .limit(1)
+          .maybeSingle();
+        organizationId = mem?.organization_id ?? null;
+        const mailResult = await sendAdminVerificationEmail({
+          supabase,
+          adminUserId: id,
+          email: emailChangedForVerification,
+          displayName: (who?.display_name as string | null) || (who?.username as string) || emailChangedForVerification,
+          organizationId,
+          req,
+        });
+        verificationEmailSent = mailResult.ok;
+        verificationEmailSkipped = !!mailResult.skipped;
+        verificationEmailError = mailResult.error ?? null;
+      }
+
+      return j(
+        {
+          ok: true,
+          ...(emailChangedForVerification
+            ? {
+                verificationEmailSent,
+                verificationEmailSkipped,
+                verificationEmailError,
+              }
+            : {}),
+        },
+        200,
+      );
     }
 
     // ─── DELETE ──────────────────────────────────────────────────────────────

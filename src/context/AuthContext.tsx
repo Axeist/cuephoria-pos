@@ -106,8 +106,9 @@ interface AuthContextType {
   isLoading: boolean;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   addStaffMember: (username: string, password: string, isAdmin?: boolean, isSuperAdmin?: boolean, locationIds?: string[]) => Promise<boolean>;
-  getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[] })[]>;
+  getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[]; email?: string | null; emailVerifiedAt?: string | null })[]>;
   updateStaffMember: (id: string, data: Partial<AdminUser & { locationIds: string[]; newPassword?: string }>) => Promise<boolean>;
+  verifyStaffEmailManually: (id: string) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
   getLoginLogs: () => Promise<LoginLog[]>;
   deleteLoginLog: (logId: string) => Promise<boolean>;
@@ -330,7 +331,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      toast.success(`${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added successfully`);
+      if (json.verificationEmailSent) {
+        toast.success(
+          `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} added. A verification email was sent — they should open the link, then they can use Google sign-in with that email.`,
+        );
+      } else if (json.verificationEmailSkipped) {
+        toast.success(
+          `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added (outgoing mail is not configured — verify email manually or fix Resend).`,
+        );
+      } else if (json.verificationEmailError) {
+        toast.success(
+          `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added, but the verification email could not be sent: ${json.verificationEmailError}`,
+        );
+      } else {
+        toast.success(`${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added successfully`);
+      }
       return true;
     } catch (error) {
       toast.error('Error adding user');
@@ -356,6 +371,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return data.map((u: any) => ({
         id: u.id || '',
         username: u.username || '',
+        email: u.email ?? null,
+        emailVerifiedAt: u.emailVerifiedAt ?? null,
         isAdmin: u.isAdmin === true,
         isSuperAdmin: u.isSuperAdmin === true,
         locations: Array.isArray(u.locations) ? u.locations : [],
@@ -391,11 +408,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error(json?.error || 'Error updating staff member');
         return false;
       }
-      
-      toast.success('Staff member updated successfully');
+
+      if (json.verificationEmailSent) {
+        toast.success('Saved. A verification email was sent to the new address.');
+      } else if (json.verificationEmailSkipped) {
+        toast.success('Saved. Outgoing mail is not configured — send verification manually if the email changed.');
+      } else if (json.verificationEmailError) {
+        toast.success(`Saved, but verification email failed: ${json.verificationEmailError}`);
+      } else {
+        toast.success('Staff member updated successfully');
+      }
       return true;
     } catch (error) {
       toast.error('Error updating staff member');
+      return false;
+    }
+  };
+
+  const verifyStaffEmailManually = async (id: string): Promise<boolean> => {
+    try {
+      if (!user?.isAdmin) {
+        toast.error('Only admins can verify staff email');
+        return false;
+      }
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, verifyEmailManually: true }),
+      });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Could not verify email');
+        return false;
+      }
+      if (json.alreadyVerified) {
+        toast.success('That address was already verified.');
+      } else {
+        toast.success('Email marked as verified. They can use Google sign-in with this address.');
+      }
+      return true;
+    } catch {
+      toast.error('Could not verify email');
       return false;
     }
   };
@@ -432,6 +485,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addStaffMember, 
       getStaffMembers,
       updateStaffMember,
+      verifyStaffEmailManually,
       deleteStaffMember,
       getLoginLogs,
       deleteLoginLog
