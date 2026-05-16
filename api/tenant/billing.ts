@@ -60,6 +60,27 @@ import {
 
 export const config = { maxDuration: 60 };
 
+/**
+ * Minimal Vercel Node handler shape. We deliberately avoid importing
+ * `@vercel/node` types so we don't depend on a peer dep that may not be
+ * resolved by the bundler — every property we touch is part of the
+ * underlying Node `IncomingMessage` / `ServerResponse`.
+ */
+type VercelNodeReq = {
+  method?: string;
+  url?: string;
+  headers: Record<string, string | string[] | undefined>;
+  query?: Record<string, string | string[]>;
+  body?: unknown;
+};
+type VercelNodeRes = {
+  setHeader: (key: string, value: string | number | string[]) => void;
+  status: (code: number) => VercelNodeRes;
+  send: (body: string | Buffer) => void;
+  json: (body: unknown) => void;
+  end: (body?: string | Buffer) => void;
+};
+
 const EDITOR_ROLES = new Set(["owner", "admin"]);
 const INVOICE_PAGE_SIZE = 24;
 const DB_QUERY_TIMEOUT_MS = 12_000;
@@ -96,27 +117,110 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
 const wrappedHandler = withOrgContext(handler);
 
 /**
- * Outer router that runs BEFORE `withOrgContext` so it can:
- *
- *   - Return a lightweight `?probe=1` response without touching Supabase or
- *     Razorpay. Use this to confirm the function deployed correctly:
- *       GET /api/tenant/billing?probe=1
- *     A 200 JSON proves the file is live in Vercel; a 504 / hang proves the
- *     function build itself is broken.
- *
- *   - Wrap the real handler with a hard `Promise.race` watchdog so we ALWAYS
- *     respond inside 30 seconds. If a Supabase query hangs, the client gets
- *     a clear 504 instead of a phantom "pending forever" request.
+ * Pick a single string value from req.query (Vercel may give string | string[]).
  */
-export default async function billingEntry(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  if (req.method === "GET" && url.searchParams.get("probe") === "1") {
-    return j(
-      {
+function firstQuery(req: VercelNodeReq, key: string): string | undefined {
+  const v = req.query?.[key];
+  if (Array.isArray(v)) return v[0];
+  return typeof v === "string" ? v : undefined;
+}
+
+/**
+ * Pick a header value (first if array) from a Node IncomingMessage-shaped req.
+ */
+function header(req: VercelNodeReq, key: string): string | undefined {
+  const v = req.headers[key.toLowerCase()];
+  if (Array.isArray(v)) return v[0];
+  return typeof v === "string" ? v : undefined;
+}
+
+/**
+ * Build a Web `Request` from a Vercel Node `req`. This is the bridge that
+ * lets `withOrgContext` (Web fetch contract) keep working underneath the
+ * Express-style Vercel entry point.
+ *
+ * Wrapped in try/catch so a malformed URL surfaces as a 500 JSON instead of
+ * an uncaught FUNCTION_INVOCATION_FAILED at the Vercel runtime layer.
+ */
+function buildWebRequest(req: VercelNodeReq): Request {
+  const host = header(req, "host") || "localhost";
+  const proto = header(req, "x-forwarded-proto") || "https";
+  const rawUrl = req.url || "/";
+  // `new URL(rawUrl, base)` is safe for both absolute and relative `rawUrl`.
+  const fullUrl = new URL(rawUrl, `${proto}://${host}`).toString();
+
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers || {})) {
+    if (v == null) continue;
+    if (Array.isArray(v)) {
+      for (const item of v) headers.append(k, item);
+    } else {
+      headers.set(k, String(v));
+    }
+  }
+
+  const method = (req.method || "GET").toUpperCase();
+  const init: RequestInit = { method, headers };
+
+  if (method !== "GET" && method !== "HEAD" && req.body !== undefined && req.body !== null) {
+    if (typeof req.body === "string") {
+      init.body = req.body;
+    } else if (Buffer.isBuffer(req.body)) {
+      init.body = req.body as unknown as BodyInit;
+    } else {
+      init.body = JSON.stringify(req.body);
+      if (!headers.has("content-type")) headers.set("content-type", "application/json");
+    }
+  }
+
+  return new Request(fullUrl, init);
+}
+
+/**
+ * Marshal a Web Response into the Vercel Node res object so the response
+ * status/headers/body all reach the client correctly.
+ */
+async function sendWebResponse(res: VercelNodeRes, webRes: Response): Promise<void> {
+  webRes.headers.forEach((value, key) => {
+    try {
+      res.setHeader(key, value);
+    } catch {
+      // ignore reserved headers that some runtimes reject
+    }
+  });
+  const text = await webRes.text();
+  res.status(webRes.status).send(text);
+}
+
+/**
+ * Outer entry — Vercel Node serverless function. Uses the Express-style
+ * (req, res) signature that all other Node-runtime endpoints in this repo
+ * use (api/razorpay/webhook.ts, api/bookings/[action].ts, etc.) and which
+ * Vercel guarantees to support without any auto-detection magic.
+ *
+ *   - `?probe=1` short-circuits with a lightweight diagnostic JSON before
+ *     touching Supabase, Razorpay, or the org-context middleware. Use this
+ *     to confirm the function is live and that env vars are wired up.
+ *
+ *   - The real handler is wrapped in a 30 s watchdog and a top-level
+ *     try/catch so a crash ALWAYS produces JSON instead of Vercel's
+ *     FUNCTION_INVOCATION_FAILED HTML page.
+ */
+export default async function billingEntry(req: VercelNodeReq, res: VercelNodeRes): Promise<void> {
+  // Always JSON for billing.
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+
+  try {
+    if ((req.method || "GET").toUpperCase() === "GET" && firstQuery(req, "probe") === "1") {
+      res.status(200).json({
         ok: true,
         probe: true,
         runtime: "node",
         nodeVersion: typeof process !== "undefined" ? process.version : "unknown",
+        method: req.method,
+        url: req.url,
+        host: header(req, "host") || null,
         razorpayConfigured: !!(
           process.env.RAZORPAY_KEY_ID_LIVE ||
           process.env.RAZORPAY_KEY_ID_TEST ||
@@ -134,31 +238,58 @@ export default async function billingEntry(req: Request): Promise<Response> {
           process.env.RAZORPAY_WEBHOOK_SECRET
         ),
         ts: new Date().toISOString(),
-      },
-      200,
-    );
-  }
+      });
+      return;
+    }
 
-  const WATCHDOG_MS = 30_000;
-  const watchdog = new Promise<Response>((resolve) =>
-    setTimeout(
-      () =>
-        resolve(
-          j(
-            {
-              ok: false,
-              error:
-                "Billing handler watchdog tripped at 30s — a downstream call (Supabase or Razorpay) never returned. Check Vercel function logs for the last [billing.*] line.",
-              step: "watchdog",
-            },
-            504,
+    let webReq: Request;
+    try {
+      webReq = buildWebRequest(req);
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: e instanceof Error ? e.message : "Failed to build Request",
+        step: "buildWebRequest",
+      });
+      return;
+    }
+
+    const WATCHDOG_MS = 30_000;
+    const watchdog = new Promise<Response>((resolve) =>
+      setTimeout(
+        () =>
+          resolve(
+            j(
+              {
+                ok: false,
+                error:
+                  "Billing handler watchdog tripped at 30s — a downstream call (Supabase or Razorpay) never returned. Check Vercel function logs for the last [billing.*] line.",
+                step: "watchdog",
+              },
+              504,
+            ),
           ),
-        ),
-      WATCHDOG_MS,
-    ),
-  );
+        WATCHDOG_MS,
+      ),
+    );
 
-  return Promise.race([wrappedHandler(req), watchdog]);
+    const webRes = await Promise.race([wrappedHandler(webReq), watchdog]);
+    await sendWebResponse(res, webRes);
+  } catch (e) {
+    console.error("[billing.entry] uncaught error", e);
+    const message = e instanceof Error ? e.message : "Internal server error";
+    const stack = e instanceof Error ? e.stack : undefined;
+    try {
+      res.status(500).json({
+        ok: false,
+        error: message,
+        step: "billing.entry",
+        stack: stack ? stack.split("\n").slice(0, 6).join("\n") : undefined,
+      });
+    } catch {
+      res.status(500).end(JSON.stringify({ ok: false, error: message, step: "billing.entry.fallback" }));
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
