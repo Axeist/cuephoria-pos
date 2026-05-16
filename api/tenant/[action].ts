@@ -14,7 +14,7 @@
  * copy here risks divergent behaviour and wastes a function bundle.
  */
 
-import { j } from "../../src/server/adminApiUtils";
+import { runDispatcher } from "../../src/server/dispatcherUtils";
 
 import brandingUpload from "../../src/server/handlers/tenant/branding-upload";
 import branding from "../../src/server/handlers/tenant/branding";
@@ -41,11 +41,5 @@ const routes: Record<string, Handler> = {
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {
-  const { pathname } = new URL(req.url);
-  const action = pathname.split("/").filter(Boolean).pop() ?? "";
-  const handler = routes[action];
-  if (!handler) {
-    return j({ ok: false, error: `Unknown tenant action: ${action}` }, 404);
-  }
-  return handler(req);
+  return runDispatcher(req, routes, "tenant");
 }

@@ -7,7 +7,7 @@
  * this file only maps URL path → module.
  */
 
-import { j } from "../../src/server/adminApiUtils";
+import { runDispatcher } from "../../src/server/dispatcherUtils";
 
 import audit from "../../src/server/handlers/platform/audit";
 import bootstrap from "../../src/server/handlers/platform/bootstrap";
@@ -56,11 +56,5 @@ const routes: Record<string, Handler> = {
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {
-  const { pathname } = new URL(req.url);
-  const action = pathname.split("/").filter(Boolean).pop() ?? "";
-  const handler = routes[action];
-  if (!handler) {
-    return j({ ok: false, error: `Unknown platform action: ${action}` }, 404);
-  }
-  return handler(req);
+  return runDispatcher(req, routes, "platform");
 }

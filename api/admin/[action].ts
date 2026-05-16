@@ -15,7 +15,7 @@
  * dynamic `import()` of local files at runtime.
  */
 
-import { j } from "../../src/server/adminApiUtils";
+import { runDispatcher } from "../../src/server/dispatcherUtils";
 
 import aiChat from "../../src/server/handlers/admin/ai-chat";
 import emailHealth from "../../src/server/handlers/admin/email-health";
@@ -60,11 +60,5 @@ const routes: Record<string, Handler> = {
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {
-  const { pathname } = new URL(req.url);
-  const action = pathname.split("/").filter(Boolean).pop() ?? "";
-  const handler = routes[action];
-  if (!handler) {
-    return j({ ok: false, error: `Unknown admin action: ${action}` }, 404);
-  }
-  return handler(req);
+  return runDispatcher(req, routes, "admin");
 }

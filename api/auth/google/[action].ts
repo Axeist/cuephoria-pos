@@ -5,7 +5,7 @@
  * Vercel Serverless Function to stay under the Hobby-tier 12-function cap.
  */
 
-import { j } from "../../../src/server/adminApiUtils";
+import { runDispatcher } from "../../../src/server/dispatcherUtils";
 
 import callback from "../../../src/server/handlers/auth/google/callback";
 import start from "../../../src/server/handlers/auth/google/start";
@@ -20,11 +20,5 @@ const routes: Record<string, Handler> = {
 };
 
 export default async function dispatcher(req: Request): Promise<Response> {
-  const { pathname } = new URL(req.url);
-  const action = pathname.split("/").filter(Boolean).pop() ?? "";
-  const handler = routes[action];
-  if (!handler) {
-    return j({ ok: false, error: `Unknown google auth action: ${action}` }, 404);
-  }
-  return handler(req);
+  return runDispatcher(req, routes, "google auth");
 }
