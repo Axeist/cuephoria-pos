@@ -88,6 +88,7 @@ export default async function handler(req: Request) {
       is_super_admin: boolean | null;
       email: string | null;
       display_name: string | null;
+      designation: string | null;
       email_verified_at: string | null;
       password: string | null;
       password_hash: string | null;
@@ -100,7 +101,7 @@ export default async function handler(req: Request) {
       const r = await supabase
         .from("admin_users")
         .select(
-          "id, username, is_admin, is_super_admin, email, display_name, email_verified_at, password, password_hash, must_change_password, password_version",
+          "id, username, is_admin, is_super_admin, email, display_name, designation, email_verified_at, password, password_hash, must_change_password, password_version",
         )
         .eq("email", emailNorm)
         .eq("is_admin", isAdminLogin)
@@ -111,7 +112,7 @@ export default async function handler(req: Request) {
       const r = await supabase
         .from("admin_users")
         .select(
-          "id, username, is_admin, is_super_admin, email, display_name, email_verified_at, password, password_hash, must_change_password, password_version",
+          "id, username, is_admin, is_super_admin, email, display_name, designation, email_verified_at, password, password_hash, must_change_password, password_version",
         )
         .eq("username", rawIdentifier)
         .eq("is_admin", isAdminLogin)
@@ -388,6 +389,9 @@ export default async function handler(req: Request) {
           isAdmin: !!userRow.is_admin,
           isSuperAdmin: !!userRow.is_super_admin,
           mustChangePassword: !!userRow.must_change_password,
+          displayName: userRow.display_name ?? null,
+          designation: userRow.designation ?? null,
+          email: userRow.email ?? null,
         },
       },
       200,

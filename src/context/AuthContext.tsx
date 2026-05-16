@@ -9,6 +9,10 @@ interface AdminUser {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   mustChangePassword?: boolean;
+  /** Friendly name (not necessarily the login username). */
+  displayName?: string | null;
+  designation?: string | null;
+  loginEmail?: string | null;
 }
 
 interface LoginMetadata {
@@ -105,9 +109,21 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ ok: true } | { ok: false; error: string }>;
-  addStaffMember: (username: string, password: string, isAdmin?: boolean, isSuperAdmin?: boolean, locationIds?: string[]) => Promise<boolean>;
+  addStaffMember: (
+    username: string,
+    password: string,
+    isAdmin?: boolean,
+    isSuperAdmin?: boolean,
+    locationIds?: string[],
+    profile?: { displayName?: string; designation?: string },
+  ) => Promise<boolean>;
   getStaffMembers: () => Promise<(AdminUser & { locations: { id: string; name: string; slug: string; short_code: string }[]; email?: string | null; emailVerifiedAt?: string | null })[]>;
-  updateStaffMember: (id: string, data: Partial<AdminUser & { locationIds: string[]; newPassword?: string }>) => Promise<boolean>;
+  updateStaffMember: (
+    id: string,
+    data: Partial<
+      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null }
+    >,
+  ) => Promise<boolean>;
   verifyStaffEmailManually: (id: string) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
   getLoginLogs: () => Promise<LoginLog[]>;
@@ -167,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkExistingUser = async () => {
       try {
         // Do NOT trust localStorage for auth. We validate the session server-side.
-        const res = await fetch('/api/admin/me', { method: 'GET' });
+        const res = await fetch('/api/admin/me', { method: 'GET', credentials: 'same-origin' });
         const json = await res.json();
         const u = json?.user;
         if (u?.id && u?.username) {
@@ -177,6 +193,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAdmin: !!u.isAdmin,
             isSuperAdmin: !!u.isSuperAdmin,
             mustChangePassword: !!u.mustChangePassword,
+            displayName: u.displayName ?? null,
+            designation: u.designation ?? null,
+            loginEmail: u.email ?? null,
           });
         } else {
           setUser(null);
@@ -235,6 +254,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAdmin: !!json.user.isAdmin,
           isSuperAdmin: !!json.user.isSuperAdmin,
           mustChangePassword: !!json.user.mustChangePassword,
+          displayName: json.user.displayName ?? null,
+          designation: json.user.designation ?? null,
+          loginEmail: json.user.email ?? null,
         };
         try {
           sessionStorage.setItem("gh_show_login_splash_v1", "1");
@@ -313,7 +335,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const addStaffMember = async (username: string, password: string, isAdmin: boolean = false, isSuperAdmin: boolean = false, locationIds: string[] = []): Promise<boolean> => {
+  const addStaffMember = async (
+    username: string,
+    password: string,
+    isAdmin: boolean = false,
+    isSuperAdmin: boolean = false,
+    locationIds: string[] = [],
+    profile?: { displayName?: string; designation?: string },
+  ): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
         toast.error("Only admins can add users");
@@ -322,8 +351,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const res = await fetch('/api/admin/users', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username, password, isAdmin, isSuperAdmin, locationIds }),
+        body: JSON.stringify({
+          username,
+          email: username.trim(),
+          password,
+          isAdmin,
+          isSuperAdmin,
+          locationIds,
+          displayName: profile?.displayName?.trim() || undefined,
+          designation: profile?.designation?.trim() || undefined,
+        }),
       });
       const json = await res.json();
       if (!json?.ok) {
@@ -331,11 +370,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      if (json.verificationEmailSent) {
+      if (json.verificationEmailSent === true) {
         toast.success(
           `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} added. A verification email was sent — they should open the link, then they can use Google sign-in with that email.`,
         );
-      } else if (json.verificationEmailSkipped) {
+      } else if (json.verificationEmailSkipped === true) {
         toast.success(
           `${isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff'} user added (outgoing mail is not configured — verify email manually or fix Resend).`,
         );
@@ -360,7 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return [];
       }
       
-      const res = await fetch('/api/admin/users', { method: 'GET' });
+      const res = await fetch('/api/admin/users', { method: 'GET', credentials: 'same-origin' });
       const json = await res.json();
       if (!json?.ok) {
         toast.error(json?.error || 'Error fetching users');
@@ -373,6 +412,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username: u.username || '',
         email: u.email ?? null,
         emailVerifiedAt: u.emailVerifiedAt ?? null,
+        displayName: u.displayName ?? null,
+        designation: u.designation ?? null,
         isAdmin: u.isAdmin === true,
         isSuperAdmin: u.isSuperAdmin === true,
         locations: Array.isArray(u.locations) ? u.locations : [],
@@ -383,7 +424,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateStaffMember = async (id: string, updatedData: Partial<AdminUser & { locationIds: string[]; newPassword?: string }>): Promise<boolean> => {
+  const updateStaffMember = async (
+    id: string,
+    updatedData: Partial<
+      AdminUser & { locationIds: string[]; newPassword?: string; displayName?: string | null; designation?: string | null }
+    >,
+  ): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
         toast.error("Only admins can update staff members");
@@ -392,6 +438,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const body: Record<string, any> = { id };
       if (updatedData.username) body.username = updatedData.username;
+      if (typeof updatedData.displayName === "string") body.displayName = updatedData.displayName;
+      if (typeof updatedData.designation === "string") body.designation = updatedData.designation;
       if (typeof updatedData.isSuperAdmin === 'boolean') body.isSuperAdmin = updatedData.isSuperAdmin;
       if (Array.isArray(updatedData.locationIds)) body.locationIds = updatedData.locationIds;
       if (typeof updatedData.newPassword === 'string' && updatedData.newPassword.trim()) {
@@ -400,6 +448,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
+        credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -407,6 +456,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!json?.ok) {
         toast.error(json?.error || 'Error updating staff member');
         return false;
+      }
+
+      if (id === user?.id) {
+        try {
+          const mr = await fetch('/api/admin/me', { method: 'GET', credentials: 'same-origin' });
+          const mj = await mr.json();
+          const u = mj?.user;
+          if (u?.id && u?.username) {
+            setUser({
+              id: u.id,
+              username: u.username,
+              isAdmin: !!u.isAdmin,
+              isSuperAdmin: !!u.isSuperAdmin,
+              mustChangePassword: !!u.mustChangePassword,
+              displayName: u.displayName ?? null,
+              designation: u.designation ?? null,
+              loginEmail: u.email ?? null,
+            });
+          }
+        } catch {
+          /* non-fatal */
+        }
       }
 
       if (json.verificationEmailSent) {
@@ -433,6 +504,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
+        credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ id, verifyEmailManually: true }),
       });
@@ -460,7 +532,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
-      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
       const json = await res.json();
       if (!json?.ok) {
         toast.error(json?.error || 'Error deleting staff member');

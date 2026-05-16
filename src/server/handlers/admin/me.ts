@@ -119,14 +119,21 @@ export default async function handler(req: Request) {
     // before rendering anything else. Best-effort; a DB hiccup falls back
     // to "no rotation required" rather than locking users out.
     let mustChangePassword = false;
+    let profileRow: {
+      must_change_password: boolean | null;
+      display_name: string | null;
+      designation: string | null;
+      email: string | null;
+    } | null = null;
     try {
       const supabase = supabaseServiceClient("cuephoria-admin-me");
-      const { data: flagRow } = await supabase
+      const { data } = await supabase
         .from("admin_users")
-        .select("must_change_password")
+        .select("must_change_password, display_name, designation, email")
         .eq("id", user.id)
         .maybeSingle();
-      mustChangePassword = !!flagRow?.must_change_password;
+      profileRow = data;
+      mustChangePassword = !!profileRow?.must_change_password;
     } catch (flagErr) {
       console.warn("me.ts: non-fatal must_change lookup error", flagErr);
     }
@@ -134,7 +141,13 @@ export default async function handler(req: Request) {
     return j(
       {
         ok: true,
-        user: { ...user, mustChangePassword },
+        user: {
+          ...user,
+          mustChangePassword,
+          displayName: profileRow?.display_name ?? null,
+          designation: profileRow?.designation ?? null,
+          email: profileRow?.email ?? null,
+        },
         organization,
       },
       200,

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck, Briefcase, IdCard } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -26,6 +26,8 @@ interface StaffUser {
   username: string;
   email?: string | null;
   emailVerifiedAt?: string | null;
+  displayName?: string | null;
+  designation?: string | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   locations: LocationInfo[];
@@ -56,6 +58,8 @@ const StaffManagement: React.FC = () => {
   const [staffMembers, setStaffMembers] = useState<StaffUser[]>([]);
   const [allLocations, setAllLocations] = useState<LocationInfo[]>([]);
   const [newUsername, setNewUsername] = useState('');
+  const [newDisplayName, setNewDisplayName] = useState('');
+  const [newDesignation, setNewDesignation] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [userRole, setUserRole] = useState<'admin' | 'staff'>('staff');
@@ -65,6 +69,8 @@ const StaffManagement: React.FC = () => {
   const [isAddingStaff, setIsAddingStaff] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
   const [editUsername, setEditUsername] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editDesignation, setEditDesignation] = useState('');
   const [editIsSuperAdmin, setEditIsSuperAdmin] = useState(false);
   const [editLocationIds, setEditLocationIds] = useState<string[]>([]);
   const [editPassword, setEditPassword] = useState('');
@@ -77,7 +83,7 @@ const StaffManagement: React.FC = () => {
   const loadStaffMembers = async () => {
     if (!user?.isAdmin) return;
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await fetch('/api/admin/users', { method: 'GET', credentials: 'same-origin' });
       const json = await res.json();
       if (json?.ok) {
         const users: StaffUser[] = json.users ?? [];
@@ -112,7 +118,10 @@ const StaffManagement: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const success = await addStaffMember(newUsername, newPassword, userRole === 'admin', newIsSuperAdmin, selectedLocationIds);
+      const success = await addStaffMember(newUsername, newPassword, userRole === 'admin', newIsSuperAdmin, selectedLocationIds, {
+        displayName: newDisplayName.trim(),
+        designation: newDesignation.trim(),
+      });
       if (success) {
         resetAddForm();
         setIsAddingStaff(false);
@@ -126,6 +135,8 @@ const StaffManagement: React.FC = () => {
   const openEdit = (staff: StaffUser) => {
     setEditingStaff(staff);
     setEditUsername(staff.email ?? staff.username);
+    setEditDisplayName(staff.displayName ?? '');
+    setEditDesignation(staff.designation ?? '');
     setEditIsSuperAdmin(staff.isSuperAdmin);
     setEditLocationIds(staff.locations.map(l => l.id));
     setEditPassword('');
@@ -143,6 +154,8 @@ const StaffManagement: React.FC = () => {
     try {
       const success = await updateStaffMember(editingStaff.id, {
         username: editUsername,
+        displayName: editDisplayName,
+        designation: editDesignation,
         isSuperAdmin: editIsSuperAdmin,
         locationIds: editIsSuperAdmin ? [] : editLocationIds,
         ...(isChangingPassword && editPassword.trim() ? { newPassword: editPassword.trim() } : {}),
@@ -187,6 +200,8 @@ const StaffManagement: React.FC = () => {
 
   const resetAddForm = () => {
     setNewUsername('');
+    setNewDisplayName('');
+    setNewDesignation('');
     setNewPassword('');
     setShowNewPassword(false);
     setUserRole('staff');
@@ -330,6 +345,31 @@ const StaffManagement: React.FC = () => {
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                  <IdCard className="h-4 w-4" /> Full name
+                </Label>
+                <Input
+                  value={newDisplayName}
+                  onChange={(e) => setNewDisplayName(e.target.value)}
+                  placeholder="e.g. Priya Sharma"
+                  className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                />
+                <p className="text-[11px] text-white/40">Shown in the app sidebar and staff list. Optional.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Designation
+                </Label>
+                <Input
+                  value={newDesignation}
+                  onChange={(e) => setNewDesignation(e.target.value)}
+                  placeholder="e.g. Front desk, Manager"
+                  className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
                   <User className="h-4 w-4" /> Email (login)
                 </Label>
                 <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="staff@yourbusiness.com" className="bg-cuephoria-darker border-cuephoria-lightpurple/30" />
@@ -386,6 +426,30 @@ const StaffManagement: React.FC = () => {
                   {editingStaff.email && editingStaff.username !== editingStaff.email && (
                     <p className="text-xs text-white/40">Username: {editingStaff.username}</p>
                   )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                    <IdCard className="h-4 w-4" /> Full name
+                  </Label>
+                  <Input
+                    value={editDisplayName}
+                    onChange={(e) => setEditDisplayName(e.target.value)}
+                    placeholder="Display name"
+                    className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-cuephoria-lightpurple flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" /> Designation
+                  </Label>
+                  <Input
+                    value={editDesignation}
+                    onChange={(e) => setEditDesignation(e.target.value)}
+                    placeholder="Job title"
+                    className="bg-cuephoria-darker border-cuephoria-lightpurple/30"
+                  />
                 </div>
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -471,6 +535,8 @@ const StaffManagement: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Login</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Designation</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Branch Access</TableHead>
@@ -481,6 +547,12 @@ const StaffManagement: React.FC = () => {
                 {staffMembers.map((staff) => (
                   <TableRow key={staff.id}>
                     <TableCell className="font-medium">{staff.username}</TableCell>
+                    <TableCell className="text-sm text-white/75 max-w-[140px] truncate">
+                      {staff.displayName?.trim() || '—'}
+                    </TableCell>
+                    <TableCell className="text-sm text-white/60 max-w-[120px] truncate">
+                      {staff.designation?.trim() || '—'}
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1.5">
                         <span className="text-sm text-white/80">{staff.email ?? '—'}</span>

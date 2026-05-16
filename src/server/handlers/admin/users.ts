@@ -10,6 +10,7 @@ import { appBaseUrl, sendEmail } from "../../email";
 import { issueEmailToken } from "../../emailTokens";
 import { hashPassword } from "../../passwordUtils";
 import { resolveOrgContext } from "../../orgContext";
+import { supabaseServiceClient, SupabaseConfigError } from "../../supabaseServer";
 
 export const config = { runtime: "edge" };
 
@@ -42,16 +43,23 @@ const VERIFY_TTL_MINUTES = 60 * 24;
 
 /** Sends the same verification link as /api/admin/send-verification (new staff must verify before Google sign-in). */
 async function sendAdminVerificationEmail(opts: {
-  supabase: SupabaseClient;
   adminUserId: string;
   email: string;
   displayName: string;
   organizationId: string | null;
   req: Request;
 }): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
+  let supabase: SupabaseClient;
+  try {
+    supabase = supabaseServiceClient("cuetronix-admin-staff-verify-email");
+  } catch (e) {
+    const msg = e instanceof SupabaseConfigError ? e.message : String(e);
+    console.error("[admin/users] sendAdminVerificationEmail: no Supabase client:", msg);
+    return { ok: false, error: msg };
+  }
   try {
     const token = await issueEmailToken({
-      supabase: opts.supabase,
+      supabase,
       adminUserId: opts.adminUserId,
       email: opts.email,
       purpose: "verify_email",
@@ -72,17 +80,27 @@ async function sendAdminVerificationEmail(opts: {
       },
       organizationId: opts.organizationId,
       adminUserId: opts.adminUserId,
-      supabase: opts.supabase,
+      supabase,
     });
-    if (!sent.ok && !sent.skipped) {
-      return { ok: false, error: sent.error || "Could not send email." };
+    if (!sent.ok) {
+      const errMsg =
+        sent.error ||
+        (sent.skipped
+          ? "Resend is not configured (set RESEND_API_KEY and RESEND_FROM on the server)."
+          : "Could not send verification email.");
+      if (sent.skipped) {
+        console.warn("[admin/users] verification email skipped:", opts.email, errMsg);
+      } else {
+        console.warn("[admin/users] verification email failed:", opts.email, errMsg);
+      }
+      return { ok: false, skipped: !!sent.skipped, error: errMsg };
     }
-    return { ok: sent.ok, skipped: !!sent.skipped };
+    console.info("[admin/users] verification email sent to", opts.email);
+    return { ok: true };
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[admin/users] sendAdminVerificationEmail error:", opts.email, msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -110,7 +128,7 @@ export default async function handler(req: Request) {
     if (req.method === "GET") {
       const { data: users, error: usersErr } = await supabase
         .from("admin_users")
-        .select("id, username, email, email_verified_at, is_admin, is_super_admin")
+        .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin")
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
@@ -146,6 +164,8 @@ export default async function handler(req: Request) {
         username: u.username,
         email: u.email ?? null,
         emailVerifiedAt: u.email_verified_at ?? null,
+        displayName: u.display_name ?? null,
+        designation: u.designation ?? null,
         isAdmin: u.is_admin,
         isSuperAdmin: u.is_super_admin,
         locations: userLocations[u.id] ?? [],
@@ -193,6 +213,9 @@ export default async function handler(req: Request) {
 
       if (existingEmail?.id) return j({ ok: false, error: "An account with this email already exists" }, 409);
 
+      const staffDisplayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
+      const staffDesignation = typeof body?.designation === "string" ? body.designation.trim() : "";
+
       const passwordHash = await hashPassword(password);
 
       const { data: newUser, error: insertErr } = await supabase
@@ -200,6 +223,8 @@ export default async function handler(req: Request) {
         .insert({
           username,
           email: emailNorm,
+          display_name: staffDisplayName || null,
+          designation: staffDesignation || null,
           password: null,
           password_hash: passwordHash,
           password_updated_at: new Date().toISOString(),
@@ -259,10 +284,9 @@ export default async function handler(req: Request) {
       }
 
       const mailResult = await sendAdminVerificationEmail({
-        supabase,
         adminUserId: newUser.id,
         email: emailNorm,
-        displayName: username,
+        displayName: staffDisplayName || username,
         organizationId: ctx.organizationId,
         req,
       });
@@ -389,6 +413,14 @@ export default async function handler(req: Request) {
           }
         }
       }
+      if ("displayName" in body && typeof body.displayName === "string") {
+        const v = body.displayName.trim();
+        update.display_name = v.length ? v.slice(0, 120) : null;
+      }
+      if ("designation" in body && typeof body.designation === "string") {
+        const v = body.designation.trim();
+        update.designation = v.length ? v.slice(0, 120) : null;
+      }
       if (typeof body?.newPassword === "string" && body.newPassword.trim()) {
         const newPw = body.newPassword.trim();
         if (newPw.length < 8) {
@@ -416,7 +448,11 @@ export default async function handler(req: Request) {
         await supabase.from("admin_user_locations").delete().eq("admin_user_id", id);
 
         // If super-admin, assign all locations; otherwise use provided list
-        const isSuperAdminNow = update.is_super_admin ?? false;
+        let isSuperAdminNow = !!update.is_super_admin;
+        if (!("is_super_admin" in update)) {
+          const { data: cur } = await supabase.from("admin_users").select("is_super_admin").eq("id", id).maybeSingle();
+          isSuperAdminNow = !!cur?.is_super_admin;
+        }
         const locs = isSuperAdminNow
           ? await (async () => {
               const { data } = await supabase.from("locations").select("id").eq("is_active", true);
@@ -449,7 +485,6 @@ export default async function handler(req: Request) {
           .maybeSingle();
         organizationId = mem?.organization_id ?? null;
         const mailResult = await sendAdminVerificationEmail({
-          supabase,
           adminUserId: id,
           email: emailChangedForVerification,
           displayName: (who?.display_name as string | null) || (who?.username as string) || emailChangedForVerification,

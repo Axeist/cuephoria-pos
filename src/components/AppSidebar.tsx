@@ -58,6 +58,8 @@ const AppSidebar: React.FC = () => {
   const isAdmin = user?.isAdmin || false;
   const isSuperAdmin = user?.isSuperAdmin || false;
   const roleLabel = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Staff';
+  const showName = (user?.displayName?.trim() || user?.username || '').trim();
+  const footerSubtitle = [user?.designation?.trim(), roleLabel].filter(Boolean).join(' · ');
 
   const { activeLocation } = useLocationCtx();
   const isLite = activeLocation?.slug === 'lite';
@@ -236,7 +238,7 @@ const AppSidebar: React.FC = () => {
           border:
             '1px solid color-mix(in oklab, var(--brand-primary-hex) 40%, transparent)',
         }}
-        title={`${user.username} · ${roleLabel}`}
+        title={`${showName} · ${footerSubtitle}`}
       >
         {isAdmin ? (
           <Shield className="h-4 w-4 text-white" />
@@ -274,8 +276,8 @@ const AppSidebar: React.FC = () => {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold text-white truncate">{user.username}</div>
-        <div className="text-[11px] text-white/55 truncate">{roleLabel}</div>
+        <div className="text-sm font-semibold text-white truncate">{showName}</div>
+        <div className="text-[11px] text-white/55 truncate">{footerSubtitle}</div>
       </div>
       <button
         type="button"
@@ -353,9 +355,9 @@ const AppSidebar: React.FC = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold text-white truncate">
-                          {user.username}
+                          {showName}
                         </div>
-                        <div className="text-[11px] text-white/55 truncate">{roleLabel}</div>
+                        <div className="text-[11px] text-white/55 truncate">{footerSubtitle}</div>
                       </div>
                       <button
                         type="button"
