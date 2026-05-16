@@ -1,12 +1,17 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Activity,
   ArrowLeft,
   ArrowRight,
+  Eye,
+  EyeOff,
   FileText,
   Gamepad2,
+  Loader2,
+  Lock,
+  Mail,
   ShieldCheck,
   Sparkles,
   Users,
@@ -15,6 +20,10 @@ import {
 import { appToast } from "@/lib/appToast";
 import GoogleButton from "@/components/auth/GoogleButton";
 import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
+import { useAuth } from "@/context/AuthContext";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 interface LocationState {
   from?: string;
@@ -30,9 +39,24 @@ const FEATURE_PILLS = [
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, isLoading: authLoading, login } = useAuth();
   const locationState = location.state as LocationState;
   const loginNext =
     typeof locationState?.from === "string" && locationState.from.startsWith("/") ? locationState.from : "";
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [totpPhase, setTotpPhase] = useState<{ isAdminLogin: boolean } | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+
+  const dest = loginNext || "/dashboard";
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (user) navigate(dest, { replace: true });
+  }, [authLoading, user, navigate, dest]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -56,6 +80,99 @@ const Login = () => {
     const q = params.toString();
     window.history.replaceState({}, "", q ? `${location.pathname}?${q}` : location.pathname);
   }, [location.search, location.pathname]);
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting || authLoading) return;
+    const trimmed = email.trim();
+    if (!trimmed || !password) {
+      appToast.error("Enter your email and password.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (totpPhase) {
+        const tc = totpCode.trim().replace(/\s+/g, "");
+        const normalized = tc.replace(/-/g, "");
+        const useBackup =
+          normalized.length >= 8 && /^[A-Z0-9]+$/i.test(normalized) && !/^\d{6}$/.test(normalized);
+        const second = useBackup ? { backupCode: normalized.toUpperCase() } : { totpCode: tc };
+        const r = await login(trimmed, password, totpPhase.isAdminLogin, {}, second);
+        if (r.ok) {
+          setTotpPhase(null);
+          setTotpCode("");
+          navigate(dest, { replace: true });
+          return;
+        }
+        if (r.requireTotp) {
+          appToast.error(r.error || "Invalid 2FA code. Try again.");
+          return;
+        }
+        if (r.emailVerificationRequired) {
+          appToast.error(r.error || "Verify your email before signing in.");
+          return;
+        }
+        appToast.error(r.error || "Sign-in failed.");
+        return;
+      }
+
+      const tryAdmin = await login(trimmed, password, true);
+      if (tryAdmin.ok) {
+        navigate(dest, { replace: true });
+        return;
+      }
+      if (tryAdmin.requireTotp) {
+        setTotpPhase({ isAdminLogin: true });
+        setTotpCode("");
+        return;
+      }
+      if (tryAdmin.emailVerificationRequired) {
+        appToast.error(
+          tryAdmin.error ||
+            (tryAdmin.emailSent
+              ? "Check your inbox for a verification link, then sign in again."
+              : "Your email must be verified before you can sign in."),
+        );
+        return;
+      }
+
+      const tryStaff = await login(trimmed, password, false);
+      if (tryStaff.ok) {
+        navigate(dest, { replace: true });
+        return;
+      }
+      if (tryStaff.requireTotp) {
+        setTotpPhase({ isAdminLogin: false });
+        setTotpCode("");
+        return;
+      }
+      if (tryStaff.emailVerificationRequired) {
+        appToast.error(
+          tryStaff.error ||
+            (tryStaff.emailSent
+              ? "Check your inbox for a verification link, then sign in again."
+              : "Your email must be verified before you can sign in."),
+        );
+        return;
+      }
+
+      appToast.error(tryStaff.error || tryAdmin.error || "Invalid email or password.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-white">
+        <AuthSceneBackground />
+        <div className="relative z-20 flex min-h-screen items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-fuchsia-500 border-t-transparent" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#07030f] text-white">
@@ -224,19 +341,123 @@ const Login = () => {
 
                 <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">Sign in</h2>
                 <p className="mt-1.5 text-sm text-gray-400">
-                  Use the Google account linked to your workspace (email must match your Cuetronix profile).
+                  Google is the smoothest path — use the account linked to your workspace. You can also sign in with
+                  the email and password on your profile.
                 </p>
               </div>
 
-              <GoogleButton intent="login" next={loginNext || undefined} />
+              <div className="relative rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-500/10 to-transparent p-1">
+                <div className="absolute right-3 top-2.5 z-10 rounded-full bg-violet-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
+                  Recommended
+                </div>
+                <div className="rounded-[14px] bg-[#0c0618]/80 p-3 pt-9">
+                  <GoogleButton intent="login" next={loginNext || undefined} />
+                </div>
+              </div>
 
-              <p className="mt-4 text-center text-xs text-gray-500">
-                Floor staff at a venue should use{" "}
-                <a href="/cafe/login" className="text-violet-300 hover:text-fuchsia-300">
-                  Cafe sign-in
-                </a>{" "}
-                if your location uses it.
-              </p>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center" aria-hidden>
+                  <div className="w-full border-t border-white/[0.08]" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-[#0f091a] px-3 text-gray-500">or email &amp; password</span>
+                </div>
+              </div>
+
+              <form onSubmit={handlePasswordLogin} className="space-y-4">
+                {totpPhase ? (
+                  <div className="space-y-2">
+                    <p className="text-xs leading-relaxed text-violet-200/90">
+                      This account has 2FA enabled. Enter a code from your authenticator app, or a one-time backup
+                      code.
+                    </p>
+                    <Label htmlFor="login-totp" className="text-gray-300">
+                      Authenticator code
+                    </Label>
+                    <Input
+                      id="login-totp"
+                      type="text"
+                      inputMode="text"
+                      autoComplete="one-time-code"
+                      placeholder="6-digit code or backup code"
+                      value={totpCode}
+                      onChange={(e) => setTotpCode(e.target.value)}
+                      className="h-11 border-white/10 bg-white/[0.04] text-white placeholder:text-gray-500"
+                      maxLength={32}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTotpPhase(null);
+                        setTotpCode("");
+                      }}
+                      className="text-xs text-violet-300 hover:text-fuchsia-300"
+                    >
+                      ← Back to email &amp; password
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email" className="text-gray-300">
+                        Email
+                      </Label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                        <Input
+                          id="login-email"
+                          type="email"
+                          autoComplete="username"
+                          placeholder="you@company.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="h-11 border-white/10 bg-white/[0.04] pl-10 text-white placeholder:text-gray-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password" className="text-gray-300">
+                        Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                        <Input
+                          id="login-password"
+                          type={showPassword ? "text" : "password"}
+                          autoComplete="current-password"
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="h-11 border-white/10 bg-white/[0.04] pl-10 pr-10 text-white placeholder:text-gray-500"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-400 hover:bg-white/10 hover:text-white"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="h-11 w-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 font-semibold text-white shadow-md shadow-fuchsia-600/25 hover:opacity-95"
+                >
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : totpPhase ? (
+                    "Verify and sign in"
+                  ) : (
+                    "Sign in with password"
+                  )}
+                </Button>
+              </form>
 
               <div className="mt-6 flex flex-col items-center gap-1.5">
                 <p className="text-[13px] text-gray-500">
