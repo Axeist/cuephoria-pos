@@ -125,6 +125,7 @@ interface AuthContextType {
     >,
   ) => Promise<boolean>;
   verifyStaffEmailManually: (id: string) => Promise<boolean>;
+  resendStaffVerificationEmail: (id: string) => Promise<boolean>;
   deleteStaffMember: (id: string) => Promise<boolean>;
   getLoginLogs: () => Promise<LoginLog[]>;
   deleteLoginLog: (logId: string) => Promise<boolean>;
@@ -220,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
@@ -525,6 +527,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resendStaffVerificationEmail = async (id: string): Promise<boolean> => {
+    try {
+      if (!user?.isAdmin) {
+        toast.error('Only admins can resend verification email');
+        return false;
+      }
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, resendVerificationEmail: true }),
+      });
+      const json = await res.json();
+      if (!json?.ok) {
+        toast.error(json?.error || 'Could not resend verification email');
+        return false;
+      }
+      if (json.alreadyVerified) {
+        toast.success('That address is already verified.');
+        return true;
+      }
+      if (json.verificationEmailSent) {
+        toast.success('Verification link sent. Ask them to check inbox and spam.');
+        return true;
+      }
+      if (json.verificationEmailSkipped) {
+        toast.error(
+          'Outgoing mail is not configured on the server (set RESEND_API_KEY and RESEND_FROM).',
+        );
+        return false;
+      }
+      if (json.verificationEmailError) {
+        toast.error(`Verification email failed: ${json.verificationEmailError}`);
+        return false;
+      }
+      toast.error('Verification email was not sent.');
+      return false;
+    } catch {
+      toast.error('Could not resend verification email');
+      return false;
+    }
+  };
+
   const deleteStaffMember = async (id: string): Promise<boolean> => {
     try {
       if (!user?.isAdmin) {
@@ -561,6 +606,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       getStaffMembers,
       updateStaffMember,
       verifyStaffEmailManually,
+      resendStaffVerificationEmail,
       deleteStaffMember,
       getLoginLogs,
       deleteLoginLog

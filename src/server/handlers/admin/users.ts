@@ -372,6 +372,74 @@ export default async function handler(req: Request) {
         return j({ ok: true, emailVerifiedAt: verifiedAt }, 200);
       }
 
+      /** Re-issue verify_email token + Resend message (e.g. after DB migration or deliverability issues). */
+      if (body.resendVerificationEmail === true) {
+        const targetId = String(body.id || "").trim();
+        if (!targetId) return j({ ok: false, error: "Missing id." }, 400);
+
+        const { data: target, error: tErr } = await supabase
+          .from("admin_users")
+          .select("id, email, email_verified_at, is_super_admin, username, display_name")
+          .eq("id", targetId)
+          .maybeSingle();
+        if (tErr) return j({ ok: false, error: tErr.message }, 500);
+        if (!target) return j({ ok: false, error: "User not found." }, 404);
+        if (!target.email) return j({ ok: false, error: "This user has no email on file." }, 400);
+        if (target.email_verified_at) {
+          return j({ ok: true, alreadyVerified: true }, 200);
+        }
+
+        if (target.is_super_admin && !sessionUser.isSuperAdmin) {
+          return j({ ok: false, error: "Only a super-admin can resend verification for this account." }, 403);
+        }
+
+        const { data: actorOrgs, error: actorOrgErr } = await supabase
+          .from("org_memberships")
+          .select("organization_id")
+          .eq("admin_user_id", sessionUser.id);
+        if (actorOrgErr) return j({ ok: false, error: actorOrgErr.message }, 500);
+
+        const { data: targetOrgs, error: targetOrgErr } = await supabase
+          .from("org_memberships")
+          .select("organization_id")
+          .eq("admin_user_id", targetId);
+        if (targetOrgErr) return j({ ok: false, error: targetOrgErr.message }, 500);
+
+        const actorSet = new Set((actorOrgs ?? []).map((r: { organization_id: string }) => r.organization_id));
+        const sharedOrgId = (targetOrgs ?? []).find((r: { organization_id: string }) =>
+          actorSet.has(r.organization_id),
+        )?.organization_id;
+        if (!sharedOrgId && !sessionUser.isSuperAdmin) {
+          return j(
+            { ok: false, error: "You can only resend verification for users in a workspace you share." },
+            403,
+          );
+        }
+
+        const organizationId = sharedOrgId ?? (targetOrgs ?? [])[0]?.organization_id ?? null;
+        const emailNorm = String(target.email).trim().toLowerCase();
+        const displayName =
+          (target.display_name as string | null) || (target.username as string) || emailNorm;
+
+        const mailResult = await sendAdminVerificationEmail({
+          adminUserId: targetId,
+          email: emailNorm,
+          displayName,
+          organizationId,
+          req,
+        });
+
+        return j(
+          {
+            ok: true,
+            verificationEmailSent: mailResult.ok,
+            verificationEmailSkipped: !!mailResult.skipped,
+            verificationEmailError: mailResult.error ?? null,
+          },
+          200,
+        );
+      }
+
       const id = String(body?.id || "");
       if (!id) return j({ ok: false, error: "Missing id" }, 400);
 

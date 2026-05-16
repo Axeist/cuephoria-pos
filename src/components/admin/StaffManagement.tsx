@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck, Briefcase, IdCard } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Users, User, Edit, Globe, MapPin, Star, Lock, Eye, EyeOff, KeyRound, MailCheck, Send, Briefcase, IdCard } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -77,7 +77,8 @@ const StaffManagement: React.FC = () => {
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  const { user, addStaffMember, updateStaffMember, deleteStaffMember, verifyStaffEmailManually } = useAuth();
+  const { user, addStaffMember, updateStaffMember, deleteStaffMember, verifyStaffEmailManually, resendStaffVerificationEmail } =
+    useAuth();
   const { toast } = useToast();
 
   const loadStaffMembers = async () => {
@@ -173,6 +174,17 @@ const StaffManagement: React.FC = () => {
     if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
     const success = await deleteStaffMember(id);
     if (success) loadStaffMembers();
+  };
+
+  const handleResendVerificationEmail = async (staff: StaffUser) => {
+    if (!staff.email || staff.emailVerifiedAt) return;
+    setIsLoading(true);
+    try {
+      const ok = await resendStaffVerificationEmail(staff.id);
+      if (ok) loadStaffMembers();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleManualVerifyEmail = async (staff: StaffUser) => {
@@ -605,17 +617,30 @@ const StaffManagement: React.FC = () => {
                           <Edit className="h-3.5 w-3.5" />
                         </Button>
                         {staff.email && !staff.emailVerifiedAt && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleManualVerifyEmail(staff)}
-                            disabled={isLoading}
-                            className="h-8 gap-1 px-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-                            title="Mark email as verified (e.g. confirmed in person)"
-                          >
-                            <MailCheck className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline text-[11px]">Verify email</span>
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleResendVerificationEmail(staff)}
+                              disabled={isLoading}
+                              className="h-8 gap-1 px-2 border-violet-500/30 text-violet-200 hover:bg-violet-500/10"
+                              title="Send a fresh verification link to their inbox"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline text-[11px]">Resend link</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleManualVerifyEmail(staff)}
+                              disabled={isLoading}
+                              className="h-8 gap-1 px-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                              title="Mark email as verified without the link (only if you confirmed the inbox yourself)"
+                            >
+                              <MailCheck className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline text-[11px]">Verify email</span>
+                            </Button>
+                          </>
                         )}
                         <Button
                           size="sm"

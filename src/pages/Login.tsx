@@ -5,6 +5,8 @@ import {
   Activity,
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
   Eye,
   EyeOff,
   FileText,
@@ -50,8 +52,14 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
   const [totpPhase, setTotpPhase] = useState<{ isAdminLogin: boolean } | null>(null);
   const [totpCode, setTotpCode] = useState("");
+  const [manualLoginOpen, setManualLoginOpen] = useState(false);
+  const [verificationHint, setVerificationHint] = useState<string | null>(null);
 
   const dest = loginNext || "/dashboard";
+
+  useEffect(() => {
+    if (totpPhase) setManualLoginOpen(true);
+  }, [totpPhase]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -81,6 +89,18 @@ const Login = () => {
     window.history.replaceState({}, "", q ? `${location.pathname}?${q}` : location.pathname);
   }, [location.search, location.pathname]);
 
+  const toggleManualLogin = () => {
+    if (manualLoginOpen) {
+      if (totpPhase) {
+        setTotpPhase(null);
+        setTotpCode("");
+      }
+      setManualLoginOpen(false);
+      return;
+    }
+    setManualLoginOpen(true);
+  };
+
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting || authLoading) return;
@@ -91,6 +111,7 @@ const Login = () => {
     }
 
     setSubmitting(true);
+    setVerificationHint(null);
     try {
       if (totpPhase) {
         const tc = totpCode.trim().replace(/\s+/g, "");
@@ -128,12 +149,14 @@ const Login = () => {
         return;
       }
       if (tryAdmin.emailVerificationRequired) {
-        appToast.error(
+        const msg =
           tryAdmin.error ||
-            (tryAdmin.emailSent
-              ? "Check your inbox for a verification link, then sign in again."
-              : "Your email must be verified before you can sign in."),
-        );
+          (tryAdmin.emailSent
+            ? "Check your inbox (and spam) for a verification link, then sign in again."
+            : "Your email must be verified before you can sign in.");
+        setVerificationHint(msg);
+        setManualLoginOpen(true);
+        appToast.error(msg);
         return;
       }
 
@@ -148,12 +171,14 @@ const Login = () => {
         return;
       }
       if (tryStaff.emailVerificationRequired) {
-        appToast.error(
+        const msg =
           tryStaff.error ||
-            (tryStaff.emailSent
-              ? "Check your inbox for a verification link, then sign in again."
-              : "Your email must be verified before you can sign in."),
-        );
+          (tryStaff.emailSent
+            ? "Check your inbox (and spam) for a verification link, then sign in again."
+            : "Your email must be verified before you can sign in.");
+        setVerificationHint(msg);
+        setManualLoginOpen(true);
+        appToast.error(msg);
         return;
       }
 
@@ -341,123 +366,152 @@ const Login = () => {
 
                 <h2 className="text-2xl font-extrabold tracking-tight sm:text-[28px]">Sign in</h2>
                 <p className="mt-1.5 text-sm text-gray-400">
-                  Google is the smoothest path — use the account linked to your workspace. You can also sign in with
-                  the email and password on your profile.
+                  Use the Google account linked to your workspace — it is the fastest way in.
                 </p>
               </div>
 
-              <div className="relative rounded-2xl border border-violet-400/25 bg-gradient-to-b from-violet-500/10 to-transparent p-1">
-                <div className="absolute right-3 top-2.5 z-10 rounded-full bg-violet-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm">
-                  Recommended
+              {verificationHint ? (
+                <div className="mb-5 rounded-xl border border-amber-400/20 bg-amber-500/[0.08] px-3.5 py-3 text-xs leading-relaxed text-amber-100/95">
+                  <p>{verificationHint}</p>
+                  <p className="mt-2 text-[11px] text-amber-200/75">
+                    If no message arrives, the server needs transactional email configured: set{" "}
+                    <code className="rounded bg-black/25 px-1 py-0.5 font-mono text-[10px] text-amber-50">
+                      RESEND_API_KEY
+                    </code>{" "}
+                    and{" "}
+                    <code className="rounded bg-black/25 px-1 py-0.5 font-mono text-[10px] text-amber-50">
+                      RESEND_FROM
+                    </code>{" "}
+                    (see deployment docs).
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2.5 text-[11px] font-semibold text-amber-200 underline-offset-2 hover:text-white hover:underline"
+                    onClick={() => setVerificationHint(null)}
+                  >
+                    Dismiss
+                  </button>
                 </div>
-                <div className="rounded-[14px] bg-[#0c0618]/80 p-3 pt-9">
-                  <GoogleButton intent="login" next={loginNext || undefined} />
-                </div>
-              </div>
+              ) : null}
 
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center" aria-hidden>
-                  <div className="w-full border-t border-white/[0.08]" />
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-[#0f091a] px-3 text-gray-500">or email &amp; password</span>
-                </div>
-              </div>
+              <GoogleButton intent="login" next={loginNext || undefined} />
 
-              <form onSubmit={handlePasswordLogin} className="space-y-4">
-                {totpPhase ? (
-                  <div className="space-y-2">
-                    <p className="text-xs leading-relaxed text-violet-200/90">
-                      This account has 2FA enabled. Enter a code from your authenticator app, or a one-time backup
-                      code.
-                    </p>
-                    <Label htmlFor="login-totp" className="text-gray-300">
-                      Authenticator code
-                    </Label>
-                    <Input
-                      id="login-totp"
-                      type="text"
-                      inputMode="text"
-                      autoComplete="one-time-code"
-                      placeholder="6-digit code or backup code"
-                      value={totpCode}
-                      onChange={(e) => setTotpCode(e.target.value)}
-                      className="h-11 border-white/10 bg-white/[0.04] text-white placeholder:text-gray-500"
-                      maxLength={32}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTotpPhase(null);
-                        setTotpCode("");
-                      }}
-                      className="text-xs text-violet-300 hover:text-fuchsia-300"
-                    >
-                      ← Back to email &amp; password
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-email" className="text-gray-300">
-                        Email
-                      </Label>
-                      <div className="relative">
-                        <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                        <Input
-                          id="login-email"
-                          type="email"
-                          autoComplete="username"
-                          placeholder="you@company.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="h-11 border-white/10 bg-white/[0.04] pl-10 text-white placeholder:text-gray-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password" className="text-gray-300">
-                        Password
-                      </Label>
-                      <div className="relative">
-                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                        <Input
-                          id="login-password"
-                          type={showPassword ? "text" : "password"}
-                          autoComplete="current-password"
-                          placeholder="••••••••"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="h-11 border-white/10 bg-white/[0.04] pl-10 pr-10 text-white placeholder:text-gray-500"
-                        />
-                        <button
-                          type="button"
-                          tabIndex={-1}
-                          onClick={() => setShowPassword((v) => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-400 hover:bg-white/10 hover:text-white"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  className="h-11 w-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 font-semibold text-white shadow-md shadow-fuchsia-600/25 hover:opacity-95"
+              {!totpPhase ? (
+                <button
+                  type="button"
+                  onClick={toggleManualLogin}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] py-2.5 text-sm font-medium text-gray-300 transition-colors hover:bg-white/[0.07] hover:text-white"
                 >
-                  {submitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : totpPhase ? (
-                    "Verify and sign in"
+                  {manualLoginOpen ? (
+                    <>
+                      <ChevronUp size={16} className="shrink-0 opacity-80" aria-hidden />
+                      Hide email &amp; password
+                    </>
                   ) : (
-                    "Sign in with password"
+                    <>
+                      <ChevronDown size={16} className="shrink-0 opacity-80" aria-hidden />
+                      Sign in with email &amp; password
+                    </>
                   )}
-                </Button>
-              </form>
+                </button>
+              ) : null}
+
+              {manualLoginOpen || totpPhase ? (
+                <form onSubmit={handlePasswordLogin} className="mt-5 space-y-4 border-t border-white/[0.08] pt-5">
+                  {totpPhase ? (
+                    <div className="space-y-2">
+                      <p className="text-xs leading-relaxed text-violet-200/90">
+                        This account has 2FA enabled. Enter a code from your authenticator app, or a one-time backup
+                        code.
+                      </p>
+                      <Label htmlFor="login-totp" className="text-gray-300">
+                        Authenticator code
+                      </Label>
+                      <Input
+                        id="login-totp"
+                        type="text"
+                        inputMode="text"
+                        autoComplete="one-time-code"
+                        placeholder="6-digit code or backup code"
+                        value={totpCode}
+                        onChange={(e) => setTotpCode(e.target.value)}
+                        className="h-11 border-white/10 bg-white/[0.04] text-white placeholder:text-gray-500"
+                        maxLength={32}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTotpPhase(null);
+                          setTotpCode("");
+                        }}
+                        className="text-xs text-violet-300 hover:text-fuchsia-300"
+                      >
+                        ← Back to email &amp; password
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="login-email" className="text-gray-300">
+                          Email
+                        </Label>
+                        <div className="relative">
+                          <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                          <Input
+                            id="login-email"
+                            type="email"
+                            autoComplete="username"
+                            placeholder="you@company.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="h-11 border-white/10 bg-white/[0.04] pl-10 text-white placeholder:text-gray-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="login-password" className="text-gray-300">
+                          Password
+                        </Label>
+                        <div className="relative">
+                          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                          <Input
+                            id="login-password"
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="current-password"
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="h-11 border-white/10 bg-white/[0.04] pl-10 pr-10 text-white placeholder:text-gray-500"
+                          />
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-400 hover:bg-white/10 hover:text-white"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={submitting}
+                    className="h-11 w-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 font-semibold text-white shadow-md shadow-fuchsia-600/25 hover:opacity-95"
+                  >
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : totpPhase ? (
+                      "Verify and sign in"
+                    ) : (
+                      "Sign in with password"
+                    )}
+                  </Button>
+                </form>
+              ) : null}
 
               <div className="mt-6 flex flex-col items-center gap-1.5">
                 <p className="text-[13px] text-gray-500">
