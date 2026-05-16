@@ -18,7 +18,7 @@
 
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -321,32 +321,61 @@ function tierLabel(code: string): string {
   return code.charAt(0).toUpperCase() + code.slice(1);
 }
 
+/**
+ * Error subtype that carries the raw HTTP status and body snippet from a
+ * failed /api/tenant/billing call. The error card surfaces these so a stuck
+ * page is never a black box for QA.
+ */
+export class BillingApiError extends Error {
+  status: number;
+  bodySnippet: string;
+  url: string;
+  constructor(message: string, opts: { status: number; bodySnippet: string; url: string }) {
+    super(message);
+    this.name = "BillingApiError";
+    this.status = opts.status;
+    this.bodySnippet = opts.bodySnippet;
+    this.url = opts.url;
+  }
+}
+
 async function parseBillingJson(res: Response): Promise<Record<string, unknown>> {
   const text = await res.text();
   const trimmed = text.trim();
+  const snippet = trimmed.replace(/\s+/g, " ").slice(0, 220);
   const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
   if (!looksJson) {
-    const snippet = trimmed.replace(/\s+/g, " ").slice(0, 160);
-    throw new Error(snippet || `Billing request failed (HTTP ${res.status}).`);
+    throw new BillingApiError(
+      snippet || `Billing request failed (HTTP ${res.status}).`,
+      { status: res.status, bodySnippet: snippet, url: res.url },
+    );
   }
   try {
     return JSON.parse(trimmed) as Record<string, unknown>;
   } catch {
-    throw new Error(trimmed.replace(/\s+/g, " ").slice(0, 160));
+    throw new BillingApiError(snippet, { status: res.status, bodySnippet: snippet, url: res.url });
   }
 }
 
 async function postBillingAction<T = Record<string, unknown>>(
   body: Record<string, unknown>,
 ): Promise<T> {
+  console.log("[Billing] POST /api/tenant/billing", body);
   const res = await fetch("/api/tenant/billing", {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+  console.log(`[Billing] POST response: HTTP ${res.status}`);
   const json = await parseBillingJson(res);
-  if (json.ok === false) throw new Error(String(json.error || "Request failed"));
+  if (json.ok === false) {
+    throw new BillingApiError(String(json.error || "Request failed"), {
+      status: res.status,
+      bodySnippet: JSON.stringify(json).slice(0, 220),
+      url: res.url,
+    });
+  }
   return json as T;
 }
 
@@ -357,47 +386,92 @@ async function postBillingAction<T = Record<string, unknown>>(
 export default function Billing() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const location = useLocation();
   const [cycle, setCycle] = React.useState<BillingCycle>("month");
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [pendingTier, setPendingTier] = React.useState<PlanTier | null>(null);
 
+  // Mount-time diagnostics. If you ever look at /settings/billing and the
+  // page is stuck on the skeleton, the very first thing to check is whether
+  // this line appears in the browser console. If it does NOT, the route
+  // never mounted (likely OnboardingGate or auth redirect intercepted).
+  React.useEffect(() => {
+    console.log("[Billing] mounted at", location.pathname, location.search);
+    return () => {
+      console.log("[Billing] unmounted");
+    };
+  }, [location.pathname, location.search]);
+
   const refreshBilling = React.useCallback(() => {
+    console.log("[Billing] invalidate cache");
     void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
   }, [qc]);
 
-  const billingQ = useQuery<BillingResponse>({
+  const billingQ = useQuery<BillingResponse, BillingApiError | Error>({
     queryKey: ["tenant-billing"],
     queryFn: async ({ signal }) => {
+      console.log("[Billing] GET /api/tenant/billing — start");
       const controller = new AbortController();
       const onMainAbort = () => controller.abort();
       signal.addEventListener("abort", onMainAbort);
+      const t0 = performance.now();
       const t = window.setTimeout(() => controller.abort(), 20_000);
       try {
         const res = await fetch("/api/tenant/billing", {
           credentials: "include",
           signal: controller.signal,
         });
+        const elapsed = Math.round(performance.now() - t0);
+        console.log(`[Billing] GET response: HTTP ${res.status} in ${elapsed}ms`);
         const json = await parseBillingJson(res);
-        if (json.ok === false) throw new Error(String(json.error || "Failed to load billing"));
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (json.ok === false) {
+          throw new BillingApiError(String(json.error || "Failed to load billing"), {
+            status: res.status,
+            bodySnippet: JSON.stringify(json).slice(0, 220),
+            url: res.url,
+          });
+        }
+        if (!res.ok) {
+          throw new BillingApiError(`Billing request failed (HTTP ${res.status}).`, {
+            status: res.status,
+            bodySnippet: JSON.stringify(json).slice(0, 220),
+            url: res.url,
+          });
+        }
+        console.log("[Billing] GET ok — plans:", (json as BillingResponse).plans?.length ?? 0);
         return json as BillingResponse;
       } catch (e: unknown) {
         const name = e && typeof e === "object" && "name" in e ? (e as { name?: string }).name : "";
         if (name === "AbortError") {
-          throw new Error("Billing request timed out. Check your connection and try again.");
+          const timeoutErr = new BillingApiError(
+            "Billing request timed out after 20s. Check the API deployment / network.",
+            { status: 0, bodySnippet: "client abort", url: "/api/tenant/billing" },
+          );
+          console.error("[Billing] aborted", timeoutErr);
+          throw timeoutErr;
         }
-        throw e;
+        console.error("[Billing] GET failed", e);
+        throw e instanceof Error ? e : new Error(String(e));
       } finally {
         window.clearTimeout(t);
         signal.removeEventListener("abort", onMainAbort);
       }
     },
-    // Fail fast (one retry) so a real backend error surfaces in a few seconds
-    // instead of holding the skeleton through three slow retries.
+    // Defensive: refetch every mount because the global queryClient has
+    // refetchOnMount=false and any stale failure from an earlier session
+    // would otherwise keep the page in error state with no retry.
+    refetchOnMount: "always",
     retry: 1,
     retryDelay: 1500,
     staleTime: 15_000,
   });
+
+  React.useEffect(() => {
+    console.log(
+      `[Billing] query state — status=${billingQ.status} fetchStatus=${billingQ.fetchStatus} ` +
+        `isLoading=${billingQ.isLoading} isError=${billingQ.isError} hasData=${!!billingQ.data}`,
+    );
+  }, [billingQ.status, billingQ.fetchStatus, billingQ.isLoading, billingQ.isError, billingQ.data]);
 
   // Mutations -------------------------------------------------------------
 
@@ -613,18 +687,43 @@ export default function Billing() {
 
   // Render guards ---------------------------------------------------------
 
-  if (billingQ.isLoading) return <BillingSkeleton />;
+  if (billingQ.isLoading) return <BillingSkeleton path={location.pathname} />;
   if (billingQ.isError || !billingQ.data) {
+    const err = billingQ.error;
+    const apiErr = err instanceof BillingApiError ? err : null;
     return (
       <div className="min-h-screen bg-[#070815] text-zinc-100 p-6 flex items-center justify-center">
-        <Card className="max-w-lg w-full border-rose-500/30 bg-rose-950/20">
-          <CardContent className="py-10 text-center">
-            <XCircle className="h-12 w-12 text-rose-400 mx-auto mb-4" />
-            <h1 className="text-lg font-semibold">Billing unavailable</h1>
-            <p className="text-sm text-zinc-400 mt-2">{(billingQ.error as Error | undefined)?.message}</p>
-            <Button variant="outline" className="mt-6 border-white/20" onClick={() => refreshBilling()}>
-              <RefreshCw className="h-4 w-4 mr-2" /> Try again
-            </Button>
+        <Card className="max-w-xl w-full border-rose-500/30 bg-rose-950/20">
+          <CardContent className="py-8">
+            <div className="text-center">
+              <XCircle className="h-12 w-12 text-rose-400 mx-auto mb-4" />
+              <h1 className="text-lg font-semibold">Billing unavailable</h1>
+              <p className="text-sm text-zinc-300 mt-2">{err?.message ?? "Unknown error."}</p>
+            </div>
+            <details className="mt-6 text-left text-xs text-zinc-400 bg-black/30 rounded-lg p-3 border border-white/10">
+              <summary className="cursor-pointer text-zinc-300 font-semibold">
+                Developer details
+              </summary>
+              <div className="mt-2 space-y-1 font-mono break-all">
+                <div>
+                  <span className="text-zinc-500">URL:</span> {apiErr?.url ?? "/api/tenant/billing"}
+                </div>
+                <div>
+                  <span className="text-zinc-500">HTTP status:</span> {apiErr?.status ?? "—"}
+                </div>
+                <div>
+                  <span className="text-zinc-500">Body:</span> {apiErr?.bodySnippet ?? "(none)"}
+                </div>
+                <div>
+                  <span className="text-zinc-500">Path:</span> {location.pathname}
+                </div>
+              </div>
+            </details>
+            <div className="mt-6 flex justify-center">
+              <Button variant="outline" className="border-white/20" onClick={() => refreshBilling()}>
+                <RefreshCw className="h-4 w-4 mr-2" /> Try again
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -1164,9 +1263,13 @@ function Stat({
   );
 }
 
-function BillingSkeleton() {
+function BillingSkeleton({ path }: { path?: string }) {
   return (
     <div className="min-h-screen bg-[#070815] p-6 space-y-6 max-w-6xl mx-auto">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-zinc-500">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Loading billing… {path ? <span className="font-mono text-zinc-600">({path})</span> : null}
+      </div>
       <Skeleton className="h-10 w-64 bg-white/10" />
       <div className="grid lg:grid-cols-5 gap-6">
         <Skeleton className="h-80 lg:col-span-2 rounded-xl bg-white/10" />

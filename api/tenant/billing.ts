@@ -62,9 +62,26 @@ export const config = { maxDuration: 60 };
 
 const EDITOR_ROLES = new Set(["owner", "admin"]);
 const INVOICE_PAGE_SIZE = 24;
+const DB_QUERY_TIMEOUT_MS = 12_000;
 
 type BillingCycle = "month" | "year";
 type PlanTier = "starter" | "growth" | "pro";
+
+/**
+ * Race a Supabase query against a clear timeout error so a stuck DB call
+ * surfaces as a labelled failure instead of hanging the entire handler.
+ */
+async function withTimeout<T>(label: string, p: PromiseLike<T>, ms = DB_QUERY_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} query timed out after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([Promise.resolve(p), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Top-level dispatcher
@@ -76,19 +93,99 @@ async function handler(req: Request, ctx: OrgContext): Promise<Response> {
   return j({ ok: false, error: "Method not allowed" }, 405);
 }
 
-export default withOrgContext(handler);
+const wrappedHandler = withOrgContext(handler);
+
+/**
+ * Outer router that runs BEFORE `withOrgContext` so it can:
+ *
+ *   - Return a lightweight `?probe=1` response without touching Supabase or
+ *     Razorpay. Use this to confirm the function deployed correctly:
+ *       GET /api/tenant/billing?probe=1
+ *     A 200 JSON proves the file is live in Vercel; a 504 / hang proves the
+ *     function build itself is broken.
+ *
+ *   - Wrap the real handler with a hard `Promise.race` watchdog so we ALWAYS
+ *     respond inside 30 seconds. If a Supabase query hangs, the client gets
+ *     a clear 504 instead of a phantom "pending forever" request.
+ */
+export default async function billingEntry(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  if (req.method === "GET" && url.searchParams.get("probe") === "1") {
+    return j(
+      {
+        ok: true,
+        probe: true,
+        runtime: "node",
+        nodeVersion: typeof process !== "undefined" ? process.version : "unknown",
+        razorpayConfigured: !!(
+          process.env.RAZORPAY_KEY_ID_LIVE ||
+          process.env.RAZORPAY_KEY_ID_TEST ||
+          process.env.RAZORPAY_KEY_ID
+        ),
+        supabaseConfigured: !!(
+          process.env.SUPABASE_URL ||
+          process.env.VITE_SUPABASE_URL ||
+          process.env.NEXT_PUBLIC_SUPABASE_URL
+        ),
+        supabaseServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        webhookSecret: !!(
+          process.env.RAZORPAY_WEBHOOK_SECRET_LIVE ||
+          process.env.RAZORPAY_WEBHOOK_SECRET_TEST ||
+          process.env.RAZORPAY_WEBHOOK_SECRET
+        ),
+        ts: new Date().toISOString(),
+      },
+      200,
+    );
+  }
+
+  const WATCHDOG_MS = 30_000;
+  const watchdog = new Promise<Response>((resolve) =>
+    setTimeout(
+      () =>
+        resolve(
+          j(
+            {
+              ok: false,
+              error:
+                "Billing handler watchdog tripped at 30s — a downstream call (Supabase or Razorpay) never returned. Check Vercel function logs for the last [billing.*] line.",
+              step: "watchdog",
+            },
+            504,
+          ),
+        ),
+      WATCHDOG_MS,
+    ),
+  );
+
+  return Promise.race([wrappedHandler(req), watchdog]);
+}
 
 // ---------------------------------------------------------------------------
 // GET — snapshot
 // ---------------------------------------------------------------------------
 
 async function getBilling(ctx: OrgContext): Promise<Response> {
+  // Per-request log prefix; every step in this handler tags its log lines so
+  // a stuck billing page can always be diagnosed from Vercel function logs
+  // without having to add ad-hoc instrumentation.
+  const log = (msg: string, extra?: unknown) =>
+    console.log(`[billing.GET] org=${ctx.organizationSlug} role=${ctx.role} ${msg}`, extra ?? "");
+  const err = (msg: string, extra?: unknown) =>
+    console.error(`[billing.GET] org=${ctx.organizationSlug} ${msg}`, extra ?? "");
+
+  log("start");
   let creds: ReturnType<typeof getRazorpayCredentials>;
   try {
     creds = getRazorpayCredentials("default");
   } catch (e) {
-    return j({ ok: false, error: e instanceof Error ? e.message : "Razorpay not configured" }, 503);
+    err("razorpay credentials missing", e);
+    return j(
+      { ok: false, error: e instanceof Error ? e.message : "Razorpay not configured", step: "credentials" },
+      503,
+    );
   }
+  log(`credentials ok mode=${creds.isLive ? "live" : "test"} key=${creds.keyId.slice(0, 12)}…`);
 
   const supabase = ctx.supabase;
   /**
@@ -99,42 +196,80 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
    * `undefined` on the row, which the typed frontend already treats as
    * "no value" — far better UX than the page hanging on an error.
    */
-  const [orgQ, subQ, plansQ, invQ] = await Promise.all([
-    supabase
-      .from("organizations")
-      .select("id, slug, name, currency, country, status, is_internal, trial_ends_at")
-      .eq("id", ctx.organizationId)
-      .maybeSingle(),
-    supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("organization_id", ctx.organizationId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("plans")
-      .select(
-        "id, code, name, is_public, is_active, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year, sort_order",
-      )
-      .eq("is_active", true)
-      .eq("is_public", true)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("invoices")
-      .select(
-        "id, status, amount_inr, currency, period_start, period_end, paid_at, short_url, provider_invoice_id, provider_payment_id, provider_subscription_id, created_at",
-      )
-      .eq("organization_id", ctx.organizationId)
-      .order("created_at", { ascending: false })
-      .limit(INVOICE_PAGE_SIZE),
-  ]);
+  let orgQ, subQ, plansQ, invQ;
+  try {
+    [orgQ, subQ, plansQ, invQ] = await Promise.all([
+      withTimeout(
+        "organizations",
+        supabase
+          .from("organizations")
+          .select("id, slug, name, currency, country, status, is_internal, trial_ends_at")
+          .eq("id", ctx.organizationId)
+          .maybeSingle(),
+      ),
+      withTimeout(
+        "subscriptions",
+        supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("organization_id", ctx.organizationId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ),
+      withTimeout(
+        "plans",
+        supabase
+          .from("plans")
+          .select(
+            "id, code, name, is_public, is_active, price_inr_month, price_inr_year, razorpay_plan_id_month, razorpay_plan_id_year, sort_order",
+          )
+          .eq("is_active", true)
+          .eq("is_public", true)
+          .order("sort_order", { ascending: true }),
+      ),
+      withTimeout(
+        "invoices",
+        supabase
+          .from("invoices")
+          .select(
+            "id, status, amount_inr, currency, period_start, period_end, paid_at, short_url, provider_invoice_id, provider_payment_id, provider_subscription_id, created_at",
+          )
+          .eq("organization_id", ctx.organizationId)
+          .order("created_at", { ascending: false })
+          .limit(INVOICE_PAGE_SIZE),
+      ),
+    ]);
+  } catch (timeoutErr) {
+    const m = timeoutErr instanceof Error ? timeoutErr.message : String(timeoutErr);
+    err("db query timeout", m);
+    return j({ ok: false, error: m, step: "db-timeout" }, 504);
+  }
 
-  if (orgQ.error) return j({ ok: false, error: `organizations: ${orgQ.error.message}` }, 500);
-  if (!orgQ.data) return j({ ok: false, error: "Organization not found." }, 404);
-  if (subQ.error) return j({ ok: false, error: `subscriptions: ${subQ.error.message}` }, 500);
-  if (plansQ.error) return j({ ok: false, error: `plans: ${plansQ.error.message}` }, 500);
-  if (invQ.error) return j({ ok: false, error: `invoices: ${invQ.error.message}` }, 500);
+  if (orgQ.error) {
+    err("organizations query failed", orgQ.error);
+    return j({ ok: false, error: `organizations: ${orgQ.error.message}`, step: "organizations" }, 500);
+  }
+  if (!orgQ.data) {
+    err("organization row missing");
+    return j({ ok: false, error: "Organization not found.", step: "organizations" }, 404);
+  }
+  if (subQ.error) {
+    err("subscriptions query failed", subQ.error);
+    return j({ ok: false, error: `subscriptions: ${subQ.error.message}`, step: "subscriptions" }, 500);
+  }
+  if (plansQ.error) {
+    err("plans query failed", plansQ.error);
+    return j({ ok: false, error: `plans: ${plansQ.error.message}`, step: "plans" }, 500);
+  }
+  if (invQ.error) {
+    err("invoices query failed", invQ.error);
+    return j({ ok: false, error: `invoices: ${invQ.error.message}`, step: "invoices" }, 500);
+  }
+  log(
+    `db ok plans=${plansQ.data?.length ?? 0} invoices=${invQ.data?.length ?? 0} ` +
+      `subscription=${subQ.data ? "yes" : "no"}`,
+  );
 
   let currentPlan: { id: string; code: string; name: string } | null = null;
   if (subQ.data?.plan_id) {
@@ -142,20 +277,36 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
     if (match) {
       currentPlan = { id: match.id, code: match.code, name: match.name };
     } else {
-      const { data: lookup } = await supabase
-        .from("plans")
-        .select("id, code, name")
-        .eq("id", subQ.data.plan_id)
-        .maybeSingle();
-      if (lookup) currentPlan = lookup;
+      try {
+        const { data: lookup } = await withTimeout(
+          "currentPlanLookup",
+          supabase
+            .from("plans")
+            .select("id, code, name")
+            .eq("id", subQ.data.plan_id)
+            .maybeSingle(),
+        );
+        if (lookup) currentPlan = lookup;
+      } catch (e) {
+        err("currentPlanLookup timeout (non-fatal)", e);
+      }
     }
   }
 
-  const { data: adminRow } = await supabase
-    .from("admin_users")
-    .select("email, display_name, username")
-    .eq("id", ctx.user.id)
-    .maybeSingle();
+  let adminRow: { email?: string | null; display_name?: string | null; username?: string | null } | null = null;
+  try {
+    const r = await withTimeout(
+      "adminUserLookup",
+      supabase
+        .from("admin_users")
+        .select("email, display_name, username")
+        .eq("id", ctx.user.id)
+        .maybeSingle(),
+    );
+    adminRow = r.data ?? null;
+  } catch (e) {
+    err("adminUserLookup timeout (non-fatal)", e);
+  }
 
   let billingContactEmail: string | null = null;
   let billingPrefillName: string | null = null;
@@ -166,6 +317,7 @@ async function getBilling(ctx: OrgContext): Promise<Response> {
   if (typeof dn === "string" && dn.trim()) billingPrefillName = dn.trim();
   else if (typeof un === "string" && un.trim()) billingPrefillName = un.trim();
 
+  log("returning snapshot");
   return j(
     {
       ok: true,
