@@ -1029,18 +1029,18 @@ export default function Billing() {
                           : "rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100"
                       }
                     >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-start gap-2 min-w-0">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-start gap-2">
                           <Timer className="h-4 w-4 shrink-0 mt-0.5 text-amber-300" />
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1 space-y-1">
                             <div className="font-semibold text-white">Pay within the grace window</div>
                             {mandateGraceRemainingMs <= 0 ? (
-                              <p className="mt-1 text-[11px] text-white/80 leading-snug">
+                              <p className="mt-0 text-[11px] text-white/80 leading-relaxed">
                                 Time is up — complete payment on your existing Razorpay subscription below. We reuse
                                 the same order (no duplicate plans) unless you switch tier or billing cycle.
                               </p>
                             ) : (
-                              <p className="mt-1 text-[11px] text-white/80 leading-snug">
+                              <p className="mt-0 text-[11px] text-white/80 leading-relaxed">
                                 Complete the Razorpay mandate from{" "}
                                 <strong className="text-white font-semibold">Retry payment</strong>. You still have{" "}
                                 <span className="font-mono font-semibold text-white">
@@ -1054,11 +1054,11 @@ export default function Billing() {
                           </div>
                         </div>
                         {canEdit && (
-                          <div className="flex flex-col sm:flex-row gap-2 shrink-0 sm:items-center sm:justify-end">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
                             <Button
                               type="button"
                               size="sm"
-                              className="btn-gradient text-white gap-1.5 w-full sm:w-auto"
+                              className="btn-gradient text-white gap-1.5 w-full sm:flex-1 sm:min-w-[12rem]"
                               disabled={
                                 pauseM.isPending ||
                                 resumeM.isPending ||
@@ -1079,11 +1079,11 @@ export default function Billing() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="w-full sm:w-auto border-white/25 bg-transparent text-white/90 hover:bg-white/[0.08]"
+                                className="w-full sm:flex-1 sm:min-w-[12rem] border-white/25 bg-transparent text-white/90 hover:bg-white/[0.08]"
                                 asChild
                               >
                                 <a href={subscription.short_url} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                                   Hosted checkout
                                 </a>
                               </Button>
@@ -1098,22 +1098,22 @@ export default function Billing() {
                   canEdit &&
                   subscription?.razorpay_subscription_id &&
                   mandateGraceDeadline == null && (
-                    <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 space-y-3">
-                      <div className="flex items-start gap-2 min-w-0">
+                    <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 space-y-4">
+                      <div className="flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-300" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1 space-y-1">
                           <div className="font-semibold text-white">Awaiting mandate — finish this subscription</div>
-                          <p className="mt-1 text-[11px] text-white/80 leading-snug">
+                          <p className="mt-0 text-[11px] text-white/80 leading-relaxed">
                             Razorpay still shows this plan as unpaid. Retry opens checkout for your current
                             subscription id (existing order · no duplicate row).
                           </p>
                         </div>
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         <Button
                           type="button"
                           size="sm"
-                          className="btn-gradient text-white gap-1.5 w-full sm:w-auto"
+                          className="btn-gradient text-white gap-1.5 w-full sm:flex-1 sm:min-w-[12rem]"
                           disabled={
                             pauseM.isPending ||
                             resumeM.isPending ||
@@ -1134,11 +1134,11 @@ export default function Billing() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="w-full sm:w-auto border-white/25 bg-transparent text-white/90 hover:bg-white/[0.08]"
+                            className="w-full sm:flex-1 sm:min-w-[12rem] border-white/25 bg-transparent text-white/90 hover:bg-white/[0.08]"
                             asChild
                           >
                             <a href={subscription.short_url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-3.5 w-3.5" />
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                               Hosted checkout
                             </a>
                           </Button>
