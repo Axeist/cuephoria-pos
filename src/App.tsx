@@ -26,6 +26,7 @@ import { BookingNotificationProvider } from "@/context/BookingNotificationContex
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/AppSidebar";
 import SidebarTourOverlay from "@/components/onboarding/SidebarTourOverlay";
+import SubscriptionGate from "@/components/SubscriptionGate";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
@@ -184,49 +185,51 @@ const ProtectedRoute = ({
   return (
     <OrganizationProvider>
       <OnboardingGate>
-        <BrandingProvider>
-          <LocationProvider>
-            <POSHydrationObserver>
-            <POSProvider>
-            <ExpenseProvider>
-              <BookingNotificationProvider>
-                {isBare ? (
-                  /* Bare / pop-out mode: chrome-less viewport. Providers
-                     above still wrap the page so data hooks keep working. */
-                  <div className="app-ambient min-h-screen w-full overflow-x-clip">
-                    {children}
-                  </div>
-                ) : (
-                  <SidebarProvider
-                    defaultOpen={false}
-                    style={
-                      {
-                        "--sidebar-width-icon": "3.75rem",
-                      } as React.CSSProperties
-                    }
-                  >
-                    <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
-                      <AppSidebar />
-                      <SidebarTourOverlay />
-                      <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
-                        <AppHeader />
-                        <main
-                          id="app-main"
-                          tabIndex={-1}
-                          className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? 'pt-[64px]' : ''}`}
-                        >
-                          {children}
-                        </main>
-                      </div>
+        <SubscriptionGate>
+          <BrandingProvider>
+            <LocationProvider>
+              <POSHydrationObserver>
+              <POSProvider>
+              <ExpenseProvider>
+                <BookingNotificationProvider>
+                  {isBare ? (
+                    /* Bare / pop-out mode: chrome-less viewport. Providers
+                       above still wrap the page so data hooks keep working. */
+                    <div className="app-ambient min-h-screen w-full overflow-x-clip">
+                      {children}
                     </div>
-                  </SidebarProvider>
-                )}
-              </BookingNotificationProvider>
-            </ExpenseProvider>
-            </POSProvider>
-            </POSHydrationObserver>
-          </LocationProvider>
-        </BrandingProvider>
+                  ) : (
+                    <SidebarProvider
+                      defaultOpen={false}
+                      style={
+                        {
+                          "--sidebar-width-icon": "3.75rem",
+                        } as React.CSSProperties
+                      }
+                    >
+                      <div className="app-ambient flex min-h-screen w-full overflow-x-clip relative">
+                        <AppSidebar />
+                        <SidebarTourOverlay />
+                        <div className="flex-1 flex flex-col overflow-x-clip min-w-0">
+                          <AppHeader />
+                          <main
+                            id="app-main"
+                            tabIndex={-1}
+                            className={`flex-1 pb-16 sm:pb-0 outline-none ${isMobile ? 'pt-[64px]' : ''}`}
+                          >
+                            {children}
+                          </main>
+                        </div>
+                      </div>
+                    </SidebarProvider>
+                  )}
+                </BookingNotificationProvider>
+              </ExpenseProvider>
+              </POSProvider>
+              </POSHydrationObserver>
+            </LocationProvider>
+          </BrandingProvider>
+        </SubscriptionGate>
       </OnboardingGate>
     </OrganizationProvider>
   );

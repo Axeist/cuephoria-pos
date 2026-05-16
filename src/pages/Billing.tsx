@@ -25,6 +25,7 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
+import { useOrganizationOptional } from "@/context/OrganizationContext";
 import {
   AlertTriangle,
   ArrowRight,
@@ -420,6 +421,7 @@ export default function Billing() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const location = useLocation();
+  const orgCtx = useOrganizationOptional();
   const [cycle, setCycle] = React.useState<BillingCycle>("month");
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [pendingTier, setPendingTier] = React.useState<PlanTier | null>(null);
@@ -438,7 +440,12 @@ export default function Billing() {
   const refreshBilling = React.useCallback(() => {
     console.log("[Billing] invalidate cache");
     void qc.invalidateQueries({ queryKey: ["tenant-billing"] });
-  }, [qc]);
+    // Refresh OrganizationContext too — the SubscriptionGate reads its
+    // verdict from there, so anything that changes the subscription state
+    // (subscribe, cancel, pause, resume, verify-payment, …) must trigger a
+    // re-resolve or the user stays on the wrong screen until the next nav.
+    if (orgCtx) void orgCtx.refresh();
+  }, [qc, orgCtx]);
 
   const billingQ = useQuery<BillingResponse, BillingApiError | Error>({
     queryKey: ["tenant-billing"],

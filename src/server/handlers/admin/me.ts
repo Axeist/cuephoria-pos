@@ -58,6 +58,28 @@ export default async function handler(req: Request) {
       status: string | null;
     } | null = null;
 
+    /**
+     * Slice 16: lightweight subscription snapshot consumed by the
+     * SubscriptionGate on the client. We only need the fields required to
+     * decide whether the current tenant gets access — verbatim Razorpay
+     * status, the access_suspended flag, current period end (for
+     * "grace-until" UX), and the plan tier label.
+     *
+     * This is intentionally a best-effort lookup. If the table is missing
+     * the lifecycle columns yet (migration 20260616130000 not yet applied),
+     * we still return the row but with nulls, and the gate degrades to
+     * "no subscription" so the user is redirected to /subscription rather
+     * than getting an opaque error.
+     */
+    let subscription: {
+      hasSubscription: boolean;
+      razorpayStatus: string | null;
+      accessSuspended: boolean;
+      planTier: string | null;
+      currentPeriodEnd: string | null;
+      cancelAtPeriodEnd: boolean;
+    } | null = null;
+
     try {
       const ctx = await resolveOrgContext(req);
       if ("code" in ctx) {
@@ -110,6 +132,47 @@ export default async function handler(req: Request) {
           role: ctx.role,
           ...extras,
         };
+
+        // Subscription snapshot — used by the client-side SubscriptionGate.
+        // SELECT * so missing lifecycle columns (razorpay_status,
+        // access_suspended, cancel_at_period_end) don't fail the query.
+        try {
+          const { data: subRow } = await ctx.supabase
+            .from("subscriptions")
+            .select("*")
+            .eq("organization_id", ctx.organizationId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (subRow) {
+            const row = subRow as Record<string, unknown>;
+            subscription = {
+              hasSubscription: true,
+              razorpayStatus:
+                typeof row.razorpay_status === "string" ? row.razorpay_status : null,
+              accessSuspended:
+                typeof row.access_suspended === "boolean" ? row.access_suspended : false,
+              planTier: typeof row.plan_tier === "string" ? row.plan_tier : null,
+              currentPeriodEnd:
+                typeof row.current_period_end === "string" ? row.current_period_end : null,
+              cancelAtPeriodEnd:
+                typeof row.cancel_at_period_end === "boolean"
+                  ? row.cancel_at_period_end
+                  : false,
+            };
+          } else {
+            subscription = {
+              hasSubscription: false,
+              razorpayStatus: null,
+              accessSuspended: false,
+              planTier: null,
+              currentPeriodEnd: null,
+              cancelAtPeriodEnd: false,
+            };
+          }
+        } catch (subErr) {
+          console.warn("me.ts: non-fatal subscription lookup error", subErr);
+        }
       }
     } catch (orgErr) {
       console.warn("me.ts: non-fatal org resolution error", orgErr);
@@ -149,6 +212,7 @@ export default async function handler(req: Request) {
           email: profileRow?.email ?? null,
         },
         organization,
+        subscription,
       },
       200,
     );

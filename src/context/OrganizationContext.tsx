@@ -36,10 +36,29 @@ export type ActiveOrganization = {
   status?: string | null;
 };
 
+/**
+ * Lightweight subscription snapshot for the SubscriptionGate. Surfaced from
+ * /api/admin/me alongside `organization` so we don't pay a second roundtrip
+ * to decide whether the current tenant should be redirected to /subscription.
+ *
+ * `razorpayStatus` is the verbatim Razorpay state (created / authenticated /
+ * active / pending / halted / cancelled / completed / expired / paused);
+ * see src/server/lib/razorpay-subscriptions.ts for the 9-state map.
+ */
+export type ActiveSubscription = {
+  hasSubscription: boolean;
+  razorpayStatus: string | null;
+  accessSuspended: boolean;
+  planTier: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+};
+
 export type OrganizationStatus = "loading" | "ready" | "no_org" | "error";
 
 type OrganizationContextValue = {
   organization: ActiveOrganization | null;
+  subscription: ActiveSubscription | null;
   status: OrganizationStatus;
   error: string | null;
   refresh: () => Promise<void>;
@@ -50,6 +69,7 @@ const OrganizationContext = createContext<OrganizationContextValue | undefined>(
 export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [organization, setOrganization] = useState<ActiveOrganization | null>(null);
+  const [subscription, setSubscription] = useState<ActiveSubscription | null>(null);
   const [status, setStatus] = useState<OrganizationStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef<Promise<void> | null>(null);
@@ -57,6 +77,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const load = useCallback(async () => {
     if (!user) {
       setOrganization(null);
+      setSubscription(null);
       setStatus("no_org");
       setError(null);
       return;
@@ -76,6 +97,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const org = json.organization;
         if (!org) {
           setOrganization(null);
+          setSubscription(null);
           setStatus("no_org");
           return;
         }
@@ -91,9 +113,36 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           trialEndsAt: org.trialEndsAt ?? null,
           status: org.status ?? null,
         });
+        const sub = json.subscription;
+        if (sub && typeof sub === "object") {
+          setSubscription({
+            hasSubscription: !!sub.hasSubscription,
+            razorpayStatus:
+              typeof sub.razorpayStatus === "string" ? sub.razorpayStatus : null,
+            accessSuspended: !!sub.accessSuspended,
+            planTier: typeof sub.planTier === "string" ? sub.planTier : null,
+            currentPeriodEnd:
+              typeof sub.currentPeriodEnd === "string" ? sub.currentPeriodEnd : null,
+            cancelAtPeriodEnd: !!sub.cancelAtPeriodEnd,
+          });
+        } else {
+          // No subscription block came back (legacy server or
+          // org-resolution failed). Default to "no subscription" so the
+          // gate can prompt the user to subscribe rather than failing
+          // open into the app silently.
+          setSubscription({
+            hasSubscription: false,
+            razorpayStatus: null,
+            accessSuspended: false,
+            planTier: null,
+            currentPeriodEnd: null,
+            cancelAtPeriodEnd: false,
+          });
+        }
         setStatus("ready");
       } catch (e) {
         setOrganization(null);
+        setSubscription(null);
         setStatus("error");
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -114,11 +163,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const value = useMemo<OrganizationContextValue>(
     () => ({
       organization,
+      subscription,
       status,
       error,
       refresh: load,
     }),
-    [organization, status, error, load],
+    [organization, subscription, status, error, load],
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
