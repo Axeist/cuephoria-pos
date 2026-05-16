@@ -21,6 +21,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 export type ActiveOrganization = {
@@ -48,6 +49,13 @@ export type ActiveOrganization = {
 export type ActiveSubscription = {
   hasSubscription: boolean;
   razorpayStatus: string | null;
+  /**
+   * Internal bucket from `subscriptions.status` (trialing / active /
+   * past_due / canceled / paused …). Mirrors Razorpay but can stay consistent
+   * when `razorpay_status` is null or stale; SubscriptionGate trusts
+   * active|trialing here when Razorpay is inconclusive (after ops reactivate).
+   */
+  lifecycleStatus: string | null;
   accessSuspended: boolean;
   /**
    * Wall-clock time at which Razorpay first suspended access (halt / pause /
@@ -74,6 +82,7 @@ const OrganizationContext = createContext<OrganizationContextValue | undefined>(
 
 export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const location = useLocation();
   const [organization, setOrganization] = useState<ActiveOrganization | null>(null);
   const [subscription, setSubscription] = useState<ActiveSubscription | null>(null);
   const [status, setStatus] = useState<OrganizationStatus>("loading");
@@ -125,6 +134,8 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             hasSubscription: !!sub.hasSubscription,
             razorpayStatus:
               typeof sub.razorpayStatus === "string" ? sub.razorpayStatus : null,
+            lifecycleStatus:
+              typeof sub.lifecycleStatus === "string" ? sub.lifecycleStatus : null,
             accessSuspended: !!sub.accessSuspended,
             accessSuspendedAt:
               typeof sub.accessSuspendedAt === "string" ? sub.accessSuspendedAt : null,
@@ -141,6 +152,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           setSubscription({
             hasSubscription: false,
             razorpayStatus: null,
+            lifecycleStatus: null,
             accessSuspended: false,
             accessSuspendedAt: null,
             planTier: null,
@@ -165,9 +177,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [user]);
 
+  // Initial load plus re-fetch whenever the route changes — the operator may
+  // suspend/reactivate while this SPA stays mounted; stale snapshots cause
+  // redirect loops and false billing locks until a manual full reload.
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, location.pathname]);
 
   const value = useMemo<OrganizationContextValue>(
     () => ({

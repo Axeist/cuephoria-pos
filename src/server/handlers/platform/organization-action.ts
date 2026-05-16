@@ -101,6 +101,25 @@ export default async function handler(req: Request) {
         previousStatus: org.status,
         nextStatus: status,
       });
+
+      try {
+        const { data: subRow } = await supabase
+          .from("subscriptions")
+          .select("id")
+          .eq("organization_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (subRow?.id) {
+          await supabase
+            .from("subscriptions")
+            .update({ access_suspended: false, access_suspended_at: null })
+            .eq("id", subRow.id);
+        }
+      } catch (billingClearErr) {
+        console.warn("reactivate: non-fatal subscription billing flags clear", billingClearErr);
+      }
+
       return j({ ok: true, organization: updated }, 200);
     }
 

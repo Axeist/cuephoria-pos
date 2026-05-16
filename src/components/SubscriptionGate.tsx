@@ -20,6 +20,10 @@
  *          allowed with reason "grace"; we render the children plus a
  *          sticky banner counting down to the lockout.
  *        - past the grace window → blocked with reason "suspended".
+ *   5a. Prefer `subscriptions.lifecycleStatus` (`subscriptions.status` in the
+ *       DB) when it is active|trialing and billing is not Razorpay-suspended.
+ *       This keeps access aligned with ops + webhooks even if the verbatim
+ *       `razorpay_status` column is stale or briefly null during recovery.
  *   5. `subscriptions.razorpay_status` in ALLOWED_RAZORPAY_STATUSES → allowed.
  *      The set is intentionally strict — only `active` and `authenticated`
  *      (mandate verified but charge pending). `created`, `pending`,
@@ -88,6 +92,14 @@ const ALLOWED_RAZORPAY_STATUSES = new Set<string>(["active", "authenticated"]);
  * the user to retry payment. After the window expires, full lockout.
  */
 const ACCESS_GRACE_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Bucket from `subscriptions.status` (maintained alongside Razorpay). When we
+ * are not in Razorpay access-suspended state, active|trialing here means an
+ * in-good-standing subscription row even if `razorpay_status` was temporarily
+ * null or out of sync (e.g. right after ops reactivated the org).
+ */
+const INTERNAL_SUBSCRIPTION_ALLOWED = new Set<string>(["active", "trialing"]);
 
 /**
  * Paths that are NEVER gated. Compared as prefix matches (e.g. `/account/`
@@ -174,6 +186,11 @@ export function evaluateSubscriptionAccess(
       }
     }
     return { allowed: false, reason: "suspended" };
+  }
+
+  const lifecycle = (subscription.lifecycleStatus ?? "").trim().toLowerCase();
+  if (lifecycle && INTERNAL_SUBSCRIPTION_ALLOWED.has(lifecycle)) {
+    return { allowed: true, reason: "active-sub" };
   }
 
   if (!subscription.razorpayStatus) return { allowed: false, reason: "bad-status" };
