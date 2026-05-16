@@ -1,15 +1,21 @@
 /**
- * Shared utilities for the `api/<group>/[action].ts` catch-all dispatchers.
+ * Shared utility for the `api/<group>/[action].ts` catch-all dispatchers
+ * (`platform`, `admin`, `tenant`, `auth/google`).
  *
- * Vercel's dynamic route segment named `[action]` is injected into the request
- * URL as an `action` query parameter (e.g. a request to
- * `/api/platform/organization-action?action=suspend` arrives at the function
- * with the effective URL `?action=organization-action&action=suspend`).
+ * Each dispatcher maps the final URL path segment to a concrete handler under
+ * `src/server/handlers/<group>/`. We collapse all of these endpoints behind a
+ * single Serverless Function to stay under Vercel's Hobby-tier 12-function cap.
  *
- * That collides with handlers that legitimately use their own `action` query
- * parameter — `searchParams.get("action")` returns the path-segment value and
- * the real one is shadowed. Strip the Vercel-injected occurrence here, in one
- * place, so downstream handlers can keep using `action` naturally.
+ * IMPORTANT — `action` is reserved.
+ *
+ * Vercel's dynamic route parameter is exposed to the function as a query
+ * parameter with the same name as the segment. Because the segment here is
+ * `[action]`, Vercel rewrites the request URL so that `?action=<segment>` is
+ * always present, **overwriting any value the client supplied**. That means
+ * handlers behind these dispatchers must NEVER read an `action` query
+ * parameter — the client's value will not survive the routing layer. Pick a
+ * different name (`op`, `actionPrefix`, etc.) when a handler needs its own
+ * operation/filter param.
  */
 import { j } from "./adminApiUtils";
 
@@ -20,31 +26,13 @@ export async function runDispatcher(
   routes: Record<string, Handler>,
   unknownLabel: string,
 ): Promise<Response> {
-  const url = new URL(req.url);
-  const segment = url.pathname.split("/").filter(Boolean).pop() ?? "";
+  const { pathname } = new URL(req.url);
+  const segment = pathname.split("/").filter(Boolean).pop() ?? "";
 
   const handler = routes[segment];
   if (!handler) {
     return j({ ok: false, error: `Unknown ${unknownLabel} action: ${segment}` }, 404);
   }
 
-  const actionValues = url.searchParams.getAll("action");
-  if (actionValues.length === 0 || !actionValues.includes(segment)) {
-    return handler(req);
-  }
-
-  // Rebuild the `action` parameter list without the value matching the path
-  // segment Vercel injected. If multiple injected copies somehow appear, drop
-  // only one to preserve any legitimate user-supplied value.
-  url.searchParams.delete("action");
-  let stripped = false;
-  for (const value of actionValues) {
-    if (!stripped && value === segment) {
-      stripped = true;
-      continue;
-    }
-    url.searchParams.append("action", value);
-  }
-
-  return handler(new Request(url.toString(), req));
+  return handler(req);
 }

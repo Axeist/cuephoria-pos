@@ -448,7 +448,7 @@ const ActionBar: React.FC<{
 
   const run = async (action: string, body?: Record<string, unknown>) => {
     try {
-      await fetcher(`/api/platform/organization-action?id=${org.id}&action=${action}`, {
+      await fetcher(`/api/platform/organization-action?id=${org.id}&op=${action}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: body ? JSON.stringify(body) : "{}",
@@ -797,7 +797,7 @@ const PlanTab: React.FC<{
   const apply = async (code: string, confirm = false) => {
     setPending(true);
     try {
-      const res = await fetch(`/api/platform/organization-action?id=${org.id}&action=change-plan`, {
+      const res = await fetch(`/api/platform/organization-action?id=${org.id}&op=change-plan`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
@@ -1644,7 +1644,7 @@ const ExtendTrialDialog: React.FC<{
     if (submitting) return;
     setSubmitting(true);
     try {
-      await fetcher(`/api/platform/organization-action?id=${org.id}&action=extend-trial`, {
+      await fetcher(`/api/platform/organization-action?id=${org.id}&op=extend-trial`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ days }),

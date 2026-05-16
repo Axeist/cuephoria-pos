@@ -64,7 +64,7 @@ const PlatformAudit: React.FC = () => {
 
   const params = new URLSearchParams();
   if (actorFilter !== "all") params.set("actor", actorFilter);
-  if (actionPrefix !== "all") params.set("action", actionPrefix);
+  if (actionPrefix !== "all") params.set("actionPrefix", actionPrefix);
   if (q.trim()) params.set("q", q.trim());
   params.set("limit", "50");
 

@@ -2,12 +2,16 @@
  * GET /api/platform/audit
  *
  * Filters (all optional):
- *   org=<uuid>           — only events tied to this organization
- *   actor=<type>         — e.g. platform_admin | admin_user | system
- *   action=<prefix>      — e.g. "organization." matches organization.created etc.
- *   q=<keyword>          — case-insensitive search in actor_label or action
- *   limit=<n>            — 1..100, default 50
- *   before=<iso>         — keyset pagination; returns entries strictly older
+ *   org=<uuid>            — only events tied to this organization
+ *   actor=<type>          — e.g. platform_admin | admin_user | system
+ *   actionPrefix=<prefix> — e.g. "organization." matches organization.created etc.
+ *   q=<keyword>           — case-insensitive search in actor_label or action
+ *   limit=<n>             — 1..100, default 50
+ *   before=<iso>          — keyset pagination; returns entries strictly older
+ *
+ * NOTE: The filter is `actionPrefix`, not `action`. Vercel's catch-all
+ * `[action].ts` dispatcher overwrites any `action` query parameter with the
+ * matched path segment, so the filter has to travel under a different name.
  */
 
 import { j } from "../../adminApiUtils";
@@ -28,7 +32,7 @@ export default async function handler(req: Request) {
     const url = new URL(req.url);
     const org = (url.searchParams.get("org") || "").trim();
     const actor = (url.searchParams.get("actor") || "").trim();
-    const actionPrefix = (url.searchParams.get("action") || "").trim();
+    const actionPrefix = (url.searchParams.get("actionPrefix") || "").trim();
     const q = (url.searchParams.get("q") || "").trim();
     const before = (url.searchParams.get("before") || "").trim();
     const limitRaw = Number(url.searchParams.get("limit") || 50);

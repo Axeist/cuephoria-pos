@@ -1,7 +1,7 @@
 /**
- * POST /api/platform/organization-action?id=<uuid>&action=<name>
+ * POST /api/platform/organization-action?id=<uuid>&op=<name>
  *
- * Actions:
+ * Operations (op=):
  *   suspend      — force status='suspended'. Internal orgs are refused.
  *   reactivate   — bring back to 'active' or the appropriate state.
  *   change-plan  — swap the active subscription's plan. Body: { planCode, confirm?: true }
@@ -10,6 +10,11 @@
  *   end-trial    — fast-forward a trialing subscription to active.
  *   extend-trial — push trial_ends_at further into the future. Body: { days }
  *                  (1..365). Works on trialing subscriptions only.
+ *
+ * NOTE: The operation is read from `op`, not `action`. Vercel's
+ * `api/platform/[action].ts` catch-all dispatcher overwrites any `action`
+ * query parameter with the matched path segment, so the operation has to
+ * travel under a different name.
  */
 
 import { j } from "../../adminApiUtils";
@@ -20,7 +25,7 @@ export const config = { runtime: "edge" };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const SUPPORTED_ACTIONS = new Set([
+const SUPPORTED_OPS = new Set([
   "suspend",
   "reactivate",
   "change-plan",
@@ -33,10 +38,11 @@ export default async function handler(req: Request) {
 
   const url = new URL(req.url);
   const id = (url.searchParams.get("id") || "").trim();
-  const action = (url.searchParams.get("action") || "").trim();
+  // Read from `op`, not `action`: see the file header for the reason.
+  const action = (url.searchParams.get("op") || "").trim();
 
   if (!UUID_RE.test(id)) return j({ ok: false, error: "Invalid organization id." }, 400);
-  if (!SUPPORTED_ACTIONS.has(action)) return j({ ok: false, error: `Unsupported action "${action}".` }, 400);
+  if (!SUPPORTED_OPS.has(action)) return j({ ok: false, error: `Unsupported action "${action}".` }, 400);
 
   const sessionOrResp = await requirePlatformSession(req);
   if (sessionOrResp instanceof Response) return sessionOrResp;
