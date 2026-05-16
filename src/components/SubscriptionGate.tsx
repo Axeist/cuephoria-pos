@@ -13,7 +13,8 @@
  *      Razorpay does NOT auto-unlock this; the operator has to reactivate.
  *      We still show a "Open billing" CTA in case the suspension is
  *      payment-related and the user wants to settle pre-emptively.
- *   3. `organizations.trial_ends_at` in the future → allowed (free trial).
+ *   3. `organizations.status === 'trialing'` → allowed (trial), OR
+ *      `organizations.trial_ends_at` in the future → allowed (free trial clock).
  *   4. `subscriptions.access_suspended === true` (Razorpay halt / pause /
  *      cancel / complete) →
  *        - within the fleet-configured grace window anchored at
@@ -29,7 +30,8 @@
  *       `razorpay_status` is NOT `created` (that state maps internally to
  *       trialing and must NOT bypass mandate completion).
  *   7. `subscriptions.razorpay_status` in ALLOWED_RAZORPAY_STATUSES → allowed:
- *      `active` and `authenticated` only.
+ *      `active`, `authenticated`, and `pending` (Razorpay automatic retry —
+ *      same posture as webhook `subscription.pending`).
  *   8. Otherwise → blocked.
  *
  * Bypass paths — render even for unpaid / suspended tenants so they can
@@ -80,13 +82,15 @@ import {
  * - `authenticated`  — mandate authorized, first charge pending. We allow
  *                      this because the user has completed payment intent;
  *                      Razorpay typically moves to `active` within minutes.
+ * - `pending`       — Razorpay is retrying a failed charge; internal row is
+ *                      often `past_due`. We mirror the webhook: keep POS open
+ *                      while Razorpay dunning runs (user can still fix in Billing).
  *
  * Intentionally EXCLUDED:
  *   - `created`        (subscription registered but never authorized)
- *   - `pending` / `halted` (retry / dunning — show a CTA instead)
- *   - `paused` / `cancelled` / `completed` / `expired`
+ *   - `halted` / `paused` / `completed` / `expired` / `cancelled` (resolve in Billing)
  */
-const ALLOWED_RAZORPAY_STATUSES = new Set<string>(["active", "authenticated"]);
+const ALLOWED_RAZORPAY_STATUSES = new Set<string>(["active", "authenticated", "pending"]);
 
 /**
  * Bucket from `subscriptions.status` (maintained alongside Razorpay). When we
@@ -177,9 +181,11 @@ export function evaluateSubscriptionAccess(
     return { allowed: false, reason: "platform-suspended" };
   }
 
-  const trialActive =
+  const trialByClock =
     !!organization.trialEndsAt && new Date(organization.trialEndsAt).getTime() > now;
-  if (trialActive) return { allowed: true, reason: "trial" };
+  /** Fleet lifecycle row sometimes stays `trialing` before `trial_ends_at` is stamped. */
+  const orgMarkedTrialing = (organization.status ?? "").trim().toLowerCase() === "trialing";
+  if (trialByClock || orgMarkedTrialing) return { allowed: true, reason: "trial" };
 
   if (!subscription || !subscription.hasSubscription) {
     return { allowed: false, reason: "no-sub" };

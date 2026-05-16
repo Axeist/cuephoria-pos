@@ -57,11 +57,8 @@ export type ActiveSubscription = {
    */
   lifecycleStatus: string | null;
   accessSuspended: boolean;
-  /**
-   * Wall-clock time at which Razorpay first suspended access (halt / pause /
-   * cancel / complete). Used by SubscriptionGate to compute the 1-hour
-   * grace window before the workspace fully locks.
-   */
+  /** Anchor for billing-suspend grace (Razorpay halt / pause / cancel / completed). */
+  accessSuspendedAt: string | null;
   /**
    * First Razorpay checkout dismiss without mandate while `razorpay_status`
    * is still `created`. Anchors the fleet-configured billing grace countdown.
