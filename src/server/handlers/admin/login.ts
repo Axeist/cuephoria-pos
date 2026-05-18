@@ -256,26 +256,64 @@ export default async function handler(req: Request) {
     }
 
     // Hard block tenant sign-in when the account has no active workspace
-    // membership (e.g. user removed or org deleted).
-    const { data: memberships, error: membershipsErr } = await supabase
+    // membership (e.g. user removed or org deleted). Load every membership so
+    // multi-org operators see a clear snapshot at login time.
+    const { data: membershipRows, error: membershipsErr } = await supabase
       .from("org_memberships")
-      .select("organization_id")
-      .eq("admin_user_id", userRow.id)
-      .limit(1);
+      .select("organization_id, role, organizations:organization_id ( slug, name )")
+      .eq("admin_user_id", userRow.id);
+
     if (membershipsErr) {
       console.error("Failed to validate org membership during login:", membershipsErr);
       return j({ ok: false, error: "Could not validate workspace access." }, 500);
     }
-    if (!memberships || memberships.length === 0) {
+
+    type OrgEmbed = { slug: string; name: string | null };
+    type MemRow = {
+      organization_id: string;
+      role: string;
+      organizations: OrgEmbed | OrgEmbed[] | null;
+    };
+
+    const workspaceMemberships = (membershipRows ?? [])
+      .flatMap((r: MemRow) => {
+        const raw = r.organizations;
+        const o = Array.isArray(raw) ? raw[0] : raw;
+        if (!o?.slug) return [];
+        return [
+          {
+            organizationId: r.organization_id,
+            slug: o.slug,
+            name: o.name ?? null,
+            membershipRole: r.role,
+          },
+        ];
+      })
+      .sort((a, b) => a.slug.localeCompare(b.slug));
+
+    if (workspaceMemberships.length === 0) {
       return j(
         {
           ok: true,
           success: false,
-          error: "No active workspace access. Contact your workspace owner.",
+          error:
+            "No active workspace membership for this login. Workspaces are separate organizations — branch access alone does not grant sign-in. Ask your workspace owner to link your account to the correct workspace.",
         },
         200,
       );
     }
+
+    const portalKind = userRow.is_super_admin
+      ? ("workspace_super_admin" as const)
+      : userRow.is_admin
+        ? ("workspace_admin" as const)
+        : ("workspace_staff" as const);
+    const portalKindLabel =
+      portalKind === "workspace_super_admin"
+        ? "Workspace super admin"
+        : portalKind === "workspace_admin"
+          ? "Workspace admin"
+          : "Workspace staff";
 
     // ── Second factor check. If this user enrolled in TOTP, demand either
     //    a valid TOTP code or a single-use backup code before issuing the
@@ -383,6 +421,9 @@ export default async function handler(req: Request) {
       {
         ok: true,
         success: true,
+        portalKind,
+        portalKindLabel,
+        workspaceMemberships,
         user: {
           id: userRow.id,
           username: userRow.username,

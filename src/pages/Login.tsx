@@ -20,15 +20,27 @@ import {
   Zap,
 } from "lucide-react";
 import { appToast } from "@/lib/appToast";
+import { summarizeWorkspaceMemberships } from "@/lib/tenantPortalLabels";
 import GoogleButton from "@/components/auth/GoogleButton";
 import AuthSceneBackground from "@/components/auth/AuthSceneBackground";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, type LoginResult } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 interface LocationState {
   from?: string;
+}
+
+function toastTenantWorkspaceSummary(result: Extract<LoginResult, { ok: true }>) {
+  const title = result.portalKindLabel
+    ? `Signed in · ${result.portalKindLabel}`
+    : "Signed in";
+  const desc =
+    result.workspaceMemberships && result.workspaceMemberships.length > 0
+      ? summarizeWorkspaceMemberships(result.workspaceMemberships)
+      : undefined;
+  appToast.success(title, desc, { duration: desc ? 7200 : 4200 });
 }
 
 const FEATURE_PILLS = [
@@ -121,6 +133,7 @@ const Login = () => {
         const second = useBackup ? { backupCode: normalized.toUpperCase() } : { totpCode: tc };
         const r = await login(trimmed, password, totpPhase.isAdminLogin, {}, second);
         if (r.ok) {
+          toastTenantWorkspaceSummary(r);
           setTotpPhase(null);
           setTotpCode("");
           navigate(dest, { replace: true });
@@ -140,6 +153,7 @@ const Login = () => {
 
       const tryAdmin = await login(trimmed, password, true);
       if (tryAdmin.ok) {
+        toastTenantWorkspaceSummary(tryAdmin);
         navigate(dest, { replace: true });
         return;
       }
@@ -162,6 +176,7 @@ const Login = () => {
 
       const tryStaff = await login(trimmed, password, false);
       if (tryStaff.ok) {
+        toastTenantWorkspaceSummary(tryStaff);
         navigate(dest, { replace: true });
         return;
       }
@@ -494,6 +509,14 @@ const Login = () => {
                           </button>
                         </div>
                       </div>
+                      <p className="text-[11px] leading-relaxed text-gray-500">
+                        Password sign-in tries your{" "}
+                        <span className="font-medium text-gray-400">admin-capable</span> workspace profile first,
+                        then your <span className="font-medium text-gray-400">staff-only</span> profile — same
+                        email can only match one. Each{" "}
+                        <span className="font-medium text-gray-400">workspace</span> (organization) has its own
+                        Owner / Admin / Staff roles; after login we show which workspace you landed in.
+                      </p>
                     </>
                   )}
 

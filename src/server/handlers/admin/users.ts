@@ -126,9 +126,42 @@ export default async function handler(req: Request) {
 
     // ─── GET ─────────────────────────────────────────────────────────────────
     if (req.method === "GET") {
+      const ctx = await resolveOrgContext(req);
+      if ("code" in ctx) {
+        return j(
+          {
+            ok: false,
+            error:
+              ctx.code === "no_org"
+                ? "Your session has no workspace — open the correct venue first, then manage users."
+                : ctx.message || "Could not resolve workspace.",
+          },
+          ctx.status,
+        );
+      }
+
+      const { data: memberRows, error: memberErr } = await supabase
+        .from("org_memberships")
+        .select("admin_user_id")
+        .eq("organization_id", ctx.organizationId);
+
+      if (memberErr) return j({ ok: false, error: memberErr.message }, 500);
+
+      const allowedIds = (memberRows ?? []).map((r) => r.admin_user_id).filter(Boolean);
+      if (allowedIds.length === 0) {
+        const { data: allLocsEmpty } = await supabase
+          .from("locations")
+          .select("id, name, slug, short_code")
+          .eq("organization_id", ctx.organizationId)
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true });
+        return j({ ok: true, users: [], allLocations: allLocsEmpty ?? [] }, 200);
+      }
+
       const { data: users, error: usersErr } = await supabase
         .from("admin_users")
         .select("id, username, email, email_verified_at, display_name, designation, is_admin, is_super_admin")
+        .in("id", allowedIds)
         .order("is_admin", { ascending: false })
         .order("username", { ascending: true });
 
@@ -136,16 +169,17 @@ export default async function handler(req: Request) {
 
       const userIds = (users ?? []).map((u) => u.id);
 
-      // Fetch location assignments for all users in one query
+      // Fetch location assignments for workspace members in one query
       const { data: links } = await supabase
         .from("admin_user_locations")
         .select("admin_user_id, location_id")
         .in("admin_user_id", userIds);
 
-      // Fetch all location names for display
+      // Branches for this workspace only (login still requires org_memberships)
       const { data: allLocs } = await supabase
         .from("locations")
         .select("id, name, slug, short_code")
+        .eq("organization_id", ctx.organizationId)
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
 
@@ -275,13 +309,33 @@ export default async function handler(req: Request) {
         return j({ ok: false, error: memInsertErr.message }, 500);
       }
 
-      // Assign locations
+      // Assign locations (only branches in this workspace)
       const locs = isSuperAdmin
         ? await (async () => {
-            const { data } = await supabase.from("locations").select("id").eq("is_active", true);
+            const { data } = await supabase
+              .from("locations")
+              .select("id")
+              .eq("organization_id", ctx.organizationId)
+              .eq("is_active", true);
             return (data ?? []).map((l) => l.id);
           })()
         : locationIds;
+
+      if (!isSuperAdmin && locs.length) {
+        const { data: inOrg } = await supabase
+          .from("locations")
+          .select("id")
+          .eq("organization_id", ctx.organizationId)
+          .in("id", locs);
+        const allowed = new Set((inOrg ?? []).map((l) => l.id));
+        if (locs.some((lid) => !allowed.has(lid))) {
+          await supabase.from("admin_users").delete().eq("id", newUser.id);
+          return j(
+            { ok: false, error: "One or more selected branches are not in this workspace." },
+            400,
+          );
+        }
+      }
 
       if (locs.length) {
         const { error: linkErr } = await supabase.from("admin_user_locations").insert(
@@ -523,26 +577,96 @@ export default async function handler(req: Request) {
       if (Array.isArray(body?.locationIds)) {
         const locationIds: string[] = body.locationIds;
 
+        const ctx = await resolveOrgContext(req);
+        if ("code" in ctx) {
+          return j(
+            {
+              ok: false,
+              error:
+                ctx.code === "no_org"
+                  ? "Your session has no workspace — open the correct venue first, then update branch access."
+                  : ctx.message || "Could not resolve workspace.",
+            },
+            ctx.status,
+          );
+        }
+
+        const { data: patchTarget, error: patchTargetErr } = await supabase
+          .from("admin_users")
+          .select("id, is_admin, is_super_admin")
+          .eq("id", id)
+          .maybeSingle();
+        if (patchTargetErr) return j({ ok: false, error: patchTargetErr.message }, 500);
+        if (!patchTarget) return j({ ok: false, error: "User not found." }, 404);
+
+        const { data: targetMemberships, error: tmErr } = await supabase
+          .from("org_memberships")
+          .select("organization_id")
+          .eq("admin_user_id", id);
+        if (tmErr) return j({ ok: false, error: tmErr.message }, 500);
+
+        const targetOrgIds = new Set((targetMemberships ?? []).map((r) => r.organization_id));
+        const isOrphan = targetOrgIds.size === 0;
+        const inCurrentWorkspace = targetOrgIds.has(ctx.organizationId);
+        if (!isOrphan && !inCurrentWorkspace) {
+          return j(
+            {
+              ok: false,
+              error:
+                "This account belongs to another workspace. Remove them there or contact support — branch access alone does not grant sign-in.",
+            },
+            403,
+          );
+        }
+
+        const orgRole: "admin" | "staff" =
+          patchTarget.is_super_admin || patchTarget.is_admin ? "admin" : "staff";
+        const { error: memUpsertErr } = await supabase.from("org_memberships").upsert(
+          {
+            organization_id: ctx.organizationId,
+            admin_user_id: id,
+            role: orgRole,
+          },
+          { onConflict: "organization_id,admin_user_id" },
+        );
+        if (memUpsertErr) return j({ ok: false, error: memUpsertErr.message }, 500);
+
         // Delete existing assignments for this user
         await supabase.from("admin_user_locations").delete().eq("admin_user_id", id);
 
-        // If super-admin, assign all locations; otherwise use provided list
-        let isSuperAdminNow = !!update.is_super_admin;
-        if (!("is_super_admin" in update)) {
-          const { data: cur } = await supabase.from("admin_users").select("is_super_admin").eq("id", id).maybeSingle();
-          isSuperAdminNow = !!cur?.is_super_admin;
-        }
+        // If super-admin, assign all locations in this workspace; otherwise use provided list
+        const isSuperAdminNow = !!patchTarget.is_super_admin;
         const locs = isSuperAdminNow
           ? await (async () => {
-              const { data } = await supabase.from("locations").select("id").eq("is_active", true);
+              const { data } = await supabase
+                .from("locations")
+                .select("id")
+                .eq("organization_id", ctx.organizationId)
+                .eq("is_active", true);
               return (data ?? []).map((l) => l.id);
             })()
           : locationIds;
 
+        if (!isSuperAdminNow && locs.length) {
+          const { data: inOrg } = await supabase
+            .from("locations")
+            .select("id")
+            .eq("organization_id", ctx.organizationId)
+            .in("id", locs);
+          const allowed = new Set((inOrg ?? []).map((l) => l.id));
+          if (locs.some((lid) => !allowed.has(lid))) {
+            return j(
+              { ok: false, error: "One or more selected branches are not in this workspace." },
+              400,
+            );
+          }
+        }
+
         if (locs.length) {
-          await supabase.from("admin_user_locations").insert(
+          const { error: insLocErr } = await supabase.from("admin_user_locations").insert(
             locs.map((lid) => ({ admin_user_id: id, location_id: lid }))
           );
+          if (insLocErr) return j({ ok: false, error: insLocErr.message }, 500);
         }
       }
 

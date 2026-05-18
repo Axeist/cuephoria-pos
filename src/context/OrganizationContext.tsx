@@ -23,6 +23,7 @@ import React, {
 } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from "@/lib/tenantPortalLabels";
 
 export type ActiveOrganization = {
   id: string;
@@ -78,6 +79,8 @@ type OrganizationContextValue = {
   subscription: ActiveSubscription | null;
   /** Fleet-wide minutes; used by SubscriptionGate grace windows */
   billingAccessGraceMinutes: number;
+  /** All workspaces this account belongs to (sign-in clarity for multi-org operators). */
+  workspaceMemberships: WorkspaceMembershipBrief[];
   status: OrganizationStatus;
   error: string | null;
   refresh: () => Promise<void>;
@@ -90,6 +93,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const location = useLocation();
   const [organization, setOrganization] = useState<ActiveOrganization | null>(null);
   const [subscription, setSubscription] = useState<ActiveSubscription | null>(null);
+  const [workspaceMemberships, setWorkspaceMemberships] = useState<WorkspaceMembershipBrief[]>([]);
   const [billingAccessGraceMinutes, setBillingAccessGraceMinutes] = useState(60);
   const [status, setStatus] = useState<OrganizationStatus>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +103,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!user) {
       setOrganization(null);
       setSubscription(null);
+      setWorkspaceMemberships([]);
       setBillingAccessGraceMinutes(60);
       setStatus("no_org");
       setError(null);
@@ -124,6 +129,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (!org) {
           setOrganization(null);
           setSubscription(null);
+          setWorkspaceMemberships(parseWorkspaceMembershipsPayload(json.workspaceMemberships));
           setBillingAccessGraceMinutes(60);
           setStatus("no_org");
           return;
@@ -140,6 +146,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           trialEndsAt: org.trialEndsAt ?? null,
           status: org.status ?? null,
         });
+        setWorkspaceMemberships(parseWorkspaceMembershipsPayload(json.workspaceMemberships));
         const sub = json.subscription;
         if (sub && typeof sub === "object") {
           setSubscription({
@@ -182,6 +189,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       } catch (e) {
         setOrganization(null);
         setSubscription(null);
+        setWorkspaceMemberships([]);
         setBillingAccessGraceMinutes(60);
         setStatus("error");
         setError(e instanceof Error ? e.message : String(e));
@@ -208,11 +216,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       organization,
       subscription,
       billingAccessGraceMinutes,
+      workspaceMemberships,
       status,
       error,
       refresh: load,
     }),
-    [organization, subscription, billingAccessGraceMinutes, status, error, load],
+    [organization, subscription, billingAccessGraceMinutes, workspaceMemberships, status, error, load],
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;

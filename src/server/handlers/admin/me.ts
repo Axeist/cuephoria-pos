@@ -49,6 +49,47 @@ export default async function handler(req: Request) {
       console.warn("me.ts: non-fatal revocation check error", revokeErr);
     }
 
+    /** Every workspace this login belongs to (multi-tenant clarity). */
+    let workspaceMemberships: Array<{
+      organizationId: string;
+      slug: string;
+      name: string | null;
+      membershipRole: string;
+    }> = [];
+
+    try {
+      const sb = supabaseServiceClient("cuephoria-admin-me-workspaces");
+      const { data: memRows, error: memErr } = await sb
+        .from("org_memberships")
+        .select("organization_id, role, organizations:organization_id ( slug, name )")
+        .eq("admin_user_id", user.id);
+      if (!memErr && memRows) {
+        type OrgEmbed = { slug: string; name: string | null };
+        type MemRow = {
+          organization_id: string;
+          role: string;
+          organizations: OrgEmbed | OrgEmbed[] | null;
+        };
+        workspaceMemberships = (memRows as MemRow[])
+          .flatMap((r) => {
+            const raw = r.organizations;
+            const o = Array.isArray(raw) ? raw[0] : raw;
+            if (!o?.slug) return [];
+            return [
+              {
+                organizationId: r.organization_id,
+                slug: o.slug,
+                name: o.name ?? null,
+                membershipRole: r.role,
+              },
+            ];
+          })
+          .sort((a, b) => a.slug.localeCompare(b.slug));
+      }
+    } catch (wmErr) {
+      console.warn("me.ts: non-fatal workspace memberships", wmErr);
+    }
+
     let organization: {
       id: string;
       slug: string;
@@ -238,6 +279,7 @@ export default async function handler(req: Request) {
         subscription,
         billingAccessGraceMinutes:
           billingAccessGraceMinutes ?? DEFAULT_BILLING_ACCESS_GRACE_MINUTES,
+        workspaceMemberships,
       },
       200,
     );

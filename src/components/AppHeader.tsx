@@ -3,7 +3,13 @@ import { Activity, Calendar, Clock } from "lucide-react";
 import { LocationSwitcher } from "@/components/LocationSwitcher";
 import { GlobalNotificationBell } from "@/components/GlobalNotificationBell";
 import { useAuth } from "@/context/AuthContext";
+import { useOrganizationOptional } from "@/context/OrganizationContext";
 import { usePOS } from "@/context/POSContext";
+import {
+  labelOrgMembershipRole,
+  labelTenantPortalKind,
+  tenantPortalKindFromFlags,
+} from "@/lib/tenantPortalLabels";
 
 /**
  * Formats a greeting based on the current hour so the bar feels alive
@@ -138,6 +144,50 @@ function StaffGreeting() {
 }
 
 /**
+ * Shows active workspace name, org-role seat (owner/admin/staff), and account
+ * portal tier (workspace super admin / admin / staff). Tooltip lists other
+ * workspaces when the login spans multiple organizations.
+ */
+function WorkspaceIdentityRibbon() {
+  const { user } = useAuth();
+  const orgCtx = useOrganizationOptional();
+  if (!user || orgCtx?.status !== "ready" || !orgCtx.organization) return null;
+
+  const portal = labelTenantPortalKind(tenantPortalKindFromFlags(user.isSuperAdmin, user.isAdmin));
+  const activeOrg = orgCtx.organization;
+  const orgTitle = activeOrg.name?.trim() || activeOrg.slug;
+  const seatRole = labelOrgMembershipRole(activeOrg.role);
+  const memberships = orgCtx.workspaceMemberships ?? [];
+  const others = memberships.filter((m) => m.slug !== activeOrg.slug);
+  const tooltipLines = [
+    `Account portal: ${portal}`,
+    `Active workspace: ${orgTitle} (${seatRole})`,
+    ...(others.length
+      ? [
+          "Also a member of:",
+          ...others.map(
+            (m) => ` · ${m.name?.trim() || m.slug} (${labelOrgMembershipRole(m.membershipRole)})`,
+          ),
+        ]
+      : []),
+  ];
+
+  return (
+    <div
+      className="hidden lg:flex max-w-[min(380px,36vw)] flex-col gap-0.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5"
+      title={tooltipLines.join("\n")}
+    >
+      <span className="text-[9px] uppercase tracking-[0.16em] text-white/38">Workspace</span>
+      <span className="truncate text-[12px] font-semibold text-white/88">{orgTitle}</span>
+      <span className="truncate text-[10px] text-violet-200/85">
+        {seatRole} seat · {portal}
+        {others.length ? ` · +${others.length} other workspace${others.length === 1 ? "" : "s"}` : ""}
+      </span>
+    </div>
+  );
+}
+
+/**
  * Tracks whether the window has been scrolled past a threshold so we can
  * deepen the glass effect. Uses a passive listener and rAF-style throttling
  * via a simple boolean state transition to avoid layout thrash.
@@ -212,6 +262,7 @@ export function AppHeader() {
 
       <div className="flex items-center gap-3 min-w-0">
         <StaffGreeting />
+        <WorkspaceIdentityRibbon />
         <div className="hidden xl:block h-7 w-px bg-white/10" />
         <LiveClock />
       </div>

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { type WorkspaceMembershipBrief, parseWorkspaceMembershipsPayload } from '@/lib/tenantPortalLabels';
 
 interface AdminUser {
   id: string;
@@ -85,7 +86,14 @@ export interface LoginLog {
 }
 
 export type LoginResult =
-  | { ok: true; error?: undefined; requireTotp?: undefined; emailVerificationRequired?: undefined }
+  | {
+      ok: true;
+      error?: undefined;
+      requireTotp?: undefined;
+      emailVerificationRequired?: undefined;
+      workspaceMemberships?: WorkspaceMembershipBrief[];
+      portalKindLabel?: string;
+    }
   | { ok: false; requireTotp: true; error?: string; emailVerificationRequired?: undefined }
   | {
       ok: false;
@@ -266,7 +274,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // ignore (private mode / denied storage)
         }
         setUser(adminUser);
-        return { ok: true };
+
+        const workspaceMemberships = parseWorkspaceMembershipsPayload(json.workspaceMemberships);
+        const portalKindLabel =
+          typeof json.portalKindLabel === "string" ? json.portalKindLabel.trim() : "";
+
+        return {
+          ok: true,
+          ...(workspaceMemberships.length
+            ? { workspaceMemberships, ...(portalKindLabel ? { portalKindLabel } : {}) }
+            : portalKindLabel
+              ? { portalKindLabel }
+              : {}),
+        };
       }
 
       return { ok: false, error: json?.error };
