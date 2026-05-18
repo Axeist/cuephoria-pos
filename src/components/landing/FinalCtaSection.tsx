@@ -14,7 +14,7 @@ declare global {
 }
 
 const CALENDLY_URL =
-  "https://calendly.com/d/ctyh-bmd-wc7?background_color=0f091a&text_color=ffffff&primary_color=b850f2";
+  "https://calendly.com/cuephoriatech/30min?background_color=0f091a&text_color=ffffff&primary_color=b850f2";
 
 const CALL_OUTCOMES = [
   "Audit your current booking and counter workflow",
