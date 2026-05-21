@@ -6,7 +6,7 @@ import {
 } from "../../src/server/lib/razorpay-subscription-webhook.js";
 import { createHmac, timingSafeEqual } from "crypto";
 import { recordWebhookEventHeartbeat } from "../../src/server/lib/payment-gateway-config.js";
-import { materializeBookingFromPaymentOrder } from "../../src/server/lib/materialize-booking.js";
+import { findBillIdByPaymentId, materializeBookingFromPaymentOrder } from "../../src/server/lib/materialize-booking.js";
 
 export const config = {
   maxDuration: 30, // 30 seconds
@@ -814,6 +814,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         if (orderIdForBooking && paymentIdForBooking) {
+          // Razorpay sends both payment.captured and order.paid for the same
+          // payment. Skip the second event once a bill already exists.
+          if (event === "order.paid") {
+            const supabase = await getSupabaseClient();
+            const existingBillId = await findBillIdByPaymentId(supabase, paymentIdForBooking);
+            if (existingBillId) {
+              console.log("ℹ️ order.paid skipped — bill already exists for payment:", paymentIdForBooking);
+              break;
+            }
+          }
+
           try {
             const outcome = await materializeBookingFromPaymentOrder({
               orderId: orderIdForBooking,

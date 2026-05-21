@@ -122,7 +122,54 @@ type PaymentOrderRow = {
   notes: Record<string, unknown> | null;
   materialized_booking_ids: string[] | null;
   materialized_bill_id: string | null;
+  bill_suppressed_at?: string | null;
 };
+
+const PAYMENT_ORDER_SELECT =
+  "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id, bill_suppressed_at";
+
+export async function findBillIdByPaymentId(
+  supabase: SupabaseClient,
+  paymentId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("bills")
+    .select("id")
+    .eq("payment_method", "razorpay")
+    .eq("provider_payment_id", paymentId)
+    .maybeSingle();
+  const directId = (data as { id?: string } | null)?.id;
+  if (directId) return directId;
+
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("payment_txn_id", paymentId);
+  const bookingIds = ((bookings as Array<{ id: string }> | null) || []).map((r) => r.id);
+  if (bookingIds.length === 0) return null;
+
+  const { data: existingItems } = await supabase
+    .from("bill_items")
+    .select("bill_id")
+    .in("item_id", bookingIds)
+    .eq("item_type", "session")
+    .limit(1);
+  const linkedBillId =
+    Array.isArray(existingItems) && existingItems.length > 0
+      ? (existingItems as Array<{ bill_id: string }>)[0].bill_id
+      : null;
+
+  if (linkedBillId) {
+    await supabase
+      .from("bills")
+      .update({ provider_payment_id: paymentId })
+      .eq("id", linkedBillId)
+      .eq("payment_method", "razorpay")
+      .is("provider_payment_id", null);
+  }
+
+  return linkedBillId;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Supabase service-role client
@@ -417,12 +464,22 @@ async function createOrFindBill(
     locationId: string;
     bookingIds: string[];
     payload: NormalizedPayload;
+    paymentId: string;
+    billSuppressed: boolean;
   },
 ): Promise<string | null> {
-  const { customerId, locationId, bookingIds, payload } = args;
+  const { customerId, locationId, bookingIds, payload, paymentId, billSuppressed } = args;
   if (bookingIds.length === 0) return null;
+  if (billSuppressed) {
+    console.log("[materialize] bill creation suppressed for payment:", paymentId);
+    return null;
+  }
 
-  // Idempotency — a bill_item already references one of these bookings.
+  // Primary idempotency — one Razorpay bill per payment id (DB unique index).
+  const existingBillId = await findBillIdByPaymentId(supabase, paymentId);
+  if (existingBillId) return existingBillId;
+
+  // Secondary idempotency — a bill_item already references one of these bookings.
   const { data: existingItems } = await supabase
     .from("bill_items")
     .select("bill_id")
@@ -470,6 +527,7 @@ async function createOrFindBill(
       loyalty_points_earned: 0,
       total,
       payment_method: "razorpay",
+      provider_payment_id: paymentId,
       status: "completed",
       is_split_payment: false,
       cash_amount: 0,
@@ -479,8 +537,16 @@ async function createOrFindBill(
     .select("id")
     .single();
 
-  if (billErr || !(billInsert as { id?: string } | null)?.id) {
+  if (billErr) {
+    if (billErr.code === "23505") {
+      const racedBillId = await findBillIdByPaymentId(supabase, paymentId);
+      if (racedBillId) return racedBillId;
+    }
     console.error("[materialize] bill insert failed:", billErr);
+    return null;
+  }
+  if (!(billInsert as { id?: string } | null)?.id) {
+    console.error("[materialize] bill insert returned no id");
     return null;
   }
   const billId = (billInsert as { id: string }).id;
@@ -517,6 +583,13 @@ async function createOrFindBill(
 
   const { error: itemsErr } = await supabase.from("bill_items").insert(billItems);
   if (itemsErr) {
+    if (itemsErr.code === "23505") {
+      const racedBillId = await findBillIdByPaymentId(supabase, paymentId);
+      if (racedBillId) {
+        await supabase.from("bills").delete().eq("id", billId);
+        return racedBillId;
+      }
+    }
     console.error("[materialize] bill_items insert failed — rolling back bill:", itemsErr);
     await supabase.from("bills").delete().eq("id", billId);
     return null;
@@ -547,17 +620,54 @@ export async function materializeBookingFromPaymentOrder(
   const { orderId, paymentId, paymentAmountPaise, source } = args;
   const supabase = await getSupabase();
 
+  // Fast path: a bill already exists for this Razorpay payment id.
+  const existingBillForPayment = await findBillIdByPaymentId(supabase, paymentId);
+  if (existingBillForPayment) {
+    const { data: existingBookings } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("payment_txn_id", paymentId);
+    const bookingIds = ((existingBookings as Array<{ id: string }> | null) || []).map((r) => r.id);
+
+    const { data: poByOrder } = await supabase
+      .from("payment_orders")
+      .select("id, status")
+      .eq("provider", "razorpay")
+      .eq("provider_order_id", orderId)
+      .maybeSingle();
+    const po = poByOrder as { id?: string; status?: string } | null;
+    if (po?.id && po.status !== "paid" && po.status !== "reconciled") {
+      await supabase
+        .from("payment_orders")
+        .update({
+          status: "paid",
+          provider_payment_id: paymentId,
+          materialized_booking_ids: bookingIds,
+          materialized_bill_id: existingBillForPayment,
+          last_error: null,
+        })
+        .eq("id", po.id);
+    }
+
+    return {
+      status: "already_exists",
+      bookingIds,
+      billId: existingBillForPayment,
+      paymentOrderId: po?.id ?? null,
+      message: "bill already exists for payment id",
+    };
+  }
+
   // 1. Look up the payment_orders row.
   const { data: poRow } = await supabase
     .from("payment_orders")
-    .select(
-      "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id",
-    )
+    .select(PAYMENT_ORDER_SELECT)
     .eq("provider", "razorpay")
     .eq("provider_order_id", orderId)
     .maybeSingle();
 
   let paymentOrder = poRow as PaymentOrderRow | null;
+  const billSuppressed = Boolean(paymentOrder?.bill_suppressed_at);
 
   // 2a. Terminal failure (e.g. slot race lost, amount mismatch) — do not retry materialization.
   if (paymentOrder?.status === "failed") {
@@ -570,15 +680,43 @@ export async function materializeBookingFromPaymentOrder(
     };
   }
 
-  // 2. If the row was already finalized — short-circuit.
+  // 2. If the row was already finalized — short-circuit (unless bill was deleted and not suppressed).
   if (paymentOrder && (paymentOrder.status === "paid" || paymentOrder.status === "reconciled")) {
-    return {
-      status: "already_exists",
-      bookingIds: paymentOrder.materialized_booking_ids ?? [],
-      billId: paymentOrder.materialized_bill_id ?? null,
-      paymentOrderId: paymentOrder.id,
-      message: "payment_order already finalized",
-    };
+    if (billSuppressed) {
+      return {
+        status: "already_exists",
+        bookingIds: paymentOrder.materialized_booking_ids ?? [],
+        billId: null,
+        paymentOrderId: paymentOrder.id,
+        message: "bill suppressed after admin deletion",
+      };
+    }
+
+    if (paymentOrder.materialized_bill_id) {
+      const { data: billRow } = await supabase
+        .from("bills")
+        .select("id")
+        .eq("id", paymentOrder.materialized_bill_id)
+        .maybeSingle();
+      if ((billRow as { id?: string } | null)?.id) {
+        return {
+          status: "already_exists",
+          bookingIds: paymentOrder.materialized_booking_ids ?? [],
+          billId: paymentOrder.materialized_bill_id,
+          paymentOrderId: paymentOrder.id,
+          message: "payment_order already finalized",
+        };
+      }
+    } else {
+      return {
+        status: "already_exists",
+        bookingIds: paymentOrder.materialized_booking_ids ?? [],
+        billId: null,
+        paymentOrderId: paymentOrder.id,
+        message: "payment_order already finalized",
+      };
+    }
+    // Bill row was deleted — fall through to recreate unless suppressed above.
   }
 
   // 3. Pull the booking payload (from row, else legacy notes fallback).
@@ -663,9 +801,7 @@ export async function materializeBookingFromPaymentOrder(
           booking_payload: normalized as unknown as Record<string, unknown>,
           expires_at: expiresAtBackfill,
         })
-        .select(
-          "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id",
-        )
+        .select(PAYMENT_ORDER_SELECT)
         .single();
       if (created) {
         paymentOrder = created as PaymentOrderRow;
@@ -758,6 +894,8 @@ export async function materializeBookingFromPaymentOrder(
       locationId,
       bookingIds,
       payload: normalized,
+      paymentId,
+      billSuppressed,
     });
   } catch (err) {
     console.error("[materialize] createOrFindBill threw:", err);

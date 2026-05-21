@@ -768,6 +768,30 @@ export const useBills = (
     try {
       console.log('Starting bill deletion for bill ID:', billId);
 
+      const { data: sessionItems } = await supabase
+        .from('bill_items')
+        .select('item_id')
+        .eq('bill_id', billId)
+        .eq('item_type', 'session');
+
+      const bookingIds = (sessionItems || []).map((item) => item.item_id).filter(Boolean);
+      let razorpayPaymentIds: string[] = [];
+      if (bookingIds.length > 0) {
+        const { data: linkedBookings } = await supabase
+          .from('bookings')
+          .select('payment_txn_id')
+          .in('id', bookingIds)
+          .eq('payment_mode', 'razorpay');
+
+        razorpayPaymentIds = [
+          ...new Set(
+            (linkedBookings || [])
+              .map((booking) => booking.payment_txn_id)
+              .filter((paymentId): paymentId is string => Boolean(paymentId)),
+          ),
+        ];
+      }
+
       const { error: cashTransactionsError } = await supabase
         .from('cash_transactions')
         .delete()
@@ -803,6 +827,29 @@ export const useBills = (
       }
 
       console.log('Bill deleted successfully');
+
+      if (razorpayPaymentIds.length > 0) {
+        const suppressedAt = new Date().toISOString();
+        for (const paymentId of razorpayPaymentIds) {
+          await supabase
+            .from('payment_orders')
+            .update({
+              bill_suppressed_at: suppressedAt,
+              materialized_bill_id: null,
+            })
+            .eq('provider', 'razorpay')
+            .eq('provider_payment_id', paymentId);
+        }
+      }
+
+      await supabase
+        .from('payment_orders')
+        .update({
+          bill_suppressed_at: new Date().toISOString(),
+          materialized_bill_id: null,
+        })
+        .eq('provider', 'razorpay')
+        .eq('materialized_bill_id', billId);
 
       setBills(prevBills => {
         const updated = prevBills.filter(bill => bill.id !== billId);
