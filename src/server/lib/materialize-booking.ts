@@ -128,6 +128,84 @@ type PaymentOrderRow = {
 const PAYMENT_ORDER_SELECT =
   "id, provider, profile, status, last_error, provider_order_id, provider_payment_id, amount_paise, location_id, customer_id, customer_name, customer_phone, customer_email, booking_payload, notes, materialized_booking_ids, materialized_bill_id, bill_suppressed_at";
 
+function razorpayOrderTag(orderId: string): string {
+  return `Razorpay Order: ${orderId}`;
+}
+
+async function backfillBillPaymentMetadata(
+  supabase: SupabaseClient,
+  billId: string,
+  args: { paymentId?: string; orderId?: string },
+): Promise<void> {
+  const patch: Record<string, string> = {};
+  if (args.paymentId) patch.provider_payment_id = args.paymentId;
+  if (args.orderId) patch.provider_order_id = args.orderId;
+  if (Object.keys(patch).length === 0) return;
+  await supabase
+    .from("bills")
+    .update(patch)
+    .eq("id", billId)
+    .eq("payment_method", "razorpay");
+}
+
+export async function findBillIdByOrderId(
+  supabase: SupabaseClient,
+  orderId: string,
+): Promise<string | null> {
+  const { data: directBill } = await supabase
+    .from("bills")
+    .select("id")
+    .eq("payment_method", "razorpay")
+    .eq("provider_order_id", orderId)
+    .maybeSingle();
+  const directId = (directBill as { id?: string } | null)?.id;
+  if (directId) return directId;
+
+  const { data: paymentOrder } = await supabase
+    .from("payment_orders")
+    .select("materialized_bill_id")
+    .eq("provider", "razorpay")
+    .eq("provider_order_id", orderId)
+    .maybeSingle();
+  const linkedBillId = (paymentOrder as { materialized_bill_id?: string | null } | null)
+    ?.materialized_bill_id;
+  if (linkedBillId) {
+    const { data: billRow } = await supabase
+      .from("bills")
+      .select("id")
+      .eq("id", linkedBillId)
+      .maybeSingle();
+    if ((billRow as { id?: string } | null)?.id) {
+      await backfillBillPaymentMetadata(supabase, linkedBillId, { orderId });
+      return linkedBillId;
+    }
+  }
+
+  const orderTag = razorpayOrderTag(orderId);
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("notes", orderTag)
+    .eq("payment_mode", "razorpay");
+  const bookingIds = ((bookings as Array<{ id: string }> | null) || []).map((r) => r.id);
+  if (bookingIds.length === 0) return null;
+
+  const { data: existingItems } = await supabase
+    .from("bill_items")
+    .select("bill_id")
+    .in("item_id", bookingIds)
+    .eq("item_type", "session")
+    .limit(1);
+  const billId =
+    Array.isArray(existingItems) && existingItems.length > 0
+      ? (existingItems as Array<{ bill_id: string }>)[0].bill_id
+      : null;
+  if (billId) {
+    await backfillBillPaymentMetadata(supabase, billId, { orderId });
+  }
+  return billId;
+}
+
 export async function findBillIdByPaymentId(
   supabase: SupabaseClient,
   paymentId: string,
@@ -160,12 +238,7 @@ export async function findBillIdByPaymentId(
       : null;
 
   if (linkedBillId) {
-    await supabase
-      .from("bills")
-      .update({ provider_payment_id: paymentId })
-      .eq("id", linkedBillId)
-      .eq("payment_method", "razorpay")
-      .is("provider_payment_id", null);
+    await backfillBillPaymentMetadata(supabase, linkedBillId, { paymentId });
   }
 
   return linkedBillId;
@@ -378,6 +451,18 @@ async function createBookingsRows(
   const totalBookings = payload.selectedStations.length * payload.slots.length;
   if (totalBookings === 0) return { ids: [], alreadyExists: false };
 
+  const orderTag = razorpayOrderTag(orderId);
+
+  // One Razorpay order → one booking set, even if a second pay_* id arrives later.
+  const { data: alreadyByOrder } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("notes", orderTag)
+    .eq("payment_mode", "razorpay");
+  if (Array.isArray(alreadyByOrder) && alreadyByOrder.length > 0) {
+    return { ids: (alreadyByOrder as Array<{ id: string }>).map((r) => r.id), alreadyExists: true };
+  }
+
   // Check first whether we have already materialized for THIS payment id —
   // covers the case where the helper is re-invoked for the same payment.
   const { data: alreadyByPayment } = await supabase
@@ -409,7 +494,7 @@ async function createBookingsRows(
         coupon_code: payload.pricing.coupons || null,
         payment_mode: "razorpay",
         payment_txn_id: paymentId,
-        notes: `Razorpay Order: ${orderId}`,
+        notes: orderTag,
       });
     });
   });
@@ -422,6 +507,15 @@ async function createBookingsRows(
   // Partial unique index (or other unique violation): only treat as idempotent
   // if these rows belong to THIS payment. Never return another customer's ids.
   if (error?.code === "23505") {
+    const { data: byOrder } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("notes", orderTag)
+      .eq("payment_mode", "razorpay");
+    if (Array.isArray(byOrder) && byOrder.length > 0) {
+      return { ids: (byOrder as Array<{ id: string }>).map((r) => r.id), alreadyExists: true };
+    }
+
     const { data: byPayment } = await supabase
       .from("bookings")
       .select("id")
@@ -464,18 +558,23 @@ async function createOrFindBill(
     locationId: string;
     bookingIds: string[];
     payload: NormalizedPayload;
+    orderId: string;
     paymentId: string;
     billSuppressed: boolean;
   },
 ): Promise<string | null> {
-  const { customerId, locationId, bookingIds, payload, paymentId, billSuppressed } = args;
+  const { customerId, locationId, bookingIds, payload, orderId, paymentId, billSuppressed } = args;
   if (bookingIds.length === 0) return null;
   if (billSuppressed) {
     console.log("[materialize] bill creation suppressed for payment:", paymentId);
     return null;
   }
 
-  // Primary idempotency — one Razorpay bill per payment id (DB unique index).
+  // Primary idempotency — one Razorpay bill per checkout order.
+  const existingBillForOrder = await findBillIdByOrderId(supabase, orderId);
+  if (existingBillForOrder) return existingBillForOrder;
+
+  // Secondary idempotency — one Razorpay bill per payment id (DB unique index).
   const existingBillId = await findBillIdByPaymentId(supabase, paymentId);
   if (existingBillId) return existingBillId;
 
@@ -528,6 +627,7 @@ async function createOrFindBill(
       total,
       payment_method: "razorpay",
       provider_payment_id: paymentId,
+      provider_order_id: orderId,
       status: "completed",
       is_split_payment: false,
       cash_amount: 0,
@@ -539,7 +639,9 @@ async function createOrFindBill(
 
   if (billErr) {
     if (billErr.code === "23505") {
-      const racedBillId = await findBillIdByPaymentId(supabase, paymentId);
+      const racedBillId =
+        (await findBillIdByOrderId(supabase, orderId)) ||
+        (await findBillIdByPaymentId(supabase, paymentId));
       if (racedBillId) return racedBillId;
     }
     console.error("[materialize] bill insert failed:", billErr);
@@ -584,7 +686,9 @@ async function createOrFindBill(
   const { error: itemsErr } = await supabase.from("bill_items").insert(billItems);
   if (itemsErr) {
     if (itemsErr.code === "23505") {
-      const racedBillId = await findBillIdByPaymentId(supabase, paymentId);
+      const racedBillId =
+        (await findBillIdByOrderId(supabase, orderId)) ||
+        (await findBillIdByPaymentId(supabase, paymentId));
       if (racedBillId) {
         await supabase.from("bills").delete().eq("id", billId);
         return racedBillId;
@@ -620,7 +724,52 @@ export async function materializeBookingFromPaymentOrder(
   const { orderId, paymentId, paymentAmountPaise, source } = args;
   const supabase = await getSupabase();
 
-  // Fast path: a bill already exists for this Razorpay payment id.
+  // Fast path: a bill already exists for this checkout order or payment id.
+  const existingBillForOrder = await findBillIdByOrderId(supabase, orderId);
+  if (existingBillForOrder) {
+    const { data: existingBookings } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("notes", razorpayOrderTag(orderId))
+      .eq("payment_mode", "razorpay");
+    let bookingIds = ((existingBookings as Array<{ id: string }> | null) || []).map((r) => r.id);
+    if (bookingIds.length === 0) {
+      const { data: byPayment } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("payment_txn_id", paymentId);
+      bookingIds = ((byPayment as Array<{ id: string }> | null) || []).map((r) => r.id);
+    }
+
+    const { data: poByOrder } = await supabase
+      .from("payment_orders")
+      .select("id, status")
+      .eq("provider", "razorpay")
+      .eq("provider_order_id", orderId)
+      .maybeSingle();
+    const po = poByOrder as { id?: string; status?: string } | null;
+    if (po?.id && po.status !== "paid" && po.status !== "reconciled") {
+      await supabase
+        .from("payment_orders")
+        .update({
+          status: "paid",
+          provider_payment_id: paymentId,
+          materialized_booking_ids: bookingIds,
+          materialized_bill_id: existingBillForOrder,
+          last_error: null,
+        })
+        .eq("id", po.id);
+    }
+
+    return {
+      status: "already_exists",
+      bookingIds,
+      billId: existingBillForOrder,
+      paymentOrderId: po?.id ?? null,
+      message: "bill already exists for order id",
+    };
+  }
+
   const existingBillForPayment = await findBillIdByPaymentId(supabase, paymentId);
   if (existingBillForPayment) {
     const { data: existingBookings } = await supabase
@@ -894,6 +1043,7 @@ export async function materializeBookingFromPaymentOrder(
       locationId,
       bookingIds,
       payload: normalized,
+      orderId,
       paymentId,
       billSuppressed,
     });
