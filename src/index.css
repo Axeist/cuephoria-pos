@@ -144,15 +144,52 @@
  * adding the `.mobile-stack` class below.
  */
 @media (max-width: 767.98px) {
-  /* Page-level overflow safety net. */
+  /* Page-level overflow safety net. Without this, any intrinsically wide
+     element (Recharts SVG, a tall image, an unconstrained min-w table)
+     stretches the entire page wider than the viewport and the layout
+     visually "shifts right" with a black void on the left. The `body`
+     scroll lock alone is not enough — every container child has to honor
+     viewport width too. */
   html, body {
     -webkit-overflow-scrolling: touch;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Hard clamp every block-level container at viewport width on mobile.
+     This is the safety net that the rest of the codebase implicitly relies
+     on; without it any unconstrained child (a 600px chart, a wide form
+     row) can push the parent layout wider than the screen. */
+  div, section, article, aside, main, header, footer, nav {
     max-width: 100vw;
   }
 
   main, [role="main"] {
-    max-width: 100vw;
     overflow-x: hidden;
+  }
+
+  /* Images / media never overflow their parent on phones. */
+  img, video, canvas, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Recharts injects an absolutely-positioned wrapper at a fixed pixel
+     width derived from its container. If the page layout was wrong for
+     a frame on first paint, that pixel width gets captured and never
+     re-flows — clamp it. */
+  [class*="recharts"],
+  [class*="Chart"] {
+    max-width: 100% !important;
+  }
+
+  /* Tables: ship a `.table-container` wrapper if you want horizontal
+     scrolling. Bare tables still need `min-width: 100%` so columns
+     distribute correctly. `white-space: nowrap` prevents cell content
+     from collapsing to 1ch on narrow viewports. */
+  table {
+    min-width: 100%;
+    white-space: nowrap;
   }
 
   /* Touch-friendly outline on focus (keep ring tight) */
