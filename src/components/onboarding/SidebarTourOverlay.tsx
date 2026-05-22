@@ -231,6 +231,11 @@ const SidebarTourOverlay: React.FC = () => {
     };
   }, [index, items, open, sidebarClearRight]);
 
+  // The tour highlights desktop sidebar items and positions itself relative to
+  // a fixed left rail — on mobile the AppSidebar is a hamburger sheet, so the
+  // overlay would render a full-screen dark backdrop with a 380px card pinned
+  // off-screen. Always skip rendering on phones.
+  if (isMobile) return null;
   if (!open || !organization || !items.length) return null;
 
   const item = items[index];
