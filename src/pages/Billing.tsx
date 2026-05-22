@@ -38,6 +38,7 @@ import {
   Crown,
   Download,
   ExternalLink,
+  FlaskConical,
   Hourglass,
   Lock,
   Loader2,
@@ -74,7 +75,7 @@ import { useToast } from "@/hooks/use-toast";
 // ---------------------------------------------------------------------------
 
 type BillingCycle = "month" | "year";
-type PlanTier = "starter" | "growth" | "pro";
+type PlanTier = "starter" | "growth" | "pro" | "test";
 
 type RazorpayStatus =
   | "created"
@@ -856,7 +857,8 @@ export default function Billing() {
   const retryTier: PlanTier =
     subscription?.plan_tier === "starter" ||
     subscription?.plan_tier === "growth" ||
-    subscription?.plan_tier === "pro"
+    subscription?.plan_tier === "pro" ||
+    subscription?.plan_tier === "test"
       ? subscription.plan_tier
       : (visiblePlans[0]?.code as PlanTier | undefined) ?? "starter";
 
@@ -1361,7 +1363,9 @@ export default function Billing() {
                           : ArrowRight;
 
                   const PlanIcon =
-                    plan.code === "starter"
+                    plan.code === "test"
+                      ? FlaskConical
+                      : plan.code === "starter"
                       ? Zap
                       : plan.code === "growth"
                         ? TrendingUp
@@ -1398,7 +1402,12 @@ export default function Billing() {
                               }
                       }
                     >
-                      {isMostPopular && !isCurrent && (
+                      {plan.code === "test" && !isCurrent && (
+                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500 text-zinc-950 shadow">
+                          Test billing
+                        </div>
+                      )}
+                      {isMostPopular && !isCurrent && plan.code !== "test" && (
                         <div
                           className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider shadow"
                           style={{

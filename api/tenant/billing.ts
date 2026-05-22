@@ -92,7 +92,7 @@ const INVOICE_PAGE_SIZE = 24;
 const DB_QUERY_TIMEOUT_MS = 12_000;
 
 type BillingCycle = "month" | "year";
-type PlanTier = "starter" | "growth" | "pro";
+type PlanTier = "starter" | "growth" | "pro" | "test";
 
 /**
  * Race a Supabase query against a clear timeout error so a stuck DB call
@@ -551,7 +551,7 @@ function normaliseCycle(raw: unknown): BillingCycle {
 
 function normaliseTier(raw: unknown): PlanTier | null {
   const s = String(raw ?? "").trim().toLowerCase();
-  if (s === "starter" || s === "growth" || s === "pro") return s;
+  if (s === "starter" || s === "growth" || s === "pro" || s === "test") return s;
   return null;
 }
 
@@ -599,7 +599,7 @@ async function createOrRenewAction(
 
   const tier = normaliseTier(body.planTier ?? body.tier ?? body.planCode);
   const cycle = normaliseCycle(body.billingCycle ?? body.interval ?? body.cycle);
-  if (!tier) return j({ ok: false, error: "planTier must be one of: starter, growth, pro." }, 400);
+  if (!tier) return j({ ok: false, error: "planTier must be one of: starter, growth, pro, test." }, 400);
 
   const plan = await resolvePlanRow(ctx, tier);
   if (!plan) return j({ ok: false, error: `Plan "${tier}" is not available for subscription.` }, 404);
@@ -830,7 +830,7 @@ async function upgradeAction(ctx: OrgContext, body: Record<string, unknown>): Pr
   }
   const tier = normaliseTier(body.planTier ?? body.tier ?? body.planCode);
   const cycle = normaliseCycle(body.billingCycle ?? body.interval ?? body.cycle);
-  if (!tier) return j({ ok: false, error: "planTier must be one of: starter, growth, pro." }, 400);
+  if (!tier) return j({ ok: false, error: "planTier must be one of: starter, growth, pro, test." }, 400);
 
   const plan = await resolvePlanRow(ctx, tier);
   if (!plan) return j({ ok: false, error: `Plan "${tier}" is not available for subscription.` }, 404);

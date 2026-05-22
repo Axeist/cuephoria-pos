@@ -1,50 +1,28 @@
 /**
- * /platform/plans — plan & pricing editor.
+ * /platform/plans — simplified Razorpay plan sync for operators.
  *
- * Each plan is rendered as a card with inline-editable pricing (INR +
- * optional USD), Razorpay plan IDs (monthly + yearly), description,
- * sort order, and toggles for is_active / is_public. Saving a card
- * POSTs to `/api/platform/plan-update` with only the fields that were
- * touched — untouched fields never land in the request body, so audit
- * diffs stay clean.
- *
- * The "Razorpay" column doubles as the checklist operators need to go
- * through before a plan can actually be purchased via hosted checkout.
- * Missing a monthly ID ⇒ tenants on that plan can't renew monthly.
+ * - Test plan: one toggle to enable/disable ₹1 billing for QA.
+ * - Production plans: compact table to paste Razorpay plan IDs and save.
  */
 
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import {
   AlertCircle,
-  AlertTriangle,
   CheckCircle2,
-  CircleDot,
-  Copy,
-  Eye,
-  EyeOff,
-  IndianRupee,
-  Info,
+  FlaskConical,
   Loader2,
   Save,
-  Sparkles,
-  Undo2,
   Wallet,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-// ---------------------------------------------------------------------------
-// Types (mirror server response shape)
-// ---------------------------------------------------------------------------
 type Plan = {
   id: string;
   code: string;
@@ -54,43 +32,30 @@ type Plan = {
   is_public: boolean;
   price_inr_month: number | null;
   price_inr_year: number | null;
-  price_usd_month?: number | null;
-  price_usd_year?: number | null;
   razorpay_plan_id_month: string | null;
   razorpay_plan_id_year: string | null;
-  stripe_price_id_month?: string | null;
-  stripe_price_id_year?: string | null;
   sort_order: number;
-  features?: Record<string, unknown>;
 };
 
 type PlansResponse = { ok: true; plans: Plan[] };
 
 type PlanUpdatePayload = {
-  name?: string;
-  description?: string | null;
-  price_inr_month?: number | null;
-  price_inr_year?: number | null;
-  price_usd_month?: number | null;
-  price_usd_year?: number | null;
-  razorpay_plan_id_month?: string | null;
-  razorpay_plan_id_year?: string | null;
-  stripe_price_id_month?: string | null;
-  stripe_price_id_year?: string | null;
   is_active?: boolean;
   is_public?: boolean;
-  sort_order?: number;
+  price_inr_month?: number | null;
+  price_inr_year?: number | null;
+  razorpay_plan_id_month?: string | null;
+  razorpay_plan_id_year?: string | null;
 };
 
-// ---------------------------------------------------------------------------
-// Fetch helpers
-// ---------------------------------------------------------------------------
+const PRODUCTION_CODES = ["starter", "growth", "pro"] as const;
+const PLAN_ID_RE = /^plan_[A-Za-z0-9]{4,32}$/;
+
 const fetcher = async <T,>(url: string, init?: RequestInit): Promise<T> => {
   const res = await fetch(url, { credentials: "same-origin", ...init });
   const json = await res.json();
   if (!res.ok || !json?.ok) {
-    const message = json?.error || `Request failed (${res.status})`;
-    throw Object.assign(new Error(message), { payload: json });
+    throw new Error(json?.error || `Request failed (${res.status})`);
   }
   return json as T;
 };
@@ -101,12 +66,22 @@ const inr = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
 });
 
-const PLAN_ID_RE = /^plan_[A-Za-z0-9]{4,32}$/;
-const STRIPE_PRICE_ID_RE = /^price_[A-Za-z0-9]{4,64}$/;
+async function savePlan(planCode: string, updates: PlanUpdatePayload) {
+  return fetcher<{ ok: true; plan: Plan }>("/api/platform/plan-update", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ planCode, updates }),
+  });
+}
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+function syncStatus(plan: Plan): "ready" | "partial" | "missing" {
+  const hasMo = Boolean(plan.razorpay_plan_id_month);
+  const hasYr = Boolean(plan.razorpay_plan_id_year);
+  if (hasMo && hasYr) return "ready";
+  if (hasMo || hasYr) return "partial";
+  return "missing";
+}
+
 const PlatformPlans: React.FC = () => {
   const query = useQuery({
     queryKey: ["platform", "plans", "editor"],
@@ -114,62 +89,52 @@ const PlatformPlans: React.FC = () => {
     staleTime: 30_000,
   });
 
+  const plans = query.data?.plans ?? [];
+  const testPlan = plans.find((p) => p.code === "test");
+  const productionPlans = plans.filter((p) =>
+    PRODUCTION_CODES.includes(p.code as (typeof PRODUCTION_CODES)[number]),
+  );
+
   return (
-    <div className="space-y-6">
-      <motion.header
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-end justify-between gap-4 flex-wrap"
-      >
+    <div className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Plans & pricing</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Edit plan prices, descriptions, and Razorpay plan IDs used by tenant checkout.
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Billing plans</h1>
+          <p className="mt-1 text-sm text-zinc-400 max-w-2xl">
+            Map Razorpay subscription plan IDs here. Charges use the Razorpay plan amount — not the
+            display prices below.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <a
-            href="https://dashboard.razorpay.com/app/subscriptions/plans"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-indigo-300 hover:text-indigo-200"
-          >
-            <Wallet className="h-3.5 w-3.5" />
-            Open Razorpay dashboard
-          </a>
-        </div>
-      </motion.header>
-
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200 flex items-start gap-2">
-        <Info className="h-4 w-4 mt-0.5 shrink-0" />
-        <div>
-          <span className="font-medium">Razorpay plan IDs are not created here.</span>{" "}
-          Create them in the Razorpay dashboard first (one per billing interval), then paste the
-          resulting <span className="font-mono">plan_XXXX</span> values into the matching field
-          below. The app only <em>references</em> these IDs.
-        </div>
-      </div>
+        <a
+          href="https://dashboard.razorpay.com/app/subscriptions/plans"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-indigo-300 hover:bg-white/10"
+        >
+          <Wallet className="h-3.5 w-3.5" />
+          Razorpay plans dashboard
+        </a>
+      </header>
 
       {query.isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-80 w-full bg-white/5 rounded-xl" />
-          ))}
-        </div>
+        <Skeleton className="h-40 w-full bg-white/5 rounded-xl" />
       ) : query.isError ? (
-        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-6 text-rose-200">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <AlertCircle className="h-4 w-4" />
-            Couldn't load plans
-          </div>
-          <p className="mt-2 text-xs text-rose-200/70">{(query.error as Error).message}</p>
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-6 text-rose-200 text-sm">
+          {(query.error as Error).message}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {(query.data?.plans ?? []).map((plan) => (
-            <PlanCard key={plan.id} plan={plan} />
-          ))}
-        </div>
+        <>
+          {testPlan ? (
+            <TestPlanPanel plan={testPlan} />
+          ) : (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              Test plan row not found. Run migration{" "}
+              <code className="text-xs bg-black/30 px-1 rounded">20260622140000_add_test_billing_plan</code>.
+            </div>
+          )}
+
+          <ProductionPlansTable plans={productionPlans} />
+        </>
       )}
     </div>
   );
@@ -177,569 +142,338 @@ const PlatformPlans: React.FC = () => {
 
 export default PlatformPlans;
 
-// ---------------------------------------------------------------------------
-// Plan card — controlled form bound to one plan row
-// ---------------------------------------------------------------------------
-const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => {
+const TestPlanPanel: React.FC<{ plan: Plan }> = ({ plan }) => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const enabled = plan.is_active && plan.is_public;
+  const [planId, setPlanId] = React.useState(plan.razorpay_plan_id_month ?? "");
+  const idDirty = planId.trim() !== (plan.razorpay_plan_id_month ?? "");
+
+  React.useEffect(() => {
+    setPlanId(plan.razorpay_plan_id_month ?? "");
+  }, [plan.razorpay_plan_id_month]);
+
+  const mutation = useMutation({
+    mutationFn: (updates: PlanUpdatePayload) => savePlan("test", updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["platform", "plans", "editor"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Could not update test plan", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const toggleEnabled = (next: boolean) => {
+    mutation.mutate(
+      { is_active: next, is_public: next },
+      {
+        onSuccess: () => {
+          toast({
+            title: next ? "Test plan enabled" : "Test plan disabled",
+            description: next
+              ? "Tenants can subscribe to the ₹1 test plan on /subscription."
+              : "Test plan hidden from tenant billing.",
+          });
+        },
+      },
+    );
+  };
+
+  const savePlanId = () => {
+    const trimmed = planId.trim();
+    if (trimmed && !PLAN_ID_RE.test(trimmed)) {
+      toast({
+        title: "Invalid plan ID",
+        description: "Must look like plan_XXXX.",
+        variant: "destructive",
+      });
+      return;
+    }
+    mutation.mutate(
+      { razorpay_plan_id_month: trimmed || null },
+      {
+        onSuccess: () => toast({ title: "Test Razorpay plan ID saved" }),
+      },
+    );
+  };
+
+  return (
+    <section className="rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <FlaskConical className="h-5 w-5 text-amber-300" />
+            <h2 className="text-lg font-semibold text-zinc-50">Test billing plan</h2>
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px] uppercase tracking-wider",
+                enabled
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-zinc-500/40 bg-zinc-500/10 text-zinc-400",
+              )}
+            >
+              {enabled ? "Enabled for tenants" : "Disabled"}
+            </Badge>
+          </div>
+          <p className="mt-2 text-sm text-zinc-400 max-w-xl">
+            Use this to verify checkout, webhooks, and access unlock with a{" "}
+            <span className="text-amber-200 font-medium">
+              {plan.price_inr_month != null ? inr.format(plan.price_inr_month) : "₹1"}/mo
+            </span>{" "}
+            Razorpay test plan. Disable when you are done testing.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3">
+          <div className="text-right">
+            <div className="text-sm font-medium text-zinc-100">Show on tenant billing</div>
+            <div className="text-[11px] text-zinc-500">Toggle off to hide instantly</div>
+          </div>
+          <Switch
+            checked={enabled}
+            disabled={mutation.isPending}
+            onCheckedChange={toggleEnabled}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-col sm:flex-row gap-2">
+        <Input
+          value={planId}
+          onChange={(e) => setPlanId(e.target.value.trim())}
+          placeholder="plan_XXXXXXXXXXXX"
+          className="font-mono text-sm bg-black/40 border-white/10 flex-1"
+        />
+        <Button
+          size="sm"
+          disabled={!idDirty || mutation.isPending}
+          onClick={savePlanId}
+          className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+        >
+          {mutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              Save plan ID
+            </>
+          )}
+        </Button>
+      </div>
+    </section>
+  );
+};
+
+type RowDraft = {
+  price_inr_month: string;
+  price_inr_year: string;
+  razorpay_plan_id_month: string;
+  razorpay_plan_id_year: string;
+};
+
+const ProductionPlansTable: React.FC<{ plans: Plan[] }> = ({ plans }) => {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+      <div className="border-b border-white/5 px-5 py-4">
+        <h2 className="text-sm font-semibold text-zinc-100">Production plans</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Paste monthly and yearly Razorpay plan IDs for each tier. Display prices are shown to tenants only.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[880px] text-sm">
+          <thead>
+            <tr className="border-b border-white/5 text-left text-[11px] uppercase tracking-wider text-zinc-500">
+              <th className="px-5 py-3 font-medium">Plan</th>
+              <th className="px-3 py-3 font-medium">Monthly ₹</th>
+              <th className="px-3 py-3 font-medium">Yearly ₹</th>
+              <th className="px-3 py-3 font-medium">Razorpay monthly</th>
+              <th className="px-3 py-3 font-medium">Razorpay yearly</th>
+              <th className="px-3 py-3 font-medium">Sync</th>
+              <th className="px-5 py-3 font-medium text-right">Save</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plans.map((plan) => (
+              <PlanRow key={plan.id} plan={plan} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+};
+
+const PlanRow: React.FC<{ plan: Plan }> = ({ plan }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Local draft state. We initialise from the server row and reset back to
-  // it whenever `plan` changes (i.e. after a successful save, because the
-  // parent invalidates and React-Query refetches).
-  const toDraft = (p: Plan): Draft => ({
-    name: p.name,
-    description: p.description ?? "",
-    price_inr_month: p.price_inr_month ?? "",
-    price_inr_year: p.price_inr_year ?? "",
-    price_usd_month: p.price_usd_month ?? "",
-    price_usd_year: p.price_usd_year ?? "",
+  const toDraft = (p: Plan): RowDraft => ({
+    price_inr_month: p.price_inr_month != null ? String(p.price_inr_month) : "",
+    price_inr_year: p.price_inr_year != null ? String(p.price_inr_year) : "",
     razorpay_plan_id_month: p.razorpay_plan_id_month ?? "",
     razorpay_plan_id_year: p.razorpay_plan_id_year ?? "",
-    stripe_price_id_month: p.stripe_price_id_month ?? "",
-    stripe_price_id_year: p.stripe_price_id_year ?? "",
-    is_active: p.is_active,
-    is_public: p.is_public,
-    sort_order: p.sort_order,
   });
 
-  const [draft, setDraft] = React.useState<Draft>(() => toDraft(plan));
-  const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [draft, setDraft] = React.useState<RowDraft>(() => toDraft(plan));
 
   React.useEffect(() => {
     setDraft(toDraft(plan));
-    setErrors({});
   }, [plan]);
 
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => {
-    setDraft((d) => ({ ...d, [k]: v }));
-  };
-
-  const validate = (): Record<string, string> => {
-    const e: Record<string, string> = {};
-    if (!draft.name.trim()) e.name = "Required.";
-    if (draft.name.length > 60) e.name = "Max 60 characters.";
-    if (draft.description.length > 300) e.description = "Max 300 characters.";
-
-    const priceFields: Array<keyof Draft> = [
-      "price_inr_month",
-      "price_inr_year",
-      "price_usd_month",
-      "price_usd_year",
-    ];
-    for (const f of priceFields) {
-      const raw = draft[f];
-      if (raw === "" || raw === null) continue;
-      const n = Number(raw);
-      if (!Number.isFinite(n) || n < 0) e[f] = "Must be ≥ 0 or empty.";
-    }
-
-    const idFields: Array<keyof Draft> = [
-      "razorpay_plan_id_month",
-      "razorpay_plan_id_year",
-    ];
-    for (const f of idFields) {
-      const raw = String(draft[f] ?? "").trim();
-      if (raw.length > 0 && !PLAN_ID_RE.test(raw)) {
-        e[f] = "Must match plan_XXXX.";
-      }
-    }
-
-    const stripeFields: Array<keyof Draft> = [
-      "stripe_price_id_month",
-      "stripe_price_id_year",
-    ];
-    for (const f of stripeFields) {
-      const raw = String(draft[f] ?? "").trim();
-      if (raw.length > 0 && !STRIPE_PRICE_ID_RE.test(raw)) {
-        e[f] = "Must match price_XXXX.";
-      }
-    }
-
-    const so = Number(draft.sort_order);
-    if (!Number.isInteger(so) || so < 0) e.sort_order = "Integer ≥ 0.";
-
-    return e;
-  };
-
-  // Compute diff against the live plan row so we only send changed fields.
-  const buildPayload = (): PlanUpdatePayload => {
+  const buildPayload = (): PlanUpdatePayload | null => {
     const payload: PlanUpdatePayload = {};
-    const nullable = (raw: string | number | null): number | null => {
-      if (raw === "" || raw === null) return null;
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : null;
+    const numOrNull = (raw: string) => {
+      const t = raw.trim();
+      if (!t) return null;
+      const n = Number(t);
+      return Number.isFinite(n) && n >= 0 ? n : null;
     };
-    const stringOrNull = (raw: string | null): string | null => {
-      const v = String(raw ?? "").trim();
-      return v.length === 0 ? null : v;
+    const idOrNull = (raw: string) => {
+      const t = raw.trim();
+      return t || null;
     };
 
-    if (draft.name.trim() !== plan.name) payload.name = draft.name.trim();
-    if ((draft.description.trim() || null) !== (plan.description ?? null)) {
-      payload.description = draft.description.trim() || null;
-    }
-    if (nullable(draft.price_inr_month) !== (plan.price_inr_month ?? null)) {
-      payload.price_inr_month = nullable(draft.price_inr_month);
-    }
-    if (nullable(draft.price_inr_year) !== (plan.price_inr_year ?? null)) {
-      payload.price_inr_year = nullable(draft.price_inr_year);
-    }
-    if (nullable(draft.price_usd_month) !== (plan.price_usd_month ?? null)) {
-      payload.price_usd_month = nullable(draft.price_usd_month);
-    }
-    if (nullable(draft.price_usd_year) !== (plan.price_usd_year ?? null)) {
-      payload.price_usd_year = nullable(draft.price_usd_year);
-    }
-    if (stringOrNull(draft.razorpay_plan_id_month) !== (plan.razorpay_plan_id_month ?? null)) {
-      payload.razorpay_plan_id_month = stringOrNull(draft.razorpay_plan_id_month);
-    }
-    if (stringOrNull(draft.razorpay_plan_id_year) !== (plan.razorpay_plan_id_year ?? null)) {
-      payload.razorpay_plan_id_year = stringOrNull(draft.razorpay_plan_id_year);
-    }
-    if (stringOrNull(draft.stripe_price_id_month) !== (plan.stripe_price_id_month ?? null)) {
-      payload.stripe_price_id_month = stringOrNull(draft.stripe_price_id_month);
-    }
-    if (stringOrNull(draft.stripe_price_id_year) !== (plan.stripe_price_id_year ?? null)) {
-      payload.stripe_price_id_year = stringOrNull(draft.stripe_price_id_year);
-    }
-    if (draft.is_active !== plan.is_active) payload.is_active = draft.is_active;
-    if (draft.is_public !== plan.is_public) payload.is_public = draft.is_public;
-    if (Number(draft.sort_order) !== plan.sort_order) payload.sort_order = Number(draft.sort_order);
+    const nextMo = numOrNull(draft.price_inr_month);
+    const nextYr = numOrNull(draft.price_inr_year);
+    const nextIdMo = idOrNull(draft.razorpay_plan_id_month);
+    const nextIdYr = idOrNull(draft.razorpay_plan_id_year);
 
-    return payload;
+    if (nextMo !== (plan.price_inr_month ?? null)) payload.price_inr_month = nextMo;
+    if (nextYr !== (plan.price_inr_year ?? null)) payload.price_inr_year = nextYr;
+    if (nextIdMo !== (plan.razorpay_plan_id_month ?? null)) {
+      payload.razorpay_plan_id_month = nextIdMo;
+    }
+    if (nextIdYr !== (plan.razorpay_plan_id_year ?? null)) {
+      payload.razorpay_plan_id_year = nextIdYr;
+    }
+
+    return Object.keys(payload).length > 0 ? payload : null;
   };
 
   const payload = buildPayload();
-  const dirty = Object.keys(payload).length > 0;
+  const dirty = payload !== null;
 
   const mutation = useMutation({
-    mutationFn: () =>
-      fetcher<{ ok: true; plan: Plan }>("/api/platform/plan-update", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ planCode: plan.code, updates: payload }),
-      }),
+    mutationFn: () => savePlan(plan.code, payload!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["platform", "plans", "editor"] });
-      toast({ title: "Plan saved", description: `"${plan.code}" is now live.` });
+      toast({ title: "Plan saved", description: `${plan.name} Razorpay mapping updated.` });
     },
     onError: (err: Error) => {
-      toast({ title: "Couldn't save plan", description: err.message, variant: "destructive" });
+      toast({ title: "Could not save plan", description: err.message, variant: "destructive" });
     },
   });
 
   const onSave = () => {
-    const es = validate();
-    setErrors(es);
-    if (Object.keys(es).length > 0) return;
-    if (!dirty) return;
+    if (!payload) return;
+    for (const id of [payload.razorpay_plan_id_month, payload.razorpay_plan_id_year]) {
+      if (id && !PLAN_ID_RE.test(id)) {
+        toast({
+          title: "Invalid Razorpay plan ID",
+          description: "IDs must look like plan_XXXX.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     mutation.mutate();
   };
 
-  const onReset = () => {
-    setDraft(toDraft(plan));
-    setErrors({});
-  };
-
-  const hasMonthlyId = Boolean(plan.razorpay_plan_id_month);
-  const hasYearlyId = Boolean(plan.razorpay_plan_id_year);
+  const status = syncStatus({
+    ...plan,
+    razorpay_plan_id_month: draft.razorpay_plan_id_month.trim() || null,
+    razorpay_plan_id_year: draft.razorpay_plan_id_year.trim() || null,
+  });
 
   return (
-    <div
-      className={cn(
-        "rounded-xl border bg-white/[0.02] overflow-hidden transition-colors",
-        dirty ? "border-indigo-500/40" : "border-white/10",
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-white/5">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-indigo-300" />
-            <div className="text-sm font-semibold text-zinc-100">{plan.name}</div>
-            <Badge variant="outline" className="border-white/10 bg-white/5 text-[10px] uppercase tracking-wider text-zinc-400">
-              {plan.code}
-            </Badge>
-            {!plan.is_active && (
-              <Badge variant="outline" className="border-zinc-500/30 bg-zinc-500/10 text-zinc-400 text-[10px] uppercase tracking-wider">
-                inactive
-              </Badge>
-            )}
-            {!plan.is_public && (
-              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 text-[10px] uppercase tracking-wider">
-                hidden
-              </Badge>
-            )}
-          </div>
-          <div className="mt-1 text-[11px] text-zinc-500">
-            List price:{" "}
-            <span className="text-zinc-300">
-              {plan.price_inr_month ? `${inr.format(plan.price_inr_month)}/mo` : "custom"}
-            </span>
-            {plan.price_inr_year && (
-              <>
-                {" "}· <span className="text-zinc-300">{inr.format(plan.price_inr_year)}/yr</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <ReadinessDot ok={hasMonthlyId} label="Monthly Razorpay ID" />
-          <ReadinessDot ok={hasYearlyId} label="Yearly Razorpay ID" />
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="p-5 space-y-5">
-        {/* Identity */}
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Display name" error={errors.name}>
-            <Input
-              value={draft.name}
-              onChange={(e) => set("name", e.target.value)}
-              maxLength={60}
-              className="bg-black/30 border-white/10"
-            />
-          </Field>
-          <Field label="Sort order" error={errors.sort_order} hint="Lower = earlier in pickers">
-            <Input
-              type="number"
-              value={draft.sort_order}
-              onChange={(e) => set("sort_order", Number(e.target.value || 0))}
-              className="bg-black/30 border-white/10 font-mono"
-              min={0}
-              step={1}
-            />
-          </Field>
-        </div>
-
-        <Field label="Description" error={errors.description}>
-          <Textarea
-            value={draft.description}
-            onChange={(e) => set("description", e.target.value)}
-            maxLength={300}
-            rows={2}
-            placeholder="One-sentence blurb shown on the pricing page."
-            className="bg-black/30 border-white/10 resize-none"
-          />
-        </Field>
-
-        {/* Pricing */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <IndianRupee className="h-3.5 w-3.5 text-zinc-500" />
-            <div className="text-[11px] uppercase tracking-wider text-zinc-500">INR pricing</div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <PriceField
-              label="Monthly"
-              value={draft.price_inr_month}
-              onChange={(v) => set("price_inr_month", v)}
-              error={errors.price_inr_month}
-              currency="₹"
-            />
-            <PriceField
-              label="Yearly"
-              value={draft.price_inr_year}
-              onChange={(v) => set("price_inr_year", v)}
-              error={errors.price_inr_year}
-              currency="₹"
-              hint={
-                yearlyDiscountHint(
-                  Number(draft.price_inr_month) || 0,
-                  Number(draft.price_inr_year) || 0,
-                )
-              }
-            />
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="h-3.5 w-3.5 text-zinc-500 font-bold text-[11px] inline-flex items-center">$</span>
-            <div className="text-[11px] uppercase tracking-wider text-zinc-500">USD pricing (optional)</div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <PriceField
-              label="Monthly"
-              value={draft.price_usd_month}
-              onChange={(v) => set("price_usd_month", v)}
-              error={errors.price_usd_month}
-              currency="$"
-            />
-            <PriceField
-              label="Yearly"
-              value={draft.price_usd_year}
-              onChange={(v) => set("price_usd_year", v)}
-              error={errors.price_usd_year}
-              currency="$"
-            />
-          </div>
-        </div>
-
-        {/* Razorpay */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Wallet className="h-3.5 w-3.5 text-zinc-500" />
-            <div className="text-[11px] uppercase tracking-wider text-zinc-500">Razorpay plan IDs</div>
-          </div>
-          <div className="grid grid-cols-1 gap-3">
-            <Field label="Monthly plan ID" error={errors.razorpay_plan_id_month}>
-              <Input
-                value={draft.razorpay_plan_id_month}
-                onChange={(e) => set("razorpay_plan_id_month", e.target.value.trim())}
-                placeholder="plan_XXXXXXXXXXXX"
-                className="bg-black/30 border-white/10 font-mono text-sm"
-              />
-            </Field>
-            <Field label="Yearly plan ID" error={errors.razorpay_plan_id_year}>
-              <Input
-                value={draft.razorpay_plan_id_year}
-                onChange={(e) => set("razorpay_plan_id_year", e.target.value.trim())}
-                placeholder="plan_XXXXXXXXXXXX"
-                className="bg-black/30 border-white/10 font-mono text-sm"
-              />
-            </Field>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Wallet className="h-3.5 w-3.5 text-zinc-500" />
-            <div className="text-[11px] uppercase tracking-wider text-zinc-500">Stripe price IDs (foundation)</div>
-          </div>
-          <div className="grid grid-cols-1 gap-3">
-            <Field label="Monthly price ID" error={errors.stripe_price_id_month}>
-              <Input
-                value={draft.stripe_price_id_month}
-                onChange={(e) => set("stripe_price_id_month", e.target.value.trim())}
-                placeholder="price_XXXXXXXXXXXX"
-                className="bg-black/30 border-white/10 font-mono text-sm"
-              />
-            </Field>
-            <Field label="Yearly price ID" error={errors.stripe_price_id_year}>
-              <Input
-                value={draft.stripe_price_id_year}
-                onChange={(e) => set("stripe_price_id_year", e.target.value.trim())}
-                placeholder="price_XXXXXXXXXXXX"
-                className="bg-black/30 border-white/10 font-mono text-sm"
-              />
-            </Field>
-          </div>
-        </div>
-
-        {/* Flags */}
-        <div className="grid grid-cols-2 gap-3">
-          <ToggleRow
-            label="Active"
-            description="Tenants can be placed on this plan."
-            icon={CheckCircle2}
-            checked={draft.is_active}
-            onChange={(v) => set("is_active", v)}
-            disabled={plan.code === "internal" && draft.is_active === true}
-            disabledHint={plan.code === "internal" ? "Internal plan is always active." : undefined}
-          />
-          <ToggleRow
-            label="Public"
-            description="Visible on the marketing pricing page."
-            icon={draft.is_public ? Eye : EyeOff}
-            checked={draft.is_public}
-            onChange={(v) => set("is_public", v)}
-          />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div
-        className={cn(
-          "border-t flex items-center justify-between gap-3 px-5 py-3",
-          dirty
-            ? "border-indigo-500/20 bg-indigo-500/5"
-            : "border-white/5 bg-white/[0.015]",
-        )}
-      >
-        <div className="text-xs text-zinc-400 inline-flex items-center gap-2">
-          {dirty ? (
-            <>
-              <CircleDot className="h-3 w-3 text-indigo-300" />
-              <span>Unsaved changes in {Object.keys(payload).length} field(s).</span>
-            </>
+    <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+      <td className="px-5 py-3">
+        <div className="font-medium text-zinc-100">{plan.name}</div>
+        <div className="text-[11px] text-zinc-500 uppercase tracking-wider">{plan.code}</div>
+      </td>
+      <td className="px-3 py-3">
+        <Input
+          type="number"
+          min={0}
+          value={draft.price_inr_month}
+          onChange={(e) => setDraft((d) => ({ ...d, price_inr_month: e.target.value }))}
+          className="h-9 w-24 font-mono bg-black/30 border-white/10"
+        />
+      </td>
+      <td className="px-3 py-3">
+        <Input
+          type="number"
+          min={0}
+          value={draft.price_inr_year}
+          onChange={(e) => setDraft((d) => ({ ...d, price_inr_year: e.target.value }))}
+          className="h-9 w-28 font-mono bg-black/30 border-white/10"
+        />
+      </td>
+      <td className="px-3 py-3">
+        <Input
+          value={draft.razorpay_plan_id_month}
+          onChange={(e) => setDraft((d) => ({ ...d, razorpay_plan_id_month: e.target.value.trim() }))}
+          placeholder="plan_…"
+          className="h-9 min-w-[180px] font-mono text-xs bg-black/30 border-white/10"
+        />
+      </td>
+      <td className="px-3 py-3">
+        <Input
+          value={draft.razorpay_plan_id_year}
+          onChange={(e) => setDraft((d) => ({ ...d, razorpay_plan_id_year: e.target.value.trim() }))}
+          placeholder="plan_…"
+          className="h-9 min-w-[180px] font-mono text-xs bg-black/30 border-white/10"
+        />
+      </td>
+      <td className="px-3 py-3">
+        <SyncBadge status={status} />
+      </td>
+      <td className="px-5 py-3 text-right">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!dirty || mutation.isPending}
+          onClick={onSave}
+          className="border-white/15 bg-white/5 hover:bg-white/10"
+        >
+          {mutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <span className="text-zinc-500">No changes.</span>
+            <>
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              Save
+            </>
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={!dirty || mutation.isPending}
-            onClick={onReset}
-            className="text-zinc-400 hover:text-zinc-100 hover:bg-white/5"
-          >
-            <Undo2 className="h-3.5 w-3.5 mr-1.5" />
-            Reset
-          </Button>
-          <Button
-            size="sm"
-            disabled={!dirty || mutation.isPending}
-            onClick={onSave}
-            className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white hover:opacity-90"
-          >
-            {mutation.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <>
-                <Save className="h-3.5 w-3.5 mr-1.5" />
-                Save plan
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
+        </Button>
+      </td>
+    </tr>
   );
 };
 
-type Draft = {
-  name: string;
-  description: string;
-  price_inr_month: number | "";
-  price_inr_year: number | "";
-  price_usd_month: number | "";
-  price_usd_year: number | "";
-  razorpay_plan_id_month: string;
-  razorpay_plan_id_year: string;
-  stripe_price_id_month: string;
-  stripe_price_id_year: string;
-  is_active: boolean;
-  is_public: boolean;
-  sort_order: number;
-};
-
-// ---------------------------------------------------------------------------
-// Small UI bits
-// ---------------------------------------------------------------------------
-const Field: React.FC<{
-  label: string;
-  error?: string;
-  hint?: React.ReactNode;
-  children: React.ReactNode;
-}> = ({ label, error, hint, children }) => (
-  <div>
-    <Label className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</Label>
-    <div className="mt-1">{children}</div>
-    {error ? (
-      <div className="mt-1 text-[11px] text-rose-400">{error}</div>
-    ) : hint ? (
-      <div className="mt-1 text-[11px] text-zinc-500">{hint}</div>
-    ) : null}
-  </div>
-);
-
-const PriceField: React.FC<{
-  label: string;
-  value: number | "";
-  onChange: (v: number | "") => void;
-  error?: string;
-  currency: string;
-  hint?: React.ReactNode;
-}> = ({ label, value, onChange, error, currency, hint }) => (
-  <Field label={label} error={error} hint={hint}>
-    <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">{currency}</span>
-      <Input
-        type="number"
-        value={value === "" ? "" : String(value)}
-        onChange={(e) => {
-          const raw = e.target.value;
-          onChange(raw === "" ? "" : Number(raw));
-        }}
-        placeholder="empty = custom"
-        className="pl-7 bg-black/30 border-white/10 font-mono"
-        min={0}
-      />
-    </div>
-  </Field>
-);
-
-const ToggleRow: React.FC<{
-  label: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-  disabledHint?: string;
-}> = ({ label, description, icon: Icon, checked, onChange, disabled, disabledHint }) => (
-  <div
-    className={cn(
-      "rounded-lg border border-white/5 bg-black/20 px-3 py-2.5 flex items-center justify-between gap-3",
-      disabled && "opacity-70",
-    )}
-    title={disabled ? disabledHint : undefined}
-  >
-    <div className="min-w-0">
-      <div className="text-sm text-zinc-100 flex items-center gap-1.5">
-        <Icon className="h-3.5 w-3.5 text-zinc-400" />
-        {label}
-      </div>
-      <div className="text-[11px] text-zinc-500 truncate">{description}</div>
-    </div>
-    <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
-  </div>
-);
-
-const ReadinessDot: React.FC<{ ok: boolean; label: string }> = ({ ok, label }) => (
-  <span
-    title={`${label}: ${ok ? "set" : "not set"}`}
-    className={cn(
-      "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wider",
-      ok
-        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-        : "border-amber-500/30 bg-amber-500/10 text-amber-300",
-    )}
-  >
-    <span className={cn("h-1.5 w-1.5 rounded-full", ok ? "bg-emerald-400" : "bg-amber-400")} />
-    {label.startsWith("Monthly") ? "mo" : "yr"}
-  </span>
-);
-
-const yearlyDiscountHint = (monthly: number, yearly: number): React.ReactNode => {
-  if (!monthly || !yearly) return null;
-  const yearlyEquivalent = monthly * 12;
-  const savings = yearlyEquivalent - yearly;
-  if (savings <= 0) {
+const SyncBadge: React.FC<{ status: "ready" | "partial" | "missing" }> = ({ status }) => {
+  if (status === "ready") {
     return (
-      <span className="inline-flex items-center gap-1 text-amber-300/80">
-        <AlertTriangle className="h-3 w-3" />
-        No discount vs. monthly × 12.
+      <span className="inline-flex items-center gap-1 text-xs text-emerald-300">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Synced
       </span>
     );
   }
-  const pct = Math.round((savings / yearlyEquivalent) * 100);
+  if (status === "partial") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-amber-300">
+        <AlertCircle className="h-3.5 w-3.5" />
+        Partial
+      </span>
+    );
+  }
   return (
-    <span className="text-emerald-300/80">
-      Saves {inr.format(savings)} vs. monthly ({pct}% off).
+    <span className="inline-flex items-center gap-1 text-xs text-rose-300">
+      <AlertCircle className="h-3.5 w-3.5" />
+      Missing IDs
     </span>
-  );
-};
-
-// Copy-button reused if needed later (not currently referenced in this page).
-export const CopyInline: React.FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = React.useState(false);
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        void navigator.clipboard?.writeText(text);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
-      }}
-      className="ml-auto text-zinc-500 hover:text-zinc-200"
-      title="Copy"
-    >
-      {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-    </button>
   );
 };

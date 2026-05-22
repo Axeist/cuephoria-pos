@@ -16,7 +16,7 @@ const navItems = [
   { to: "/platform", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/platform/organizations", label: "Organizations", icon: Building2, end: false },
   { to: "/platform/admins", label: "Admins", icon: Shield, end: false },
-  { to: "/platform/plans", label: "Plans", icon: Sparkles, end: false },
+  { to: "/platform/plans", label: "Billing plans", icon: Sparkles, end: false },
   { to: "/platform/audit", label: "Audit log", icon: Activity, end: false },
 ];
 

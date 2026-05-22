@@ -237,11 +237,10 @@ const PlatformLogin: React.FC = () => {
                   Restricted to {PARENT_BRAND.name} platform operators.
                 </p>
                 <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
-                  Tenant pay-or-lock grace (billing retries and abandoned checkout) is tuned after sign-in: open{" "}
-                  <span className="text-gray-400 font-semibold">
-                    Fleet billing grace on Overview
-                  </span>
-                  .
+                  After sign-in, open{" "}
+                  <span className="text-gray-400 font-semibold">Plans</span> to map Razorpay plan IDs
+                  and enable the ₹1 test plan. Fleet billing grace is on{" "}
+                  <span className="text-gray-400 font-semibold">Overview</span>.
                 </p>
               </div>
 
