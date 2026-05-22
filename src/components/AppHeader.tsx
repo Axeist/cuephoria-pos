@@ -11,6 +11,32 @@ import {
   tenantPortalKindFromFlags,
 } from "@/lib/tenantPortalLabels";
 
+type HeaderUser = {
+  displayName?: string | null;
+  username?: string;
+};
+
+/** Prefer profile display name; avoid showing a raw login email in the header. */
+function resolveStaffDisplayName(user: HeaderUser | null): string {
+  if (!user) return "Welcome back";
+  const displayName = user.displayName?.trim();
+  if (displayName) return displayName;
+
+  const username = user.username?.trim() ?? "";
+  if (!username) return "Welcome back";
+
+  if (username.includes("@")) {
+    const local = username.split("@")[0]?.replace(/[._-]+/g, " ").trim();
+    if (!local) return "Welcome back";
+    return local
+      .split(/\s+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
+  return username.charAt(0).toUpperCase() + username.slice(1);
+}
+
 /**
  * Formats a greeting based on the current hour so the bar feels alive
  * rather than static across the day.
@@ -113,12 +139,11 @@ function LiveActivityPill() {
 }
 
 /**
- * Greeting chip — displays a time-of-day salutation plus the currently signed
- * in staff member. Falls back to a generic greeting when we have no user
- * (e.g. during auth transitions).
+ * Greeting + staff name, with a compact active-workspace hint on the same row.
  */
-function StaffGreeting() {
+function StaffIdentity() {
   const { user } = useAuth();
+  const orgCtx = useOrganizationOptional();
   const [hour, setHour] = useState<number>(() => new Date().getHours());
 
   useEffect(() => {
@@ -127,62 +152,57 @@ function StaffGreeting() {
   }, []);
 
   const greeting = greetingForHour(hour);
-  const displayName = user?.username
-    ? user.username.charAt(0).toUpperCase() + user.username.slice(1)
-    : null;
+  const displayName = resolveStaffDisplayName(user);
+
+  const showWorkspace =
+    user && orgCtx?.status === "ready" && orgCtx.organization;
+  const activeOrg = showWorkspace ? orgCtx.organization : null;
+  const orgTitle = activeOrg?.name?.trim() || activeOrg?.slug || "";
+  const seatRole = activeOrg ? labelOrgMembershipRole(activeOrg.role) : "";
+  const portal = user
+    ? labelTenantPortalKind(tenantPortalKindFromFlags(user.isSuperAdmin, user.isAdmin))
+    : "";
+  const memberships = orgCtx?.workspaceMemberships ?? [];
+  const others = activeOrg
+    ? memberships.filter((m) => m.slug !== activeOrg.slug)
+    : [];
+  const workspaceTooltip = activeOrg
+    ? [
+        `Active workspace: ${orgTitle} (${seatRole})`,
+        `Account portal: ${portal}`,
+        ...(others.length
+          ? [
+              "Also a member of:",
+              ...others.map(
+                (m) =>
+                  ` · ${m.name?.trim() || m.slug} (${labelOrgMembershipRole(m.membershipRole)})`,
+              ),
+            ]
+          : []),
+      ].join("\n")
+    : undefined;
 
   return (
-    <div className="hidden xl:flex flex-col leading-none">
+    <div className="hidden lg:flex min-w-0 max-w-[min(280px,34vw)] flex-col leading-none">
       <span className="text-[9px] uppercase tracking-[0.18em] text-white/40">
         {greeting}
       </span>
-      <span className="mt-1 text-[13px] font-semibold text-white/85">
-        {displayName ? `@${displayName}` : "Welcome back"}
-      </span>
-    </div>
-  );
-}
-
-/**
- * Shows active workspace name, org-role seat (owner/admin/staff), and account
- * portal tier (workspace super admin / admin / staff). Tooltip lists other
- * workspaces when the login spans multiple organizations.
- */
-function WorkspaceIdentityRibbon() {
-  const { user } = useAuth();
-  const orgCtx = useOrganizationOptional();
-  if (!user || orgCtx?.status !== "ready" || !orgCtx.organization) return null;
-
-  const portal = labelTenantPortalKind(tenantPortalKindFromFlags(user.isSuperAdmin, user.isAdmin));
-  const activeOrg = orgCtx.organization;
-  const orgTitle = activeOrg.name?.trim() || activeOrg.slug;
-  const seatRole = labelOrgMembershipRole(activeOrg.role);
-  const memberships = orgCtx.workspaceMemberships ?? [];
-  const others = memberships.filter((m) => m.slug !== activeOrg.slug);
-  const tooltipLines = [
-    `Account portal: ${portal}`,
-    `Active workspace: ${orgTitle} (${seatRole})`,
-    ...(others.length
-      ? [
-          "Also a member of:",
-          ...others.map(
-            (m) => ` · ${m.name?.trim() || m.slug} (${labelOrgMembershipRole(m.membershipRole)})`,
-          ),
-        ]
-      : []),
-  ];
-
-  return (
-    <div
-      className="hidden lg:flex max-w-[min(380px,36vw)] flex-col gap-0.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5"
-      title={tooltipLines.join("\n")}
-    >
-      <span className="text-[9px] uppercase tracking-[0.16em] text-white/38">Workspace</span>
-      <span className="truncate text-[12px] font-semibold text-white/88">{orgTitle}</span>
-      <span className="truncate text-[10px] text-violet-200/85">
-        {seatRole} seat · {portal}
-        {others.length ? ` · +${others.length} other workspace${others.length === 1 ? "" : "s"}` : ""}
-      </span>
+      <div className="mt-1 flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-[13px] font-semibold text-white/90">
+          {displayName}
+        </span>
+        {orgTitle ? (
+          <>
+            <span className="shrink-0 text-[11px] text-white/25">·</span>
+            <span
+              className="truncate text-[11px] font-medium text-white/55"
+              title={workspaceTooltip}
+            >
+              {orgTitle}
+            </span>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -261,8 +281,7 @@ export function AppHeader() {
       />
 
       <div className="flex items-center gap-3 min-w-0">
-        <StaffGreeting />
-        <WorkspaceIdentityRibbon />
+        <StaffIdentity />
         <div className="hidden xl:block h-7 w-px bg-white/10" />
         <LiveClock />
       </div>
