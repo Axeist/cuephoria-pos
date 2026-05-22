@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -89,8 +90,11 @@ const OfferSelectionDialog: React.FC<OfferSelectionDialogProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
+    <ResponsiveDialog open={isOpen} onOpenChange={onClose} mobileVariant="fullscreen">
+      <ResponsiveDialogContent
+        className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700"
+        mobileClassName="px-4 pt-3"
+      >
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Gift className="h-5 w-5 text-green-400" />
@@ -209,8 +213,8 @@ const OfferSelectionDialog: React.FC<OfferSelectionDialogProps> = ({
             Save Selection ({localSelectedIds.length} offers)
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 };
 

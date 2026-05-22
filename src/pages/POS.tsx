@@ -5,6 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+} from '@/components/ui/responsive-dialog';
+import StickyMobileActionBar from '@/components/ui/sticky-mobile-action-bar';
 import { ShoppingCart, X, User, Plus, Search, ArrowRight, Trash2, ReceiptIcon, Download, Check, Award, Gift, Calendar, Clock, Lock, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS, Customer, Product, Bill } from '@/context/POSContext';
@@ -18,6 +23,8 @@ import SplitPaymentForm from '@/components/checkout/SplitPaymentForm';
 import { getCartInfo } from '@/utils/cartStorage';
 import SavedCartsManager from '@/components/SavedCartsManager';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useViewMode } from '@/context/ViewModeContext';
+import { hapticImpact } from '@/utils/capacitor';
 
 const POS = () => {
   const {
@@ -48,6 +55,7 @@ const POS = () => {
   } = usePOS();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { isMobile: mobileView } = useViewMode();
 
   const [activeTab, setActiveTab] = useState('all');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -264,7 +272,10 @@ const POS = () => {
         setLastCompletedBill(bill);
         
         setShowSuccess(true);
-        
+
+        // Native: success haptic so the user feels the transaction complete.
+        hapticImpact('medium').catch(() => {});
+
         toast({
           title: 'Sale Completed',
           description: `Total: ${formatCurrency(bill.total)}`,
@@ -363,16 +374,19 @@ const POS = () => {
   const total = calculateTotal();
 
   return (
-    <div className="flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6">
+    <div className={`flex-1 p-3 sm:p-6 md:p-8 pt-3 sm:pt-6 ${mobileView ? 'pb-28' : ''}`}>
       {/* Mobile-optimized header */}
       <div className="flex items-center justify-between mb-4 sm:mb-6 animate-slide-down">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight gradient-text font-heading">Point of Sale</h2>
       </div>
 
-      {/* Mobile-optimized grid layout */}
+      {/* Mobile-optimized grid layout.
+          On mobile we flip the visual order (products first, cart second) so
+          the user lands on the catalog and uses the StickyMobileActionBar at
+          the bottom to drive checkout. Desktop layout is untouched. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         {/* Cart Section - Mobile optimized */}
-        <Card className={`lg:col-span-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up`}>
+        <Card className={`lg:col-span-1 order-2 lg:order-1 ${isMobile ? 'h-auto min-h-[300px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up`}>
           <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-cuephoria-purple/20 to-transparent px-3 sm:px-6 pt-3 sm:pt-6">
             <div className="flex justify-between items-center">
               <CardTitle className="text-base sm:text-xl font-heading">
@@ -545,7 +559,7 @@ const POS = () => {
         </Card>
 
         {/* Products Section - Mobile optimized */}
-        <Card className={`lg:col-span-2 ${isMobile ? 'h-auto min-h-[500px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up delay-200`}>
+        <Card className={`lg:col-span-2 order-1 lg:order-2 ${isMobile ? 'h-auto min-h-[500px]' : 'h-[calc(100vh-12rem)]'} flex flex-col animate-slide-up delay-200`}>
           <CardHeader className="pb-2 sm:pb-3 bg-gradient-to-r from-transparent to-cuephoria-blue/10 flex-shrink-0 px-3 sm:px-6 pt-3 sm:pt-6">
             <CardTitle className="text-base sm:text-xl font-heading mb-2 sm:mb-3">Products</CardTitle>
             <div className="flex space-x-2">
@@ -669,9 +683,15 @@ const POS = () => {
         <SavedCartsManager />
       </div>
 
-      {/* Customer Dialog */}
-      <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-3xl animate-scale-in">
+      {/* Customer Dialog — fullscreen sheet on mobile, centered dialog on desktop. */}
+      <ResponsiveDialog
+        open={isCustomerDialogOpen}
+        onOpenChange={setIsCustomerDialogOpen}
+        mobileVariant="fullscreen"
+      >
+        <ResponsiveDialogContent className="max-w-[95vw] sm:max-w-3xl animate-scale-in"
+          mobileClassName="px-4 pt-4"
+        >
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">Select Customer</DialogTitle>
             <DialogDescription>
@@ -725,12 +745,12 @@ const POS = () => {
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
-      {/* Complimentary Dialog */}
-      <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md animate-scale-in">
+      {/* Complimentary Dialog — bottom sheet on mobile, centered dialog on desktop. */}
+      <ResponsiveDialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent className="max-w-[95vw] sm:max-w-md animate-scale-in" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2">
               <Gift className="h-5 w-5 text-orange-500" />
@@ -859,12 +879,12 @@ const POS = () => {
               {isCompletingSale ? 'Processing...' : 'Confirm Complimentary'}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
-      {/* Checkout Dialog */}
-      <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
+      {/* Checkout Dialog — fullscreen on mobile (multi-step form), centered on desktop. */}
+      <ResponsiveDialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen} mobileVariant="fullscreen">
+        <ResponsiveDialogContent className="max-w-md max-h-[90vh] overflow-y-auto animate-scale-in" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">Complete Transaction</DialogTitle>
           </DialogHeader>
@@ -1113,12 +1133,12 @@ const POS = () => {
               {isCompletingSale ? 'Processing...' : `Complete Sale (${formatCurrency(total)})`}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
-      {/* Success Dialog - UPDATED FOR FASTER LOADING */}
-      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="max-w-md animate-scale-in text-center">
+      {/* Success Dialog — bottom sheet on mobile, centered dialog on desktop. */}
+      <ResponsiveDialog open={showSuccess} onOpenChange={setShowSuccess} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent className="max-w-md animate-scale-in text-center" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle className="text-2xl font-heading mb-2 flex items-center justify-center gap-2">
               <div className="rounded-full bg-green-100 p-3">
@@ -1172,8 +1192,8 @@ const POS = () => {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Receipt */}
       {showReceipt && lastCompletedBill && selectedCustomer && (
@@ -1183,6 +1203,55 @@ const POS = () => {
           onClose={() => setShowReceipt(false)} 
         />
       )}
+
+      {/* Mobile sticky checkout bar — visible only when there's something to
+          sell. Mirrors the cart footer actions so the user never has to
+          scroll back to checkout. Desktop is untouched. */}
+      <StickyMobileActionBar
+        visible={mobileView && cart.length > 0}
+        className="flex flex-col gap-2"
+      >
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4 text-cuephoria-lightpurple" />
+            <span className="text-white/70">
+              {cart.length} {cart.length === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+          <CurrencyDisplay amount={total} className="text-white font-bold text-base" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-gradient-to-r from-orange-500 to-orange-600 hover:opacity-90 h-11 text-sm rounded-lg font-medium"
+            disabled={cart.length === 0 || !selectedCustomer}
+            onClick={handleComplimentary}
+          >
+            <Gift className="mr-1.5 h-4 w-4" />
+            Comp
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90 h-11 text-sm rounded-lg font-medium"
+            disabled={cart.length === 0 || !selectedCustomer}
+            onClick={() => setIsCheckoutDialogOpen(true)}
+          >
+            <ReceiptIcon className="mr-1.5 h-4 w-4" />
+            Checkout
+          </Button>
+        </div>
+        {!selectedCustomer && cart.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setIsCustomerDialogOpen(true)}
+            className="w-full text-center text-[11px] text-cuephoria-lightpurple font-medium py-0.5 -mt-1"
+          >
+            Tap to select a customer first
+          </button>
+        ) : null}
+      </StickyMobileActionBar>
     </div>
   );
 };

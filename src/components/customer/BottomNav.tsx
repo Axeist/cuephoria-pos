@@ -73,8 +73,15 @@ export default function BottomNav() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-gray-900/98 to-purple-900/98 border-t border-purple-500/30 backdrop-blur-xl z-50 safe-area-inset-bottom shadow-lg shadow-purple-500/10">
-      <div className="max-w-5xl mx-auto px-2 py-2">
+    <div
+      className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-gray-900/98 to-purple-900/98 border-t border-purple-500/30 backdrop-blur-xl z-50 shadow-lg shadow-purple-500/10"
+      style={{
+        // Safe-area-aware bottom padding so the nav doesn't sit under iOS
+        // home indicator on phones with rounded corners.
+        paddingBottom: 'max(0px, env(safe-area-inset-bottom))',
+      }}
+    >
+      <div className="max-w-5xl mx-auto px-1 sm:px-2 py-1.5 sm:py-2">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -84,7 +91,8 @@ export default function BottomNav() {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all duration-200 bottom-nav-item relative min-w-[64px] ${
+                aria-label={item.label}
+                className={`flex flex-col items-center gap-0.5 sm:gap-1 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all duration-200 bottom-nav-item relative min-w-[56px] sm:min-w-[64px] ${
                   active
                     ? 'text-purple-400'
                     : 'text-gray-400 hover:text-white hover:bg-purple-600/20'
@@ -97,12 +105,14 @@ export default function BottomNav() {
                     strokeWidth={active ? 2.5 : 2}
                   />
                   {item.badge && item.badge > 0 && (
-                    <Badge className="absolute -top-2 -right-2 bg-red-500 text-white text-xs h-5 min-w-[20px] flex items-center justify-center rounded-full px-1 animate-pulse">
+                    <Badge className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] sm:text-xs h-4 sm:h-5 min-w-[16px] sm:min-w-[20px] flex items-center justify-center rounded-full px-1 animate-pulse">
                       {item.badge > 9 ? '9+' : item.badge}
                     </Badge>
                   )}
                 </div>
-                <span className={`text-xs font-medium ${active ? 'font-semibold' : ''}`}>
+                {/* Hide label on extra-narrow viewports (<360px) — icon +
+                    a11y label remain. */}
+                <span className={`hidden min-[360px]:inline text-[10px] sm:text-xs font-medium leading-none ${active ? 'font-semibold' : ''}`}>
                   {item.label}
                 </span>
                 {active && (

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import BusinessSummaryReport from '@/components/dashboard/BusinessSummaryReport';
@@ -2010,8 +2011,11 @@ const ReportsPage: React.FC = () => {
       </div>
 
       {/* Edit Transaction dialog – change payment method like on dashboard */}
-      <Dialog open={!!editingBill} onOpenChange={(open) => !open && setEditingBill(null)}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
+      <ResponsiveDialog open={!!editingBill} onOpenChange={(open) => !open && setEditingBill(null)} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent
+          className="bg-gray-800 border-gray-700 text-white max-w-md"
+          mobileClassName="px-4 pt-3 bg-gray-900"
+        >
           <DialogHeader>
             <DialogTitle className="text-xl">Edit Transaction</DialogTitle>
             <DialogDescription className="text-gray-400">
@@ -2127,11 +2131,14 @@ const ReportsPage: React.FC = () => {
               )}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
-      <Dialog open={!!singleRealiseBill} onOpenChange={(open) => !open && setSingleRealiseBill(null)}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
+      <ResponsiveDialog open={!!singleRealiseBill} onOpenChange={(open) => !open && setSingleRealiseBill(null)} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent
+          className="bg-gray-800 border-gray-700 text-white max-w-md"
+          mobileClassName="px-4 pt-3 bg-gray-900"
+        >
           <DialogHeader>
             <DialogTitle className="text-xl">Realise credit payment</DialogTitle>
             <DialogDescription className="text-gray-400">
@@ -2244,8 +2251,8 @@ const ReportsPage: React.FC = () => {
               Confirm realise
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </div>
   );
 };

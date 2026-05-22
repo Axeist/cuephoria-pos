@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1250,8 +1251,8 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
       </div>
 
       {/* Deduction Dialog */}
-      <Dialog open={showDeductionDialog} onOpenChange={setShowDeductionDialog}>
-        <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+      <ResponsiveDialog open={showDeductionDialog} onOpenChange={setShowDeductionDialog} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle>Add Deduction</DialogTitle>
             <DialogDescription>
@@ -1316,12 +1317,12 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
               Add Deduction
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Allowance Dialog */}
-      <Dialog open={showAllowanceDialog} onOpenChange={setShowAllowanceDialog}>
-        <DialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white">
+      <ResponsiveDialog open={showAllowanceDialog} onOpenChange={setShowAllowanceDialog} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent className="bg-cuephoria-dark border-cuephoria-purple/20 text-white" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle>Add Allowance</DialogTitle>
             <DialogDescription>
@@ -1385,8 +1386,8 @@ const PayrollManagement: React.FC<PayrollManagementProps> = ({
               Add Allowance
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Regenerate Confirmation */}
       <AlertDialog open={!!regenerateStaffId} onOpenChange={() => setRegenerateStaffId(null)}>

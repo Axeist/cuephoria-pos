@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useViewMode } from '@/context/ViewModeContext';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
+import StickyMobileActionBar from '@/components/ui/sticky-mobile-action-bar';
 import { CafePageShell } from '@/components/cafe/CafePageShell';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -35,6 +38,7 @@ const CafePOS: React.FC = () => {
   const { partner } = useCafePartner(user?.locationId);
   const { customers, addCustomer } = useCafeCustomers();
   const isMobile = useIsMobile();
+  const { isMobile: mobileView } = useViewMode();
 
   const [cart, setCart] = useState<CafeCartItem[]>([]);
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -302,9 +306,11 @@ const CafePOS: React.FC = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
-        {/* ===== LEFT: ORDER / CART ===== */}
-        <Card className="lg:col-span-1 flex flex-col cafe-glass-card border-orange-500/10">
+      <div className={`grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3 ${mobileView ? 'pb-24' : ''}`}>
+        {/* ===== LEFT: ORDER / CART =====
+            Order goes second on mobile so the menu is the first thing the
+            user sees; the sticky checkout bar surfaces the running total. */}
+        <Card className="lg:col-span-1 order-2 lg:order-1 flex flex-col cafe-glass-card border-orange-500/10">
           <CardHeader className="pb-2 px-4 pt-4 space-y-3">
             <div className="flex justify-between items-center">
               <CardTitle className="text-base sm:text-xl font-heading flex items-center gap-2">
@@ -480,7 +486,7 @@ const CafePOS: React.FC = () => {
         </Card>
 
         {/* ===== RIGHT: MENU ===== */}
-        <Card className="lg:col-span-2 flex flex-col cafe-glass-card border-orange-500/10 max-h-[calc(100vh-8rem)] overflow-hidden">
+        <Card className="lg:col-span-2 order-1 lg:order-2 flex flex-col cafe-glass-card border-orange-500/10 max-h-[calc(100vh-8rem)] overflow-hidden">
           <CardHeader className="pb-2 px-4 pt-4 flex-shrink-0 space-y-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base sm:text-xl font-heading">Menu</CardTitle>
@@ -626,8 +632,8 @@ const CafePOS: React.FC = () => {
       )}
 
       {/* ===== SETTLE PAYMENT DIALOG ===== */}
-      <Dialog open={!!settleOrderId} onOpenChange={(open) => { if (!open) setSettleOrderId(null); }}>
-        <DialogContent className="sm:max-w-md">
+      <ResponsiveDialog open={!!settleOrderId} onOpenChange={(open) => { if (!open) setSettleOrderId(null); }} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent className="sm:max-w-md" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle className="font-heading flex items-center gap-2">
               <Banknote className="h-5 w-5 text-green-400" />
@@ -737,12 +743,12 @@ const CafePOS: React.FC = () => {
               {isSettling ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1" /> Settle Payment</>}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* ===== CUSTOMER DIALOG ===== */}
-      <Dialog open={isCustomerDialogOpen} onOpenChange={(open) => { setIsCustomerDialogOpen(open); if (!open) setShowAddCustomerForm(false); }}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] flex flex-col">
+      <ResponsiveDialog open={isCustomerDialogOpen} onOpenChange={(open) => { setIsCustomerDialogOpen(open); if (!open) setShowAddCustomerForm(false); }} mobileVariant="fullscreen">
+        <ResponsiveDialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] flex flex-col" mobileClassName="px-4 pt-3">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="font-heading text-xl">Select Customer</DialogTitle>
             <DialogDescription>Search the central customer database or add a new one</DialogDescription>
@@ -827,12 +833,12 @@ const CafePOS: React.FC = () => {
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* ===== CHECKOUT DIALOG ===== */}
-      <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
-        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+      <ResponsiveDialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen} mobileVariant="fullscreen">
+        <ResponsiveDialogContent className="max-w-md max-h-[85vh] overflow-y-auto" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">Complete Transaction</DialogTitle>
           </DialogHeader>
@@ -895,12 +901,12 @@ const CafePOS: React.FC = () => {
               {isSubmitting ? 'Processing...' : `Place Order (${formatCurrency(cartTotal)})`}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* ===== COMP DIALOG ===== */}
-      <Dialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen}>
-        <DialogContent className="max-w-md">
+      <ResponsiveDialog open={isCompDialogOpen} onOpenChange={setIsCompDialogOpen} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent className="max-w-md" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2"><Gift className="h-5 w-5 text-orange-500" /> Complimentary</DialogTitle>
             <DialogDescription>Items given free. No payment recorded.</DialogDescription>
@@ -924,12 +930,12 @@ const CafePOS: React.FC = () => {
               <Gift className="h-3.5 w-3.5 mr-1" /> {isSubmitting ? 'Processing...' : 'Confirm Comp'}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* ===== SUCCESS DIALOG ===== */}
-      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="max-w-sm text-center">
+      <ResponsiveDialog open={showSuccess} onOpenChange={setShowSuccess} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent className="max-w-sm text-center" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle className="flex justify-center"><div className="rounded-full bg-green-500/20 p-3"><Check className="h-8 w-8 text-green-400" /></div></DialogTitle>
           </DialogHeader>
@@ -946,8 +952,34 @@ const CafePOS: React.FC = () => {
               <Button variant="outline" onClick={() => { setShowSuccess(false); setLastOrder(null); }}>Close</Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+
+      {/* Mobile sticky checkout bar — visible whenever the cart has items.
+          Brings the running total + Place Order CTA above the keyboard
+          without scrolling to the order panel. */}
+      <StickyMobileActionBar
+        visible={mobileView && cart.length > 0}
+        className="flex items-center gap-3"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-wider text-white/55 font-semibold">
+            {cart.reduce((s, i) => s + i.quantity, 0)} items
+          </div>
+          <div className="text-base font-bold text-orange-300">
+            <CurrencyDisplay amount={cartTotal} />
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => setIsCheckoutDialogOpen(true)}
+          disabled={cart.length === 0 || isSubmitting}
+          className="rounded-xl h-11 px-4 bg-gradient-to-r from-orange-500 to-orange-600 text-sm font-semibold"
+        >
+          <ShoppingCart className="h-4 w-4 mr-1.5" />
+          Checkout
+        </Button>
+      </StickyMobileActionBar>
     </CafePageShell>
   );
 };

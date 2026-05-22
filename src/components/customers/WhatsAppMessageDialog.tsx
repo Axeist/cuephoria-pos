@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -246,8 +247,11 @@ const WhatsAppMessageDialog: React.FC<WhatsAppMessageDialogProps> = ({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
+      <ResponsiveDialog open={isOpen} onOpenChange={onClose} mobileVariant="fullscreen">
+        <ResponsiveDialogContent
+          className="max-w-6xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700"
+          mobileClassName="px-4 pt-3"
+        >
           <DialogHeader>
             <DialogTitle className="text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -430,8 +434,8 @@ const WhatsAppMessageDialog: React.FC<WhatsAppMessageDialogProps> = ({
               Send via WhatsApp
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Offers Management Dialog */}
       <OffersManagementDialog

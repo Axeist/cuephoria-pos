@@ -242,7 +242,7 @@ const CafeDashboard: React.FC = () => {
           Filter
         </span>
         <Select value={datePreset} onValueChange={v => setDatePreset(v as CafeDatePreset)}>
-          <SelectTrigger className={`w-[170px] ${selectCls}`}>
+          <SelectTrigger className={`w-full max-w-[170px] sm:w-[170px] ${selectCls}`}>
             <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-zinc-500 shrink-0" />
             <SelectValue />
           </SelectTrigger>

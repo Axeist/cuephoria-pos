@@ -49,7 +49,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 
 interface RecentTransactionsProps {
   className?: string;
@@ -865,8 +865,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         </AlertDialogContent>
       </AlertDialog>
       
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <ResponsiveDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} mobileVariant="fullscreen">
+        <ResponsiveDialogContent
+          className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+          mobileClassName="px-4 pt-3 bg-gray-900"
+        >
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-xl">Edit Transaction</DialogTitle>
             <DialogDescription className="text-gray-400">
@@ -1244,11 +1247,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                   )}
                 </Button>
               </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
       
-      <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-md">
+      <ResponsiveDialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen} mobileVariant="sheet-bottom">
+        <ResponsiveDialogContent
+          className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-md"
+          mobileClassName="px-4 pt-3 bg-gray-900"
+        >
           <DialogHeader>
             <DialogTitle>Add Item to Transaction</DialogTitle>
             <DialogDescription className="text-gray-400">
@@ -1399,8 +1405,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               Add to Transaction
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </Card>
   );
 };

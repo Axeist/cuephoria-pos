@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import { Search, Gift, Tag, Clock, AlertCircle, User as UserIcon, Lock, ShieldCh
 import { usePOS, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { hapticImpact } from '@/utils/capacitor';
 
 const LATE_NIGHT_OVERRIDE_PIN = '2101';
 const isLateNight = () => new Date().getHours() < 6;
@@ -178,7 +180,10 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
       finalRate,
       selectedCoupon !== 'none' ? selectedCoupon : undefined
     );
-    
+
+    // Native: heavy haptic so the user feels the session start.
+    hapticImpact('heavy').catch(() => {});
+
     // Reset state
     setSelectedCustomer(null);
     setSelectedCoupon('none');
@@ -194,8 +199,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="fullscreen">
+      <ResponsiveDialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto" mobileClassName="px-4 pt-3">
         <DialogHeader>
           <DialogTitle className="font-heading text-xl flex items-center gap-2">
             <Clock className="h-5 w-5 text-cuephoria-purple" />
@@ -440,8 +445,8 @@ const StartSessionDialog: React.FC<StartSessionDialogProps> = ({
             Start Session
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 };
 

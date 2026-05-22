@@ -148,16 +148,16 @@ const StaffManagement = () => {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight gradient-text font-heading">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text font-heading">
             Staff Management
           </h2>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Manage your team, track attendance, and process payroll
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => setShowAdminRegularizationDialog(true)}
             variant="outline"
@@ -175,7 +175,7 @@ const StaffManagement = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="glass-card glass-card-interactive border-white/10 hover:border-white/15">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white">Total Staff</CardTitle>

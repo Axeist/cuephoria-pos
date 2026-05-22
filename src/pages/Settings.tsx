@@ -376,7 +376,8 @@ const Settings = () => {
       </div>
       
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="mb-4">
+        {/* Horizontal scroll on mobile so 7+ tab triggers don't overflow. */}
+        <TabsList className="mb-4 tabs-list w-full flex justify-start overflow-x-auto sm:flex-wrap sm:overflow-visible whitespace-nowrap">
           <TabsTrigger value="general" className="flex items-center gap-2">
             <SettingsIcon className="h-4 w-4" />
             General

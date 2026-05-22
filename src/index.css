@@ -133,147 +133,79 @@
   @apply transition-all duration-300 hover:shadow-lg hover:shadow-[#9b87f5]/20 hover:translate-y-[-4px];
 }
 
-/* Mobile optimizations */
-@media (max-width: 768px) {
-  /* Force all containers to fit viewport */
-  div, section, article, aside, main {
-    max-width: 100vw;
-  }
-  
-  /* Cards should fit within viewport with proper spacing */
-  .card, [class*="Card"], [class*="card"] {
-    @apply p-3 !important;
-    max-width: 100%;
-    width: 100%;
-  }
-  
-  /* Headers shouldn't overflow */
-  [class*="CardHeader"], [class*="card-header"] {
-    @apply p-3 overflow-hidden;
-    max-width: 100%;
-  }
-  
-  /* Content areas */
-  [class*="CardContent"], [class*="card-content"] {
-    @apply p-3 overflow-hidden;
-    max-width: 100%;
-  }
-  
-  h1, h2, h3 {
-    @apply text-center;
-    max-width: 100%;
-    overflow-wrap: break-word;
-  }
-  
-  /* Enhanced table container with proper overflow */
-  .table-container {
-    @apply overflow-x-auto -mx-4 px-4;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    max-width: 100vw;
-  }
-  
-  /* Fix for tables on mobile - ensure scrolling */
-  table {
-    @apply min-w-full;
-    white-space: nowrap;
-  }
-  
-  /* Table cells with proper spacing on mobile */
-  table td, table th {
-    @apply px-2 py-2 text-xs;
-  }
-  
-  /* Improved touch targets */
-  button, a, [role="button"] {
-    @apply min-h-[44px] min-w-[44px];
-  }
-  
-  /* Forms on mobile */
-  input, select, textarea {
-    @apply text-base;
-    width: 100%;
-  }
-  
-  /* Grid adjustments - ensure single column on mobile */
-  .grid {
-    @apply grid-cols-1;
-    max-width: 100%;
-    width: 100%;
-  }
-  
-  /* Flex containers */
-  .flex, [class*="flex"] {
-    max-width: 100%;
-    flex-wrap: wrap;
-  }
-  
-  /* Charts and visualizations */
-  [class*="recharts"], [class*="Chart"] {
-    max-width: 100% !important;
-    overflow: hidden;
-  }
-  
-  /* Better scroll behavior on mobile */
-  body {
-    @apply overflow-x-hidden;
+/*
+ * Mobile optimizations
+ *
+ * Strategy: tight-scoped CSS that targets common mobile pain points without
+ * stomping on intentional component-level layouts. Aggressive blanket rules
+ * (e.g. `.grid { grid-cols-1 }` for every grid) used to live here but caused
+ * mid-breakpoint regressions — components now opt into mobile stacking
+ * explicitly via Tailwind `md:` classes, `useViewMode().isMobile`, or by
+ * adding the `.mobile-stack` class below.
+ */
+@media (max-width: 767.98px) {
+  /* Page-level overflow safety net. */
+  html, body {
     -webkit-overflow-scrolling: touch;
     max-width: 100vw;
   }
-  
-  /* Main content areas */
+
   main, [role="main"] {
     max-width: 100vw;
     overflow-x: hidden;
   }
-  
-  /* Prevent zoom on input focus */
-  input, textarea, select {
-    font-size: 16px !important;
+
+  /* Touch-friendly outline on focus (keep ring tight) */
+  :focus-visible {
+    outline-offset: 1px;
   }
-  
-  /* Dialog/Modal improvements for mobile */
-  [role="dialog"] {
-    @apply max-w-[calc(100vw-1rem)] mx-2;
-    max-height: calc(100vh - 2rem);
-    overflow-y: auto;
+
+  /* Prevent iOS zoom on input focus — applies only to text-style inputs.
+     Components that explicitly use small typography (`tap-compact`,
+     `text-xs`-driven badges) can opt out. */
+  input:not([type="checkbox"]):not([type="radio"]):not(.tap-compact),
+  textarea:not(.tap-compact),
+  select:not(.tap-compact) {
+    font-size: 16px;
   }
-  
-  /* Popover/Dropdown improvements */
+
+  /* Opt-in single-column stack. Add `mobile-stack` to a grid container
+     and every direct child collapses to a single column on phones. */
+  .mobile-stack {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Opt-in touch-target floor. Add `mobile-tap` to interactive elements
+     that should grow to a 44x44 hit zone on phones. The old rule applied
+     to every button / anchor and inflated icon-only chips beyond their
+     visual size, so it's now opt-in. */
+  .mobile-tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Horizontal scroll wrapper for desktop tables that don't have a mobile
+     card alternative yet. */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    max-width: 100vw;
+  }
+
+  /* Dropdown / popover content shouldn't ever overflow viewport. */
   [data-radix-popper-content-wrapper] {
-    max-width: calc(100vw - 2rem) !important;
+    max-width: calc(100vw - 1rem) !important;
   }
-  
-  /* Filter panels and dropdowns */
-  .filter-panel, .filter-dropdown {
-    @apply max-w-full;
-    overflow-x: visible;
-  }
-  
-  /* Tabs - allow horizontal scroll */
+
+  /* Tabs lists opt in via `.tabs-list` — keep horizontal scroll utility. */
   .tabs-list {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
-  
   .tabs-list::-webkit-scrollbar {
     display: none;
-  }
-  
-  /* Cards and containers */
-  .card-content, .card-header {
-    @apply p-3;
-  }
-  
-  /* Better spacing on mobile */
-  .space-y-4 > * + *, .space-y-6 > * + * {
-    margin-top: 1rem;
-  }
-  
-  /* Fix for absolute positioned elements */
-  [class*="absolute"] {
-    max-width: 100vw;
   }
 }
 
@@ -521,52 +453,45 @@
   font-weight: bold;
 }
 
-/* Mobile fixes for common components */
-@media (max-width: 768px) {
-  /* Card adjustments */
+/* Mobile polish for opt-in classes only. The previous version of this
+ * block applied to every `.p-8`, `.flex`, `.container`, and `[class*="max-w"]`
+ * — which forcibly overrode component-level layouts and made it impossible
+ * to design mobile-friendly internal spacing. Components now choose whether
+ * to stack/flex-wrap via Tailwind responsive variants. The opt-in helpers
+ * below stay available for legacy callers. */
+@media (max-width: 767.98px) {
   .card-title {
     @apply text-lg;
   }
-  
-  /* Button size adjustments */
+
   .btn-mobile {
     @apply px-2 py-1 text-sm;
   }
-  
-  /* Fix for forms */
+
   .form-group {
     @apply mb-3;
   }
-  
-  /* Dashboard stats cards */
+
   .stats-card {
-    @apply mx-auto max-w-[100%];
+    @apply mx-auto;
+    max-width: 100%;
   }
-  
-  /* Better spacing for mobile */
-  .p-8 {
+
+  /* Legacy aliases — keep so existing pages still benefit. */
+  .mobile-compact-p-8 {
     @apply p-4;
   }
-  
-  .p-6 {
+  .mobile-compact-p-6 {
     @apply p-3;
   }
-  
-  /* Ensure all containers respect viewport */
-  .container, [class*="max-w"] {
-    max-width: 100% !important;
+
+  /* Page-scoped container helper: pages that wrap content in
+     `.mobile-page-container` get sensible side padding without forcing
+     every `.container` in the app to shrink. */
+  .mobile-page-container {
+    max-width: 100%;
     padding-left: 1rem;
     padding-right: 1rem;
-  }
-  
-  /* Fix for flex containers */
-  .flex {
-    flex-wrap: wrap;
-  }
-  
-  /* Ensure select/dropdowns don't overflow */
-  select, [role="combobox"] {
-    max-width: 100%;
   }
 }
 

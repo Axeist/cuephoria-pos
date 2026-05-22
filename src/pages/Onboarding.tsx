@@ -886,52 +886,85 @@ export default function Onboarding() {
               </div>
               <div className="space-y-2">
                 {state.stations.map((station, idx) => (
-                  <div key={`${station.name}-${idx}`} className="grid grid-cols-12 gap-2">
-                    <Input
-                      value={station.name}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          stations: prev.stations.map((s, i) =>
-                            i === idx ? { ...s, name: e.target.value } : s,
-                          ),
-                        }))
-                      }
-                      className="col-span-5 h-9 rounded-lg border-white/10 bg-white/[0.03]"
-                      placeholder="Station name"
-                    />
-                    <Input
-                      list="onboarding-station-type-suggestions"
-                      value={station.type}
-                      placeholder="Station type"
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          stations: prev.stations.map((s, i) =>
-                            i === idx ? { ...s, type: e.target.value } : s,
-                          ),
-                        }))
-                      }
-                      className="col-span-3 h-9 rounded-lg border-white/10 bg-white/[0.03]"
-                    />
-                    <Input
-                      type="number"
-                      min={10}
-                      value={station.hourlyRate}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          stations: prev.stations.map((s, i) =>
-                            i === idx ? { ...s, hourlyRate: Number(e.target.value || 0) } : s,
-                          ),
-                        }))
-                      }
-                      className="col-span-3 h-9 rounded-lg border-white/10 bg-white/[0.03]"
-                    />
+                  <div
+                    key={`${station.name}-${idx}`}
+                    className="rounded-lg border border-white/10 bg-white/[0.02] p-2 sm:p-0 sm:border-0 sm:bg-transparent grid grid-cols-1 sm:grid-cols-12 gap-2"
+                  >
+                    <div className="sm:col-span-5">
+                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
+                        Station name
+                      </label>
+                      <Input
+                        value={station.name}
+                        onChange={(e) =>
+                          setState((prev) => ({
+                            ...prev,
+                            stations: prev.stations.map((s, i) =>
+                              i === idx ? { ...s, name: e.target.value } : s,
+                            ),
+                          }))
+                        }
+                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
+                        placeholder="Station name"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
+                        Type
+                      </label>
+                      <Input
+                        list="onboarding-station-type-suggestions"
+                        value={station.type}
+                        placeholder="Station type"
+                        onChange={(e) =>
+                          setState((prev) => ({
+                            ...prev,
+                            stations: prev.stations.map((s, i) =>
+                              i === idx ? { ...s, type: e.target.value } : s,
+                            ),
+                          }))
+                        }
+                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
+                      />
+                    </div>
+                    <div className="sm:col-span-3 flex items-end gap-2 sm:block">
+                      <div className="flex-1 sm:block">
+                        <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
+                          Hourly rate
+                        </label>
+                        <Input
+                          type="number"
+                          min={10}
+                          value={station.hourlyRate}
+                          onChange={(e) =>
+                            setState((prev) => ({
+                              ...prev,
+                              stations: prev.stations.map((s, i) =>
+                                i === idx ? { ...s, hourlyRate: Number(e.target.value || 0) } : s,
+                              ),
+                            }))
+                          }
+                          className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="sm:hidden h-9 w-9 rounded-lg border border-white/10 p-0"
+                        onClick={() =>
+                          setState((prev) => ({
+                            ...prev,
+                            stations: prev.stations.filter((_, i) => i !== idx),
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
-                      className="col-span-1 h-9 rounded-lg border border-white/10 p-0"
+                      className="hidden sm:flex sm:col-span-1 h-9 rounded-lg border border-white/10 p-0"
                       onClick={() =>
                         setState((prev) => ({
                           ...prev,
@@ -973,74 +1006,99 @@ export default function Onboarding() {
               </div>
               <div className="space-y-2">
                 {state.products.map((product, idx) => (
-                  <div key={`${product.name}-${idx}`} className="grid grid-cols-12 gap-2">
-                    <Input
-                      value={product.name}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          products: prev.products.map((p, i) =>
-                            i === idx ? { ...p, name: e.target.value } : p,
-                          ),
-                        }))
-                      }
-                      className="col-span-5 h-9 rounded-lg border-white/10 bg-white/[0.03]"
-                      placeholder="Product name"
-                    />
-                    <Input
-                      value={product.category}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          products: prev.products.map((p, i) =>
-                            i === idx ? { ...p, category: e.target.value } : p,
-                          ),
-                        }))
-                      }
-                      className="col-span-3 h-9 rounded-lg border-white/10 bg-white/[0.03]"
-                      placeholder="Category"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      value={product.price}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          products: prev.products.map((p, i) =>
-                            i === idx ? { ...p, price: Number(e.target.value || 0) } : p,
-                          ),
-                        }))
-                      }
-                      className="col-span-2 h-9 rounded-lg border-white/10 bg-white/[0.03]"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      value={product.stock}
-                      onChange={(e) =>
-                        setState((prev) => ({
-                          ...prev,
-                          products: prev.products.map((p, i) =>
-                            i === idx ? { ...p, stock: Number(e.target.value || 0) } : p,
-                          ),
-                        }))
-                      }
-                      className="col-span-1 h-9 rounded-lg border-white/10 bg-white/[0.03]"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="col-span-1 h-9 rounded-lg border border-white/10 p-0"
-                      onClick={() =>
-                        setState((prev) => ({
-                          ...prev,
-                          products: prev.products.filter((_, i) => i !== idx),
-                        }))
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div
+                    key={`${product.name}-${idx}`}
+                    className="rounded-lg border border-white/10 bg-white/[0.02] p-2 sm:p-0 sm:border-0 sm:bg-transparent grid grid-cols-2 sm:grid-cols-12 gap-2"
+                  >
+                    <div className="col-span-2 sm:col-span-5">
+                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
+                        Product name
+                      </label>
+                      <Input
+                        value={product.name}
+                        onChange={(e) =>
+                          setState((prev) => ({
+                            ...prev,
+                            products: prev.products.map((p, i) =>
+                              i === idx ? { ...p, name: e.target.value } : p,
+                            ),
+                          }))
+                        }
+                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
+                        placeholder="Product name"
+                      />
+                    </div>
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
+                        Category
+                      </label>
+                      <Input
+                        value={product.category}
+                        onChange={(e) =>
+                          setState((prev) => ({
+                            ...prev,
+                            products: prev.products.map((p, i) =>
+                              i === idx ? { ...p, category: e.target.value } : p,
+                            ),
+                          }))
+                        }
+                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
+                        placeholder="Category"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
+                        Price
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={product.price}
+                        onChange={(e) =>
+                          setState((prev) => ({
+                            ...prev,
+                            products: prev.products.map((p, i) =>
+                              i === idx ? { ...p, price: Number(e.target.value || 0) } : p,
+                            ),
+                          }))
+                        }
+                        className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
+                      />
+                    </div>
+                    <div className="flex items-end gap-2 sm:col-span-2">
+                      <div className="flex-1 sm:block">
+                        <label className="sm:hidden text-[10px] uppercase tracking-wider text-white/40 mb-1 block">
+                          Stock
+                        </label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={product.stock}
+                          onChange={(e) =>
+                            setState((prev) => ({
+                              ...prev,
+                              products: prev.products.map((p, i) =>
+                                i === idx ? { ...p, stock: Number(e.target.value || 0) } : p,
+                              ),
+                            }))
+                          }
+                          className="h-9 w-full rounded-lg border-white/10 bg-white/[0.03]"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-9 w-9 sm:w-auto sm:flex-1 rounded-lg border border-white/10 p-0"
+                        onClick={() =>
+                          setState((prev) => ({
+                            ...prev,
+                            products: prev.products.filter((_, i) => i !== idx),
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 <Button

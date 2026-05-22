@@ -186,6 +186,46 @@ export const addBackButtonListener = (callback: () => void) => {
 };
 
 /**
+ * Default Android back-button behavior:
+ *  1. If a Radix-based dialog/sheet/drawer is currently open, close it.
+ *  2. Otherwise navigate back in the history if possible.
+ *  3. Otherwise exit the app.
+ *
+ * Returns the unsubscribe function so callers (or `initializeMobileApp`)
+ * can unregister it on teardown.
+ */
+export const installDefaultBackButtonBehavior = () => {
+  if (!isAndroid()) return () => {};
+
+  const handler = () => {
+    // Radix portals every Dialog/Sheet at the document root, with a
+    // `data-state="open"` attribute on the content element. Closing the
+    // topmost (last) open layer first matches user expectation.
+    const openLayers = document.querySelectorAll<HTMLElement>(
+      '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]',
+    );
+    if (openLayers.length > 0) {
+      // Synthesize an Escape keydown — Radix listens for it on its overlay
+      // and will close the topmost layer automatically.
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      return;
+    }
+
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    // Nothing left to back out of — exit the app.
+    App.exitApp().catch(() => {
+      // Some Android versions throw if exitApp is not permitted; ignore.
+    });
+  };
+
+  return addBackButtonListener(handler);
+};
+
+/**
  * Initialize mobile features on app start
  * NOTE: Splash screen will be hidden by the app when ready, not here
  */
@@ -208,6 +248,11 @@ export const initializeMobileApp = async () => {
     // Check network status
     const networkStatus = await checkNetworkStatus();
     console.log('Network Status:', networkStatus);
+
+    // Wire Android hardware back to close open dialogs/sheets first, then
+    // navigate back, then exit. Without this the OS back gesture would
+    // always exit the app which is jarring inside a deep dialog flow.
+    installDefaultBackButtonBehavior();
     
     console.log('Mobile app initialized successfully!');
   } catch (error) {
@@ -264,6 +309,7 @@ export default {
   getAppInfo,
   addAppStateListener,
   addBackButtonListener,
+  installDefaultBackButtonBehavior,
   initializeMobileApp,
   getSafeAreaInsets,
   exitApp,

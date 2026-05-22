@@ -633,19 +633,19 @@ export default function CustomerDashboardEnhanced() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6 relative z-10">
-        {/* Personalized Greeting */}
+        {/* Personalized Greeting — compact on mobile, full hero on desktop. */}
         <Card className="glass-card border-2 border-purple-500/30 shadow-2xl text-white relative overflow-hidden">
           {/* Animated background effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 via-pink-900/20 to-blue-900/20"></div>
           
-          <CardContent className="p-6 relative z-10">
+          <CardContent className="p-4 sm:p-6 relative z-10">
             {/* Tier Badge & Tagline */}
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <Badge className={`bg-gradient-to-r ${tier.color} text-white shadow-lg px-3 py-1.5 text-sm font-bold border border-white/30`}>
-                {React.createElement(tier.icon, { size: 14, className: "mr-1 inline" })}
-                {tier.name} Member
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+              <Badge className={`bg-gradient-to-r ${tier.color} text-white shadow-lg px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-bold border border-white/30`}>
+                {React.createElement(tier.icon, { size: 12, className: "mr-1 inline" })}
+                {tier.name}
               </Badge>
-              <Badge className="bg-white/20 backdrop-blur-xl text-white px-3 py-1.5 text-xs font-semibold border border-white/30">
+              <Badge className="bg-white/20 backdrop-blur-xl text-white px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold border border-white/30">
                 ⚡ {tier.tagline}
               </Badge>
               {stats.rank <= 10 && (
@@ -660,7 +660,7 @@ export default function CustomerDashboardEnhanced() {
               )}
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-2 drop-shadow-lg">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 drop-shadow-lg">
               {getGreeting()}, {customer.name}! {getGreetingEmoji()}
             </h2>
             
@@ -691,21 +691,26 @@ export default function CustomerDashboardEnhanced() {
               </p>
             )}
 
-            {/* Exclusive Perks */}
-            <div className="surface-panel border-purple-500/30 p-4 mb-4">
-              <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+            {/* Exclusive Perks — collapsed by default on mobile so the
+                stat grid sits closer to the fold. */}
+            <details
+              className="surface-panel border-purple-500/30 p-3 sm:p-4 mb-4 group"
+              open
+            >
+              <summary className="text-white font-bold flex items-center gap-2 cursor-pointer select-none list-none">
                 <Sparkles className="text-yellow-400" size={18} />
-                Your Exclusive Perks:
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                Your Exclusive Perks
+                <ChevronRight className="ml-auto h-4 w-4 transition-transform group-open:rotate-90 sm:hidden" />
+              </summary>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 mt-3">
                 {tier.perks.map((perk, index) => (
-                  <div key={index} className="flex items-center gap-1.5 text-white text-sm">
+                  <div key={index} className="flex items-center gap-1.5 text-white text-xs sm:text-sm">
                     <CheckCircle2 className="text-green-400 flex-shrink-0" size={16} />
                     <span>{perk}</span>
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
 
             {/* Stats Bar */}
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300 border-t border-white/10 pt-4">
@@ -804,12 +809,12 @@ export default function CustomerDashboardEnhanced() {
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <Card className="glass-card border-purple-500/40 text-white hover:shadow-xl hover:shadow-purple-500/20 transition-all">
-            <CardContent className="p-4 text-center">
-              <Star className="mx-auto mb-2 text-yellow-400" size={28} />
-              <p className="text-3xl font-bold text-white">{stats.loyaltyPoints}</p>
-              <p className="text-xs text-gray-300">Loyalty Points</p>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <Star className="mx-auto mb-1.5 sm:mb-2 text-yellow-400" size={24} />
+              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.loyaltyPoints}</p>
+              <p className="text-[10px] sm:text-xs text-gray-300">Loyalty Points</p>
               <div className="mt-2 w-full bg-white/10 rounded-full h-2">
                 <div 
                   className="bg-gradient-to-r from-yellow-400 to-orange-400 h-2 rounded-full transition-all duration-1000" 
@@ -820,29 +825,29 @@ export default function CustomerDashboardEnhanced() {
           </Card>
 
           <Card className="glass-card border-green-500/40 text-white hover:shadow-xl hover:shadow-green-500/20 transition-all">
-            <CardContent className="p-4 text-center">
-              <Gamepad2 className="mx-auto mb-2 text-green-400" size={28} />
-              <p className="text-3xl font-bold text-white">{stats.totalSessions}</p>
-              <p className="text-xs text-gray-300">Total Bookings</p>
-              <p className="text-xs text-gray-400 mt-1">All sessions</p>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <Gamepad2 className="mx-auto mb-1.5 sm:mb-2 text-green-400" size={24} />
+              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalSessions}</p>
+              <p className="text-[10px] sm:text-xs text-gray-300">Total Bookings</p>
+              <p className="hidden sm:block text-xs text-gray-400 mt-1">All sessions</p>
             </CardContent>
           </Card>
 
           <Card className="glass-card border-orange-500/40 text-white hover:shadow-xl hover:shadow-orange-500/20 transition-all">
-            <CardContent className="p-4 text-center">
-              <Clock className="mx-auto mb-2 text-orange-400" size={28} />
-              <p className="text-3xl font-bold text-white">{stats.totalHours}</p>
-              <p className="text-xs text-gray-300">Hours Played</p>
-              <p className="text-xs text-gray-400 mt-1">From duration</p>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <Clock className="mx-auto mb-1.5 sm:mb-2 text-orange-400" size={24} />
+              <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalHours}</p>
+              <p className="text-[10px] sm:text-xs text-gray-300">Hours Played</p>
+              <p className="hidden sm:block text-xs text-gray-400 mt-1">From duration</p>
             </CardContent>
           </Card>
 
           <Card className="glass-card border-pink-500/40 text-white hover:shadow-xl hover:shadow-pink-500/20 transition-all">
-            <CardContent className="p-4 text-center">
-              <Trophy className="mx-auto mb-2 text-pink-400" size={28} />
-              <p className="text-3xl font-bold text-white">#{stats.rank}</p>
-              <p className="text-xs text-gray-300">Your Rank</p>
-              <p className="text-xs text-gray-400 mt-1">Top 10%</p>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <Trophy className="mx-auto mb-1.5 sm:mb-2 text-pink-400" size={24} />
+              <p className="text-2xl sm:text-3xl font-bold text-white">#{stats.rank}</p>
+              <p className="text-[10px] sm:text-xs text-gray-300">Your Rank</p>
+              <p className="hidden sm:block text-xs text-gray-400 mt-1">Top 10%</p>
             </CardContent>
           </Card>
         </div>

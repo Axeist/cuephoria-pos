@@ -68,6 +68,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { PlatformInviteOwnerDialog } from "@/components/platform/PlatformInviteOwnerDialog";
@@ -1142,7 +1143,7 @@ const MembersTab: React.FC<{
         onInvited={onMutated}
       />
 
-      <Dialog
+      <ResponsiveDialog
         open={Boolean(migrateTarget)}
         onOpenChange={(v) => {
           if (!v && !migrating) {
@@ -1150,8 +1151,12 @@ const MembersTab: React.FC<{
             setMigrateEmail("");
           }
         }}
+        mobileVariant="sheet-bottom"
       >
-        <DialogContent className="bg-[#0b0b14] border-white/10 text-zinc-100 sm:max-w-md">
+        <ResponsiveDialogContent
+          className="bg-[#0b0b14] border-white/10 text-zinc-100 sm:max-w-md"
+          mobileClassName="px-4 pt-3"
+        >
           <DialogHeader>
             <DialogTitle>Migrate login to Gmail</DialogTitle>
             <DialogDescription className="text-zinc-400">
@@ -1206,8 +1211,8 @@ const MembersTab: React.FC<{
               {migrating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & clear Google link"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       <AlertDialog open={Boolean(removeTarget)} onOpenChange={(v) => !v && !removing && setRemoveTarget(null)}>
         <AlertDialogContent className="bg-[#0b0b14] border-white/10 text-zinc-100">

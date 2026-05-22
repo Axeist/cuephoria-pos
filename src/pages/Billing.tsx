@@ -1531,53 +1531,93 @@ export default function Billing() {
               No charges yet. Successful payments will appear here automatically.
             </div>
           ) : (
-            <div className="overflow-x-auto -mx-1">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-wider text-white/40 border-b border-white/10">
-                    <th className="pb-3 pr-3 pl-1 font-semibold">Date</th>
-                    <th className="pb-3 pr-3 font-semibold">Invoice</th>
-                    <th className="pb-3 pr-3 font-semibold">Amount</th>
-                    <th className="pb-3 pr-3 font-semibold">Status</th>
-                    <th className="pb-3 pr-1 text-right font-semibold">Receipt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr
-                      key={inv.id}
-                      className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition"
-                    >
-                      <td className="py-3 pr-3 pl-1 text-white/85">
-                        {formatDate(inv.paid_at || inv.created_at)}
-                      </td>
-                      <td className="py-3 pr-3 font-mono text-xs text-white/65">
-                        {inv.provider_invoice_id || inv.id}
-                      </td>
-                      <td className="py-3 pr-3 font-semibold text-white">{formatINR(inv.amount_inr)}</td>
-                      <td className="py-3 pr-3 capitalize">
-                        <InvoiceStatusBadge status={inv.status} />
-                      </td>
-                      <td className="py-3 pr-1 text-right">
-                        {inv.short_url ? (
-                          <a
-                            href={inv.short_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
-                          >
-                            <Download className="h-3.5 w-3.5" /> PDF
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="text-white/30">—</span>
-                        )}
-                      </td>
+            <>
+              {/* Desktop: dense table. */}
+              <div className="hidden sm:block overflow-x-auto -mx-1">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wider text-white/40 border-b border-white/10">
+                      <th className="pb-3 pr-3 pl-1 font-semibold">Date</th>
+                      <th className="pb-3 pr-3 font-semibold">Invoice</th>
+                      <th className="pb-3 pr-3 font-semibold">Amount</th>
+                      <th className="pb-3 pr-3 font-semibold">Status</th>
+                      <th className="pb-3 pr-1 text-right font-semibold">Receipt</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {invoices.map((inv) => (
+                      <tr
+                        key={inv.id}
+                        className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition"
+                      >
+                        <td className="py-3 pr-3 pl-1 text-white/85">
+                          {formatDate(inv.paid_at || inv.created_at)}
+                        </td>
+                        <td className="py-3 pr-3 font-mono text-xs text-white/65">
+                          {inv.provider_invoice_id || inv.id}
+                        </td>
+                        <td className="py-3 pr-3 font-semibold text-white">{formatINR(inv.amount_inr)}</td>
+                        <td className="py-3 pr-3 capitalize">
+                          <InvoiceStatusBadge status={inv.status} />
+                        </td>
+                        <td className="py-3 pr-1 text-right">
+                          {inv.short_url ? (
+                            <a
+                              href={inv.short_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
+                            >
+                              <Download className="h-3.5 w-3.5" /> PDF
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            <span className="text-white/30">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile: card-style stack so columns don't get squeezed. */}
+              <div className="sm:hidden flex flex-col gap-2">
+                {invoices.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="rounded-xl border border-white/10 bg-white/[0.02] p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[10px] uppercase tracking-wider text-white/45 font-semibold">
+                          {formatDate(inv.paid_at || inv.created_at)}
+                        </div>
+                        <div className="font-mono text-[11px] text-white/65 truncate mt-0.5">
+                          {inv.provider_invoice_id || inv.id}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-bold text-white">{formatINR(inv.amount_inr)}</div>
+                        <div className="mt-1">
+                          <InvoiceStatusBadge status={inv.status} />
+                        </div>
+                      </div>
+                    </div>
+                    {inv.short_url ? (
+                      <a
+                        href={inv.short_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-white/70 hover:text-white transition"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Receipt PDF
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </section>
 

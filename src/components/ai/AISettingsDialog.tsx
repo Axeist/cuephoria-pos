@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,8 +53,11 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg bg-cuephoria-darker/95 border-white/10 backdrop-blur-xl">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="fullscreen">
+      <ResponsiveDialogContent
+        className="max-w-lg bg-cuephoria-darker/95 border-white/10 backdrop-blur-xl"
+        mobileClassName="px-4 pt-3"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <ShieldCheck className="h-5 w-5 text-cuephoria-lightpurple" />
@@ -217,8 +221,8 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
             Save
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 

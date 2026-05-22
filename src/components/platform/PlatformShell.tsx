@@ -4,12 +4,13 @@
  * navigation rail at top with admin identity + logout.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LogOut, LayoutDashboard, Building2, Activity, Sparkles, Shield } from "lucide-react";
+import { LogOut, LayoutDashboard, Building2, Activity, Sparkles, Shield, Menu } from "lucide-react";
 import { PRODUCT_BRAND } from "@/branding/brand";
 import { usePlatformAuth } from "@/context/PlatformAuthContext";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -23,6 +24,7 @@ const navItems = [
 export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { admin, logout } = usePlatformAuth();
   const navigate = useNavigate();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#07070e] text-zinc-100">
@@ -38,16 +40,101 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
 
       <div className="relative z-10 flex min-h-screen flex-col">
         <header className="border-b border-white/5 backdrop-blur-md bg-black/30">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div className="relative h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-cyan-400 grid place-items-center shadow-lg shadow-indigo-500/30">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 sm:px-6 py-3 sm:py-4 gap-2">
+            {/* Mobile hamburger — opens the navigation sheet. */}
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden text-zinc-300 hover:text-white hover:bg-white/10 -ml-2"
+                  aria-label="Open navigation"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[78%] max-w-[280px] border-white/10 p-0"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(7,7,14,0.98) 0%, rgba(13,13,25,0.98) 100%)',
+                  backdropFilter: 'blur(24px) saturate(140%)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+                }}
+              >
+                <div className="flex h-full flex-col">
+                  <div className="px-4 py-4 border-b border-white/5">
+                    <div className="flex items-center gap-3">
+                      <div className="relative h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-cyan-400 grid place-items-center shadow-lg shadow-indigo-500/30">
+                        <span className="font-black text-white text-sm tracking-tight">CX</span>
+                      </div>
+                      <div className="leading-tight">
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                          {PRODUCT_BRAND.name} · Platform
+                        </div>
+                        <div className="text-sm font-semibold text-zinc-100">Operator console</div>
+                      </div>
+                    </div>
+                  </div>
+                  <nav className="flex-1 overflow-auto p-2 space-y-0.5">
+                    {navItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={item.end}
+                          onClick={() => setMobileNavOpen(false)}
+                          className={({ isActive }) =>
+                            cn(
+                              "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-all",
+                              isActive
+                                ? "bg-white/10 text-white"
+                                : "text-zinc-400 hover:text-white hover:bg-white/5",
+                            )
+                          }
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          {item.label}
+                        </NavLink>
+                      );
+                    })}
+                  </nav>
+                  <div className="p-3 border-t border-white/5">
+                    <div className="rounded-lg bg-white/[0.04] border border-white/10 p-3 mb-2">
+                      <div className="text-sm font-medium text-zinc-200 truncate">
+                        {admin?.displayName || admin?.email}
+                      </div>
+                      <div className="text-xs text-zinc-500 truncate">{admin?.email}</div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-zinc-300 hover:text-white hover:bg-white/10"
+                      onClick={async () => {
+                        setMobileNavOpen(false);
+                        await logout();
+                        navigate("/platform/login", { replace: true });
+                      }}
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign out
+                    </Button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="hidden md:flex relative h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-cyan-400 place-items-center shadow-lg shadow-indigo-500/30">
                 <span className="font-black text-white text-sm tracking-tight">CX</span>
               </div>
-              <div className="leading-tight">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+              <div className="leading-tight min-w-0">
+                <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.18em] text-zinc-500 truncate">
                   {PRODUCT_BRAND.name} · Platform
                 </div>
-                <div className="text-sm font-semibold text-zinc-100">Operator console</div>
+                <div className="text-sm font-semibold text-zinc-100 truncate">Operator console</div>
               </div>
             </div>
 
@@ -75,8 +162,8 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
               })}
             </nav>
 
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:block text-right leading-tight">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <div className="hidden md:block text-right leading-tight">
                 <div className="text-sm font-medium text-zinc-200">
                   {admin?.displayName || admin?.email}
                 </div>
@@ -91,15 +178,15 @@ export const PlatformShell: React.FC<{ children: React.ReactNode }> = ({ childre
                   navigate("/platform/login", { replace: true });
                 }}
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Sign out</span>
               </Button>
             </div>
           </div>
         </header>
 
         <main className="flex-1">
-          <div className="mx-auto max-w-[1400px] px-6 py-8">{children}</div>
+          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6 sm:py-8">{children}</div>
         </main>
 
         <footer className="border-t border-white/5 py-4 text-center text-[11px] text-zinc-600">

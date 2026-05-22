@@ -10,6 +10,7 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { usePlatformAuth } from "@/context/PlatformAuthContext";
 import { PlatformShell } from "./PlatformShell";
+import PostLoginViewModeDialog from "@/components/PostLoginViewModeDialog";
 
 export const PlatformProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { admin, isLoading } = usePlatformAuth();
@@ -30,5 +31,10 @@ export const PlatformProtectedRoute: React.FC<{ children: React.ReactNode }> = (
     return <Navigate to="/platform/login" state={{ from: location.pathname }} replace />;
   }
 
-  return <PlatformShell>{children}</PlatformShell>;
+  return (
+    <>
+      <PlatformShell>{children}</PlatformShell>
+      <PostLoginViewModeDialog />
+    </>
+  );
 };

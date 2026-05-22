@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 
 const LoginLogs = () => {
   const navigate = useNavigate();
@@ -316,8 +317,11 @@ const LoginLogs = () => {
       </div>
 
       {/* Details Dialog */}
-      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="max-w-4xl bg-cuephoria-darker border-cuephoria-lightpurple/30 max-h-[80vh] overflow-y-auto">
+      <ResponsiveDialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen} mobileVariant="fullscreen">
+        <ResponsiveDialogContent
+          className="max-w-4xl bg-cuephoria-darker border-cuephoria-lightpurple/30 max-h-[80vh] overflow-y-auto"
+          mobileClassName="px-4 pt-3"
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-cuephoria-lightpurple">
               <Fingerprint size={20} />
@@ -406,8 +410,8 @@ const LoginLogs = () => {
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

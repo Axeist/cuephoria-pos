@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
@@ -149,8 +150,8 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="sheet-bottom">
+      <ResponsiveDialogContent className="sm:max-w-[425px]" mobileClassName="px-4 pt-3">
         <DialogHeader>
           <DialogTitle className="text-xl font-heading gradient-text">Add New Station</DialogTitle>
         </DialogHeader>
@@ -267,8 +268,8 @@ const AddStationDialog: React.FC<AddStationDialogProps> = ({ open, onOpenChange 
             </DialogFooter>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 };
 

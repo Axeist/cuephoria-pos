@@ -8,6 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { hapticImpact } from "@/utils/capacitor";
 import { supabase } from "@/integrations/supabase/client";
 import { StationSelector } from "@/components/booking/StationSelector";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
@@ -48,6 +49,8 @@ import { getCustomerSession, clearCustomerSession } from "@/utils/customerAuth";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import BottomNav from "@/components/customer/BottomNav";
+import { useViewMode } from "@/context/ViewModeContext";
+import StickyMobileActionBar from "@/components/ui/sticky-mobile-action-bar";
 import {
   BOOKING_ACCESS_KEYS,
   parseBookingSettingBool,
@@ -206,6 +209,7 @@ const getBookingDuration = (stationIds: string[], stations: Station[]) => {
    ========================= */
 export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: string }) {
   const navigate = useNavigate();
+  const { isMobile: viewIsMobile } = useViewMode();
   const isLiteBranch = branchSlug === "lite";
 
   const [publicLocationId, setPublicLocationId] = useState<string | null>(null);
@@ -598,6 +602,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           // Clean up URL
           window.history.replaceState({}, "", "/public/booking");
           toast.success("🎉 Booking confirmed! Get ready to game! 🎮");
+          hapticImpact("heavy").catch(() => {});
         } catch (e) {
           console.error("Error parsing booking confirmation:", e);
         }
@@ -1842,6 +1847,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       setShowConfirmationDialog(true);
 
       toast.success("🎉 Booking confirmed! Get ready to game! 🎮");
+      hapticImpact("heavy").catch(() => {});
 
       setSelectedStations([]);
       setSelectedSlot(null);
@@ -3014,7 +3020,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           </div>
 
           <div className="lg:col-span-1">
-            <Card className="sticky top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl">
+            <Card
+              id="public-booking-summary"
+              className="lg:sticky lg:top-4 bg-white/10 backdrop-blur-xl border-white/10 rounded-2xl scroll-mt-20"
+            >
               <CardHeader>
                 <CardTitle className="text-white">Booking Summary</CardTitle>
               </CardHeader>
@@ -4021,6 +4030,43 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           </div>
         </div>
       )}
+
+      {/* Mobile sticky "review & pay" bar. Visible once the user has begun
+          the booking flow so the running total + CTA are always reachable
+          without scrolling past the entire form to the summary card. */}
+      {(() => {
+        const slotsCount = selectedSlots.length > 0 ? selectedSlots.length : (selectedSlot ? 1 : 0);
+        const totalFinal = finalPrice * slotsCount;
+        const hasProgress = selectedStations.length > 0 && slotsCount > 0;
+        if (!viewIsMobile || !hasProgress) return null;
+        return (
+          <StickyMobileActionBar
+            // Lift slightly so it doesn't sit on top of the customer BottomNav
+            // when this page is opened inside the logged-in customer shell.
+            style={customerSession ? { bottom: '64px' } : undefined}
+            className="flex items-center gap-3"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-wider text-white/55 font-semibold">
+                Total · {slotsCount} slot{slotsCount !== 1 ? 's' : ''}
+              </div>
+              <div className="text-base font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple">
+                ₹{totalFinal.toLocaleString('en-IN')}
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                const el = document.getElementById('public-booking-summary');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="rounded-xl h-11 px-4 bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple text-sm font-semibold"
+            >
+              Review & Pay
+            </Button>
+          </StickyMobileActionBar>
+        );
+      })()}
 
       {/* Bottom Navigation - Only show if accessed through customer dashboard */}
       {customerSession && <BottomNav />}

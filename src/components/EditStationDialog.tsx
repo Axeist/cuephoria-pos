@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogContent } from './ui/responsive-dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Station } from '@/types/pos.types';
@@ -55,8 +56,8 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] bg-background border-cuephoria-purple">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="sheet-bottom">
+      <ResponsiveDialogContent className="sm:max-w-[425px] bg-background border-cuephoria-purple" mobileClassName="px-4 pt-3">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit size={16} />
@@ -111,8 +112,8 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 };
 

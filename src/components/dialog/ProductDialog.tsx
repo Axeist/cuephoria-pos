@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import ProductForm, { ProductFormState } from '../product/ProductForm';
 import { Product } from '@/types/pos.types';
 
@@ -28,11 +29,15 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
   };
   
   return (
-    <Dialog 
-      open={isOpen} 
+    <ResponsiveDialog
+      open={isOpen}
       onOpenChange={handleOpenChange}
+      mobileVariant="fullscreen"
     >
-      <DialogContent className="overflow-y-auto max-h-[90vh]">
+      <ResponsiveDialogContent
+        className="overflow-y-auto max-h-[90vh]"
+        mobileClassName="px-4 pt-3"
+      >
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Edit Product' : 'Add New Product'}</DialogTitle>
         </DialogHeader>
@@ -43,8 +48,8 @@ const ProductDialog: React.FC<ProductDialogProps> = ({
           onCancel={() => onOpenChange(false)}
           isSubmitting={isSubmitting}
         />
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 };
 

@@ -31,6 +31,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeMobileApp, isNativePlatform } from "@/utils/capacitor";
 import SplashScreen from "@/components/SplashScreen";
 import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
+import { ViewModeProvider } from "@/context/ViewModeContext";
+import PostLoginViewModeDialog from "@/components/PostLoginViewModeDialog";
 // REMOVED: import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 // Auth & first paint (keep eager — small or entry routes)
@@ -220,6 +222,11 @@ const ProtectedRoute = ({
                             {children}
                           </main>
                         </div>
+                        {/* First-time post-sign-in view-mode prompt.
+                            Renders only on mobile devices the first time the
+                            user signs in on this device. Desktop / tablet
+                            users won't see it unless they opt in via settings. */}
+                        <PostLoginViewModeDialog />
                       </div>
                     </SidebarProvider>
                   )}
@@ -323,6 +330,7 @@ const CafeProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: s
             {children}
           </main>
         </div>
+        <PostLoginViewModeDialog />
       </div>
     </SidebarProvider>
   );
@@ -366,6 +374,7 @@ const App = () => {
   return (
     <>
       <QueryClientProvider client={queryClient}>
+      <ViewModeProvider>
       <AuthProvider>
         <CafeAuthProvider>
         <TooltipProvider>
@@ -1045,6 +1054,7 @@ const App = () => {
         </TooltipProvider>
         </CafeAuthProvider>
       </AuthProvider>
+      </ViewModeProvider>
       </QueryClientProvider>
     </>
   );

@@ -69,6 +69,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useOrganizationOptional } from "@/context/OrganizationContext";
 import { useTenantBrandingOptional } from "@/branding/BrandingProvider";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useViewMode } from "@/context/ViewModeContext";
 import ChatAIMobile from "@/pages/ChatAIMobile";
 
 interface SuggestionCard {
@@ -188,6 +189,7 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
   const org = useOrganizationOptional();
   const branding = useTenantBrandingOptional();
   const isMobile = useIsMobile();
+  const { isMobile: viewModeIsMobile } = useViewMode();
   const { settings, update: updateSettings } = useAISettings();
   const [searchParams] = useSearchParams();
 
@@ -197,8 +199,10 @@ const ChatAI: React.FC<ChatAIProps> = ({ standalone: standaloneProp }) => {
 
   // Route mobile devices (or explicit ?m=1) to the mobile layout. This
   // covers both "user is on a phone" and "user popped out to a mobile
-  // view from desktop".
-  if (isMobile || forceMobile) {
+  // view from desktop". `viewModeIsMobile` honors the user's explicit
+  // post-login choice so a tablet user who opted into Mobile view also
+  // gets the optimized mobile chat experience.
+  if (isMobile || viewModeIsMobile || forceMobile) {
     return <ChatAIMobile />;
   }
 

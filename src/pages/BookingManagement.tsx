@@ -1091,25 +1091,26 @@ export default function BookingManagement() {
             </div>
           </div>
           
-          {/* Daily Stats */}
-          <div className="grid grid-cols-4 gap-4 mt-4">
+          {/* Daily Stats — 2 cols on mobile, 4 from sm up so the figures
+              stay readable on 360px phones. */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
             <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-              <p className="text-sm text-muted-foreground">Total Bookings</p>
-              <p className="text-2xl font-bold text-blue-600">{totalBookings}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Total Bookings</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-600">{totalBookings}</p>
             </div>
             <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-              <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold text-green-600">{completedBookings}</p>
-              <p className="text-xs text-muted-foreground">{totalBookings ? Math.round((completedBookings/totalBookings)*100) : 0}%</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Completed</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-600">{completedBookings}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">{totalBookings ? Math.round((completedBookings/totalBookings)*100) : 0}%</p>
             </div>
             <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-              <p className="text-sm text-muted-foreground">With Coupons</p>
-              <p className="text-2xl font-bold text-purple-600">{couponBookings}</p>
-              <p className="text-xs text-muted-foreground">{totalBookings ? Math.round((couponBookings/totalBookings)*100) : 0}%</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">With Coupons</p>
+              <p className="text-xl sm:text-2xl font-bold text-purple-600">{couponBookings}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">{totalBookings ? Math.round((couponBookings/totalBookings)*100) : 0}%</p>
             </div>
             <div className="text-center p-3 bg-background rounded-lg border border-border shadow-sm">
-              <p className="text-sm text-muted-foreground">Revenue</p>
-              <p className="text-2xl font-bold text-green-600">₹{totalRevenue.toLocaleString()}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Revenue</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-600">₹{totalRevenue.toLocaleString()}</p>
             </div>
           </div>
         </CardHeader>

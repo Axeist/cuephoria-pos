@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, User, Search, Download, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -748,8 +749,8 @@ const Customers = () => {
 
       <CustomerInsightWidgets customers={customersData} />
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-lg">
+      <ResponsiveDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} mobileVariant="fullscreen">
+        <ResponsiveDialogContent className="max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-lg" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Customer' : 'Add New Customer'}</DialogTitle>
             <DialogDescription>
@@ -863,11 +864,11 @@ const Customers = () => {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
-      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <ResponsiveDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog} mobileVariant="fullscreen">
+        <ResponsiveDialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto" mobileClassName="px-4 pt-3">
           <DialogHeader>
             <DialogTitle>Duplicate Customers Found</DialogTitle>
             <DialogDescription>
@@ -920,8 +921,8 @@ const Customers = () => {
               Close
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
