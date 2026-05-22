@@ -53,6 +53,7 @@ const StationInfo: React.FC<StationInfoProps> = ({ station, customerName, custom
   // Check if customer is a member and membership is active
   const isMember = customerData ? isMembershipActive(customerData) : false;
   const membershipText = customerData && customerData.isMember ? getMembershipBadgeText(customerData) : 'Non-Member';
+  const isPaused = station.currentSession?.isPaused;
   
   return (
     <>
@@ -77,16 +78,18 @@ const StationInfo: React.FC<StationInfoProps> = ({ station, customerName, custom
         </div>
         <Badge 
           className={`
-            ${station.isOccupied 
+            ${isPaused
+              ? 'bg-amber-500 text-white'
+              : station.isOccupied 
               ? 'bg-cuephoria-orange text-white' 
               : isPoolTable 
                 ? 'bg-green-500 text-white' 
                 : 'bg-cuephoria-lightpurple text-white'
             } 
-            ${station.isOccupied ? 'animate-pulse' : ''}
+            ${station.isOccupied && !isPaused ? 'animate-pulse' : ''}
           `}
         >
-          {station.isOccupied ? 'Occupied' : 'Available'}
+          {isPaused ? 'Paused' : station.isOccupied ? 'Occupied' : 'Available'}
         </Badge>
       </div>
       

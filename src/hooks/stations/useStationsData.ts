@@ -93,7 +93,12 @@ export const useStationsData = () => {
                   hourlyRate: sessionData.hourlyRate,
                   originalRate: sessionData.originalRate,
                   couponCode: sessionData.couponCode,
-                  discountAmount: sessionData.discountAmount
+                  discountAmount: sessionData.discountAmount,
+                  isPaused: sessionData.isPaused ?? sessionData.is_paused ?? false,
+                  pausedAt: sessionData.pausedAt || sessionData.paused_at
+                    ? new Date(sessionData.pausedAt || sessionData.paused_at)
+                    : undefined,
+                  totalPausedMs: sessionData.totalPausedMs ?? sessionData.total_paused_time ?? 0,
                 };
               }
             } catch (error) {

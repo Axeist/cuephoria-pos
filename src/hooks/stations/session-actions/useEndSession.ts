@@ -4,6 +4,12 @@ import { useToast } from '@/hooks/use-toast';
 import { SessionActionsProps } from '../session-actions/types';
 import { generateId } from '@/utils/pos.utils';
 import React from 'react';
+import {
+  calculateSessionCost,
+  getBillableDurationMinutes,
+  getBillableMs,
+  resolveSessionForBilling,
+} from '@/utils/sessionTimer.utils';
 
 /**
  * Hook to provide session end functionality
@@ -38,15 +44,15 @@ export const useEndSession = ({
       
       const session = station.currentSession;
       const endTime = new Date();
+      const billingSession = resolveSessionForBilling(session, endTime);
       
-      // Calculate duration in minutes
-      const startTime = new Date(session.startTime);
-      const durationMs = endTime.getTime() - startTime.getTime();
-      const durationMinutes = Math.ceil(durationMs / (1000 * 60));
+      // Calculate billable duration in minutes (excludes paused time)
+      const billableMs = getBillableMs(billingSession, endTime);
+      const durationMinutes = getBillableDurationMinutes(billingSession, endTime);
       
       // Create updated session object
       const updatedSession: Session = {
-        ...session,
+        ...billingSession,
         endTime,
         duration: durationMinutes
       };
@@ -60,7 +66,11 @@ export const useEndSession = ({
           .from('sessions')
           .update({
             end_time: endTime.toISOString(),
-            duration: durationMinutes
+            duration: durationMinutes,
+            is_paused: false,
+            paused_at: null,
+            total_paused_time: billingSession.totalPausedMs ?? 0,
+            status: 'ended',
           })
           .eq('id', session.id);
           
@@ -87,7 +97,7 @@ export const useEndSession = ({
         if (dbStationId) {
           const { error: stationError } = await supabase
             .from('stations')
-            .update({ is_occupied: false })
+            .update({ is_occupied: false, currentsession: null })
             .eq('id', dbStationId);
           
           if (stationError) {
@@ -134,50 +144,28 @@ export const useEndSession = ({
       const cartItemId = generateId();
       console.log("Generated cart item ID:", cartItemId);
       
-      // ✅ UPDATED: Use session's hourly rate (which may be discounted from coupon)
       const stationRate = session.hourlyRate || station.hourlyRate;
-      
-      // Calculate cost based on station type and slot duration
-      let sessionCost: number;
-      if (station.category === 'nit_event' && station.slotDuration) {
-        // Event stations: Bill per slot (rounded up)
-        // e.g., 30 min slot = ₹100, so 30 mins = ₹100, 31-60 mins = ₹200
-        const slotsPlayed = Math.ceil(durationMinutes / station.slotDuration);
-        sessionCost = slotsPlayed * stationRate;
-      } else if (station.type === 'vr') {
-        // Regular VR: 15-minute slots
-        const slotsPlayed = Math.ceil(durationMinutes / 15);
-        sessionCost = slotsPlayed * stationRate;
-      } else {
-        // Regular stations: Bill per hour
-        const hoursPlayed = durationMs / (1000 * 60 * 60);
-        sessionCost = Math.ceil(hoursPlayed * stationRate);
-      }
-      
-      // Apply 50% discount for members - IMPORTANT: This is the key part for member discounts
       const isMember = customer?.isMember || false;
-      const discountApplied = isMember;
+      const sessionCost = calculateSessionCost(station, stationRate, billableMs, isMember);
       
-      if (discountApplied) {
-        const originalCost = sessionCost;
-        sessionCost = Math.ceil(sessionCost * 0.5); // 50% discount
-        console.log(`Applied 50% member discount: ${originalCost} → ${sessionCost}`);
+      if (isMember) {
+        console.log(`Applied 50% member discount to session cost: ${sessionCost}`);
       }
       
       console.log("Session cost calculation:", { 
         stationRate, 
         durationMinutes,
+        billableMs,
         stationCategory: station.category,
         slotDuration: station.slotDuration,
         stationType: station.type,
         isMember,
-        discountApplied,
         sessionCost 
       });
       
       // ✅ UPDATED: Show coupon info if it was applied
       const couponInfo = session.couponCode ? ` - ${session.couponCode}` : '';
-      const memberInfo = discountApplied ? ' - Member 50% OFF' : '';
+      const memberInfo = isMember ? ' - Member 50% OFF' : '';
       
       // Create cart item for the session with discount info in the name if applicable
       const sessionCartItem: CartItem = {

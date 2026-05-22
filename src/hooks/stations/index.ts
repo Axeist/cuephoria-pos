@@ -62,9 +62,18 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
       const activeSession = activeSessionMap.get(station.id);
       
       if (activeSession) {
-        // Already correctly connected — skip re-render
         if (station.isOccupied && station.currentSession?.id === activeSession.id) {
-          return station;
+          const current = station.currentSession;
+          const pauseSynced =
+            current.isPaused === activeSession.isPaused &&
+            (current.pausedAt?.getTime() ?? null) === (activeSession.pausedAt?.getTime() ?? null) &&
+            (current.totalPausedMs ?? 0) === (activeSession.totalPausedMs ?? 0);
+
+          if (pauseSynced) {
+            return station;
+          }
+
+          return { ...station, isOccupied: true, currentSession: activeSession };
         }
         console.log(`Connecting session to station ${station.name}`);
         return { ...station, isOccupied: true, currentSession: activeSession };
@@ -89,6 +98,8 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
   const {
     startSession,
     endSession,
+    pauseSession,
+    resumeSession,
     isLoading
   } = useSessionActions({
     stations,
@@ -105,6 +116,8 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
     setSessions,
     startSession,
     endSession,
+    pauseSession,
+    resumeSession,
     deleteStation,
     updateStation,
     stationsLoading,

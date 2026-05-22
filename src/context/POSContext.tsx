@@ -54,6 +54,8 @@ const POSContext = createContext<POSContextType>({
   deleteCategory: () => {},
   startSession: async () => {},
   endSession: async () => {},
+  pauseSession: async () => {},
+  resumeSession: async () => {},
   deleteStation: async () => false,
   updateStation: async () => false,
   addCustomer: () => ({}),
@@ -122,6 +124,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSessions, 
     startSession: startSessionBase, 
     endSession: endSessionBase,
+    pauseSession: pauseSessionBase,
+    resumeSession: resumeSessionBase,
     deleteStation,
     updateStation
   } = useStations([], updateCustomer);
@@ -536,6 +540,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw error;
     }
   };
+
+  const pauseSession = async (stationId: string): Promise<void> => {
+    await pauseSessionBase(stationId);
+  };
+
+  const resumeSession = async (stationId: string): Promise<void> => {
+    await resumeSessionBase(stationId);
+  };
   
   const updateCustomerMembershipWrapper = (
     customerId: string, 
@@ -815,6 +827,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteCategory,
     startSession,
     endSession,
+    pauseSession,
+    resumeSession,
     deleteStation,
     updateStation,
     addCustomer,
@@ -849,7 +863,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categories, setIsStudentDiscount, setBills, setCustomers, setStations,
     addProduct, updateProduct, deleteProduct,
     addCategory, updateCategory, deleteCategory,
-    startSession, endSession, deleteStation, updateStation,
+    startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation,
     addCustomer, updateCustomer, updateCustomerMembershipWrapper,
     deleteCustomer, selectCustomer, checkMembershipValidity, deductMembershipHours,
     addToCart, removeFromCart, updateCartItem, clearCart,

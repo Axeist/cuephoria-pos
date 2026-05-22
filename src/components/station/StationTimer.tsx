@@ -3,6 +3,12 @@ import { Station } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { supabase } from '@/integrations/supabase/client';
 import { usePOS } from '@/context/POSContext';
+import { Session } from '@/types/pos.types';
+import {
+  calculateSessionCost,
+  formatBillableTime,
+  getBillableMs,
+} from '@/utils/sessionTimer.utils';
 
 interface StationTimerProps {
   station: Station;
@@ -24,43 +30,20 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       return;
     }
 
-    let startTime = new Date(station.currentSession.startTime);
-    let sessionRate = station.currentSession.hourlyRate || station.hourlyRate;
+    let sessionSnapshot: Session = { ...station.currentSession };
 
     const customer = customers.find(c => c.id === station.currentSession?.customerId);
     const isMember = customer?.isMember || false;
 
     const updateTimer = () => {
-      const now = new Date();
-      const elapsedMs = now.getTime() - startTime.getTime();
+      const billableMs = getBillableMs(sessionSnapshot);
+      const time = formatBillableTime(billableMs);
+      const sessionRate = sessionSnapshot.hourlyRate || station.hourlyRate;
 
-      const secondsTotal = Math.floor(elapsedMs / 1000);
-      const minutesTotal = Math.floor(secondsTotal / 60);
-      const hoursTotal = Math.floor(minutesTotal / 60);
-
-      setSeconds(secondsTotal % 60);
-      setMinutes(minutesTotal % 60);
-      setHours(hoursTotal);
-
-      const durationMinutes = Math.ceil(elapsedMs / (1000 * 60));
-
-      let calculatedCost: number;
-      if (station.category === 'nit_event' && station.slotDuration) {
-        const slotsPlayed = Math.ceil(durationMinutes / station.slotDuration);
-        calculatedCost = slotsPlayed * sessionRate;
-      } else if (station.type === 'vr') {
-        const slotsPlayed = Math.ceil(durationMinutes / 15);
-        calculatedCost = slotsPlayed * sessionRate;
-      } else {
-        const hoursElapsed = elapsedMs / (1000 * 60 * 60);
-        calculatedCost = Math.ceil(hoursElapsed * sessionRate);
-      }
-
-      if (isMember) {
-        calculatedCost = Math.ceil(calculatedCost * 0.5);
-      }
-
-      setCost(calculatedCost);
+      setSeconds(time.seconds);
+      setMinutes(time.minutes);
+      setHours(time.hours);
+      setCost(calculateSessionCost(station, sessionRate, billableMs, isMember));
     };
 
     const fetchSessionData = async () => {
@@ -69,7 +52,7 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
 
         const { data, error } = await supabase
           .from('sessions')
-          .select('*')
+          .select('start_time, hourly_rate, is_paused, paused_at, total_paused_time')
           .eq('id', sessionId)
           .single();
 
@@ -78,8 +61,14 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
           return;
         }
 
-        startTime = new Date(data.start_time);
-        sessionRate = data.hourly_rate || station.hourlyRate;
+        sessionSnapshot = {
+          ...sessionSnapshot,
+          startTime: new Date(data.start_time),
+          hourlyRate: data.hourly_rate || station.hourlyRate,
+          isPaused: data.is_paused ?? false,
+          pausedAt: data.paused_at ? new Date(data.paused_at) : undefined,
+          totalPausedMs: data.total_paused_time ?? 0,
+        };
         updateTimer();
       } catch {
         updateTimer();
@@ -97,6 +86,9 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
     station.currentSession?.startTime,
     station.currentSession?.customerId,
     station.currentSession?.hourlyRate,
+    station.currentSession?.isPaused,
+    station.currentSession?.pausedAt,
+    station.currentSession?.totalPausedMs,
     station.hourlyRate,
     station.category,
     station.slotDuration,
@@ -112,14 +104,24 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
     return null;
   }
 
+  const isPaused = station.currentSession.isPaused;
   const hasCoupon = station.currentSession?.couponCode;
   const sessionRate = station.currentSession?.hourlyRate || station.hourlyRate;
   const isDiscounted = hasCoupon && sessionRate !== station.hourlyRate;
 
   return (
-    <div className="space-y-4 bg-black/70 p-3 rounded-lg">
+    <div className={`space-y-4 p-3 rounded-lg ${isPaused ? 'bg-amber-950/50 ring-1 ring-amber-500/40' : 'bg-black/70'}`}>
+      {isPaused && (
+        <div className="text-center">
+          <span className="inline-flex items-center rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-300">
+            Paused
+          </span>
+        </div>
+      )}
       <div className="text-center">
-        <span className="font-mono text-2xl bg-black px-4 py-2 rounded-lg text-white font-bold inline-block w-full">
+        <span className={`font-mono text-2xl px-4 py-2 rounded-lg font-bold inline-block w-full ${
+          isPaused ? 'bg-amber-950 text-amber-100' : 'bg-black text-white'
+        }`}>
           {formatTimeDisplay()}
         </span>
       </div>

@@ -58,6 +58,9 @@ export interface Session {
   couponCode?: string;          // ADDED: Coupon applied to session
   originalRate?: number;        // ADDED: Original rate before discount
   discountAmount?: number;      // ADDED: Amount discounted
+  isPaused?: boolean;
+  pausedAt?: Date;
+  totalPausedMs?: number;
 }
 
 export interface CartItem {
@@ -144,6 +147,8 @@ export interface POSContextType {
   // UPDATED: Added hourlyRate and couponCode parameters
   startSession: (stationId: string, customerId: string, hourlyRate?: number, couponCode?: string) => Promise<void>;
   endSession: (stationId: string) => Promise<void>;
+  pauseSession: (stationId: string) => Promise<void>;
+  resumeSession: (stationId: string) => Promise<void>;
   deleteStation: (stationId: string) => Promise<boolean>;
   updateStation: (stationId: string, name: string, hourlyRate: number) => Promise<boolean>;
   

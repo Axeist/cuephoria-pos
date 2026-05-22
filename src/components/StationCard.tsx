@@ -42,7 +42,7 @@ interface StationCardProps {
 }
 
 const StationCard: React.FC<StationCardProps> = ({ station }) => {
-  const { customers, startSession, endSession, deleteStation, updateStation, stations, setStations } = usePOS();
+  const { customers, startSession, endSession, pauseSession, resumeSession, deleteStation, updateStation, stations, setStations } = usePOS();
   const { toast } = useToast();
   const isPoolTable = station.type === '8ball';
   const isVR = station.type === 'vr';
@@ -334,6 +334,8 @@ const StationCard: React.FC<StationCardProps> = ({ station }) => {
             customers={customers}
             onStartSession={startSession}
             onEndSession={endSession}
+            onPauseSession={pauseSession}
+            onResumeSession={resumeSession}
           />
         </CardFooter>
       </Card>

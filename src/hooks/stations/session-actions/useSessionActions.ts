@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStartSession } from './useStartSession';
 import { useEndSession } from './useEndSession';
+import { usePauseSession } from './usePauseSession';
 import { SessionActionsProps } from './types';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +19,7 @@ export const useSessionActions = (props: SessionActionsProps) => {
   // Get the functionality from existing hooks
   const startSessionHook = useStartSession(props);
   const endSessionHook = useEndSession({...props, updateCustomer});
+  const pauseSessionHook = usePauseSession(props);
   
   // UPDATED: Added finalRate and couponCode parameters
   const startSession = async (
@@ -60,6 +62,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
         originalRate: originalRate,     // ADDED
         couponCode: couponCode,         // ADDED
         discountAmount: discountAmount, // ADDED
+        isPaused: false,
+        totalPausedMs: 0,
         // No endTime or duration, will be set when explicitly ended
       };
       
@@ -87,6 +91,8 @@ export const useSessionActions = (props: SessionActionsProps) => {
             original_rate: originalRate,     // ADDED
             coupon_code: couponCode,         // ADDED
             discount_amount: discountAmount, // ADDED
+            is_paused: false,
+            total_paused_time: 0,
             location_id: activeLocationId,
             // No end_time or duration, making it persist until explicitly ended
           } as any)
@@ -191,9 +197,35 @@ export const useSessionActions = (props: SessionActionsProps) => {
     }
   };
   
+  const pauseSession = async (stationId: string): Promise<void> => {
+    try {
+      setIsLoading(true);
+      await pauseSessionHook.pauseSession(stationId);
+    } catch (error) {
+      console.error('Error in pauseSession:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resumeSession = async (stationId: string): Promise<void> => {
+    try {
+      setIsLoading(true);
+      await pauseSessionHook.resumeSession(stationId);
+    } catch (error) {
+      console.error('Error in resumeSession:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     startSession,
     endSession,
+    pauseSession,
+    resumeSession,
     isLoading
   };
 };

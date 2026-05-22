@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Station, Customer } from '@/context/POSContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePOS } from '@/context/POSContext';
-import { Play, Square } from 'lucide-react';
+import { Pause, Play, Square } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
 
 interface StationActionsProps {
@@ -12,13 +12,17 @@ interface StationActionsProps {
   customers: Customer[];
   onStartSession: (stationId: string, customerId: string, hourlyRate?: number, couponCode?: string) => Promise<void>;
   onEndSession: (stationId: string) => Promise<void>;
+  onPauseSession: (stationId: string) => Promise<void>;
+  onResumeSession: (stationId: string) => Promise<void>;
 }
 
 const StationActions: React.FC<StationActionsProps> = ({ 
   station, 
   customers, 
   onStartSession, 
-  onEndSession 
+  onEndSession,
+  onPauseSession,
+  onResumeSession,
 }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -28,6 +32,7 @@ const StationActions: React.FC<StationActionsProps> = ({
   
   const isPoolTable = station.type === '8ball';
   const isVR = station.type === 'vr';
+  const isPaused = station.currentSession?.isPaused;
 
   const handleStartSession = async (
     customerId: string,
@@ -96,25 +101,87 @@ const StationActions: React.FC<StationActionsProps> = ({
     }
   };
 
+  const handlePauseSession = async () => {
+    try {
+      setIsLoading(true);
+      await onPauseSession(station.id);
+    } catch (error) {
+      console.error("Error pausing session:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResumeSession = async () => {
+    try {
+      setIsLoading(true);
+      await onResumeSession(station.id);
+    } catch (error) {
+      console.error("Error resuming session:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (station.isOccupied) {
     return (
-      <Button 
-        variant="destructive" 
-        className={`
-          w-full text-white font-bold py-3 text-lg transition-opacity rounded-lg
-          ${isPoolTable
-            ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
-            : isVR
-              ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
-              : 'bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90'
-          }
-        `}
-        onClick={handleEndSession}
-        disabled={isLoading}
-      >
-        <Square className="h-4 w-4 mr-2 fill-current" />
-        {isLoading ? "Processing..." : "End Session"}
-      </Button>
+      <div className="flex w-full flex-col gap-2">
+        {isPaused ? (
+          <Button
+            variant="default"
+            className={`
+              w-full text-white font-bold py-3 text-lg transition-opacity rounded-lg
+              ${isPoolTable
+                ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800'
+                : isVR
+                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700'
+                  : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90'
+              }
+            `}
+            onClick={handleResumeSession}
+            disabled={isLoading}
+          >
+            <Play className="h-4 w-4 mr-2 fill-current" />
+            {isLoading ? "Processing..." : "Resume Session"}
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            className={`
+              w-full font-bold py-3 text-lg transition-opacity rounded-lg border border-amber-500/30
+              ${isPoolTable
+                ? 'bg-amber-900/40 text-amber-100 hover:bg-amber-900/60'
+                : isVR
+                  ? 'bg-amber-900/40 text-amber-100 hover:bg-amber-900/60'
+                  : 'bg-amber-900/40 text-amber-100 hover:bg-amber-900/60'
+              }
+            `}
+            onClick={handlePauseSession}
+            disabled={isLoading}
+          >
+            <Pause className="h-4 w-4 mr-2" />
+            {isLoading ? "Processing..." : "Pause Session"}
+          </Button>
+        )}
+
+        <Button 
+          variant="destructive" 
+          className={`
+            w-full text-white font-bold py-3 text-lg transition-opacity rounded-lg
+            ${isPoolTable
+              ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
+              : isVR
+                ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
+                : 'bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90'
+            }
+          `}
+          onClick={handleEndSession}
+          disabled={isLoading}
+        >
+          <Square className="h-4 w-4 mr-2 fill-current" />
+          {isLoading ? "Processing..." : "End Session"}
+        </Button>
+      </div>
     );
   }
 
