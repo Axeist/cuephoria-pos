@@ -271,7 +271,7 @@ const OffersManagementDialog: React.FC<OffersManagementDialogProps> = ({
   return (
     <ResponsiveDialog open={isOpen} onOpenChange={onClose} mobileVariant="fullscreen">
       <ResponsiveDialogContent
-        className="max-w-6xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700"
+        className="max-w-6xl max-h-[90vh] overflow-y-auto"
         mobileClassName="px-4 pt-3"
       >
         <DialogHeader>

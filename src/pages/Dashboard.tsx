@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
+import { parseExpenseDate } from '@/utils/expenseUtils';
 import { isWithinInterval, format } from 'date-fns';
 import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
 import StatCardSection from '@/components/dashboard/StatCardSection';
@@ -54,7 +55,8 @@ const Dashboard = () => {
   const filteredExpenses = useMemo(() => {
     if (!dateRange) return expenses;
     return expenses.filter(expense => {
-      const expenseDate = new Date(expense.date);
+      const expenseDate = parseExpenseDate(expense.date);
+      if (!expenseDate) return false;
       return isWithinInterval(expenseDate, { start: dateRange.start, end: dateRange.end });
     });
   }, [expenses, dateRange]);

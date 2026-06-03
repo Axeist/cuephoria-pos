@@ -1,6 +1,6 @@
 import React from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
-import { format, isWithinInterval } from 'date-fns';
+import { isWithinInterval } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import clsx from 'clsx';
+import { formatExpenseDate, normalizeExpenseCategory, parseExpenseDate } from '@/utils/expenseUtils';
 
 interface FilteredExpenseListProps {
   startDate: Date;
@@ -18,10 +19,8 @@ interface FilteredExpenseListProps {
   onCategorySelect?: (category: string | null) => void;
 }
 
-const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
-
 const getCategoryColor = (category: string) => {
-  const c = normalizeCategory(category);
+  const c = normalizeExpenseCategory(category);
   switch (c) {
     case 'rent': return 'bg-blue-500';
     case 'utilities': return 'bg-green-600';
@@ -47,22 +46,23 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
   const { expenses, deleteExpense } = useExpenses();
 
   // Filter by date range
-  const inRange = (d: Date) => isWithinInterval(d, { start: startDate, end: endDate });
-  const byDate = expenses.filter(expense => inRange(new Date(expense.date)));
+  const inRange = (dateStr: string) => {
+    const d = parseExpenseDate(dateStr);
+    return d ? isWithinInterval(d, { start: startDate, end: endDate }) : false;
+  };
+  const byDate = expenses.filter(expense => inRange(expense.date));
 
-  // Totals by normalized category
   const categoryTotals = byDate.reduce((acc, expense) => {
-    const key = normalizeCategory(expense.category);
-    acc[key] = (acc[key] || 0) + expense.amount;
+    const key = normalizeExpenseCategory(expense.category);
+    acc[key] = (acc[key] || 0) + (Number(expense.amount) || 0);
     return acc;
   }, {} as Record<string, number>);
 
-  // Visible rows filtered by selectedCategory (if any)
   const visibleExpenses = byDate.filter(e =>
-    !selectedCategory || normalizeCategory(e.category) === selectedCategory
+    !selectedCategory || normalizeExpenseCategory(e.category) === selectedCategory
   );
 
-  const totalAmount = visibleExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalAmount = visibleExpenses.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
 
   const handleDeleteExpense = async (id: string) => {
     try { await deleteExpense(id); } catch (error) { console.error('Error deleting expense:', error); }
@@ -118,7 +118,7 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold text-purple-400">
-              <CurrencyDisplay amount={byDate.reduce((s, e) => s + e.amount, 0)} />
+              <CurrencyDisplay amount={byDate.reduce((s, e) => s + (Number(e.amount) || 0), 0)} />
             </div>
             <p className="text-xs text-purple-300 mt-1">Clear filter</p>
           </CardContent>
@@ -170,7 +170,7 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
                 </TableHeader>
                 <TableBody>
                   {visibleExpenses.map((expense) => {
-                    const label = normalizeCategory(expense.category);
+                    const label = normalizeExpenseCategory(expense.category);
                     return (
                       <TableRow key={expense.id} className="border-white/10 hover:bg-white/[0.04]">
                         <TableCell className="text-white/90">{expense.name}</TableCell>
@@ -180,10 +180,10 @@ const FilteredExpenseList: React.FC<FilteredExpenseListProps> = ({
                           </Badge>
                         </TableCell>
                         <TableCell className="text-white/90">
-                          <CurrencyDisplay amount={expense.amount} />
+                          <CurrencyDisplay amount={Number(expense.amount) || 0} />
                         </TableCell>
                         <TableCell className="text-white/90">
-                          {format(new Date(expense.date), 'MMM dd, yyyy')}
+                          {formatExpenseDate(expense.date)}
                         </TableCell>
                         <TableCell>
                           {expense.isRecurring ? (

@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
 import { useLocation } from '@/context/LocationContext';
 import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
+import { mapExpenseRow } from '@/utils/expenseUtils';
 
 interface ExpenseContextType {
   expenses: Expense[];
@@ -52,7 +53,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let supabaseError: { message?: string } | null = null;
 
       while (!supabaseError) {
-        let q = (supabase.from('expenses' as any).select('id,date,amount,category,description,is_recurring,frequency,location_id').order('date', { ascending: false }) as any);
+        let q = (supabase.from('expenses' as any).select('id,name,amount,category,frequency,date,is_recurring,notes,location_id').order('date', { ascending: false }) as any);
 
         if (activeLocationId) {
           q = q.eq('location_id', activeLocationId);
@@ -91,16 +92,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setExpenses([]);
         }
       } else {
-        const formatted = (supabaseExpenses || []).map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          amount: item.amount,
-          category: item.category as Expense['category'],
-          frequency: item.frequency as Expense['frequency'],
-          date: item.date,
-          isRecurring: item.is_recurring,
-          notes: item.notes || undefined
-        }));
+        const formatted = (supabaseExpenses || []).map((item: any) => mapExpenseRow(item));
         setExpenses(formatted);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(formatted));
       }
@@ -121,7 +113,10 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
+  const normalizeCategory = (c: string | null | undefined) => {
+    if (!c) return 'other';
+    return c === 'restock' ? 'inventory' : c;
+  };
 
   const calculateBusinessSummary = useCallback(() => {
     const grossIncome = analyticsStats?.grossIncome ?? 0;

@@ -55,7 +55,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="fullscreen">
       <ResponsiveDialogContent
-        className="max-w-lg bg-cuephoria-darker/95 border-white/10 backdrop-blur-xl"
+        className="max-w-lg"
         mobileClassName="px-4 pt-3"
       >
         <DialogHeader>

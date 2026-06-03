@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { supabase } from '@/integrations/supabase/client';
+import { useLocation as useLocationCtx } from '@/context/LocationContext';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 
@@ -56,6 +57,39 @@ interface RecentTransactionsProps {
   bills: Bill[];
   customers: Customer[];
 }
+
+const normalizeSearchPhone = (phone: string): string => phone.replace(/\D/g, '');
+
+const buildCustomerCode = (phone: string | null | undefined, fallbackId: string): string => {
+  const digits = normalizeSearchPhone(phone ?? '');
+  const suffix = digits.length >= 4 ? digits.slice(-4) : fallbackId.replace(/-/g, '').slice(0, 4).toUpperCase();
+  const stamp = Date.now().toString(36).slice(-4).toUpperCase();
+  return `CUE${suffix}${stamp}`;
+};
+
+const mapDbCustomerRow = (customer: Record<string, unknown>): Customer => ({
+  id: String(customer.id),
+  name: String(customer.name ?? 'Unknown'),
+  phone: String(customer.phone ?? ''),
+  email: customer.email ? String(customer.email) : '',
+  customerId: customer.custom_id
+    ? String(customer.custom_id)
+    : buildCustomerCode(customer.phone as string | undefined, String(customer.id)),
+  isMember: Boolean(customer.is_member),
+  loyaltyPoints: Number(customer.loyalty_points) || 0,
+  totalSpent: Number(customer.total_spent) || 0,
+  totalPlayTime: Number(customer.total_play_time) || 0,
+  createdAt: new Date(String(customer.created_at ?? Date.now())),
+  membershipPlan: customer.membership_plan ? String(customer.membership_plan) : undefined,
+  membershipStartDate: customer.membership_start_date
+    ? new Date(String(customer.membership_start_date))
+    : undefined,
+  membershipExpiryDate: customer.membership_expiry_date
+    ? new Date(String(customer.membership_expiry_date))
+    : undefined,
+  membershipHoursLeft:
+    customer.membership_hours_left != null ? Number(customer.membership_hours_left) : undefined,
+});
 
 const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bills, customers }) => {
   const { 
@@ -68,6 +102,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
     updateBill,
     stations
   } = usePOS();
+  const { activeLocationId } = useLocationCtx();
   
   const { toast } = useToast();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -132,7 +167,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       .filter(Boolean); // Remove any null/undefined values
   }, [products, productSearchQuery]);
   
-  // Real-time customer search from database
+  // Real-time customer search from database (branch-scoped)
   useEffect(() => {
     const searchCustomers = async () => {
       if (!customerSearchQuery.trim()) {
@@ -141,37 +176,42 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
         return;
       }
 
+      if (!activeLocationId) {
+        setCustomerSearchResults([]);
+        setIsSearchingCustomers(false);
+        return;
+      }
+
       setIsSearchingCustomers(true);
       const query = customerSearchQuery.trim().toLowerCase();
-      const normalizedSearchPhone = customerSearchQuery.replace(/\D/g, '');
+      const normalizedSearchPhone = normalizeSearchPhone(customerSearchQuery);
 
       try {
-        // Build multiple queries for different fields and combine results
         const searchPattern = `%${query}%`;
         const phonePattern = normalizedSearchPhone ? `%${normalizedSearchPhone}%` : '';
-        
-        // Execute parallel queries for each search field
-        const queries = [
-          supabase.from('customers').select('*').ilike('name', searchPattern).limit(50),
-          normalizedSearchPhone ? supabase.from('customers').select('*').ilike('phone', phonePattern).limit(50) : null,
-          supabase.from('customers').select('*').ilike('email', searchPattern).limit(50),
-          supabase.from('customers').select('*').ilike('custom_id', searchPattern).limit(50)
-        ].filter(Boolean) as Promise<any>[];
 
-        const results = await Promise.all(queries);
-        
-        // Combine and deduplicate results by id
-        const allResults: any[] = [];
+        const queryBuilders = [
+          supabase.from('customers').select('*').ilike('name', searchPattern).eq('location_id', activeLocationId).limit(50),
+          normalizedSearchPhone
+            ? supabase.from('customers').select('*').ilike('phone', phonePattern).eq('location_id', activeLocationId).limit(50)
+            : null,
+          supabase.from('customers').select('*').ilike('email', searchPattern).eq('location_id', activeLocationId).limit(50),
+          supabase.from('customers').select('*').ilike('custom_id', searchPattern).eq('location_id', activeLocationId).limit(50),
+        ].filter(Boolean);
+
+        const results = await Promise.all(queryBuilders);
+
+        const allResults: Record<string, unknown>[] = [];
         const seenIds = new Set<string>();
-        
+
         results.forEach(({ data, error }) => {
           if (error) {
             console.error('Customer search query error:', error);
             return;
           }
           if (data && Array.isArray(data)) {
-            data.forEach((customer: any) => {
-              if (customer && !seenIds.has(customer.id)) {
+            data.forEach((customer) => {
+              if (customer?.id && !seenIds.has(customer.id)) {
                 seenIds.add(customer.id);
                 allResults.push(customer);
               }
@@ -179,34 +219,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
           }
         });
 
-        // Transform database results to Customer format
-        if (allResults.length > 0) {
-          const transformedResults: Customer[] = allResults.map((customer: any) => ({
-            id: customer.id,
-            name: customer.name,
-            phone: customer.phone,
-            email: customer.email || '',
-            customerId: customer.custom_id || `CUE${customer.phone.slice(-4)}${Date.now().toString(36).slice(-4).toUpperCase()}`,
-            isMember: customer.is_member || false,
-            loyaltyPoints: customer.loyalty_points || 0,
-            totalSpent: customer.total_spent || 0,
-            totalPlayTime: customer.total_play_time || 0,
-            createdAt: new Date(customer.created_at || customer.createdAt),
-            membershipPlan: customer.membership_plan || undefined,
-            membershipStartDate: customer.membership_start_date ? new Date(customer.membership_start_date) : undefined,
-            membershipExpiryDate: customer.membership_expiry_date ? new Date(customer.membership_expiry_date) : undefined,
-            membershipHoursLeft: customer.membership_hours_left || undefined
-          }));
-          setCustomerSearchResults(transformedResults);
-        } else {
-          setCustomerSearchResults([]);
-        }
+        setCustomerSearchResults(allResults.map(mapDbCustomerRow));
       } catch (err) {
         console.error('Error searching customers:', err);
-        // Fallback to local search
-        const localResults = (customers || []).filter(customer => {
+        const localResults = (customers || []).filter((customer) => {
           if (!customer) return false;
-          const normalizedCustomerPhone = customer.phone?.replace(/\D/g, '') || '';
+          const normalizedCustomerPhone = normalizeSearchPhone(customer.phone ?? '');
           return (
             customer.name?.toLowerCase().includes(query) ||
             normalizedCustomerPhone.includes(normalizedSearchPhone) ||
@@ -220,13 +238,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       }
     };
 
-    // Debounce the search
     const timeoutId = setTimeout(() => {
-      searchCustomers();
+      void searchCustomers();
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [customerSearchQuery, customers]);
+  }, [customerSearchQuery, customers, activeLocationId]);
   
   // Use search results if there's a query, otherwise use all customers
   const filteredCustomers = customerSearchQuery.trim() ? customerSearchResults : (customers || []);
@@ -277,8 +294,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
   }, [activeSessionsCount]);
   
   const getCurrentCustomerInfo = () => {
+    if (editingCustomer) return editingCustomer;
     if (!editingBill) return null;
-    return customers.find(c => c.id === editingBill.customerId);
+    return customers.find(c => c.id === editingBill.customerId) ?? null;
   };
 
   const currentCustomer = getCurrentCustomerInfo();
@@ -844,19 +862,19 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       </CardContent>
       
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <AlertDialogContent className="bg-gray-800 border-gray-700 text-white">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-300">
+            <AlertDialogDescription>
               Are you sure you want to delete this transaction? This will revert the sale, 
               update inventory, and adjust customer loyalty points. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-gray-700 text-white hover:bg-gray-600">Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleConfirmDelete}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
             >
               {isDeleting ? "Deleting..." : "Delete"}
@@ -867,12 +885,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       
       <ResponsiveDialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} mobileVariant="fullscreen">
         <ResponsiveDialogContent
-          className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
-          mobileClassName="px-4 pt-3 bg-gray-900"
+          className="max-w-[95vw] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+          mobileClassName="px-4 pt-3"
         >
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-xl">Edit Transaction</DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription>
               Modify transaction details including customer, products, discount, loyalty points, and payment method.
             </DialogDescription>
           </DialogHeader>
@@ -880,19 +898,19 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
           {editingBill && (
             <div className="flex-1 overflow-y-auto space-y-6 pr-2">
               {/* Header Section */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg border border-border">
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-400 mb-1">Bill ID</h3>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-1">Bill ID</h3>
                   <p className="text-white text-xs font-mono break-all">{editingBill.id}</p>
                 </div>
                 <div className="md:col-span-2">
-                  <h3 className="text-xs font-semibold text-gray-400 mb-2">Customer</h3>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-2">Customer</h3>
                   <div className="relative z-50">
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={isCustomerCommandOpen}
-                      className="w-full justify-between bg-gray-700 border-gray-600 text-white hover:bg-gray-600 h-9"
+                      className="w-full justify-between bg-muted border-border text-foreground hover:bg-muted h-9"
                       onClick={() => setIsCustomerCommandOpen(!isCustomerCommandOpen)}
                     >
                       <span className="truncate">{editingCustomer?.name || "Select customer..."}</span>
@@ -901,16 +919,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     
                     {isCustomerCommandOpen && (
                       <div className="absolute top-full left-0 right-0 mt-2 z-[10001]">
-                        <Command className="rounded-lg border border-gray-600 bg-gray-800 text-white shadow-2xl">
+                        <Command className="rounded-lg border border-border bg-card text-foreground shadow-2xl">
                           <CommandInput 
                             placeholder="Search by name, phone, email, or ID..." 
                             value={customerSearchQuery}
                             onValueChange={setCustomerSearchQuery}
-                            className="border-gray-600"
+                            className="border-border"
                           />
                           <CommandList className="max-h-60 overflow-y-auto">
                             {isSearchingCustomers ? (
-                              <div className="py-4 text-center text-gray-400">
+                              <div className="py-4 text-center text-muted-foreground">
                                 <div className="inline-block h-4 w-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mr-2" />
                                 Searching...
                               </div>
@@ -926,11 +944,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                                           key={customer.id}
                                           value={`${customer.name || ''} ${customer.phone || ''} ${customer.email || ''} ${customer.customerId || ''}`}
                                           onSelect={() => handleCustomerSelect(customer.id)}
-                                          className="flex justify-between cursor-pointer hover:bg-gray-700 py-3 px-3"
+                                          className="flex justify-between cursor-pointer hover:bg-muted py-3 px-3"
                                         >
                                         <div className="flex flex-col flex-1 min-w-0">
                                           <span className="font-medium truncate">{customer.name}</span>
-                                          <span className="text-xs text-gray-400 truncate">
+                                          <span className="text-xs text-muted-foreground truncate">
                                             {customer.phone} {customer.email && `• ${customer.email}`}
                                           </span>
                                         </div>
@@ -941,7 +959,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                                     );
                                     }).filter(Boolean)
                                   ) : (
-                                    <div className="py-4 text-center text-gray-400 text-sm">
+                                    <div className="py-4 text-center text-muted-foreground text-sm">
                                       {customerSearchQuery.trim() ? 'No customers found' : 'Start typing to search...'}
                                     </div>
                                   )}
@@ -955,7 +973,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-400 mb-1">Date</h3>
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-1">Date</h3>
                   <p className="text-white text-xs">
                     {new Date(editingBill.createdAt).toLocaleDateString()} 
                     {' '}
@@ -967,7 +985,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               {/* Items Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-300">Items</h3>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Items</h3>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -979,8 +997,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               </div>
               
                 {editedItems.length === 0 ? (
-                  <div className="border border-gray-700 rounded-md p-8 text-center bg-gray-800/30">
-                    <p className="text-gray-400">No items in this transaction</p>
+                  <div className="border border-border rounded-md p-8 text-center bg-muted/30">
+                    <p className="text-muted-foreground">No items in this transaction</p>
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -991,27 +1009,27 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     </Button>
                   </div>
                 ) : (
-              <div className="border border-gray-700 rounded-md overflow-hidden">
+              <div className="border border-border rounded-md overflow-hidden">
                     <div className="table-container overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
                 <Table>
-                  <TableHeader className="bg-gray-900">
+                  <TableHeader className="bg-muted">
                     <TableRow>
-                            <TableHead className="text-gray-400 min-w-[150px] sm:min-w-[200px]">Name</TableHead>
-                            <TableHead className="text-gray-400 w-[100px]">Type</TableHead>
-                            <TableHead className="text-gray-400 w-[120px]">Price</TableHead>
-                            <TableHead className="text-gray-400 w-[100px]">Quantity</TableHead>
-                            <TableHead className="text-gray-400 w-[120px]">Total</TableHead>
-                            <TableHead className="text-gray-400 w-[80px]">Actions</TableHead>
+                            <TableHead className="text-muted-foreground min-w-[150px] sm:min-w-[200px]">Name</TableHead>
+                            <TableHead className="text-muted-foreground w-[100px]">Type</TableHead>
+                            <TableHead className="text-muted-foreground w-[120px]">Price</TableHead>
+                            <TableHead className="text-muted-foreground w-[100px]">Quantity</TableHead>
+                            <TableHead className="text-muted-foreground w-[120px]">Total</TableHead>
+                            <TableHead className="text-muted-foreground w-[80px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {editedItems.map((item, index) => (
-                            <TableRow key={index} className="border-gray-700 hover:bg-gray-800/50">
+                            <TableRow key={index} className="border-border hover:bg-muted/50">
                               <TableCell className="p-2">
                           <Input 
                             value={item.name} 
                             onChange={(e) => handleUpdateItem(index, 'name', e.target.value)}
-                                  className="bg-gray-700 border-gray-600 text-white text-sm h-9"
+                                  className="bg-muted border-border text-foreground text-sm h-9"
                           />
                         </TableCell>
                               <TableCell className="p-2">
@@ -1033,7 +1051,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                             type="number" 
                             value={item.price} 
                                   onChange={(e) => handleUpdateItem(index, 'price', parseFloat(e.target.value) || 0)}
-                                  className="bg-gray-700 border-gray-600 text-white text-sm h-9"
+                                  className="bg-muted border-border text-foreground text-sm h-9"
                                   min="0"
                                   step="0.01"
                           />
@@ -1043,7 +1061,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                             type="number" 
                             value={item.quantity} 
                                   onChange={(e) => handleUpdateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                                  className="bg-gray-700 border-gray-600 text-white text-sm h-9"
+                                  className="bg-muted border-border text-foreground text-sm h-9"
                             min="1"
                           />
                         </TableCell>
@@ -1070,15 +1088,15 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               </div>
               
               {/* Settings Section */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-gray-700 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-border pt-4">
                 <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-gray-300">Discount</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground">Discount</h3>
                   <div className="flex space-x-2">
                     <Input 
                       type="number" 
                       value={editingDiscount} 
                       onChange={(e) => setEditingDiscount(parseFloat(e.target.value))}
-                      className="bg-gray-700 border-gray-600 text-white flex-1"
+                      className="bg-muted border-border text-foreground flex-1"
                       min="0"
                     />
                     <Select
@@ -1097,7 +1115,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 </div>
                 
                 <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-gray-300">
+                  <h3 className="text-sm font-medium text-muted-foreground">
                     Loyalty Points Used 
                     {currentCustomer && (
                       <span className="text-xs ml-2 text-cuephoria-orange">
@@ -1109,14 +1127,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                     type="number" 
                     value={editingLoyaltyPointsUsed} 
                     onChange={(e) => handleLoyaltyPointsChange(e.target.value)}
-                    className="bg-gray-700 border-gray-600 text-white"
+                    className="bg-muted border-border text-foreground"
                     min="0"
                     max={currentCustomer ? currentCustomer.loyaltyPoints + editingBill.loyaltyPointsUsed : 0}
                   />
                 </div>
                 
                 <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-gray-300">Payment Method</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground">Payment Method</h3>
                   <RadioGroup 
                     value={editingPaymentMethod} 
                     onValueChange={(value) => handlePaymentMethodChange(value as 'cash' | 'upi' | 'split' | 'credit' | 'complimentary' | 'razorpay')}
@@ -1157,31 +1175,31 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               </div>
 
               {editingPaymentMethod === 'split' && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800/40 rounded-md border border-gray-700">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/40 rounded-md border border-border">
                   <div className="space-y-2">
-                    <Label htmlFor="cashAmount" className="text-sm text-gray-300">Cash Amount</Label>
+                    <Label htmlFor="cashAmount" className="text-sm text-muted-foreground">Cash Amount</Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2 text-gray-400">₹</span>
+                      <span className="absolute left-3 top-2 text-muted-foreground">₹</span>
                       <Input 
                         id="cashAmount"
                         type="number" 
                         value={editingCashAmount} 
                         onChange={(e) => handleSplitAmountChange('cash', parseFloat(e.target.value) || 0)}
-                        className="pl-7 bg-gray-700 border-gray-600 text-white"
+                        className="pl-7 bg-muted border-border text-foreground"
                         min="0"
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="upiAmount" className="text-sm text-gray-300">UPI Amount</Label>
+                    <Label htmlFor="upiAmount" className="text-sm text-muted-foreground">UPI Amount</Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2 text-gray-400">₹</span>
+                      <span className="absolute left-3 top-2 text-muted-foreground">₹</span>
                       <Input 
                         id="upiAmount"
                         type="number" 
                         value={editingUpiAmount} 
                         onChange={(e) => handleSplitAmountChange('upi', parseFloat(e.target.value) || 0)}
-                        className="pl-7 bg-gray-700 border-gray-600 text-white"
+                        className="pl-7 bg-muted border-border text-foreground"
                         min="0"
                       />
                     </div>
@@ -1195,20 +1213,20 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               )}
               
               {/* Summary Section */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 border-t border-gray-700 mt-4 bg-gray-800/30 p-4 rounded-lg">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 border-t border-border mt-4 bg-muted/30 p-4 rounded-lg">
                 <div className="space-y-1">
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-muted-foreground text-sm">
                     Subtotal: <span className="text-white font-medium">
                       <CurrencyDisplay amount={calculateUpdatedBill().subtotal} />
                     </span>
                   </p>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-muted-foreground text-sm">
                     Discount ({editingDiscountType === 'percentage' ? `${editingDiscount}%` : 'fixed'}): 
                     <span className="text-white ml-1 font-medium">
                       <CurrencyDisplay amount={calculateUpdatedBill().discountValue} />
                     </span>
                   </p>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-muted-foreground text-sm">
                     Points Used: <span className="text-white font-medium">{editingLoyaltyPointsUsed}</span>
                   </p>
                 </div>
@@ -1221,14 +1239,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
             </div>
           )}
               
-          <DialogFooter className="flex-shrink-0 border-t border-gray-700 pt-4 mt-4">
+          <DialogFooter className="flex-shrink-0 border-t border-border pt-4 mt-4">
                 <Button
                   variant="outline"
               onClick={() => {
                 setIsEditDialogOpen(false);
                 setIsCustomerCommandOpen(false);
               }}
-                  className="bg-gray-700 hover:bg-gray-600 text-white"
+                  className="bg-muted hover:bg-muted/80 text-foreground"
                 >
                   Cancel
                 </Button>
@@ -1252,12 +1270,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
       
       <ResponsiveDialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen} mobileVariant="sheet-bottom">
         <ResponsiveDialogContent
-          className="bg-gray-800 border-gray-700 text-white max-w-[95vw] sm:max-w-md"
-          mobileClassName="px-4 pt-3 bg-gray-900"
+          className="max-w-[95vw] sm:max-w-md"
+          mobileClassName="px-4 pt-3"
         >
           <DialogHeader>
             <DialogTitle>Add Item to Transaction</DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription className="text-muted-foreground">
               Search and select a product to add to this transaction
             </DialogDescription>
           </DialogHeader>
@@ -1267,13 +1285,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
               <Label htmlFor="product" className="text-white text-sm font-medium">Product</Label>
               <div className="relative z-40" data-product-dropdown>
                 {!products || !Array.isArray(products) ? (
-                  <div className="rounded-lg border border-gray-600 bg-gray-800 text-white p-4">
-                    <p className="text-sm text-gray-400">Loading products...</p>
+                  <div className="rounded-lg border border-border bg-card text-foreground p-4">
+                    <p className="text-sm text-muted-foreground">Loading products...</p>
                   </div>
                 ) : (
                   <>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Search products by name or category..." 
                         value={productSearchQuery}
@@ -1282,12 +1300,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                           setIsCommandOpen(true);
                         }}
                         onFocus={() => setIsCommandOpen(true)}
-                        className="pl-9 bg-gray-700 border-gray-600 text-white"
+                        className="pl-9 bg-muted border-border text-foreground"
                       />
                     </div>
                     
                     {isCommandOpen && (
-                      <div className="absolute z-50 w-full mt-2 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-60 overflow-hidden" data-product-dropdown>
+                      <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-lg shadow-xl max-h-60 overflow-hidden" data-product-dropdown>
                         <ScrollArea className="max-h-60">
                           {Array.isArray(filteredProducts) && filteredProducts.length > 0 ? (
                             <div className="p-1">
@@ -1302,21 +1320,21 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                                       handleProductSelect(product.id);
                                       setIsCommandOpen(false);
                                     }}
-                                    className="flex justify-between items-center cursor-pointer hover:bg-gray-700 py-3 px-3 rounded-md transition-colors"
+                                    className="flex justify-between items-center cursor-pointer hover:bg-muted py-3 px-3 rounded-md transition-colors"
                                   >
                                     <div className="flex flex-col flex-1 min-w-0">
                                       <span className="font-medium truncate text-white">{product.name}</span>
-                                      <span className="text-xs text-gray-400 capitalize">{product.category || 'other'}</span>
+                                      <span className="text-xs text-muted-foreground capitalize">{product.category || 'other'}</span>
                                     </div>
                                     <div className="text-right ml-4 flex-shrink-0">
                                       <span className="font-semibold text-purple-300 block"><CurrencyDisplay amount={product.price || 0} /></span>
-                                      <span className="text-xs text-gray-400">Stock: {product.stock || 0}</span>
+                                      <span className="text-xs text-muted-foreground">Stock: {product.stock || 0}</span>
                                     </div>
                                   </div>
                                 ))}
                             </div>
                           ) : (
-                            <div className="py-4 text-center text-gray-400 text-sm">
+                            <div className="py-4 text-center text-muted-foreground text-sm">
                               {productSearchQuery.trim() ? 'No products found' : 'Start typing to search...'}
                             </div>
                           )}
@@ -1345,12 +1363,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       const val = parseInt(e.target.value) || 0;
                       setNewItemQuantity(Math.max(1, Math.min(val, availableStock)));
                     }}
-                  className="bg-gray-700 border-gray-600 text-white"
+                  className="bg-muted border-border text-foreground"
                   min="1"
                   max={availableStock}
                 />
                   <div className="flex flex-col">
-                    <p className="text-xs text-gray-400">Available: <span className="text-white font-medium">{availableStock}</span></p>
+                    <p className="text-xs text-muted-foreground">Available: <span className="text-white font-medium">{availableStock}</span></p>
                     {newItemQuantity > availableStock && (
                       <p className="text-xs text-red-400">Exceeds available stock</p>
                 )}
@@ -1362,7 +1380,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       variant="outline"
                       size="sm"
                       onClick={() => setNewItemQuantity(Math.max(1, newItemQuantity - 1))}
-                      className="bg-gray-700 border-gray-600 text-white hover:bg-gray-600 h-8"
+                      className="bg-muted border-border text-foreground hover:bg-muted h-8"
                       disabled={newItemQuantity <= 1}
                     >
                       -
@@ -1371,7 +1389,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                       variant="outline"
                       size="sm"
                       onClick={() => setNewItemQuantity(Math.min(availableStock, newItemQuantity + 1))}
-                      className="bg-gray-700 border-gray-600 text-white hover:bg-gray-600 h-8"
+                      className="bg-muted border-border text-foreground hover:bg-muted h-8"
                       disabled={newItemQuantity >= availableStock}
                     >
                       +
@@ -1392,7 +1410,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ className, bill
                 setSelectedProductId('');
                 setSelectedProductName('');
               }}
-              className="bg-gray-700 hover:bg-gray-600 text-white"
+              className="bg-muted hover:bg-muted/80 text-foreground"
             >
               Cancel
             </Button>

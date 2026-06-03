@@ -2,7 +2,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useViewMode } from "@/context/ViewModeContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Dialog,
   DialogClose,
@@ -25,17 +25,14 @@ import {
 } from "@/components/ui/sheet";
 
 /**
- * <ResponsiveDialog>
+ * Responsive modal shell.
  *
- * Mobile: renders a bottom-sheet (Radix Sheet `side="bottom"`) by default,
- * or `right` / `fullscreen` if requested. Mobile content always respects
- * safe-area-bottom and gives a generous touch close target.
+ * Uses **viewport width** (<768px) to pick sheet vs centered dialog.
+ * View-mode preference (mobile UI density) does not change modal placement —
+ * otherwise desktop users in "mobile" mode get left-aligned sheets.
  *
- * Desktop: renders the existing centered `<Dialog>` — completely untouched.
- *
- * Drop-in replacement for `<Dialog>` + `<DialogContent>`. Use the helper
- * subcomponents (`ResponsiveDialogHeader`, etc.) to get correct spacing
- * on both branches.
+ * - `className` / `desktopClassName` → centered dialog (desktop viewport only)
+ * - `mobileClassName` → sheet / fullscreen (narrow viewport only)
  */
 
 type MobileVariant = "sheet-bottom" | "sheet-right" | "fullscreen";
@@ -51,9 +48,6 @@ const ResponsiveDialogContext =
 function useResponsiveDialogContext(): ResponsiveDialogContextValue {
   const ctx = React.useContext(ResponsiveDialogContext);
   if (ctx) return ctx;
-  // Used when consumers render subcomponents outside our root (rare). Default
-  // to desktop so we never crash; the caller is already responsible for
-  // choosing the right primitive in that case.
   return { isMobile: false, mobileVariant: "sheet-bottom" };
 }
 
@@ -61,11 +55,6 @@ interface ResponsiveDialogProps {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /**
-   * Mobile presentation. Defaults to `sheet-bottom`. Pick `fullscreen` for
-   * long forms / multi-step wizards, `sheet-right` for inspector-style
-   * side panels.
-   */
   mobileVariant?: MobileVariant;
   children: React.ReactNode;
 }
@@ -75,16 +64,13 @@ const ResponsiveDialog: React.FC<ResponsiveDialogProps> = ({
   children,
   ...rootProps
 }) => {
-  const { isMobile } = useViewMode();
+  const isMobile = useIsMobile();
 
   const ctx = React.useMemo<ResponsiveDialogContextValue>(
     () => ({ isMobile, mobileVariant }),
     [isMobile, mobileVariant],
   );
 
-  // On desktop, defer to the existing `<Dialog>` Root.
-  // On mobile, swap to the `<Sheet>` Root (which is also Radix Dialog under
-  // the hood, so the contract for `open`/`onOpenChange` is identical).
   const Root = isMobile ? Sheet : Dialog;
 
   return (
@@ -112,11 +98,8 @@ const ResponsiveDialogClose: React.FC<
 
 interface ResponsiveDialogContentProps
   extends React.HTMLAttributes<HTMLDivElement> {
-  /** Hide the auto-injected close button (mobile only — desktop always shows it). */
   hideCloseButton?: boolean;
-  /** Class applied only on the mobile branch. */
   mobileClassName?: string;
-  /** Class applied only on the desktop branch. */
   desktopClassName?: string;
 }
 
@@ -157,7 +140,6 @@ const ResponsiveDialogContent = React.forwardRef<
           className={cn(
             "w-[92vw] sm:w-[420px] sm:max-w-[92vw] p-0 flex flex-col overflow-hidden",
             "border-l border-white/10 bg-[color:hsl(var(--card))]/95 backdrop-blur-2xl",
-            className,
             mobileClassName,
           )}
           {...props}
@@ -180,9 +162,8 @@ const ResponsiveDialogContent = React.forwardRef<
           ref={ref as React.Ref<HTMLDivElement>}
           side="bottom"
           className={cn(
-            "inset-0 top-0 h-[100dvh] w-screen max-w-none rounded-none border-0 p-0",
+            "inset-0 top-0 h-[100dvh] w-full max-w-none rounded-none border-0 p-0",
             "bg-[color:hsl(var(--card))]/95 backdrop-blur-2xl flex flex-col overflow-hidden",
-            className,
             mobileClassName,
           )}
           {...props}
@@ -200,7 +181,6 @@ const ResponsiveDialogContent = React.forwardRef<
       );
     }
 
-    // Default: bottom sheet with rounded top + drag affordance.
     return (
       <SheetContent
         ref={ref as React.Ref<HTMLDivElement>}
@@ -209,10 +189,7 @@ const ResponsiveDialogContent = React.forwardRef<
           "p-0 max-h-[90dvh] flex flex-col overflow-hidden",
           "rounded-t-3xl border-t border-x border-white/10",
           "bg-[color:hsl(var(--card))]/95 backdrop-blur-2xl",
-          // Hide the default close button so we can render our own anchored
-          // to the sheet header drag affordance.
           "[&>button.absolute]:hidden",
-          className,
           mobileClassName,
         )}
         {...props}
@@ -245,11 +222,6 @@ const ResponsiveDialogContent = React.forwardRef<
 );
 ResponsiveDialogContent.displayName = "ResponsiveDialogContent";
 
-/**
- * Header — adds a consistent padding rhythm. Desktop falls back to
- * `DialogHeader`, mobile uses a tighter padded variant that visually anchors
- * the title above the scrollable body.
- */
 const ResponsiveDialogHeader: React.FC<
   React.HTMLAttributes<HTMLDivElement>
 > = ({ className, ...props }) => {
@@ -304,11 +276,6 @@ const ResponsiveDialogDescription: React.FC<
   );
 };
 
-/**
- * Inner body wrapper — pads content uniformly inside the responsive shell.
- * Use this to wrap the main form/content area; the header/footer get their
- * own padding from the components above.
- */
 const ResponsiveDialogBody: React.FC<
   React.HTMLAttributes<HTMLDivElement>
 > = ({ className, ...props }) => {

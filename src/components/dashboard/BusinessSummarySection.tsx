@@ -6,12 +6,12 @@ import { ArrowUpRight, ArrowDownRight, DollarSign, Wallet, TrendingUp, Loader2 }
 import { Progress } from '@/components/ui/progress';
 import { useBusinessAnalytics } from '@/hooks/useBusinessAnalytics';
 
+import { normalizeExpenseCategory } from '@/utils/expenseUtils';
+
 interface BusinessSummarySectionProps {
   filteredExpenses?: any[];
   dateRange?: { start: Date; end: Date; };
 }
-
-const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
 
 const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({ filteredExpenses, dateRange }) => {
   const { expenses } = useExpenses();
@@ -24,12 +24,12 @@ const BusinessSummarySection: React.FC<BusinessSummarySectionProps> = ({ filtere
 
   const summary = useMemo(() => {
     const withdrawals = expensesToUse
-      .filter((e: any) => normalizeCategory(e.category) === 'withdrawal')
-      .reduce((sum: number, e: any) => sum + e.amount, 0);
+      .filter((e: any) => normalizeExpenseCategory(e.category) === 'withdrawal')
+      .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
 
     const operatingExpenses = expensesToUse
-      .filter((e: any) => normalizeCategory(e.category) !== 'withdrawal')
-      .reduce((sum: number, e: any) => sum + e.amount, 0);
+      .filter((e: any) => normalizeExpenseCategory(e.category) !== 'withdrawal')
+      .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
 
     const grossIncome = stats?.grossIncome ?? 0;
     const netProfit = grossIncome - operatingExpenses;

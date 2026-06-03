@@ -2067,20 +2067,20 @@ const ReportsPage: React.FC = () => {
       {/* Edit Transaction dialog – change payment method like on dashboard */}
       <ResponsiveDialog open={!!editingBill} onOpenChange={(open) => !open && setEditingBill(null)} mobileVariant="sheet-bottom">
         <ResponsiveDialogContent
-          className="bg-gray-800 border-gray-700 text-white max-w-md"
-          mobileClassName="px-4 pt-3 bg-gray-900"
+          className="max-w-md"
+          mobileClassName="px-4 pt-3"
         >
           <DialogHeader>
             <DialogTitle className="text-xl">Edit Transaction</DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription>
               Change payment method for this transaction (same as dashboard).
             </DialogDescription>
           </DialogHeader>
           {editingBill && (
             <div className="space-y-4 py-2">
-              <div className="text-xs text-gray-400 font-mono break-all">Bill: {editingBill.id}</div>
+              <div className="text-xs text-muted-foreground font-mono break-all">Bill: {editingBill.id}</div>
               <div className="space-y-3">
-                <Label className="text-sm font-medium text-gray-300">Payment Method</Label>
+                <Label className="text-sm font-medium">Payment Method</Label>
                 <RadioGroup
                   value={editingPaymentMethod}
                   onValueChange={(value) => handlePaymentMethodChange(value as Bill['paymentMethod'])}
@@ -2119,9 +2119,9 @@ const ReportsPage: React.FC = () => {
                 </RadioGroup>
               </div>
               {editingPaymentMethod === 'split' && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800/40 rounded-md border border-gray-700">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/40 rounded-md border border-border">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-cashAmount" className="text-sm text-gray-300">Cash (₹)</Label>
+                    <Label htmlFor="edit-cashAmount" className="text-sm text-muted-foreground">Cash (₹)</Label>
                     <Input
                       id="edit-cashAmount"
                       type="number"
@@ -2131,12 +2131,11 @@ const ReportsPage: React.FC = () => {
                         setEditingCashAmount(v);
                         setEditingUpiAmount(Math.max(0, editingBill.total - v));
                       }}
-                      className="bg-gray-700 border-gray-600 text-white"
                       min={0}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-upiAmount" className="text-sm text-gray-300">UPI (₹)</Label>
+                    <Label htmlFor="edit-upiAmount" className="text-sm text-muted-foreground">UPI (₹)</Label>
                     <Input
                       id="edit-upiAmount"
                       type="number"
@@ -2146,7 +2145,6 @@ const ReportsPage: React.FC = () => {
                         setEditingUpiAmount(v);
                         setEditingCashAmount(Math.max(0, editingBill.total - v));
                       }}
-                      className="bg-gray-700 border-gray-600 text-white"
                       min={0}
                     />
                   </div>
@@ -2157,21 +2155,19 @@ const ReportsPage: React.FC = () => {
                   )}
                 </div>
               )}
-              <div className="text-right text-sm text-gray-400">
-                Total: <CurrencyDisplay amount={editingBill.total} className="text-white font-medium" />
+              <div className="text-right text-sm text-muted-foreground">
+                Total: <CurrencyDisplay amount={editingBill.total} className="text-foreground font-medium" />
               </div>
             </div>
           )}
-          <DialogFooter className="border-t border-gray-700 pt-4">
+          <DialogFooter className="border-t border-border pt-4">
             <Button
               variant="outline"
-              className="bg-gray-700 hover:bg-gray-600 text-white"
               onClick={() => setEditingBill(null)}
             >
               Cancel
             </Button>
             <Button
-              className="bg-purple-600 hover:bg-purple-700 text-white"
               onClick={handleSaveEditTransaction}
               disabled={isSavingEdit}
             >
@@ -2190,23 +2186,23 @@ const ReportsPage: React.FC = () => {
 
       <ResponsiveDialog open={!!singleRealiseBill} onOpenChange={(open) => !open && setSingleRealiseBill(null)} mobileVariant="sheet-bottom">
         <ResponsiveDialogContent
-          className="bg-gray-800 border-gray-700 text-white max-w-md"
-          mobileClassName="px-4 pt-3 bg-gray-900"
+          className="max-w-md"
+          mobileClassName="px-4 pt-3"
         >
           <DialogHeader>
             <DialogTitle className="text-xl">Realise credit payment</DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogDescription>
               Record how this credit sale was collected. This only updates payment (cash / UPI / split), not line items.
             </DialogDescription>
           </DialogHeader>
           {singleRealiseBill && (
             <div className="space-y-4 py-2">
-              <div className="text-xs text-gray-400 font-mono break-all">{singleRealiseBill.id}</div>
-              <div className="text-sm text-gray-300">
+              <div className="text-xs text-muted-foreground font-mono break-all">{singleRealiseBill.id}</div>
+              <div className="text-sm text-muted-foreground">
                 Total:{' '}
-                <CurrencyDisplay amount={singleRealiseBill.total} className="text-white font-semibold inline" />
+                <CurrencyDisplay amount={singleRealiseBill.total} className="text-foreground font-semibold inline" />
               </div>
-              <Label className="text-sm font-medium text-gray-300">Collected as</Label>
+              <Label className="text-sm font-medium">Collected as</Label>
               <RadioGroup
                 value={singleRealiseMode}
                 onValueChange={(v) => {
@@ -2241,9 +2237,9 @@ const ReportsPage: React.FC = () => {
                 </div>
               </RadioGroup>
               {singleRealiseMode === 'split' && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800/40 rounded-md border border-gray-700">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/40 rounded-md border border-border">
                   <div className="space-y-2">
-                    <Label htmlFor="rl-cash-amt" className="text-sm text-gray-300">
+                    <Label htmlFor="rl-cash-amt" className="text-sm text-muted-foreground">
                       Cash (₹)
                     </Label>
                     <Input
@@ -2255,12 +2251,11 @@ const ReportsPage: React.FC = () => {
                         setSingleSplitCash(v);
                         setSingleSplitUpi(Math.max(0, Math.round((singleRealiseBill.total - v) * 100) / 100));
                       }}
-                      className="bg-gray-700 border-gray-600 text-white"
                       min={0}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="rl-upi-amt" className="text-sm text-gray-300">
+                    <Label htmlFor="rl-upi-amt" className="text-sm text-muted-foreground">
                       UPI (₹)
                     </Label>
                     <Input
@@ -2272,7 +2267,6 @@ const ReportsPage: React.FC = () => {
                         setSingleSplitUpi(v);
                         setSingleSplitCash(Math.max(0, Math.round((singleRealiseBill.total - v) * 100) / 100));
                       }}
-                      className="bg-gray-700 border-gray-600 text-white"
                       min={0}
                     />
                   </div>
@@ -2285,10 +2279,9 @@ const ReportsPage: React.FC = () => {
               )}
             </div>
           )}
-          <DialogFooter className="border-t border-gray-700 pt-4">
+          <DialogFooter className="border-t border-border pt-4">
             <Button
               variant="outline"
-              className="bg-gray-700 hover:bg-gray-600 text-white"
               onClick={() => setSingleRealiseBill(null)}
             >
               Cancel

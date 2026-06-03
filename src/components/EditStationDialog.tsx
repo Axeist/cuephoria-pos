@@ -57,7 +57,7 @@ const EditStationDialog: React.FC<EditStationDialogProps> = ({
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} mobileVariant="sheet-bottom">
-      <ResponsiveDialogContent className="sm:max-w-[425px] bg-background border-cuephoria-purple" mobileClassName="px-4 pt-3">
+      <ResponsiveDialogContent className="sm:max-w-[425px]" mobileClassName="px-4 pt-3">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit size={16} />

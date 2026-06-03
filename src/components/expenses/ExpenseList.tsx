@@ -1,7 +1,5 @@
 import React from 'react';
 import { useExpenses } from '@/context/ExpenseContext';
-import { format } from 'date-fns';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CurrencyDisplay } from '@/components/ui/currency';
 import ExpenseDialog from './ExpenseDialog';
@@ -9,11 +7,11 @@ import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
+import { formatExpenseDate, normalizeExpenseCategory } from '@/utils/expenseUtils';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const getCategoryColor = (category: string) => {
-  const c = normalizeCategory(category);
+  const c = normalizeExpenseCategory(category);
   switch (c) {
     case 'rent': return 'bg-blue-500';
     case 'utilities': return 'bg-green-600';
@@ -34,7 +32,7 @@ const ExpenseList: React.FC<{ selectedCategory?: string | null }> = ({ selectedC
   const { expenses, deleteExpense } = useExpenses();
 
   const visibleExpenses = expenses.filter(e =>
-    !selectedCategory || normalizeCategory(e.category) === selectedCategory
+    !selectedCategory || normalizeExpenseCategory(e.category) === selectedCategory
   );
 
   const handleDeleteExpense = async (id: string) => {
@@ -74,7 +72,7 @@ const ExpenseList: React.FC<{ selectedCategory?: string | null }> = ({ selectedC
               </TableHeader>
               <TableBody>
                 {visibleExpenses.map((expense) => {
-                  const label = normalizeCategory(expense.category);
+                  const label = normalizeExpenseCategory(expense.category);
                   return (
                     <TableRow key={expense.id} className="border-white/10 hover:bg-white/[0.04]">
                       <TableCell className="text-white/90">{expense.name}</TableCell>
@@ -83,8 +81,8 @@ const ExpenseList: React.FC<{ selectedCategory?: string | null }> = ({ selectedC
                           {label.charAt(0).toUpperCase() + label.slice(1)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-white/90"><CurrencyDisplay amount={expense.amount} /></TableCell>
-                      <TableCell className="text-white/90">{format(new Date(expense.date), 'MMM dd, yyyy')}</TableCell>
+                      <TableCell className="text-white/90"><CurrencyDisplay amount={Number(expense.amount) || 0} /></TableCell>
+                      <TableCell className="text-white/90">{formatExpenseDate(expense.date)}</TableCell>
                       <TableCell>
                         {expense.isRecurring ? (
                           <Badge variant="outline" className="border-sky-400/35 bg-sky-500/15 text-sky-200">

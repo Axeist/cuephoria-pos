@@ -248,10 +248,10 @@ const WhatsAppMessageDialog: React.FC<WhatsAppMessageDialogProps> = ({
   return (
     <>
       <ResponsiveDialog open={isOpen} onOpenChange={onClose} mobileVariant="fullscreen">
-        <ResponsiveDialogContent
-          className="max-w-6xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700"
-          mobileClassName="px-4 pt-3"
-        >
+      <ResponsiveDialogContent
+        className="max-w-6xl max-h-[90vh] overflow-y-auto"
+        mobileClassName="px-4 pt-3"
+      >
           <DialogHeader>
             <DialogTitle className="text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
