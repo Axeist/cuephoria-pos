@@ -300,24 +300,31 @@ export const useProducts = () => {
       // ✅ OPTIMIZED: Select only needed columns
       const selectFields = 'id,name,category,price,buying_price,selling_price,profit,stock,image,original_price,offer_price,student_price,duration,membership_hours,created_at';
       
-      // Fetch all products using pagination to bypass 1000 record limit
+      // Fetch all products using parallel page batches
       let page = 0;
       const pageSize = 1000;
+      const PARALLEL_PAGES = 4;
       let allProductsData: any[] = [];
       let finished = false;
+      let firstBatchPainted = false;
 
-      while (!finished) {
-        const { data, error } = await supabase
+      const fetchProductsPage = (p: number) =>
+        supabase
           .from('products')
-          .select(selectFields) // ✅ Only fetch needed columns
+          .select(selectFields)
           .eq('location_id', activeLocationId)
           .order('created_at', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        
-        if (error) {
-          console.error('Error fetching products:', error);
+          .range(p * pageSize, (p + 1) * pageSize - 1);
+
+      while (!finished) {
+        const pagesToFetch = Array.from({ length: PARALLEL_PAGES }, (_, i) => page + i);
+        const results = await Promise.all(pagesToFetch.map(p => fetchProductsPage(p)));
+
+        const batchError = results.find(r => r.error)?.error;
+        if (batchError) {
+          console.error('Error fetching products:', batchError);
           if (!silent) {
-            setError(`Failed to fetch products: ${error.message}`);
+            setError(`Failed to fetch products: ${batchError.message}`);
             toast({
               title: 'Error',
               description: 'Failed to fetch products from database',
@@ -326,18 +333,35 @@ export const useProducts = () => {
           }
           return products;
         }
-        
-        if (data && data.length > 0) {
-          allProductsData = [...allProductsData, ...data];
-          // If we got less than pageSize, we've reached the end
+
+        let batchRows: any[] = [];
+        for (const result of results) {
+          const data = result.data;
+          if (!data || data.length === 0) {
+            finished = true;
+            break;
+          }
+          batchRows = batchRows.concat(data);
           if (data.length < pageSize) {
             finished = true;
-          } else {
-            page++;
+            break;
           }
-        } else {
-          finished = true;
         }
+
+        if (batchRows.length === 0) {
+          finished = true;
+          break;
+        }
+
+        allProductsData = allProductsData.concat(batchRows);
+
+        if (!firstBatchPainted && !silent) {
+          firstBatchPainted = true;
+          setProducts(batchRows.map(convertFromSupabaseProduct));
+          setLoading(false);
+        }
+
+        page += pagesToFetch.length;
       }
       
       if (allProductsData.length > 0) {

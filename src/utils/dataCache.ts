@@ -14,8 +14,8 @@ interface MemoryCache {
 const memoryCache: MemoryCache = {};
 
 // Cache configuration
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-const STALE_CACHE_DURATION_MS = 2 * 60 * 1000; // 2 minutes (for background refresh)
+const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes — Pro plan has ample egress headroom
+const STALE_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes (background refresh window)
 
 /**
  * Get cached data from memory or localStorage

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { DollarSign, CreditCard, Split, Gamepad2, Package, HandCoins, Gift } from 'lucide-react';
@@ -295,4 +295,4 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
   );
 };
 
-export default SalesWidgets;
+export default memo(SalesWidgets);

@@ -20,16 +20,26 @@ import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/respo
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import BusinessSummaryReport from '@/components/dashboard/BusinessSummaryReport';
-import { useSessionsData } from '@/hooks/stations/useSessionsData';
 import ExpandableBillRow from '@/components/reports/ExpandableBillRow';
 import SalesWidgets from '@/components/reports/SalesWidgets';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useToast } from '@/hooks/use-toast';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
-import type { Bill } from '@/types/pos.types';
+import type { Bill, Session } from '@/types/pos.types';
 import { useLocation } from '@/context/LocationContext';
+import {
+  fetchBillsForDateRange,
+  fetchSessionsForDateRange,
+  mergeBillsByIdDesc,
+  getReportCache,
+  setReportBillsCache,
+  setReportSessionsCache,
+  reportCacheKey,
+  invalidateReportCache,
+} from '@/utils/reportDataLoader';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -129,98 +139,29 @@ const ReportsPage: React.FC = () => {
   } = useExpenses();
   const {
     customers,
-    bills,
     products,
     exportBills,
     exportCustomers,
     stations,
     deleteBill,
     updateBill,
-    realiseCreditPayment
+    realiseCreditPayment,
+    sessions: posSessions,
   } = usePOS();
-  const {
-    sessions,
-    sessionsLoading,
-    deleteSession
-  } = useSessionsData();
   
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { activeLocationId, activeLocation, reportScope, setReportScope } = useLocation();
 
   // ============================================================
-  // Reports bills loader (always load ALL bills in selected range)
+  // Reports data loader (date-scoped, parallel pages, tab-aware)
   // ============================================================
   const [reportBills, setReportBills] = useState<Bill[] | null>(null);
+  const [reportSessions, setReportSessions] = useState<Session[] | null>(null);
   const [reportBillsLoading, setReportBillsLoading] = useState(false);
+  const [reportSessionsLoading, setReportSessionsLoading] = useState(false);
   const [reportBillsError, setReportBillsError] = useState<string | null>(null);
-
-  type RawBillItemRow = {
-    item_id: string;
-    item_type: string;
-    name: string;
-    price: number | string | null;
-    quantity: number;
-    total: number | string | null;
-  };
-
-  type RawBillRow = {
-    id: string;
-    customer_id: string;
-    subtotal: number | string | null;
-    discount: number | string | null;
-    discount_value: number | string | null;
-    discount_type: string | null;
-    loyalty_points_used: number | null;
-    loyalty_points_earned: number | null;
-    total: number | string | null;
-    payment_method: string | null;
-    status?: string | null;
-    comp_note?: string | null;
-    is_split_payment?: boolean | null;
-    cash_amount?: number | string | null;
-    upi_amount?: number | string | null;
-    created_at: string;
-    bill_items?: RawBillItemRow[] | null;
-  };
-
-  const transformBills = (rawBills: RawBillRow[]): Bill[] => {
-    return (rawBills || []).map((bill) => ({
-      id: bill.id,
-      customerId: bill.customer_id,
-      items: (bill.bill_items || []).map((item) => ({
-        id: item.item_id,
-        type: (item.item_type as 'product' | 'session') || 'product',
-        name: item.name,
-        price: Number(item.price),
-        quantity: item.quantity,
-        total: Number(item.total)
-      })),
-      subtotal: Number(bill.subtotal),
-      discount: Number(bill.discount),
-      discountValue: Number(bill.discount_value),
-      discountType: (bill.discount_type as 'percentage' | 'fixed') || 'fixed',
-      loyaltyPointsUsed: bill.loyalty_points_used || 0,
-      loyaltyPointsEarned: bill.loyalty_points_earned || 0,
-      total: Number(bill.total),
-      paymentMethod: (bill.payment_method as Bill['paymentMethod']) || 'cash',
-      status: (bill.status as Bill['status']) || 'completed',
-      compNote: bill.comp_note || undefined,
-      isSplitPayment: bill.is_split_payment || false,
-      cashAmount: bill.cash_amount ? Number(bill.cash_amount) : 0,
-      upiAmount: bill.upi_amount ? Number(bill.upi_amount) : 0,
-      createdAt: new Date(bill.created_at)
-    }));
-  };
-
-  const mergeBillsByIdDesc = (prevBills: Bill[], incomingBills: Bill[]) => {
-    const map = new Map<string, Bill>();
-    for (const b of prevBills) map.set(b.id, b);
-    for (const b of incomingBills) map.set(b.id, b);
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  };
+  const [reportSessionsError, setReportSessionsError] = useState<string | null>(null);
 
   // Set default range to "this month"
   const today = new Date();
@@ -234,6 +175,10 @@ const ReportsPage: React.FC = () => {
   const [billSearchQuery, setBillSearchQuery] = useState<string>('');
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
 
+  const needsBills = activeTab === 'bills' || activeTab === 'summary';
+  const needsSessions = activeTab === 'sessions' || activeTab === 'summary';
+  const debouncedReportBills = useDebouncedValue(reportBills ?? [], reportBillsLoading ? 500 : 0);
+
   // Add sorting state
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -243,99 +188,137 @@ const ReportsPage: React.FC = () => {
     handleDateRangeChange('thisMonth');
   }, []);
 
-  // Always load the full bills list for the selected date range (Reports needs complete data)
+  // Load bills for the selected range (only when Bills or Summary tab is active)
   useEffect(() => {
-    if (!date?.from || !date?.to) return;
+    if (!needsBills || !date?.from || !date?.to) return;
 
-    let cancelled = false;
+    const allLocations = reportScope === 'all';
+    const cacheKey = reportCacheKey('bills', date.from, date.to, activeLocationId, allLocations);
+    const cached = getReportCache(cacheKey) as Bill[] | null;
 
-    const loadBillsForRange = async () => {
+    if (cached && cached.length >= 0) {
+      setReportBills(cached);
+      setReportBillsLoading(false);
+      setReportBillsError(null);
+      return;
+    }
+
+    const signal = { cancelled: false };
+    let accumulated: Bill[] = [];
+
+    const load = async () => {
       setReportBillsLoading(true);
       setReportBillsError(null);
-      setReportBills([]); // clear immediately so UI reflects the selected range
-
-      const pageSize = 100;
-      let page = 0;
-      let finished = false;
+      setReportBills([]);
 
       try {
-        while (!finished) {
-          let query = supabase
-            .from('bills')
-            .select(`
-              id,
-              customer_id,
-              subtotal,
-              discount,
-              discount_value,
-              discount_type,
-              loyalty_points_used,
-              loyalty_points_earned,
-              total,
-              payment_method,
-              status,
-              comp_note,
-              is_split_payment,
-              cash_amount,
-              upi_amount,
-              created_at,
-              bill_items (
-                id,
-                item_id,
-                name,
-                price,
-                quantity,
-                total,
-                item_type
-              )
-            `)
-            .gte('created_at', date.from.toISOString())
-            .lte('created_at', date.to.toISOString())
-            .order('created_at', { ascending: false })
-            .range(page * pageSize, (page + 1) * pageSize - 1);
-
-          // Filter by active location when scope is 'location'
-          if (reportScope === 'location' && activeLocationId) {
-            query = (query as any).eq('location_id', activeLocationId);
+        await fetchBillsForDateRange(
+          {
+            from: date.from!,
+            to: date.to!,
+            locationId: activeLocationId,
+            allLocations,
+          },
+          {
+            signal,
+            onBatch: (batch) => {
+              if (signal.cancelled) return;
+              accumulated = mergeBillsByIdDesc(accumulated, batch);
+              setReportBills(accumulated);
+            },
           }
-
-          const { data, error } = await query;
-
-          if (error) {
-            throw error;
-          }
-
-          const pageRows = (data as unknown as RawBillRow[]) || [];
-          const transformed = transformBills(pageRows);
-
-          if (cancelled) return;
-
-          setReportBills(prev => mergeBillsByIdDesc(prev || [], transformed));
-
-          if (pageRows.length < pageSize) {
-            finished = true;
-          } else {
-            page++;
-          }
+        );
+        if (!signal.cancelled) {
+          setReportBillsCache(cacheKey, accumulated);
         }
       } catch (err) {
         console.error('Error loading bills for Reports range:', err);
-        if (!cancelled) {
+        if (!signal.cancelled) {
           setReportBillsError('Failed to load bills for the selected range');
         }
       } finally {
-        if (!cancelled) {
+        if (!signal.cancelled) {
           setReportBillsLoading(false);
         }
       }
     };
 
-    loadBillsForRange();
+    void load();
 
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, [date?.from, date?.to, reportScope, activeLocationId]);
+  }, [needsBills, date?.from, date?.to, reportScope, activeLocationId]);
+
+  // Load sessions for the selected range (only when Sessions or Summary tab is active)
+  useEffect(() => {
+    if (!needsSessions || !date?.from || !date?.to) return;
+
+    const allLocations = reportScope === 'all';
+    const cacheKey = reportCacheKey('sessions', date.from, date.to, activeLocationId, allLocations);
+    const cached = getReportCache(cacheKey) as Session[] | null;
+
+    if (cached && cached.length >= 0) {
+      setReportSessions(cached);
+      setReportSessionsLoading(false);
+      setReportSessionsError(null);
+      return;
+    }
+
+    const signal = { cancelled: false };
+    let accumulated: Session[] = [];
+    const sessionMap = new Map<string, Session>();
+
+    const load = async () => {
+      setReportSessionsLoading(true);
+      setReportSessionsError(null);
+      setReportSessions([]);
+
+      try {
+        await fetchSessionsForDateRange(
+          {
+            from: date.from!,
+            to: date.to!,
+            locationId: activeLocationId,
+            allLocations,
+          },
+          {
+            signal,
+            onBatch: (batch) => {
+              if (signal.cancelled) return;
+              for (const s of batch) sessionMap.set(s.id, s);
+              accumulated = Array.from(sessionMap.values()).sort(
+                (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+              );
+              setReportSessions(accumulated);
+            },
+          }
+        );
+        if (!signal.cancelled) {
+          setReportSessionsCache(cacheKey, accumulated);
+        }
+      } catch (err) {
+        console.error('Error loading sessions for Reports range:', err);
+        if (!signal.cancelled) {
+          setReportSessionsError('Failed to load sessions for the selected range');
+        }
+      } finally {
+        if (!signal.cancelled) {
+          setReportSessionsLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [needsSessions, date?.from, date?.to, reportScope, activeLocationId]);
+
+  // Bills/sessions for this page — date-scoped loaders only (no duplicate POS fetch)
+  const billsForReports = reportBills ?? [];
+  const sessionsForReports = reportSessions ?? [];
 
   // Memoize customer lookup functions to prevent expensive recalculations
   const customerLookup = useMemo(() => {
@@ -365,8 +348,6 @@ const ReportsPage: React.FC = () => {
 
   // Enhanced filtered data to include payment type filtering with null checks
   const filteredData = useMemo(() => {
-    const billsInput = reportBills ?? bills;
-
     const filterByDateRange = <T extends {
       createdAt: Date | string;
     }>(items: T[]): T[] => {
@@ -385,7 +366,8 @@ const ReportsPage: React.FC = () => {
     };
 
     const filteredCustomers = filterByDateRange(customers);
-    let filteredBills = filterByDateRange(billsInput);
+    // Bills are already filtered server-side by date range
+    let filteredBills = billsForReports;
 
     // Apply bill search filtering
     if (billSearchQuery.trim()) {
@@ -415,19 +397,8 @@ const ReportsPage: React.FC = () => {
       });
     }
 
-    // Filter sessions
-    let filteredSessions = sessions.filter(session => {
-      if (!date?.from && !date?.to) return true;
-      const startTime = new Date(session.startTime);
-      if (date?.from && date?.to) {
-        return startTime >= date.from && startTime <= date.to;
-      } else if (date?.from) {
-        return startTime >= date.from;
-      } else if (date?.to) {
-        return startTime <= date.to;
-      }
-      return true;
-    });
+    // Sessions are already filtered server-side by start_time range
+    let filteredSessions = sessionsForReports;
 
     // Apply search filtering
     if (searchQuery.trim()) {
@@ -448,7 +419,33 @@ const ReportsPage: React.FC = () => {
       filteredBills,
       filteredSessions
     };
-  }, [bills, reportBills, customers, sessions, date, searchQuery, billSearchQuery, paymentTypeFilter]);
+  }, [billsForReports, customers, sessionsForReports, date, searchQuery, billSearchQuery, paymentTypeFilter]);
+
+  // Same filters as filteredData but on debounced bills — keeps SalesWidgets/summary stable while loading
+  const debouncedFilteredBills = useMemo(() => {
+    let list = debouncedReportBills;
+    if (billSearchQuery.trim()) {
+      const query = billSearchQuery.toLowerCase().trim();
+      list = list.filter(bill => {
+        const customer = customers.find(c => c.id === bill.customerId);
+        return (
+          bill.id.toLowerCase().includes(query) ||
+          (customer && (
+            customer.name.toLowerCase().includes(query) ||
+            (customer.email && customer.email.toLowerCase().includes(query)) ||
+            customer.phone.includes(query)
+          ))
+        );
+      });
+    }
+    if (paymentTypeFilter !== 'all') {
+      list = list.filter(bill => {
+        if (paymentTypeFilter === 'split') return Boolean(bill.isSplitPayment);
+        return (bill.paymentMethod || '').toLowerCase() === paymentTypeFilter.toLowerCase();
+      });
+    }
+    return list;
+  }, [debouncedReportBills, billSearchQuery, paymentTypeFilter, customers]);
 
   // Calculate customer play time and total spent
   const getCustomerPlayTime = useCallback((customerId: string) => {
@@ -630,6 +627,12 @@ const ReportsPage: React.FC = () => {
     }
   };
 
+  // Pre-calculate summary metrics (debounced bills while range is still loading)
+  const summaryMetrics = useMemo(
+    () => calculateSummaryMetrics({ ...filteredData, filteredBills: debouncedFilteredBills }),
+    [filteredData, debouncedFilteredBills, expenses, products, stations, posSessions, businessSummary]
+  );
+
   // Function to handle downloading reports as Excel
   const handleDownloadReport = useCallback(() => {
     console.log('Downloading report with date range:', date);
@@ -701,18 +704,29 @@ const ReportsPage: React.FC = () => {
       default:
         console.log(`Exporting ${activeTab} report`);
     }
-  }, [activeTab, date, sortedBills]);
-
-  // Pre-calculate summary metrics once when filtered data changes
-  const summaryMetrics = useMemo(() => calculateSummaryMetrics(), [filteredData]);
+  }, [activeTab, date, sortedBills, filteredData, summaryMetrics, getCustomerName, getCustomerPhone, getCustomerTotalSpent, getCustomerPlayTime]);
 
   // Handle session deletion
   const handleDeleteSession = useCallback(async (sessionId: string) => {
-    const success = await deleteSession(sessionId);
-    if (success) {
-      console.log(`Session ${sessionId} deleted successfully`);
+    try {
+      const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
+      if (error) throw error;
+
+      setReportSessions(prev => (prev ? prev.filter(s => s.id !== sessionId) : prev));
+      invalidateReportCache('sessions');
+      toast({
+        title: 'Success',
+        description: 'Session deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete session',
+        variant: 'destructive',
+      });
     }
-  }, [deleteSession]);
+  }, [toast]);
 
   // Edit transaction dialog state (change payment like on dashboard)
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
@@ -799,6 +813,7 @@ const ReportsPage: React.FC = () => {
           if (!prev) return prev;
           return prev.map(b => b.id === updated.id ? { ...b, ...updated, createdAt: b.createdAt } : b);
         });
+        invalidateReportCache('bills');
       }
     } catch (err) {
       console.error(err);
@@ -818,6 +833,8 @@ const ReportsPage: React.FC = () => {
       const success = await deleteBill(bill.id, bill.customerId);
       
       if (success) {
+        setReportBills(prev => prev ? prev.filter(b => b.id !== bill.id) : prev);
+        invalidateReportCache('bills');
         toast({
           title: "Transaction Deleted",
           description: `Bill ${bill.id.substring(0, 8)} has been deleted successfully.`,
@@ -841,8 +858,8 @@ const ReportsPage: React.FC = () => {
   };
 
   // Calculate business summary metrics function
-  function calculateSummaryMetrics() {
-    const { filteredBills } = filteredData;
+  function calculateSummaryMetrics(data = filteredData) {
+    const { filteredBills, filteredSessions, filteredCustomers } = data;
 
     // Calculate complimentary metrics
     const complimentaryBills = filteredBills.filter(bill => 
@@ -889,12 +906,12 @@ const ReportsPage: React.FC = () => {
     const upiPercentage = totalRevenue > 0 ? upiSales / totalRevenue * 100 : 0;
 
     const totalTransactions = filteredBills.length;
-    const activeSessions = sessions.filter(s => s.endTime === null).length;
-    const completedSessions = filteredData.filteredSessions.filter(s => s.endTime !== null).length;
+    const activeSessions = posSessions.filter(s => s.endTime === null).length;
+    const completedSessions = filteredSessions.filter(s => s.endTime !== null).length;
 
     let totalSessionDuration = 0;
     let sessionsWithDuration = 0;
-    filteredData.filteredSessions.forEach(session => {
+    filteredSessions.forEach(session => {
       if (session.endTime) {
         const startMs = new Date(session.startTime).getTime();
         const endMs = new Date(session.endTime).getTime();
@@ -911,7 +928,7 @@ const ReportsPage: React.FC = () => {
     const sessionsByHour: Record<number, number> = {};
     let peakHour = 0;
     let peakHourCount = 0;
-    filteredData.filteredSessions.forEach(session => {
+    filteredSessions.forEach(session => {
       const hour = new Date(session.startTime).getHours();
       sessionsByHour[hour] = (sessionsByHour[hour] || 0) + 1;
       if (sessionsByHour[hour] > peakHourCount) {
@@ -975,16 +992,16 @@ const ReportsPage: React.FC = () => {
       });
     });
 
-    const ps5Sessions = filteredData.filteredSessions.filter(s => {
+    const ps5Sessions = filteredSessions.filter(s => {
       if (!stations) return false;
       const station = stations.find(st => st.id === s.stationId);
       return station?.type?.toLowerCase()?.includes('ps5') || station?.name?.toLowerCase()?.includes('ps5') || station?.name?.toLowerCase()?.includes('playstation');
     });
     const ps5UsageRate = ps5Sessions.length > 0 ? Math.round(ps5Sessions.filter(s => s.endTime).length / ps5Sessions.length * 100) : 0;
 
-    const totalCustomers = filteredData.filteredCustomers.length;
-    const memberCount = filteredData.filteredCustomers.filter(c => c.isMember).length;
-    const nonMemberCount = filteredData.filteredCustomers.filter(c => !c.isMember).length;
+    const totalCustomers = filteredCustomers.length;
+    const memberCount = filteredCustomers.filter(c => c.isMember).length;
+    const nonMemberCount = filteredCustomers.filter(c => !c.isMember).length;
     const membershipRate = totalCustomers > 0 ? memberCount / totalCustomers * 100 : 0;
 
     const avgSpendPerCustomer = totalCustomers > 0 ? totalRevenue / totalCustomers : 0;
@@ -1094,6 +1111,7 @@ const ReportsPage: React.FC = () => {
       if (!prev) return prev;
       return prev.map((b) => (b.id === updated.id ? { ...b, ...updated, createdAt: b.createdAt } : b));
     });
+    invalidateReportCache('bills');
   }, []);
 
   const toggleCreditRowSelect = useCallback((billId: string, selected: boolean) => {
@@ -1224,7 +1242,7 @@ const ReportsPage: React.FC = () => {
 
     return (
     <div className="space-y-4">
-      <SalesWidgets filteredBills={filteredData.filteredBills} />
+      <SalesWidgets filteredBills={debouncedFilteredBills} />
       <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
         <div className="p-6">
           <h2 className="text-2xl font-bold mb-1">Transaction History</h2>
@@ -1324,7 +1342,7 @@ const ReportsPage: React.FC = () => {
 
           {reportBillsLoading && (
             <p className="text-sm text-blue-300 mt-2">
-              Loading all bills for the selected range…
+              Loading bills for the selected range… {reportBills?.length ? `(${reportBills.length} loaded)` : ''}
             </p>
           )}
 
@@ -1723,10 +1741,10 @@ const ReportsPage: React.FC = () => {
             {paginatedData.sessions.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-gray-400">
-                  {sessionsLoading ? (
+                  {reportSessionsLoading ? (
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cuephoria-purple"></div>
-                      <span className="ml-3">Loading sessions...</span>
+                      <span className="ml-3">Loading sessions…</span>
                     </div>
                   ) : searchQuery ? (
                     <div>

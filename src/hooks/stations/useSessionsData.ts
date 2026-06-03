@@ -176,15 +176,24 @@ export const useSessionsData = () => {
     setSessions([]);
   }, [activeLocationId]);
 
-  // Always fetch fresh sessions from the DB when the location changes.
-  // We intentionally bypass the cache here — stale cache with ended sessions
-  // is the root cause of stations showing as unoccupied on first load.
+  // Cache-first on branch switch, then silent refresh so active sessions stay accurate.
   useEffect(() => {
     if (locationsLoading) return;
 
     setSessions([]);
+    const cachedSessions = getCachedData<Session[]>(sessionsCacheKey);
+    if (cachedSessions !== null) {
+      setSessions(cachedSessions);
+      setSessionsLoading(false);
+      // Always background-refresh sessions — occupancy must be current.
+      refreshSessionsFromDB(true).catch(err => {
+        console.error('Error refreshing sessions in background:', err);
+      });
+      return;
+    }
+
     refreshSessionsFromDB(false);
-  }, [activeLocationId, locationsLoading, refreshSessionsFromDB]);
+  }, [activeLocationId, locationsLoading, sessionsCacheKey, refreshSessionsFromDB]);
 
   // Per-location Realtime subscription: fires on any INSERT/UPDATE/DELETE on
   // the sessions table for this location only.

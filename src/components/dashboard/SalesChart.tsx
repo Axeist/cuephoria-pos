@@ -6,6 +6,7 @@ import { ChartContainer } from '@/components/ui/chart';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, format, addDays, addWeeks } from 'date-fns';
 import { Calendar, Loader2 } from 'lucide-react';
 
@@ -20,6 +21,8 @@ interface SalesChartProps {
 
 const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const { bills } = usePOS();
+  // Debounce while bills load page-by-page so the chart doesn't re-render on every batch.
+  const debouncedBills = useDebouncedValue(bills, 500);
   const { expenses } = useExpenses();
   const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; withdrawals: number; }[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -29,17 +32,17 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   // Calculate available years from bills
   useEffect(() => {
     const years = new Set<string>();
-    bills.forEach(bill => {
+    debouncedBills.forEach(bill => {
       const billDate = new Date(bill.createdAt);
       years.add(billDate.getFullYear().toString());
     });
     const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
     setAvailableYears(sortedYears);
-  }, [bills]);
+  }, [debouncedBills]);
 
   // Filter bills by year and exclude complimentary
   const filteredBills = useMemo(() => {
-    const paidBills = bills.filter(bill => bill.paymentMethod !== 'complimentary');
+    const paidBills = debouncedBills.filter(bill => bill.paymentMethod !== 'complimentary');
     
     if (selectedYear === 'all') {
       return paidBills;
@@ -50,7 +53,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const billDate = new Date(bill.createdAt);
       return billDate.getFullYear() === year;
     });
-  }, [bills, selectedYear]);
+  }, [debouncedBills, selectedYear]);
 
   const generateChartData = () => {
     const now = new Date();

@@ -339,14 +339,25 @@ export const useStationsData = () => {
     }
   };
   
-  // Clear stale data immediately when branch changes so the UI doesn't flash
-  // the previous branch's numbers while new data loads.
+  // Cache-first on branch switch: instant paint from local cache, background refresh if stale.
   useEffect(() => {
     if (locationsLoading) return;
 
     setStations([]);
+    const cachedStations = getCachedData<Station[]>(stationsCacheKey);
+    if (cachedStations !== null) {
+      setStations(cachedStations);
+      setStationsLoading(false);
+      if (isCacheStale(stationsCacheKey)) {
+        refreshStationsFromDB(true).catch(err => {
+          console.error('Error refreshing stations in background:', err);
+        });
+      }
+      return;
+    }
+
     refreshStationsFromDB(false);
-  }, [activeLocationId, locationsLoading, refreshStationsFromDB]);
+  }, [activeLocationId, locationsLoading, stationsCacheKey, refreshStationsFromDB]);
 
   // ── REALTIME: listen to any stations row change and refresh immediately ──
   useEffect(() => {

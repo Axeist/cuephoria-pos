@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { Coffee, TrendingUp, Users, BarChart2, ShoppingCart } from 'lucide-react';
+import { useLocation } from '@/context/LocationContext';
 
 interface CafeRevenueWidgetProps {
   startDate?: Date;
@@ -18,45 +19,63 @@ interface CafeStats {
   selfOrders: number;
 }
 
+type CafeRevenueRpcRow = {
+  total_orders: number;
+  gross_revenue: number;
+  partner_share: number;
+  cuephoria_share: number;
+  self_orders: number;
+};
+
 const CafeRevenueWidget: React.FC<CafeRevenueWidgetProps> = ({ startDate, endDate }) => {
   const [stats, setStats] = useState<CafeStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const { activeLocationId } = useLocation();
 
   useEffect(() => {
+    if (!activeLocationId) {
+      setStats(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     (async () => {
       try {
-        let query = supabase
-          .from('cafe_orders')
-          .select('total, discount, partner_share, cuephoria_share, order_source')
-          .eq('status', 'completed');
+        setLoading(true);
+        const { data, error } = await supabase.rpc('get_cafe_revenue_stats', {
+          p_location_id: activeLocationId,
+          p_start: startDate?.toISOString() ?? null,
+          p_end: endDate?.toISOString() ?? null,
+        });
 
-        if (startDate) query = query.gte('created_at', startDate.toISOString());
-        if (endDate) query = query.lte('created_at', endDate.toISOString());
-
-        const { data, error } = await query;
         if (error) throw error;
+        if (cancelled) return;
 
-        const orders = data || [];
-        const grossRevenue = orders.reduce((s, o) => s + Number(o.total), 0);
-        const partnerShare = orders.reduce((s, o) => s + Number(o.partner_share), 0);
-        const cuephoriaShare = orders.reduce((s, o) => s + Number(o.cuephoria_share), 0);
-        const selfOrders = orders.filter(o => o.order_source === 'customer').length;
+        const row = data as CafeRevenueRpcRow | null;
+        const totalOrders = row?.total_orders ?? 0;
+        const grossRevenue = Number(row?.gross_revenue ?? 0);
 
         setStats({
-          totalOrders: orders.length,
+          totalOrders,
           grossRevenue,
-          partnerShare,
-          cuephoriaShare,
-          avgOrderValue: orders.length > 0 ? grossRevenue / orders.length : 0,
-          selfOrders,
+          partnerShare: Number(row?.partner_share ?? 0),
+          cuephoriaShare: Number(row?.cuephoria_share ?? 0),
+          avgOrderValue: totalOrders > 0 ? grossRevenue / totalOrders : 0,
+          selfOrders: row?.self_orders ?? 0,
         });
       } catch (err) {
         console.error('Error fetching cafe stats:', err);
+        if (!cancelled) setStats(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [startDate, endDate]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLocationId, startDate, endDate]);
 
   if (loading || !stats || stats.totalOrders === 0) return null;
 
@@ -84,40 +103,31 @@ const CafeRevenueWidget: React.FC<CafeRevenueWidgetProps> = ({ startDate, endDat
               <ShoppingCart className="h-3 w-3 text-blue-400" />
               <p className="text-[10px] text-gray-400 font-quicksand">Orders</p>
             </div>
-            <p className="text-lg font-bold text-blue-400">{stats.totalOrders}</p>
+            <p className="text-lg font-bold text-white">{stats.totalOrders}</p>
           </div>
           <div className="p-3 theme-inset">
             <div className="flex items-center gap-1 mb-1">
-              <BarChart2 className="h-3 w-3 text-orange-400" />
+              <BarChart2 className="h-3 w-3 text-purple-400" />
               <p className="text-[10px] text-gray-400 font-quicksand">Avg Order</p>
             </div>
-            <p className="text-lg font-bold text-orange-400"><CurrencyDisplay amount={stats.avgOrderValue} /></p>
+            <p className="text-lg font-bold text-white"><CurrencyDisplay amount={stats.avgOrderValue} /></p>
+          </div>
+          <div className="p-3 theme-inset">
+            <div className="flex items-center gap-1 mb-1">
+              <Users className="h-3 w-3 text-orange-400" />
+              <p className="text-[10px] text-gray-400 font-quicksand">Self Orders</p>
+            </div>
+            <p className="text-lg font-bold text-white">{stats.selfOrders}</p>
+          </div>
+          <div className="p-3 theme-inset">
+            <p className="text-[10px] text-gray-400 font-quicksand mb-1">Partner Share</p>
+            <p className="text-sm font-semibold text-orange-300"><CurrencyDisplay amount={stats.partnerShare} /></p>
+          </div>
+          <div className="p-3 theme-inset">
+            <p className="text-[10px] text-gray-400 font-quicksand mb-1">Cuephoria Share</p>
+            <p className="text-sm font-semibold text-purple-300"><CurrencyDisplay amount={stats.cuephoriaShare} /></p>
           </div>
         </div>
-
-        {/* Revenue Split Bar */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-gray-400 font-quicksand">
-            <span className="flex items-center gap-1"><Users className="h-3 w-3 text-orange-400" /> Partner Share</span>
-            <span className="text-orange-400 font-medium"><CurrencyDisplay amount={stats.partnerShare} /></span>
-          </div>
-          <div className="w-full bg-gray-700/30 rounded-full h-2 overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-orange-400"
-              style={{ width: `${stats.grossRevenue > 0 ? (stats.partnerShare / stats.grossRevenue) * 100 : 0}%` }} />
-          </div>
-          <div className="flex justify-between text-xs text-gray-400 font-quicksand">
-            <span className="flex items-center gap-1"><BarChart2 className="h-3 w-3 text-cuephoria-lightpurple" /> Cuephoria Share</span>
-            <span className="text-cuephoria-lightpurple font-medium"><CurrencyDisplay amount={stats.cuephoriaShare} /></span>
-          </div>
-          <div className="w-full bg-gray-700/30 rounded-full h-2 overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple"
-              style={{ width: `${stats.grossRevenue > 0 ? (stats.cuephoriaShare / stats.grossRevenue) * 100 : 0}%` }} />
-          </div>
-        </div>
-
-        {stats.selfOrders > 0 && (
-          <p className="text-[10px] text-gray-500 font-quicksand text-right">{stats.selfOrders} self-orders</p>
-        )}
       </CardContent>
     </Card>
   );

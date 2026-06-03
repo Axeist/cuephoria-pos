@@ -66,7 +66,8 @@ const TenantWorkspace: React.FC = () => {
   const meQuery = useQuery({
     queryKey: ["public", "tenant-workspace-me"],
     queryFn: () => fetcher<MeResp>("/api/admin/me"),
-    enabled: wsQuery.isSuccess && Boolean(wsQuery.data?.workspace),
+    enabled: Boolean(slug),
+    staleTime: 60_000,
   });
 
   // Remember intended tenant so a future login-page enhancement could

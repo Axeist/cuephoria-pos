@@ -361,6 +361,7 @@ const Dashboard = () => {
             newMembersCount={dashboardStats.newMembersCount}
             lowStockCount={dashboardStats.lowStockCount}
             lowStockItems={dashboardStats.lowStockItems}
+            sessions={sessions}
             withdrawalsAmount={businessSummary.withdrawals}
             moneyInBank={businessSummary.moneyInBank}
           />

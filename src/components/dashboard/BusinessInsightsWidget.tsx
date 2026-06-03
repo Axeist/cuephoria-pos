@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useDeferredValue } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { usePOS } from '@/context/POSContext';
 import { useExpenses } from '@/context/ExpenseContext';
+import { useBusinessAnalytics } from '@/hooks/useBusinessAnalytics';
+import { buildForecastDailyRows, growthPercent } from '@/utils/businessInsightsCompute';
 import { BarChart3, TrendingUp, Target, AlertCircle, Brain, Loader2 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { format, subDays, startOfDay, startOfMonth, endOfMonth, isToday, isYesterday, differenceInDays, getDay, getMonth, getWeek, getDate, isWeekend, isSameDay, addDays } from 'date-fns';
@@ -1534,336 +1535,166 @@ function multiModelEnsemble(
 }
 
 const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDate, endDate }) => {
-  const { bills, products, customers } = usePOS();
   const { expenses } = useExpenses();
-  
-  const [isCalculating, setIsCalculating] = useState(true);
-  const [cachedInsights, setCachedInsights] = useState<any>(null);
+  const { stats, dailySeries, loading: analyticsLoading } = useBusinessAnalytics({ startDate, endDate });
+  const deferredSeries = useDeferredValue(dailySeries);
 
-  // FIXED: Filter out complimentary bills at the start
-  const paidBills = useMemo(() => 
-    bills.filter(bill => bill.paymentMethod !== 'complimentary'),
-    [bills]
-  );
+  const filteredExpenses = useMemo(() => expenses.filter(expense => {
+    if (!startDate && !endDate) return true;
+    const expenseDate = new Date(expense.date);
+    if (startDate && expenseDate < startDate) return false;
+    if (endDate && expenseDate > endDate) return false;
+    return true;
+  }), [expenses, startDate, endDate]);
 
-  useEffect(() => {
-    setIsCalculating(true);
-    
-    const timer = setTimeout(() => {
-      const newInsights = calculateInsights();
-      setCachedInsights(newInsights);
-      setIsCalculating(false);
-    }, 50);
-    
-    return () => clearTimeout(timer);
-  }, [paidBills, expenses, startDate, endDate]);
-
-  const calculateInsights = () => {
-    // Use paidBills instead of bills
-    const filteredBills = paidBills.filter(bill => {
-      if (!startDate && !endDate) return true;
-      const billDate = new Date(bill.createdAt);
-      if (startDate && billDate < startDate) return false;
-      if (endDate && billDate > endDate) return false;
-      return true;
-    });
-
-    const filteredExpenses = expenses.filter(expense => {
-      if (!startDate && !endDate) return true;
-      const expenseDate = new Date(expense.date);
-      if (startDate && expenseDate < startDate) return false;
-      if (endDate && expenseDate > endDate) return false;
-      return true;
-    });
-
-    // Use paidBills for today's and yesterday's sales
-    const todaysBills = paidBills.filter(bill => isToday(new Date(bill.createdAt)));
-    const todaysSales = todaysBills.reduce((sum, bill) => sum + bill.total, 0);
-
-    const yesterdaysBills = paidBills.filter(bill => isYesterday(new Date(bill.createdAt)));
-    const yesterdaysSales = yesterdaysBills.reduce((sum, bill) => sum + bill.total, 0);
-
-    const growthPercentage = yesterdaysSales > 0 ? 
-      ((todaysSales - yesterdaysSales) / yesterdaysSales) * 100 : 
-      (todaysSales > 0 ? 100 : 0);
-
-    if (filteredBills.length === 0) {
-      return {
-        totalSales: 0,
-        totalExpenses: 0,
-        netProfit: 0,
-        profitMargin: 0,
-        avgBillValue: 0,
-        dailyPrediction: 0,
-        monthlyTarget: 0,
-        monthlyProgress: 0,
-        currentMonthSales: 0,
-        expenseToRevenueRatio: 0,
-        breakEvenPoint: 0,
-        todaysSales,
-        yesterdaysSales,
-        growthPercentage,
-        predictionConfidence: 0,
-        trendDirection: 'stable' as const,
-        algorithmUsed: 'Insufficient Data',
-        macdTrend: 'neutral' as const,
-                daysOfData: 0,
-                confidenceFactors: { dataQuality: 0, consistency: 0, trendStability: 0, seasonalClarity: 0, dataDiversity: 0 }
-      };
-    }
-
-    const totalSales = filteredBills.reduce((sum, bill) => sum + bill.total, 0);
+  const headline = useMemo(() => {
+    if (!stats) return null;
+    const totalSales = stats.grossIncome;
     const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
     const netProfit = totalSales - totalExpenses;
     const profitMargin = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
-    const avgBillValue = totalSales / filteredBills.length;
-    const expenseToRevenueRatio = totalSales > 0 ? (totalExpenses / totalSales) * 100 : 0;
+    return {
+      totalSales,
+      totalExpenses,
+      netProfit,
+      profitMargin,
+      avgBillValue: stats.avgBillValue,
+      expenseToRevenueRatio: totalSales > 0 ? (totalExpenses / totalSales) * 100 : 0,
+      todaysSales: stats.todaySales,
+      yesterdaysSales: stats.yesterdaySales,
+      growthPercentage: growthPercent(stats.todaySales, stats.yesterdaySales),
+      currentMonthSales: stats.currentMonthSales,
+      currentMonthDailyAvg: stats.currentMonthSales / Math.max(1, new Date().getDate()),
+    };
+  }, [stats, filteredExpenses]);
 
-    // ENHANCED: Extended to 365 days for maximum confidence
-    const last365Days = Array.from({ length: 365 }, (_, i) => 
-      startOfDay(subDays(new Date(), 364 - i))
-    );
+  const forecastInsights = useMemo(() => {
+    if (!stats) return null;
 
-    const dailyRevenueMap = new Map<string, number>();
-    const dailyProductSalesMap = new Map<string, number>();
-    const dailyCustomerCountMap = new Map<string, number>();
-    const dailySessionCountMap = new Map<string, number>();
-    
-    last365Days.forEach(day => {
-      const dayKey = format(day, 'yyyy-MM-dd');
-      dailyRevenueMap.set(dayKey, 0);
-      dailyProductSalesMap.set(dayKey, 0);
-      dailyCustomerCountMap.set(dayKey, 0);
-      dailySessionCountMap.set(dayKey, 0);
-    });
-
-    // ENHANCED: Use ACTUAL product sales from bill.items (not estimates)
-    paidBills.forEach(bill => {
-      const billDate = startOfDay(new Date(bill.createdAt));
-      const dayKey = format(billDate, 'yyyy-MM-dd');
-      
-      if (dailyRevenueMap.has(dayKey)) {
-        // Revenue
-        dailyRevenueMap.set(dayKey, (dailyRevenueMap.get(dayKey) || 0) + bill.total);
-        
-        // ACTUAL product sales count
-        const actualProductSales = bill.items
-          .filter(item => item.type === 'product')
-          .reduce((sum, item) => sum + item.quantity, 0);
-        dailyProductSalesMap.set(dayKey, (dailyProductSalesMap.get(dayKey) || 0) + actualProductSales);
-        
-        // Customer count
-        if (bill.customerId) {
-          dailyCustomerCountMap.set(dayKey, (dailyCustomerCountMap.get(dayKey) || 0) + 1);
-        }
-        
-        // Session count (from bill items)
-        const sessionItems = bill.items.filter(item => item.type === 'session').length;
-        dailySessionCountMap.set(dayKey, (dailySessionCountMap.get(dayKey) || 0) + sessionItems);
-      }
-    });
-
-    // Create base daily data with revenue
-    const baseDailyData: Array<{date: Date; revenue: number; productSales: number; customerCount: number; sessionCount: number}> = last365Days.map(date => ({
-      date,
-      revenue: dailyRevenueMap.get(format(date, 'yyyy-MM-dd')) || 0,
-      productSales: dailyProductSalesMap.get(format(date, 'yyyy-MM-dd')) || 0,
-      customerCount: dailyCustomerCountMap.get(format(date, 'yyyy-MM-dd')) || 0,
-      sessionCount: dailySessionCountMap.get(format(date, 'yyyy-MM-dd')) || 0
-    }));
-
-    // ENHANCED: Extract all features for each day
-    // First pass: create EnhancedDailyData with features
+    const baseDailyData = buildForecastDailyRows(deferredSeries);
     const dailyDataWithFeatures: EnhancedDailyData[] = baseDailyData.map(day => {
-      const features = extractFeatures(day.date, baseDailyData.map(d => ({...d, dayOfWeek: getDay(d.date), month: getMonth(d.date), weekOfYear: getWeek(d.date), dayOfMonth: getDate(d.date), isWeekend: isWeekend(d.date), isMonthStart: getDate(d.date) <= 3, isMonthEnd: getDate(d.date) >= 28})));
-      return {
-        ...day,
-        ...features
-      };
+      const features = extractFeatures(day.date, baseDailyData.map(d => ({ ...d, dayOfWeek: d.dayOfWeek, month: d.month, weekOfYear: d.weekOfYear, dayOfMonth: d.dayOfMonth, isWeekend: d.isWeekend, isMonthStart: d.isMonthStart, isMonthEnd: d.isMonthEnd })));
+      return { ...day, ...features };
     });
-    
-    // Second pass: update with actual revenue data
     const dailyData: EnhancedDailyData[] = dailyDataWithFeatures.map((day, idx) => ({
       ...day,
       revenue: baseDailyData[idx].revenue,
       productSales: baseDailyData[idx].productSales,
       customerCount: baseDailyData[idx].customerCount,
-      sessionCount: baseDailyData[idx].sessionCount
+      sessionCount: baseDailyData[idx].sessionCount,
     }));
 
     const daysWithData = dailyData.filter(d => d.revenue > 0).length;
+    if (daysWithData === 0) {
+      return {
+        dailyPrediction: 0,
+        predictionConfidence: 0,
+        trendDirection: 'stable' as const,
+        algorithmUsed: 'Insufficient Data',
+        macdTrend: 'neutral' as const,
+        daysOfData: 0,
+        confidenceFactors: { dataQuality: 0, consistency: 0, trendStability: 0, seasonalClarity: 0, dataDiversity: 0 },
+        allModels: [] as any[],
+        ensembleAgreement: 0,
+        superModelWeights: {} as Record<string, number>,
+        monthlyTarget: stats.currentMonthSales,
+        monthlyProgress: 0,
+        breakEvenPoint: 0,
+        daysElapsed: Math.max(1, new Date().getDate()),
+        totalDaysInMonth: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(),
+      };
+    }
 
-    // USE SUPER MODEL ENSEMBLE (7 models with weighted averaging)
     const ensembleResult = multiModelEnsemble(dailyData, 1);
     const macd = calculateMACD(dailyData.map(d => d.revenue));
-    
-    const dailyPrediction = ensembleResult.forecast;
-    const predictionConfidence = ensembleResult.confidence;
-    const trendDirection = ensembleResult.trend;
-    const confidenceFactors = ensembleResult.confidenceFactors;
-    const algorithmUsed = ensembleResult.modelUsed;
 
-    const currentMonthStart = startOfMonth(new Date());
-    const currentMonthEnd = endOfMonth(new Date());
-    
-    // Use paidBills for current month sales
-    const currentMonthSales = paidBills
-      .filter(bill => {
-        const billDate = new Date(bill.createdAt);
-        return billDate >= currentMonthStart && billDate <= currentMonthEnd;
-      })
-      .reduce((sum, bill) => sum + bill.total, 0);
-    
     const daysElapsed = Math.max(1, new Date().getDate());
-    const totalDaysInMonth = new Date(
-      new Date().getFullYear(), 
-      new Date().getMonth() + 1, 
-      0
-    ).getDate();
-    
+    const totalDaysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const daysRemaining = totalDaysInMonth - daysElapsed;
-    const currentMonthDailyAvg = currentMonthSales / daysElapsed;
+    const currentMonthDailyAvg = stats.currentMonthSales / daysElapsed;
     const currentMonth = getMonth(new Date());
-    
-    // ENHANCED: Use historical same-month patterns for better accuracy
+
     const sameMonthHistoricalData = dailyData.filter(d => getMonth(d.date) === currentMonth);
     const historicalSameMonthAvg = sameMonthHistoricalData.length > 0
       ? sameMonthHistoricalData.reduce((sum, d) => sum + d.revenue, 0) / sameMonthHistoricalData.length
       : currentMonthDailyAvg;
-    
-    // Calculate month-end adjustment (last 3 days often have different patterns)
+
     const last3DaysOfMonth = dailyData
-      .filter(d => {
-        const dayOfMonth = getDate(d.date);
-        const month = getMonth(d.date);
-        return month === currentMonth && dayOfMonth >= totalDaysInMonth - 3;
-      })
+      .filter(d => getMonth(d.date) === currentMonth && getDate(d.date) >= totalDaysInMonth - 3)
       .map(d => d.revenue);
     const monthEndMultiplier = last3DaysOfMonth.length > 0
       ? last3DaysOfMonth.reduce((sum, r) => sum + r, 0) / (last3DaysOfMonth.length * historicalSameMonthAvg)
       : 1;
-    
-    // ENHANCED: Use Super Model ensemble for each remaining day (more accurate than just Prophet)
+
     let projectedRemainingSales = 0;
-    const dailyForecasts: Array<{forecast: number; confidence: number}> = [];
-    
-    // Pre-calculate holiday multiplier for efficiency
+    const dailyForecasts: Array<{ forecast: number; confidence: number }> = [];
     const holidayDays = dailyData.filter(d => d.isHoliday);
     const holidayAvg = holidayDays.length > 0
       ? holidayDays.reduce((sum, d) => sum + d.revenue, 0) / holidayDays.length
       : 0;
     const regularAvg = dailyData.reduce((sum, d) => sum + d.revenue, 0) / dailyData.length;
     const holidayMultiplier = regularAvg > 0 && holidayAvg > 0 ? holidayAvg / regularAvg : 1;
-    
+
     for (let i = 0; i < daysRemaining; i++) {
       const futureDate = addDays(new Date(), i + 1);
       const dayOfMonth = getDate(futureDate);
       const isMonthEnd = dayOfMonth >= totalDaysInMonth - 3;
-      
-      // Use super model ensemble for better accuracy
-      const ensembleResult = multiModelEnsemble(dailyData, i + 1);
-      let dayForecast = ensembleResult.forecast;
-      
-      // Apply month-end adjustment if applicable
-      if (isMonthEnd && monthEndMultiplier !== 1) {
-        dayForecast = dayForecast * monthEndMultiplier;
-      }
-      
-      // Account for holidays (holidays often have different revenue patterns)
+      const dayEnsemble = multiModelEnsemble(dailyData, i + 1);
+      let dayForecast = dayEnsemble.forecast;
+      if (isMonthEnd && monthEndMultiplier !== 1) dayForecast *= monthEndMultiplier;
       const features = extractFeatures(futureDate, dailyData);
-      if (features.isHoliday && holidayMultiplier !== 1) {
-        dayForecast = dayForecast * holidayMultiplier;
-      }
-      
-      dailyForecasts.push({ forecast: dayForecast, confidence: ensembleResult.confidence });
+      if (features.isHoliday && holidayMultiplier !== 1) dayForecast *= holidayMultiplier;
+      dailyForecasts.push({ forecast: dayForecast, confidence: dayEnsemble.confidence });
       projectedRemainingSales += dayForecast;
     }
-    
-    // ENHANCED: Apply trend adjustment based on current month performance vs historical
-    const trendAdjustment = historicalSameMonthAvg > 0 
-      ? currentMonthDailyAvg / historicalSameMonthAvg 
-      : 1;
-    
-    // If current month is performing differently than historical, adjust projection
+
+    const trendAdjustment = historicalSameMonthAvg > 0 ? currentMonthDailyAvg / historicalSameMonthAvg : 1;
     if (trendAdjustment > 1.1 || trendAdjustment < 0.9) {
-      // Significant deviation - apply partial adjustment (50% weight to avoid overcorrection)
-      const adjustedProjection = projectedRemainingSales * (1 + (trendAdjustment - 1) * 0.5);
-      projectedRemainingSales = adjustedProjection;
+      projectedRemainingSales *= (1 + (trendAdjustment - 1) * 0.5);
     }
-    
-    // ENHANCED: Confidence-based adjustment (if confidence is low, be more conservative)
+
     const avgConfidence = dailyForecasts.length > 0
       ? dailyForecasts.reduce((sum, d) => sum + d.confidence, 0) / dailyForecasts.length
       : 70;
-    
-    // If confidence is low, use more conservative estimate (blend with historical average)
     if (avgConfidence < 70 && daysRemaining > 0) {
       const conservativeProjection = historicalSameMonthAvg * daysRemaining;
       const confidenceWeight = avgConfidence / 100;
-      projectedRemainingSales = projectedRemainingSales * confidenceWeight + 
-                                conservativeProjection * (1 - confidenceWeight);
+      projectedRemainingSales = projectedRemainingSales * confidenceWeight + conservativeProjection * (1 - confidenceWeight);
     }
-    
-    const monthlyTarget = currentMonthSales + projectedRemainingSales;
-    const monthlyProgress = monthlyTarget > 0 ? 
-      Math.min(100, (currentMonthSales / monthlyTarget) * 100) : 0;
+
+    const monthlyTarget = stats.currentMonthSales + projectedRemainingSales;
+    const monthlyProgress = monthlyTarget > 0 ? Math.min(100, (stats.currentMonthSales / monthlyTarget) * 100) : 0;
 
     const last30DaysExpenses = expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       const daysDiff = differenceInDays(new Date(), expenseDate);
       return daysDiff <= 30 && daysDiff >= 0;
     });
-    
-    const last30DaysExpenseTotal = last30DaysExpenses.reduce(
-      (sum, expense) => sum + expense.amount, 0
-    );
-    
-    const avgDailyExpenses = last30DaysExpenseTotal / 30;
-    const breakEvenPoint = avgDailyExpenses;
-
-    // Cuephoria-branded model name
-    let algorithmUsedDisplay = algorithmUsed;
-    if (daysWithData >= 270) {
-      algorithmUsedDisplay = `Cuephoria Quantum AI`;
-    } else if (daysWithData >= 180) {
-      algorithmUsedDisplay = `Cuephoria Quantum AI`;
-    } else if (daysWithData >= 90) {
-      algorithmUsedDisplay = `Cuephoria Quantum AI`;
-    } else {
-      algorithmUsedDisplay = `Cuephoria Quantum AI`;
-    }
+    const avgDailyExpenses = last30DaysExpenses.reduce((sum, e) => sum + e.amount, 0) / 30;
 
     return {
-      totalSales,
-      totalExpenses,
-      netProfit,
-      profitMargin,
-      avgBillValue,
-      dailyPrediction,
-      monthlyTarget,
-      monthlyProgress,
-      currentMonthSales,
-      expenseToRevenueRatio,
-      breakEvenPoint,
-      todaysSales,
-      yesterdaysSales,
-      growthPercentage,
-      predictionConfidence,
-      trendDirection,
-      daysElapsed,
-      totalDaysInMonth,
-      currentMonthDailyAvg,
-      algorithmUsed: algorithmUsedDisplay,
+      dailyPrediction: ensembleResult.forecast,
+      predictionConfidence: ensembleResult.confidence,
+      trendDirection: ensembleResult.trend,
+      confidenceFactors: ensembleResult.confidenceFactors,
+      algorithmUsed: 'Cuephoria Quantum AI',
       macdTrend: macd.trend,
       daysOfData: daysWithData,
-      confidenceFactors,
       allModels: ensembleResult.allModels,
       ensembleAgreement: ensembleResult.ensembleAgreement,
-      superModelWeights: ensembleResult.superModelWeights
+      superModelWeights: ensembleResult.superModelWeights,
+      monthlyTarget,
+      monthlyProgress,
+      breakEvenPoint: avgDailyExpenses,
+      daysElapsed,
+      totalDaysInMonth,
     };
-  };
+  }, [stats, deferredSeries, expenses, filteredExpenses]);
 
-  if (isCalculating || !cachedInsights) {
+  const insights = headline && forecastInsights ? { ...headline, ...forecastInsights } : headline;
+  const forecastPending = analyticsLoading || (headline && !forecastInsights);
+
+  if (analyticsLoading && !headline) {
     return (
       <Card className="glass-card glass-card-interactive border-white/10 shadow-xl">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-gray-700/30">
@@ -1872,23 +1703,19 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
             AI Business Insights
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-12 flex items-center justify-center min-h-[500px]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              <Loader2 className="h-12 w-12 animate-spin text-cyan-400" />
-              <div className="absolute inset-0 h-12 w-12 animate-ping text-cyan-400/20 rounded-full bg-cyan-400"></div>
-            </div>
-            <div className="text-center">
-              <p className="text-base text-white font-medium mb-1">Analyzing Business Data</p>
-              <p className="text-sm text-gray-400 animate-pulse">Running Super Model with 7 algorithms on 365 days of data...</p>
-            </div>
+        <CardContent className="p-12 flex items-center justify-center min-h-[280px]">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-cyan-400" />
+            <p className="text-sm text-gray-400">Loading sales analytics…</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  const insights = cachedInsights;
+  if (!insights) {
+    return null;
+  }
 
   return (
     <Card className="glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-cyan-500/20 hover:border-cyan-500/30 transition-all duration-300 backdrop-blur-sm">
@@ -1983,9 +1810,16 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
           {/* ML Predictions */}
           <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/40 shadow-lg">
             <h4 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
-              <Brain className="h-4 w-4 text-purple-400 animate-pulse" />
-              Multi-Model Predictions ({insights.daysOfData} days data, 365-day window)
+              <Brain className={`h-4 w-4 text-purple-400 ${forecastPending ? 'animate-pulse' : ''}`} />
+              Multi-Model Predictions
+              {!forecastPending && ` (${insights.daysOfData ?? 0} days data)`}
             </h4>
+            {forecastPending ? (
+              <div className="flex items-center gap-2 py-6 justify-center text-sm text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
+                Running forecast models…
+              </div>
+            ) : (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-400">Tomorrow's Forecast</span>
@@ -2135,6 +1969,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
                 </div>
               </div>
             </div>
+            )}
           </div>
 
           {/* Key Metrics */}
@@ -2154,7 +1989,11 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-400">Break-even Daily</span>
                 <span className="font-medium text-orange-400">
-                  <CurrencyDisplay amount={insights.breakEvenPoint} />
+                  {forecastPending ? (
+                    <span className="text-gray-500 text-xs">Calculating…</span>
+                  ) : (
+                    <CurrencyDisplay amount={insights.breakEvenPoint ?? 0} />
+                  )}
                 </span>
               </div>
               
@@ -2183,6 +2022,12 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
           {/* Monthly Progress */}
           <div className="theme-inset p-4">
             <h4 className="text-sm font-medium text-gray-200 mb-3">Monthly Progress</h4>
+            {forecastPending ? (
+              <div className="flex items-center gap-2 py-4 justify-center text-sm text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Projecting month-end target…
+              </div>
+            ) : (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-400">AI Projected Target</span>
@@ -2230,6 +2075,7 @@ const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDa
                 </div>
               </div>
             </div>
+            )}
           </div>
 
           <div className="pt-2 border-t border-gray-700/30">

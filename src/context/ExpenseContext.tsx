@@ -52,7 +52,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let supabaseError: { message?: string } | null = null;
 
       while (!supabaseError) {
-        let q = (supabase.from('expenses' as any).select('*').order('date', { ascending: false }) as any);
+        let q = (supabase.from('expenses' as any).select('id,date,amount,category,description,is_recurring,frequency,location_id').order('date', { ascending: false }) as any);
 
         if (activeLocationId) {
           q = q.eq('location_id', activeLocationId);

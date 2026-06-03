@@ -233,15 +233,23 @@ export const useBills = (
 
         let page = 0;
         let finished = false;
+        /** Fetch multiple pages concurrently to cut round-trips on Pro plan. */
+        const PARALLEL_PAGES = 4;
 
         while (!finished && page < maxPages) {
-          let rawPage: RawBillRow[] = [];
-          try {
-            rawPage = await fetchBillsPageWithRetry(page, pageSize, 2);
-          } catch (pageError) {
-            console.error(`Error loading bills page ${page}:`, pageError);
+          const pagesToFetch: number[] = [];
+          for (let i = 0; i < PARALLEL_PAGES && page + i < maxPages; i++) {
+            pagesToFetch.push(page + i);
+          }
 
-            // Only show a toast if we couldn't load anything at all
+          let batchResults: RawBillRow[][] = [];
+          try {
+            batchResults = await Promise.all(
+              pagesToFetch.map(p => fetchBillsPageWithRetry(p, pageSize, 2))
+            );
+          } catch (pageError) {
+            console.error(`Error loading bills pages ${pagesToFetch.join(',')}:`, pageError);
+
             if (!silent && !loadedAny && isMounted) {
               toast({
                 title: 'Error',
@@ -252,29 +260,38 @@ export const useBills = (
             return;
           }
 
-          if (!rawPage || rawPage.length === 0) {
+          let batchTransformed: Bill[] = [];
+          for (let i = 0; i < batchResults.length; i++) {
+            const rawPage = batchResults[i];
+            if (!rawPage || rawPage.length === 0) {
+              finished = true;
+              break;
+            }
+
+            const transformed = transformBills(rawPage);
+            batchTransformed = mergeBillsByIdDesc(batchTransformed, transformed);
+            loadedAny = loadedAny || transformed.length > 0;
+
+            if (rawPage.length < pageSize) {
+              finished = true;
+            }
+          }
+
+          if (batchTransformed.length === 0) {
             finished = true;
             continue;
           }
 
-          const transformed = transformBills(rawPage);
-          loadedAny = loadedAny || transformed.length > 0;
-
           if (!isMounted) return;
 
-          // Progressive update: show first page immediately, then keep appending older pages.
-          setBills(prev => mergeBillsByIdDesc(prev, transformed));
+          // One state update per parallel batch (not per page) — fewer dashboard re-renders.
+          setBills(prev => mergeBillsByIdDesc(prev, batchTransformed));
 
-          // Cache only the most recent subset (keeps localStorage fast and avoids quota issues)
           if (page === 0) {
-            saveToCache(billsCacheKey, transformed.slice(0, MAX_CACHED_BILLS));
+            saveToCache(billsCacheKey, batchTransformed.slice(0, MAX_CACHED_BILLS));
           }
 
-          if (rawPage.length < pageSize) {
-            finished = true;
-          } else {
-            page++;
-          }
+          page += pagesToFetch.length;
         }
 
         // After a full non-silent load, refresh cache with latest subset from current state

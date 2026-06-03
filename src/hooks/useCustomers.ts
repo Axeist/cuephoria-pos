@@ -22,7 +22,7 @@ const customersCacheKey = (locationId: string | null) =>
   `cuephoria_customers_cache_${locationId ?? 'global'}`;
 const customersTimestampKey = (locationId: string | null) =>
   `cuephoria_customers_cache_ts_${locationId ?? 'global'}`;
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes cache (aligned with dataCache.ts)
 const DUPLICATE_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Run cleanup once per day
 const LAST_DUPLICATE_CLEANUP_KEY = 'cuephoria_last_duplicate_cleanup';
 
@@ -148,23 +148,52 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         
         // ✅ OPTIMIZED: Select only needed columns (reduces data transfer)
         const selectFields = 'id,customer_id,custom_id,name,phone,email,is_member,membership_expiry_date,membership_start_date,membership_plan,membership_hours_left,membership_duration,loyalty_points,total_spent,total_play_time,created_at';
-        
-        // Fetch all customers using pagination
-        let page = 0;
-        const pageSize = 1000;
-        let allCustomersData: any[] = [];
-        let finished = false;
 
-        while (!finished) {
-          const { data, error } = await supabase
+        const mapRowToCustomer = (item: any): Customer => ({
+          id: item.id,
+          customerId: (item as any).customer_id || generateCustomerID(item.phone),
+          name: item.name,
+          phone: item.phone,
+          email: item.email || undefined,
+          isMember: item.is_member,
+          membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
+          membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
+          membershipPlan: item.membership_plan || undefined,
+          membershipHoursLeft: item.membership_hours_left || undefined,
+          membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
+          loyaltyPoints: item.loyalty_points,
+          totalSpent: item.total_spent,
+          totalPlayTime: item.total_play_time,
+          createdAt: new Date(item.created_at)
+        });
+
+        const fetchCustomersPage = async (page: number, pageSize: number) => {
+          return supabase
             .from('customers')
-            .select(selectFields) // ✅ Only fetch needed columns
+            .select(selectFields)
             .eq('location_id', activeLocationId)
             .order('created_at', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
-          
-          if (error) {
-            console.error('Error fetching customers:', error);
+        };
+
+        // Fetch all customers using parallel page batches
+        let page = 0;
+        const pageSize = 1000;
+        const PARALLEL_PAGES = 4;
+        let allCustomersData: any[] = [];
+        let finished = false;
+        let firstBatchPainted = false;
+
+        while (!finished) {
+          const pagesToFetch: number[] = [];
+          for (let i = 0; i < PARALLEL_PAGES; i++) {
+            pagesToFetch.push(page + i);
+          }
+
+          const results = await Promise.all(pagesToFetch.map(p => fetchCustomersPage(p, pageSize)));
+          const batchError = results.find(r => r.error)?.error;
+          if (batchError) {
+            console.error('Error fetching customers:', batchError);
             if (!silent) {
               toast({
                 title: 'Database Error',
@@ -174,37 +203,42 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             }
             return;
           }
-        
-          if (data && data.length > 0) {
-            allCustomersData = [...allCustomersData, ...data];
+
+          let batchRows: any[] = [];
+          for (let i = 0; i < results.length; i++) {
+            const data = results[i].data;
+            if (!data || data.length === 0) {
+              finished = true;
+              break;
+            }
+            batchRows = batchRows.concat(data);
             if (data.length < pageSize) {
               finished = true;
-            } else {
-              page++;
+              break;
             }
-          } else {
-            finished = true;
           }
+
+          if (batchRows.length === 0) {
+            finished = true;
+            break;
+          }
+
+          allCustomersData = allCustomersData.concat(batchRows);
+
+          // Progressive paint: show first batch immediately so Stations/POS aren't blocked.
+          if (!firstBatchPainted) {
+            firstBatchPainted = true;
+            setCustomers(batchRows.map(mapRowToCustomer));
+            if (!silent) setIsLoading(false);
+          } else {
+            setCustomers(allCustomersData.map(mapRowToCustomer));
+          }
+
+          page += pagesToFetch.length;
         }
         
         if (allCustomersData.length > 0) {
-          const transformedCustomers = allCustomersData.map(item => ({
-            id: item.id,
-            customerId: (item as any).customer_id || generateCustomerID(item.phone),
-            name: item.name,
-            phone: item.phone,
-            email: item.email || undefined,
-            isMember: item.is_member,
-            membershipExpiryDate: item.membership_expiry_date ? new Date(item.membership_expiry_date) : undefined,
-            membershipStartDate: item.membership_start_date ? new Date(item.membership_start_date) : undefined,
-            membershipPlan: item.membership_plan || undefined,
-            membershipHoursLeft: item.membership_hours_left || undefined,
-            membershipDuration: item.membership_duration as 'weekly' | 'monthly' | undefined,
-            loyaltyPoints: item.loyalty_points,
-            totalSpent: item.total_spent,
-            totalPlayTime: item.total_play_time,
-            createdAt: new Date(item.created_at)
-          }));
+          const transformedCustomers = allCustomersData.map(mapRowToCustomer);
 
           setCustomers(transformedCustomers);
           saveToCache(transformedCustomers);
@@ -344,6 +378,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
 
     const locKey = activeLocationId;
 
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const channel = supabase
       .channel(`customers-realtime-${locKey}`)
       .on(
@@ -355,16 +391,19 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           filter: `location_id=eq.${locKey}`,
         },
         () => {
-          // Bust both caches for this location so the next fetch always hits the DB
-          delete memoryCacheByLocation[locKey];
-          localStorage.removeItem(customersCacheKey(locKey));
-          localStorage.removeItem(customersTimestampKey(locKey));
-          fetchFromDBRef.current?.(true);
+          if (refreshTimeout) clearTimeout(refreshTimeout);
+          refreshTimeout = setTimeout(() => {
+            delete memoryCacheByLocation[locKey];
+            localStorage.removeItem(customersCacheKey(locKey));
+            localStorage.removeItem(customersTimestampKey(locKey));
+            fetchFromDBRef.current?.(true);
+          }, 300);
         }
       )
       .subscribe();
 
     return () => {
+      if (refreshTimeout) clearTimeout(refreshTimeout);
       supabase.removeChannel(channel);
     };
   }, [activeLocationId, hydrateCustomers]);

@@ -1,10 +1,9 @@
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import StatsCard from './StatsCard';
 import { CreditCard, Users, PlayCircle, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
-import { Product } from '@/context/POSContext';
+import { Product, Session } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { useSessionsData } from '@/hooks/stations/useSessionsData';
 
 interface StatCardSectionProps {
   totalSales: number;
@@ -15,6 +14,7 @@ interface StatCardSectionProps {
   newMembersCount: number;
   lowStockCount: number;
   lowStockItems: Product[];
+  sessions: Session[];
 }
 
 const StatCardSection: React.FC<StatCardSectionProps> = ({
@@ -25,10 +25,13 @@ const StatCardSection: React.FC<StatCardSectionProps> = ({
   customersCount,
   newMembersCount,
   lowStockCount,
-  lowStockItems
+  lowStockItems,
+  sessions,
 }) => {
-  const { sessions } = useSessionsData();
-  const [realActiveSessionsCount, setRealActiveSessionsCount] = useState(activeSessionsCount);
+  const realActiveSessionsCount = useMemo(
+    () => sessions.filter(session => !session.endTime).length,
+    [sessions]
+  );
 
   // Determine whether the sales trend is positive or negative - memoize this calculation
   const { isSalesTrendPositive, trendIcon, trendClass } = useMemo(() => {
@@ -54,13 +57,6 @@ const StatCardSection: React.FC<StatCardSectionProps> = ({
       trendClass: ''
     };
   }, [salesChange]);
-  
-  // Calculate real-time active sessions count
-  useEffect(() => {
-    // Count sessions that don't have an end time
-    const activeSessions = sessions.filter(session => !session.endTime).length;
-    setRealActiveSessionsCount(activeSessions);
-  }, [sessions]);
   
   // Format low stock items for display - memoize this calculation
   const formattedLowStockItems = useMemo(() => {

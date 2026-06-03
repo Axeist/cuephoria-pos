@@ -62,50 +62,45 @@ const StaffManagement = () => {
         .filter((id): id is string => Boolean(id));
 
       let shifts: any[] = [];
-      if (profileIds.length > 0) {
-        const { data: shiftsData, error: shiftsError } = await supabase
-          .from('today_active_shifts')
-          .select('*')
-          .in('staff_id', profileIds);
-        if (shiftsError) {
-          console.warn('StaffManagement: today_active_shifts', shiftsError);
-        } else {
-          shifts = shiftsData || [];
-        }
-      }
-      setActiveShifts(shifts);
-
       let leaves: any[] = [];
-      if (profileIds.length > 0) {
-        const { data: leavesData, error: leavesError } = await supabase
-          .from('pending_leaves_view')
-          .select('*')
-          .in('staff_id', profileIds);
-        if (leavesError) {
-          console.warn('StaffManagement: pending_leaves_view', leavesError);
-        } else {
-          leaves = leavesData || [];
-        }
-      }
-      setPendingLeaves(leaves);
-
-      const currentMonth = new Date().getMonth() + 1;
-      const currentYear = new Date().getFullYear();
-
       let payrollTotal = 0;
+
       if (profileIds.length > 0) {
-        const { data: payroll, error: payrollError } = await supabase
-          .from('staff_payslip_view')
-          .select('net_salary')
-          .eq('month', currentMonth)
-          .eq('year', currentYear)
-          .in('staff_id', profileIds);
-        if (payrollError) {
-          console.warn('StaffManagement: staff_payslip_view', payrollError);
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
+
+        const [shiftsResult, leavesResult, payrollResult] = await Promise.all([
+          supabase.from('today_active_shifts').select('*').in('staff_id', profileIds),
+          supabase.from('pending_leaves_view').select('*').in('staff_id', profileIds),
+          supabase
+            .from('staff_payslip_view')
+            .select('net_salary')
+            .eq('month', currentMonth)
+            .eq('year', currentYear)
+            .in('staff_id', profileIds),
+        ]);
+
+        if (shiftsResult.error) {
+          console.warn('StaffManagement: today_active_shifts', shiftsResult.error);
         } else {
-          payrollTotal = (payroll || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
+          shifts = shiftsResult.data || [];
+        }
+
+        if (leavesResult.error) {
+          console.warn('StaffManagement: pending_leaves_view', leavesResult.error);
+        } else {
+          leaves = leavesResult.data || [];
+        }
+
+        if (payrollResult.error) {
+          console.warn('StaffManagement: staff_payslip_view', payrollResult.error);
+        } else {
+          payrollTotal = (payrollResult.data || []).reduce((sum, p) => sum + (p.net_salary || 0), 0);
         }
       }
+
+      setActiveShifts(shifts);
+      setPendingLeaves(leaves);
       setMonthlyPayroll(payrollTotal);
 
     } catch (error: any) {
