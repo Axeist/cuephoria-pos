@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Station, Session } from '@/types/pos.types';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
@@ -14,11 +14,12 @@ export const useStationsData = () => {
   const [stationsLoading, setStationsLoading] = useState<boolean>(false);
   const [stationsError, setStationsError] = useState<Error | null>(null);
   const { toast } = useToast();
-  const { activeLocationId, loading: locationsLoading } = useLocation();
+  const { activeLocationId, loading: locationsLoading, locationResolved } = useLocation();
   const stationsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.STATIONS, activeLocationId),
     [activeLocationId]
   );
+  const prevLocationIdRef = useRef<string | null>(null);
   
   const refreshStationsFromDB = useCallback(async (silent: boolean = false) => {
     if (!activeLocationId) {
@@ -341,11 +342,28 @@ export const useStationsData = () => {
   
   // Cache-first on branch switch: instant paint from local cache, background refresh if stale.
   useEffect(() => {
-    if (locationsLoading) return;
+    if (locationsLoading || !locationResolved) {
+      if (!locationsLoading && locationResolved && !activeLocationId) {
+        setStations([]);
+        setStationsLoading(false);
+      }
+      return;
+    }
 
-    setStations([]);
+    if (!activeLocationId) {
+      setStations([]);
+      setStationsLoading(false);
+      return;
+    }
+
+    const locationChanged = prevLocationIdRef.current !== activeLocationId;
+    prevLocationIdRef.current = activeLocationId;
+    if (locationChanged) {
+      setStations([]);
+    }
+
     const cachedStations = getCachedData<Station[]>(stationsCacheKey);
-    if (cachedStations !== null) {
+    if (cachedStations !== null && cachedStations.length > 0) {
       setStations(cachedStations);
       setStationsLoading(false);
       if (isCacheStale(stationsCacheKey)) {
@@ -356,8 +374,18 @@ export const useStationsData = () => {
       return;
     }
 
-    refreshStationsFromDB(false);
-  }, [activeLocationId, locationsLoading, stationsCacheKey, refreshStationsFromDB]);
+    if (cachedStations !== null && cachedStations.length === 0) {
+      invalidateCache(stationsCacheKey);
+    }
+
+    void refreshStationsFromDB(false);
+  }, [
+    activeLocationId,
+    locationsLoading,
+    locationResolved,
+    stationsCacheKey,
+    refreshStationsFromDB,
+  ]);
 
   // ── REALTIME: listen to any stations row change and refresh immediately ──
   useEffect(() => {

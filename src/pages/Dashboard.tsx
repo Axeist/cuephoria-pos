@@ -17,6 +17,7 @@ import CustomerSpendingCorrelation from '@/components/dashboard/CustomerSpending
 import HourlyRevenueDistribution from '@/components/dashboard/HourlyRevenueDistribution';
 import ProductPerformance from '@/components/dashboard/ProductPerformance';
 import ExpenseDateFilter from '@/components/expenses/ExpenseDateFilter';
+import ExpenseList from '@/components/expenses/ExpenseList';
 import FilteredExpenseList from '@/components/expenses/FilteredExpenseList';
 import VaultDashboard from '@/components/vault/VaultDashboard';
 import * as XLSX from 'xlsx';

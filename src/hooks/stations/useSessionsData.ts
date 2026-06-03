@@ -15,7 +15,7 @@ export const useSessionsData = () => {
   const [sessionsLoading, setSessionsLoading] = useState<boolean>(true); // start true — prevents sessionsInitialized from firing before first fetch
   const [sessionsError, setSessionsError] = useState<Error | null>(null);
   const { toast } = useToast();
-  const { activeLocationId, loading: locationsLoading } = useLocation();
+  const { activeLocationId, loading: locationsLoading, locationResolved } = useLocation();
   const sessionsCacheKey = useMemo(
     () => cacheKeyWithLocation(CACHE_KEYS.SESSIONS, activeLocationId),
     [activeLocationId]
@@ -178,22 +178,36 @@ export const useSessionsData = () => {
 
   // Cache-first on branch switch, then silent refresh so active sessions stay accurate.
   useEffect(() => {
-    if (locationsLoading) return;
+    if (locationsLoading || !locationResolved || !activeLocationId) {
+      if (!locationsLoading && locationResolved && !activeLocationId) {
+        setSessions([]);
+        setSessionsLoading(false);
+      }
+      return;
+    }
 
-    setSessions([]);
     const cachedSessions = getCachedData<Session[]>(sessionsCacheKey);
-    if (cachedSessions !== null) {
+    if (cachedSessions !== null && cachedSessions.length > 0) {
       setSessions(cachedSessions);
       setSessionsLoading(false);
-      // Always background-refresh sessions — occupancy must be current.
       refreshSessionsFromDB(true).catch(err => {
         console.error('Error refreshing sessions in background:', err);
       });
       return;
     }
 
-    refreshSessionsFromDB(false);
-  }, [activeLocationId, locationsLoading, sessionsCacheKey, refreshSessionsFromDB]);
+    if (cachedSessions !== null && cachedSessions.length === 0) {
+      invalidateCache(sessionsCacheKey);
+    }
+
+    void refreshSessionsFromDB(false);
+  }, [
+    activeLocationId,
+    locationsLoading,
+    locationResolved,
+    sessionsCacheKey,
+    refreshSessionsFromDB,
+  ]);
 
   // Per-location Realtime subscription: fires on any INSERT/UPDATE/DELETE on
   // the sessions table for this location only.
