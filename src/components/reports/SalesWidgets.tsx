@@ -9,6 +9,7 @@ interface SalesWidgetsProps {
   payment?: PaymentBreakdownStats | null;
   gaming?: GamingRevenueStats | null;
   loading?: boolean;
+  error?: string | null;
 }
 
 const SalesWidgets: React.FC<SalesWidgetsProps> = ({
@@ -16,11 +17,22 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({
   payment,
   gaming,
   loading,
+  error,
 }) => {
-  if (loading || !billMetrics || !payment || !gaming) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-16 mb-8">
         <Loader2 className="h-8 w-8 animate-spin text-white/50" />
+      </div>
+    );
+  }
+
+  if (error || !billMetrics || !payment || !gaming) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 mb-8 text-center text-white/60">
+        <p className="text-sm">
+          {error ?? 'Sales summary could not be loaded. Check your connection or try refreshing.'}
+        </p>
       </div>
     );
   }

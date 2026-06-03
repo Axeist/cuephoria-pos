@@ -179,12 +179,13 @@ const ReportsPage: React.FC = () => {
 
   const needsBills = activeTab === 'bills';
   const needsSessions = activeTab === 'sessions' || activeTab === 'summary';
+  const needsReportAnalytics = activeTab === 'bills' || activeTab === 'summary';
   const debouncedReportBills = useDebouncedValue(reportBills ?? [], reportBillsLoading ? 500 : 0);
 
   const reportAnalytics = useLocationAnalytics({
     startDate: date?.from ? startOfDay(date.from) : undefined,
     endDate: date?.to ? endOfDay(date.to) : undefined,
-    enabled: activeTab === 'summary' && !!date?.from && !!date?.to,
+    enabled: needsReportAnalytics && !!date?.from && !!date?.to,
     includeBillMetrics: true,
   });
 
@@ -1278,6 +1279,7 @@ const ReportsPage: React.FC = () => {
         payment={reportAnalytics.payment}
         gaming={reportAnalytics.gaming}
         loading={reportAnalytics.loading}
+        error={reportAnalytics.error}
       />
       <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
         <div className="p-6">
