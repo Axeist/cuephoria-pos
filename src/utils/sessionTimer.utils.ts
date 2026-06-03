@@ -8,6 +8,8 @@ type BillableSession = Pick<
 /** Elapsed play time excluding all paused intervals. */
 export function getBillableMs(session: BillableSession, now = new Date()): number {
   const start = new Date(session.startTime).getTime();
+  if (!Number.isFinite(start)) return 0;
+
   let pausedMs = session.totalPausedMs ?? 0;
 
   if (session.isPaused && session.pausedAt) {

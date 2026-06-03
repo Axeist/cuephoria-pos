@@ -58,22 +58,23 @@ export const useStations = (initialStations: Station[] = [], updateCustomer: (cu
       activeSessionMap.set(session.stationId, session);
     });
     
+    const sessionTimingMatches = (a: Session, b: Session) =>
+      new Date(a.startTime).getTime() === new Date(b.startTime).getTime() &&
+      a.isPaused === b.isPaused &&
+      (a.pausedAt?.getTime() ?? null) === (b.pausedAt?.getTime() ?? null) &&
+      (a.totalPausedMs ?? 0) === (b.totalPausedMs ?? 0) &&
+      (a.hourlyRate ?? 0) === (b.hourlyRate ?? 0);
+
     setStations(prev => prev.map(station => {
       const activeSession = activeSessionMap.get(station.id);
       
       if (activeSession) {
-        if (station.isOccupied && station.currentSession?.id === activeSession.id) {
-          const current = station.currentSession;
-          const pauseSynced =
-            current.isPaused === activeSession.isPaused &&
-            (current.pausedAt?.getTime() ?? null) === (activeSession.pausedAt?.getTime() ?? null) &&
-            (current.totalPausedMs ?? 0) === (activeSession.totalPausedMs ?? 0);
-
-          if (pauseSynced) {
-            return station;
-          }
-
-          return { ...station, isOccupied: true, currentSession: activeSession };
+        const current = station.currentSession;
+        if (
+          current?.id === activeSession.id &&
+          sessionTimingMatches(current, activeSession)
+        ) {
+          return station;
         }
         console.log(`Connecting session to station ${station.name}`);
         return { ...station, isOccupied: true, currentSession: activeSession };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Station } from '@/context/POSContext';
 import { CurrencyDisplay } from '@/components/ui/currency';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,15 +14,31 @@ interface StationTimerProps {
   station: Station;
 }
 
+function toTimeMs(value: Date | string | undefined): number | null {
+  if (value == null) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
 const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
   const [hours, setHours] = useState<number>(0);
   const [minutes, setMinutes] = useState<number>(0);
   const [seconds, setSeconds] = useState<number>(0);
   const [cost, setCost] = useState<number>(0);
   const { customers } = usePOS();
+  const customersRef = useRef(customers);
+  customersRef.current = customers;
+
+  const session = station.currentSession;
+  const sessionId = session?.id;
+  const startTimeMs = toTimeMs(session?.startTime);
+  const pausedAtMs = toTimeMs(session?.pausedAt);
+  const isPaused = session?.isPaused ?? false;
+  const totalPausedMs = session?.totalPausedMs ?? 0;
+  const sessionRate = session?.hourlyRate ?? station.hourlyRate;
 
   useEffect(() => {
-    if (!station.isOccupied || !station.currentSession) {
+    if (!station.isOccupied || !sessionId || startTimeMs == null) {
       setHours(0);
       setMinutes(0);
       setSeconds(0);
@@ -30,26 +46,32 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       return;
     }
 
-    let sessionSnapshot: Session = { ...station.currentSession };
-
-    const customer = customers.find(c => c.id === station.currentSession?.customerId);
-    const isMember = customer?.isMember || false;
+    let sessionSnapshot: Session = {
+      ...session!,
+      startTime: new Date(startTimeMs),
+      pausedAt: pausedAtMs != null ? new Date(pausedAtMs) : undefined,
+      isPaused,
+      totalPausedMs,
+      hourlyRate: sessionRate,
+    };
 
     const updateTimer = () => {
+      const customer = customersRef.current.find(
+        (c) => c.id === sessionSnapshot.customerId
+      );
+      const isMember = customer?.isMember || false;
       const billableMs = getBillableMs(sessionSnapshot);
       const time = formatBillableTime(billableMs);
-      const sessionRate = sessionSnapshot.hourlyRate || station.hourlyRate;
+      const rate = sessionSnapshot.hourlyRate || station.hourlyRate;
 
       setSeconds(time.seconds);
       setMinutes(time.minutes);
       setHours(time.hours);
-      setCost(calculateSessionCost(station, sessionRate, billableMs, isMember));
+      setCost(calculateSessionCost(station, rate, billableMs, isMember));
     };
 
     const fetchSessionData = async () => {
       try {
-        const sessionId = station.currentSession!.id;
-
         const { data, error } = await supabase
           .from('sessions')
           .select('start_time, hourly_rate, is_paused, paused_at, total_paused_time')
@@ -75,38 +97,42 @@ const StationTimer: React.FC<StationTimerProps> = ({ station }) => {
       }
     };
 
-    fetchSessionData();
+    void fetchSessionData();
     updateTimer();
 
     const intervalId = window.setInterval(updateTimer, 1000);
     return () => window.clearInterval(intervalId);
   }, [
     station.isOccupied,
-    station.currentSession?.id,
-    station.currentSession?.startTime,
-    station.currentSession?.customerId,
-    station.currentSession?.hourlyRate,
-    station.currentSession?.isPaused,
-    station.currentSession?.pausedAt,
-    station.currentSession?.totalPausedMs,
+    sessionId,
+    startTimeMs,
+    pausedAtMs,
+    isPaused,
+    totalPausedMs,
+    sessionRate,
     station.hourlyRate,
     station.category,
     station.slotDuration,
     station.type,
-    customers,
   ]);
 
   const formatTimeDisplay = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  if (!station.isOccupied || !station.currentSession) {
+  if (!station.isOccupied || !session) {
     return null;
   }
 
-  const isPaused = station.currentSession.isPaused;
-  const hasCoupon = station.currentSession?.couponCode;
-  const sessionRate = station.currentSession?.hourlyRate || station.hourlyRate;
+  if (startTimeMs == null) {
+    return (
+      <div className="rounded-lg bg-black/70 p-3 text-center text-sm text-white/50">
+        Loading session timer…
+      </div>
+    );
+  }
+
+  const hasCoupon = session.couponCode;
   const isDiscounted = hasCoupon && sessionRate !== station.hourlyRate;
 
   return (
