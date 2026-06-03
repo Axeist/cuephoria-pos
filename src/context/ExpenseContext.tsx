@@ -123,6 +123,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
 
+  const calculateBusinessSummary = useCallback(() => {
     const grossIncome = analyticsStats?.grossIncome ?? 0;
 
     const totalWithdrawals = expenses
