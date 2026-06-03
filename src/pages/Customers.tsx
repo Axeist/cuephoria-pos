@@ -145,7 +145,7 @@ const Customers = () => {
   // Real-time search with debouncing
   useEffect(() => {
     const searchCustomers = async () => {
-      if (!searchQuery.trim()) {
+      if (!searchQuery.trim() || !activeLocationId) {
         setSearchResults([]);
         setIsSearching(false);
         return;
@@ -162,10 +162,10 @@ const Customers = () => {
         
         // Execute parallel queries for each search field
         const queries = [
-          supabase.from('customers').select('*').ilike('name', searchPattern).eq('location_id', activeLocationId ?? '').limit(100),
-          normalizedSearchPhone ? supabase.from('customers').select('*').ilike('phone', phonePattern).eq('location_id', activeLocationId ?? '').limit(100) : null,
-          supabase.from('customers').select('*').ilike('email', searchPattern).eq('location_id', activeLocationId ?? '').limit(100),
-          supabase.from('customers').select('*').ilike('custom_id', searchPattern).eq('location_id', activeLocationId ?? '').limit(100)
+          supabase.from('customers').select('*').ilike('name', searchPattern).eq('location_id', activeLocationId).limit(100),
+          normalizedSearchPhone ? supabase.from('customers').select('*').ilike('phone', phonePattern).eq('location_id', activeLocationId).limit(100) : null,
+          supabase.from('customers').select('*').ilike('email', searchPattern).eq('location_id', activeLocationId).limit(100),
+          supabase.from('customers').select('*').ilike('custom_id', searchPattern).eq('location_id', activeLocationId).limit(100)
         ].filter(Boolean) as Promise<any>[];
 
         const results = await Promise.all(queries);

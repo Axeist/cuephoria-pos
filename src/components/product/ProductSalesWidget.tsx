@@ -1,59 +1,14 @@
 import React from 'react';
-import { usePOS } from '@/context/POSContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Loader2 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
 
 const ProductSalesWidget: React.FC = () => {
-  const { bills, products } = usePOS();
+  const { canteen, loading } = useLocationAnalytics();
 
-  console.log('ProductSalesWidget - Total bills:', bills.length);
-  console.log('ProductSalesWidget - Total products:', products.length);
-
-  // Calculate total sales from food and drinks products (excluding challenges)
-  const totalProductSales = bills.reduce((total, bill) => {
-    console.log('ProductSalesWidget - Processing bill:', bill.id, 'with items:', bill.items);
-    
-    const productSales = bill.items
-      .filter(item => {
-        const isProduct = item.type === 'product';
-        
-        // Look up the product to get its category
-        const product = products.find(p => p.id === item.id || p.name === item.name);
-        const category = product?.category?.toLowerCase();
-        const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
-        const isChallenges = category === 'challenges' || category === 'challenge';
-        
-        console.log(`ProductSalesWidget - Item ${item.name}: type=${item.type}, category=${category}, isProduct=${isProduct}, isFoodOrDrinks=${isFoodOrDrinks}, isChallenges=${isChallenges}`);
-        return isProduct && isFoodOrDrinks && !isChallenges;
-      })
-      .reduce((itemTotal, item) => {
-        // Take the item total directly without applying any discount
-        console.log(`ProductSalesWidget - Adding item total: ${item.total} for ${item.name}`);
-        return itemTotal + item.total;
-      }, 0);
-    
-    console.log('ProductSalesWidget - Bill product sales:', productSales);
-    return total + productSales;
-  }, 0);
-
-  // Count total food and drinks items sold (excluding challenges)
-  const totalItemsSold = bills.reduce((total, bill) => {
-    const itemCount = bill.items
-      .filter(item => {
-        const isProduct = item.type === 'product';
-        const product = products.find(p => p.id === item.id || p.name === item.name);
-        const category = product?.category?.toLowerCase();
-        const isFoodOrDrinks = category === 'food' || category === 'drinks' || category === 'snacks' || category === 'beverage' || category === 'tobacco';
-        const isChallenges = category === 'challenges' || category === 'challenge';
-        return isProduct && isFoodOrDrinks && !isChallenges;
-      })
-      .reduce((count, item) => count + item.quantity, 0);
-    return total + itemCount;
-  }, 0);
-
-  console.log('ProductSalesWidget - Total product sales:', totalProductSales);
-  console.log('ProductSalesWidget - Total items sold:', totalItemsSold);
+  const totalProductSales = canteen?.totalSales ?? 0;
+  const totalItemsSold = canteen?.products.reduce((sum, p) => sum + p.quantity, 0) ?? 0;
 
   return (
     <Card className="mb-6 glass-card glass-card-interactive border-white/10 shadow-xl hover:shadow-blue-500/20 hover:border-blue-500/30 transition-all duration-300 backdrop-blur-sm">
@@ -64,12 +19,18 @@ const ProductSalesWidget: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-xl font-bold text-white">
-          <CurrencyDisplay amount={totalProductSales} />
-        </div>
-        <p className="text-xs text-gray-400">
-          Food & drinks sold ({totalItemsSold} items)
-        </p>
+        {loading ? (
+          <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+        ) : (
+          <>
+            <div className="text-xl font-bold text-white">
+              <CurrencyDisplay amount={totalProductSales} />
+            </div>
+            <p className="text-xs text-gray-400">
+              Food & drinks sold ({totalItemsSold} items)
+            </p>
+          </>
+        )}
       </CardContent>
     </Card>
   );

@@ -10,19 +10,18 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, format, addDays, addWeeks } from 'date-fns';
 import { Calendar, Loader2 } from 'lucide-react';
 
+import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
+import { parseISO } from 'date-fns';
+
 interface SalesChartProps {
-  data: {
-    name: string;
-    amount: number;
-  }[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }
 
 const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
   const { bills } = usePOS();
-  // Debounce while bills load page-by-page so the chart doesn't re-render on every batch.
   const debouncedBills = useDebouncedValue(bills, 500);
+  const { dailySeries } = useLocationAnalytics({ dailyDays: 365 });
   const { expenses } = useExpenses();
   const [chartData, setChartData] = useState<{ name: string; sales: number; expenses: number; withdrawals: number; }[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -40,19 +39,12 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
     setAvailableYears(sortedYears);
   }, [debouncedBills]);
 
-  // Filter bills by year and exclude complimentary
+  // Filter bills by year and exclude complimentary — hourly/today only (recent bills cap)
   const filteredBills = useMemo(() => {
     const paidBills = debouncedBills.filter(bill => bill.paymentMethod !== 'complimentary');
-    
-    if (selectedYear === 'all') {
-      return paidBills;
-    }
-    
+    if (selectedYear === 'all') return paidBills;
     const year = parseInt(selectedYear);
-    return paidBills.filter(bill => {
-      const billDate = new Date(bill.createdAt);
-      return billDate.getFullYear() === year;
-    });
+    return paidBills.filter(bill => new Date(bill.createdAt).getFullYear() === year);
   }, [debouncedBills, selectedYear]);
 
   const generateChartData = () => {
@@ -120,20 +112,18 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       });
       
     } else if (activeTab === 'daily') {
-      // Show revenue for all days of the current week
       const weekStart = startOfWeek(now);
       const weekEnd = endOfWeek(now);
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const dailyTotals = new Map();
+      const dailyTotals = new Map<number, number>();
       const dailyExpenses = new Map();
       const dailyWithdrawals = new Map();
-      
-      filteredBills.forEach(bill => {
-        const billDate = new Date(bill.createdAt);
+
+      dailySeries.forEach((point) => {
+        const billDate = parseISO(point.day);
         if (billDate >= weekStart && billDate <= weekEnd) {
           const dayOfWeek = billDate.getDay();
-          const current = dailyTotals.get(dayOfWeek) || 0;
-          dailyTotals.set(dayOfWeek, current + bill.total);
+          dailyTotals.set(dayOfWeek, (dailyTotals.get(dayOfWeek) || 0) + point.revenue);
         }
       });
 
@@ -183,13 +173,12 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const weeklyExpenses = new Map();
       const weeklyWithdrawals = new Map();
       
-      filteredBills.forEach(bill => {
-        const billDate = new Date(bill.createdAt);
+      dailySeries.forEach((point) => {
+        const billDate = parseISO(point.day);
         if (billDate >= monthStart && billDate <= monthEnd) {
           const week = weeks.find(w => billDate >= w.start && billDate <= w.end);
           if (week) {
-            const current = weeklyTotals.get(week.index) || 0;
-            weeklyTotals.set(week.index, current + bill.total);
+            weeklyTotals.set(week.index, (weeklyTotals.get(week.index) || 0) + point.revenue);
           }
         }
       });
@@ -224,11 +213,11 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       const monthlyExpenses = new Map();
       const monthlyWithdrawals = new Map();
       
-      filteredBills.forEach(bill => {
-        const date = new Date(bill.createdAt);
+      dailySeries.forEach((point) => {
+        const date = parseISO(point.day);
+        if (selectedYear !== 'all' && date.getFullYear() !== parseInt(selectedYear)) return;
         const month = months[date.getMonth()];
-        const current = monthlyTotals.get(month) || 0;
-        monthlyTotals.set(month, current + bill.total);
+        monthlyTotals.set(month, (monthlyTotals.get(month) || 0) + point.revenue);
       });
 
       expenses.forEach(expense => {
@@ -280,7 +269,7 @@ const SalesChart: React.FC<SalesChartProps> = ({ activeTab, setActiveTab }) => {
       }
       if (fallbackId != null) clearTimeout(fallbackId);
     };
-  }, [activeTab, filteredBills, expenses, selectedYear]);
+  }, [activeTab, filteredBills, expenses, selectedYear, dailySeries]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);

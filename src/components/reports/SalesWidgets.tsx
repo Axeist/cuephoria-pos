@@ -1,138 +1,43 @@
 import React, { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CurrencyDisplay } from '@/components/ui/currency';
-import { DollarSign, CreditCard, Split, Gamepad2, Package, HandCoins, Gift } from 'lucide-react';
-
-interface BillItem {
-  id: string;
-  name: string;
-  quantity: number;
-  total: number;
-  type: 'product' | 'session';
-}
-
-interface Bill {
-  id: string;
-  customerId: string;
-  items: BillItem[];
-  subtotal: number;
-  discountValue?: number;
-  loyaltyPointsUsed?: number;
-  total: number;
-  paymentMethod: string;
-  isSplitPayment?: boolean;
-  cashAmount?: number;
-  upiAmount?: number;
-  compNote?: string;
-  createdAt: Date | string;
-}
+import { DollarSign, CreditCard, Split, Gamepad2, Package, HandCoins, Gift, Loader2 } from 'lucide-react';
+import type { BillAggregateMetrics, GamingRevenueStats, PaymentBreakdownStats } from '@/hooks/useLocationAnalytics';
 
 interface SalesWidgetsProps {
-  filteredBills: Bill[];
+  billMetrics?: BillAggregateMetrics | null;
+  payment?: PaymentBreakdownStats | null;
+  gaming?: GamingRevenueStats | null;
+  loading?: boolean;
 }
 
-const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
-  // SEPARATE complimentary bills from paid bills
-  const complimentaryBills = filteredBills.filter(bill => 
-    bill.paymentMethod?.toLowerCase() === 'complimentary'
-  );
-  
-  const paidBills = filteredBills.filter(bill => 
-    bill.paymentMethod?.toLowerCase() !== 'complimentary'
-  );
+const SalesWidgets: React.FC<SalesWidgetsProps> = ({
+  billMetrics,
+  payment,
+  gaming,
+  loading,
+}) => {
+  if (loading || !billMetrics || !payment || !gaming) {
+    return (
+      <div className="flex items-center justify-center py-16 mb-8">
+        <Loader2 className="h-8 w-8 animate-spin text-white/50" />
+      </div>
+    );
+  }
 
-  // Calculate complimentary sales metrics
-  const complimentarySales = complimentaryBills.reduce((sum, bill) => sum + bill.total, 0);
-  const complimentaryCount = complimentaryBills.length;
-  const complimentaryItems = complimentaryBills.reduce((sum, bill) => 
-    sum + bill.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0
-  );
-
-  // Calculate cash sales (EXCLUDING complimentary)
-  const cashSales = paidBills
-    .filter(bill => bill.paymentMethod === 'cash')
-    .reduce((sum, bill) => sum + bill.total, 0);
-
-  // Calculate UPI sales (EXCLUDING complimentary)
-  const upiSales = paidBills
-    .filter(bill => bill.paymentMethod === 'upi')
-    .reduce((sum, bill) => sum + bill.total, 0);
-
-  // Calculate credit sales (EXCLUDING complimentary)
-  const creditSales = paidBills
-    .filter(bill => bill.paymentMethod === 'credit')
-    .reduce((sum, bill) => sum + bill.total, 0);
-
-  // Calculate Razorpay sales (EXCLUDING complimentary)
-  const razorpaySales = paidBills
-    .filter(bill => bill.paymentMethod === 'razorpay')
-    .reduce((sum, bill) => sum + bill.total, 0);
-
-  // Calculate split payment details (EXCLUDING complimentary)
-  const splitPaymentBills = paidBills.filter(bill => bill.paymentMethod === 'split' || bill.isSplitPayment);
-  const splitCashAmount = splitPaymentBills.reduce((sum, bill) => sum + (bill.cashAmount || 0), 0);
-  const splitUpiAmount = splitPaymentBills.reduce((sum, bill) => sum + (bill.upiAmount || 0), 0);
+  const cashSales = payment.cashTotal;
+  const upiSales = payment.upiTotal;
+  const creditSales = payment.creditTotal;
+  const razorpaySales = payment.razorpayTotal;
+  const splitCashAmount = payment.splitCashTotal;
+  const splitUpiAmount = payment.splitUpiTotal;
   const totalSplitSales = splitCashAmount + splitUpiAmount;
-
-  // Calculate PS5 session sales (proportional to bill total) - EXCLUDING complimentary
-  const ps5SessionSales = paidBills.reduce((sum, bill) => {
-    const ps5Items = bill.items.filter(item => 
-      item.type === 'session' && 
-      (item.name.toLowerCase().includes('ps5') || 
-       item.name.toLowerCase().includes('playstation 5'))
-    );
-    
-    if (ps5Items.length === 0) return sum;
-    
-    const ps5ItemsTotal = ps5Items.reduce((itemSum, item) => itemSum + item.total, 0);
-    
-    if (bill.subtotal > 0) {
-      const proportionalAmount = (ps5ItemsTotal / bill.subtotal) * bill.total;
-      return sum + proportionalAmount;
-    }
-    
-    return sum + ps5ItemsTotal;
-  }, 0);
-
-  // Calculate 8-ball session sales (proportional to bill total) - EXCLUDING complimentary
-  const eightBallSales = paidBills.reduce((sum, bill) => {
-    const eightBallItems = bill.items.filter(item => 
-      item.type === 'session' && 
-      (item.name.toLowerCase().includes('8 ball') || 
-       item.name.toLowerCase().includes('8-ball') ||
-       item.name.toLowerCase().includes('pool'))
-    );
-    
-    if (eightBallItems.length === 0) return sum;
-    
-    const eightBallItemsTotal = eightBallItems.reduce((itemSum, item) => itemSum + item.total, 0);
-    
-    if (bill.subtotal > 0) {
-      const proportionalAmount = (eightBallItemsTotal / bill.subtotal) * bill.total;
-      return sum + proportionalAmount;
-    }
-    
-    return sum + eightBallItemsTotal;
-  }, 0);
-
-  // Calculate product sales (proportional to bill total) - EXCLUDING complimentary
-  const productSales = paidBills.reduce((sum, bill) => {
-    const productItems = bill.items.filter(item => item.type === 'product');
-    
-    if (productItems.length === 0) return sum;
-    
-    const productItemsTotal = productItems.reduce((itemSum, item) => itemSum + item.total, 0);
-    
-    if (bill.subtotal > 0) {
-      const proportionalAmount = (productItemsTotal / bill.subtotal) * bill.total;
-      return sum + proportionalAmount;
-    }
-    
-    return sum + productItemsTotal;
-  }, 0);
-
-  // Calculate total PAID sales (EXCLUDING complimentary)
-  const totalSales = paidBills.reduce((sum, bill) => sum + bill.total, 0);
+  const complimentarySales = billMetrics.complimentarySales;
+  const complimentaryCount = billMetrics.complimentaryCount;
+  const ps5SessionSales = gaming.ps5Gaming;
+  const eightBallSales = gaming.eightBallPool;
+  const productSales = gaming.canteenSales + gaming.challengesRevenue;
+  const totalSales = billMetrics.totalRevenue;
 
   const cardBase =
     'glass-card glass-card-interactive border-white/10 shadow-xl transition-all duration-300';
@@ -213,9 +118,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
         </CardContent>
       </Card>
 
-      <Card
-        className={`${cardBase} border-amber-500/20 hover:border-amber-400/40 hover:shadow-amber-500/20`}
-      >
+      <Card className={`${cardBase} border-amber-500/20 hover:border-amber-400/40 hover:shadow-amber-500/20`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium text-amber-100/95">Complimentary</CardTitle>
           <div className="h-10 w-10 rounded-full bg-amber-500/30 flex items-center justify-center">
@@ -226,10 +129,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
           <div className="text-2xl font-bold text-amber-400 mb-2">
             <CurrencyDisplay amount={complimentarySales} />
           </div>
-          <div className="text-xs text-amber-300/70 space-y-0.5">
-            <div>{complimentaryCount} transactions</div>
-            <div>{complimentaryItems} items given</div>
-          </div>
+          <div className="text-xs text-amber-300/70">{complimentaryCount} transactions</div>
         </CardContent>
       </Card>
 
@@ -286,9 +186,7 @@ const SalesWidgets: React.FC<SalesWidgetsProps> = ({ filteredBills }) => {
           <div className="text-2xl font-bold text-white mb-2">
             <CurrencyDisplay amount={totalSales} />
           </div>
-          <p className="text-xs text-white/50">
-            Paid transactions only
-          </p>
+          <p className="text-xs text-white/50">Paid transactions only</p>
         </CardContent>
       </Card>
     </div>

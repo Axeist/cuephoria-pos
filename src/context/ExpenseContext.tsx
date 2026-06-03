@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Expense, BusinessSummary, ExpenseFormData } from '@/types/expense.types';
-import { usePOS } from './POSContext';
 import { generateId } from '@/utils/pos.utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, handleSupabaseError } from '@/integrations/supabase/client';
 import { useLocation } from '@/context/LocationContext';
+import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
 
 interface ExpenseContextType {
   expenses: Expense[];
@@ -38,9 +38,9 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     withdrawals: 0,
     moneyInBank: 0
   });
-  const { bills } = usePOS();
   const { toast } = useToast();
   const { activeLocationId, loading: locationsLoading } = useLocation();
+  const { stats: analyticsStats } = useLocationAnalytics({ enabled: !!activeLocationId });
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -123,10 +123,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const normalizeCategory = (c: string) => (c === 'restock' ? 'inventory' : c);
 
-  const calculateBusinessSummary = () => {
-    const grossIncome = (bills || [])
-      .filter((b: any) => b?.paymentMethod !== 'complimentary')
-      .reduce((sum: number, b: any) => sum + (b?.total ?? 0), 0);
+    const grossIncome = analyticsStats?.grossIncome ?? 0;
 
     const totalWithdrawals = expenses
       .filter(e => normalizeCategory(e.category) === 'withdrawal')
@@ -148,7 +145,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       withdrawals: totalWithdrawals,
       moneyInBank
     });
-  };
+  }, [analyticsStats, expenses]);
 
   const saveExpensesToStorage = (updated: Expense[]) => {
     try {
@@ -276,7 +273,9 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     void fetchExpenses();
   }, [activeLocationId, locationsLoading]);
-  useEffect(() => { calculateBusinessSummary(); }, [bills, expenses]);
+  useEffect(() => {
+    calculateBusinessSummary();
+  }, [calculateBusinessSummary]);
 
   const contextValue: ExpenseContextType = {
     expenses,

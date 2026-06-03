@@ -7,6 +7,7 @@ import PaymentAnalyticsWidget from './PaymentAnalyticsWidget';
 import BusinessInsightsWidget from './BusinessInsightsWidget';
 import CanteenSalesProfitWidget from './CanteenSalesProfitWidget';
 import CafeRevenueWidget from './CafeRevenueWidget';
+import { SummaryAnalyticsProvider } from '@/context/SummaryAnalyticsContext';
 
 interface SummaryDashboardProps {
   startDate?: Date;
@@ -15,7 +16,8 @@ interface SummaryDashboardProps {
 
 const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ startDate, endDate }) => {
   return (
-    <div className="space-y-6">
+    <SummaryAnalyticsProvider startDate={startDate} endDate={endDate}>
+      <div className="space-y-6">
       {/* Top Row - 3 columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <TopCustomersWidget startDate={startDate} endDate={endDate} />
@@ -34,7 +36,8 @@ const SummaryDashboard: React.FC<SummaryDashboardProps> = ({ startDate, endDate 
         <CanteenSalesProfitWidget startDate={startDate} endDate={endDate} />
         <CafeRevenueWidget startDate={startDate} endDate={endDate} />
       </div>
-    </div>
+      </div>
+    </SummaryAnalyticsProvider>
   );
 };
 

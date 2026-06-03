@@ -3,6 +3,7 @@ import { Bill, CartItem, Customer, Product } from '@/types/pos.types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedData, saveToCache, isCacheStale, invalidateCache, CACHE_KEYS, cacheKeyWithLocation } from '@/utils/dataCache';
+import { invalidateLocationAnalyticsCache } from '@/hooks/useLocationAnalytics';
 import { useLocation } from '@/context/LocationContext';
 import { usePOSHydration } from '@/context/POSHydrationContext';
 
@@ -186,8 +187,8 @@ export const useBills = (
     let dbLoadInFlight = false;
     /** Extra pages after cache hit on light routes (e.g. POS) — avoids huge downloads. */
     const BACKGROUND_MAX_PAGES = 2;
-    /** First-load cap (non-silent) when analytics does not need full history. */
-    const INITIAL_BILL_PAGES_CAP = 16;
+    /** Recent bills only — analytics use server-side RPCs. */
+    const INITIAL_BILL_PAGES_CAP = 2;
 
     const loadBills = async () => {
       try {
@@ -512,6 +513,7 @@ export const useBills = (
       
       // ✅ Invalidate cache to ensure fresh data
       invalidateCache(billsCacheKey);
+      invalidateLocationAnalyticsCache();
       
       console.log('Sale completed successfully, bill created:', completeBill);
       

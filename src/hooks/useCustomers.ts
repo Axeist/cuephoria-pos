@@ -4,6 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from '@/context/LocationContext';
 import { usePOSHydration } from '@/context/POSHydrationContext';
+import {
+  clearAllCustomerCaches,
+  registerCustomerMemoryCacheClear,
+} from '@/utils/tenantIsolation';
 
 // ✅ HELPER FUNCTIONS FOR PHONE NORMALIZATION AND ID GENERATION
 const normalizePhoneNumber = (phone: string): string => {
@@ -29,12 +33,22 @@ const LAST_DUPLICATE_CLEANUP_KEY = 'cuephoria_last_duplicate_cleanup';
 // ✅ MEMORY CACHE (per-location for current session)
 const memoryCacheByLocation: Record<string, { customers: Customer[]; timestamp: number }> = {};
 
+registerCustomerMemoryCacheClear(() => {
+  for (const key of Object.keys(memoryCacheByLocation)) {
+    delete memoryCacheByLocation[key];
+  }
+});
+
+export function clearCustomerSessionCache(): void {
+  clearAllCustomerCaches();
+}
+
 export const useCustomers = (initialCustomers: Customer[]) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
-  const { activeLocationId, loading: locationsLoading } = useLocation();
+  const { activeLocationId, loading: locationsLoading, locationResolved } = useLocation();
   const { loadCustomers: hydrateCustomers } = usePOSHydration();
   
   // Stable ref so the realtime handler can always call the latest fetchCustomersFromDB
@@ -44,22 +58,34 @@ export const useCustomers = (initialCustomers: Customer[]) => {
   activeBranchRef.current = activeLocationId;
 
   useEffect(() => {
-    if (locationsLoading) return;
-
-    // Clear customers immediately when branch changes so stale data is never shown
-    setCustomers([]);
-    setSelectedCustomer(null);
+    if (locationsLoading || !locationResolved) {
+      setCustomers([]);
+      setSelectedCustomer(null);
+      setIsLoading(locationsLoading || !locationResolved);
+      return;
+    }
 
     if (!hydrateCustomers) {
+      setCustomers([]);
       setIsLoading(false);
       return;
     }
 
+    if (!activeLocationId) {
+      setCustomers([]);
+      setIsLoading(false);
+      return;
+    }
+
+    // Clear customers when branch changes so stale data is never shown
+    setCustomers([]);
+    setSelectedCustomer(null);
+
     const fetchCustomers = async () => {
       try {
         setIsLoading(true);
-        
-        const locKey = activeLocationId ?? 'global';
+
+        const locKey = activeLocationId;
         const memCache = memoryCacheByLocation[locKey];
 
         // ✅ STEP 1: Check memory cache first (fastest)
@@ -100,29 +126,8 @@ export const useCustomers = (initialCustomers: Customer[]) => {
             return;
           }
         }
-        
-        // ✅ STEP 3: Handle legacy localStorage migration
-        const storedCustomers = localStorage.getItem('cuephoriaCustomers');
-        if (storedCustomers) {
-          const parsedCustomers = JSON.parse(storedCustomers);
-          const customersWithDates = parsedCustomers.map((customer: any) => ({
-            ...customer,
-            customerId: customer.customerId || generateCustomerID(customer.phone),
-            phone: normalizePhoneNumber(customer.phone),
-            createdAt: new Date(customer.createdAt),
-            membershipStartDate: customer.membershipStartDate ? new Date(customer.membershipStartDate) : undefined,
-            membershipExpiryDate: customer.membershipExpiryDate ? new Date(customer.membershipExpiryDate) : undefined
-          }));
-          
-          setCustomers(customersWithDates);
-          localStorage.removeItem('cuephoriaCustomers');
-          
-          // Sync to database in background
-          fetchCustomersFromDB(true);
-          return;
-        }
-        
-        // ✅ STEP 4: Fetch from database
+
+        // ✅ Fetch from database (legacy unscoped localStorage removed — cross-tenant risk)
         await fetchCustomersFromDB(false);
       } catch (error) {
         console.error('Error in fetchCustomers:', error);
@@ -228,9 +233,10 @@ export const useCustomers = (initialCustomers: Customer[]) => {
           // Progressive paint: show first batch immediately so Stations/POS aren't blocked.
           if (!firstBatchPainted) {
             firstBatchPainted = true;
+            if (activeBranchRef.current !== activeLocationId) return;
             setCustomers(batchRows.map(mapRowToCustomer));
             if (!silent) setIsLoading(false);
-          } else {
+          } else if (activeBranchRef.current === activeLocationId) {
             setCustomers(allCustomersData.map(mapRowToCustomer));
           }
 
@@ -238,6 +244,7 @@ export const useCustomers = (initialCustomers: Customer[]) => {
         }
         
         if (allCustomersData.length > 0) {
+          if (activeBranchRef.current !== activeLocationId) return;
           const transformedCustomers = allCustomersData.map(mapRowToCustomer);
 
           setCustomers(transformedCustomers);
@@ -356,13 +363,13 @@ export const useCustomers = (initialCustomers: Customer[]) => {
     fetchFromDBRef.current = fetchCustomersFromDB;
 
     fetchCustomers();
-  }, [activeLocationId, hydrateCustomers, locationsLoading]);
+  }, [activeLocationId, hydrateCustomers, locationsLoading, locationResolved]);
   
   // ✅ Shared cache save function (per-location)
   const saveToCache = (customersList: Customer[]) => {
+    if (!activeLocationId) return;
     try {
-      const locKey = activeLocationId ?? 'global';
-      memoryCacheByLocation[locKey] = { customers: customersList, timestamp: Date.now() };
+      memoryCacheByLocation[activeLocationId] = { customers: customersList, timestamp: Date.now() };
       localStorage.setItem(customersCacheKey(activeLocationId), JSON.stringify(customersList));
       localStorage.setItem(customersTimestampKey(activeLocationId), Date.now().toString());
     } catch (error) {

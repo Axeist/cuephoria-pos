@@ -3,40 +3,17 @@ import React from 'react';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
 import { ChartContainer } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Users } from 'lucide-react';
-import { usePOS } from '@/context/POSContext';
+import { Users, Loader2 } from 'lucide-react';
+import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
 
 const CustomerActivityChart: React.FC = () => {
-  const { customers, bills } = usePOS();
-  
-  // Prepare data for the chart
-  const getCustomerActivityData = () => {
-    // Get all customers with bill transactions
-    const customerTransactions = new Map();
-    
-    bills.forEach(bill => {
-      const customerId = bill.customerId;
-      const currentCount = customerTransactions.get(customerId) || 0;
-      customerTransactions.set(customerId, currentCount + 1);
-    });
-    
-    // Sort by transaction count (descending) and take top 5
-    const topCustomers = Array.from(customerTransactions.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-    
-    // Format data for the bar chart
-    return topCustomers.map(([customerId, transactions]) => {
-      const customer = customers.find(c => c.id === customerId);
-      return {
-        name: customer ? customer.name.split(' ')[0] : 'Unknown',
-        transactions: transactions,
-      };
-    });
-  };
-  
-  const chartData = getCustomerActivityData();
-  
+  const { topCustomersByCount, loading } = useLocationAnalytics();
+
+  const chartData = topCustomersByCount.map((c) => ({
+    name: c.name.split(' ')[0],
+    transactions: c.billCount,
+  }));
+
   return (
     <Card className="glass-card">
       <CardHeader>
@@ -51,76 +28,26 @@ const CustomerActivityChart: React.FC = () => {
         </div>
       </CardHeader>
       <CardContent className="h-[300px] pt-4">
-        <ChartContainer
-          config={{
-            transactions: {
-              label: "Transactions",
-              theme: {
-                light: "#10B981",
-                dark: "#10B981",
-              },
-            },
-          }}
-          className="h-full w-full"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{ top: 5, right: 10, left: 10, bottom: 25 }}
-            >
-              <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="name" 
-                stroke="#777" 
-                axisLine={false}
-                tickLine={false}
-                padding={{ left: 10, right: 10 }}
-              />
-              <YAxis 
-                stroke="#777"
-                axisLine={false}
-                tickLine={false}
-                width={30}
-              />
-              <Tooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className="rounded-lg border theme-inset p-2 shadow-md">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-gray-400">
-                              Customer
-                            </span>
-                            <span className="font-bold text-gray-300">
-                              {payload[0].payload.name}
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-gray-400">
-                              Transactions
-                            </span>
-                            <span className="font-bold text-white">
-                              {payload[0].value}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  
-                  return null;
-                }}
-              />
-              <Bar 
-                dataKey="transactions" 
-                name="transactions" 
-                fill="#10B981" 
-                radius={[4, 4, 0, 0]} 
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+        {loading ? (
+          <div className="h-full flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-[#10B981]" />
+          </div>
+        ) : (
+          <ChartContainer
+            config={{ transactions: { label: 'Transactions', theme: { light: '#10B981', dark: '#10B981' } } }}
+            className="h-full w-full"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 25 }}>
+                <CartesianGrid stroke="#333" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" stroke="#777" axisLine={false} tickLine={false} />
+                <YAxis stroke="#777" axisLine={false} tickLine={false} width={30} />
+                <Tooltip />
+                <Bar dataKey="transactions" name="transactions" fill="#10B981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );

@@ -40,6 +40,8 @@ import {
   reportCacheKey,
   invalidateReportCache,
 } from '@/utils/reportDataLoader';
+import { useLocationAnalytics } from '@/hooks/useLocationAnalytics';
+import { buildReportSummaryMetrics } from '@/utils/reportSummaryMetrics';
 
 // Add types for sorting
 type SortField = 'date' | 'total' | 'customer' | 'subtotal' | 'discount';
@@ -175,9 +177,16 @@ const ReportsPage: React.FC = () => {
   const [billSearchQuery, setBillSearchQuery] = useState<string>('');
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
 
-  const needsBills = activeTab === 'bills' || activeTab === 'summary';
+  const needsBills = activeTab === 'bills';
   const needsSessions = activeTab === 'sessions' || activeTab === 'summary';
   const debouncedReportBills = useDebouncedValue(reportBills ?? [], reportBillsLoading ? 500 : 0);
+
+  const reportAnalytics = useLocationAnalytics({
+    startDate: date?.from ? startOfDay(date.from) : undefined,
+    endDate: date?.to ? endOfDay(date.to) : undefined,
+    enabled: activeTab === 'summary' && !!date?.from && !!date?.to,
+    includeBillMetrics: true,
+  });
 
   // Add sorting state
   const [sortField, setSortField] = useState<SortField>('date');
@@ -628,10 +637,31 @@ const ReportsPage: React.FC = () => {
   };
 
   // Pre-calculate summary metrics (debounced bills while range is still loading)
-  const summaryMetrics = useMemo(
-    () => calculateSummaryMetrics({ ...filteredData, filteredBills: debouncedFilteredBills }),
-    [filteredData, debouncedFilteredBills, expenses, products, stations, posSessions, businessSummary]
-  );
+  const summaryMetrics = useMemo(() => {
+    if (!reportAnalytics.billMetrics) {
+      return null;
+    }
+    return buildReportSummaryMetrics({
+      billMetrics: reportAnalytics.billMetrics,
+      filteredSessions: filteredData.filteredSessions,
+      filteredCustomers: filteredData.filteredCustomers,
+      posSessions,
+      stations: stations ?? [],
+      products,
+      customers,
+      expenses,
+      totalExpenses: businessSummary?.totalExpenses || 0,
+    });
+  }, [
+    reportAnalytics.billMetrics,
+    filteredData,
+    posSessions,
+    stations,
+    products,
+    customers,
+    expenses,
+    businessSummary,
+  ]);
 
   // Function to handle downloading reports as Excel
   const handleDownloadReport = useCallback(() => {
@@ -684,6 +714,7 @@ const ReportsPage: React.FC = () => {
         exportToExcel(sessionsData, 'Sessions_Report');
         break;
       case 'summary':
+        if (!summaryMetrics) break;
         const summaryData = [{
           TotalRevenue: summaryMetrics.financial.totalRevenue,
           ComplimentarySales: summaryMetrics.financial.complimentarySales,
@@ -1242,7 +1273,12 @@ const ReportsPage: React.FC = () => {
 
     return (
     <div className="space-y-4">
-      <SalesWidgets filteredBills={debouncedFilteredBills} />
+      <SalesWidgets
+        billMetrics={reportAnalytics.billMetrics}
+        payment={reportAnalytics.payment}
+        gaming={reportAnalytics.gaming}
+        loading={reportAnalytics.loading}
+      />
       <div className="glass-card border-white/10 rounded-2xl overflow-hidden">
         <div className="p-6">
           <h2 className="text-2xl font-bold mb-1">Transaction History</h2>
@@ -1803,7 +1839,7 @@ const ReportsPage: React.FC = () => {
                   <p className="text-sm text-gray-400">Total Value Given</p>
                 </div>
                 <CurrencyDisplay 
-                  amount={summaryMetrics.financial.complimentarySales} 
+                  amount={summaryMetrics?.financial.complimentarySales ?? 0} 
                   className="text-2xl font-bold text-amber-400"
                 />
               </div>
@@ -1819,7 +1855,7 @@ const ReportsPage: React.FC = () => {
                   <p className="text-sm text-gray-400">Transactions</p>
                 </div>
                 <p className="text-2xl font-bold text-white">
-                  {summaryMetrics.financial.complimentaryCount}
+                  {summaryMetrics?.financial.complimentaryCount ?? 0}
                 </p>
               </div>
               
@@ -1835,7 +1871,7 @@ const ReportsPage: React.FC = () => {
                   <p className="text-sm text-gray-400">Avg. Per Transaction</p>
                 </div>
                 <CurrencyDisplay 
-                  amount={summaryMetrics.financial.avgComplimentaryValue} 
+                  amount={summaryMetrics?.financial.avgComplimentaryValue ?? 0} 
                   className="text-2xl font-bold text-white"
                 />
               </div>
@@ -1846,7 +1882,7 @@ const ReportsPage: React.FC = () => {
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium text-gray-200">% of Total Transaction Volume</span>
                 <span className="text-lg font-bold text-amber-400">
-                  {summaryMetrics.financial.complimentaryPercentage.toFixed(1)}%
+                  {(summaryMetrics?.financial.complimentaryPercentage ?? 0).toFixed(1)}%
                 </span>
               </div>
               
@@ -1855,7 +1891,7 @@ const ReportsPage: React.FC = () => {
                 <div className="w-full bg-gray-700/50 rounded-full h-3 overflow-hidden">
                   <div 
                     className="bg-gradient-to-r from-amber-500 to-orange-500 h-3 rounded-full transition-all duration-500 ease-out shadow-lg shadow-amber-500/30"
-                    style={{width: `${Math.min(summaryMetrics.financial.complimentaryPercentage, 100)}%`}}
+                    style={{width: `${Math.min(summaryMetrics?.financial.complimentaryPercentage ?? 0, 100)}%`}}
                   />
                 </div>
                 <div className="flex justify-between text-xs text-gray-500">

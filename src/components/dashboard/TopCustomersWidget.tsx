@@ -1,48 +1,16 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { usePOS } from '@/context/POSContext';
-import { Trophy, Crown, Medal, Award } from 'lucide-react';
+import { Trophy, Crown, Medal, Award, Loader2 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
+import { useSummaryAnalytics } from '@/context/SummaryAnalyticsContext';
 
 interface TopCustomersWidgetProps {
   startDate?: Date;
   endDate?: Date;
 }
 
-const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endDate }) => {
-  const { customers, bills } = usePOS();
-
-  // FIXED: Filter out complimentary bills first
-  const paidBills = useMemo(() => 
-    bills.filter(bill => bill.paymentMethod !== 'complimentary'),
-    [bills]
-  );
-
-  // Filter bills by date range if provided
-  const filteredBills = paidBills.filter(bill => {
-    if (!startDate && !endDate) return true;
-    const billDate = new Date(bill.createdAt);
-    if (startDate && billDate < startDate) return false;
-    if (endDate && billDate > endDate) return false;
-    return true;
-  });
-
-  // Calculate customer spending and rank them - show top 12 instead of 10
-  const customerStats = customers.map(customer => {
-    const customerBills = filteredBills.filter(bill => bill.customerId === customer.id);
-    const totalSpent = customerBills.reduce((sum, bill) => sum + bill.total, 0);
-    const billCount = customerBills.length;
-    
-    return {
-      ...customer,
-      totalSpent,
-      billCount,
-      avgBill: billCount > 0 ? totalSpent / billCount : 0
-    };
-  })
-  .filter(customer => customer.totalSpent > 0)
-  .sort((a, b) => b.totalSpent - a.totalSpent)
-  .slice(0, 12);
+const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = () => {
+  const { topCustomers, loading } = useSummaryAnalytics();
 
   const getRankIcon = (index: number) => {
     switch (index) {
@@ -74,15 +42,19 @@ const TopCustomersWidget: React.FC<TopCustomersWidgetProps> = ({ startDate, endD
         </div>
       </CardHeader>
       <CardContent className="pb-4 p-6">
-        {customerStats.length > 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+          </div>
+        ) : topCustomers.length > 0 ? (
           <div className="space-y-3">
-            {customerStats.map((customer, index) => {
+            {topCustomers.map((customer, index) => {
               const RankIcon = getRankIcon(index);
               const rankColorClass = getRankColor(index);
-              
+
               return (
-                <div 
-                  key={customer.id} 
+                <div
+                  key={customer.customerId}
                   className="theme-inset p-4 hover:border-white/15 transition-all duration-200 group"
                 >
                   <div className="flex items-center justify-between">

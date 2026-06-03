@@ -1,7 +1,7 @@
 import React, { useMemo, useDeferredValue } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useExpenses } from '@/context/ExpenseContext';
-import { useBusinessAnalytics } from '@/hooks/useBusinessAnalytics';
+import { useSummaryAnalytics } from '@/context/SummaryAnalyticsContext';
 import { buildForecastDailyRows, growthPercent } from '@/utils/businessInsightsCompute';
 import { BarChart3, TrendingUp, Target, AlertCircle, Brain, Loader2 } from 'lucide-react';
 import { CurrencyDisplay } from '@/components/ui/currency';
@@ -1536,7 +1536,7 @@ function multiModelEnsemble(
 
 const BusinessInsightsWidget: React.FC<BusinessInsightsWidgetProps> = ({ startDate, endDate }) => {
   const { expenses } = useExpenses();
-  const { stats, dailySeries, loading: analyticsLoading } = useBusinessAnalytics({ startDate, endDate });
+  const { stats, dailySeries, loading: analyticsLoading } = useSummaryAnalytics();
   const deferredSeries = useDeferredValue(dailySeries);
 
   const filteredExpenses = useMemo(() => expenses.filter(expense => {

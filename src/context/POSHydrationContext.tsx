@@ -30,13 +30,13 @@ function flagsForPath(pathname: string): POSHydrationFlags {
   // Available" on Stations and similar screens.
   const loadCustomers = true;
 
-  /** Dashboard + POS need bill context; Reports uses its own date-scoped loader. */
+  /** Dashboard needs recent bills for RecentTransactions; POS needs full context for checkout. */
   const loadBills =
     p.startsWith('/dashboard') ||
     p.startsWith('/pos');
 
-  /** Dashboard chart + KPIs aggregate full history. Reports loads by selected range only. */
-  const billsDeepSync = p.startsWith('/dashboard');
+  /** Never deep-sync full bill history — analytics use server-side RPCs. */
+  const billsDeepSync = false;
 
   return { loadCustomers, loadBills, billsDeepSync };
 }
