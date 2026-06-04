@@ -21,10 +21,8 @@ export function useStationTypes() {
 
     setLoading(true);
     try {
-      let list = await fetchStationTypes(activeLocationId);
-      if (list.length === 0) {
-        list = await seedDefaultStationTypes(activeLocationId);
-      }
+      await seedDefaultStationTypes(activeLocationId);
+      const list = await fetchStationTypes(activeLocationId);
       setStationTypes(list);
     } catch (error) {
       console.error('useStationTypes refresh failed:', error);
@@ -42,7 +40,12 @@ export function useStationTypes() {
     async (params: { name: string; defaultMaxPlayers?: number; defaultSlotMinutes?: number }) => {
       if (!activeLocationId) throw new Error('No branch selected');
       const created = await createStationType({ locationId: activeLocationId, ...params });
-      setStationTypes((prev) => [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder));
+      setStationTypes((prev) => {
+        if (prev.some((t) => t.id === created.id || t.slug === created.slug)) {
+          return prev.map((t) => (t.slug === created.slug ? created : t));
+        }
+        return [...prev, created].sort((a, b) => a.sortOrder - b.sortOrder);
+      });
       return created;
     },
     [activeLocationId]

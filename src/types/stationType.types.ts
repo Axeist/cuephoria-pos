@@ -36,6 +36,13 @@ export const DEFAULT_STATION_TYPES: Omit<StationType, 'id'>[] = [
     defaultSlotMinutes: 60,
     sortOrder: 3,
   },
+  {
+    name: 'VR',
+    slug: 'vr',
+    defaultMaxPlayers: 1,
+    defaultSlotMinutes: 15,
+    sortOrder: 4,
+  },
 ];
 
 export function slugifyStationType(name: string): string {

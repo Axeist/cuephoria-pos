@@ -7,6 +7,7 @@ import { usePOS } from '@/context/POSContext';
 import { Pause, Play, Square, ShoppingBag } from 'lucide-react';
 import StartSessionDialog from '@/components/StartSessionDialog';
 import { getRateForPlayerCount } from '@/utils/stationPricing';
+import { getStationTheme } from '@/utils/stationTheme';
 import { prefetchPOS } from '@/utils/viewTransition';
 
 interface StationActionsProps {
@@ -26,10 +27,10 @@ interface StationActionsProps {
   onQuickShop?: () => void;
 }
 
-const StationActions: React.FC<StationActionsProps> = ({ 
-  station, 
-  customers, 
-  onStartSession, 
+const StationActions: React.FC<StationActionsProps> = ({
+  station,
+  customers,
+  onStartSession,
   onEndSession,
   onPauseSession,
   onResumeSession,
@@ -40,15 +41,11 @@ const StationActions: React.FC<StationActionsProps> = ({
   const { selectCustomer } = usePOS();
   const [isLoading, setIsLoading] = useState(false);
   const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
-  
-  const isPoolTable = station.type === '8ball';
-  const isVR = station.type === 'vr';
+  const theme = getStationTheme(station);
   const isPaused = station.currentSession?.isPaused;
 
   useEffect(() => {
-    if (station.isOccupied) {
-      prefetchPOS();
-    }
+    if (station.isOccupied) prefetchPOS();
   }, [station.isOccupied]);
 
   const handleStartSession = async (
@@ -61,172 +58,80 @@ const StationActions: React.FC<StationActionsProps> = ({
   ) => {
     try {
       setIsLoading(true);
-      await onStartSession(
-        station.id,
-        customerId,
-        finalRate,
-        couponCode,
-        playerCount,
-        perPersonRate
-      );
-      
+      await onStartSession(station.id, customerId, finalRate, couponCode, playerCount, perPersonRate);
       setIsStartDialogOpen(false);
-      
       toast({
-        title: "Session Started",
-        description: `Session started for ${customerName} at ${station.name}${couponCode ? ` with ${couponCode}` : ''}`,
+        title: 'Session Started',
+        description: `Session started for ${customerName} at ${station.name}`,
       });
-    } catch (error) {
-      console.error("Error starting session:", error);
-      toast({
-        title: "Error",
-        description: "Failed to start session. Please try again.",
-        variant: "destructive"
-      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to start session.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickShop = () => {
-    if (!station.isOccupied || !station.currentSession) return;
-    onQuickShop?.();
   };
 
   const handleEndSession = async () => {
-    if (station.isOccupied && station.currentSession) {
-      try {
-        setIsLoading(true);
-        
-        const customerId = station.currentSession.customerId;
-        console.log('Ending session for station:', station.id, 'customer:', customerId);
-        
-        const customer = customers.find(c => c.id === customerId);
-        if (customer) {
-          console.log('Auto-selecting customer:', customer.name);
-          selectCustomer(customer.id);
-        }
-        
-        await onEndSession(station.id);
-        
-        toast({
-          title: "Session Ended",
-          description: "Session and quick shop items are ready in the cart.",
-        });
-        
-        navigate('/pos');
-      } catch (error) {
-        console.error("Error ending session:", error);
-        toast({
-          title: "Error",
-          description: "Failed to end session. Please try again.",
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  const handlePauseSession = async () => {
+    if (!station.isOccupied || !station.currentSession) return;
     try {
       setIsLoading(true);
-      await onPauseSession(station.id);
-    } catch (error) {
-      console.error("Error pausing session:", error);
+      const customer = customers.find((c) => c.id === station.currentSession!.customerId);
+      if (customer) selectCustomer(customer.id);
+      await onEndSession(station.id);
+      toast({ title: 'Session Ended', description: 'Items are ready in the cart.' });
+      navigate('/pos');
+    } catch {
+      toast({ title: 'Error', description: 'Failed to end session.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResumeSession = async () => {
-    try {
-      setIsLoading(true);
-      await onResumeSession(station.id);
-    } catch (error) {
-      console.error("Error resuming session:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const btnBase = 'h-8 flex-1 text-xs font-semibold px-2';
 
   if (station.isOccupied) {
     return (
-      <div className="flex w-full flex-col gap-2">
+      <div className="flex w-full gap-1.5">
         {isPaused ? (
           <Button
-            variant="default"
-            className={`
-              w-full text-white font-bold py-3 text-lg transition-opacity rounded-lg
-              ${isPoolTable
-                ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800'
-                : isVR
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700'
-                  : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90'
-              }
-            `}
-            onClick={handleResumeSession}
+            size="sm"
+            className={`${btnBase} bg-amber-600 hover:bg-amber-700 text-white`}
+            onClick={() => void onResumeSession(station.id)}
             disabled={isLoading}
           >
-            <Play className="h-4 w-4 mr-2 fill-current" />
-            {isLoading ? "Processing..." : "Resume Session"}
+            <Play className="h-3 w-3 mr-1 fill-current" />
+            Resume
           </Button>
         ) : (
           <Button
+            size="sm"
             variant="secondary"
-            className={`
-              w-full font-bold py-3 text-lg transition-opacity rounded-lg border border-amber-500/30
-              ${isPoolTable
-                ? 'bg-amber-900/40 text-amber-100 hover:bg-amber-900/60'
-                : isVR
-                  ? 'bg-amber-900/40 text-amber-100 hover:bg-amber-900/60'
-                  : 'bg-amber-900/40 text-amber-100 hover:bg-amber-900/60'
-              }
-            `}
-            onClick={handlePauseSession}
+            className={`${btnBase} bg-amber-950/50 text-amber-100 border border-amber-500/25 hover:bg-amber-950/70`}
+            onClick={() => void onPauseSession(station.id)}
             disabled={isLoading}
           >
-            <Pause className="h-4 w-4 mr-2" />
-            {isLoading ? "Processing..." : "Pause Session"}
+            <Pause className="h-3 w-3 mr-1" />
+            Pause
           </Button>
         )}
-
         <Button
-          variant="default"
-          className={`
-            w-full text-white font-bold py-3 text-lg transition-opacity rounded-lg
-            ${isPoolTable
-              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
-              : isVR
-                ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700'
-                : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90'
-            }
-          `}
-          onClick={handleQuickShop}
+          size="sm"
+          className={`${btnBase} bg-emerald-700/80 hover:bg-emerald-700 text-white`}
+          onClick={() => onQuickShop?.()}
           disabled={isLoading}
-          onMouseEnter={prefetchPOS}
-          onFocus={prefetchPOS}
         >
-          <ShoppingBag className="h-4 w-4 mr-2" />
-          Quick Shop
+          <ShoppingBag className="h-3 w-3 mr-1" />
+          Shop
         </Button>
-
-        <Button 
-          variant="destructive" 
-          className={`
-            w-full text-white font-bold py-3 text-lg transition-opacity rounded-lg
-            ${isPoolTable
-              ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
-              : isVR
-                ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
-                : 'bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90'
-            }
-          `}
+        <Button
+          size="sm"
+          variant="destructive"
+          className={`${btnBase}`}
           onClick={handleEndSession}
           disabled={isLoading}
         >
-          <Square className="h-4 w-4 mr-2 fill-current" />
-          {isLoading ? "Processing..." : "End Session"}
+          <Square className="h-3 w-3 mr-1 fill-current" />
+          End
         </Button>
       </div>
     );
@@ -236,23 +141,14 @@ const StationActions: React.FC<StationActionsProps> = ({
 
   return (
     <>
-      <Button 
-        variant="default" 
-        className={`
-          w-full py-3 text-lg font-bold transition-opacity rounded-lg
-          ${isPoolTable
-            ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
-            : isVR
-              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
-              : 'bg-gradient-to-r from-cuephoria-purple to-cuephoria-lightpurple hover:opacity-90'
-          }
-          text-white shadow-lg
-        `}
-        disabled={isLoading || customers.length === 0} 
+      <Button
+        size="sm"
+        className={`w-full h-9 text-sm font-bold text-white bg-gradient-to-r from-cuephoria-purple to-violet-600 hover:opacity-90 ${theme.glow}`}
+        disabled={isLoading || customers.length === 0}
         onClick={() => setIsStartDialogOpen(true)}
       >
-        <Play className="h-4 w-4 mr-2" />
-        {isLoading ? "Starting..." : customers.length === 0 ? "No Customers Available" : "Start Session"}
+        <Play className="h-3.5 w-3.5 mr-1.5" />
+        {customers.length === 0 ? 'No Customers' : 'Start Session'}
       </Button>
 
       <StartSessionDialog

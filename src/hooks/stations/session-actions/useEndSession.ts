@@ -4,6 +4,8 @@ import { useToast } from '@/hooks/use-toast';
 import { SessionActionsProps } from '../session-actions/types';
 import { generateId } from '@/utils/pos.utils';
 import React from 'react';
+import { useLocation } from '@/context/LocationContext';
+import { CACHE_KEYS, cacheKeyWithLocation, invalidateCache } from '@/utils/dataCache';
 import {
   calculateSessionCost,
   getBillableDurationMinutes,
@@ -22,6 +24,7 @@ export const useEndSession = ({
   updateCustomer
 }: SessionActionsProps & { updateCustomer: (customer: Customer) => void }) => {
   const { toast } = useToast();
+  const { activeLocationId } = useLocation();
   
   /**
    * End an active session for a station
@@ -105,6 +108,10 @@ export const useEndSession = ({
             // Non-critical, continue
           } else {
             console.log('✅ Station updated in database successfully');
+            if (activeLocationId) {
+              invalidateCache(cacheKeyWithLocation(CACHE_KEYS.STATIONS, activeLocationId));
+              invalidateCache(cacheKeyWithLocation(CACHE_KEYS.SESSIONS, activeLocationId));
+            }
           }
         } else {
           console.log("Skipping station update in Supabase due to non-UUID station ID");

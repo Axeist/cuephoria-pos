@@ -30,7 +30,7 @@ const StationTypeManager: React.FC = () => {
     if (target && presetSlugs.has(target.slug)) {
       toast({
         title: 'Cannot delete',
-        description: 'Built-in types (PS5, 8 Ball, Snooker, Turf) cannot be removed.',
+        description: 'Built-in types (PS5, 8 Ball, Snooker, Turf, VR) cannot be removed.',
         variant: 'destructive',
       });
       setDeleteId(null);
@@ -63,7 +63,7 @@ const StationTypeManager: React.FC = () => {
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">
-            PS5, 8 Ball, Snooker, and Turf are included by default. Add custom types from the Add Station dialog.
+            PS5, 8 Ball, Snooker, Turf, and VR are included by default. Add custom types from the Add Station dialog.
           </p>
           <div className="flex flex-wrap gap-2">
             {stationTypes.map((type) => (

@@ -54,7 +54,10 @@ export const StationTypePicker: React.FC<StationTypePickerProps> = ({ value, onC
       onChange(created.slug, created);
       setAddOpen(false);
       setNewName('');
-      toast({ title: 'Type created', description: `"${created.name}" is ready to use.` });
+      toast({
+        title: stationTypes.some((t) => t.slug === created.slug) ? 'Type selected' : 'Type created',
+        description: `"${created.name}" is ready to use.`,
+      });
     } catch {
       toast({ title: 'Error', description: 'Could not create station type.', variant: 'destructive' });
     } finally {

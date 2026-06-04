@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { SessionActionsProps } from './types';
 import { useLocation } from '@/context/LocationContext';
+import { serializeSessionForDb } from '@/utils/sessionStorage.utils';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,7 +16,7 @@ async function syncStationCurrentSession(
 
   const { error } = await supabase
     .from('stations')
-    .update({ currentsession: session })
+    .update({ currentsession: serializeSessionForDb(session) })
     .eq('id', stationId)
     .eq('location_id', activeLocationId);
 

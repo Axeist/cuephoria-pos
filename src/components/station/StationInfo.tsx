@@ -1,44 +1,10 @@
-
 import React from 'react';
 import { Station } from '@/context/POSContext';
 import { Badge } from '@/components/ui/badge';
-import { Gamepad2, CircleOff, UserCheck, User } from 'lucide-react';
-import { CurrencyDisplay } from '@/components/ui/currency';
+import { UserCheck, User, Tag } from 'lucide-react';
 import { Customer } from '@/types/pos.types';
 import { isMembershipActive, getMembershipBadgeText } from '@/utils/membership.utils';
-
-// Helper function to get rate label based on station type and category
-const getRateLabel = (station: Station): string => {
-  // For NIT EVENT stations, show duration based on slot_duration
-  if (station.category === 'nit_event') {
-    if (station.slotDuration === 15) {
-      return '15 Min Rate:';
-    } else if (station.slotDuration === 30) {
-      return '30 Min Rate:';
-    }
-  }
-  // For regular stations, show hourly rate
-  // VR stations show 15 min rate even if not event
-  if (station.type === 'vr') {
-    return '15 Min Rate:';
-  }
-  return 'Hourly Rate:';
-};
-
-// Helper function to get rate suffix for display
-const getRateSuffix = (station: Station): string => {
-  if (station.category === 'nit_event') {
-    if (station.slotDuration === 15) {
-      return '/15mins';
-    } else if (station.slotDuration === 30) {
-      return '/30mins';
-    }
-  }
-  if (station.type === 'vr') {
-    return '/15mins';
-  }
-  return '/hr';
-};
+import { getStationTheme, stationPricingBadge } from '@/utils/stationTheme';
 
 interface StationInfoProps {
   station: Station;
@@ -47,103 +13,76 @@ interface StationInfoProps {
 }
 
 const StationInfo: React.FC<StationInfoProps> = ({ station, customerName, customerData }) => {
-  // Different styling based on station type
-  const isPoolTable = station.type === '8ball';
-  
-  // Check if customer is a member and membership is active
+  const theme = getStationTheme(station);
+  const Icon = theme.icon;
   const isMember = customerData ? isMembershipActive(customerData) : false;
-  const membershipText = customerData && customerData.isMember ? getMembershipBadgeText(customerData) : 'Non-Member';
+  const membershipText =
+    customerData && customerData.isMember ? getMembershipBadgeText(customerData) : 'Guest';
   const isPaused = station.currentSession?.isPaused;
   const sessionPlayers = station.currentSession?.playerCount;
-  
+  const hasCoupon = station.currentSession?.couponCode;
+
+  const statusBadge = isPaused
+    ? 'bg-amber-500/25 text-amber-200 border-amber-400/40'
+    : station.isOccupied
+      ? theme.badgeOccupied
+      : theme.badgeAvailable;
+
   return (
-    <>
-      <div className="flex justify-between items-center">
-        <div className="flex items-center text-lg font-heading">
-          {isPoolTable ? (
-            <div className="relative w-10 h-10 flex items-center justify-center">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-800 to-green-900 rounded-md"></div>
-              <CircleOff className="h-6 w-6 text-green-300 z-10" />
-              <div className="absolute inset-0 border-2 border-green-700 rounded-md"></div>
-            </div>
-          ) : (
-            <div className="relative w-10 h-10 flex items-center justify-center">
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-black rounded-md"></div>
-              <Gamepad2 className="h-6 w-6 text-cuephoria-lightpurple z-10" />
-              <div className="absolute bottom-0 h-1 w-8 mx-auto bg-cuephoria-purple rounded-t-lg"></div>
-            </div>
-          )}
-          <span className={`ml-2 font-bold ${isPoolTable ? 'text-green-500' : 'text-cuephoria-lightpurple'}`}>
-            {station.name}
-          </span>
-        </div>
-        <Badge 
-          className={`
-            ${isPaused
-              ? 'bg-amber-500 text-white'
-              : station.isOccupied 
-              ? 'bg-cuephoria-orange text-white' 
-              : isPoolTable 
-                ? 'bg-green-500 text-white' 
-                : 'bg-cuephoria-lightpurple text-white'
-            } 
-            ${station.isOccupied && !isPaused ? 'animate-pulse' : ''}
-          `}
+    <div className="min-w-0 space-y-2">
+      <div className="flex items-start gap-2.5">
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ${theme.iconBg}`}
         >
-          {isPaused ? 'Paused' : station.isOccupied ? 'Occupied' : 'Available'}
-        </Badge>
-      </div>
-      
-      <div className="flex flex-col space-y-2 mt-2">
-        <div className="flex justify-between text-sm">
-          <span>{getRateLabel(station)}</span>
-          <CurrencyDisplay amount={station.hourlyRate} />
+          <Icon className={`h-4 w-4 ${theme.accent}`} />
         </div>
-        {(station.maxPlayers ?? 1) > 1 && (
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Max players</span>
-            <span>{station.maxPlayers}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className={`truncate font-heading text-sm font-bold leading-tight ${theme.accent}`}>
+                {station.name}
+              </p>
+              <p className="text-[11px] text-muted-foreground">{theme.label}</p>
+            </div>
+            <Badge variant="outline" className={`shrink-0 text-[10px] uppercase tracking-wide ${statusBadge}`}>
+              {isPaused ? 'Paused' : station.isOccupied ? 'Live' : 'Open'}
+            </Badge>
           </div>
-        )}
-        
-        {station.isOccupied && station.currentSession && (
-          <>
-            <div className="flex justify-between text-sm">
-              <span>Customer:</span>
-              <span className="font-semibold">{customerName}</span>
-            </div>
-            {sessionPlayers != null && sessionPlayers > 0 && (
-              <div className="flex justify-between text-sm">
-                <span>Players</span>
-                <span className="font-semibold">{sessionPlayers}</span>
-              </div>
-            )}
-            
-            {/* Membership indicator */}
-            <div className="flex justify-between items-center text-sm">
-              <span>Status:</span>
-              <Badge 
-                className={`
-                  ${isMember
-                    ? 'bg-green-600 text-white border-green-700'
-                    : 'bg-gray-600 text-white border-gray-700'
-                  }
-                  flex items-center gap-1
-                `}
-              >
-                {isMember ? <UserCheck className="h-3 w-3" /> : <User className="h-3 w-3" />}
-                {membershipText}
-              </Badge>
-            </div>
-            {isMember && (
-              <div className="text-xs text-right mt-0 text-green-500">
-                50% discount applied
-              </div>
-            )}
-          </>
-        )}
+        </div>
       </div>
-    </>
+
+      <p className="text-[11px] leading-snug text-muted-foreground">{stationPricingBadge(station)}</p>
+
+      {station.isOccupied && station.currentSession && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="rounded-md bg-white/5 px-2 py-0.5 text-foreground/90 truncate max-w-[140px]">
+            {customerName}
+          </span>
+          {sessionPlayers != null && sessionPlayers > 1 && (
+            <span className="rounded-md bg-white/5 px-2 py-0.5 text-muted-foreground">
+              {sessionPlayers} players
+            </span>
+          )}
+          <Badge
+            variant="outline"
+            className={`h-5 gap-0.5 px-1.5 text-[10px] ${
+              isMember
+                ? 'border-green-500/40 bg-green-500/10 text-green-300'
+                : 'border-white/10 bg-white/5 text-muted-foreground'
+            }`}
+          >
+            {isMember ? <UserCheck className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
+            {membershipText}
+          </Badge>
+          {hasCoupon && (
+            <span className="inline-flex items-center gap-0.5 rounded-md bg-orange-500/15 px-1.5 py-0.5 text-orange-300">
+              <Tag className="h-2.5 w-2.5" />
+              {hasCoupon}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -5,6 +5,8 @@ import { SessionActionsProps } from './types';
 import React from 'react';
 import { generateId } from '@/utils/pos.utils';
 import { useLocation } from '@/context/LocationContext';
+import { serializeSessionForDb } from '@/utils/sessionStorage.utils';
+import { CACHE_KEYS, cacheKeyWithLocation, invalidateCache } from '@/utils/dataCache';
 
 /**
  * Hook to provide session start functionality with full debugging
@@ -176,7 +178,7 @@ export const useStartSession = ({
             .from('stations')
             .update({ 
               is_occupied: true,
-              currentsession: newSession
+              currentsession: serializeSessionForDb(newSession),
             })
             .eq('id', stationId)
             .eq('location_id', activeLocationId)
@@ -199,6 +201,11 @@ export const useStartSession = ({
           } else {
             console.log("✅✅✅ SUCCESS! Station table updated!");
             console.log("✅ Update result:", updateResult);
+
+            if (activeLocationId) {
+              invalidateCache(cacheKeyWithLocation(CACHE_KEYS.STATIONS, activeLocationId));
+              invalidateCache(cacheKeyWithLocation(CACHE_KEYS.SESSIONS, activeLocationId));
+            }
             
             // Verify the save
             console.log("🔍 Verifying database save...");

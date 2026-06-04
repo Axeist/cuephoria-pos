@@ -57,6 +57,18 @@ export async function createStationType(params: {
   defaultSlotMinutes?: number;
 }): Promise<StationType> {
   const slug = slugifyStationType(params.name);
+
+  const { data: existing } = await supabase
+    .from('station_types')
+    .select('*')
+    .eq('location_id', params.locationId)
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (existing) {
+    return mapRow(existing as Record<string, unknown>);
+  }
+
   const payload = {
     location_id: params.locationId,
     name: params.name.trim(),
