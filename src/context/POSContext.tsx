@@ -171,6 +171,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     resetPaymentInfo
   } = useCart();
 
+  const { toast } = useToast();
+  const { activeLocationId } = useLocation();
+
   const addToCartWithStock = useCallback(
     (item: Omit<CartItem, 'total'>) => {
       const product = products.find((p) => p.id === item.id);
@@ -219,9 +222,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     removeFromStationQuickShop,
     clearStationQuickShopSession,
   } = useStationQuickShop();
-
-  const { toast } = useToast();
-  const { activeLocationId } = useLocation();
 
   const {
     savedCarts,

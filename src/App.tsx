@@ -58,7 +58,7 @@ const Customers = lazy(() => import("./pages/Customers"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Settings = lazy(() => import("./pages/Settings"));
 const OrganizationSettings = lazy(() => import("./pages/OrganizationSettings"));
-import Billing from "./pages/Billing";
+const Billing = lazy(() => import("./pages/Billing"));
 const AccountSecurity = lazy(() => import("./pages/AccountSecurity"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const TenantWorkspace = lazy(() => import("./pages/TenantWorkspace"));
@@ -838,8 +838,22 @@ const App = () => {
                       </LazyPage>
                     }
                   />
-                  <Route path="/settings/billing" element={<Billing />} />
-                  <Route path="/subscription" element={<Billing />} />
+                  <Route
+                    path="/settings/billing"
+                    element={
+                      <LazyPage>
+                        <Billing />
+                      </LazyPage>
+                    }
+                  />
+                  <Route
+                    path="/subscription"
+                    element={
+                      <LazyPage>
+                        <Billing />
+                      </LazyPage>
+                    }
+                  />
                   <Route
                     path="/account/security"
                     element={
