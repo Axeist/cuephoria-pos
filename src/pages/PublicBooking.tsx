@@ -349,6 +349,12 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     sessionBlocks: DayOccupancyRow[];
   } | null>(null);
   const slotsFetchGenRef = useRef(0);
+  const todayBookingsRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTodayBookings = () => {
+    todayBookingsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    hapticImpact("light").catch(() => {});
+  };
 
   const [customerNumber, setCustomerNumber] = useState("");
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -2143,8 +2149,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       />
       )}
 
-      <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10">
-        <div className="max-w-7xl mx-auto">
+      <header className="py-10 px-4 sm:px-6 md:px-8 relative z-10 text-center">
+        <div className="max-w-7xl mx-auto w-full">
           {/* Back to Dashboard Button (only for logged-in customers) */}
           {loggedInCustomer && (
             <Button
@@ -2157,8 +2163,8 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
             </Button>
           )}
           
-          <div className="flex flex-col items-center mb-8">
-            <div className="mb-6">
+          <div className="flex flex-col items-center mb-8 w-full text-center">
+            <div className="mb-6 mx-auto">
               <img
                 src={branchSlug === "lite"
                   ? "/lovable-uploads/cuephoria-lite-logo.png"
@@ -2180,14 +2186,26 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               </span>
             )}
 
-            <h1 className="mt-3 text-4xl md:text-5xl font-extrabold text-white">
+            <h1 className="mt-3 w-full text-3xl sm:text-4xl md:text-5xl font-extrabold text-white text-center px-2">
               Book Your Gaming Session
             </h1>
-            <p className="mt-2 text-lg text-gray-300/90 max-w-2xl text-center">
+            <p className="mt-2 w-full text-base sm:text-lg text-gray-300/90 max-w-2xl text-center px-2">
               {branchSlug === "lite"
                 ? "Reserve your session at Cuephoria Lite — the compact branch experience"
                 : "Reserve PlayStation 5, Pool Table, or VR Gaming sessions at Cuephoria"}
             </p>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={scrollToTodayBookings}
+              className="mt-4 h-8 rounded-full border-white/15 bg-white/5 px-3 text-xs text-gray-200 hover:bg-white/10 hover:text-white gap-1.5"
+            >
+              <Clock className="h-3.5 w-3.5 text-cuephoria-lightpurple shrink-0" />
+              Today&apos;s bookings
+              <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+            </Button>
 
               <div className={`mt-3 w-full max-w-2xl rounded-2xl border px-4 py-2 text-[11px] sm:text-xs backdrop-blur-md ${
                 branchSlug === "lite"
@@ -2371,14 +2389,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                   </div>
                 ) : (
                   <div className="grid lg:grid-cols-[minmax(0,17rem)_1fr] gap-4 lg:gap-5 items-start">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-white block text-left">
+                    <div className="flex flex-col items-center lg:items-start w-full space-y-2">
+                      <Label className="text-sm font-semibold text-white block text-center lg:text-left w-full">
                         Choose date
                       </Label>
-                      <p className="text-xs text-muted-foreground text-left leading-snug">
+                      <p className="text-xs text-muted-foreground text-center lg:text-left leading-snug w-full">
                         {format(selectedDate, "EEE, MMM d, yyyy")}
                       </p>
-                      <div className="rounded-lg border border-white/10 bg-black/25 p-1 w-fit max-w-full">
+                      <div className="rounded-lg border border-white/10 bg-black/25 p-1 w-fit max-w-full mx-auto lg:mx-0">
                         <Calendar
                           mode="single"
                           selected={selectedDate}
@@ -2392,7 +2410,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
                             return compareDate < today;
                           }}
                           className={cn(
-                            "rounded-lg border-0 bg-transparent pointer-events-auto"
+                            "rounded-lg border-0 bg-transparent pointer-events-auto mx-auto"
                           )}
                         />
                       </div>
@@ -3077,7 +3095,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           </div>
         </section>
 
-        <div className="mt-10">
+        <div
+          ref={todayBookingsRef}
+          id="todays-bookings"
+          className="mt-10 scroll-mt-24"
+        >
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 rounded-2xl">
             <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-white flex items-center gap-2 min-w-0">
