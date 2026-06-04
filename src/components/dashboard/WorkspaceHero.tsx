@@ -279,7 +279,7 @@ const WorkspaceHero: React.FC = () => {
                   primary={primary}
                 />
                 <QuickAction
-                  to="/settings/organization"
+                  to="/settings?tab=team"
                   icon={Users}
                   label="Team"
                   primary={primary}

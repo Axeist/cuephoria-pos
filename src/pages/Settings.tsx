@@ -3,15 +3,14 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2, CreditCard, Mail, Sparkles } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Calendar, Building2, CreditCard, Mail } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import BranchManagementSettings from '@/components/settings/BranchManagementSettings';
-import CafePartnerSettings from '@/components/cafe/CafePartnerSettings';
+import WorkspaceSettingsPanel from '@/components/settings/WorkspaceSettingsPanel';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import PaymentGatewaySettings from '@/components/settings/PaymentGatewaySettings';
 import BookingSettings from '@/components/settings/BookingSettings';
-import PublicBookingPopupsSettings from '@/components/settings/PublicBookingPopupsSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
 import TournamentImageUpload from '@/components/tournaments/TournamentImageUpload';
@@ -42,14 +41,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 const SETTINGS_TABS = [
   'general',
-  'booking',
-  'booking-popups',
+  'workspace',
   'branches',
+  'booking',
+  'payments',
+  'team',
   'tournaments',
   'leaderboard',
-  'payments',
-  'staff',
-  'cafe',
 ] as const;
 
 const Settings = () => {
@@ -57,8 +55,18 @@ const Settings = () => {
   const isAdmin = user?.isAdmin || false;
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
+  const normalizedTab =
+    tabParam === 'booking-popups' || tabParam === 'staff' || tabParam === 'cafe'
+      ? tabParam === 'booking-popups'
+        ? 'booking'
+        : tabParam === 'staff'
+          ? 'team'
+          : 'general'
+      : tabParam;
   const activeTab =
-    tabParam && (SETTINGS_TABS as readonly string[]).includes(tabParam) ? tabParam : 'general';
+    normalizedTab && (SETTINGS_TABS as readonly string[]).includes(normalizedTab)
+      ? normalizedTab
+      : 'general';
   const [loading, setLoading] = useState(false);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null);
@@ -359,39 +367,9 @@ const Settings = () => {
         <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-            <p className="text-muted-foreground">
-              Manage your application settings and preferences.
+            <p className="text-muted-foreground max-w-xl">
+              Venue setup, public booking, payments, and team — organized by section below.
             </p>
-            <div className="flex flex-wrap gap-3 mt-3">
-              <Link
-                to="/settings/organization"
-                className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80"
-              >
-                <Building2 className="h-3.5 w-3.5" />
-                Workspace &amp; branding
-                <ExternalLink className="h-3 w-3" />
-              </Link>
-              {isAdmin && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setSearchParams({ tab: 'branches' })}
-                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80"
-                  >
-                    <Building2 className="h-3.5 w-3.5" />
-                    Branches
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSearchParams({ tab: 'booking-popups' })}
-                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Booking popups
-                  </button>
-                </>
-              )}
-            </div>
           </div>
           {/* Branch badge */}
           {activeLocation && (
@@ -415,93 +393,52 @@ const Settings = () => {
         </div>
       </div>
       
-      {isAdmin && (
-        <div className="grid gap-3 sm:grid-cols-2 mb-2">
-          <Card
-            className="border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
-            onClick={() => setSearchParams({ tab: 'branches' })}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Branches
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Add locations within your plan limit (trial included).
-              </CardDescription>
-            </CardHeader>
-          </Card>
-          <Card
-            className="border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
-            onClick={() => setSearchParams({ tab: 'booking-popups' })}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                Booking popups
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Coupon promos, pay-online nudge, and Instagram gate per branch.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
-      )}
-
       <Tabs
         value={activeTab}
         onValueChange={(v) => setSearchParams(v === 'general' ? {} : { tab: v })}
         className="space-y-4"
       >
-        {/* Horizontal scroll on mobile so 7+ tab triggers don't overflow. */}
-        <TabsList className="mb-4 tabs-list w-full flex justify-start overflow-x-auto sm:flex-wrap sm:overflow-visible whitespace-nowrap">
-          <TabsTrigger value="general" className="flex items-center gap-2">
-            <SettingsIcon className="h-4 w-4" />
+        <TabsList className="mb-4 tabs-list w-full h-auto flex flex-wrap justify-start gap-1 bg-muted/40 p-1 rounded-lg">
+          <TabsTrigger value="general" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <SettingsIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             General
           </TabsTrigger>
-          <TabsTrigger value="booking" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Booking Settings
-          </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="branches" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
+            <TabsTrigger value="workspace" className="flex items-center gap-1.5 text-xs sm:text-sm">
+              <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Workspace
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="branches" className="flex items-center gap-1.5 text-xs sm:text-sm">
+              <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Branches
             </TabsTrigger>
           )}
-          {isAdmin && (
-            <TabsTrigger value="booking-popups" className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              Booking Popups
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="tournaments" className="flex items-center gap-2">
-            <Trophy className="h-4 w-4" />
-            Tournaments
-          </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="flex items-center gap-2">
-            <Award className="h-4 w-4" />
-            Leaderboard
+          <TabsTrigger value="booking" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            Booking
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="payments" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
+            <TabsTrigger value="payments" className="flex items-center gap-1.5 text-xs sm:text-sm">
+              <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Payments
             </TabsTrigger>
           )}
           {isAdmin && (
-            <TabsTrigger value="staff" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <Shield className="h-3 w-3 text-amber-500" />
-              User Management
+            <TabsTrigger value="team" className="flex items-center gap-1.5 text-xs sm:text-sm">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Team
             </TabsTrigger>
           )}
-          {isAdmin && (
-            <TabsTrigger value="cafe" className="flex items-center gap-2">
-              <Coffee className="h-4 w-4" />
-              Cafe
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="tournaments" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            Tournaments
+          </TabsTrigger>
+          <TabsTrigger value="leaderboard" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            Leaderboard
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
@@ -546,28 +483,21 @@ const Settings = () => {
           <GeneralSettings />
         </TabsContent>
 
-        <TabsContent value="booking" className="space-y-4">
-          <BookingSettings />
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="workspace" className="space-y-4">
+            <WorkspaceSettingsPanel />
+          </TabsContent>
+        )}
 
         {isAdmin && (
           <TabsContent value="branches" className="space-y-4">
             <BranchManagementSettings />
-            <p className="text-xs text-muted-foreground">
-              Also under{' '}
-              <Link to="/settings/organization#branches" className="text-primary hover:underline">
-                Workspace settings → Branches
-              </Link>
-              .
-            </p>
           </TabsContent>
         )}
 
-        {isAdmin && (
-          <TabsContent value="booking-popups" className="space-y-4">
-            <PublicBookingPopupsSettings />
-          </TabsContent>
-        )}
+        <TabsContent value="booking" className="space-y-4">
+          <BookingSettings />
+        </TabsContent>
         
         <TabsContent value="tournaments" className="space-y-4">
           {managingTournament ? (
@@ -712,14 +642,8 @@ const Settings = () => {
         )}
         
         {isAdmin && (
-          <TabsContent value="staff" className="space-y-4">
+          <TabsContent value="team" className="space-y-4">
             <StaffManagement />
-          </TabsContent>
-        )}
-
-        {isAdmin && (
-          <TabsContent value="cafe" className="space-y-4">
-            <CafePartnerSettings />
           </TabsContent>
         )}
       </Tabs>

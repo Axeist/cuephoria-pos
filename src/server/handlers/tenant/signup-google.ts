@@ -154,10 +154,10 @@ export default async function handler(req: Request) {
       username = `${username}-${Math.random().toString(36).slice(2, 6)}`;
     }
 
-    const { data: starterPlan } = await supabase
+    const { data: trialPlan } = await supabase
       .from("plans")
       .select("id")
-      .eq("code", "starter")
+      .eq("code", "pro")
       .maybeSingle();
 
     const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -229,10 +229,10 @@ export default async function handler(req: Request) {
         location_id: defaultLocation.id,
       });
     }
-    if (starterPlan?.id) {
+    if (trialPlan?.id) {
       await supabase.from("subscriptions").insert({
         organization_id: newOrg.id,
-        plan_id: starterPlan.id,
+        plan_id: trialPlan.id,
         provider: "internal",
         status: "trialing",
         interval: "month",

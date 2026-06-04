@@ -511,6 +511,12 @@ const BookingSettings = () => {
       {isAdmin && (
         <>
           <Separator className="my-8" />
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold">Promotional popups</h3>
+            <p className="text-sm text-muted-foreground">
+              Timed coupon promos, pay-online nudge, and Instagram follow gate on the public booking page.
+            </p>
+          </div>
           <PublicBookingPopupsSettings />
         </>
       )}
