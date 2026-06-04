@@ -322,6 +322,8 @@ export async function getPlanFeature<T = unknown>(
     .from("subscriptions")
     .select("plan_id")
     .eq("organization_id", ctx.organizationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!sub?.plan_id) return null;

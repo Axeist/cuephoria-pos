@@ -21,6 +21,8 @@ import branding from "../../src/server/handlers/tenant/branding";
 import onboarding from "../../src/server/handlers/tenant/onboarding";
 import onboardingBootstrap from "../../src/server/handlers/tenant/onboarding-bootstrap";
 import organization from "../../src/server/handlers/tenant/organization";
+import bookingPopups from "../../src/server/handlers/tenant/booking-popups";
+import locations from "../../src/server/handlers/tenant/locations";
 import signupGoogleIdentity from "../../src/server/handlers/tenant/signup-google-identity";
 import signupGoogle from "../../src/server/handlers/tenant/signup-google";
 import signup from "../../src/server/handlers/tenant/signup";
@@ -35,6 +37,8 @@ const routes: Record<string, Handler> = {
   "onboarding": onboarding,
   "onboarding-bootstrap": onboardingBootstrap,
   "organization": organization,
+  "booking-popups": bookingPopups,
+  "locations": locations,
   "signup-google-identity": signupGoogleIdentity,
   "signup-google": signupGoogle,
   "signup": signup,

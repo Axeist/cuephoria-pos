@@ -3,13 +3,14 @@ import { useAuth } from '@/context/AuthContext';
 import StaffManagement from '@/components/admin/StaffManagement';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2, CreditCard, Mail } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Shield, Trophy, Plus, ExternalLink, History, Award, RotateCcw, Lock, Upload, Calendar, Coffee, Building2, CreditCard, Mail, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CafePartnerSettings from '@/components/cafe/CafePartnerSettings';
 import TournamentManagement from '@/components/tournaments/TournamentManagement';
 import GeneralSettings from '@/components/settings/GeneralSettings';
 import PaymentGatewaySettings from '@/components/settings/PaymentGatewaySettings';
 import BookingSettings from '@/components/settings/BookingSettings';
+import PublicBookingPopupsSettings from '@/components/settings/PublicBookingPopupsSettings';
 import TournamentLeaderboard from '@/components/tournaments/TournamentLeaderboard';
 import TournamentHistoryDialog from '@/components/tournaments/TournamentHistoryDialog';
 import TournamentImageUpload from '@/components/tournaments/TournamentImageUpload';
@@ -386,6 +387,12 @@ const Settings = () => {
             <Calendar className="h-4 w-4" />
             Booking Settings
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="booking-popups" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              Booking Popups
+            </TabsTrigger>
+          )}
           <TabsTrigger value="tournaments" className="flex items-center gap-2">
             <Trophy className="h-4 w-4" />
             Tournaments
@@ -460,6 +467,12 @@ const Settings = () => {
         <TabsContent value="booking" className="space-y-4">
           <BookingSettings />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="booking-popups" className="space-y-4">
+            <PublicBookingPopupsSettings />
+          </TabsContent>
+        )}
         
         <TabsContent value="tournaments" className="space-y-4">
           {managingTournament ? (

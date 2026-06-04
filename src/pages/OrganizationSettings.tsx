@@ -37,6 +37,7 @@ import { BRAND_PRESETS, matchPreset, type BrandPreset } from "@/branding/presets
 import { useTenantBranding } from "@/branding/BrandingProvider";
 import type { TenantBrandingOverride } from "@/branding/resolveBranding";
 import AppLoadingOverlay from "@/components/loading/AppLoadingOverlay";
+import BranchManagementSettings from "@/components/settings/BranchManagementSettings";
 import { cn } from "@/lib/utils";
 
 type Role = "owner" | "admin" | "manager" | "staff" | "read_only";
@@ -327,6 +328,8 @@ const OrganizationSettings: React.FC = () => {
 
       {/* Branding card */}
       <BrandingCard canEdit={canEdit} />
+
+      <BranchManagementSettings />
 
       {/* Plan card */}
       <Card className="relative overflow-hidden">

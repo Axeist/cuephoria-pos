@@ -15,6 +15,7 @@ import { BookingStationTypeChips } from "@/components/booking/BookingStationType
 import { getRateForPlayerCount } from "@/utils/stationPricing";
 import { isStationPublicBookable } from "@/utils/stationTransform";
 import { usePublicBookingBrand } from "@/hooks/usePublicBookingBrand";
+import { usePublicBookingPopups } from "@/hooks/usePublicBookingPopups";
 import {
   buildPublicBookingSlots,
   type DayOccupancyRow,
@@ -270,6 +271,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
   } = usePublicBookingBrand(publicLocationId, branchSlug);
 
   const isCuephoriaWorkspace = workspaceSlug === "cuephoria";
+  const { config: popupConfig } = usePublicBookingPopups(publicLocationId);
 
   useEffect(() => {
     let cancelled = false;
@@ -1072,8 +1074,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
     
     // Helper function to check if Instagram follow dialog should be shown
     const shouldShowInstagramDialog = (couponCode: string) => {
-      if (isLiteBranch) return false;
-      if (!isNewCustomer) return false; // Only for new customers
+      const gate = popupConfig.instagram_gate;
+      if (!gate.enabled) return false;
+      if (!gate.require_for_coupon_codes.includes(couponCode.toUpperCase().trim())) return false;
+      if (!isNewCustomer) return false;
       
       // Check if any other dialog is open - don't show Instagram popup if so
       const isAnyDialogOpen = 
@@ -1882,7 +1886,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       }
       
       const serviceType = getServiceTypeForPromo();
-      if (serviceType && onlinePaymentEnabled) {
+      if (serviceType && onlinePaymentEnabled && popupConfig.online_payment_promo.enabled) {
         setShowOnlinePaymentPromo(true);
         return;
       }
@@ -2178,9 +2182,10 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         )}
       </div>
 
-      {isCuephoriaWorkspace && !isLiteBranch && (
-      <CouponPromotionalPopup 
-        onCouponSelect={applyCoupon} 
+      {popupConfig.coupon_promo_enabled && (
+      <CouponPromotionalPopup
+        config={popupConfig}
+        onCouponSelect={applyCoupon}
         blockWhenOpen={showOnlinePaymentPromo || showInstagramFollowDialog || showFollowConfirmation}
       />
       )}
@@ -3323,18 +3328,20 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
         />
       )}
 
-      {isCuephoriaWorkspace && !isLiteBranch && (
+      {popupConfig.online_payment_promo.enabled && (
       <OnlinePaymentPromoDialog
         isOpen={showOnlinePaymentPromo}
         onClose={() => setShowOnlinePaymentPromo(false)}
         onAccept={handlePromoAccept}
         onDecline={handlePromoDecline}
         serviceType={getServiceTypeForPromo()}
+        title={popupConfig.online_payment_promo.title}
+        body={popupConfig.online_payment_promo.body}
       />
       )}
 
       {/* Instagram Follow Dialog for New Customers */}
-      {isCuephoriaWorkspace && !isLiteBranch && (
+      {popupConfig.instagram_gate.enabled && (
       <Dialog open={showInstagramFollowDialog} onOpenChange={setShowInstagramFollowDialog}>
         <DialogContent className="sm:max-w-md bg-gradient-to-br from-pink-900/95 via-purple-900/95 to-indigo-900/95 border-2 border-pink-400/50 text-white"
         style={{
@@ -3357,14 +3364,14 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
               </p>
               <div className="flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 rounded-lg border border-pink-400/30">
                 <Instagram className="h-5 w-5 text-pink-400" />
-                <a 
-                  href="https://www.instagram.com/cuephoriaclub/" 
-                  target="_blank" 
+                <a
+                  href={popupConfig.instagram_gate.instagram_url || "#"}
+                  target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setInstagramLinkClicked(true)}
                   className="text-base sm:text-lg font-bold text-pink-300 hover:text-pink-200 transition-colors underline flex items-center gap-2"
                 >
-                  @cuephoriaclub
+                  {popupConfig.instagram_gate.instagram_handle || "Instagram"}
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </div>
@@ -3408,7 +3415,7 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
       )}
 
       {/* Follow Confirmation Dialog */}
-      {isCuephoriaWorkspace && !isLiteBranch && (
+      {popupConfig.instagram_gate.enabled && (
       <Dialog open={showFollowConfirmation} onOpenChange={setShowFollowConfirmation}>
         <DialogContent className="sm:max-w-md bg-gradient-to-br from-[#0b0b12] via-black to-[#0b0b12] border-white/10 text-white"
         style={{
@@ -3426,7 +3433,11 @@ export default function PublicBooking({ branchSlug = "main" }: { branchSlug?: st
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-gray-300 text-center">
-              Please confirm that you have followed <span className="font-bold text-pink-300">@cuephoriaclub</span> on Instagram to proceed with applying the {pendingCoupon?.code || "coupon"} coupon.
+              Please confirm that you have followed{" "}
+              <span className="font-bold text-pink-300">
+                {popupConfig.instagram_gate.instagram_handle || "our Instagram"}
+              </span>{" "}
+              to proceed with applying the {pendingCoupon?.code || "coupon"} coupon.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button

@@ -11,6 +11,8 @@ interface OnlinePaymentPromoDialogProps {
   onAccept: () => void;
   onDecline: () => void;
   serviceType: 'ps5' | '8ball' | null;
+  title?: string;
+  body?: string;
 }
 
 export default function OnlinePaymentPromoDialog({
@@ -19,6 +21,8 @@ export default function OnlinePaymentPromoDialog({
   onAccept,
   onDecline,
   serviceType,
+  title = "Book online — best experience",
+  body,
 }: OnlinePaymentPromoDialogProps) {
   const getServiceInfo = () => {
     if (serviceType === 'ps5') {
@@ -78,8 +82,8 @@ export default function OnlinePaymentPromoDialog({
             </div>
           </div>
           
-          <DialogTitle className="text-lg sm:text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-cuephoria-purple to-cuephoria-lightpurple">
-            Book online — best experience
+          <DialogTitle className="text-lg sm:text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-primary to-accent">
+            {title}
           </DialogTitle>
         </DialogHeader>
 
@@ -141,9 +145,15 @@ export default function OnlinePaymentPromoDialog({
             </div>
 
             <p className="text-sm sm:text-base text-gray-300 font-medium leading-relaxed px-1">
-              Pay online to <span className={cn("font-bold", serviceInfo.textColor)}>confirm your {serviceInfo.name} slot instantly</span> — no queues at the desk, UPI and cards supported, and your booking is recorded only after payment succeeds.
-              <br />
-              <span className="text-yellow-400">Prefer online booking for the smoothest visit. 🎮</span>
+              {body ?? (
+                <>
+                  Pay online to{" "}
+                  <span className={cn("font-bold", serviceInfo.textColor)}>
+                    confirm your {serviceInfo.name} slot instantly
+                  </span>{" "}
+                  — no queues at the desk, UPI and cards supported.
+                </>
+              )}
             </p>
           </div>
 
