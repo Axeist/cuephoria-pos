@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Loader2, Plus } from "lucide-react";
+import { useLocation } from "@/context/LocationContext";
+import { Building2, Check, Loader2, Pencil, Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { slugifyBranch } from "@/utils/publicBookingPopups";
 
@@ -35,12 +36,16 @@ type LocationsResponse = {
 
 const BranchManagementSettings: React.FC = () => {
   const { toast } = useToast();
+  const { reloadLocations } = useLocation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingNameId, setSavingNameId] = useState<string | null>(null);
   const [data, setData] = useState<LocationsResponse | null>(null);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [shortCode, setShortCode] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -81,10 +86,49 @@ const BranchManagementSettings: React.FC = () => {
       setSlug("");
       setShortCode("");
       await load();
+      await reloadLocations();
     } catch (e) {
       toast({ title: "Could not create branch", description: (e as Error).message, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const startEdit = (loc: LocationRow) => {
+    setEditingId(loc.id);
+    setEditName(loc.name);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+  };
+
+  const saveBranchName = async (locationId: string) => {
+    const trimmed = editName.trim();
+    if (trimmed.length < 2) {
+      toast({ title: "Invalid name", description: "Branch name must be at least 2 characters.", variant: "destructive" });
+      return;
+    }
+    setSavingNameId(locationId);
+    try {
+      const res = await fetch("/api/tenant/locations", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: locationId, name: trimmed }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "Could not update branch");
+      toast({ title: "Branch updated", description: `Renamed to "${json.location.name}".` });
+      setEditingId(null);
+      setEditName("");
+      await load();
+      await reloadLocations();
+    } catch (e) {
+      toast({ title: "Could not update branch", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setSavingNameId(null);
     }
   };
 
@@ -101,6 +145,7 @@ const BranchManagementSettings: React.FC = () => {
   const limits = data?.limits;
   const locations = data?.locations ?? [];
   const apiMissing = !data && !loading;
+  const canEdit = data?.canEdit ?? false;
 
   return (
     <Card id="branches">
@@ -131,10 +176,11 @@ const BranchManagementSettings: React.FC = () => {
             </>
           ) : (
             <>
-              Active branches: {limits?.active_count ?? 0} / {limits?.max_branches ?? 0}
+              Active branches: {limits?.active_count ?? 0} / {limits?.max_branches ?? 0}. You can rename any
+              branch below.
             </>
           )}
-          {!limits?.can_create && data?.canEdit && !limits?.requires_paid_plan ? (
+          {!limits?.can_create && canEdit && !limits?.requires_paid_plan ? (
             <span className="block mt-1">
               {limits?.is_trialing ? (
                 <>You&apos;ve reached the trial branch limit.</>
@@ -155,24 +201,79 @@ const BranchManagementSettings: React.FC = () => {
           {locations.map((loc) => (
             <li
               key={loc.id}
-              className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+              className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border px-3 py-3 text-sm"
             >
-              <div>
-                <span className="font-medium">{loc.name}</span>
-                <span className="text-muted-foreground ml-2 font-mono text-xs">
-                  {loc.slug} · {loc.short_code}
-                </span>
+              <div className="flex-1 min-w-0 space-y-2">
+                {editingId === loc.id && canEdit ? (
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                    <div className="flex-1">
+                      <Label className="text-xs text-muted-foreground">Branch name</Label>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        maxLength={120}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void saveBranchName(loc.id);
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                      />
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void saveBranchName(loc.id)}
+                        disabled={savingNameId === loc.id}
+                        className="gap-1"
+                      >
+                        {savingNameId === loc.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5" />
+                        )}
+                        Save
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={cancelEdit} disabled={!!savingNameId}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-medium">{loc.name}</span>
+                      <span className="text-muted-foreground ml-2 font-mono text-xs block sm:inline mt-0.5 sm:mt-0">
+                        {loc.slug} · {loc.short_code}
+                      </span>
+                    </div>
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 shrink-0"
+                        onClick={() => startEdit(loc)}
+                        aria-label={`Rename ${loc.name}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-              {!loc.is_active ? (
-                <Badge variant="outline">Inactive</Badge>
-              ) : (
-                <Badge variant="secondary">Active</Badge>
-              )}
+              <div className="shrink-0 self-start sm:self-center">
+                {!loc.is_active ? (
+                  <Badge variant="outline">Inactive</Badge>
+                ) : (
+                  <Badge variant="secondary">Active</Badge>
+                )}
+              </div>
             </li>
           ))}
         </ul>
 
-        {data?.canEdit && limits?.can_create ? (
+        {canEdit && limits?.can_create ? (
           <div className="rounded-lg border p-4 space-y-3">
             <p className="text-sm font-medium">Add branch</p>
             <div className="grid gap-3 sm:grid-cols-2">

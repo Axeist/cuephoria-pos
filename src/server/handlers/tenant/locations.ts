@@ -180,6 +180,7 @@ async function assertCanCreateBranch(ctx: OrgContext, activeCount: number): Prom
 async function handler(req: Request, ctx: OrgContext) {
   if (req.method === "GET") return listLocations(ctx);
   if (req.method === "POST") return createLocation(req, ctx);
+  if (req.method === "PATCH") return patchLocation(req, ctx);
   return j({ ok: false, error: "Method not allowed" }, 405);
 }
 
@@ -319,6 +320,71 @@ async function createLocation(req: Request, ctx: OrgContext) {
   });
 
   return j({ ok: true, location: created }, 201);
+}
+
+async function patchLocation(req: Request, ctx: OrgContext) {
+  if (!EDITOR_ROLES.has(ctx.role)) {
+    return j({ ok: false, error: "Only owners and admins can update branches." }, 403);
+  }
+  if (req.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
+    return j({ ok: false, error: "Expected JSON body." }, 415);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return j({ ok: false, error: "Invalid JSON body." }, 400);
+  }
+
+  const locationId = typeof body.id === "string" ? body.id.trim() : "";
+  if (!locationId) return j({ ok: false, error: "Branch id is required." }, 400);
+
+  const { data: existing, error: findErr } = await ctx.supabase
+    .from("locations")
+    .select("id, name, slug, short_code")
+    .eq("id", locationId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  if (findErr) return j({ ok: false, error: findErr.message }, 500);
+  if (!existing) return j({ ok: false, error: "Branch not found." }, 404);
+
+  const updates: Record<string, unknown> = {};
+
+  if (typeof body.name === "string") {
+    const name = body.name.trim();
+    if (name.length < 2 || name.length > 120) {
+      return j({ ok: false, error: "Branch name must be 2–120 characters." }, 400);
+    }
+    updates.name = name;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return j({ ok: false, error: "No editable fields provided." }, 400);
+  }
+
+  const { data: updated, error: updErr } = await ctx.supabase
+    .from("locations")
+    .update(updates)
+    .eq("id", locationId)
+    .eq("organization_id", ctx.organizationId)
+    .select("id, name, slug, short_code, sort_order, is_active, created_at")
+    .single();
+
+  if (updErr) return j({ ok: false, error: updErr.message }, 500);
+
+  await ctx.supabase.from("audit_log").insert({
+    actor_type: "admin_user",
+    actor_id: ctx.user.id,
+    actor_label: ctx.user.username,
+    organization_id: ctx.organizationId,
+    action: "location.updated",
+    target_type: "location",
+    target_id: locationId,
+    meta: { fields: Object.keys(updates), previous_name: existing.name, source: "tenant" },
+  });
+
+  return j({ ok: true, location: updated }, 200);
 }
 
 export default withOrgContext(handler);

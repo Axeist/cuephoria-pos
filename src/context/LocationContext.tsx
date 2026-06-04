@@ -42,6 +42,8 @@ type LocationContextValue = {
   isSwitching: boolean;
   reportScope: ReportScope;
   setReportScope: (s: ReportScope) => void;
+  /** Refetch branch list after renames (e.g. Settings → Branches). */
+  reloadLocations: () => Promise<void>;
 };
 
 const LocationContext = createContext<LocationContextValue | undefined>(undefined);
@@ -130,6 +132,19 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return locations.some((l) => l.id === activeLocationId);
   }, [loading, organizationId, locations, activeLocationId]);
 
+  const reloadLocations = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/admin/locations");
+      const json = await res.json();
+      if (!json?.ok) throw new Error(json?.error || "Failed to load locations");
+      const raw: VenueLocation[] = Array.isArray(json.locations) ? json.locations : [];
+      setLocations(raw.filter(isFranchiseLocation));
+    } catch (e) {
+      console.error("reloadLocations:", e);
+    }
+  }, [user]);
+
   const setActiveLocationId = useCallback(
     (id: string) => {
       if (!organizationId) return;
@@ -174,6 +189,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isSwitching,
       reportScope,
       setReportScope,
+      reloadLocations,
     }),
     [
       locations,
@@ -184,6 +200,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       loading,
       isSwitching,
       reportScope,
+      reloadLocations,
     ]
   );
 
